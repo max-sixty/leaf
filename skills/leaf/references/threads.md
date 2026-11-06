@@ -70,7 +70,9 @@ A thread shows in a narrow card or panel, so a paragraph that reads fine in chat
 wall there. Say what changed or where to look in a sentence or two, or one short item per
 point; the page carries the evidence. Record a decision, result, or deferred work on
 the page and link it from the reply with a fragment link such as
-`[the decision](#decision)`, which opens any tab or group hiding its target. Where
+`[the decision](#decision)`, which opens any tab or group hiding its target. To point
+at lines of an `lf-code` block, put them after its id and a colon, in the grammar of
+its `hi` attribute: `[the retry](#client:12-18)`. Where
 the reasoning matters to someone using the result, keep the thread anchored to that
 section.
 
@@ -127,7 +129,7 @@ nearby content:
 leaf thread reply <answer.ref> --done --detach --text "Removed this; the thread no longer has a page target."
 ```
 
-A detached thread stays open in Threads, its quote marked as gone from this
+A detached thread stays open in Threads, its quote marked as not in the latest
 version. A later reply may move it to a real replacement;
 open a new thread for a different subject. Don't resolve a thread to get rid of an
 anchor you removed: Leaf leaves a resolved thread's anchor as it was, so if the user
@@ -141,6 +143,14 @@ Every answer declares whose move it leaves:
   it, or they resolve the thread, so the answer stays on their list even where the
   decision it informs is already there. Where you can list the answers, a choice in
   `--markup` asks instead ("Ask for a pick").
+
+  Where their reply left a question standing, as when they asked something back or
+  the step is still to do, give `--obligation` its id, repeating the flag for each
+  such question. Their reply took the question off On me whatever it said;
+  `--obligation <id>` returns the same item there, standing on this message, until
+  their next reply, so a plan step naming it reads open again. Anything more you need
+  from them, even on the same subject, is a new question and takes no id.
+
 - `--todo "<what you owe>"`: yours. It promises work it does not deliver, and opens
   that to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
   ([Long-running work](conversation-loop.md#long-running-work)).
@@ -201,8 +211,7 @@ their own.
 
 A widget that asks in a message's markup keeps its thread at "Your turn" until the
 user answers it ("Ask for a pick"). A thread you open waits on nobody by itself:
-`--obligation` registers the message's request without markup. A user task attached to the thread instead waits
-for Done; discussing it does not complete it.
+`--obligation` registers the message's request without markup.
 
 Correct a message you or an earlier agent wrote, without adding a turn:
 
@@ -259,5 +268,6 @@ without a summary, pass an empty `--text`:
 leaf thread summarize <page> --from <first-message-id> --through <last-message-id> --label 'Previous progress messages' --text ''
 ```
 
-Editing a message inside a summary with prose cancels that summary, so
-stale prose cannot hide the correction; a fold without prose stays.
+Editing a message inside a summary with prose, or the user taking back a message
+the thread held when you wrote it, cancels that summary, so stale prose cannot hide
+the change; a fold without prose stays.

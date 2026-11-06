@@ -1,61 +1,83 @@
 // @ts-check
-/* What the page changed since the user last saw it.
+/* What changed since the user last saw the page, and `v`, which marks it.
 
    A revision counts as seen when it is on the page while the user is there: the
    document visible, holding focus, and its reading continuous (reading-continuity.js).
    Focus is the same evidence a message's read waits for (thread/read.js): a browser
    standing beside the terminal the user types into is visible but not being read, so
-   revisions landing then are not seen. A revision that lands while the user is there
-   is shown by the tint its install gives each block it changed (version.js,
-   `activateRevision`), and is seen.
+   revisions landing then are not seen. When the user leaves, the tab going hidden or
+   closing or the window losing focus to another application, the tab posts a `seen`
+   event naming the newest revision it showed them, with `keepalive` so a closing
+   document's send arrives, and hands the same revision to the document a reload brings
+   (tab storage, read once), so a reload does not count as unseen what the user watched
+   land. Whether the user saw a revision is a logged fact, not browser storage, for the
+   reason a message's read is: the page has one user, who reads it in more than one
+   browser and tab (`events.md`, "Read state").
+
+   The version the user last saw is the newest stamped one at or before the newest
+   revision they saw: the higher of the server's `seen` (`read_state.seen_revision`),
+   which every tab of the page's one user writes, and what this tab showed itself. The
+   user chose on 31 October to count from a version, which a notice can name, rather
+   than from the revision they left, from the previous version, or from each change
+   until they looked at it. So drafts between versions add up, and a page with no
+   version at or before what the user saw has nothing to say.
 
    When the user comes back, by a load, a return to a hidden tab once its first
-   refreshed reading is in, or focus returning to the window, this owner marks what
-   changed since the newest revision they saw, through the version comparison
-   (version.js, `offerComparison`), whose block marks, Change margin entries and `h` walk
-   (change-walk.js) every comparison shares. That newest revision is the higher of two
-   readings: the server's `seen` (`read_state.seen_revision`), which every tab and
-   browser of the page's one user writes, and the one this tab saw itself. A revision
-   installed into a fresh document (a changed executable reloads the tab, version.js,
-   `reloadInto`) never animates, so it was not seen and is marked once the new document
-   is there: what the user did not watch land is marked, whichever way it landed.
+   refreshed reading is in, or focus returning to the window, to a revision newer than
+   any they saw, a notice says how much changed since the version they last saw and
+   names the key that marks it ("3 changes since v12 — v shows them"). A return to a
+   draft they watched land says nothing, though it differs from that version, since
+   nothing in it is news. The notice is news, as a version's arrival is: it waits behind
+   the user's own commands and passes after a notice's time (notifications.js), naming
+   its key in words as "Draft kept — g i resumes writing" does, and the leaf's menu
+   keeps Show changes as the lasting route. A revision landing while the notice is
+   counted starts the count again. The page arrives unmarked: the user chose on 3
+   November to call the marks up with a key rather than have them waiting, and on 4
+   November took up being told on return that there is something to call up, in a
+   notice that passes like the others. Rejected: a notice standing until the user's
+   next input with a Show press, as an Undo does, which held the panel's seat for the
+   agent's status until the user acted. The count waits until the document is
+   presented, so the comparison it runs (version.js, `changesSince`) stays off the path
+   to first showing the page.
 
-   When the user leaves, the tab going hidden or closing or the window losing focus to
-   another application, it posts a `seen` event naming the newest revision it saw, with
-   `keepalive` so a closing document's send arrives, and hands the same revision to the
-   document a reload brings (tab storage, read once), so a reload does not mark what the
-   user watched land because its first reading came before the send. A comparison this
-   owner offered follows the server's reading as it catches up, as when another tab's
-   send lands after this one's reading: it re-bases where the newer seen revision is
-   still behind the page, and stops where it reaches it. A comparison the reader chose
-   in Versions outranks the offer and is left alone.
+   `v` marks what changed since the version the user last saw while the page holds
+   changes since then, and otherwise since the newest version older than the one being
+   read; pressing it again takes off any comparison, whichever press started it. The
+   user chose a toggle over a key that opens Versions and re-marks the page as its rows
+   are walked. An older base stays with Versions, which `g V` opens. The version is the
+   one found at the user's arrival, so watching a revision land doesn't move what `v`
+   compares with until they leave and come back.
 
-   Whether the user saw a revision is a logged fact, not browser storage, for the reason
-   a message's read is: the page has one user, who reads it in more than one browser and
-   tab, and a mark of what they already saw in another would be wrong (`events.md`,
-   "Read state"). Only the page itself takes part: a sample or other framed page is part
-   of the page around it, and a reader of a hosted copy, who has no private page until
-   they act (layer-client.js), neither records nor compares. */
+   Only the page itself takes part: a sample or other framed page is part of the page
+   around it, and a reader of a hosted copy, who has no private page until they act
+   (layer-client.js), neither records nor is told. */
 import { LIVE_ROOT, runtime } from "./context.js";
-import { effect } from "/runtime/framework.js";
+import { effect, signal } from "/runtime/framework.js";
 import { onReadingInterrupted, readingIsContinuous } from "./reading-continuity.js";
 import { sessionIsActive } from "./layer-client.js";
 import { whenDocumentPresented } from "./semantic-state.js";
 import { tabStore } from "./tab-store.js";
+import { notice } from "./notifications.js";
+import { pageCommand } from "./keyboard/register.js";
+import { savedReadingSettled } from "./keyboard/bindings.js";
 import {
-  comparisonBase,
-  offerComparison,
+  changesSince,
+  comparable,
+  endComparison,
   revisionBase,
-  stopComparison,
+  selectedBase,
+  showComparison,
 } from "./version.js";
+import { counted } from "./words.js";
 
 const HANDOFF_KEY = "lf-seen-handoff";
 
-/** @typedef {import("../types/contract.js").ServedRevision} Seen */
+/** @typedef {import("../types/contract.js").ServedRevision} Seen
+ * @typedef {import("../types/contract.js").ServedReading["versions"][number]} Version */
 
 /** @param {{ markSeen: (revision: number) => unknown }} capabilities */
 export function createSinceSeen({ markSeen }) {
-  // An arrival or a return the comparison has not yet answered.
+  // A load or a return the user hasn't yet been told about.
   let arriving = true;
   // The newest live revision this tab showed the user, or the one a reload handed over.
   /** @type {Seen | null} */
@@ -66,11 +88,12 @@ export function createSinceSeen({ markSeen }) {
     shown = null;
   }
   tabStore.set(HANDOFF_KEY, null);
-  // The base of the comparison this owner offered, while it may still stand.
-  /** @type {number | null} */
-  let offered = null;
   // The newest revision this tab has posted, so a blur and the hide after it send once.
   let posted = 0;
+  // Counts arrivals, so a count in flight answers only the arrival that started it.
+  let arrival = 0;
+  // The version the user last saw, as their arrival found it.
+  const lastSeen = signal(/** @type {Version | null} */ (null));
 
   const takesPart = () =>
     window === window.top && LIVE_ROOT && sessionIsActive() && runtime.state !== null;
@@ -82,34 +105,71 @@ export function createSinceSeen({ markSeen }) {
     const seen = runtime.seen;
     return !shown || (seen && seen.revision >= shown.revision) ? seen : shown;
   };
+  /** @param {{revision: number} | null} seen */
+  const versionAt = (seen) =>
+    seen
+      ? (runtime.versions.findLast((entry) => entry.revision <= seen.revision) ?? null)
+      : null;
+  // What `v` compares with: the version the user last saw while the page has changed
+  // since, otherwise the newest version older than the one being read.
+  const base = () => {
+    const since = lastSeen.value;
+    return since && comparable(since.revision)
+      ? since
+      : (runtime.versions.findLast((entry) => comparable(entry.revision)) ?? null);
+  };
+  const toggle = () => {
+    if (selectedBase()) return endComparison();
+    const since = base();
+    if (since) return showComparison(revisionBase(since));
+  };
+  const named = () => {
+    const since = base();
+    return since ? ` since v${since.version}` : "";
+  };
+  pageCommand({
+    id: "changes.toggle",
+    ready: savedReadingSettled,
+    keys: ["v"],
+    title: () => (selectedBase() ? "hide changes" : `show changes${named()}`),
+    touch: () => (selectedBase() ? "Hide changes" : `Show changes${named()}`),
+    menu: "annotate",
+    when: () => selectedBase() !== null || base() !== null,
+    run: toggle,
+  });
+
+  // The notice of what changed since `since`, said once the count of the revision
+  // being read is in, and only while no later arrival has come, nothing is marked
+  // meanwhile and `v` still compares with that version.
+  /** @param {Version} since @param {number} mine */
+  async function tell(since, mine) {
+    const holds = () =>
+      mine === arrival && !selectedBase() && base()?.revision === since.revision;
+    await whenDocumentPresented();
+    while (holds()) {
+      const revision = runtime.currentRevision;
+      const n = await changesSince(revisionBase(since)).catch(() => undefined);
+      if (n === undefined) return;
+      if (n === null || runtime.currentRevision !== revision) continue;
+      if (n && holds())
+        notice(`${counted(n, "change")} since v${since.version} — v shows them`, {
+          background: true,
+        });
+      return;
+    }
+  }
 
   function present() {
     const current = runtime.currentRevision;
-    if (!takesPart() || current === null || !runtime.showsActive) return;
-    // An offer follows the server's reading as it catches up: another tab's or a
-    // departing document's send that landed after this tab's first reading. What this
-    // tab saw itself and posted is no news to its own offer, whose marks stand until
-    // the reader stops them.
-    const seen = runtime.seen;
-    if (
-      offered !== null &&
-      seen &&
-      seen.revision > Math.max(offered, posted) &&
-      comparisonBase()?.revision === offered
-    ) {
-      stopComparison();
-      offered = seen.revision < current ? seen.revision : null;
-      if (offered !== null) offerComparison(revisionBase(seen));
-    }
-    if (!attended()) return;
-    const base = newestSeen();
+    if (!takesPart() || current === null || !runtime.showsActive || !attended()) return;
     if (arriving) {
       arriving = false;
-      if (base && base.revision < current && comparisonBase() === null) {
-        const since = revisionBase(base);
-        offered = since.revision;
-        void whenDocumentPresented().then(() => offerComparison(since));
-      }
+      const mine = ++arrival;
+      const seen = newestSeen();
+      const since = versionAt(seen);
+      lastSeen.value = since;
+      if (since && seen && seen.revision < current && comparable(since.revision))
+        void tell(since, mine);
     }
     if (runtime.active && (shown?.revision ?? 0) < current) shown = runtime.active;
   }

@@ -102,7 +102,7 @@ import {
   scrollIntoView,
   focused,
   onPressAway,
-  PRESSABLE,
+  worksInside,
   commandsChanged,
 } from "/runtime/widget-api.js";
 
@@ -140,12 +140,13 @@ function caretAt(body, x, y) {
 customElements.define(
   "lf-draft",
   class extends LeafElement {
-    // What the obligation was answered with: the current words.
+    // What the obligation was answered with: the current words, read as the body
+    // draws them, as a Markdown file.
     /** @param {unknown} value */
     static answerWords(value) {
       if (typeof value !== "string")
         throw new Error("A draft answer must be Markdown text");
-      return markdownWords(value).trim() || "Empty";
+      return markdownWords(value, false).trim() || "Empty";
     }
 
     get #savedText() {
@@ -218,16 +219,16 @@ customElements.define(
         { capture: true },
       );
 
-      // A click opens the exact source at its rendered caret. Presses, links and
-      // completed word selections own their own gestures; Leaf's generated chrome that
-      // is no press, such as the thread message a reply's draft stands in, does not.
+      // A click opens the exact source at its rendered caret. A control or link inside
+      // the draft (`worksInside`) and a completed word selection own their own gestures;
+      // what the draft stands in, such as a reply's thread message, does not.
       this.addEventListener("click", (ev) => {
         // A keyboard activation carries no place, and the keyboard's door is the ✎. The
         // primary button only: a middle- or right-press is not the gesture this is for.
         if (
           pressIsKeyboardActivation(ev) ||
           ev.button !== 0 ||
-          (ev.target instanceof Element && ev.target.closest(`${PRESSABLE}, a, button`))
+          (ev.target instanceof Element && worksInside(ev.target, this))
         )
           return;
         if (reachedForWords(this)) return;
@@ -318,6 +319,8 @@ customElements.define(
         () => this.#editor?.value ?? this.#savedText,
         "Markdown",
       );
+      // Among the toolbar's marks, Copy is one of them rather than a toolbar of its own.
+      this.#copy.toggleAttribute("data-lf-bar", false);
       this.#paintTools();
       this.#ensureCommands();
     }

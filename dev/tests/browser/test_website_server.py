@@ -49,7 +49,7 @@ def test_a_failed_verifier_page_reports_its_browser_errors(browser):
         verify_site.await_presentation(page, url, failures, timeout=never_presents_ms)
     assert "widget resource unavailable" in str(caught.value)
     assert "runtime initialization failed" in str(caught.value)
-    assert "no startup milestone" in str(caught.value)
+    assert "the runtime never started" in str(caught.value)
     # The same two faults the verifier reported are what this page said.
     consume_browser_errors(
         page, "widget resource unavailable", "runtime initialization failed"
@@ -109,7 +109,7 @@ def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
             content_type="text/html",
             body="""<div class="lf-threads" style="height: 100px; overflow: auto">
                   <div style="height: 500px"></div>
-                  <div class="lf-msg agent" data-mid="answer"><span class="lf-msg-text">Visible reply</span></div>
+                  <div class="lf-msg" data-lf-author="agent" data-mid="answer"><span class="lf-msg-text">Visible reply</span></div>
                 </div>""",
         ),
     )
@@ -119,7 +119,7 @@ def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
     reply = {"thread": "comment", "id": "answer", "ts": "2026-10-08T09:00:00Z"}
     assert page.evaluate("window.__leafVerifier.replyShownAt", reply) is None
     before = page.evaluate("Date.now()")
-    page.locator(".lf-msg.agent").scroll_into_view_if_needed()
+    page.locator(".lf-msg[data-lf-author=agent]").scroll_into_view_if_needed()
     page.wait_for_function(
         "reply => window.__leafVerifier.replyShownAt(reply)", arg=reply
     )
@@ -136,9 +136,9 @@ def test_the_agent_response_clock_ignores_an_earlier_failure_receipt(browser):
         url,
         lambda route: route.fulfill(
             content_type="text/html",
-            body="""<div class="lf-threads"><div class="lf-msg agent" data-mid="failed">
+            body="""<div class="lf-threads"><div class="lf-msg" data-lf-author="agent" data-mid="failed">
                       <span class="lf-msg-text">Could not start</span></div>
-                    <div class="lf-msg agent" data-mid="answer" style="display: none">
+                    <div class="lf-msg" data-lf-author="agent" data-mid="answer" style="display: none">
                       <span class="lf-msg-text">Deployment verified</span></div></div>""",
         ),
     )
@@ -162,7 +162,7 @@ def test_the_agent_response_clock_follows_a_stream_into_its_durable_reply(browse
         url,
         lambda route: route.fulfill(
             content_type="text/html",
-            body="""<div class="lf-threads"><div class="lf-msg agent" data-mid="stream:turn">
+            body="""<div class="lf-threads"><div class="lf-msg" data-lf-author="agent" data-mid="stream:turn">
                       <span class="lf-msg-text">Answer in progress</span></div></div>""",
         ),
     )
@@ -199,7 +199,7 @@ def test_the_agent_verifier_opens_news_arriving_after_an_earlier_notice(browser)
                 };
                 document.querySelector('.lf-thread').append(next);
               }, 0)">Stream update waiting</button>
-              <div class="lf-msg agent" data-mid="stream:turn">
+              <div class="lf-msg" data-lf-author="agent" data-mid="stream:turn">
                 <span class="lf-msg-text">Complete answer</span></div>
               </div></div>""",
         ),
@@ -211,7 +211,7 @@ def test_the_agent_verifier_opens_news_arriving_after_an_earlier_notice(browser)
         pause=lambda seconds: page.wait_for_timeout(seconds * 1000),
     )  # fmt: skip
     answer = {"parent": "comment", "id": "answer", "ts": "2026-10-08T09:00:00Z"}
-    shown = journey.await_reply_shown(journey.BrowserEnd(session), answer)
+    shown = journey.await_reply_shown(journey.BrowserEnd(session, None), answer)
     assert shown["by"] == "message"
     assert page.locator(".lf-thread-news").count() == 0
 

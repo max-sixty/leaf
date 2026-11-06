@@ -17,12 +17,19 @@ globalThis.fetch = async () => new Response(null, { status: 204 });
 const { reportCarried, reportPageError } = await import("/runtime/layer-client.js");
 const { failSoft } = await import("/runtime/widget-upgrade.js");
 
+let flushReports;
+test.beforeEach((t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  flushReports = () => t.mock.timers.tick(0);
+});
+
 const reported = (run) => {
   const lines = [];
   const original = console.error;
   console.error = (line) => lines.push(line.split("\n")[0]);
   try {
     run();
+    flushReports();
   } finally {
     console.error = original;
   }
@@ -160,6 +167,7 @@ test("a departing document holds its faults until it stays, and drops them as it
   startupFault("startup a download aborted");
   window.dispatchEvent(new Event("wheel"));
   window.dispatchEvent(new Event("pageshow"));
+  flushReports();
   assert.deepEqual(errors, []);
   assert.deepEqual(faults, []);
   // The user's next key shows the document stayed, and the faults are reported then.
@@ -176,20 +184,31 @@ test("a departing document holds its faults until it stays, and drops them as it
   window.dispatchEvent(new Event("pageswap"));
   window.dispatchEvent(new Event("keydown"));
   reportPageError(new Error("swapped document canceled"));
+  flushReports();
   assert.equal(errors.length, 0);
   assert.deepEqual(faults, []);
   assert.equal(root.hasAttribute("data-lf-startup-error"), false);
-  // Pagehide is also the retirement boundary on engines without pageswap.
+  // Iframe removal may reject a fetch before pagehide ends the lifetime. The
+  // report must read the departure after the native removal has finished.
   window.dispatchEvent(returning());
-  window.dispatchEvent(new Event("pagehide"));
   reportPageError(new Error("hidden document canceled"));
   startupFault("hidden startup canceled");
+  window.dispatchEvent(new Event("pagehide"));
+  flushReports();
   assert.equal(errors.length, 0);
   assert.deepEqual(faults, []);
-  // BFCache restores this realm, including its original error listeners.
+  // A queued report can be frozen with the page and resume after BFCache restores
+  // it. It still belongs to the lifetime that departed, unlike a new fault.
   window.dispatchEvent(returning());
+  reportPageError(new Error("frozen cancellation"));
+  window.dispatchEvent(new Event("pagehide"));
+  window.dispatchEvent(returning());
+  flushReports();
+  assert.deepEqual(errors, []);
+  // BFCache restores this realm, including its original error listeners.
   reportPageError(new Error("restored real fault"));
   startupFault("restored startup fault");
+  flushReports();
   assert.match(errors[0], /restored real fault/);
   assert.deepEqual(faults, ["restored startup fault"]);
   assert.equal(root.dataset.lfStartupError, "restored startup fault");

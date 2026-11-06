@@ -1,132 +1,120 @@
-/* Transient Aim and target-trace paint in Leaf's chrome layer.
+/* The marks a gesture or the user's place puts on a box of the page: the Alt aim, the
+ * margin trace, the proxy ring and the location ring.
  *
- * Aim draws synchronously for the gesture that arms it. A trace retains its current
- * target and drawn geometry. Each box stands in a paint stand that the browser moves
- * with every scroll around its target (target-paint-geometry.js), so a scroll places
- * it again without writing, while layout and resize rebuild its shape. Persistent
- * annotations have their own optional painter. */
+ * Each is an attribute on the box it marks (page-paint.js, `RUNTIME_PAINT_ATTRIBUTE`),
+ * and the box draws the mark itself, as its own outline (surfaces.css). So the mark moves with the box through every scroll,
+ * transform and layout change in every engine, passes under what the page stacks over
+ * the box, and needs no placement here. Only the design label, which names what the
+ * aim marks, stands in Leaf's chrome beside the box (`labelAim`). Persistent
+ * annotations mark their boxes through their own optional painter. */
 
-import { cancelRender, nextRender } from "./rendering.js";
-import { el } from "./widget-elements.js";
-import { keeps } from "./keeps.js";
+import { nextRender } from "./rendering.js";
 import { move } from "./dom-move.js";
+import { keeps } from "./keeps.js";
 import { inChrome } from "./passages.js";
-import {
-  SVG_NS,
-  paintGeometry,
-  paintShape,
-  paintStand,
-  placement,
-  standBox,
-  standOver,
-  vacate,
-} from "./target-paint-geometry.js";
+import { shownParts } from "./geometry.js";
+import { locationStandsDown, RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { paintStand, placement, standAt, standBox } from "./target-paint-geometry.js";
 
-const targetTraceBox = el("div", "lf-ui lf-target-trace");
-const aimBox = el("div", "lf-ui lf-aim");
-const traceStand = paintStand(targetTraceBox);
-const aimStand = paintStand(aimBox);
-// What leaf.js mounts in the chrome: each box in the stand that carries it.
-export const targetTraceLayer = traceStand.root;
-export const aimLayer = aimStand.root;
+// One mark: an attribute on what it marks at a time (page-paint.js), which is each box
+// the element shows through (`shownParts`), so an element with no box of its own, such
+// as a section styled `display: contents`, is marked on the boxes it shows. A layout
+// change can replace those boxes, so `refresh` reads them again.
+/** @param {string} attribute */
+function markOne(attribute) {
+  /** @type {Element | null} */
+  let target = null;
+  /** @type {Element[]} */
+  let marked = [];
+  function draw() {
+    const boxes = target?.isConnected ? shownParts(target) : [];
+    for (const box of marked)
+      if (!boxes.includes(box)) box.toggleAttribute(attribute, false);
+    for (const box of boxes) box.toggleAttribute(attribute, true);
+    marked = boxes;
+  }
+  return {
+    /** @param {Element | null} element */
+    mark(element) {
+      target = element;
+      draw();
+    },
+    refresh: () => target && draw(),
+  };
+}
 
-const aimShape = document.createElementNS(SVG_NS, "svg");
-aimShape.classList.add("lf-aim-shape");
-aimShape.setAttribute("aria-hidden", "true");
-const aimMaskId = "lf-runtime-aim-shape-mask";
-const targetTraceShape = document.createElementNS(SVG_NS, "svg");
-targetTraceShape.classList.add("lf-target-trace-shape");
-targetTraceShape.setAttribute("aria-hidden", "true");
-// The aim's last placement and how its box stood, which a label at its corner is
-// written from (`labelAim`).
-/** @type {{placed: import("./target-paint-geometry.js").Placement & {shown: import("./rect.js").Box}, stood: ReturnType<typeof standOver>} | null} */
+const aimMark = markOne(RUNTIME_PAINT_ATTRIBUTE.aimed);
+const traceMark = markOne(RUNTIME_PAINT_ATTRIBUTE.traced);
+const proxyMark = markOne(RUNTIME_PAINT_ATTRIBUTE.proxied);
+
+const labelStand = paintStand();
+// What leaf.js mounts in the chrome: the stand the design label stands in.
+export const aimLayer = labelStand.root;
+// The aim's last placement, which the label at its corner is written from (`labelAim`).
+/** @type {{placed: import("./target-paint-geometry.js").Placement & {shown: import("./rect.js").Box}, surface: Element} | null} */
 let aimed = null;
-/** @type {Element | null} */
-let traceElement = null;
-/** @type {Element | null} */
-let traceSurface = null;
-/** @type {ReturnType<typeof paintGeometry>} */
-let traceGeometry = null;
-let traceShapeKey = "";
-let placementFrame = 0;
-let geometryFrame = 0;
-let geometryDirty = false;
 
 export function clearAim() {
   aimed = null;
-  vacate(aimStand);
-  aimBox.style.display = "none";
-  aimBox.classList.toggle("lf-shaped", false);
-  aimShape.replaceChildren();
-  aimBox.removeAttribute("data-for");
-  delete aimStand.root.dataset.lfPaintPlane;
+  aimMark.mark(null);
 }
 
-// The aim stands over `surface`, the element itself where nothing draws it for it, as a
-// comment's mark does (anchor-paint.js), so an SVG element's aim and its comment both
-// take its contour.
+// The aim marks `surface`, the element itself where nothing draws it for it, as a
+// comment's mark does (anchor-paint.js). Answers the box it shows, or null where none of
+// it shows.
 /** @param {Element | null} element @param {Element | null} [surface] */
 export function paintAim(element, surface) {
-  if (!element) {
-    clearAim();
-    return null;
-  }
   surface ??= element;
-  const geometry = surface && paintGeometry(surface);
-  const placed = element && placement(surface, Boolean(geometry), inChrome(element));
-  if (!placed?.shown) {
+  const placed = element && surface && placement(surface, inChrome(element));
+  if (!surface || !placed?.shown) {
     clearAim();
     return null;
   }
-  const shaped = paintShape(aimShape, geometry, placed.rect, {
-    maskId: aimMaskId,
-    veil: true,
-  });
-  aimBox.classList.toggle("lf-shaped", shaped);
-  if (!shaped) aimShape.replaceChildren();
-  keeps(aimBox, "data-for", element.id);
-  keeps(aimStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-  const stood = standOver(
-    aimStand,
-    placed,
-    shaped ? "0" : getComputedStyle(surface).borderRadius,
-  );
-  aimed = { placed: { ...placed, shown: placed.shown }, stood };
+  aimMark.mark(surface);
+  aimed = { placed: { ...placed, shown: placed.shown }, surface };
   return placed.shown;
 }
 
-// Stands `node`, a label naming what the aim outlines, at the box's top-left corner:
-// above it where the window and the frames cutting the box leave room, inside it
-// otherwise, and inside the corner of what shows where a cut hides the box's own. It
-// stands in the plane the scrolls carry that corner in: with the box, anchored as the
-// box is, or where a cut hides the box's corner, in the frame of the box that cuts it,
-// which the scroll that cuts the box does not carry. So a scroll carries it with what
-// it names, and it moves only when a placement crosses a cut.
+// Stands `node`, a label naming what the aim marks, at the box's top-left corner: above
+// it, clear of the mark, where the window and the frames cutting the box leave room,
+// inside it otherwise, and inside the corner of what shows where a cut hides the box's
+// own. It stands in the plane the scrolls carry that corner in, so a scroll carries it
+// with what it names.
 /** @param {HTMLElement} node */
 export function labelAim(node) {
   if (!aimed) return;
   const {
+    placed,
     placed: { rect, shown, levels },
-    stood,
+    surface,
   } = aimed;
-  const above = shown.top - node.offsetHeight - stood.room;
-  // The frames cut the label too, so the room above is what every band leaves.
+  const style = getComputedStyle(shownParts(surface)[0] ?? surface);
   const room = Math.max(
+    0,
+    Number.parseFloat(style.outlineOffset) + Number.parseFloat(style.outlineWidth),
+  );
+  // The label stacks with what it names: over the chrome's surfaces where the aimed
+  // item stands in one, as a widget frozen in a reply does.
+  keeps(labelStand.root, "data-lf-paint-plane", inChrome(surface) ? "chrome" : "page");
+  const stood = standAt(labelStand, placed);
+  const above = shown.top - node.offsetHeight - room;
+  // The frames cut the label too, so the room above is what every band leaves.
+  const clear = Math.max(
     0,
     ...levels.filter(({ axes }) => axes.y).map(({ band }) => band.top),
   );
   const cutTop = shown.top > rect.top;
   const at = {
     left: Math.max(2, shown.left),
-    top: !cutTop && above >= room ? above : shown.top + 2,
+    top: !cutTop && above >= clear ? above : shown.top + 2,
   };
   // The level whose band is the edge that cut the corner, the top's before the left's.
   const cut = cutTop
-    ? aimStand.frames.findLast(
+    ? labelStand.frames.findLast(
         ({ level: { axes, band } }) => axes.y && band.top === shown.top,
       )
     : shown.left > rect.left
-      ? aimStand.frames.findLast(
+      ? labelStand.frames.findLast(
           ({ level: { axes, band } }) => axes.x && band.left === shown.left,
         )
       : undefined;
@@ -139,98 +127,61 @@ export function labelAim(node) {
     standBox(node, at, { anchored: false, origin: { x: band.left, y: band.top } });
     return;
   }
-  if (node.parentElement !== aimStand.carrier) move(aimStand.carrier, node, null);
+  if (node.parentElement !== labelStand.carrier) move(labelStand.carrier, node, null);
   standBox(node, at, stood, stood.anchor, stood.at);
-}
-
-function clearTrace() {
-  traceElement = null;
-  traceSurface = null;
-  traceGeometry = null;
-  traceShapeKey = "";
-  vacate(traceStand);
-  targetTraceBox.style.display = "none";
-  targetTraceBox.classList.toggle("lf-shaped", false);
-  targetTraceShape.replaceChildren();
-  targetTraceBox.removeAttribute("data-for");
-  delete traceStand.root.dataset.lfPaintPlane;
-}
-
-function drawTrace(
-  element = traceElement,
-  surface = traceSurface,
-  rebuildGeometry = true,
-) {
-  if (
-    !(element instanceof Element) ||
-    !(surface instanceof Element) ||
-    !element.isConnected ||
-    !surface.isConnected
-  ) {
-    clearTrace();
-    return;
-  }
-  const changed = element !== traceElement || surface !== traceSurface;
-  const geometry = changed || rebuildGeometry ? paintGeometry(surface) : traceGeometry;
-  const placed = placement(surface, Boolean(geometry), inChrome(element));
-  traceElement = element;
-  traceSurface = surface;
-  traceGeometry = geometry;
-  if (!placed.shown) {
-    targetTraceBox.style.display = "none";
-    return;
-  }
-  const { rect, shapeKey } = placed;
-  let shaped = Boolean(geometry);
-  if (shaped && (changed || rebuildGeometry || shapeKey !== traceShapeKey))
-    shaped = paintShape(targetTraceShape, geometry, rect);
-  if (!shaped) targetTraceShape.replaceChildren();
-  traceShapeKey = shaped ? shapeKey : "";
-  targetTraceBox.classList.toggle("lf-shaped", shaped);
-  keeps(targetTraceBox, "data-for", element.id || null);
-  keeps(traceStand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-  standOver(traceStand, placed, shaped ? "0" : getComputedStyle(surface).borderRadius);
 }
 
 /** @param {Element | null} element @param {Element | null} [surface] */
 export function paintTrace(element, surface = element) {
-  if (!element) {
-    clearTrace();
-    return;
-  }
-  const rebuild = geometryDirty || element !== traceElement || surface !== traceSurface;
-  if (geometryDirty) {
-    if (geometryFrame) cancelRender(geometryFrame);
-    if (placementFrame) cancelRender(placementFrame);
-    geometryFrame = placementFrame = 0;
-    geometryDirty = false;
-  }
-  drawTrace(element, surface, rebuild);
+  traceMark.mark(element && surface?.isConnected ? surface : null);
 }
 
-export function shifted() {
-  if (placementFrame || geometryFrame || !traceElement) return;
-  placementFrame = nextRender(() => {
-    placementFrame = 0;
-    if (traceElement) drawTrace(traceElement, traceSurface, false);
-  });
+/** @param {Element | null} element @param {Element | null} [surface] */
+export function paintProxyRing(element, surface = element) {
+  proxyMark.mark(element && surface?.isConnected ? surface : null);
 }
 
+/** @type {Element | null} */
+let locationElement = null;
+let locationFrame = 0;
+/** @type {Element[]} */
+let locationProjected = [];
+const PROJECTED_LOCATION = RUNTIME_PAINT_ATTRIBUTE.location;
+
+// The location ring round `element`, the decision the user stands in, or none
+// (obligations/view.js, `markHere`). Each box the decision shows through draws it, as
+// it would its focus ring, so it is also the focus ring of a decision the user arrived
+// on, and the focus floor draws none of its own there (surfaces.css). A control inside
+// the decision that carries the location itself stands it down (page-paint.js,
+// `locationStandsDown`).
+/** @param {Element | null} element */
+export function paintLocation(element) {
+  locationElement = element;
+  drawLocation();
+}
+
+function drawLocation() {
+  const element = locationElement;
+  const boxes =
+    element?.isConnected && !locationStandsDown(element)
+      ? [element, ...shownParts(element)]
+      : [];
+  for (const box of locationProjected)
+    if (!boxes.includes(box)) box.toggleAttribute(PROJECTED_LOCATION, false);
+  for (const box of boxes) box.toggleAttribute(PROJECTED_LOCATION, true);
+  locationProjected = boxes;
+}
+
+// Layout can change which boxes a marked element shows through, and a control inside
+// the decision can take the location over.
 export function geometryChanged() {
-  geometryDirty = true;
-  if (placementFrame) cancelRender(placementFrame);
-  placementFrame = 0;
-  if (geometryFrame || !traceElement) return;
-  geometryFrame = nextRender(() => {
-    geometryFrame = 0;
-    if (!geometryDirty) return;
-    geometryDirty = false;
-    if (traceElement) drawTrace(traceElement, traceSurface, true);
+  if (locationFrame) return;
+  locationFrame = nextRender(() => {
+    locationFrame = 0;
+    drawLocation();
+    aimMark.refresh();
+    traceMark.refresh();
+    proxyMark.refresh();
   });
 }
-
-// The transient shapes are mounted into their boxes from leaf.js.
-export function mountTargetPaint() {
-  aimBox.append(aimShape);
-  targetTraceBox.append(targetTraceShape);
-}
+export { geometryChanged as shifted };

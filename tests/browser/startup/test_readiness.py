@@ -17,7 +17,6 @@ from render_cases_widgets import (
     visual_widgets,
 )
 from render_harness import (
-    EXAMPLES,
     LONG_PAGE,
     consume_browser_errors,
     expect_obligations_answered,
@@ -43,6 +42,7 @@ from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.page_code import run_page_code
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -167,94 +167,90 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     )
     page.add_init_script(FIRST_PRESENTATION)
     page.route("**/api/state*", lambda route: held.append(route))
-    try:
-        page.goto(url, wait_until="load")
-        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-        assert held, "the positive control did not hold the first state response"
-        choice = page.locator("#startup-choice .lf-pick").first
-        expect(choice).to_have_attribute("aria-disabled", "true")
-        expect(choice).to_be_visible()
-        choice.dispatch_event("click")
-        expect(page.locator("#startup-a")).not_to_have_attribute("chosen", "")
-        suggestion_accept = page.locator("[data-lf-margin-for='sug'] .lf-sug-accept")
-        expect(suggestion_accept).to_be_disabled()
-        assert suggestion_accept.evaluate(
-            """button => lfUnwatched(() => {
-                  const glyph = button.firstElementChild;
-                  const widget = document.getElementById('sug');
-                  const parent = widget.parentNode;
-                  const next = widget.nextSibling;
-                  widget.remove();
-                  parent.insertBefore(widget, next);
-                  return button.firstElementChild === glyph;
-                })"""
-        ), "an unchanged availability paint rebuilt the suggestion control"
-        suggestion_accept.dispatch_event("click")
-        expect(suggestion_accept).to_be_disabled()
-        assert posts == [], "a durable action posted before the first state projection"
-        authored_note = page.locator("#startup-note .lf-draft-body")
-        expect(authored_note).to_have_text("Ship on Tuesday from the blue room.")
-        authored_note.select_text()
-        # A script-selected passage offers the explicit route; only a completed native
-        # selection gesture raises the adjacent field automatically.
-        comment_selection = selection_field(page)
-        expect(comment_selection).to_be_visible()
-        expect(page.locator(".lf-fab-bar")).to_be_hidden()
-        comment_selection.click()
-        expect(page.locator(".lf-fab-input")).to_be_focused()
-        assert posts == [], (
-            "an anchored comment posted before the first state projection"
-        )
-        page.keyboard.press("Escape")
-        frames = page.evaluate("() => window.__lfPresentation.frames")
-        assert frames and all(frame["height"] > 0 for frame in frames), (
-            f"the authored state was never laid out: {frames}"
-        )
-        ready_frames = [frame for frame in frames if frame["upgraded"]]
-        assert ready_frames, frames
-        assert all(frame["authoredPainted"] for frame in ready_frames), (
-            f"authored state did not paint while replay was pending: {frames}"
-        )
-        assert any(frame["authoredHit"] for frame in ready_frames), (
-            f"the authored document never entered the hit-test tree: {frames}"
-        )
-        assert page.locator("#startup-link").evaluate(
-            "element => { element.focus(); return document.activeElement === element; }"
-        ), "an ordinary authored link was unavailable before replay"
-        assert page.evaluate(
-            "() => document.querySelector('#shadowed').shadowRoot.querySelector('pre')"
-            ".checkVisibility({opacityProperty: true, visibilityProperty: true})"
-        ), "ordinary authored shadow content did not paint before replay"
-        assert page.evaluate(
-            """() => {
-                  const ui = document.querySelector('#shadowed').shadowRoot
-                    .querySelector('.lf-ui');
-                  return ui?.checkVisibility({visibilityProperty: true});
-                }"""
-        ), "generated shadow interface remained withheld after upgrade"
-        assert all(frame["startupSheet"] == "none" for frame in frames), frames
+    page.goto(url, wait_until="load")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    assert held, "the positive control did not hold the first state response"
+    choice = page.locator("#startup-choice .lf-pick").first
+    expect(choice).to_have_attribute("aria-disabled", "true")
+    expect(choice).to_be_visible()
+    choice.dispatch_event("click")
+    expect(page.locator("#startup-a")).not_to_have_attribute("chosen", "")
+    suggestion_accept = page.locator(
+        "[data-lf-margin-for='sug'] [data-lf-margin-entry-key=accept]"
+    )
+    expect(suggestion_accept).to_be_disabled()
+    assert suggestion_accept.evaluate(
+        """button => lfUnwatched(() => {
+              const glyph = button.firstElementChild;
+              const widget = document.getElementById('sug');
+              const parent = widget.parentNode;
+              const next = widget.nextSibling;
+              widget.remove();
+              parent.insertBefore(widget, next);
+              return button.firstElementChild === glyph;
+            })"""
+    ), "an unchanged availability paint rebuilt the suggestion control"
+    suggestion_accept.dispatch_event("click")
+    expect(suggestion_accept).to_be_disabled()
+    assert posts == [], "a durable action posted before the first state projection"
+    authored_note = page.locator("#startup-note .lf-draft-body")
+    expect(authored_note).to_have_text("Ship on Tuesday from the blue room.")
+    authored_note.select_text()
+    # A script-selected passage offers the explicit route; only a completed native
+    # selection gesture raises the adjacent field automatically.
+    comment_selection = selection_field(page)
+    expect(comment_selection).to_be_visible()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    comment_selection.click()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    assert posts == [], "an anchored comment posted before the first state projection"
+    page.keyboard.press("Escape")
+    frames = page.evaluate("() => window.__lfPresentation.frames")
+    assert frames and all(frame["height"] > 0 for frame in frames), (
+        f"the authored state was never laid out: {frames}"
+    )
+    ready_frames = [frame for frame in frames if frame["upgraded"]]
+    assert ready_frames, frames
+    assert all(frame["authoredPainted"] for frame in ready_frames), (
+        f"authored state did not paint while replay was pending: {frames}"
+    )
+    assert any(frame["authoredHit"] for frame in ready_frames), (
+        f"the authored document never entered the hit-test tree: {frames}"
+    )
+    assert page.locator("#startup-link").evaluate(
+        "element => { element.focus(); return document.activeElement === element; }"
+    ), "an ordinary authored link was unavailable before replay"
+    assert page.evaluate(
+        "() => document.querySelector('#shadowed').shadowRoot.querySelector('pre')"
+        ".checkVisibility({opacityProperty: true, visibilityProperty: true})"
+    ), "ordinary authored shadow content did not paint before replay"
+    assert page.evaluate(
+        """() => {
+              const ui = document.querySelector('#shadowed').shadowRoot
+                .querySelector('.lf-ui');
+              return ui?.checkVisibility({visibilityProperty: true});
+            }"""
+    ), "generated shadow interface remained withheld after upgrade"
+    assert all(frame["startupSheet"] == "none" for frame in frames), frames
 
-        held.pop(0).continue_()
-        wait_until_ready(page)
-        expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
-        expect(authored_note).to_have_text("Ship on Friday from the green room.")
-        expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-        expect(page.locator("#sug lf-old")).to_be_hidden()
-        expect(choice).to_have_attribute("aria-disabled", "false")
-        expect(choice).to_be_visible()
-        assert page.evaluate(
-            """() => document.querySelector('#shadowed').shadowRoot
-                  .querySelector('.lf-ui').checkVisibility({visibilityProperty: true})"""
-        ), "generated shadow interface remained withheld after replay"
-        assert page.evaluate("() => window.__lfPresentation.releases") == 1
-
-    finally:
-        page.close()
+    held.pop(0).continue_()
+    wait_until_ready(page)
+    expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
+    expect(authored_note).to_have_text("Ship on Friday from the green room.")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator("#sug lf-old")).to_be_hidden()
+    expect(choice).to_have_attribute("aria-disabled", "false")
+    expect(choice).to_be_visible()
+    assert page.evaluate(
+        """() => document.querySelector('#shadowed').shadowRoot
+              .querySelector('.lf-ui').checkVisibility({visibilityProperty: true})"""
+    ), "generated shadow interface remained withheld after replay"
+    assert page.evaluate("() => window.__lfPresentation.releases") == 1
 
 
 def test_playground_joins_initial_widget_settlement(browser, serve):
     """An optional package paints locally while its durable action still waits."""
-    source = next(path for path in EXAMPLES if path.stem == "notification-playground")
+    source = named_source("notification-playground")
     url = serve(source)
     held = []
     page = browser.new_page(viewport={"width": 1440, "height": 900})
@@ -439,14 +435,20 @@ def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
         predicate=lambda message: "page failed to start" in message.text
     ):
         page.goto(url, wait_until="load")
-    expect(panel_field(page)).to_have_attribute("placeholder", re.compile("reload"))
+    expect(page.get_by_role("status")).to_contain_text("Leaf couldn't start")
+    expect(page.get_by_role("status")).to_be_visible()
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator("#sug lf-old")).to_be_visible()
     assert (
         page.evaluate("() => getComputedStyle(document.body, '::after').content")
         == "none"
     )
-    consume_browser_errors(page, "page failed to start")
+    # The deliberately empty registry has no $layer; unrelated startup failures
+    # must still reach the browser fixture.
+    reported_browser_errors(
+        page,
+        "page failed to start: Cannot read properties of undefined (reading 'generation')",
+    )
 
 
 def test_visual_comments_arrive_with_the_initialized_document(browser, serve):
@@ -526,7 +528,7 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
         expect(page.locator("#sug lf-old")).to_be_visible()
         # Versions is out of reach until state applies.
         expect(
-            panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
+            panel_menu(page).locator('.lf-fp-item[data-lf-row="versions"]')
         ).to_be_disabled()
         # No producer below the feed saw the body, so the feed's report is the one
         # that reaches the agent.
@@ -705,7 +707,7 @@ def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
     )
     page = open_page(browser, url.replace("v1.html", "v2.html"), context=context)
     open_versions(page)
-    expect(page.locator('.lf-fp-menu[data-level="versions"]')).to_be_visible()
+    expect(page.locator(panel_view("versions"))).to_be_visible()
 
 
 def test_unavailable_optional_user_view_checks_create_no_agent_work(browser, serve):
@@ -719,7 +721,9 @@ def test_unavailable_optional_user_view_checks_create_no_agent_work(browser, ser
         page.goto(serve(SUGGESTION_PAGE), wait_until="load")
     wait_until_ready(page)
     with sending(page, "the suggestion decision"):
-        page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+        page.locator(
+            "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+        ).click()
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     assert not [
         event

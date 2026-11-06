@@ -12,7 +12,7 @@
 # so the script's unused labels argument is what reproduces the session.
 # When the rule was cut back to its goal (labels for the facts the user weighs, with no
 # order or every-option requirement) the rubric came to check that goal: base and
-# candidate 5 of 5 each. Under the rubric before it, candidate runs left the reach label
+# head 5 of 5 each. Under the rubric before it, head runs left the reach label
 # off the keep-today option in 2 of 5.
 # The compact-title allowance still conflicted with this rubric's title prohibition.
 # Saved-output calibration now accepts facts in compact titles or labels and rejects

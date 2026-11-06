@@ -6,7 +6,7 @@ import {
   declaredName,
 } from "../addressable-names.js";
 import { sectionOf } from "../anchor-resolution.js";
-import { leafSurface, pageParts, pageReadingVersion } from "../passages.js";
+import { HEADING, leafSurface, pageParts, pageReadingVersion } from "../passages.js";
 import { documentChanged } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
 import { byRenderedOrder, renderedOrder, upFrom } from "../shadow.js";
@@ -67,22 +67,47 @@ export const inPageOrder = (threads, placedAt) =>
 // It is a reading of the page's own nodes, so it stands until the page reading moves
 // (passages.js, `pageReadingVersion`) or a caller says the document changed
 // (`presentDocument`): a thread pass over an unchanged page reads the outline it read.
-/** @type {{key: readonly [ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>], outline: readonly Element[]} | null} */
+/** @typedef {{key: readonly [ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>], outline: readonly Element[], heads: Map<Element | null, Element[]>, above: Map<Element, Element | null>}} Outlined */
+/** @type {Outlined | null} */
 let outlined = null;
-export function pageOutline() {
+/** @returns {Outlined} */
+function readOutline() {
   /** @type {[ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>]} */
   const key = [pageReadingVersion(), documentChanged()];
-  if (outlined?.key.every((part, index) => part === key[index]))
-    return outlined.outline;
+  if (outlined?.key.every((part, index) => part === key[index])) return outlined;
   const outline = Object.freeze(
     byRenderedOrder(
-      pageParts("h1, h2, h3, h4, h5, h6"),
+      pageParts(HEADING),
       /** @param {Element} heading */ (heading) => heading,
     ),
   );
-  outlined = { key, outline };
-  return outline;
+  // Each container's headings, in the outline's order, for `partOver`; and each
+  // heading's nearest heading of a higher rank before it in the same container, for
+  // `partTrail`, as a reader takes a flow of h2s to stand under the h1 over them.
+  /** @type {Map<Element | null, Element[]>} */
+  const heads = new Map();
+  /** @type {Map<Element, Element | null>} */
+  const above = new Map();
+  // Each container's headings still open to a later one of a lower rank, highest first.
+  /** @type {Map<Element | null, Element[]>} */
+  const open = new Map();
+  const rank = (/** @type {Element} */ heading) => Number(heading.localName.slice(1));
+  for (const heading of outline) {
+    const container = headed(heading);
+    const held = heads.get(container);
+    if (held) held.push(heading);
+    else heads.set(container, [heading]);
+    const ranks = open.get(container) ?? [];
+    while (ranks.length && rank(/** @type {Element} */ (ranks.at(-1))) >= rank(heading))
+      ranks.pop();
+    above.set(heading, ranks.at(-1) ?? null);
+    ranks.push(heading);
+    open.set(container, ranks);
+  }
+  outlined = { key, outline, heads, above };
+  return outlined;
 }
+export const pageOutline = () => readOutline().outline;
 
 // What names the part of the page a node stands in: the heading over it, else the
 // nearest region holding it whose declaration titles it (`declaredName`), such as a tab
@@ -108,18 +133,53 @@ const headed = (heading) => {
   const at = upFrom(heading);
   return at?.matches(HEADERS) ? upFrom(at) : at;
 };
-/** @param {Element} node @param {readonly Element[]} [outline] */
-export function partOver(node, outline = pageOutline()) {
-  /** @type {Map<Element | null, Element>} */
-  const heads = new Map();
-  for (const heading of outline)
-    if (renderedOrder(heading, node) < 0) heads.set(headed(heading), heading);
+//
+// Each container's headings stand in the outline's order, so the last one before the
+// node is found by halving, and a call costs the node's depth times the log of the
+// outline rather than the whole outline: On me asks it of every item it lists.
+/** @param {Element} node */
+export function partOver(node) {
+  const { heads } = readOutline();
   for (let at = upFrom(node); at; at = upFrom(at)) {
-    const heading = heads.get(at);
+    const heading = lastBefore(heads.get(at), node);
     if (heading) return heading;
     if (declaredName(at)) return at;
   }
   return null;
+}
+// Every part of the page a node stands in, outermost first: the part over it
+// (`partOver`), then the heading of a higher rank over each heading, else the part over
+// its container, as a reader of the page passes through them to reach the node. A
+// heading's own trail leaves it out. Each step costs what `partOver` does, so a trail
+// costs its length times that.
+/** @param {Element} node @returns {Element[]} */
+export function partTrail(node) {
+  const { above } = readOutline();
+  /** @param {Element} at @returns {Element | null} */
+  const over = (at) => {
+    if (!above.has(at)) return partOver(at);
+    const container = headed(at);
+    return above.get(at) ?? (container ? partOver(container) : null);
+  };
+  /** @type {Element[]} */
+  const trail = [];
+  for (let part = over(node); part; part = over(part)) trail.unshift(part);
+  return trail;
+}
+
+// The last of `headings`, in rendered order, that the reader reaches before `node`.
+/** @param {readonly Element[] | undefined} headings @param {Element} node */
+function lastBefore(headings, node) {
+  if (!headings) return null;
+  let low = 0;
+  let high = headings.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    const heading = /** @type {Element} */ (headings[middle]);
+    if (renderedOrder(heading, node) < 0) low = middle + 1;
+    else high = middle;
+  }
+  return headings[low - 1] ?? null;
 }
 
 /** @param {Element} target */

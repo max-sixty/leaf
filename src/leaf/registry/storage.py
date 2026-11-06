@@ -84,15 +84,31 @@ def layer_record(page_dir: Path) -> dict | None:
 
 
 def selected(record: dict, page_dir: Path):
-    """The layer `record` selects for the page at `page_dir`, as this Leaf composes
-    it (`layer.selected_layer`), refused as a registry fault where a selected package
+    """The layer `record` selects for the page at `page_dir`, with every file it
+    serves, as this Leaf composes it to serve, export or check the page
+    (`layer.selected_layer`), refused as a registry fault where a selected package
     is gone or invalid."""
     from leaf.layer import selected_layer
+
+    return _compose_selected(selected_layer, record, page_dir)
+
+
+def selected_vocabulary(record: dict, page_dir: Path):
+    """The vocabulary of the layer `record` selects, all a reader of the page's
+    documents needs (`layer.selected_vocabulary`), refused as `selected` refuses
+    a selected package that is gone or whose registry can't be read or merged. Its
+    registry is not validated (`layer.compose_vocabulary`)."""
+    from leaf.layer import selected_vocabulary
+
+    return _compose_selected(selected_vocabulary, record, page_dir)
+
+
+def _compose_selected(compose, record: dict, page_dir: Path):
     from leaf.themes import theme_package
 
     theme = theme_package(record["theme"])
     try:
-        return selected_layer(tuple(record["packages"]), theme, page_dir)
+        return compose(tuple(record["packages"]), theme, page_dir)
     except Refused as error:
         raise RegistryError(
             [Finding("layer-unavailable", values={"error": str(error)})]
@@ -101,21 +117,21 @@ def selected(record: dict, page_dir: Path):
 
 def layer_vocabulary(record: dict, page_dir: Path) -> dict:
     """The vocabulary of the layer `record` selects, with the selection and the
-    generation the browser speaks under `$layer`, held with the composition, since
-    an action POST asks for the whole vocabulary before it can check a press."""
+    generation the browser speaks under `$layer`, held with the layer's vocabulary,
+    since an action POST asks for the whole vocabulary before it can check a press."""
     metadata = layer_metadata_of(record)
-    layer = selected(record, page_dir)
+    vocabulary = selected_vocabulary(record, page_dir)
     key = ("layer", json.dumps(metadata, sort_keys=True))
-    if key not in layer.readings:
-        layer.readings[key] = {**layer.registry, "$layer": metadata}
-    return layer.readings[key]
+    if key not in vocabulary.readings:
+        vocabulary.readings[key] = {**vocabulary.registry, "$layer": metadata}
+    return vocabulary.readings[key]
 
 
 def layer_widgets(record: dict, page_dir: Path) -> list[str]:
     """The page-root-relative widget entry modules the selected layer serves."""
     return sorted(
         f"widgets/{name}"
-        for name in selected(record, page_dir).directory_files["widgets"]
+        for name in selected_vocabulary(record, page_dir).widgets
         if re.fullmatch(r"lf-[^/]*\.js", name)
     )
 
@@ -125,35 +141,55 @@ def revision_vocabulary(
 ) -> dict:
     """The vocabulary this Leaf reads a revision of the page at `page_dir` in: the
     declarations it captured, `declarations`, over the layer its `manifest` selects,
-    with the page widgets it captured. Every revision selecting the same layer and declaring the same shares
-    one read-only reading."""
+    with the page widgets it captured. Every revision selecting the same layer and
+    declaring the same shares one read-only reading."""
+    return _revision_composition(manifest, declarations, page_dir)[0]
+
+
+def revision_inputs(
+    manifest: dict, declarations: bytes | None, page_dir: Path
+) -> tuple[dict, dict]:
+    """The layer vocabulary and page declarations this Leaf composed and validated a
+    revision's vocabulary from (`revision_vocabulary`), as
+    `page.compose_page_registry` takes a composition already validated. The layer
+    is the one that composition read, so a package installed since pairs with
+    nothing it wasn't validated over."""
+    return _revision_composition(manifest, declarations, page_dir)[1]
+
+
+def _revision_composition(
+    manifest: dict, declarations: bytes | None, page_dir: Path
+) -> tuple[dict, tuple[dict, dict]]:
     widgets = tuple(
         implementation["path"].lstrip("/")
         for implementation in manifest["implementations"].values()
         if implementation["owner"] == "page"
     )
     layer = manifest["layer"]
-    readings = selected(layer, page_dir).readings
+    readings = selected_vocabulary(layer, page_dir).readings
     key = ("revision", json.dumps(layer, sort_keys=True), declarations, widgets)
     if key not in readings:
-        readings[key] = _revision_vocabulary(layer, declarations, widgets, page_dir)
+        readings[key] = _compose_revision(layer, declarations, widgets, page_dir)
     return readings[key]
 
 
-def _revision_vocabulary(
+def _compose_revision(
     record: dict, declarations: bytes | None, widgets: tuple[str, ...], page_dir: Path
-) -> dict:
+) -> tuple[dict, tuple[dict, dict]]:
     from .page import compose_page_registry
 
-    # The selected layer was validated where it was composed, so a revision
-    # declaring nothing over it is not validated again.
+    # The selected layer is validated where a Leaf composes its files
+    # (`layer-registry.md`), so a revision declaring nothing over it is not
+    # validated on a read.
     vocabulary = layer_vocabulary(record, page_dir)
-    return compose_page_registry(
+    declared = json.loads(declarations) if declarations else {}
+    composed = compose_page_registry(
         vocabulary,
-        json.loads(declarations) if declarations else {},
+        declared,
         [*layer_widgets(record, page_dir), *widgets],
-        validated=vocabulary,
-    ).registry
+        validated=(vocabulary, {}),
+    )
+    return composed.registry, (vocabulary, declared)
 
 
 def load_registry(page_dir: Path):
@@ -177,10 +213,11 @@ def read_page_registry(page_dir: Path):
     declarations and file inventory. This filesystem reading is for callers
     examining the authored candidate, never an already activated revision.
 
-    The candidate is validated where it differs from the active revision's
-    vocabulary, which was validated when its revision activated: a page whose layer
-    and declarations have not moved is not validated again. The page keeps the
-    composition until any input file or the active revision changes.
+    The candidate is validated where its layer or declarations differ from the
+    active revision's, which were validated together when its vocabulary was
+    composed: a page whose layer and declarations have not moved is not validated
+    again. The page keeps the composition until any input file or the active
+    revision changes.
     """
     from leaf.revision_artifact import read_revision
 
@@ -193,9 +230,9 @@ def read_page_registry(page_dir: Path):
     record = layer_record(page_dir)
     key = (
         file_stamp(page_dir / LAYER_FILE),
-        # The composition the record selects, which a package install resolves to
-        # other roots (`layer.selected_layer`).
-        selected(record, page_dir) if record else None,
+        # The vocabulary the record selects, which a package install resolves to
+        # other roots (`layer.selected_vocabulary`).
+        selected_vocabulary(record, page_dir) if record else None,
         file_stamp(page_dir / "page" / "registry.json"),
         widgets,
         active,
@@ -214,7 +251,7 @@ def read_page_registry(page_dir: Path):
                 *layer_widgets(record, page_dir),
                 *(path for path, _ in widgets),
             ],
-            validated=read_revision(page_dir, active).registry if active else None,
+            validated=read_revision(page_dir, active).inputs if active else None,
         )
 
     return memo(page_dir, _Candidate).get(key, compose)
@@ -234,14 +271,14 @@ def compose_candidate(
     layer: dict,
     widgets: Collection[str],
     *,
-    validated: dict | None = None,
+    validated: tuple[dict, dict] | None = None,
 ):
     """The candidate's vocabulary: the page's own declarations over `layer`.
 
     `widgets` are the page-root-relative widget files the candidate can load, the
-    layer's `widgets/` and the page's own `page/widgets/`. ``validated`` is a
-    vocabulary already validated, which a composition equal to it is not validated
-    against again."""
+    layer's `widgets/` and the page's own `page/widgets/`. ``validated`` is the
+    layer and declarations of a composition already validated, which a composition
+    of the same two is not validated against again."""
     from .page import compose_page_registry
 
     source = page_dir / "page" / "registry.json"
@@ -273,7 +310,7 @@ def layer_metadata_of(record: dict) -> dict:
 def served_layer(metadata: dict, page_dir: Path) -> dict:
     """`metadata` as the served state names the layer the page at `page_dir` is read
     under: with the fingerprint of the layer this Leaf composes for it, and this Leaf
-    as its producer, the one the leaf's menu shows (`runtime/page-about.js`)."""
+    as its producer, the one About this page shows (`runtime/page-about.js`)."""
     from leaf.layer import running_leaf
 
     return {

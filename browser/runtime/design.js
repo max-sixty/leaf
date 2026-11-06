@@ -14,6 +14,7 @@ import {
   designPressAt,
 } from "./anchor-resolution.js";
 import { inChrome, leafSurface } from "./passages.js";
+import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { tagsDeclaring } from "./registry.js";
 import { designName, DESIGN_MODE_KEY } from "./design-readings.js";
 import { pageCommand, pageRung, pageScope } from "./keyboard/register.js";
@@ -145,7 +146,9 @@ export function createDesignMode({
   const legend = paintSet(legendRoot, { onNear: () => placeTags() });
   // The legend's own writes are mutations too, inside the chrome, and so is the runtime's
   // paint on page elements: a mark rewrites its classes, in the runtime's namespace, on
-  // every repaint, which a shift starts. A repaint that heard either would never stop,
+  // every repaint, which a shift starts, and the aim, the trace, the rings and the
+  // cursor's paint stand in attributes of their own (page-paint.js). A repaint that heard
+  // either would never stop,
   // and on a page with reactions it didn't, at thousands of mutations a second. Naming
   // the start of a scroller's words (`data-lf-content-start`) moves nothing either.
   const authoredClasses = (/** @type {string | null} */ value) =>
@@ -154,9 +157,21 @@ export function createDesignMode({
       .filter((name) => name && !name.startsWith("lf-"))
       .sort()
       .join(" ");
+  const { aimed, traced, proxied, location, overMark, aiming, overItem } =
+    RUNTIME_PAINT_ATTRIBUTE;
+  const unmoving = new Set([
+    "data-lf-content-start",
+    aimed,
+    traced,
+    proxied,
+    location,
+    overMark,
+    aiming,
+    overItem,
+  ]);
   const movesPage = (/** @type {MutationRecord} */ r) =>
     !inChrome(r.target) &&
-    r.attributeName !== "data-lf-content-start" &&
+    !unmoving.has(r.attributeName ?? "") &&
     !(
       r.attributeName === "class" &&
       r.target instanceof Element &&
@@ -215,7 +230,7 @@ export function createDesignMode({
       let entry = legendBoxes.get(addressable);
       if (!entry) {
         const box = el("div", "lf-legend-box lf-page-paint");
-        box.dataset.for = addressable.id;
+        box.dataset.lfFor = addressable.id;
         const tag = parts.has(addressable.tagName.toLowerCase())
           ? null
           : el("span", "lf-legend-tag", designName(addressable));

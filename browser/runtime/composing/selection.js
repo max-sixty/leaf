@@ -23,6 +23,7 @@
    commands and boot's travel, delivery, and repaint capabilities. Importing this module exposes only passive nodes and live draft
    readings. mount binds the field and its controls after those owners exist. */
 import { el, offerAction, responseAction } from "../widget-elements.js";
+import { COMMENT_HINT } from "../words.js";
 import { anchorKey } from "../anchor-coordinate.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
@@ -98,21 +99,26 @@ fabBar.setAttribute("part", "composer");
 export const fabInput = textField();
 fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";
-fabInput.placeholder = "Comment…";
+fabInput.placeholder = COMMENT_HINT;
+fabInput.setAttribute("data-lf-voice", "leaf");
 fabInput.setAttribute("aria-label", "Comment");
-const fab = responseAction(el("button", "lf-ui lf-fab"), {
+const fab = responseAction(offerAction("response", "lf-fab"), {
   action: "comment",
   label: "Comment",
   behavior: "disclosure",
 });
 fab.id = "lf-comment-button";
 fab.title = "Comment";
+// The field's face while the box rests (composing/surface.js, `restFab`). `c` is its
+// keyboard route, and the box goes with the focus Tab would take to it, so Tab skips it.
+export const fabRest = offerAction("response", "lf-fab-rest");
+fabRest.tabIndex = -1;
 export const fabOptions = el("span", "lf-response-options");
 fabOptions.id = "lf-response-options";
 fabOptions.popover = "auto";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
-const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
+const fabSuggest = responseAction(offerAction("response", "lf-fab-suggest"), {
   action: "suggest",
   label: "Suggest",
   collapse: true,
@@ -125,10 +131,12 @@ export const fabOptionsTrigger = offerAction(
   "Other responses",
   { action: "more" },
 );
+fabOptionsTrigger.setAttribute("data-lf-disc", "");
 fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
+// The layer stack keeps it as the options open and close (keyboard/layer-stack.js).
 fabOptionsTrigger.setAttribute("aria-expanded", "false");
 fabOptionsTrigger.popoverTargetElement = fabOptions;
-fabBar.append(fab, fabOptions);
+fabBar.append(fab, fabRest, fabOptions);
 
 const composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
@@ -137,7 +145,7 @@ composer.id = "lf-composer";
 // around it: this is the only injected chrome carrying an id, and "which section is this
 // in" is asked as `[id]:not(.lf-ui)` of the element rather than of its ancestors, so
 // without the class it answers that question with itself.
-export const composerQuote = el("blockquote", "lf-ui lf-quote detached");
+export const composerQuote = el("blockquote", "lf-ui");
 composerQuote.id = "lf-composer-quote";
 composerQuote.hidden = true;
 // The page-anchored composer is the extended Comment control itself. The hidden
@@ -436,7 +444,6 @@ export function createSelectionComposer({
     }
     if (next) setReact(false);
     responseOptionsOpen = next;
-    keeps(fabOptionsTrigger, "aria-expanded", String(next));
     if (next) showNativeLayer(fabOptions, { source: fabOptionsTrigger });
     else closeNativeLayer(fabOptions);
     if (next && focus) focusResponseOption(focus);
@@ -750,7 +757,7 @@ export function createSelectionComposer({
           ? "Replacement text"
           : pendingAbout
             ? "About the layer"
-            : "Comment…",
+            : COMMENT_HINT,
       sends: () => (suggestionMode ? "suggest" : "comment"),
       allowsMedia: () =>
         suggestionMode ? "Images can be added to comments, not replacement text" : true,

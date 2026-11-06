@@ -8,7 +8,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_cases_navigation import source_revision
 from render_harness import (
-    CORPUS_SOURCES,
     example_media,
     expect_on_me,
     expect_panel_says,
@@ -24,11 +23,10 @@ from render_harness import (
 
 from leaf import data as data_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
-VISUAL_REVIEW_GALLERY = next(
-    path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
-)
+VISUAL_REVIEW_GALLERY = named_source("visual-review-gallery")
 SELECTED = ".lf-vr-case:not([hidden])"
 
 
@@ -137,7 +135,7 @@ def test_on_me_materializes_a_frozen_review_at_its_requested_case(browser, serve
     expect_on_me(page, 6)
     count.click()
     card = page.locator(
-        '.lf-fp-on-item[data-obligation="widget:reply-review:keep-mobile-destinations"]'
+        '.lf-fp-on-item[data-lf-obligation-id="widget:reply-review:keep-mobile-destinations"]'
     )
     card.get_by_role("button", name="Show", exact=True).click()
     case = page.locator("#reply-review").locator(SELECTED)
@@ -164,40 +162,70 @@ def test_visual_review_empty_navigation_is_unavailable(browser, serve):
     expect(widget.get_by_text("Waiting for visual evidence.")).to_be_visible()
 
 
-@pytest.mark.parametrize("width", [390, 702, 1366])
 def test_visual_review_keeps_the_dashboard_stable_while_inspecting(
-    browser, serve, width
+    browser, serve, subtests
 ):
-    """Cases and the inspection popover never move the approval or evidence rows."""
+    """Cases and the inspection popover never move the approval or evidence rows, and
+    moving through the queue restores the exact scroll position of tall evidence."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
-    resized(page, width, 900)
     widget = page.locator("#visual-review-run")
     case = widget.locator(SELECTED)
     reading = """node => {
       const box = selector => node.querySelector(selector).getBoundingClientRect();
       return {decision: box('.lf-vr-decision').y, evidence: box('.lf-vr-evidence').y};
     }"""
-    baseline = case.evaluate(reading)
-    # The header names size and browser; Capture details holds the rest.
-    expect(case.locator(".lf-vr-evidence-note")).to_have_text("390 × 844 · Chromium")
     buttons = widget.locator(".lf-vr-case-button")
-    expect(buttons).to_have_count(3)
-    for button in buttons.all():
-        button.click()
-        assert case.evaluate(reading) == baseline
-        case.get_by_role("button", name="Capture details").click()
-        details = case.locator(".lf-vr-details")
-        expect(details).to_be_visible()
-        expect(details.get_by_role("checkbox")).to_have_count(0)
-        expect(details.locator(".lf-vr-provenance")).to_contain_text("Capture")
-        assert case.evaluate(reading) == baseline
-        bounds = details.bounding_box()
-        assert (
-            bounds and 0 <= bounds["x"] and bounds["x"] + bounds["width"] <= width + 1
-        )
+    for width in (390, 702, 1366):
+        with subtests.test(width=width):
+            resized(page, width, 900)
+            buttons.first.click()
+            baseline = case.evaluate(reading)
+            # The header names size and browser; Capture details holds the rest.
+            expect(case.locator(".lf-vr-evidence-note")).to_have_text(
+                "390 × 844 · Chromium"
+            )
+            expect(buttons).to_have_count(3)
+            for button in buttons.all():
+                button.click()
+                assert case.evaluate(reading) == baseline
+                case.get_by_role("button", name="Capture details").click()
+                details = case.locator(".lf-vr-details")
+                expect(details).to_be_visible()
+                expect(details.get_by_role("checkbox")).to_have_count(0)
+                expect(details.locator(".lf-facts")).to_contain_text("Capture")
+                assert case.evaluate(reading) == baseline
+                bounds = details.bounding_box()
+                assert (
+                    bounds
+                    and 0 <= bounds["x"]
+                    and bounds["x"] + bounds["width"] <= width + 1
+                )
+                page.keyboard.press("Escape")
+                expect(details).to_be_hidden()
+                assert root_overflow(page) == 0
+    # Last, since it leaves the first case zoomed and scrolled.
+    with subtests.test("capture reading"):
+        resized(page, 1366, 700)
+        buttons.first.click()
+        case.get_by_role("radio", name="Pair", exact=True).click()
+        case.get_by_role("button", name="Image options").click()
+        case.get_by_role("checkbox", name="Full frame").check()
         page.keyboard.press("Escape")
-        expect(details).to_be_hidden()
-        assert root_overflow(page) == 0
+        case.get_by_role("button", name="Image options").click()
+        case.get_by_role("button", name="100%", exact=True).click()
+        capture = case.locator(".lf-shotviewport").first
+        assert capture.evaluate("node => node.scrollHeight > node.clientHeight")
+        capture.hover()
+        page.mouse.wheel(0, 180)
+        page.wait_for_function(
+            "node => node.scrollTop > 0", arg=capture.element_handle()
+        )
+        scroll_settled(page)
+        before = capture.evaluate("node => node.scrollTop")
+        widget.locator(".lf-vr-case-button").nth(1).click()
+        widget.locator(".lf-vr-case-button").first.click()
+        rendered(page)
+        assert capture.evaluate("node => node.scrollTop") == before
 
 
 def test_visual_review_ignores_a_late_load_from_superseded_evidence(browser, serve):
@@ -345,30 +373,3 @@ def test_visual_review_ignores_a_late_load_from_superseded_evidence(browser, ser
     finally:
         while held:
             held.pop(0).abort()
-
-
-def test_visual_review_preserves_capture_reading_when_returning_to_a_case(
-    browser, serve
-):
-    """Moving through the queue restores the exact scroll position of tall evidence."""
-    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
-    resized(page, 1366, 700)
-    widget = page.locator("#visual-review-run")
-    case = widget.locator(SELECTED)
-    case.get_by_role("button", name="Pair", exact=True).click()
-    case.get_by_role("button", name="Image options").click()
-    case.get_by_role("checkbox", name="Full frame").check()
-    page.keyboard.press("Escape")
-    case.get_by_role("button", name="Image options").click()
-    case.get_by_role("button", name="100%", exact=True).click()
-    capture = case.locator(".lf-shotviewport").first
-    assert capture.evaluate("node => node.scrollHeight > node.clientHeight")
-    capture.hover()
-    page.mouse.wheel(0, 180)
-    page.wait_for_function("node => node.scrollTop > 0", arg=capture.element_handle())
-    scroll_settled(page)
-    before = capture.evaluate("node => node.scrollTop")
-    widget.locator(".lf-vr-case-button").nth(1).click()
-    widget.locator(".lf-vr-case-button").first.click()
-    rendered(page)
-    assert capture.evaluate("node => node.scrollTop") == before

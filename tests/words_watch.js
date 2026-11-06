@@ -24,7 +24,7 @@
 // never throw its words away (keyboard/close-requests.js), whether a gesture or a
 // script asked for the close. What only moves the user around the words does
 // not count: a key whose typing applied or was cancelled,
-// a modifier, the caret keys, Tab unless the page takes it, the page's scroll keys, and a press on the field itself. A wheel,
+// a modifier, the caret keys unless the field edits with one, Tab unless the page takes it, the page's scroll keys, and a press on the field itself. A wheel,
 // a scroll, a resize, a timer and the server's news are none of them either. Words gone
 // with no such key or press are reported as a `words-left-screen` record through the
 // fixture's `__leafWatchFinding` binding, a browser problem which
@@ -110,6 +110,17 @@
   const MOVES =
     /^(Shift|Control|Alt|Meta|CapsLock|Tab|Arrow\w+|Home|End|PageUp|PageDown| )$/;
   const editingKeys = new WeakSet();
+  // A key the field takes for an edit of its own, as Down leaving a fence, moves no one.
+  const commandKeys = new WeakSet();
+  listen(
+    window,
+    "lf-before-edit",
+    () => {
+      const press = window.lfInputWork.current()?.event;
+      if (press?.type === "keydown") commandKeys.add(press);
+    },
+    true,
+  );
   let key = null;
   listen(
     window,
@@ -240,7 +251,9 @@
     // moves no one.
     if (event.type === "keydown")
       return (
-        (!MOVES.test(event.key) || (event.key === "Tab" && event.defaultPrevented)) &&
+        (!MOVES.test(event.key) ||
+          commandKeys.has(event) ||
+          (event.key === "Tab" && event.defaultPrevented)) &&
         !editingKeys.has(event)
       );
     if (event.type === "storage") return true;

@@ -12,14 +12,19 @@ Leaf's own defaults; rules meant to win over widget defaults and Layouts belong 
 Leaf bundles one theme, `reading`: the reading look, which styles the body's type and
 colour and the idioms such as `.callout`, and turns on the reading face markup wears
 in Leaf's own surfaces (headings, prose, lists, tables, code, quotes, figures,
-disclosures, definitions, rules and pictures) by setting `--lf-reading-face: 1` on the
-root. The face's rules rank below every other rule of `lf-base`, so a theme's or
-package's rule for one of those elements outranks them whatever its weight. A new page
-takes it unless the user names another default. A page that takes none
-(`--no-theme`) starts from the browser's defaults and Leaf's tokens: nothing of the
-look reaches it, while Leaf's widgets, threads and panel keep their own faces. A page
-or a theme may still set `--lf-reading-face: 1` on any box to give the markup in it
-that face.
+disclosures, definitions, rules and pictures, with a wide table or code block
+scrolling inside itself and a `language-…` code block coloured by its tokens) by
+setting `--lf-reading-face: 1` on the root. The face's rules rank below every other
+rule of `lf-base`, so a theme's or package's rule for one of those elements outranks
+them whatever its weight. A new page takes it unless the user names another default.
+A page that takes none (`--no-theme`) starts from the browser's defaults and Leaf's
+tokens: nothing of the look reaches it, its tables and code blocks included, while
+Leaf's widgets, threads and panel keep their own faces. A page or a theme may still
+set `--lf-reading-face: 1` on any box to give the markup in it that face, and
+`--lf-reading-face: initial` on a box takes the face from the markup in it, as for
+content with its own design inside a themed page; comments still anchor there.
+Each of the face's rules reads the element's parent, so the box itself still wears
+the face: set the input on a wrapper around the table or code block, not on it.
 
 A user can also keep several named themes and choose one default. Each is an ordinary
 installed package; its `instructions/author.md` describes the tasks it suits. Install
@@ -80,9 +85,9 @@ token from the box that knows it: `--lf-full-height` where the widget has a defi
 height to fill (`module-scroll-and-motion.md`, "Reading regions"), and
 `--lf-density: working` under the `density-working` style.
 
-The body supplies `--lf-ground`: the browser's `Canvas`, or `var(--paper)` under the
-reading theme, which paints the body that colour; a theme or page that paints its own
-ground sets it to match. Each solid containing surface
+The root supplies `--lf-ground` to the page and Leaf's surfaces alike: the browser's
+`Canvas`, or `var(--paper)` under the reading theme, which paints the body that colour;
+a theme or page that paints its own ground sets it on `:root` to match. Each solid containing surface
 overrides `--lf-ground`; both it and its opaque controls paint
 `background: var(--lf-ground)`. Hover and selection states change the same token. Transparent
 wrappers inherit it; a surface becoming transparent restores `--lf-ground: inherit`.
@@ -96,10 +101,6 @@ contains floats, declares `--lf-block-frame: trim`: its edge margins are trimmed
 wide content may take the page's width. The trim reaches through a plain wrapper at the
 edge, which declares nothing. A flex row or grid declares `--lf-holds-edge: 1` to stop
 the trim, which would otherwise take its first item's margin and not its neighbours'.
-A grid or flex box whose items stack, as the reading column's do, declares
-`--lf-items-keep-margins: 1`: each item keeps its children's margins inside its box, so
-Leaf gives an item opening with a heading the heading's gap as its own margin, and its
-box starts at the heading.
 
 Shared CSS selects widgets by what their registry entries declare, which delivery
 writes onto each element as `[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`,
@@ -134,16 +135,28 @@ or in the host while no match exists. The declaration does not inherit. Declare
 needs nothing: Leaf fades its content at any edge with more beyond.
 
 Leaf rings every box that holds visible focus, at a control's gap outside it. A box
-whose ring belongs elsewhere states its own `outline-offset`, in its face's rule, as the
-token of its kind (`base.css`, "Where it stands"): `--focus-region-gap` for a block of
-the page, `0` for a box that draws its own edge, and `--focus-ring-inset` for a row
-packed edge to edge with others or a box whose clip leaves no room outside it. Leaf's
-marks over the page read the same value where it isn't `0`, so a comment's or an aim's
-frame stands where the ring does.
+whose ring belongs elsewhere declares `--lf-ring-at` in its face's rule, as the token of
+its kind (`base.css`, "Where it stands"): `--focus-region-gap` for a block of the page,
+`0` for a box that draws its own edge, and `--focus-ring-inset` for a row packed edge to
+edge with others or a box whose clip leaves no room outside it. Leaf draws every mark
+on a box as the box's own outline there, over any outline your rules give the box while
+the mark shows, so a comment's or an aim's brackets stand where the ring does. The
+brackets are a `clip-path` Leaf sets on the box, so a rule of yours that sets its
+`clip-path` replaces them. The declaration does not inherit.
 
 A rule that draws a control's focus ring on a box around it, such as a choice's face
 holding its radio and words, declares `--lf-wears-ring: 1` beside the ring, so Leaf
 scrolls that box rather than the control into view with room for its ring.
+
+Where the positioned content a box holds would paint over its own ring, as a scroller's
+positioned lines do, Leaf can draw the ring one band inside the box's edge on a later
+box, its `::after`. Give the box the class `lf-ring-overlay` to ring it there when it
+holds focus itself, or give the box around it the class `lf-ring-frame` to ring it
+there when that box's child holds focus; a frame declares `--lf-wears-ring` itself.
+Either box must be positioned, such as `position: relative`, or the ring covers the
+nearest positioned box around it instead. A rule of yours on its `::after` sets the
+ring's `z-index` over what the box holds, and where the ring stands when that isn't
+the box's edge.
 
 Turn off a widget's interactive styling inside `[data-lf-exhibit]`, where it is quoted
 rather than offered. An export inlines the stylesheet and opens offline, so use fonts on
@@ -167,7 +180,7 @@ with the page. To restyle one of them alone, name it by its part:
 Tokens set on a part change that surface alone, whether a theme's sheet or the page's
 own CSS sets them: `[part~="card"] { --paper: #fffdf5; --r-l: 4px; }` gives thread
 cards their own ground and corners. Each part resolves the chrome's fonts again
-(`--font-*`, `base.css`), so a face or rung set on it, such as `--sans` or `--t-5`,
+(`--font-*`, `styles/tokens.css`), so a face or rung set on it, such as `--sans` or `--t-5`,
 reaches every word the surface shows. Other values Leaf derives on the root keep the
 root's reading on a part, such as the focus ring and link underline, which follow the
 root's `--accent`, and the raise shadows, which follow its `--shade`; set
@@ -218,10 +231,10 @@ choice. The default palette is declared in `browser/base.css`:
 | Page and raised surfaces | `--paper`, `--card`, `--field`; `--ink`, `--ink-2`, `--muted`; `--rule`, `--border-2`                                                                                                 |
 | Interactive emphasis     | `--accent`; focus ring and shadow derive from it at their declaration scope                                                                                                           |
 | Status                   | `--ok`, `--warn`, `--danger` for markers; each has independent `-ink` and `-tint` inputs for text and ground                                                                          |
-| Pins                     | `--pin-fill` with `--pin-ink`; the user's turn uses `--pin-on-user` with `--pin-on-user-ink`                                                                                          |
+| Counts                   | `--badge-fill` with `--badge-ink`, for the count on the folded leaf; pins wear the margin entries' paper, `--border-2` and status inks                                                |
 | Code                     | `--code-bg`, `--pre-bg`, `--code-chrome`, `--code-ink`, `--code-muted`, `--code-border`; `--syn-comment`, `--syn-keyword`, `--syn-string`, `--syn-number`, `--syn-name`, `--syn-type` |
 
-Changing `--accent` does not choose the pin pair or the status palette. Check the
+Changing `--accent` does not choose the count's pair or the status palette. Check the
 foreground against each ground where it is used, in both color schemes. A theme may
 set `light-dark()` values so the browser's scheme preference selects the palette.
 Subtree overrides follow normal CSS inheritance: when changing an input locally,

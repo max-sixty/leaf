@@ -2,16 +2,16 @@
 
 import re
 from html import escape
-from socket import gethostname
 
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
-    PANEL,
     consume_browser_errors,
     leaf_page,
     open_page,
+    over_plain_http,
+    panel_menu,
     scroll_settled,
     told,
 )
@@ -25,18 +25,8 @@ def test_code_copy_on_plain_http_machine_name(browser, serve, gesture):
         "Code copy over HTTP",
         "<h1>Code copy over HTTP</h1><pre><code>echo hello</code></pre>",
     )
-    # The browser lower-cases a URL's host, so the route rewrites that spelling to
-    # loopback; the machine's name needn't resolve there, as on CI's macOS runner.
-    host = gethostname().lower()
     local_url = live_url(serve(source))
-    remote_url = local_url.replace("127.0.0.1", host)
-    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
-
-    def fetch_from_loopback(route):
-        response = route.fetch(url=route.request.url.replace(host, "127.0.0.1"))
-        route.fulfill(response=response)
-
-    context.route(f"http://{host}:**/*", fetch_from_loopback)
+    context, remote_url = over_plain_http(browser, local_url)
     page = open_page(browser, remote_url, context=context)
     assert page.evaluate("!isSecureContext && navigator.clipboard === undefined")
     if gesture == "click":
@@ -76,12 +66,7 @@ def test_sample_code_copy_keeps_its_clipboard_boundary(browser, serve):
 def open_keyboard_shortcuts(page):
     """Tap the panel's leaf, unfolding it first where it rests as the mark, then its
     menu's Keyboard shortcuts row: a finger's door to the command reference."""
-    leaf = page.locator(".lf-fp-leaf")
-    if page.locator(PANEL).get_attribute("data-rest") == "mark":
-        leaf.tap()
-        expect(page.locator(PANEL)).to_have_attribute("data-rest", "row")
-    leaf.tap()
-    page.locator('.lf-fp-menu .lf-fp-item[data-row="keyboard"]').tap()
+    panel_menu(page, touch=True).locator('.lf-fp-item[data-lf-row="keyboard"]').tap()
 
 
 def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
@@ -108,7 +93,9 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
         "aria-keyshortcuts", re.compile(r"^w$", re.IGNORECASE)
     )
     expect(host.locator(":scope > pre + .lf-code-copy")).to_have_count(1)
-    expect(host.locator(".lf-code-line.hi > .lf-quiet")).to_have_text("highlighted")
+    expect(host.locator(".lf-code-line[data-lf-hi] > .lf-quiet")).to_have_text(
+        "highlighted"
+    )
     before = pre.evaluate("e => ({text:e.textContent, height:e.clientHeight})")
     page.evaluate(
         "window.sourceRows = [...document.querySelectorAll('#code .lf-code-line')]"
@@ -116,7 +103,7 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
     # A finger starts at the source, then uses the existing command reference.
     pre.tap(position={"x": 30, "y": 20})
     open_keyboard_shortcuts(page)
-    page.get_by_role("button", name="Unwrap lines", exact=True).tap()
+    page.get_by_role("option", name="Unwrap lines", exact=True).tap()
     expect(pre).to_be_focused()
     assert pre.evaluate("e => e.scrollWidth > e.clientWidth")
     assert pre.evaluate("e => e.clientHeight") < before["height"]
@@ -140,7 +127,7 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
     assert pre.evaluate("e => e.scrollLeft") >= horizontal
     open_keyboard_shortcuts(page)
     page.locator(".lf-command-reference").get_by_role(
-        "button", name="Copy code", exact=True
+        "option", name="Copy code", exact=True
     ).tap()
     expect(pre).to_be_focused()
     assert page.evaluate("navigator.clipboard.readText()") == code.rstrip("\n")

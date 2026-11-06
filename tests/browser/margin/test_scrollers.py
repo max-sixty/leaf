@@ -1,11 +1,13 @@
 """How a margin row follows its target through scrolling panes, shadow-tree scrollers,
-sticky and fixed boxes, hidden tabs and authored anchor scopes."""
+sticky and fixed boxes, hidden tabs, content laid out but not shown, and authored anchor
+scopes."""
 
 import re
 
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, answered_comment
+from render_cases_layout import MARK
 from render_harness import (
     FOLLOWER_MARK,
     SUBJECT_MARK,
@@ -74,6 +76,51 @@ def test_the_margin_keeps_its_page_coordinate_while_the_user_scrolls(browser, se
     assert offset() == pytest.approx(before, abs=1)
 
 
+# Scroll the page to put the quoted words a third of the way down the window, and read,
+# in the task that scrolled, how far the row's marker stands from the words and whether
+# hit testing where it stands finds it.
+SCROLL_TO_PASSAGE = """() => {
+  const marker = document.querySelector('[data-lf-margin-for="long"] .lf-margin-marker');
+  const node = document.getElementById('long').firstChild;
+  const words = document.createRange();
+  words.setStart(node, node.data.indexOf('the last words land'));
+  words.setEnd(node, node.data.length);
+  const line = () => words.getClientRects()[0].top;
+  const before = marker.getBoundingClientRect().top - line();
+  scrollBy({top: line() - innerHeight / 3, behavior: 'instant'});
+  const box = marker.getBoundingClientRect();
+  const hit = document.elementFromPoint(
+    (box.left + box.right) / 2, line() + before + box.height / 2);
+  return {before, after: box.top - line(), reached: marker.contains(hit)};
+}"""
+
+
+def test_a_passage_s_row_moves_with_the_page_s_scroll_in_the_task_that_scrolls(
+    browser, serve, subtests
+):
+    """A row quoting words only the page's scroll moves stands where that scroll leaves
+    it in the task that scrolls, as the words do, so a script reading its box or hit
+    testing where it is drawn finds it there, as a pin on a phone and in the rail. In an
+    anchored carrier it read at its old place until the next frame rendered, so a tap
+    Playwright aimed meanwhile scrolled away from it."""
+    text = " ".join(
+        f"Sentence number {i} says something about the release." for i in range(120)
+    )
+    body = f'<h1>Passage rows</h1><p id="long">{text} Finally the last words land.</p>'
+    events = [_comment_on("long", quote="the last words land")]
+    page = open_page(browser, serve(leaf_page("Passage rows", body), events=events))
+    row = page.locator('[data-lf-margin-for="long"]')
+    for width, height, place in ((390, 844, "pin"), (1440, 900, "rail")):
+        with subtests.test(width=width):
+            resized(page, width, height)
+            page.evaluate("() => scrollTo({top: 0, behavior: 'instant'})")
+            margins_laid_out(page)
+            expect(row).to_have_attribute("data-lf-place", place)
+            read = page.evaluate(SCROLL_TO_PASSAGE)
+            assert read["after"] == pytest.approx(read["before"], abs=1), read
+            assert read["reached"], read
+
+
 def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve):
     """`m` to an obligation below a pane's fold scrolls it into view while its row is still
     withheld, so there is nothing yet to hang its card from. The card of the thread the
@@ -94,14 +141,16 @@ def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve
     row = page.locator('[data-lf-margin-for="work"]')
     expect(row).to_be_hidden()
     page.keyboard.press("t")
-    leaving = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{left}"]')
+    leaving = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{left}"]'
+    )
     expect(leaving).to_be_focused()
     page.keyboard.press("m")
     expect(page.locator("#work")).to_be_focused()
     expect(leaving).to_have_count(0)
     expect(row).to_be_visible()
     expect(
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
     ).to_be_visible()
     expect(page.locator("#work")).to_be_focused()
 
@@ -111,13 +160,20 @@ def test_a_pin_in_a_pane_scrolls_with_it_and_leaves_with_its_target(browser, ser
     pin follows the pane's scroll through the anchor that carries it, with no layout pass
     to wait for, and once its target has scrolled out of the pane the row is withheld:
     out of the tab order, and nothing of it drawn over the pane's header or its
-    neighbour."""
-    page = open_page(browser, serve(PANE_PIN_PAGE, events=[_comment_on("pane-top")]))
+    neighbour. A row whose target starts below the fold is withheld and anchored all the
+    same: once the pane scrolls its target in, the row stands on it rather than at the
+    off-screen place an unanchored row would wait in."""
+    page = open_page(
+        browser,
+        serve(PANE_PIN_PAGE, events=[_comment_on("pane-top"), _comment_on("pane-end")]),
+    )
     resized(page, 1280, 720)
     pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
     margins_laid_out(page)
     row = page.locator('.lf-margin-lane [data-lf-margin-for="pane-top"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
+    below = page.locator('.lf-margin-cluster[data-lf-margin-for="pane-end"]')
+    expect(below).to_have_class(re.compile(r"\blf-withheld\b"))
     moved = page.evaluate(
         """async () => {
           const row = document.querySelector('[data-lf-margin-for="pane-top"]');
@@ -141,6 +197,19 @@ def test_a_pin_in_a_pane_scrolls_with_it_and_leaves_with_its_target(browser, ser
     expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
     page.locator("#pin-pane > div").evaluate("body => { body.scrollTop = 0; }")
     expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+
+    page.locator("#pin-pane > div").evaluate(
+        "body => { body.scrollTop = body.scrollHeight; }"
+    )
+    expect(below).not_to_have_class(re.compile(r"\blf-withheld\b"))
+    stands = below.evaluate(
+        """row => {
+          const r = row.getBoundingClientRect();
+          const t = document.getElementById('pane-end').getBoundingClientRect();
+          return Math.abs(r.top - t.top) < 2 && r.left < t.right + 40;
+        }"""
+    )
+    assert stands
 
 
 @pytest.mark.parametrize("engine", ["firefox_browser", "webkit_browser"])
@@ -243,14 +312,20 @@ def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     after = page.evaluate(reading)
     assert after["header"][2] == pytest.approx(before["header"][2] - 120, abs=1), after
     assert after["pin"] == pytest.approx(before["pin"], abs=1), (before, after)
-    page.locator("#grid thead th").nth(2).hover()
+    _outline_and_copy_stand_on(page, page.locator("#grid thead th").nth(2), "#grid")
+
+
+def _outline_and_copy_stand_on(page, hovered, outlined):
+    """The outline Alt raises over `hovered` is drawn by `outlined`, so it moves with
+    that box through its transforms, and the Copy of the `#command` code block, which
+    CSS anchors alone, stands inside the block's top-right corner."""
+    hovered.hover()
     page.keyboard.down("Alt")
-    aim = page.locator(".lf-aim")
-    expect(aim).to_be_visible()
-    table, outline = page.locator("#grid").bounding_box(), aim.bounding_box()
+    target = page.locator(outlined)
+    expect(target).to_have_attribute("data-lf-aimed", "")
+    mark = target.evaluate(MARK)
     page.keyboard.up("Alt")
-    assert outline["x"] == pytest.approx(table["x"], abs=1), (outline, table)
-    assert outline["y"] == pytest.approx(table["y"], abs=1), (outline, table)
+    assert mark and mark["style"] == "solid", mark
     code = page.locator("#command").bounding_box()
     page.mouse.move(code["x"] + 5, code["y"] + code["height"] / 2)
     copy = page.locator(".lf-code-copy")
@@ -259,6 +334,408 @@ def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     inset = code["x"] + code["width"] - corner["x"] - corner["width"]
     assert 0 <= inset <= 8, (corner, code)
     assert 0 <= corner["y"] - code["y"] <= 8, (corner, code)
+
+
+SCALED_DECK_PAGE = leaf_page(
+    "a scaled deck",
+    '<h1>Deck</h1><div style="position: relative; height: 480px">'
+    '<div style="position: absolute; left: 50%; top: 50%; width: 960px; height: 700px;'
+    ' padding: 40px; transform: translate(-50%, -50%) scale(0.6)">'
+    '<div id="words" style="height: 240px; overflow: auto">'
+    + "A line of the slide's notes.<br>" * 4
+    + "Words on a slide the deck has translated and scaled to fit its stage."
+    + "<br>A further line of the slide's notes." * 30
+    + '</div><pre id="command"><code>uv run pytest '
+    "tests/browser/margin/test_scrollers.py</code></pre></div></div>"
+    + "<p>Prose after the deck, so the page scrolls.</p>"
+    * 40,
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_marks_stand_on_a_scaled_slide_in_every_engine(request, serve, engine):
+    """A deck such as reveal.js translates and scales its slides to fit its stage, and
+    Firefox leaves the anchor's transforms out of `anchor()` and `anchor-size()`, so a
+    comment's row stood 257px below the words it marked and Copy stood past the right
+    edge of its code block. A scroll inside the slide moves the words by less than the
+    scroll, and Firefox moved the row by all of it until something else placed the
+    rows again. In each engine the row stands level with its words and keeps that place
+    through a scroll of the page and, once it ends, through a scroll of the box holding
+    the words; the outline Alt raises stands on that box, and Copy stands inside its
+    block's top-right corner."""
+    browser = request.getfixturevalue(engine)
+    comment = _comment_on("words", quote="translated and scaled")
+    page = open_page(browser, serve(SCALED_DECK_PAGE, events=[comment]))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    reading = """() => {
+      const text = [...document.getElementById('words').childNodes]
+        .find((node) => node.data?.includes('translated and scaled'));
+      const at = text.data.indexOf('translated and scaled');
+      const range = document.createRange();
+      range.setStart(text, at);
+      range.setEnd(text, at + 10);
+      const row = document.querySelector('[data-lf-margin-for="words"]');
+      const top = range.getClientRects()[0].top;
+      return {offset: row.getBoundingClientRect().top - top, words: top,
+              shown: !row.classList.contains('lf-withheld')};
+    }"""
+    before = page.evaluate(reading)
+    assert before["shown"] and abs(before["offset"]) <= 2, before
+    page.evaluate("() => document.scrollingElement.scrollBy(0, 120)")
+    margins_laid_out(page)
+    after = page.evaluate(reading)
+    assert after["words"] == pytest.approx(before["words"] - 120, abs=1), after
+    assert after["offset"] == pytest.approx(before["offset"], abs=1), (before, after)
+    # No layout announcement after this scroll: the margin's own reading of its end
+    # is what has to place the row.
+    page.evaluate(
+        """async () => {
+          const box = document.getElementById('words');
+          const ended = new Promise((done) =>
+            box.addEventListener('scrollend', done, {once: true}));
+          box.scrollTop = 60;
+          await ended;
+        }"""
+    )
+    rendered(page)
+    scrolled = page.evaluate(reading)
+    assert scrolled["words"] == pytest.approx(after["words"] - 36, abs=1), scrolled
+    assert scrolled["shown"], scrolled
+    assert scrolled["offset"] == pytest.approx(before["offset"], abs=1), (
+        before,
+        scrolled,
+    )
+    _outline_and_copy_stand_on(page, page.locator("#words"), "#words")
+
+
+def _listing(lines, layout="workspace"):
+    """A page holding `lines` in a code block that scrolls inside its `pre`, as
+    reveal.js's theme makes every long one."""
+    return leaf_page(
+        "a code block that scrolls",
+        "<div><h1>Listing</h1><p>A paragraph above the block, long enough to fill the "
+        'column it stands in from one edge to the other.</p><pre id="listing"><code>'
+        + "\n".join(lines)
+        + "</code></pre></div>",
+        head="<style>pre code { display: block; overflow: auto; max-height: 400px; }"
+        "</style>",
+        layout=layout,
+    )
+
+
+# Short lines around the commented one, and lines as long as it is, the shape of a
+# reveal.js deck's code; at a phone's width those lines reach past the code's edge.
+SHORT_NEIGHBOURS = [
+    "    total = sum(weights)  # the commented line"
+    if i == 8
+    else f"def step_{i}(x):"
+    if i % 2
+    else f"    return x + {i}"
+    for i in range(1, 41)
+]
+LONG_NEIGHBOURS = [
+    f"    total += step_{i:02d}(sample_values, weight={i})" for i in range(1, 41)
+]
+# Where a row's pin stands against its quoted words' first line and the code box.
+PIN_ON_LINE = """quote => {
+  const code = document.querySelector('#listing code');
+  const text = code.firstChild;
+  const at = text.data.indexOf(quote);
+  const range = document.createRange();
+  range.setStart(text, at);
+  range.setEnd(text, at + quote.length);
+  const line = range.getClientRects()[0];
+  const box = code.getBoundingClientRect();
+  const row = document.querySelector('[data-lf-margin-for="listing"]');
+  const pin = row.getBoundingClientRect();
+  const middle = (pin.top + pin.bottom) / 2;
+  return {offset: [pin.left - box.left, pin.top - line.top],
+          onLine: middle >= line.top && middle <= line.bottom,
+          inBox: pin.left >= box.left && pin.right <= box.right,
+          pin: pin.toJSON(), line: line.toJSON(), box: box.toJSON(),
+          shown: !row.classList.contains('lf-withheld')};
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+@pytest.mark.parametrize(
+    ("lines", "quote", "width", "layout"),
+    [
+        (SHORT_NEIGHBOURS, "total = sum(weights)", 1280, "workspace"),
+        (LONG_NEIGHBOURS, "step_09(sample_values, weight=9)", 1280, "workspace"),
+        (LONG_NEIGHBOURS, "step_09(sample_values, weight=9)", 390, "column"),
+    ],
+    ids=["short-neighbours", "long-neighbours", "phone"],
+)
+def test_a_pin_on_a_line_of_a_scrolling_code_block_marks_that_line(
+    request, serve, engine, lines, quote, width, layout
+):
+    """reveal.js's theme scrolls every long code block inside its `pre` (`pre code {
+    overflow: auto; max-height: 400px }`). A comment on one of its lines stood its pin
+    above the block's corner after a layout pass, and a scroll of the code then carried
+    the pin away with the lines, so where it stood depended on what moved it last; it
+    also kept standing while its line was scrolled out of the code's view. Seated as
+    prose, it then hung off the end of the line above, and at a phone's width it slid to
+    the window's edge. The pin stands level with its line inside the code box, in the
+    same place after a scroll of the code as after a fresh pass, and is withheld while
+    the line is out of the code's view."""
+    browser = request.getfixturevalue(engine)
+    comment = _comment_on("listing", quote=quote)
+    page = open_page(browser, serve(_listing(lines, layout), events=[comment]))
+    resized(page, width, 800)
+    margins_laid_out(page)
+    before = page.evaluate(PIN_ON_LINE, quote)
+    assert before["shown"] and before["onLine"] and before["inBox"], before
+    laid_out = page.evaluate(
+        """async () => {
+          let laidOut = 0;
+          document.addEventListener('lf-margin-layout', () => laidOut++);
+          const code = document.querySelector('#listing code');
+          const ended = new Promise((done) =>
+            code.addEventListener('scrollend', done, {once: true}));
+          code.scrollTop = 40;
+          await ended;
+          await new Promise((done) =>
+            requestAnimationFrame(() => requestAnimationFrame(done)));
+          return laidOut;
+        }"""
+    )
+    carried = page.evaluate(PIN_ON_LINE, quote)
+    # The scroll alone moved the pin; the pass that follows has to agree with it.
+    assert laid_out == 0, carried
+    margins_laid_out(page)
+    placed = page.evaluate(PIN_ON_LINE, quote)
+    assert carried["offset"] == pytest.approx(before["offset"], abs=1), (
+        before,
+        carried,
+    )
+    assert placed["offset"] == pytest.approx(carried["offset"], abs=1), (
+        carried,
+        placed,
+    )
+    row = page.locator('[data-lf-margin-for="listing"]')
+    code = page.locator("#listing code")
+    code.evaluate("code => { code.scrollTop = 400; }")
+    expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
+    code.evaluate("code => { code.scrollTop = 0; }")
+    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+@pytest.mark.parametrize(("edge", "first"), [("top", 4), ("bottom", 24)])
+def test_a_pin_on_lines_partly_scrolled_away_stands_by_one_still_shown(
+    request, serve, engine, edge, first
+):
+    """A comment can quote several lines of a code block that scrolls. Once the block
+    scrolls the first of them out past an edge of its box, the pin stands level with
+    the first quoted line still in view, at the block's right edge, the same after a
+    fresh pass, and the row hides only once none of them shows. Seated by its first line
+    wherever that line had gone, the pin stood above the code box with five quoted
+    lines in view, or below it with one line just showing at its foot."""
+    browser = request.getfixturevalue(engine)
+    quote = "\n".join(LONG_NEIGHBOURS[first - 1 : first + 7]).strip()
+    comment = _comment_on("listing", quote=quote)
+    page = open_page(browser, serve(_listing(LONG_NEIGHBOURS), events=[comment]))
+    resized(page, 1280, 800)
+    margins_laid_out(page)
+    # The boxes of the quoted lines, as JavaScript taking the quote.
+    lines = """(quote) => {
+      const text = document.querySelector('#listing code').firstChild;
+      const at = text.data.indexOf(quote);
+      const range = document.createRange();
+      range.setStart(text, at);
+      range.setEnd(text, at + quote.length);
+      return [...range.getClientRects()].filter((box) => box.width);
+    }"""
+    reading = f"""quote => {{
+      const lines = ({lines})(quote);
+      const code = document.querySelector('#listing code');
+      const box = code.getBoundingClientRect();
+      const top = box.top + code.clientTop;
+      const band = {{top, bottom: top + code.clientHeight}};
+      const row = document.querySelector('[data-lf-margin-for="listing"]');
+      const pin = row.getBoundingClientRect();
+      const middle = (pin.top + pin.bottom) / 2;
+      return {{shown: !row.classList.contains('lf-withheld'),
+              beside: middle >= Math.max(lines[0].top, band.top)
+                && middle <= Math.min(lines.at(-1).bottom, band.bottom),
+              inBox: pin.left >= box.left && pin.right <= box.right,
+              pin: pin.toJSON(), band, first: lines[0].toJSON()}};
+    }}"""
+    page.evaluate(
+        f"""async ([quote, edge]) => {{
+          const first = ({lines})(quote)[0];
+          const code = document.querySelector('#listing code');
+          const top = code.getBoundingClientRect().top + code.clientTop;
+          const ended = new Promise((done) =>
+            code.addEventListener('scrollend', done, {{once: true}}));
+          // Two quoted lines and part of a third above the box, or the first line's
+          // top 6px showing at its foot.
+          code.scrollTop += edge === 'top'
+            ? first.top - top + 50 : first.top - (top + code.clientHeight - 6);
+          await ended;
+        }}""",
+        [quote, edge],
+    )
+    rendered(page)
+    scrolled = page.evaluate(reading, quote)
+    assert scrolled["shown"] and scrolled["beside"] and scrolled["inBox"], scrolled
+    margins_laid_out(page)
+    placed = page.evaluate(reading, quote)
+    assert placed["shown"] and placed["beside"] and placed["inBox"], placed
+    page.locator("#listing code").evaluate(
+        "(code, edge) => { code.scrollTop = edge === 'top' ? code.scrollTop + 400 : 0; }",
+        edge,
+    )
+    expect(page.locator('[data-lf-margin-for="listing"]')).to_have_class(
+        re.compile(r"\blf-withheld\b")
+    )
+
+
+FIRST_LINE = "configuration = load_settings(path, defaults, overrides, environment, profile_name)"
+FIRST_LINE_LISTING = [FIRST_LINE, "short_second = 1", "third = 2"]
+# The same block on a slide a deck translates and scales, as reveal.js does.
+SLIDE_PAGE = leaf_page(
+    "a code block on a slide",
+    '<div><h1>Deck</h1><div style="position: relative; height: 420px">'
+    '<div id="slide" style="position: absolute; left: 50%; top: 50%; width: 960px;'
+    ' transform: translate(-50%, -50%) scale(0.6)"><pre id="listing"><code>'
+    + "\n".join(FIRST_LINE_LISTING)
+    + "</code></pre></div></div></div>",
+    layout="workspace",
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+@pytest.mark.parametrize("where", ["column", "moved-slide"])
+def test_a_pin_on_a_code_block_s_first_line_leaves_copy_pressable(
+    request, serve, engine, where
+):
+    """Copy stands just inside a code block's top-right corner, over the first line's
+    last words. A pin on that line stands level with it and clear of where Copy shows,
+    so a press on Copy reaches Copy, also on a slide a deck moves after the page loads,
+    where Firefox read Copy's place at rest from before the move."""
+    browser = request.getfixturevalue(engine)
+    source = (
+        _listing(FIRST_LINE_LISTING, layout="column")
+        if where == "column"
+        else SLIDE_PAGE
+    )
+    comment = _comment_on("listing", quote="profile_name)")
+    page = open_page(browser, serve(source, events=[comment]))
+    resized(page, 760 if where == "column" else 1280, 800)
+    margins_laid_out(page)
+    if where == "moved-slide":
+        page.locator("#slide").evaluate(
+            "slide => { slide.style.transform = 'translate(-35%, -50%) scale(0.6)'; }"
+        )
+        margins_laid_out(page)
+    row = page.locator('[data-lf-margin-for="listing"]')
+    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+    pin = row.bounding_box()
+    page.locator("#listing code").hover()
+    copy = page.locator(".lf-code-copy")
+    expect(copy).to_have_css("opacity", "1")
+    shows = copy.bounding_box()
+    assert (
+        pin["x"] + pin["width"] <= shows["x"]
+        or pin["x"] >= shows["x"] + shows["width"]
+        or pin["y"] + pin["height"] <= shows["y"]
+        or pin["y"] >= shows["y"] + shows["height"]
+    ), (pin, shows)
+    copy.click()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_code_block_s_own_pin_stands_above_its_corner(request, serve, engine):
+    """A comment on a whole code block stands its pin above the block's top-right
+    corner, outside the block, so it reads apart from the pins of the block's lines,
+    which stand inside it level with their lines, and keeps clear of Copy."""
+    browser = request.getfixturevalue(engine)
+    events = [
+        _comment_on("listing"),
+        _comment_on("listing", text="On a line.", quote="short_second = 1"),
+    ]
+    page = open_page(
+        browser, serve(_listing(FIRST_LINE_LISTING, layout="column"), events=events)
+    )
+    resized(page, 760, 800)
+    margins_laid_out(page)
+    reading = page.evaluate(
+        """() => {
+          const block = document.getElementById('listing').getBoundingClientRect();
+          const text = document.querySelector('#listing code').firstChild;
+          const at = text.data.indexOf('short_second = 1');
+          const range = document.createRange();
+          range.setStart(text, at);
+          range.setEnd(text, at + 16);
+          const line = range.getClientRects()[0];
+          const rows = [...document.querySelectorAll('[data-lf-margin-for="listing"]')]
+            .map((row) => ({quoted: row.getAttribute('aria-label').includes('short_second'),
+                            box: row.getBoundingClientRect()}));
+          const own = rows.find((row) => !row.quoted).box;
+          const lined = rows.find((row) => row.quoted).box;
+          const middle = (lined.top + lined.bottom) / 2;
+          return {above: own.bottom <= block.top, atCorner: block.right - own.right < 24,
+                  onLine: middle >= line.top && middle <= line.bottom,
+                  own: own.toJSON(), lined: lined.toJSON(), block: block.toJSON()};
+        }"""
+    )
+    assert reading["above"] and reading["atCorner"] and reading["onLine"], reading
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_wrapped_prose_that_keeps_its_spaces_seats_its_pin_as_prose(
+    request, serve, engine
+):
+    """Prose that keeps its spaces and wraps, as a quoted message or a transcript might
+    (`white-space: pre-wrap`), reaches the column's edge on every line, so its pin
+    stands by its words as an ordinary paragraph's does, not at the edge as a line of
+    code's does."""
+    browser = request.getfixturevalue(engine)
+    words = (
+        "This paragraph keeps its spaces, as a quoted message might. It runs long "
+        "enough to wrap across several lines of the column, and a reader comments on "
+        "a phrase in its middle so the pin's seat shows how wrapped prose is treated."
+    )
+    # Each paragraph between the same neighbours, so where its pin stands differs only
+    # by how its spaces are kept.
+    body = (
+        "<div><h1>Prose</h1>"
+        + "".join(
+            f'<h2>{section.title()}</h2><p id="{section}"{style}>{words}</p>'
+            "<p>Words after the paragraph, so the room below it is the same.</p>"
+            for section, style in (
+                ("kept", ' style="white-space: pre-wrap"'),
+                ("plain", ""),
+            )
+        )
+        + "</div>"
+    )
+    events = [
+        _comment_on(section, quote="a phrase in its middle")
+        for section in ("kept", "plain")
+    ]
+    page = open_page(
+        browser, serve(leaf_page("Prose", body, layout="workspace"), events=events)
+    )
+    resized(page, 900, 800)
+    margins_laid_out(page)
+    offsets = page.evaluate(
+        """() => ['kept', 'plain'].map((id) => {
+          const text = document.getElementById(id).firstChild;
+          const at = text.data.indexOf('a phrase in its middle');
+          const range = document.createRange();
+          range.setStart(text, at);
+          range.setEnd(text, at + 22);
+          const words = range.getClientRects()[0];
+          const pin = document.querySelector(`[data-lf-margin-for="${id}"]`)
+            .getBoundingClientRect();
+          return [pin.left - words.left, pin.top - words.top];
+        })"""
+    )
+    assert offsets[0] == pytest.approx(offsets[1], abs=1), offsets
 
 
 def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
@@ -283,35 +760,41 @@ def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
     assert_follows_in_every_frame(page, "#pin-pane > div")
 
 
-@pytest.mark.parametrize(
-    "wrapper", ["overflow: hidden; border-radius: 8px", "overflow-x: auto"]
-)
 def test_a_pin_in_a_pane_rides_an_anchored_carrier_through_boxes_that_scroll_nothing(
-    browser, serve, wrapper
+    browser, serve, subtests
 ):
     """A pin whose target stands in a pane stands in a carrier anchored to what the
     pane's scroll carries, rather than a scroll-driven layer, which can paint a frame
     off its scroll. A box between the target and the pane that clips but scrolls
     nothing, as a rounded wrapper or a table wrapper that fits, leaves it there."""
+    wrappers = {
+        "rounded": "overflow: hidden; border-radius: 8px",
+        "table": "overflow-x: auto",
+    }
     source = PANE_PIN_PAGE.replace(
         '<p id="pane-top">The first finding, commented on.</p>',
-        f'<div style="{wrapper}"><p id="pane-top">The first finding, commented on.</p>'
-        "</div>",
+        "".join(
+            f'<div style="{wrapper}"><p id="{name}">A finding, commented on.</p></div>'
+            for name, wrapper in wrappers.items()
+        ),
     )
-    page = open_page(browser, serve(source, events=[_comment_on("pane-top")]))
+    page = open_page(
+        browser, serve(source, events=[_comment_on(name) for name in wrappers])
+    )
     resized(page, 1280, 720)
     pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
     margins_laid_out(page)
-    row = page.locator('[data-lf-margin-for="pane-top"]')
-    expect(row).to_have_attribute("data-lf-place", "pin")
-    assert row.evaluate(
-        "row => row.parentElement.classList.contains('lf-margin-carrier')"
-    ), wrapper
+    for name, wrapper in wrappers.items():
+        with subtests.test(wrapper=name):
+            row = page.locator(f'[data-lf-margin-for="{name}"]')
+            expect(row).to_have_attribute("data-lf-place", "pin")
+            assert row.evaluate(
+                "row => row.parentElement.classList.contains('lf-margin-carrier')"
+            ), wrapper
 
 
-@pytest.mark.parametrize("change", ["size", "layout"])
 def test_a_bounded_region_reflows_its_margin_without_resizing_the_page(
-    browser, serve, change
+    browser, serve, subtests
 ):
     """A fixed-size pane can move its target through a sibling's resize or a
     same-size view rearrangement. The geometry owner hears the size owner and the
@@ -335,35 +818,34 @@ def test_a_bounded_region_reflows_its_margin_without_resizing_the_page(
         hit: row.contains(document.elementFromPoint(r.left + r.width / 2,
                                                    r.top + r.height / 2))};
     }"""
-    before = page.evaluate(reading)
-    page.evaluate(
-        """async change => {
-          const target = document.getElementById('pane-top');
-          if (change === 'size') target.previousElementSibling.style.height = '224px';
-          else {
-            target.setAttribute('data-offset', '');
-            const {layoutChanged} = await window.__lfWidgetApi();
-            await layoutChanged(target);
-          }
-        }""",
-        change,
-    )
-    rendered(page)
-    after = page.evaluate(reading)
-    assert after["height"] == before["height"]
-    if change == "size":
-        assert after["top"] - before["top"] == pytest.approx(24, abs=1)
-        assert after["offset"] == pytest.approx(before["offset"], abs=1)
-    else:
-        # Moving only the paragraph can change the clear seat around it. The layout
-        # notification must settle that seat as a full geometry reading would.
-        assert after["top"] != before["top"]
-        page.evaluate("""async () => {
-          const {layoutChanged} = await window.__lfWidgetApi();
-          layoutChanged(document.body);
-        }""")
-        assert page.evaluate(reading) == after
-    assert after["hit"]
+    for change in ("size", "layout"):
+        with subtests.test(change=change):
+            before = page.evaluate(reading)
+            page.evaluate(
+                """async change => {
+                  const target = document.getElementById('pane-top');
+                  if (change === 'size') target.previousElementSibling.style.height = '224px';
+                  else {
+                    target.setAttribute('data-offset', '');
+                    const {layoutChanged} = await window.__lfWidgetApi();
+                    await layoutChanged(target);
+                  }
+                }""",
+                change,
+            )
+            rendered(page)
+            after = page.evaluate(reading)
+            assert after["height"] == before["height"]
+            if change == "size":
+                assert after["top"] - before["top"] == pytest.approx(24, abs=1)
+                assert after["offset"] == pytest.approx(before["offset"], abs=1)
+            else:
+                # Moving only the paragraph can change the clear seat around it. The layout
+                # notification must settle that seat as a full geometry reading would.
+                assert after["top"] != before["top"]
+                margins_laid_out(page)
+                assert page.evaluate(reading) == after
+            assert after["hit"]
 
 
 _PARAGRAPH = (
@@ -448,6 +930,78 @@ def test_a_pin_in_a_pane_takes_one_seat_at_every_scroll(browser, serve):
     assert top["withheld"] or (
         (top["dx"], top["dy"]) == (far["dx"], far["dy"]) and top["above"] <= 1
     ), (far, top)
+
+
+def sticky_header_page(nested):
+    """A section whose sticky header's control spans its right strip; `nested` sticks
+    the control in a box of its own inside the header too."""
+    control = "<button>Fit the evidence to the window</button>"
+    if nested:
+        control = f'<div id="sticky-inner">{control}</div>'
+    return leaf_page(
+        "a pin on a block with a sticky header",
+        '<h1 id="t">Sticky header</h1>'
+        f'<section id="sticky-target"><div id="sticky-head">{control}</div>'
+        + _PARAGRAPH * 12
+        + "</section>"
+        + _PARAGRAPH * 6,
+        head="<style>#sticky-head { position: sticky; top: 0; display: flex;"
+        " gap: var(--sp-2); background: var(--paper); }"
+        " #sticky-head button, #sticky-inner { flex: 1; display: flex; }"
+        " #sticky-inner { position: sticky; top: 0; }"
+        " #sticky-inner button { flex: 1; } #sticky-target { padding-right: 48px; }"
+        " #sticky-head { margin-right: -48px; }</style>",
+    )
+
+
+# Firefox has no `ViewTimeline` to read a sticky box's own place with
+# (notes/browser-support.md, "Sticky boxes' own place").
+@pytest.mark.parametrize(
+    ("engine", "nested"),
+    [("browser", False), ("webkit_browser", False), ("browser", True)],
+)
+def test_a_pin_by_a_sticky_header_takes_one_seat_at_every_scroll(
+    request, serve, engine, nested
+):
+    """A pin's seat is read once against the target's room, so the document's scroll
+    never moves it (margin-layout.js: remeasuring after a scroll writes the same
+    insets). A sticky header inside the target is drawn wherever the scroll sticks it,
+    so it is read at its own place in the target: read where it was drawn, a pass made
+    while the header stuck far down the target left the seat by its top clear, and the
+    next unrelated pass after scrolling back found the header's control there and moved
+    the pin, with no input (#5165). A sticky box inside the header moves with the
+    header's offset as well as its own, which is counted once."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(sticky_header_page(nested), events=[_comment_on("sticky-target")]),
+    )
+    resized(page, 700, 600)
+    row = page.locator('[data-lf-margin-for="sticky-target"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+
+    def seat_at(scroll):
+        """The pin's offset from its target, laid out with the document at `scroll`."""
+        page.evaluate("(y) => scrollTo(0, y)", scroll)
+        margins_laid_out(page)
+        return page.evaluate(
+            """() => {
+              const row = document.querySelector('[data-lf-margin-for="sticky-target"]');
+              const target = document.getElementById('sticky-target')
+                .getBoundingClientRect();
+              const pin = row.getBoundingClientRect();
+              return {dx: Math.round(pin.right - target.right),
+                      dy: Math.round(pin.top - target.top)};
+            }"""
+        )
+
+    top = seat_at(0)
+    # Scrolled 400px past the target's top, the header sticks 400px down inside it.
+    stuck = page.evaluate(
+        "() => document.getElementById('sticky-target').getBoundingClientRect().top"
+        " + scrollY + 400"
+    )
+    assert seat_at(stuck) == top
+    assert seat_at(0) == top
 
 
 @pytest.mark.parametrize("target_tree", ["shadow", "slotted"])
@@ -662,6 +1216,137 @@ def test_a_row_behind_an_inactive_tab_is_withheld(browser, serve):
     expect(row).to_be_visible()
 
 
+# A deck whose script moves its slides with transitions: the next slide hidden below the
+# current one by `visibility`, as reveal.js hides a fragment still to come, and the one
+# before moved out of the box that clips the deck. (reveal.js hides whole slides with
+# `hidden`, which Leaf's own rule draws as `display: none`.)
+DECK_PAGE = leaf_page(
+    "a deck that moves its slides with transitions",
+    """
+<header>
+  <h1>Deck</h1>
+  <details id="notes"><summary>Notes</summary><p id="note">A note for the speaker.</p></details>
+</header>
+<div id="deck">
+  <section id="slide-one" class="present"><h2>First</h2><p>The slide showing now.</p></section>
+  <section id="slide-two" class="future"><h2>Second</h2><p>Below it, still hidden.</p></section>
+  <section id="slide-three" class="past"><h2>Third</h2><p>Above the deck's box.</p></section>
+</div>
+""",
+    head="""<style>
+  #deck { position: relative; overflow: hidden; height: 360px; }
+  #deck > section { position: absolute; top: 40px; width: 100%;
+                    transition: visibility 0.2s, transform 0.2s; }
+  #deck > .future { visibility: hidden; transform: translateY(150%); }
+  #deck > .past { transform: translateY(-400px); }
+</style>""",
+    layout="workspace",
+)
+
+
+def test_rows_follow_slides_a_transition_shows_and_hides(browser, serve):
+    """A slide hidden by `visibility`, or moved out of the box that clips it, withholds
+    its comment's row, as a closed disclosure does. When the deck swaps slides by a
+    transition, the class change that starts it is read while the transition still holds
+    the old values, and nothing after it resizes or mutates; the rows follow once the
+    transitions end, without a reload."""
+    page = open_page(
+        browser,
+        serve(
+            DECK_PAGE,
+            events=[
+                _comment_on(slide)
+                for slide in ("slide-one", "slide-two", "slide-three")
+            ]
+            + [_comment_on("note")],
+        ),
+    )
+    resized(page, 1280, 800)
+    margins_laid_out(page)
+    row = {
+        target: page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
+        for target in ("slide-one", "slide-two", "slide-three", "note")
+    }
+    withheld = re.compile(r"\blf-withheld\b")
+    expect(row["slide-one"]).to_be_visible()
+    for hidden in ("slide-two", "slide-three", "note"):
+        expect(row[hidden]).to_have_class(withheld)
+        expect(row[hidden]).to_be_hidden()
+
+    # Read two frames after the transitions end, not polled: some unrelated pass would
+    # place the rows eventually, which is the bug.
+    swapped = page.evaluate("""async () => {
+      const one = document.getElementById('slide-one');
+      const two = document.getElementById('slide-two');
+      const ended = (slide, property) => new Promise((resolve) =>
+        slide.addEventListener('transitionend', (event) => {
+          if (event.target === slide && event.propertyName === property) resolve();
+        }));
+      const both = Promise.all([ended(one, 'transform'), ended(two, 'visibility')]);
+      one.className = 'past';
+      two.className = 'present';
+      await both;
+      for (const _ of [1, 2]) await new Promise(requestAnimationFrame);
+      const held = (id) => document
+        .querySelector(`[data-lf-margin-for="${id}"]`).classList.contains('lf-withheld');
+      return {one: held('slide-one'), two: held('slide-two')};
+    }""")
+    assert swapped == {"one": True, "two": False}, swapped
+    expect(row["slide-two"]).to_be_visible()
+
+    page.get_by_text("Notes", exact=True).click()
+    expect(row["note"]).not_to_have_class(withheld)
+    expect(row["note"]).to_be_visible()
+
+
+def test_rows_stand_by_words_a_transition_moved_once_it_ends(browser, serve):
+    """A transform moves words without layout, so nothing resizes or mutates after the
+    class change that starts it. Once the transition ends, the rows by those words stand
+    by them again, a quoted row and a row on the moved box alike, without waiting for an
+    unrelated pass."""
+    filler = "".join(
+        f"<p>Filler paragraph {n}, a line of reading.</p>" for n in range(8)
+    )
+    body = (
+        f'<h1>Moved words</h1>{filler}<div id="mover"><p id="moving">Moving words to'
+        f" quote, which a transition carries down.</p></div>{filler}{filler}"
+    )
+    head = (
+        "<style>#mover { transition: transform 0.2s; }"
+        " #mover.moved { transform: translateY(160px); }</style>"
+    )
+    events = [_comment_on("moving", quote="Moving words"), _comment_on("mover")]
+    page = open_page(
+        browser, serve(leaf_page("Moved words", body, head=head), events=events)
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    # Each row's marker, from the words it stands by.
+    offsets = """() => {
+      const words = document.getElementById('moving').getBoundingClientRect().top;
+      const marker = (row) => document.querySelector(row + ' .lf-margin-marker')
+        .getBoundingClientRect().top - words;
+      return {
+        quoted: marker('[data-lf-margin-for="moving"]'),
+        box: marker('[data-lf-margin-for="mover"]'),
+      };
+    }"""
+    before = page.evaluate(offsets)
+    # Read two frames after the transition ends, not polled: some unrelated pass would
+    # place the rows eventually, which is the bug.
+    moved = """async () => {
+      const mover = document.getElementById('mover');
+      const ended = new Promise((resolve) => mover.addEventListener('transitionend',
+        (event) => event.target === mover && resolve()));
+      mover.classList.add('moved');
+      await ended;
+      for (const _ of [1, 2]) await new Promise(requestAnimationFrame);
+      return (OFFSETS)();
+    }"""
+    after = page.evaluate(moved.replace("OFFSETS", offsets))
+    assert after == pytest.approx(before, abs=1), (before, after)
+
+
 STRIP_FILL = "".join(
     f"<p>Filler paragraph {n}, a line of reading.</p>" for n in range(40)
 )
@@ -731,28 +1416,32 @@ def test_a_pin_and_copy_pass_under_a_stuck_tab_strip(browser, serve):
     assert copy["hitStrip"], copy
 
 
-def test_a_pane_row_withheld_at_load_stands_once_its_target_scrolls_in(browser, serve):
-    """A row whose target starts below its pane's fold is withheld, and it is anchored
-    all the same: once the pane scrolls its target in, the row stands on it rather than
-    at the off-screen place an unanchored row would wait in."""
-    page = open_page(browser, serve(PANE_PIN_PAGE, events=[_comment_on("pane-end")]))
+def test_a_row_in_content_skipped_until_near_stands_once_the_page_scrolls_to_it(
+    browser, serve
+):
+    """A section of fixed height that the browser skips until it nears the window
+    (`content-visibility: auto`) withholds the row on a target inside it, and scrolling
+    the page alone, which resizes and rewrites nothing, brings the row back once the
+    section is drawn."""
+    source = leaf_page(
+        "a far section",
+        '<h1 id="t">Far</h1><div style="height: 3000px"></div>'
+        '<section id="far-section" style="content-visibility: auto; height: 400px; '
+        'contain-intrinsic-size: auto 400px"><p id="far">Words far down the page, '
+        "which the browser skips drawing until they near the window.</p></section>"
+        '<div style="height: 1200px"></div>',
+    )
+    page = open_page(browser, serve(source, events=[_comment_on("far")]))
     resized(page, 1280, 720)
-    pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
     margins_laid_out(page)
-    row = page.locator('.lf-margin-cluster[data-lf-margin-for="pane-end"]')
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="far"]')
     expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
-    page.locator("#pin-pane > div").evaluate(
-        "body => { body.scrollTop = body.scrollHeight; }"
-    )
+    page.mouse.move(640, 360)
+    for _ in range(12):
+        page.mouse.wheel(0, 250)
+        page.wait_for_timeout(50)
+    expect(page.locator("#far")).to_be_in_viewport()
     expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
-    stands = row.evaluate(
-        """row => {
-          const r = row.getBoundingClientRect();
-          const t = document.getElementById('pane-end').getBoundingClientRect();
-          return Math.abs(r.top - t.top) < 2 && r.left < t.right + 40;
-        }"""
-    )
-    assert stands
 
 
 def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serve):
@@ -777,7 +1466,6 @@ def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serv
         ),
     )
     resized(page, 1440, 900)
-    margins_laid_out(page)
     margins_laid_out(page)
     stuck = page.locator('.lf-margin-cluster[data-lf-margin-for="fixed-note"]')
     flow = page.locator('.lf-margin-cluster[data-lf-margin-for="flow"]')

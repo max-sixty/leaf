@@ -12,9 +12,11 @@
    `toggleAttribute` keeps the rule for a flag by construction, where the `disabled` and
    `hidden` setters rewrite the attribute on every set, and `classList.toggle(name,
    force)` keeps it for a class, where `add` and `remove` rewrite the attribute whether
-   or not the class changes. An inline style property set to the value it holds is no
-   write, and Lit writes a binding only when its value moved. The suite's browser
-   fixture fails a write that changes nothing (tests/write_watch.js).
+   or not the class changes. An inline style property set to the value and priority it
+   holds, or removed where it is absent, is no write in Chromium, Firefox and WebKit, so
+   a style write needs no keeper and no guard reading the property first. Lit writes a
+   binding only when its value moved. The suite's browser fixture fails a write that
+   changes nothing (tests/write_watch.js).
 
    The comparison is against what the node would read back, not what the caller held:
    `getAttribute` and `textContent` answer with a string and their setters stringify,
@@ -49,6 +51,21 @@ export function keepsHidden(node, hidden) {
 export function keepsText(node, text) {
   const said = String(text ?? "");
   if (node && node.textContent !== said) node.textContent = said;
+}
+
+// A flag one element wears at a time, as a cursor's paint stands on the element under
+// the pointer (annotation-overlay/anchor-paint.js, page-geometry.js): the returned call
+// moves it to `element`, or takes it off with null, writing only when that changes.
+/** @param {string} name */
+export function keepsOnOne(name) {
+  /** @type {Element | null} */
+  let on = null;
+  return (/** @type {Element | null} */ element) => {
+    if (element === on) return;
+    on?.removeAttribute(name);
+    element?.setAttribute(name, "");
+    on = element;
+  };
 }
 
 /** @param {number} length */

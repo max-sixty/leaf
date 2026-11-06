@@ -8,14 +8,8 @@ import subprocess
 
 import pytest
 from conftest import LEAF_COMMAND
-from interact_support import (
-    add_test_widget,
-    append_carried_log_record,
-    wait_for,
-)
 from playwright.sync_api import expect
 from render_cases_layout import (
-    BADGE_CHROME,
     SHORT_CHIP_PAGE,
     SHOT_PAGE,
     SHOT_SRC,
@@ -24,30 +18,20 @@ from render_cases_layout import (
     solid_png,
 )
 from render_harness import (
-    CARRIED_PAGE,
-    EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
-    REPLY_HOST_PAGE,
-    SAMPLE_MARKUP,
-    SAMPLE_TEXT,
-    consume_browser_errors,
     holding,
     leaf_page,
     open_page,
     opened_tab,
     page_registry,
-    primed,
     resized,
     scroll_settled,
     select,
 )
 
-from browser.threads import open_panel_thread
-from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_gate import browser as browser_model
-from leaf.render_gate import version as render_gate_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -140,18 +124,19 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     assert_source_words()
     expect(shot).to_have_attribute("data-lf-shot-mode", "flip")
     assert_source_words()
+    # The classic track is on: its stable gutter takes both edges.
     assert (
         shot.locator(".lf-shotstage").evaluate(
             "node => node.offsetWidth - node.clientWidth"
         )
-        == 15
+        == 2 * 15
     )
     toolbar = shot.locator(".lf-shot-toolbar")
     toolbar.scroll_into_view_if_needed()
-    controls = toolbar.get_by_role("button").all()
+    controls = toolbar.get_by_role("button").or_(toolbar.get_by_role("radio")).all()
     controls = [control for control in controls if control.is_visible()]
     boxes = [control.bounding_box() for control in controls]
-    assert len(boxes) == 5
+    assert len(boxes) == 4
     floor = 44 if touch else 24
     for index, box in enumerate(boxes):
         assert box["width"] >= floor - 0.5, box
@@ -178,6 +163,14 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
                 or box["y"] + box["height"] <= other["y"] + 0.5
                 or other["y"] + other["height"] <= box["y"] + 0.5
             ), (box, other)
+    # A narrower phone keeps one row of controls: a view that wrapped would stand inside
+    # the targets of the views above it.
+    resized(page, 360, 844)
+    middles = [control.bounding_box() for control in controls]
+    assert {round(box["y"] + box["height"] / 2) for box in middles} == {
+        round(middles[0]["y"] + middles[0]["height"] / 2)
+    }, middles
+    resized(page, 390, 844)
     captions = toolbar.locator(".lf-shotcap")
     expect(captions).to_have_text(["Before", "After"])
     label_colors = captions.evaluate_all(
@@ -190,8 +183,8 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     for caption in captions.all():
         caption.tap() if touch else caption.click()
         expect(shot.locator("wa-comparison")).to_have_attribute("position", "50")
-        expect(shot.get_by_role("button", name="Slider", exact=True)).to_have_attribute(
-            "aria-pressed", "true"
+        expect(shot.get_by_role("radio", name="Slider", exact=True)).to_have_attribute(
+            "aria-checked", "true"
         )
     # Source labels remain selectable words.
     box = captions.first.bounding_box()
@@ -236,8 +229,8 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         )
         expect(captions.nth(hidden)).not_to_have_css("color", label_colors[hidden])
         expect(captions.nth(1 - hidden)).to_have_css("color", label_colors[1 - hidden])
-        expect(shot.get_by_role("button", name="Slider", exact=True)).to_have_attribute(
-            "aria-pressed", "true"
+        expect(shot.get_by_role("radio", name="Slider", exact=True)).to_have_attribute(
+            "aria-checked", "true"
         )
     handle = comparison.get_by_role("scrollbar")
     handle.focus()
@@ -254,7 +247,7 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
                 )
             else:
                 expect(captions.nth(index)).to_have_css("color", label_colors[index])
-    shot.get_by_role("button", name="Pair", exact=True).click()
+    shot.get_by_role("radio", name="Pair", exact=True).click()
     for index in (0, 1):
         expect(captions.nth(index)).to_have_css("color", label_colors[index])
     # Controls and the image area's top stay put; Pair may shrink the content
@@ -266,18 +259,18 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         const r = element.getBoundingClientRect();
         return {x: r.x, y: r.y + scrollY, width: r.width, height: r.height};
       };
-      return {toolbar: box(node.querySelector('.lf-shot-toolbar')),
+      return {
         controls: [...node.querySelectorAll(
-          '.lf-shot-views button, .lf-shot-tools > button'
+          '.lf-shot-views wa-radio, .lf-shot-tools > button'
         )].map(box), stageTop: box(node.querySelector('.lf-shotstage')).y};
     }"""
     for width in (390, 500, 1000):
         page.set_viewport_size({"width": width, "height": 844})
-        shot.get_by_role("button", name="Slider", exact=True).click()
+        shot.get_by_role("radio", name="Slider", exact=True).click()
         toolbar.scroll_into_view_if_needed()
         allocation = shot.evaluate(boxes)
         for view in ("Pair", "Pixels", "Slider"):
-            shot.get_by_role("button", name=view, exact=True).click()
+            shot.get_by_role("radio", name=view, exact=True).click()
             assert shot.evaluate(boxes) == allocation, view
             page.evaluate("() => new Promise(requestAnimationFrame)")
             assert shot.evaluate(boxes) == allocation, view
@@ -292,7 +285,7 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
                 }""")
                 assert abs(unused_height) <= 1
     # Pair takes the arrangement that draws the 2:1 captures larger on screen.
-    shot.get_by_role("button", name="Pair", exact=True).click()
+    shot.get_by_role("radio", name="Pair", exact=True).click()
     for width, height, layout in (
         (1000, 844, "stack"),
         (1000, 360, "side"),
@@ -301,6 +294,16 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         page.set_viewport_size({"width": width, "height": height})
         expect(shot).to_have_attribute("data-lf-shot-layout", layout)
         assert_source_words()
+    # Slider's single frame fits the screen too, so the reader sees all of it while
+    # sliding.
+    page.set_viewport_size({"width": 1000, "height": 300})
+    shot.get_by_role("radio", name="Slider", exact=True).click()
+    toolbar.scroll_into_view_if_needed()
+    shown = shot.evaluate("""node => {
+      const top = node.querySelector('.lf-shot-toolbar').getBoundingClientRect().top;
+      return node.querySelector('.lf-shotstage').getBoundingClientRect().bottom - top;
+    }""")
+    assert shown <= 300 + 1
 
 
 @pytest.mark.parametrize("touch", [False, True])
@@ -343,7 +346,7 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     expect(comparison).to_have_attribute("position", "0")
     expect(viewer).not_to_be_visible()
 
-    shot.get_by_role("button", name="Pair", exact=True).click()
+    shot.get_by_role("radio", name="Pair", exact=True).click()
     links = shot.get_by_role("link")
     expect(links).to_have_count(2)
     before = shot.bounding_box()
@@ -398,8 +401,8 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
         page.keyboard.press("Escape")
         expect(viewer).not_to_be_visible()
         expect(link).to_be_focused()
-        expect(shot.get_by_role("button", name="Pair", exact=True)).to_have_attribute(
-            "aria-pressed", "true"
+        expect(shot.get_by_role("radio", name="Pair", exact=True)).to_have_attribute(
+            "aria-checked", "true"
         )
         assert shot.bounding_box() == before
         assert link.bounding_box() == box
@@ -477,7 +480,8 @@ def test_a_shot_compares_pixels_inside_an_opaque_live_sample(browser, serve):
     shot = child.locator("#sample-shot")
     reading = shot.evaluate("async shot => await shot.difference")
     assert reading["regions"]
-    shot.get_by_role("button", name="Outline changes", exact=True).click()
+    shot.get_by_role("button", name="Image options").click()
+    shot.get_by_role("checkbox", name="Outline changes", exact=True).check()
     expect(shot.locator(".lf-shotdiff > span").first).to_be_visible()
 
 
@@ -490,7 +494,7 @@ def test_a_tall_shot_drags_where_it_was_grabbed_without_moving_the_page(browser,
         media={SHOT_SRC["before"]: before, SHOT_SRC["after"]: after},
     )
     page = open_page(browser, url)
-    page.locator("lf-shot").get_by_role("button", name="Slider", exact=True).click()
+    page.locator("lf-shot").get_by_role("radio", name="Slider", exact=True).click()
     comparison = page.locator("lf-shot wa-comparison")
     handle = comparison.get_by_role("scrollbar")
     expect(handle).to_have_accessible_name("Before and after — the navigation rail")
@@ -562,7 +566,7 @@ def test_a_tall_shot_scrolls_its_images_then_chains_to_its_container(
         ),
     )
     shot = page.locator("#scroll-shot")
-    shot.get_by_role("button", name="Pair", exact=True).click()
+    shot.get_by_role("radio", name="Pair", exact=True).click()
     allocation = shot.locator(".lf-shotstage").bounding_box()
     fitted = [frame.bounding_box() for frame in shot.locator(".lf-shotframe").all()]
     assert len(fitted) == 2
@@ -610,26 +614,17 @@ def test_a_tall_shot_scrolls_its_images_then_chains_to_its_container(
 
 
 def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
-    """Upgrading the controls cannot collapse the image allocation before decode."""
+    """Once drawn, the shot's frame keeps its allocation through image decode."""
     url = serve(SHOT_PAGE, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    modules, images = [], []
-    page.route("**/widgets/lf-shot.js", lambda route: modules.append(route))
+    images = []
     page.route("**/media/*.png", lambda route: images.append(route))
     page.goto(url, wait_until="domcontentloaded")
-    holding(page, modules, 1, "the screenshot widget before upgrade")
     shot = page.locator("lf-shot")
-    page.wait_for_function(
-        "getComputedStyle(document.querySelector('lf-shot')).display === 'flex'"
-    )
-    before = shot.bounding_box()
-    assert before["height"] > 100, before
-    for route in modules:
-        route.continue_()
-    page.unroute("**/widgets/lf-shot.js")
     expect(shot.locator(".lf-shotframe img")).to_have_count(2)
     holding(page, images, 2, "both screenshot image responses")
-    pending = shot.bounding_box()
+    before = shot.bounding_box()
+    assert before["height"] > 100, before
     assert shot.locator("img").evaluate_all(
         "images => images.every(image => image.naturalWidth === 0)"
     )
@@ -639,57 +634,132 @@ def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
     render_checks_model.wait_until_ready(page)
     expect(shot.locator(".lf-shotframe").first).to_be_visible()
     complete = shot.bounding_box()
-    assert pending == pytest.approx(before, abs=1), (before, pending, complete)
-    assert complete == pytest.approx(before, abs=1), (before, pending, complete)
+    assert complete == pytest.approx(before, abs=1), (before, complete)
 
 
-def test_a_shot_keeps_its_default_slider_stable_while_the_divider_loads(browser, serve):
-    """Slider reserves one image from first drawing; Pair stays usable during loading."""
+def test_a_shot_takes_a_view_pressed_as_the_page_shows_and_keeps_its_divider(
+    browser, serve
+):
+    """Pixels, pressed the moment the page shows, is the view the next frame draws, and
+    its mask arrives. Back on Slider the divider stands halfway, and Pixels and back keep
+    it where the reader moved it."""
     source = leaf_page(
-        "Request a divider",
-        f'<h1>Request a divider</h1><lf-shot id="deferred-pair" alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
+        "Press a view",
+        f'<h1>Press a view</h1><lf-shot id="pressed-pair" alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
     )
     url = serve(source, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    held = []
-    page.route("**/vendor/webawesome.esm.js", lambda route: held.append(route))
-    page.goto(url, wait_until="domcontentloaded")
-    holding(page, held, 1, "the default comparison divider")
-    shot = page.locator("lf-shot")
-    views = shot.get_by_role("group", name="Comparison view")
-    expect(views.get_by_role("button", name="Slider", exact=True)).to_have_attribute(
-        "aria-pressed", "true"
+    # The press lands the moment the page shows, ahead of any work the page starts only
+    # once it shows; on a slow network a reader's press can land there too.
+    page = open_page(
+        browser,
+        url,
+        init_script="""new MutationObserver((records, observer) => {
+          if (!document.body?.hasAttribute('data-lf-presented')) return;
+          observer.disconnect();
+          const shot = document.querySelector('lf-shot');
+          shot.querySelector('.lf-shot-views [value="pixels"]').click();
+          requestAnimationFrame(() => {
+            window.lfNextFrame = {
+              view: shot.dataset.lfShotMode,
+              mask: shot.querySelector('.lf-shot-pixel-mask').getAttribute('style'),
+            };
+          });
+        }).observe(document, {subtree: true, attributeFilter: ['data-lf-presented']});""",
     )
-    expect(shot).to_have_attribute("data-lf-shot-mode", "flip")
-    expect(shot.locator("wa-comparison")).to_have_count(0)
-    images = shot.locator(".lf-shotframe img")
-    for image in images.all():
-        expect(image).to_be_visible()
-    pending = [image.bounding_box() for image in images.all()]
-    assert len(pending) == 2
-    assert pending[0] == pytest.approx(pending[1], abs=1)
-    reserved = shot.bounding_box()
-    views.get_by_role("button", name="Pair", exact=True).click()
-    expect(shot).to_have_attribute("data-lf-shot-mode", "compare")
-    paired = [image.bounding_box() for image in images.all()]
-    assert paired[1]["y"] >= paired[0]["y"] + paired[0]["height"], paired
-    views.get_by_role("button", name="Slider", exact=True).click()
-    for route in held:
-        route.continue_()
-    page.unroute("**/vendor/webawesome.esm.js")
-    render_checks_model.wait_until_ready(page)
+    page.wait_for_function("window.lfNextFrame !== undefined")
+    assert page.evaluate("window.lfNextFrame") == {"view": "pixels", "mask": ""}
+    shot = page.locator("lf-shot")
+    views = shot.locator(".lf-shot-views")
+    expect(views.get_by_role("radio", name="Pixels", exact=True)).to_have_attribute(
+        "aria-checked", "true"
+    )
+    expect(shot.locator(".lf-shotpixels")).to_be_visible()
+    expect(shot.locator(".lf-shot-pixel-mask")).to_have_attribute(
+        "style", re.compile(r"--lf-shot-pixels: url\(")
+    )
+    views.get_by_role("radio", name="Slider", exact=True).click()
     comparison = shot.locator("wa-comparison")
     expect(comparison).to_have_attribute("position", "50")
-    assert shot.bounding_box() == pytest.approx(reserved, abs=1)
-    for image, box in zip(images.all(), pending, strict=True):
-        assert image.bounding_box() == pytest.approx(box, abs=1)
     handle = comparison.get_by_role("scrollbar")
     handle.press("Home")
     handle.press("ArrowRight")
     position = comparison.get_attribute("position")
-    views.get_by_role("button", name="Pixels", exact=True).click()
-    views.get_by_role("button", name="Slider", exact=True).click()
+    views.get_by_role("radio", name="Pixels", exact=True).click()
+    views.get_by_role("radio", name="Slider", exact=True).click()
     expect(comparison).to_have_attribute("position", position)
+
+
+def test_a_shot_masks_the_pair_that_replaced_the_one_it_was_masking(browser, serve):
+    """Pixels pressed before the first reading, with a capture replaced while its mask
+    runs: the old mask ending draws nothing, and the new pair gets its own mask."""
+    source = leaf_page(
+        "Replace a capture",
+        f'<h1>Replace a capture</h1><lf-shot id="replaced-pair" alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
+    )
+    url = serve(source, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
+    # Each mask waits for its release, so the old one is still running as the capture
+    # is replaced. The readings wait behind it, so the page never reads as ready here.
+    page = open_page(
+        browser,
+        url,
+        upgraded=False,
+        init_script="""window.lfHeldMasks = [];
+        const encode = OffscreenCanvas.prototype.convertToBlob;
+        OffscreenCanvas.prototype.convertToBlob = function (...args) {
+          return new Promise((resolve) =>
+            window.lfHeldMasks.push(() => resolve(encode.apply(this, args))));
+        };
+        new MutationObserver((records, observer) => {
+          if (!document.body?.hasAttribute('data-lf-presented')) return;
+          observer.disconnect();
+          document.querySelector('lf-shot .lf-shot-views [value="pixels"]').click();
+        }).observe(document, {subtree: true, attributeFilter: ['data-lf-presented']});""",
+    )
+    shot = page.locator("lf-shot")
+    mask = shot.locator(".lf-shot-pixel-mask")
+    page.wait_for_function("window.lfHeldMasks.length === 1")
+    shot.evaluate("node => node.setAttribute('after', node.getAttribute('before'))")
+    expect(shot.locator(".lf-shotpixels img")).to_have_attribute(
+        "src", re.compile(re.escape(SHOT_SRC["before"]))
+    )
+    page.evaluate("window.lfHeldMasks.shift()()")
+    page.wait_for_function("window.lfHeldMasks.length === 1")
+    expect(mask).not_to_have_attribute("style", re.compile("--lf-shot-pixels"))
+    page.evaluate("window.lfHeldMasks.shift()()")
+    expect(mask).to_have_attribute("style", re.compile(r"--lf-shot-pixels: url\("))
+
+
+def test_a_pressed_shot_gets_its_mask_ahead_of_the_other_shots_readings(browser, serve):
+    """A press is the reader's, so its mask goes ahead of the difference readings queued
+    for the page's other shots, waiting at most for the one already running."""
+    pairs = "".join(
+        f'<lf-shot id="pair-{n}" alt="pair {n}" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>'
+        for n in range(4)
+    )
+    source = leaf_page("Press one of many", f"<h1>Press one of many</h1>{pairs}")
+    url = serve(source, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
+    # A frame after the page shows, every shot's reading has joined the queue.
+    page = open_page(
+        browser,
+        url,
+        init_script="""new MutationObserver((records, observer) => {
+          if (!document.body?.hasAttribute('data-lf-presented')) return;
+          observer.disconnect();
+          requestAnimationFrame(() => {
+            const shot = document.querySelector('#pair-3');
+            const mask = new MutationObserver(() => {
+              if (!shot.querySelector('.lf-shot-pixel-mask')?.style.length) return;
+              mask.disconnect();
+              window.lfOthersRead = document.querySelectorAll(
+                'lf-shot:not(#pair-3) .lf-shotstage[aria-description]').length;
+            });
+            mask.observe(shot, {subtree: true, childList: true, attributeFilter: ['style']});
+            shot.querySelector('.lf-shot-views [value="pixels"]').click();
+          });
+        }).observe(document, {subtree: true, attributeFilter: ['data-lf-presented']});""",
+    )
+    page.wait_for_function("window.lfOthersRead !== undefined")
+    assert page.evaluate("window.lfOthersRead") <= 1
 
 
 def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_changes(
@@ -735,11 +805,11 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
     assert img.bounding_box()["y"] == pytest.approx(
         image.bounding_box()["y"] - 25, abs=1
     )
-    views = shot.get_by_role("group", name="Comparison view")
+    views = shot.locator(".lf-shot-views")
     for direction in ("ltr", "rtl"):
         shot.evaluate("(node, direction) => node.dir = direction", direction)
         for view in ("Slider", "Pixels", "Pair"):
-            views.get_by_role("button", name=view, exact=True).click()
+            views.get_by_role("radio", name=view, exact=True).click()
             expect(
                 shot.get_by_role("button", name="100%", exact=True, include_hidden=True)
             ).to_have_attribute("aria-pressed", "true")
@@ -776,6 +846,57 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
     ).to_contain_text("Previous")
 
 
+def test_a_shot_narrower_than_its_box_keeps_its_labels_on_its_frames(
+    scrollbar_browser, serve
+):
+    """A capture narrower than the shot's box stands centred in it, so the source labels
+    stand on the frames' edges in each view rather than on the box's, hundreds of
+    pixels from what they name, and the tools hold the axis as the frames change. A
+    classic scrollbar's gutter, as on Linux and Windows, moves neither."""
+    data = {
+        "before": solid_png(600, 300, (210, 220, 235)),
+        "after": solid_png(600, 300, (235, 215, 205)),
+    }
+    sources = {
+        state: f"/media/{hashlib.sha256(value).hexdigest()[:16]}.png"
+        for state, value in data.items()
+    }
+    source = leaf_page(
+        "Narrow pair",
+        f"""<h1>Narrow pair</h1><lf-shot id="narrow" data-width="available" alt="a narrow pair"
+        before="{sources["before"]}" after="{sources["after"]}"></lf-shot>""",
+    )
+    page = open_page(
+        scrollbar_browser,
+        serve(source, media={sources[state]: value for state, value in data.items()}),
+        init_script="""(() => {
+          const sheet = new CSSStyleSheet();
+          sheet.replaceSync('.lf-shotstage::-webkit-scrollbar { width: 15px; height: 15px; }');
+          document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+        })()""",
+    )
+    resized(page, 1600, 900)
+    shot = page.locator("#narrow")
+    tools = shot.locator(".lf-shot-actions")
+    captions = shot.locator(".lf-shot-toolbar .lf-shotcap")
+    held = None
+    for view, width in (("Slider", 602), ("Pair", 2 * 602 + 8), ("Slider", 602)):
+        shot.get_by_role("radio", name=view, exact=True).click()
+        frames = [
+            frame.bounding_box()
+            for frame in shot.locator(".lf-shotframe").all()
+            if frame.is_visible()
+        ]
+        left = min(frame["x"] for frame in frames)
+        right = max(frame["x"] + frame["width"] for frame in frames)
+        assert right - left == pytest.approx(width, abs=1), (view, frames)
+        before, after = [caption.bounding_box() for caption in captions.all()]
+        assert before["x"] == pytest.approx(left, abs=1), (view, before, frames)
+        assert after["x"] + after["width"] == pytest.approx(right, abs=1), (view, after)
+        held = held or tools.bounding_box()
+        assert tools.bounding_box() == held, view
+
+
 def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
     browser, serve
 ):
@@ -798,15 +919,18 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
     )
     resized(page, 695, 900)
     shot = page.locator("#wide-pair")
-    shot.get_by_role("button", name="Pair", exact=True).click()
+    shot.get_by_role("radio", name="Pair", exact=True).click()
     controls = [
-        shot.get_by_role("button", name=name, exact=True)
+        shot.get_by_role(
+            "radio" if name in ("Pair", "Slider", "Pixels") else "button",
+            name=name,
+            exact=True,
+        )
         for name in (
             "Pair",
             "Slider",
             "Pixels",
             "Image options",
-            "Outline changes",
         )
     ]
     control_boxes = [control.bounding_box() for control in controls]
@@ -855,7 +979,7 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
     assert [header.bounding_box() for header in headers] == header_boxes
     assert stage.evaluate("node => node.scrollTop === 0 && node.scrollLeft === 0")
     for view in ("Slider", "Pixels", "Pair"):
-        shot.get_by_role("button", name=view, exact=True).click()
+        shot.get_by_role("radio", name=view, exact=True).click()
         expect(shot).to_have_attribute(
             "data-lf-shot-mode",
             {"Slider": "flip", "Pixels": "pixels", "Pair": "compare"}[view],
@@ -877,12 +1001,12 @@ def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
     shot.get_by_role("button", name="Image options").click()
     shot.get_by_role("button", name="Fit", exact=True).click()
     for mode in ("Slider", "Pixels"):
-        shot.get_by_role("button", name=mode, exact=True).click()
+        shot.get_by_role("radio", name=mode, exact=True).click()
         expect(shot).to_have_attribute(
             "data-lf-shot-mode", {"Slider": "flip", "Pixels": "pixels"}[mode]
         )
         assert [control.bounding_box() for control in controls] == control_boxes
-        shot.get_by_role("button", name="Pair", exact=True).click()
+        shot.get_by_role("radio", name="Pair", exact=True).click()
         rendered = [frame.bounding_box() for frame in frames.all()]
         stage_box = stage.bounding_box()
         for frame in rendered:
@@ -921,15 +1045,18 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     )
     patch = page.locator("#shot-patch")
     patch.evaluate("async node => await node.difference")
-    views = patch.get_by_role("group", name="Comparison view")
-    expect(views.get_by_role("button")).to_have_text(["Slider", "Pair", "Pixels"])
-    pair = views.get_by_role("button", name="Pair", exact=True)
-    slider = views.get_by_role("button", name="Slider", exact=True)
-    pixels = views.get_by_role("button", name="Pixels", exact=True)
-    expect(slider).to_have_attribute("aria-pressed", "true")
+    views = patch.locator(".lf-shot-views")
+    expect(views.get_by_role("radio")).to_have_text(["Slider", "Pair", "Pixels"])
+    pair = views.get_by_role("radio", name="Pair", exact=True)
+    slider = views.get_by_role("radio", name="Slider", exact=True)
+    pixels = views.get_by_role("radio", name="Pixels", exact=True)
+    expect(slider).to_have_attribute("aria-checked", "true")
     pair.click()
-    outlines = patch.get_by_role("button", name="Outline changes", exact=True)
-    outlines.click()
+    outlines = patch.locator(".lf-shot-outline")
+    options_button = patch.get_by_role("button", name="Image options")
+    options_button.click()
+    outlines.check()
+    page.keyboard.press("Escape")
     expect(patch.locator(".lf-shotdiff > span").first).to_be_visible()
     for mark in patch.locator(".lf-shotdiff > span").all():
         expect(mark).to_have_css("background-color", "rgba(0, 0, 0, 0)")
@@ -947,27 +1074,27 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     [(left, top, right, bottom)] = marks["after"]
     assert left < 420 and right > 480 and top < 200 and bottom > 240
     assert right - left < 80 and bottom - top < 60
-    expect(page.locator("#shot-same .lf-shot-outline")).to_have_attribute(
+    expect(page.locator("#shot-same .lf-shotstage")).to_have_attribute(
         "aria-description", "identical"
     )
-    expect(page.locator("#shot-tint .lf-shot-outline")).to_have_attribute(
+    expect(page.locator("#shot-tint .lf-shotstage")).to_have_attribute(
         "aria-description", "only slight changes"
     )
     expect(page.locator("#shot-same .lf-shotdiff > span")).to_have_count(0)
     expect(page.locator("#shot-tint .lf-shotdiff > span")).to_have_count(0)
+    # The views are one radio group: Tab reaches the chosen view, and the arrows
+    # choose the next.
     pair.click()
-    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("ArrowLeft")
     expect(slider).to_be_focused()
-    page.keyboard.press("Space")
-    expect(slider).to_have_attribute("aria-pressed", "true")
-    page.keyboard.press("Tab")
+    expect(slider).to_have_attribute("aria-checked", "true")
+    page.keyboard.press("ArrowRight")
     expect(pair).to_be_focused()
-    page.keyboard.press("Tab")
+    page.keyboard.press("ArrowRight")
     expect(pixels).to_be_focused()
-    page.keyboard.press("Enter")
-    expect(pixels).to_have_attribute("aria-pressed", "true")
+    expect(pixels).to_have_attribute("aria-checked", "true")
     expect(outlines).to_be_disabled()
-    expect(outlines).to_have_attribute("aria-pressed", "true")
+    expect(outlines).to_be_checked()
     expect(patch.locator(".lf-shotpixels")).to_be_visible()
     colors = patch.locator(".lf-shotpixels .lf-shotplane > span").evaluate_all(
         "nodes => nodes.map(node => getComputedStyle(node).backgroundColor)"
@@ -975,7 +1102,7 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     assert len(colors) == 1
     options = patch.get_by_role("group", name="Image options", exact=True)
     expect(options).not_to_be_visible()
-    patch.get_by_role("button", name="Image options").click()
+    options_button.click()
     expect(options.locator(".lf-shot-pixel-key")).to_have_text("Changed pixels")
     expect(options.locator(".lf-shot-key-swatch")).to_have_css(
         "background-color", colors[0]
@@ -986,15 +1113,57 @@ def test_a_shot_outlines_and_explains_its_pixel_difference(browser, serve):
     expect(patch.locator(".lf-shotdiff").last).to_be_hidden()
     # Reading or pointing at evidence cannot silently switch comparison modes.
     patch.locator(".lf-shotpixels").click(position={"x": 10, "y": 10})
-    expect(pixels).to_have_attribute("aria-pressed", "true")
+    expect(pixels).to_have_attribute("aria-checked", "true")
     expect(patch.locator(".lf-shotpixels")).to_be_visible()
     pair.click()
-    expect(pair).to_have_attribute("aria-pressed", "true")
+    expect(pair).to_have_attribute("aria-checked", "true")
     expect(outlines).to_be_enabled()
-    expect(outlines).to_have_attribute("aria-pressed", "true")
+    expect(outlines).to_be_checked()
     expect(patch.locator(".lf-shotdiff > span").first).to_be_visible()
-    outlines.click()
+    options_button.click()
+    outlines.uncheck()
     expect(patch.locator(".lf-shotdiff").last).to_be_hidden()
+
+
+def test_pixels_fade_a_shot_toward_its_own_paper(browser, serve):
+    """A light capture on a dark page stays a pale sheet in Pixels, in the amber that
+    reads on it, and a dark capture on a light page the reverse: fading either toward
+    the page's own ground turned it a muddy grey."""
+    light = solid_png(600, 300, (250, 248, 240))
+    light_changed = solid_png(
+        600, 300, (250, 248, 240), patch=(120, 70, 40, 30, (30, 30, 30))
+    )
+    dark = solid_png(600, 300, (24, 26, 30))
+    dark_changed = solid_png(
+        600, 300, (24, 26, 30), patch=(120, 70, 40, 30, (230, 230, 230))
+    )
+    media = {
+        f"/media/{hashlib.sha256(data).hexdigest()[:16]}.png": data
+        for data in (light, light_changed, dark, dark_changed)
+    }
+    name = {data: path for path, data in media.items()}
+    source = leaf_page(
+        "Pixels on paper",
+        "<h1>Pixels on paper</h1>"
+        f'<lf-shot id="pale" alt="a light capture" before="{name[light]}" after="{name[light_changed]}"></lf-shot>'
+        f'<lf-shot id="deep" alt="a dark capture" before="{name[dark]}" after="{name[dark_changed]}"></lf-shot>',
+    )
+    for scheme, shot_id, paper, ink_scheme in (
+        ("dark", "pale", "rgb(250, 248, 240)", "light"),
+        ("light", "deep", "rgb(24, 26, 30)", "dark"),
+    ):
+        page = open_page(browser, serve(source, media=media), color_scheme=scheme)
+        shot = page.locator(f"#{shot_id}")
+        shot.locator(".lf-shot-views").get_by_role(
+            "radio", name="Pixels", exact=True
+        ).click()
+        expect(shot.locator(".lf-shotpixels .lf-shotplane")).to_have_css(
+            "background-color", paper
+        )
+        expect(shot.locator(".lf-shotpixels .lf-shotplane")).to_have_css(
+            "color-scheme", ink_scheme
+        )
+        page.context.close()
 
 
 def stage_reach_cases(page):
@@ -1053,147 +1222,6 @@ def stage_reach_cases(page):
     )
 
 
-def test_render_reads_widget_chrome_where_it_stands(
-    browser, serve, tmp_path, monkeypatch
-):
-    """The user's reading of a page, on one page.
-
-    The words a widget puts out of reach. A user selected a draft's heading, tried to
-    comment on it, and got nothing back — twice, months apart, on the same page. The
-    heading was the page's word in a row its author had marked as the runtime's, and
-    `.lf-ui` is a look rather than a permission, so the class alone can't be the answer:
-    the declaration goes on the label (relabel), and an undeclared word under chrome is
-    reported. It is about a word the user was shown, so the check asks that first: a
-    word the browser reads out and the page never paints is hidden with [hidden], the
-    silence available in every root, and the same word shown is still reported. A
-    visible control and an otherwise identical one below an unscrollable clip keep the
-    control-reachability reading non-vacuous.
-
-    The chrome half, asked where the nesting turns over. A widget's chrome is a
-    `.lf-ui` the widget put inside itself. A widget in a message is the other way up:
-    the runtime's own layer is above it and the widget has none of its own, so every
-    word it holds sits under a `.lf-ui` with nothing wrong. Asking whether the *words*
-    stand in a widget cannot tell those apart and accuses the second; asking whose the
-    `.lf-ui` is can. One reply carries three widgets: a question, an exhibit beside it,
-    and a badge whose module injects unmarked words under the chrome face. The panel
-    around all three says nothing; the badge's own chrome is read exactly as it would
-    be on a page. Nothing here had ever been rendered until a fixture asked the gate
-    rather than the panel.
-
-    Beside them, a pair shot captured at two widths: both frames render at the frame's
-    width, so the pair is scaled by two different factors and every line lands somewhere
-    new, and the flip would report that the whole page changed with nothing on screen
-    to say otherwise. That is the one shot failure worth an error box rather than a
-    caveat, and the gate has to hear about it, since nobody else will. The same shot
-    with both frames at one width passes."""
-    monkeypatch.chdir(tmp_path)
-    package = tmp_path / ".leaf"
-    add_test_widget(package, "lf-badge", upgrade=True)
-    module = package / "widgets" / "lf-badge.js"
-    source = module.read_text()
-    starter = "class extends LeafElement {},"
-    assert source.count(starter) == 1
-    module.write_text(
-        source.replace(
-            starter,
-            "class extends LeafElement {\n    setup() {\n"
-            + BADGE_CHROME
-            + "\n    }\n  },",
-        )
-    )
-    narrow = solid_png(400, 300, (235, 215, 205))
-    narrow_src = f"/media/{hashlib.sha256(narrow).hexdigest()[:16]}.png"
-    pair = (
-        f'<lf-shot id="shot-pair" alt="the navigation rail" before="{SHOT_SRC["before"]}"'
-        f' after="{narrow_src}"></lf-shot>'
-        f'<lf-shot id="shot-nav" alt="the navigation rail" before="{SHOT_SRC["before"]}"'
-        f' after="{SHOT_SRC["after"]}"></lf-shot>'
-    )
-    start = CARRIED_PAGE.index('<lf-options id="carried">')
-    carried = CARRIED_PAGE[start : CARRIED_PAGE.index("</lf-options>") + 13]
-    source = REPLY_HOST_PAGE.replace("</main>", carried + pair + "</main>")
-    url = serve(
-        source,
-        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
-        media={
-            **{SHOT_SRC[name]: data for name, data in SHOTS.items()},
-            narrow_src: narrow,
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "c-decision",
-            "author": "user",
-            "revision": 1,
-            "text": "What would the alternative look like?",
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "parent": "c-decision",
-            "revision": 1,
-            "text": SAMPLE_TEXT,
-            "markup": SAMPLE_MARKUP + '<lf-badge id="rp-badge">Weighed.</lf-badge>',
-        },
-    )
-    page = open_page(primed(browser, stage_reach_cases), url)
-    assert (
-        page.locator(
-            "#native-link, #hidden-note, #shown-note, #unreachable-row, "
-            "#unreachable-button"
-        ).count()
-        == 5
-    )
-    assert page.locator("#hidden-note").is_hidden()
-    assert page.locator("#shown-offer, #clipped-offer").count() == 2
-    assert page.locator("#shown-offer").is_visible()
-    # A label inside a form control no marker can reach is the suite's question of
-    # Leaf's own modules (`test_page_fixture_renders`), not the gate's.
-    assert [
-        said
-        for said in render_checks_model.evaluate_probe(page, "wordsInFormControls")
-        if said["at"] == "<lf-option id=c-lax>"
-    ] == [
-        {
-            "code": "form-control-words",
-            "at": "<lf-option id=c-lax>",
-            "words": "Lax, host-only",
-        }
-    ]
-    # The two-width pair fails soft, as the gate below is to hear.
-    consume_browser_errors(page, '<lf-shot id="shot-pair"> failed')
-    page.close()
-
-    failures = render_gate_model.render_version(
-        primed(browser.unwatched, stage_reach_cases), url
-    ).failures
-    pair = [f for f in failures if f.code == "console-error"]
-    assert pair and all(
-        "shot-pair" in f.values["text"]
-        and "600px" in f.values["text"]
-        and "400px" in f.values["text"]
-        for f in pair
-    ), failures
-    clipped = [f for f in failures if f.code == "clipped-control"]
-    assert [(f.values["id"], f.widths) for f in clipped] == [
-        ("clipped-offer", (360, 1920))
-    ], failures
-    assert all(f.values["by"] == "<div id=clipped-holder>" for f in clipped), clipped
-    words = sorted(
-        {(f.code, f.at, f.values["words"]) for f in failures if f not in pair + clipped}
-    )
-    assert words == [
-        ("chrome-words", "<lf-badge id=rp-badge>", "Sent by the reviewer"),
-        ("chrome-words", "<lf-option id=c-lax>", "Session cookies"),
-        ("chrome-words", "<lf-option id=c-lax>", "opens in a new tab"),
-    ], failures
-
-
 CONTENTS_MAP_PAGE = leaf_page(
     "Contents map",
     """
@@ -1250,60 +1278,6 @@ FILM_DECLARATION = {
 FILM_PAGE = LONG_PAGE.replace(
     "</main>", '<lf-film id="film"></lf-film><lf-loader id="loader"></lf-loader></main>'
 )
-
-
-def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
-    browser, serve, tmp_path, headless_shell
-):
-    """Nothing draws a message's widgets before the user opens its thread, and the
-    log freezes the message, so a thread command runs markup holding a widget only a
-    browser can judge once before it posts, and refuses it with the widget's own
-    error, as plain `page check` refuses a page. A host with no browser posts it
-    unrun; the body its module cannot draw then reports to the author when the user
-    opens its thread, naming the widget, and the author answers with a corrected
-    reply."""
-    url = serve(LONG_PAGE)
-    d = serve.page_dir
-
-    def post(executable):
-        return subprocess.run(
-            [*LEAF_COMMAND, "thread", "create", str(d), "--text", "See this."]
-            + [
-                "--markup",
-                '<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>',
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": executable},
-        )
-
-    refused = post(headless_shell)
-    assert refused.returncode != 0, refused.stdout + refused.stderr
-    refusal = json.loads(refused.stderr)["error"]
-    assert refusal.startswith("comment markup doesn't draw:"), refusal
-    assert '<lf-chart id="t-bad"> failed: ' in refusal
-    assert not [e for e in events_model.read_events(d) if e["kind"] == "comment"]
-
-    posted = post(str(tmp_path / "none"))
-    assert posted.returncode == 0, posted.stdout + posted.stderr
-
-    [root] = [e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"]
-    page = open_page(browser, url)
-    view = open_panel_thread(page, root)
-    expect(view.locator("#t-bad .lf-error")).to_contain_text("Unexpected token")
-    report = '<lf-chart id="t-bad"> failed: '
-    consume_browser_errors(page, report)
-    reported = wait_for(
-        lambda: [
-            event["text"]
-            for event in events_model.read_events(d)
-            if event["kind"] == "error"
-        ],
-        bool,
-        failure="the page never reported the chart",
-    )
-    assert len(reported) == 1 and reported[0].startswith(report), reported
 
 
 def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serve):

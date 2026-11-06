@@ -1,7 +1,9 @@
-"""Document geometry is complete before runtime modules activate."""
+"""Document geometry the Layouts give natively: complete before runtime modules
+activate, and keeping the browser's own behavior, such as scroll anchoring."""
 
 import pytest
-from render_harness import displayed, leaf_page, open_page, wait_until_ready
+from playwright.sync_api import expect
+from render_harness import displayed, leaf_page, open_page, resized, wait_until_ready
 
 DOCUMENT = """
 <aside id="route"><div class="layout-track">
@@ -43,9 +45,159 @@ def test_native_sidebar_and_note_are_placed_before_widget_activation(browser, se
         for route in held:
             route.continue_()
         page.unroute("**/leaf.js")
-        wait_until_ready(page, timeout_ms=30000)
+        wait_until_ready(page)
         assert page.evaluate(read) == before
-        page.close()
+
+
+def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
+    """An lf-ask draws no box of its own around its blocks, so they stand in the page's
+    flow: its words and its options keep the prose's edge, and a block declaring more
+    room takes it, on a page with both. A width written on the question moves nothing.
+    The words used to go with the question's box, 480px left of the page's column."""
+    options = (
+        '<lf-options id="{id}-options" choose>'
+        '<lf-option id="{id}-yes">Yes</lf-option></lf-options>'
+    )
+    question = (
+        '<lf-ask id="{id}"{width}><h2 id="{id}-head">Ship it?</h2>'
+        '<p id="{id}-premise">Because it fits.</p>{held}' + options + "</lf-ask>"
+    )
+    evidence = '<div id="{id}-evidence" data-width="available">Evidence.</div>'
+    source = leaf_page(
+        "Questions in the flow",
+        '<h1>Questions in the flow</h1><p id="prose">Prose sets the column.</p>'
+        '<section class="layout-flow">'
+        + question.format(id="plain", width="", held="")
+        + question.format(id="stated", width=' data-width="available"', held="")
+        + question.format(id="holds", width="", held=evidence.format(id="holds"))
+        + question.format(
+            id="wrapped",
+            width="",
+            held="<section>" + evidence.format(id="wrapped") + "</section>",
+        )
+        + "</section><section>"
+        + question.format(id="kept", width="", held=evidence.format(id="kept"))
+        + "</section>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1728, 900)
+    boxes = page.evaluate("""() => Object.fromEntries(
+      [...document.querySelectorAll('[id]')].filter(el => el.closest('main'))
+        .map(el => {
+          const box = el.getBoundingClientRect();
+          return [el.id, [Math.round(box.left), Math.round(box.right)]];
+        }))""")
+    column = boxes["prose"]
+    assert column == [504, 1224]
+    for question_id in ("plain", "stated", "holds", "wrapped", "kept"):
+        for part in ("head", "premise", "options"):
+            assert boxes[f"{question_id}-{part}"] == column, (question_id, part, boxes)
+    assert boxes["plain"] == boxes["stated"] == column, boxes
+    # The block takes the room and the question's box, which its marks stand on, holds it.
+    assert boxes["holds-evidence"][0] < 100 and boxes["holds-evidence"][1] > 1628, boxes
+    assert boxes["holds"] == boxes["holds-evidence"], boxes
+    # A plain section keeps what it holds, as it does outside a question, and the
+    # question's box keeps to the column with it.
+    for question_id in ("wrapped", "kept"):
+        assert boxes[f"{question_id}-evidence"] == boxes[question_id] == column, boxes
+    # What the question asks stands by its words, not at the edge of the evidence.
+    marker = page.locator("[data-lf-margin-for='holds']")
+    expect(marker).to_have_attribute("data-lf-place", "rail")
+    assert marker.bounding_box()["x"] < column[1] + 100
+
+
+def test_a_block_in_a_workspace_question_fills_its_region(browser, serve):
+    """A workspace states no measure, so a width written on a block in a question means
+    nothing there, as it means nothing on a block beside the question."""
+    source = leaf_page(
+        "Question in a workspace",
+        """<header><h1>Question in a workspace</h1></header>
+        <div id="region"><lf-ask id="asked"><h2>Ship it?</h2>
+          <div id="wide-evidence" data-width="wide">Evidence.</div>
+          <lf-options id="choice" choose><lf-option id="yes">Yes</lf-option></lf-options>
+        </lf-ask></div>""",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1728, 900)
+    width = page.evaluate(
+        """id => document.getElementById(id).getBoundingClientRect().width""", "region"
+    )
+    for block in ("asked", "wide-evidence"):
+        box = page.locator(f"#{block}").bounding_box()
+        assert box["width"] == pytest.approx(width, abs=1), block
+
+
+def test_growth_above_the_window_moves_nothing_read_in_a_sidebar_body(browser, serve):
+    """The browser's scroll anchoring takes growth above the window into what was
+    scrolled past, so the line read in a sidebar page's body stays put, as a thread's
+    new reply above the screen relies on (held-news.js). The aside stands first in the
+    tree and stretches along the body, holding only a sticky track, so anchoring must
+    pass over it to the body: anchored on the aside, the line moved by the growth."""
+    paragraphs = "".join(
+        f'<p id="p{number}">Paragraph {number} of the evidence.</p>'
+        for number in range(80)
+    )
+    source = leaf_page(
+        "sidebar anchoring",
+        '<aside id="route"><div class="layout-track"><p>The route.</p></div></aside>'
+        f'<div class="layout-column" id="body">{paragraphs}</div>',
+        layout="sidebar",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 800)
+    moved = page.evaluate("""async () => {
+      const frame = () => new Promise(requestAnimationFrame);
+      const grown = document.getElementById('p20');
+      const read = document.getElementById('p26');
+      scrollBy({top: grown.getBoundingClientRect().bottom + 100, behavior: 'instant'});
+      await frame();
+      const before = read.getBoundingClientRect().top;
+      const growth = document.createElement('div');
+      growth.style.blockSize = '90px';
+      grown.after(growth);
+      await frame();
+      return {before, moved: read.getBoundingClientRect().top - before};
+    }""")
+    assert 0 < moved["before"] < 800, moved
+    assert moved["moved"] == pytest.approx(0, abs=0.5), moved
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_growth_above_the_window_moves_nothing_read_in_a_sidebar_track(
+    request, serve, engine
+):
+    """A sticky track scrolls its own blocks, and the browser's scroll anchoring holds
+    the line read there while a block above it grows, as a widget drawing late does.
+    The track set `overflow-anchor: none` on itself, and the line moved by the growth,
+    200px in both engines. The aside before the body keeps the property, which keeps
+    the page's anchoring off the track."""
+    follow_ups = "".join(f'<p id="f{n}">Follow-up {n} to check.</p>' for n in range(60))
+    body = "".join(f"<p>Body paragraph {n} of the review.</p>" for n in range(200))
+    source = leaf_page(
+        "sidebar track anchoring",
+        f'<aside id="route"><div class="layout-track" id="track"><div id="grown"></div>'
+        f'{follow_ups}</div></aside><div id="body">{body}</div>',
+        layout="sidebar",
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 900, 600)
+    moved = page.evaluate("""async () => {
+      const frame = () => new Promise(requestAnimationFrame);
+      const track = document.getElementById('track');
+      const read = document.getElementById('f30');
+      scrollTo(0, 1500);
+      track.scrollTop += read.getBoundingClientRect().top
+        - track.getBoundingClientRect().top - 120;
+      await frame();
+      const before = read.getBoundingClientRect().top;
+      document.getElementById('grown').style.blockSize = '200px';
+      await frame();
+      return {scrolls: track.scrollHeight > track.clientHeight, before,
+              moved: read.getBoundingClientRect().top - before};
+    }""")
+    assert moved["scrolls"], moved
+    assert moved["moved"] == pytest.approx(0, abs=0.5), moved
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
@@ -61,7 +213,7 @@ def test_annotations_read_the_native_prose_track_with_authored_geometry(
     )
     page = open_page(browser, serve(source))
     reading = page.evaluate("""async () => {
-      const {proseRect}=await import('/runtime/bundle-content-layout.js');
+      const {proseRect}=await import('/runtime/content-layout.js');
       const prose=document.querySelector('#prose').getBoundingClientRect();
       return {computed:proseRect(),actual:{left:prose.left,right:prose.right}};
     }""")
@@ -103,8 +255,7 @@ def test_note_rows_fit_their_column_without_moving_other_columns(
           </section>
         </section>""",
         layout=None,
-        head=f"""<style>body {{margin:0}} main {{direction:{direction}}}
-          #nested, #inner {{grid-column:full}}</style>""",
+        head=f"""<style>body {{margin:0}} main {{direction:{direction}}}</style>""",
     )
     page = open_page(browser, serve(source))
     for width in (1600, 1200, 1152, 1151, 900, 390):
@@ -120,7 +271,7 @@ def test_note_rows_fit_their_column_without_moving_other_columns(
             assert boxes["plain"]["left"] == max(24, (width - 720) / 2)
             assert boxes["outer-prose"]["left"] == boxes["plain"]["left"]
             inner, inner_note = boxes["inner-prose"], boxes["inner-note"]
-            assert inner["width"] == min(720, width - 96)
+            assert inner["width"] == min(720, width - 48) - 48
             assert inner_note["width"] <= inner["width"]
             nested = boxes["nested"]
             assert boxes["nested-prose"]["left"] == nested["left"] + max(
@@ -136,57 +287,3 @@ def test_note_rows_fit_their_column_without_moving_other_columns(
             else:
                 assert note["top"] - passage["bottom"] == 8
                 assert note["left"] == passage["left"]
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
-def test_reading_flow_track_chain_names_only_visible_broken_flows(
-    request, serve, engine
-):
-    """Native computed tracks distinguish broken flows from valid containment/flex."""
-    from leaf import render_checks
-    from leaf.render_gate.readings import swept_faults
-
-    source = leaf_page(
-        "Flow track boundaries",
-        """<section class="layout-column" id="column">
-          <section id="correct" class="layout-flow"><p>Complete tracks.</p></section>
-          <section id="contained" class="layout-flow" style="contain:inline-size"><p>Size containment keeps tracks.</p></section>
-          <section id="container-type" class="layout-flow" style="container-type:inline-size"><p>Container tracks.</p></section>
-          <section id="narrow" class="layout-flow" style="grid-column:prose-start / full-end"><p>Narrowed tracks.</p></section>
-          <section id="explicit" class="layout-flow" style="grid-column:full-start / full-end"><p>Explicit full-track names.</p></section>
-          <section id="no-subgrid" class="layout-flow" style="grid-template-columns:1fr"><p>Independent columns.</p></section>
-          <section id="numeric" class="layout-flow" style="grid-column:1 / -1"><p>Equivalent numeric span.</p></section>
-          <div><section id="standalone" class="layout-flow"><p>Owns the wrapper's room.</p></section></div>
-          <section id="hidden-own" class="layout-flow" hidden="until-found" style="grid-column:prose"><p>Hidden own box.</p></section>
-          <div hidden="until-found"><section id="hidden" class="layout-flow" style="container-type:inline-size"><p>Hidden.</p></section></div>
-        </section>
-        <section class="layout-sidebar"><aside>Navigation</aside>
-          <div class="layout-column"><section id="sidebar" class="layout-flow"><p>Sidebar reading.</p></section></div>
-        </section>
-        <section class="layout-workspace"><div id="workspace" class="layout-flow" style="display:flex"><p>Flex workspace.</p></div></section>""",
-        layout=None,
-    )
-    page = open_page(request.getfixturevalue(engine), serve(source, packages=()))
-    reading = render_checks.evaluate_probe(page, "geometryReading", [])
-    flows = [row for row in reading["contained"] if row["code"] == "flow-tracks"]
-    expected = {"<section id=narrow>", "<section id=no-subgrid>"}
-    # This advice reads the computed track declaration. Engines differ on whether
-    # container-type suppresses that declaration; used-layout validation is separate.
-    columns = page.locator("#container-type").evaluate(
-        "e => getComputedStyle(e).gridTemplateColumns"
-    )
-    if not columns.startswith("subgrid"):
-        expected.add("<section id=container-type>")
-    assert {row["at"] for row in flows} == expected
-    assert (
-        next(row for row in flows if row["at"] == "<section id=narrow>")["start"]
-        == "prose-start"
-    )
-    advice = [
-        finding
-        for finding in swept_faults([(1280, reading)])
-        if finding.code == "flow-tracks"
-    ]
-    assert len(advice) == len(expected)
-    assert all(finding.severity == "advice" for finding in advice)
-    assert "grid-template-columns: subgrid" in str(advice[0])

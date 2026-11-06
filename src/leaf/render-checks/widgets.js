@@ -5,6 +5,7 @@ import {
   commandDeclarationsWithin,
   commandRoutes,
   pageDocument,
+  inPage,
   upFrom,
   userScrollport,
   visualPartProblems,
@@ -92,7 +93,7 @@ export function invalidPaints() {
 // A widget this page uses whose module never defined its element. The page's own
 // occurrences are the population, because a page imports the modules its markup asks for
 // and no others (widget-loader.js) — asked of the whole declared vocabulary this reports
-// every tag the page simply does not contain. `document`, not `main`, so a widget frozen
+// every tag the page simply does not contain. `document`, not the page, so a widget frozen
 // into an agent's reply answers here too. That a declared module exists at all is a layer
 // fact and `package check` holds it; this is the page's half.
 /** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
@@ -357,6 +358,44 @@ export function changedBoxes() {
   }));
 }
 
+// x-height's paint ($marks in runtime/kernel-registry.json): the stated height a page
+// reserves for a drawing, or empty where it states none.
+const STATED_HEIGHT = "data-lf-height";
+
+// Each drawn element whose tag declares x-height and whose drawing is taller or shorter
+// than the box it first showed before drawing (`undrawnHeights` in driver.js). The
+// drawing's height is the element's box with its paint lifted for one read, since a
+// package may keep a stated height larger than its drawing, as the diagram's does. The
+// box the element holds now is reported beside both, so the finding can say whether
+// what follows moved as it drew or sits below blank room. An element hidden now has no
+// drawing a reader sees, and one its module never marked drawn, such as a file tree
+// held at its stated height for good, has no drawing for that height to estimate.
+export function drawnHeights() {
+  const found = [];
+  for (const [element, before] of globalThis.__leafRenderDriver.undrawnHeights()) {
+    if (
+      !(element instanceof HTMLElement) ||
+      !element.classList.contains("lf-rendered") ||
+      !shown(element)
+    )
+      continue;
+    const box = element.offsetHeight;
+    const paint = element.getAttribute(STATED_HEIGHT) ?? "";
+    element.removeAttribute(STATED_HEIGHT);
+    const drawn = element.offsetHeight;
+    element.setAttribute(STATED_HEIGHT, paint);
+    if (Math.abs(drawn - before) < ROUNDING) continue;
+    found.push({
+      code: "drawn-height",
+      at: locate(element),
+      before: Math.round(before),
+      drawn,
+      box,
+    });
+  }
+  return found;
+}
+
 // How tall a block `heldScrollers` adds to a box: taller than any widget's own bound.
 const ADDED_BLOCK = 4000;
 const WRITTEN_IN = `input, select, ${TEXT_BOX}`;
@@ -400,13 +439,14 @@ const overflowsVertically = (box) => box.scrollHeight > box.clientHeight + ROUND
 // page of worked examples, is read this way.
 /** @param {string[]} tags */
 export function heldScrollers(tags) {
-  const main = pageDocument();
-  if (!main) return [];
+  const page = pageDocument();
+  if (!page) return [];
   const own = new Set(tags);
   const found = [];
-  for (const tree of openRoots(main))
+  for (const tree of openRoots(page))
     for (const box of tree.querySelectorAll("*")) {
       if (
+        !inPage(box) ||
         !(box instanceof HTMLElement) ||
         box.matches(WRITTEN_IN) ||
         box.isContentEditable

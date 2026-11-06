@@ -23,11 +23,16 @@ The readings are evidence beside the judge's own observation, never a verdict:
 an empty share counts gaps a design may want, and a pane Tab never reaches may
 have another key route or need none. `judge_pages` writes them to the judgment's
 evidence and its metadata, so a run's pane readings tabulate from `results.json`.
+An observation timeout leaves that viewport unavailable without preventing the
+judge's own exploration. If any reading is unavailable, the judge receives no
+measurement values, so partial collection cannot favor one compared page.
 """
 
 import json
 
-from leaf_dev.browser import headless_shell, load, tab
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+from leaf_dev.browser import WINDOWS, Window, headless_shell, load, tab
 
 # Each region's reading on arrival. The empty share counts the 16px cells of its
 # visible box with no text or drawn element within a cell of them, so the gaps
@@ -169,23 +174,43 @@ def tab_reach(view, regions: list[dict]) -> None:
 
 def read(url: str, widths: dict) -> dict:
     """Each viewport's readings of the page at `url`, at `widths` as either judge
-    names them: a size, or a size under `viewport`."""
+    names them: a size, or a size under `viewport`, each under its window's pointer
+    (`WINDOWS`)."""
     readings = {}
     with headless_shell() as browser:
         for name, size in widths.items():
             viewport = tuple(size["viewport"] if isinstance(size, dict) else size)
-            with tab(browser, viewport=viewport, touch=name == "phone") as view:
-                load(view, url)
-                reading = view.evaluate(READINGS)
-                if reading["workspace"]:
-                    tab_reach(view, reading["regions"])
-                readings[name] = reading
+            with tab(browser, Window(viewport, WINDOWS[name].touch)) as view:
+                try:
+                    load(view, url)
+                    reading = view.evaluate(READINGS)
+                    if reading["workspace"]:
+                        tab_reach(view, reading["regions"])
+                    readings[name] = reading
+                except PlaywrightTimeout as error:
+                    readings[name] = {"error": str(error)}
     return readings
 
 
 def judge_note(readings: dict) -> str:
     """The readings as the judge's instructions carry them, or nothing for pages
     without a workspace."""
+    unavailable = {
+        page: {
+            size: reading["error"]
+            for size, reading in sizes.items()
+            if "error" in reading
+        }
+        for page, sizes in readings.items()
+        if any("error" in reading for reading in sizes.values())
+    }
+    if unavailable:
+        return f"""Auxiliary workspace measurements timed out. No measurement values
+are supplied for any page; assess the live pages through your own browser exploration.
+These collection failures establish no page defect. Required scope you cannot inspect
+still leaves insufficient evidence, as above.
+{json.dumps(unavailable, indent=1)}
+"""
     if not any(
         reading["workspace"] for page in readings.values() for reading in page.values()
     ):

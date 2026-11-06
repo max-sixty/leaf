@@ -1,10 +1,28 @@
 /* One reply draft and send lifecycle shared by every view of a thread.
 
    A reply send draws its turn in the gesture that makes it. Its provisional result
-   masks the words while the session still owes a refusal; acceptance finishes editing.
-   The send preserves the panel's narrowing and, whichever control sent it, leaves
-   focus on the conversation's card or title (`landSent`). Sending never returns focus
-   to the page. `c`, or Enter on the thread, opens the box again. A saved draft preserves
+   masks the words while the session still owes a refusal; acceptance finishes editing,
+   and the session begins again when the user comes back to the box or types in it.
+   A session is the user writing, so only their own act begins one: words typed, a
+   press in the box, a Tab into its row, or a command that takes them there (`c`, Enter
+   on a thread; `beginReplyAt`, landing.js). A caret alone is not that act: the one an
+   opening places (thread/focus.js, `openingPart`), a send leaves or a pass carries
+   begins nothing, so a thread settled meanwhile leaves the margin as it would for a
+   reader. A caret landing on words the box already holds does begin one, since those
+   words are the user's draft. Everything that asks whether the user is writing reads
+   the session (`replyIsEditing`), a margin card's news as a margin's entry
+   (annotation-overlay/thread-preview.js, `endNewsMoves`); the edge the card holds
+   asks only whether a text field in it has focus (`heldEdge`). Rejected:
+   beginning on every `focusin`, which made an opening's caret a session nobody began
+   and kept a resolved thread's card standing over its empty box (the same class as the
+   send's caret, #5364; found on 4 November 2026).
+   The send preserves the panel's narrowing and, whichever control sent it, leaves the
+   caret in the box for the next message, on a card or a seat as in the floating
+   panel's field; Escape takes the user to the thread. The user chose this on 31
+   October, as an experiment for consistency with the panel: a second send by mistake
+   is rare, so keeping the caret costs little. Reverting it would again leave focus on
+   the conversation's card or title (`landSent`, landing.js), ringed, where the next
+   message takes `c` or Enter on the thread first. A saved draft preserves
    words independently of the editor. External settlement retains a reply the user is
    editing; deliberate Resolve leaves that editing place and closes the editor. Native
    Tab preserves the row's session independently of focus. The complete presentation
@@ -22,6 +40,7 @@
    thread is still in the margin, and a hidden panel, keep their rows, since the user
    goes on there when they open again. Every view draws whichever row it holds, a
    primary reader's reply part (primary-reader.js) as a card does. */
+import { REPLY_HINT } from "../words.js";
 import {
   captureDraftEditing,
   loadDraft,
@@ -40,6 +59,7 @@ import {
   readCaret,
   blurFocused,
   currentLocationIn,
+  onCurrentLocation,
   onPressAway,
 } from "../focus.js";
 import { threadKey } from "./model.js";
@@ -65,7 +85,7 @@ import { tick } from "../version-signal.js";
  * sending?: (() => void) | null, sent?: (() => unknown) | null}} ReplyOptions */
 /** @typedef {ReplyCommands & {onChange: () => void,
  * editLast: ReplyOptions["editLast"], sending: ReplyOptions["sending"], sent: ReplyOptions["sent"],
- * home: Element, give: () => () => void, take: (owner: Composition) => void}} Binding */
+ * give: () => () => void, take: (owner: Composition) => void}} Binding */
 /** @typedef {{context: string, key: string, row: HTMLDivElement,
  * controls: {input: ReturnType<typeof import("../composing/text-field.js").textField>, send: HTMLButtonElement | null},
  * send: import("../composing/input.js").Sender | null,
@@ -365,6 +385,7 @@ function wireReply(
   { hint, hintParts, hintLead, accessibleName, busy },
 ) {
   row.classList.add("lf-comment-box");
+  input.setAttribute("data-lf-voice", "leaf");
   const draftCtx = replyContext(key);
   input.value = loadDraft(draftCtx)?.text ?? "";
   const sync = commands.wireInput(input, {
@@ -378,15 +399,20 @@ function wireReply(
     // localStorage notifies other tabs but skips this document. Page, margin, and panel
     // reply boxes are views of one draft here, so they take the same bus directly.
     // Other draft kinds still have one view per document.
+    // The user's own edit is writing a reply, so it opens the session where none
+    // stands: a box Send or an opening left the caret in counts once they type.
     save: (v) => {
       saveDraft(draftCtx, v);
       tellDraft(draftCtx, v);
+      if (composition.binding && !compositions.has(draftCtx)) {
+        adopt(draftCtx, composition);
+        composition.changed();
+      }
       remember(composition);
     },
-    // The new turn is drawn above the box; the landing shows it with the box the user
-    // sent from, read before the send draws, around wherever the send left them
-    // current location. A view whose box stays for the next turn lands the send itself
-    // (`sent`).
+    // The new turn is drawn above the box, which keeps the caret; the landing shows the
+    // turn with the box, read before the send draws. A view that lands its turns
+    // itself, as the floating panel's does, says so (`sent`).
     send: (...args) => composition.send?.(...args),
     // ↑ from an empty box reaches back to the user's own last words in the thread, to
     // rewrite them where they stand (`message-edit.js`). A box holding words keeps the
@@ -418,27 +444,51 @@ function wireReply(
   return composition;
 }
 
-// A view takes the row: it joins the thread's draft views and mirrors the draft, and
-// focus in it makes it the editing session's owner. The returned detach gives it up.
+// Make this row the owner of its thread's session, opening the session where none
+// stands.
+/** @param {Composition} composition */
+function beginIn(composition) {
+  adopt(composition.context, composition);
+  composition.changed();
+}
+// A command that takes the user into a box says so as it lands (landing.js, `landIn`).
+/** @param {Element | null} node */
+export const beginReplyAt = (node) => {
+  const composition = compositionOf(node);
+  if (composition?.binding) beginIn(composition);
+};
+// Focus arriving in a row of a view: a session standing moves to it, words in it are
+// the user's to go on with, and a Tab into the row is their own move. Any other caret
+// begins nothing (above).
+onCurrentLocation((node, cause, left) => {
+  const composition = compositionOf(node);
+  if (
+    composition?.binding &&
+    (compositions.has(composition.context) ||
+      composition.controls.input.value !== "" ||
+      (cause === "step" && compositionOf(left) !== composition))
+  )
+    beginIn(composition);
+});
+
+// A view takes the row: it joins the thread's draft views and mirrors the draft, and a
+// press in its box makes it the editing session's owner, a caret already there included,
+// which moves no focus. The returned detach gives it up.
 /** @param {Composition} composition @param {Binding} binding */
 function attach(composition, binding) {
-  const { context, row, controls, sync } = composition;
+  const { context, controls, sync } = composition;
   composition.binding = binding;
   composition.send = (_text, raw, owns) => {
-    const { actions, landSent, sending, sent } = binding;
+    const { actions, sending, sent } = binding;
     const land = sendLanding(controls.input);
     sending?.();
     if (!sendReply(context, composition.key, raw, owns, actions)) return;
     if (sent) return sent();
-    landSent(binding.home);
-    land(binding.home);
+    land(controls.input);
   };
   const attached = { composition, binding };
   views.add(attached);
-  const begin = () => {
-    adopt(context, composition);
-    composition.changed();
-  };
+  const begin = () => beginIn(composition);
   // A row taken again catches up with words another view or tab wrote meanwhile. The
   // same words are left alone, with their caret and undo history (drafts.js, `sync.load`).
   sync.load(loadDraft(context)?.text ?? "");
@@ -457,13 +507,13 @@ function attach(composition, binding) {
       composition.changed();
     },
   });
-  row.addEventListener("focusin", begin);
+  controls.input.addEventListener("pointerdown", begin);
   // A row handed on to another view (`give`) keeps its dictation, as it keeps focus,
   // caret and history; one this view ends with it stops listening.
   return ({ handingOn = false } = {}) => {
     if (!handingOn) sync.cancelDictation();
     stopMirror();
-    row.removeEventListener("focusin", begin);
+    controls.input.removeEventListener("pointerdown", begin);
     views.delete(attached);
     composition.binding = null;
     composition.send = null;
@@ -510,21 +560,19 @@ export async function restoreReplyEditing(editing, land) {
 // draft, input, delivery and recovery lifetime rather than constructing another one.
 // A presentation may say what its empty box reads (`hint`), what stands before that
 // (`hintLead`), and is named (`accessibleName`), hold its sends while it covers the box's words (`busy`), and
-// where its box stays for the next turn, as the floating panel's field does, land a
-// send itself (`sent`) rather than stand on the thread, told before the send draws
-// (`sending`). The view draws its row again
+// land a send's turn itself (`sent`), as the floating panel's view does at its end,
+// told before the send draws (`sending`). The view draws its row again
 // on `redraw`, as it takes another in its place.
-/** @param {string} key @param {Element} home @param {ReplyCommands} commands
+/** @param {string} key @param {ReplyCommands} commands
  * @param {() => void} redraw @param {ReplyOptions} [options] */
 export function createReplyView(
   key,
-  home,
   commands,
   redraw,
   {
     onChange = () => {},
     editLast = null,
-    hint = () => "Reply",
+    hint = () => REPLY_HINT,
     hintParts = null,
     hintLead = () => "",
     accessibleName = "Reply",
@@ -550,7 +598,6 @@ export function createReplyView(
   /** @type {Binding} */
   const binding = {
     ...commands,
-    home,
     onChange,
     editLast,
     sending,

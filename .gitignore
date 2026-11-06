@@ -12,7 +12,7 @@ evals/results/
 # loads hooks/claude-code.ts from a checkout.
 /tsconfig.json
 # Generated on demand by developer tools and the combined-page tests.
-/examples/corpus.html
-/examples/corpus.data.json
-/examples/corpus.jsonl
-/examples/corpus.page/
+/examples/corpus.*
+
+# Hypothesis example database (journeys/test_floating_box_motion.py).
+.hypothesis/

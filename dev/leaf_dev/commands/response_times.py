@@ -5,6 +5,11 @@
 Each attention-bearing user message version is an input. Pickup, work starts and
 failure receipts are separate milestones. Progress, published provisional words and
 answers count as first replies; answer time does not claim the task is finished.
+`titled` is when the input's thread got its first title, for an input admitted while
+it had none. `published` is when the page published the revision the input's answer
+stands on, where that came after the input. Nothing records which input a revision
+serves, so one published while several inputs were open counts for each answer that
+stands on it. It reads the revision files, so a directory holding only a log has none.
 
 Diagnostics carry host receipt `ts` and browser `observed_at`; the cutoff uses
 host time while visible elapsed time uses only the document's monotonic clock.
@@ -21,36 +26,46 @@ Run context comes from explicit producer declarations before each input, not fro
 text or current preview files. Purpose describes the declared run, never proof that
 a gesture is human. --exclude-purpose selects out known runs and keeps unknowns.
 Each sample retains every recorded agent session and turn associated with its
-exact input through pickup, start, progress or answer evidence. Missing turns remain
+exact input through pickup, start, progress, title or answer evidence. Missing turns remain
 unknown; browser diagnostic sessions are separate identities. Captured context
 identifies the harness and the provider of an explicitly recorded matching turn;
 no current claim or timestamp proximity supplies this identity.
 
-Every answered input carries the time the answering session's `leaf` commands
+Every input a session answered carries the time the session's `leaf` commands
 took on it (`leaf_commands_s`), from the `leaf_command` record each writes in the
 page (`leaf.interaction_log.record_command`), on any harness: those that started
-between the harness taking the input and the answer. Where the reply's breakdown
-(below) reads the transcript, the harness took it at the boundary the breakdown
-finds; elsewhere at its opened pickup, else its admission, which leaves out a
-command the agent ran before acknowledging a pointer it read itself. One whose answering
-session is Claude Code's, with its transcript still in this machine's Claude Code
-projects, also carries its reply's breakdown (`reply`,
-`reply_phases.reply_breakdown`): the whole reply, Leaf's share of it (delivery and
-those commands), the harness's other work before it took the input, idle time
-between its turns, and the model's time and calls, unsplit, since the transcript
-alone times no request or first output. Its case is `working` where
-a turn was running at the admission, so the harness took the input at that turn's
-next tool boundary or its end, else `waiting`. Other harnesses' inputs carry no
-breakdown, and the summary's reply rows count them missing.
+between the harness taking the input and the answer. Where the input has a reply
+breakdown (below), the harness took it at the boundary the breakdown finds;
+elsewhere at its opened pickup, else its admission, which leaves out a
+command the agent ran before acknowledging a pointer it read itself. Where the
+answering session's record can be read, the input also carries its reply's breakdown
+(`reply`, `reply_phases.reply_breakdown`): the whole reply, Leaf's share of it
+(delivery and those commands), the harness's other work before it took the input,
+idle time between its turns, and the model's time and calls. Its case is `working`
+where a turn was running at the admission, so the harness took the input at that
+turn's next tool boundary or its end, else `waiting`. This command reads a Claude
+Code session's transcript still in this machine's Claude Code projects
+(`transcript_of`), which times no request or first output, so the
+model's time stays unsplit; other harnesses' inputs carry no breakdown, and the
+summary's reply rows count them missing. `leaf-dev journey` reads the record of the
+session it runs instead, on any harness (`journey.User.sample`).
 
-Each input a Claude Code session opened, with its transcript on this machine, also
-carries what its pickup waited on (`pickup`, `reply_phases.pickup_wait`), and the
-summary's `opened_*` rows sort those waits by cause, each over its own inputs,
-with the seconds they add up to. A survey of every page touched in a week:
+Each input whose opening session's record can be read also carries what its pickup
+waited on (`pickup`, `reply_phases.pickup_wait`), and the summary's `opened_*` rows
+sort those waits by cause, each over its own inputs, with the seconds they add up
+to. A survey of every page touched in a week:
 
     leaf-dev response-times --since 2026-10-20T00:00-07:00 $(find
         ~/.local/state/leaf/pages -maxdepth 2 -name events.jsonl -mtime -7 |
         sed 's:/events.jsonl$::')
+
+Each input also carries the fork that decided it (`fork`: its outcome and seconds),
+the last whose inputs name its message, and a fork's working line, posted as it
+handed the thread over, is the progress and first reply of the thread's newest
+waiting message. The summary's `delivered` row is how long an update read Delivered,
+from its opened pickup to the session starting or answering it; `fork_hand_over`
+times the first reply over the inputs a fork handed to the session, so a survey
+shows whether forks bring the agent's first words sooner.
 
 `prompted` waits are where nothing of Leaf's woke an idle session before the user
 typed. The watch record says whether a watch ran and the protocol its Leaf spoke,
@@ -62,16 +77,21 @@ import json
 import statistics
 from bisect import bisect_right
 from collections import Counter
+from collections.abc import Callable
 from datetime import datetime
 from functools import cache
 from pathlib import Path
 
 import click
 
+from leaf.event_log import initialized
 from leaf.events import is_answer
+from leaf.files import list_revisions
 from leaf.interaction_log import interaction_time, read_interactions
 from leaf.registry.kernel import kinds_declaring
+from leaf.revision_artifact import read_revision
 from leaf.state import now_iso
+from leaf.thread_context import thread_names
 from leaf.todos import start_reading
 from leaf_dev.reply_phases import (
     WAIT_CAUSES,
@@ -152,12 +172,41 @@ def visible_feedback(
     return result
 
 
-def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict:
+# What reads the record of the session that marked a milestone, in `reply_phases`'
+# form, or returns None where it cannot.
+type Records = Callable[[dict], list[dict] | None]
+
+
+@cache
+def session_records(session: str) -> list[dict] | None:
+    """The Claude Code session's transcript records, read once a run, since a page
+    holds many inputs a session took."""
+    native = claude_code_transcript(session)
+    return None if native is None else claude_code_records(native)
+
+
+def transcript_of(milestone: dict) -> list[dict] | None:
+    """The records of the Claude Code session that marked `milestone`, from its
+    transcript on this machine (`session_records`), or None for another harness's
+    session or one whose transcript is not here."""
+    if milestone["harness"] != "claude-code" or not milestone["session"]:
+        return None
+    return session_records(milestone["session"])
+
+
+def page_timings(
+    page: Path,
+    *,
+    since: datetime | None,
+    until: datetime,
+    records: Records = transcript_of,
+) -> dict:
     """Measure exact inputs and their feedback from recorded events.
 
     Events follow admission order even under wall-clock skew. Context declarations
     use host time; browser feedback uses its tab's clock. Every attention-bearing
-    input version stays in the denominator, including missing feedback.
+    input version stays in the denominator, including missing feedback. `records`
+    reads the session records the reply breakdown and pickup wait need.
     """
     page = page.resolve()
     observations = read_interactions(
@@ -171,6 +220,7 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
             "run_context",
             "leaf_command",
             "watch",
+            "fork_reply",
         ),
     )
     contexts = [
@@ -181,23 +231,41 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
     context_times = [interaction_time(row["ts"]) for row in contexts]
     semantic = sorted(
         (row for row in observations if row["source"] == "semantic"),
-        key=lambda row: row["event_seq"],
+        key=lambda row: row["event"]["seq"],
     )
     rows: dict[str, dict] = {}
     admitted_times = {}
     input_attempts = {}
     reply_inputs = {}
     unlinked = []
+    # The working line each fork posted as it handed its thread over, by the line's
+    # id: progress on the thread's newest waiting message, which takes nothing in
+    # hand and so names no input of its own (`leaf.forks`).
+    fork_lines = {
+        row["line"]: row["inputs"][-1]
+        for row in observations
+        if row["type"] == "fork_reply" and "line" in row
+    }
+    messages = kinds_declaring("message")
+    threads = thread_names([observation["event"] for observation in semantic])
+    titled: set[str] = set()
+    # The inputs admitted to each thread while it had no title.
+    untitled: dict[str, list[str]] = {}
+    # Each input's first answer, which names the revision it stands on.
+    answers: dict[str, dict] = {}
     for observation in semantic:
         event = observation["event"]
         stamp = interaction_time(event["ts"])
         in_cohort = since is None or stamp >= since
         identity, kind = event["id"], event["kind"]
-        if event["author"] == "user" and kind in kinds_declaring("message") | {"edit"}:
+        if event["author"] == "user" and kind in messages | {"edit"}:
             if kind == "edit" and event["base"] in rows:
                 rows[event["base"]]["superseded_by_edit"] = identity
             if not event.get("attention") or not in_cohort:
                 continue
+            thread = threads[event["message"] if kind == "edit" else identity]
+            if thread not in titled:
+                untitled.setdefault(thread, []).append(identity)
             # The last declaration at or before admission wins a timestamp tie.
             index = bisect_right(context_times, stamp) - 1
             context = contexts[index] if index >= 0 else None
@@ -226,24 +294,27 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
                 "first_reply_agent": None,
             }
             continue
-        inputs, names, reply_kind = [], (), None
+        # The milestones this event marks, by the input each is of.
+        marks: dict[str, tuple[str, ...]] = {}
+        reply_kind = None
         start = start_reading(event)
         if kind == "pickup":
-            inputs = event["events"]
-            names = ("failure" if event["phase"] == "failed" else event["phase"],)
+            phase = "failure" if event["phase"] == "failed" else event["phase"]
+            marks = dict.fromkeys(event["events"], (phase,))
+        elif identity in fork_lines:
+            marks[fork_lines[identity]] = ("progress", "first_reply")
+            reply_kind = "progress"
         elif start is not None:
-            inputs, names = [start["item"]], ("started",)
+            marks[start["item"]] = ("started",)
             if kind == "reply" and event.get("ephemeral"):
-                names += ("progress", "first_reply")
+                marks[start["item"]] += ("progress", "first_reply")
                 reply_kind = "progress"
         elif is_answer(event):
-            inputs, names, reply_kind = (
-                [event["responds"]],
-                ("answered", "first_reply"),
-                "answer",
-            )
+            marks[event["responds"]] = ("answered", "first_reply")
+            reply_kind = "answer"
+            answers.setdefault(event["responds"], event)
         elif kind == "reply" and "failure" in event:
-            inputs, names = [event["responds"]], ("failure",)
+            marks[event["responds"]] = ("failure",)
         elif (
             kind == "reply"
             and event["author"] == "agent"
@@ -251,16 +322,30 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
             and in_cohort
         ):
             unlinked.append(identity)
-        if not names:
-            continue
         if reply_kind is not None:
-            reply_inputs[identity] = inputs[0]
+            [replied] = marks
+            reply_inputs[identity] = replied
             if "attempt" in event:
-                reply_inputs[event["attempt"]] = inputs[0]
+                reply_inputs[event["attempt"]] = replied
+        # A thread's first title, from the page server or in the agent's own message
+        # (`events.build_threads`), titles each input that waited for one.
+        named = (
+            event["thread"]
+            if kind == "thread_title"
+            else threads[identity]
+            if kind in messages and "title" in event
+            else None
+        )
+        if named is not None and named not in titled:
+            titled.add(named)
+            for input_id in untitled.pop(named, ()):
+                marks[input_id] = (*marks.get(input_id, ()), "titled")
+        if not marks:
+            continue
         context = observation["context"] or {}
         turn = event.get("turn", start.get("turn") if start is not None else None)
         actor = _agent_context(event.get("session"), turn, context)
-        for input_id in inputs:
+        for input_id, marked in marks.items():
             if input_id not in rows:
                 continue
             row = rows[input_id]
@@ -272,11 +357,30 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
                 **actor,
                 "clock": "server_wall",
             }
-            if reply_kind is not None and "first_reply" not in row["milestones"]:
+            if "first_reply" in marked and "first_reply" not in row["milestones"]:
                 row["first_reply_kind"] = reply_kind
                 row["first_reply_agent"] = event.get("agent")
-            for name in names:
+            for name in marked:
                 row["milestones"].setdefault(name, milestone)
+    # When the page published each revision this directory holds.
+    activated = {
+        revision: read_revision(page, revision).activated_at
+        for revision in list_revisions(page)
+    }
+    for input_id, answer in answers.items():
+        if input_id not in rows or answer.get("revision") not in activated:
+            continue
+        at = activated[answer["revision"]]
+        elapsed = (interaction_time(at) - admitted_times[input_id]).total_seconds()
+        if 0 <= elapsed < rows[input_id]["observed_for_s"]:
+            rows[input_id]["milestones"]["published"] = {
+                "event_id": answer["id"],
+                "revision": answer["revision"],
+                "at": at,
+                "elapsed_s": elapsed,
+                **rows[input_id]["agent_sessions"][answer["id"]],
+                "clock": "server_wall",
+            }
     for observation in observations:
         if (
             observation["source"] != "server"
@@ -318,15 +422,28 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
     watches = [
         row for row in observations if row["source"] == "cli" and row["type"] == "watch"
     ]
+    forks = [row for row in observations if row["type"] == "fork_reply"]
+    # The last fork made for a message decided it: another message in its held
+    # thread forks again for them all, dropping the earlier fork's line.
+    decided = {message: fork for fork in forks for message in fork["inputs"]}
     for row in rows.values():
+        fork = decided.get(row["message_id"])
+        row["fork"] = (
+            None
+            if fork is None
+            else {
+                "outcome": fork["outcome"],
+                "elapsed_s": fork["elapsedMs"] / 1000 if "elapsedMs" in fork else None,
+            }
+        )
         answered = row["milestones"].get("answered")
         mine = [
             command
             for command in commands
             if answered is not None and command["session"] == answered["session"]
         ]
-        row["reply"] = breakdown(row, mine)
-        row["pickup"] = waited(row, watches)
+        row["reply"] = breakdown(row, mine, records)
+        row["pickup"] = waited(row, watches, records)
         # From where the harness took the input, so a working harness's
         # commands for the work it was busy with stay out.
         took = row["milestones"].get("opened", {}).get("at", row["admitted_at"])
@@ -344,21 +461,19 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
     }
 
 
-def breakdown(row: dict, commands: list[dict]) -> dict | None:
-    """The answered input's reply breakdown, with its case, where the answering
-    session's Claude Code transcript can be read; `commands` are its session's
-    `leaf_command` records."""
+def breakdown(row: dict, commands: list[dict], records: Records) -> dict | None:
+    """The answered input's reply breakdown, with its case, where `records` reads
+    the answering session's record; `commands` are its session's `leaf_command`
+    records."""
     milestones = row["milestones"]
     if "answered" not in milestones or "opened" not in milestones:
         return None
     answered = milestones["answered"]
-    if answered["harness"] != "claude-code" or answered["session"] is None:
-        return None
-    records = session_records(answered["session"])
-    if records is None:
+    read = records(answered)
+    if read is None:
         return None
     reply = reply_breakdown(
-        records,
+        read,
         commands,
         row["admitted_at"],
         milestones["opened"]["at"],
@@ -371,16 +486,16 @@ def breakdown(row: dict, commands: list[dict]) -> dict | None:
     )
 
 
-def waited(row: dict, watches: list[dict]) -> dict | None:
-    """What the input waited on before its opened pickup (`pickup_wait`), where the
-    session that opened it is Claude Code's with its transcript on this machine,
-    with the `watch` record of that session's watch running at the admission
+def waited(row: dict, watches: list[dict], records: Records) -> dict | None:
+    """What the input waited on before its opened pickup (`pickup_wait`), where
+    `records` reads the record of the session that opened it, with the `watch`
+    record of that session's watch running at the admission
     (`leaf.interaction_log.record_watch`), or None where none recorded one."""
     opened = row["milestones"].get("opened")
-    if opened is None or opened["harness"] != "claude-code" or not opened["session"]:
+    if opened is None:
         return None
-    records = session_records(opened["session"])
-    if records is None:
+    read = records(opened)
+    if read is None:
         return None
     admitted = interaction_time(row["admitted_at"])
     watch = next(
@@ -394,15 +509,7 @@ def waited(row: dict, watches: list[dict]) -> dict | None:
         ),
         None,
     )
-    return {**pickup_wait(records, row["admitted_at"], opened["at"]), "watch": watch}
-
-
-@cache
-def session_records(session: str) -> list[dict] | None:
-    """The Claude Code session's transcript records, read once a run, since a page
-    holds many inputs a session took."""
-    native = claude_code_transcript(session)
-    return None if native is None else claude_code_records(native)
+    return {**pickup_wait(read, row["admitted_at"], opened["at"]), "watch": watch}
 
 
 def _agent_context(session: str | None, turn: str | None, context: dict) -> dict:
@@ -499,8 +606,8 @@ def response_times(
         raise click.ClickException("--since must precede --until")
     paths = sorted({page.resolve() for page in pages})
     for page in paths:
-        if not (page / "events.jsonl").is_file():
-            raise click.ClickException(f"No events.jsonl in {page}")
+        if not initialized(page):
+            raise click.ClickException(f"{page} is not an initialized page")
     readings = [page_timings(page, since=beginning, until=cutoff) for page in paths]
     rows = [row for reading in readings for row in reading["samples"]]
     before = len(rows)
@@ -525,14 +632,36 @@ def response_times(
         for name in (
             "queued",
             "opened",
+            "titled",
             "started",
             "progress",
             "first_reply",
             "send_to_visible",
+            "published",
             "answered",
             "failure",
         )
     }
+    # How long each update read Delivered: from the harness opening it into a turn
+    # to the session starting or answering it.
+    delivered = [row for row in rows if "opened" in row["milestones"]]
+    summary["delivered"] = spread(
+        delivered,
+        [
+            min(
+                row["milestones"][name]["elapsed_s"]
+                for name in ("started", "answered")
+                if name in row["milestones"]
+            )
+            - row["milestones"]["opened"]["elapsed_s"]
+            for row in delivered
+            if {"started", "answered"} & row["milestones"].keys()
+        ],
+    )
+    summary["fork_hand_over"] = distribution(
+        [row for row in rows if row["fork"] and row["fork"]["outcome"] == "hand_over"],
+        "first_reply",
+    )
     summary["leaf_commands"] = spread(
         rows,
         [row["leaf_commands_s"] for row in rows if row["leaf_commands_s"] is not None],
@@ -584,6 +713,9 @@ def response_times(
     )
     click.echo(
         f"Unlinked agent replies: {sum(len(reading['unlinked_agent_replies']) for reading in readings)}; missing means no exact-linked observation."
+    )
+    click.echo(
+        "delivered runs from opened to the session's start or answer; fork_hand_over is first_reply over the inputs a fork handed to the session, its working line included."
     )
     click.echo(
         "leaf_commands reads each command's own record on any harness; whole_* and leaf_share_* read Claude Code transcripts, so their missing includes every other input."

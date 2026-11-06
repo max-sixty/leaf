@@ -1,11 +1,13 @@
-/* Where paint over the page's targets stands: traces, visual marks, the design
- * legend, key chips, the search's mark and drawing ink.
+/* Where paint Leaf stands beside the page's targets stands: the design legend and its
+ * label, key chips, margin bars, the search's mark, drawing ink, and the comparison's
+ * bars and change card. Marks round a box are drawn by the box itself (surfaces.css).
  *
- * Read the provider's drawn SVG primitives and clone them into a caller-owned shape,
- * and stand each box in the planes of what carries its target (`paintStand`), alone or
- * in a set (`paintSet`). Each painter decides when geometry must be rebuilt and when
- * only its placement has changed; a set alone keeps state, which of its targets stand
- * near enough to be shown. */
+ * A stand says nothing to assistive technology of its own: each painter hides what
+ * only the eye reads, as the key chips' layers do beside the live region that speaks
+ * them, and leaves readable what is read, as a change's card is.
+ *
+ * Stand each box in the planes of what carries its target (`paintStand`), alone or in a
+ * set (`paintSet`); a set keeps which of its targets stand near enough to be shown. */
 
 import {
   anchorAt,
@@ -25,10 +27,9 @@ import {
   scrollsContent,
   shownBox,
 } from "./geometry.js";
-import { PRESSES } from "./control-selectors.js";
 import { hasArea, intersect } from "./rect.js";
 import { move } from "./dom-move.js";
-import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
+import { keeps, layoutPx } from "./keeps.js";
 
 /** @typedef {import("./rect.js").Box} Box
  * @typedef {import("./geometry.js").ClipCache} ClipCache
@@ -36,8 +37,7 @@ import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
  * @typedef {import("./css-anchors.js").PaintBox} PaintBox
  * @typedef {{holder: Element | null, band: Box, axes: {x: boolean, y: boolean}}} Level
  * @typedef {ReturnType<typeof placement>} Placement
- * @typedef {({anchored: true, origin: null} | {anchored: false, origin: {x: number, y: number}}) & {visibility?: string}} Stood
- * @typedef {NonNullable<ReturnType<typeof paintGeometry>>} Geometry */
+ * @typedef {({anchored: true, origin: null} | {anchored: false, origin: {x: number, y: number}}) & {visibility?: string}} Stood */
 /** @typedef {Element & ElementCSSInlineStyle} PaintNode
  * @typedef {Level & {from: {left: number, top: number}}} PlacedLevel
  * @typedef {{surface: Element | null, levels: PlacedLevel[]}} SetPlacement
@@ -50,141 +50,6 @@ import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
  * placed: SetPlacement, rect: PaintBox, plane: string, framed: boolean, key: string, anchor: Anchor | null, at: Box | null})} ReadPaint */
 /** @template {(Element & ElementCSSInlineStyle) | null} B
  * @typedef {{root: HTMLDivElement, carrier: HTMLDivElement, box: B, anchored: boolean, frames: {level: import("./css-anchors.js").CutLevel, frame: HTMLElement}[]}} PaintStand */
-
-export const SVG_NS = "http://www.w3.org/2000/svg";
-const SHAPE_STROKE_ROOM = 2;
-
-/** @param {SVGGeometryElement} shape @param {"fill" | "stroke"} property */
-const paints = (shape, property) => {
-  const style = getComputedStyle(shape);
-  return (
-    shape.checkVisibility({ opacityProperty: true, visibilityProperty: true }) &&
-    style[property] !== "none" &&
-    Number.parseFloat(style[`${property}Opacity`]) !== 0 &&
-    (property !== "stroke" || Number.parseFloat(style.strokeWidth) > 0)
-  );
-};
-
-// A drawing's shapes and groups each take their own contour. The drawing itself, an
-// outermost `<svg>`, is a box among the page's, as a figure is, so its marks stand round
-// its box rather than round each of the shapes it draws.
-/** @param {Element} surface */
-export function paintGeometry(surface) {
-  if (!(surface instanceof SVGElement) || !surface.ownerSVGElement) return null;
-  const geometry = [surface, ...surface.querySelectorAll("*")].filter(
-    (child) => child instanceof SVGGeometryElement,
-  );
-  const fill = geometry.filter((shape) => paints(shape, "fill"));
-  const paintedStroke = geometry.filter((shape) => paints(shape, "stroke"));
-  // Every painted primitive contributes to the contour. A fill-only boundary must not
-  // disappear merely because a sibling decoration happens to have its own stroke.
-  const outlined = new Set([...fill, ...paintedStroke]);
-  const stroke = geometry.filter((shape) => outlined.has(shape));
-  return fill.length || stroke.length ? { fill, stroke } : null;
-}
-
-/** @param {SVGGeometryElement} source @param {number} left @param {number} top @param {"fill" | "stroke"} property */
-function geometryClone(source, left, top, property) {
-  const matrix = source.getScreenCTM();
-  if (!matrix) return null;
-  const clone = source.cloneNode(false);
-  clone.removeAttribute("id");
-  clone.removeAttribute("class");
-  clone.removeAttribute("opacity");
-  clone.removeAttribute("fill-opacity");
-  clone.removeAttribute("stroke-opacity");
-  clone.style.removeProperty("transform");
-  clone.style.removeProperty("opacity");
-  clone.style.removeProperty("fill-opacity");
-  clone.style.removeProperty("stroke-opacity");
-  // Percentage geometry is resolved in the source SVG's viewport. Freeze each animated
-  // length before moving the primitive into the overlay's different viewport.
-  for (const attribute of [...clone.attributes]) {
-    /** @type {unknown} */
-    const length = Reflect.get(source, attribute.localName);
-    if (attribute.value.includes("%") && length instanceof SVGAnimatedLength)
-      clone.setAttribute(attribute.name, String(length.animVal.value));
-  }
-  clone.setAttribute(
-    "transform",
-    `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${atLayoutPrecision(matrix.e - left)} ${atLayoutPrecision(matrix.f - top)})`,
-  );
-  clone.style.setProperty("fill", property === "fill" ? "white" : "none", "important");
-  clone.style.setProperty(
-    "stroke",
-    property === "stroke" ? "var(--lf-shape-ink)" : "none",
-    "important",
-  );
-  clone.style.setProperty("stroke-width", "var(--lf-shape-stroke)", "important");
-  clone.style.setProperty(
-    "stroke-dasharray",
-    "var(--lf-shape-dash, none)",
-    "important",
-  );
-  clone.style.setProperty("stroke-linejoin", "round", "important");
-  clone.style.setProperty("stroke-linecap", "round", "important");
-  clone.style.setProperty("vector-effect", "non-scaling-stroke", "important");
-  return clone;
-}
-
-/** @param {SVGElement} host @param {Geometry | null} geometry @param {Box} box @param {{maskId?: string, veil?: boolean}} [options] */
-export function paintShape(host, geometry, { left, top, right, bottom }, options = {}) {
-  if (!geometry) return false;
-  const { maskId = "", veil = false } = options;
-  const width = atLayoutPrecision(right - left);
-  const height = atLayoutPrecision(bottom - top);
-  /** @type {SVGElement[]} */
-  const fill = [];
-  /** @type {SVGElement[]} */
-  const stroke = [];
-  if (veil)
-    for (const shape of geometry.fill) {
-      const clone = geometryClone(shape, left, top, "fill");
-      if (!clone) return false;
-      fill.push(clone);
-    }
-  for (const shape of geometry.stroke) {
-    const clone = geometryClone(shape, left, top, "stroke");
-    if (!clone) return false;
-    stroke.push(clone);
-  }
-
-  const paint = [];
-  if (veil && fill.length) {
-    const defs = document.createElementNS(SVG_NS, "defs");
-    const mask = document.createElementNS(SVG_NS, "mask");
-    mask.id = maskId;
-    mask.setAttribute("maskUnits", "userSpaceOnUse");
-    mask.setAttribute("x", "0");
-    mask.setAttribute("y", "0");
-    mask.setAttribute("width", String(width));
-    mask.setAttribute("height", String(height));
-    mask.style.maskType = "alpha";
-    mask.append(...fill);
-    defs.append(mask);
-    const wash = document.createElementNS(SVG_NS, "rect");
-    wash.setAttribute("width", String(width));
-    wash.setAttribute("height", String(height));
-    wash.setAttribute("fill", "var(--lf-shape-ink)");
-    wash.setAttribute("fill-opacity", "0.08");
-    wash.setAttribute("mask", `url(#${maskId})`);
-    paint.push(defs, wash);
-  }
-  const outline = document.createElementNS(SVG_NS, "g");
-  outline.append(...stroke);
-  paint.push(outline);
-  keeps(host, "viewBox", `0 0 ${width} ${height}`);
-  keeps(host, "width", width);
-  keeps(host, "height", height);
-  // A repaint of geometry that has not moved clones the shapes it already holds.
-  const held = host.children;
-  if (
-    paint.length !== held.length ||
-    paint.some((node, index) => !node.isEqualNode(held.item(index)))
-  )
-    host.replaceChildren(...paint);
-  return true;
-}
 
 // A stand holds paint boxes over their targets in the planes of what carries the
 // targets, through the anchored cut frames every box that follows scrolled content
@@ -210,7 +75,6 @@ export function paintShape(host, geometry, { left, top, right, bottom }, options
 export function paintStand(box = null) {
   const root = document.createElement("div");
   root.className = "lf-ui lf-target-paint lf-paint-stand";
-  root.setAttribute("aria-hidden", "true");
   root.style.position = "fixed";
   const carrier = document.createElement("div");
   carrier.className = "lf-paint-carrier";
@@ -303,83 +167,14 @@ export function standBox(
   });
 }
 
-// All target contours (Aim brackets, references and full focus) use the target's
-// full box and radius. A cut clips that perimeter rather than inventing corners at
-// the cut: percentage radii retain their shape, and the browser carries the paint
-// with scrolling.
-// SVG targets retain their drawn contour, whose stroke straddles the path, rather
-// than acquiring rectangular brackets. Answers the stand and anchor for its label.
-/** @param {PaintStand<Element & ElementCSSInlineStyle>} stand @param {Placement} placed @param {string} borderRadius */
-export function standOver(stand, placed, borderRadius) {
+// Stands `stand`'s frames over `placed`, anchored to its surface where the anchor
+// reaches, and answers how a box in it stands (`standBox`) with the anchor and where it
+// was read.
+/** @param {PaintStand<(Element & ElementCSSInlineStyle) | null>} stand @param {Placement} placed */
+export function standAt(stand, placed) {
   const anchor = anchoredBy(placed.surface, stand.root);
   const at = anchor && anchorBox(anchor);
-  const stood = standIn(stand, placed, Boolean(anchor));
-  const style = stand.box.style;
-  standBox(stand.box, placed.rect, stood, anchor, at);
-  Object.assign(style, { display: "block", borderRadius });
-  const band = token("--focus-ring-w");
-  const outside = markGap(placed.surface);
-  const gap = cramped(placed, band + outside) ? -band : outside;
-  style.setProperty("--lf-mark-offset", layoutPx(gap));
-  // The frames let the band survive outside the target where it stands outside, and
-  // cut it exactly on an edge they already cut the target at, where it would otherwise
-  // stand over what the scroller has scrolled past (css-anchors.js, `cutPath`).
-  const room = Math.max(0, band + gap);
-  /** @type {(keyof Box)[]} */
-  const sides = ["top", "right", "bottom", "left"];
-  for (const side of sides)
-    stand.root.style.setProperty(
-      `--lf-paint-outset-${side}`,
-      layoutPx(cutsAt(placed, side) ? 0 : room),
-    );
-  return { ...stood, anchor, at, room };
-}
-
-/** @param {string} name */
-const token = (name) =>
-  Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
-
-// Where a mark's band stands outside its target, which the target decides (base.css,
-// "Where it stands"): the `outline-offset` its face states, where its own focus ring
-// stands too. A target that states none stands at a control's ring's gap or at a
-// region's. A field states its edge, 0, which reads as none here, so a mark round a
-// field stands at a control's gap.
-/** @param {Element} surface */
-function markGap(surface) {
-  const stated = Number.parseFloat(getComputedStyle(surface).outlineOffset);
-  if (stated) return stated;
-  return token(surface.matches(PRESSES) ? "--focus-ring-gap" : "--focus-region-gap");
-}
-
-// Whether a frame cuts the target on `side`, as on a target scrolled partly out of its
-// scroller.
-/** @param {Placement} placed @param {"top" | "right" | "bottom" | "left"} side */
-function cutsAt({ rect, levels }, side) {
-  const axis = side === "top" || side === "bottom" ? "y" : "x";
-  const low = side === "top" || side === "left";
-  return levels.some(
-    ({ band, axes }) =>
-      axes[axis] && (low ? rect[side] < band[side] : rect[side] > band[side]),
-  );
-}
-
-// Where a box that clips the target, as a joined lf-options frame clips its cells,
-// shows the target's edge but not `room` beyond it, the mark stands just inside the
-// edge instead, as a control packed into a list insets its own ring (base.css).
-// Outside, the clip cut away its sides and left stubs across the neighbours. An edge
-// the clip already cuts asks for no room.
-/** @param {Placement} placed @param {number} room */
-function cramped({ rect, levels }, room) {
-  /** @param {Box} band @param {keyof Box} low @param {keyof Box} high */
-  const short = (band, low, high) =>
-    (rect[low] >= band[low] && rect[low] - room < band[low]) ||
-    (rect[high] <= band[high] && rect[high] + room > band[high]);
-  return levels.some(
-    ({ holder, band, axes }) =>
-      holder &&
-      ((axes.x && short(band, "left", "right")) ||
-        (axes.y && short(band, "top", "bottom"))),
-  );
+  return { ...standIn(stand, placed, Boolean(anchor)), anchor, at };
 }
 
 // A set of paint boxes, each over a target and standing in the frames that cut it
@@ -514,7 +309,7 @@ export function paintSet(root, { onNear = () => {} } = {}) {
         const rect = item.rect;
         targets.add(target);
         // A target with no box of its own stands where its parts do (`shownBox`).
-        let placed = placement(target, false, false, clips, held);
+        let placed = placement(target, false, clips, held);
         const { left, top, right, bottom } = placed.rect;
         if (!(right > left && bottom > top)) return { node, target, placed: null };
         const box = typeof rect === "function" ? rect(placed) : (rect ?? placed.rect);
@@ -666,46 +461,26 @@ export function paintSet(root, { onNear = () => {} } = {}) {
 // A stand whose box is put away keeps no frames, which would hold the scrollers they are
 // anchored to after a revision removed them.
 /** @param {PaintStand<(Element & ElementCSSInlineStyle) | null>} stand */
-export function vacate(stand) {
-  if (!stand.frames.length && stand.carrier.parentElement === stand.root) return;
+function dropStand(stand) {
   stand.frames = cutFrames(
     [],
     stand.frames.map(({ frame }) => frame),
     makeFrame,
   );
-  move(stand.root, stand.carrier, null);
-}
-
-/** @param {PaintStand<(Element & ElementCSSInlineStyle) | null>} stand */
-export function dropStand(stand) {
-  vacate(stand);
   stand.root.remove();
 }
 
 // Where a paint box stands over `surface`, and what cuts it, for paint stacked
-// `aboveSurfaces` (`data-lf-paint-plane`) or under them: `rect` is the box, the
-// surface's own with room for a shape's stroke, and `shown` the part of it no cut hides,
-// null where the cuts hide all of it. `shapeKey` changes where a shape drawn in the box
-// must be drawn again. `levels` are the frames that cut it, outermost first, each with
-// the box `holder` whose band it is, none for the window's. `clips` is the clip walk's
-// cache, shared by a pass that places many. Paint over what `surface` holds (`held`), as
-// words standing in it, is cut by its own band as well.
-/** @param {Element} surface @param {boolean} shaped @param {boolean} aboveSurfaces @param {ClipCache} [clips] @param {boolean} [held] */
-export function placement(
-  surface,
-  shaped,
-  aboveSurfaces,
-  clips = new Map(),
-  held = false,
-) {
-  const box = shownBox(surface);
-  const pad = shaped ? SHAPE_STROKE_ROOM : 0;
-  const rect = {
-    left: box.left - pad,
-    top: box.top - pad,
-    right: box.right + pad,
-    bottom: box.bottom + pad,
-  };
+// `aboveSurfaces` (`data-lf-paint-plane`) or under them: `rect` is the surface's box,
+// and `shown` the part of it no cut hides, null where the cuts hide all of it. `levels`
+// are the frames that cut it, outermost first, each with the box `holder` whose band it
+// is, none for the window's. `clips` is the clip walk's cache, shared by a pass that
+// places many. Paint over what `surface` holds (`held`), as words standing in it, is cut
+// by its own band as well.
+/** @param {Element} surface @param {boolean} aboveSurfaces @param {ClipCache} [clips] @param {boolean} [held] */
+export function placement(surface, aboveSurfaces, clips = new Map(), held = false) {
+  const { left, top, right, bottom } = shownBox(surface);
+  const rect = { left, top, right, bottom };
   const cuts = paintClips(surface, rect, clips, aboveSurfaces, held);
   /** @type {Level[]} */
   const levels = [];
@@ -718,7 +493,6 @@ export function placement(
   return {
     rect,
     shown: hasArea(shown) ? shown : null,
-    shapeKey: `${rect.right - rect.left}:${rect.bottom - rect.top}`,
     levels,
     surface,
     plane: cuts.plane,

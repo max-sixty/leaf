@@ -73,8 +73,8 @@ const within = (spec) => {
 /** @param {HTMLSpanElement} row @returns {[number, number?]} */
 const rowSpan = (row) =>
   row.classList.contains("lf-code-elided")
-    ? [Number(row.dataset.from), Number(row.dataset.to)]
-    : [Number(row.dataset.line)];
+    ? [Number(row.dataset.lfFrom), Number(row.dataset.lfTo)]
+    : [Number(row.dataset.lfLine)];
 
 // How many columns a line's leading whitespace takes, a tab reaching the next stop of
 // eight (the <pre>'s tab-size).
@@ -145,7 +145,7 @@ customElements.define(
         // One representation either way: an uncolored block is the whole source as a
         // single unstyled token, so the line walk below has one shape to handle.
         const lines = tokenLines(
-          lang ? await syntax(source, lang) : [{ text: source, style: {} }],
+          lang ? (await syntax(source, lang)).tokens : [{ text: source, style: {} }],
         );
         const numbers = numbering(this);
         const rows = lines.map((tokens) => ({ tokens, n: numbers.next().value }));
@@ -177,8 +177,8 @@ customElements.define(
             pre.append(elided(from, to, hi(from, to), captions));
           }
           const line = previous === null ? firstLine : document.createElement("span");
-          line.className = `lf-code-line${hi(n) ? " hi" : ""}`;
-          line.dataset.line = String(n);
+          line.className = "lf-code-line";
+          line.dataset.lfLine = String(n);
           // A line too long for the frame wraps, and its later rows hang from its own
           // indent (the theme's `--lf-code-indent`), so a wrapped line keeps its place
           // in the code's structure.
@@ -188,14 +188,17 @@ customElements.define(
           // The tint says "this is the line" to the eye and nothing to a user
           // listening, who is handed the whole block with no idea which of it the note
           // beside it is about. A word per highlighted line rather than one at the top
-          // saying which numbers: the numbers are painted from data-line, into no text
-          // node on purpose — a line number in the text would be a line number in the
-          // clipboard — so "lines 3 to 4" would name something the user cannot hear.
-          // Said per line, it arrives where it is true. The one word rides the same
-          // clip as every other quiet word, out of the selection with it, so a copied
-          // block is still the source and nothing else. Leaf writes it from the
+          // saying which numbers: the numbers are painted from data-lf-line, into no
+          // text node on purpose — a line number in the text would be a line number in
+          // the clipboard — so "lines 3 to 4" would name something the user cannot
+          // hear. Said per line, it arrives where it is true. The one word rides the
+          // same clip as every other quiet word, out of the selection with it, so a
+          // copied block is still the source and nothing else. Leaf writes it from the
           // declaration, since only Leaf's theme keeps it off the screen.
-          if (hi(n)) line.dataset.lfQuiet = "highlighted";
+          if (hi(n)) {
+            line.dataset.lfHi = "";
+            line.dataset.lfQuiet = "highlighted";
+          }
           pre.append(line);
           // Moved, not copied: the authored element keeps its text and id.
           pre.append(...(byLine.get(n) ?? []));
@@ -251,12 +254,15 @@ customElements.define(
 /** @param {number} from @param {number} to @param {boolean} highlighted @param {Element[]} captions */
 function elided(from, to, highlighted, captions) {
   const row = document.createElement("span");
-  row.className = `lf-code-elided${highlighted ? " hi" : ""}`;
-  row.dataset.from = String(from);
-  row.dataset.to = String(to);
+  row.className = "lf-code-elided";
+  row.dataset.lfFrom = String(from);
+  row.dataset.lfTo = String(to);
   const count = to - from + 1;
-  row.dataset.elided = `${count} line${count === 1 ? "" : "s"}`;
-  if (highlighted) row.dataset.lfQuiet = "highlighted";
+  row.dataset.lfElided = `${count} line${count === 1 ? "" : "s"}`;
+  if (highlighted) {
+    row.dataset.lfHi = "";
+    row.dataset.lfQuiet = "highlighted";
+  }
   row.append(...captions);
   return row;
 }

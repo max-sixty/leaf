@@ -22,9 +22,6 @@ The shared authoring prompt lives in `evals/workflows/authoring_eval.yaml`.
 import hashlib
 import json
 import shutil
-import subprocess
-import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -40,10 +37,9 @@ from leaf_dev.arms import (
     run_agent,
     run_leaf,
     scratch,
-    serving,
     trace_summary,
 )
-from leaf_dev.arrangement_eval import Run, capture_phase, preference
+from leaf_dev.arrangement_eval import Run, capture_phase, is_leaf, preference
 from leaf_dev.browser import shell_executable
 from leaf_dev.eval_cases import DEFAULT_VIEWPORTS, definition
 from leaf_dev.leaf_assets import pinned_copy
@@ -134,44 +130,6 @@ def check_log(trace: list[dict]) -> list[dict]:
     return log
 
 
-def operated_interaction(
-    case: str, condition: str, page: Path, payload: Path, evidence: Path
-) -> dict:
-    """Probe a disposable live copy; the author's page remains the saved artifact."""
-    from leaf_dev.arrangement_plain import serving as serve_plain
-
-    with tempfile.TemporaryDirectory(prefix="leaf-format-probe-") as temporary:
-        temporary = Path(temporary)
-        copy = temporary / "page"
-        shutil.copytree(page, copy)
-        server = (
-            serve_plain(copy)
-            if condition == "adaptive"
-            else serving(payload, temporary / "state", copy)
-        )
-        with server as url:
-            probe = subprocess.run(
-                [
-                    "node",
-                    str(ROOT / "evals/widget-formats/interaction.mjs"),
-                    case,
-                    url,
-                    str(evidence / "interaction"),
-                ],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=120,
-            )
-    if probe.returncode:
-        return {
-            "status": "insufficient_evidence",
-            "reason": f"browser probe exited {probe.returncode}: {probe.stderr}",
-            "observations": [],
-        }
-    return json.loads(probe.stdout)
-
-
 def execute(
     prompt: str,
     payload: Path,
@@ -184,9 +142,9 @@ def execute(
     viewports: tuple[str, ...] = DEFAULT_VIEWPORTS,
 ) -> dict:
     started = time.monotonic()
-    # Leaf and its JSON format author with the arm's plugin; the plain HTML and
-    # Adaptive Cards controls author ordinary files with no Leaf in reach.
-    leaf = condition in {"leaf", "json"}
+    # Leaf authors with the arm's plugin; the plain HTML control authors ordinary
+    # files with no Leaf in reach.
+    leaf = is_leaf(condition)
     context = (
         instruction_context(payload, metadata["instructions"])
         if metadata.get("instructions")
@@ -219,37 +177,11 @@ def execute(
         request = definition("authoring_eval")["prompt"].format(
             prompt=brief, page=page, cwd=cwd, payload=payload
         )
-        if condition == "json":
-            compiler = cwd / "compile.py"
-            shutil.copyfile(ROOT / "evals/widget-formats/compile.py", compiler)
-            request += (
-                "\n\nAuthor the complete page as a flat JSON element tree in "
-                f"{page}/spec.json. This is the page source. Each element in "
-                "`elements` has `type` (an HTML or Leaf tag), `props` (its HTML "
-                'attributes), and `children` (element IDs or `{"text": "..."}`); '
-                "`root` names the html element. You may use the same tags, "
-                "attributes, CSS, and Leaf widgets as direct HTML. Use "
-                f"`{sys.executable} {compiler} {page}/spec.json {page}/index.html` "
-                "to compile, then inspect and repair the rendered page. "
-                "The evaluator compiles the JSON once more after your final turn."
-            )
-        elif condition == "html":
+        if condition == "html":
             request += (
                 "\n\nBuild it with HTML, CSS and JavaScript. Use headless browser "
                 "tooling for your own inspection. Installed headless Chrome "
                 f"executable: {shell_executable()}"
-            )
-        elif condition == "adaptive":
-            renderer = ROOT / "evals/widget-formats/adaptive-render.mjs"
-            request += (
-                "\n\nAuthor an Adaptive Card JSON document at "
-                f"{page}/card.json. This is the page source. The installed "
-                "Adaptive Cards JavaScript SDK 3.0.6 parses and renders it. "
-                f"Run `node {renderer} {page}/card.json {page}/index.html` "
-                "to validate and render a standalone preview, then inspect and "
-                "repair it. The evaluator renders the card again after your "
-                "final turn. Its visible submit receipt is a test harness record "
-                "of the SDK action, not an app submission."
             )
         (evidence / "prompt-1.txt").write_text(request)
 
@@ -262,11 +194,7 @@ def execute(
                 *(("--plugin-dir", str(payload)) if leaf else ()),
                 out=evidence / "stream.jsonl",
                 err=evidence / "err.txt",
-                dirs=[payload]
-                if leaf
-                else [ROOT / "evals/widget-formats"]
-                if condition == "adaptive"
-                else [],
+                dirs=[payload] if leaf else [],
                 env={
                     "PATH": environment(payload=payload if leaf else None)["PATH"],
                     "XDG_STATE_HOME": str(state),
@@ -275,119 +203,56 @@ def execute(
                 harness=harness,
             )
             author_seconds = time.monotonic() - author_started
-            format_valid = True
-            format_output = ""
-            if condition == "json":
-                source = page / "spec.json"
-                compiled = subprocess.run(
-                    [
-                        sys.executable,
-                        str(compiler),
-                        str(source),
-                        str(page / "index.html"),
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                format_valid = compiled.returncode == 0
-                format_output = compiled.stdout + compiled.stderr
-                (evidence / "compile.txt").write_text(format_output)
-            elif condition == "adaptive":
-                rendered = subprocess.run(
-                    [
-                        "node",
-                        str(renderer),
-                        str(page / "card.json"),
-                        str(page / "index.html"),
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                format_valid = rendered.returncode == 0
-                format_output = rendered.stdout + rendered.stderr
-                (evidence / "compile.txt").write_text(format_output)
             run = Run(
                 metadata["case"],
                 payload,
                 evidence,
                 shots or evidence / "screens",
                 harness=harness,
-                condition="leaf" if leaf else "html",
+                condition=condition,
                 viewports=viewports,
             )
-            operable = False
-            if format_valid:
-                if not leaf:
-                    from leaf_dev.arrangement_plain import load, serving
-                    from leaf_dev.browser import headless_shell, tab
-
-                    errors = []
-                    with (
-                        serving(page) as url,
-                        headless_shell() as browser,
-                        tab(browser) as view,
-                    ):
-                        view.on("pageerror", lambda error: errors.append(str(error)))
-                        load(view, url)
-                        rendered = (
-                            view.locator(
-                                "#card > *" if condition == "adaptive" else "body > *"
-                            ).count()
-                            > 0
-                        )
-                    plain_output = (
-                        "Adaptive Cards SDK parsed the source\n"
-                        if condition == "adaptive"
-                        else "Plain HTML has no source check\n"
-                    )
-                    render_output = (
-                        "\n".join(errors)
-                        if errors
-                        else "Browser loaded the rendered page\n"
-                    )
-                    page_valid = rendered and not errors
-                    operable = page_valid
-                else:
-                    plain = run_leaf(payload, state, "page", "check", str(page))
-                    check = run_leaf(
-                        payload, state, "page", "check", str(page), "--render"
-                    )
-                    plain_output = plain.stdout + plain.stderr
-                    render_output = check.stdout + check.stderr
-                    page_valid = check.returncode == 0
-                    operable = plain.returncode == 0 and (page / "index.html").is_file()
+            if leaf:
+                plain = run_leaf(payload, state, "page", "check", str(page))
+                check = run_leaf(payload, state, "page", "check", str(page), "--render")
+                plain_output = plain.stdout + plain.stderr
+                render_output = check.stdout + check.stderr
+                page_valid = check.returncode == 0
+                operable = plain.returncode == 0 and (page / "index.html").is_file()
             else:
-                plain_output = render_output = "not run: source did not compile\n"
-                page_valid = False
-            captures = capture_phase(run, 1, page) if operable else {}
-            interaction = None
-            if operable and metadata["case"].split("/")[-1] in {"choice", "form"}:
-                interaction = operated_interaction(
-                    metadata["case"], condition, page, payload, evidence
+                from leaf_dev.browser import headless_shell, tab
+                from leaf_dev.plain_html import load, serving
+
+                errors = []
+                with (
+                    serving(page) as url,
+                    headless_shell() as browser,
+                    tab(browser) as view,
+                ):
+                    view.on("pageerror", lambda error: errors.append(str(error)))
+                    load(view, url)
+                    rendered = view.locator("body > *").count() > 0
+                plain_output = "Plain HTML has no source check\n"
+                render_output = (
+                    "\n".join(errors)
+                    if errors
+                    else "Browser loaded the rendered page\n"
                 )
+                page_valid = (page / "index.html").is_file() and rendered and not errors
+                operable = page_valid
+            captures = capture_phase(run, 1, page) if operable else {}
             (evidence / "check-plain.txt").write_text(plain_output)
             (evidence / "check.txt").write_text(render_output)
 
             document = page / "index.html"
-            if condition == "adaptive":
-                source = page / "card.json"
-                output = source.read_text() if source.is_file() else ""
-            else:
-                output = (
-                    document.read_text() if format_valid and document.is_file() else ""
-                )
+            output = document.read_text() if document.is_file() else ""
             summary = trace_summary(trace)
             response = {
                 "output": output,
                 "metadata": {
                     "checks": {
                         "completed": completed(trace),
-                        "format-valid": format_valid,
                         "page-valid": page_valid,
-                        "interaction-proven": interaction is not None
-                        and interaction["status"] == "proven",
                     },
                     "trace": summary,
                     "diagnostics": {
@@ -405,8 +270,8 @@ def execute(
                             "phases": {"": "1"},
                             "author_phases": [1],
                             "widths": {
-                                name: list(viewport)
-                                for name, (viewport, _) in run.widths.items()
+                                name: list(window.size)
+                                for name, window in run.windows.items()
                             },
                         },
                         "phases": {
@@ -421,9 +286,7 @@ def execute(
                         "plain": plain_output,
                         "render": render_output,
                     },
-                    "format_output": format_output,
                     "condition": condition,
-                    "interaction": interaction,
                     "check_log": check_log(trace),
                     "payload": str(payload),
                     "setup_seconds": setup_seconds,

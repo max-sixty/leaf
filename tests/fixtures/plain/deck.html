@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Release train</title>
+    <meta
+      name="description"
+      content="Slides for the release train review: who cuts each train, the pipeline, and how to roll back."
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        background: #14161f;
+        color: #e4e6f0;
+        font:
+          18px/1.45 "Avenir Next",
+          system-ui,
+          sans-serif;
+      }
+      body {
+        margin: 0;
+      }
+      main {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 40px 24px 80px;
+      }
+      section {
+        padding: 32px 0;
+        border-bottom: 1px solid #2a2e40;
+      }
+      h1,
+      h2 {
+        margin: 0 0 20px;
+        letter-spacing: -0.01em;
+      }
+      table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        border: 2px solid #3a3f58;
+        border-radius: 8px;
+      }
+      th,
+      td {
+        padding: 10px 16px;
+        text-align: left;
+        border-bottom: 1px solid #2a2e40;
+      }
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      th {
+        color: #9aa0bc;
+        font-weight: 600;
+      }
+      pre {
+        margin: 0;
+        padding: 16px 20px;
+        background: #0d0f16;
+        color: #c8cbe0;
+        border-radius: 8px;
+        overflow-x: auto;
+        font:
+          15px/1.5 ui-monospace,
+          Menlo,
+          monospace;
+      }
+      .tok-comment {
+        color: #6b7089;
+        font-style: italic;
+      }
+      .tok-key {
+        color: #ff7a93;
+      }
+      .tok-string {
+        color: #9ece6a;
+      }
+      pre + p {
+        margin: 16px 0 0;
+        color: #9aa0bc;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <h1>Release train</h1>
+        <p>Three trains a week, each cut by one owner and rolled back by anyone.</p>
+      </section>
+      <section>
+        <h2>Who cuts what</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Train</th>
+              <th>Owner</th>
+              <th>Cut</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Web</td>
+              <td>Priya</td>
+              <td>Mon</td>
+            </tr>
+            <tr>
+              <td>API</td>
+              <td>Tomás</td>
+              <td>Wed</td>
+            </tr>
+            <tr>
+              <td>Mobile</td>
+              <td>Noor</td>
+              <td>Fri</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+      <section>
+        <h2>The pipeline</h2>
+        <pre><code class="language-yaml"><span class="tok-comment"># one stage per gate</span>
+<span class="tok-key">stages</span>: [build, canary, ship]
+<span class="tok-key">canary</span>: <span class="tok-string">"5% for 2h"</span></code></pre>
+        <p>The canary holds until its error rate settles.</p>
+      </section>
+      <section>
+        <h2>Rolling back</h2>
+        <pre><code class="language-bash">git revert --no-edit HEAD
+git push origin main</code></pre>
+        <p>Anyone on call may revert; the train owner follows up.</p>
+      </section>
+    </main>
+  </body>
+</html>

@@ -19,10 +19,10 @@
  * quiet word in the header's fixed status slot until the newest buffer is
  * acknowledged. A failure and a conflict stand in that same slot, so the editor's top
  * and height measure the same in every state (`browser/AGENTS.md`, "The page holds still under the user's aim"). A
- * failure reads "Not saved" beside Retry's symbol, with the error as the status's
- * tooltip and Retry's description. A conflict reads "Changed on disk" in the warning
- * tone, one control opening a small menu of its choices: Compare, Save draft, Use file
- * version.
+ * failure reads "Not saved" beside Retry, a symbol, with the error as the status's
+ * tooltip and Retry's description. A conflict reads "Changed on disk", an inline press
+ * in the warning's tone, opening a small menu of its choices: Compare, Save draft, Use
+ * file version.
  * A Save draft that fails keeps that control, since Save draft is the retry and the
  * other choices still stand; it then reads "Not saved", the slot's one line having
  * no room for both, with the error as its description. Where no file
@@ -53,7 +53,6 @@ import {
   handBack,
   html,
   iconTemplate,
-  namedAction,
   isNativeLayer,
   LeafElement,
   nothing,
@@ -294,7 +293,7 @@ customElements.define(
         const retryable = Boolean(failure) && !latest && api.writable;
         return html`
           <div class="lf-file-editor-head">
-            <span class="lf-file-editor-name scroll">${label}</span>
+            <span class="lf-file-editor-name" data-lf-scroll>${label}</span>
             <span
               ${offered("lf-file-editor-status")}
               title=${failure?.message ?? nothing}
@@ -309,19 +308,22 @@ customElements.define(
                       ? "Saving changes…"
                       : ""
               }${retryable ? html`&nbsp;` : nothing}<button
-                ${offered("lf-file-editor-retry")}
+                ${offeredAction("symbol", "lf-file-editor-retry", undefined, {
+                  action: "retry",
+                })}
                 ?hidden=${!retryable}
-                ${namedAction("retry", { className: "lf-file-editor-icon" })}
                 aria-description=${failure?.message ?? nothing}
                 aria-disabled=${busy ? "true" : nothing}
                 @click=${(/** @type {MouseEvent} */ event) => retry(event.currentTarget instanceof HTMLElement ? event.currentTarget : null)}
               ></button
               ><button
-                ${offered("lf-file-editor-conflict")}
+                ${offeredAction("inline", "lf-file-editor-conflict")}
+                data-lf-tone="warn"
                 ?hidden=${!conflicted}
                 aria-description=${failure?.message ?? nothing}
                 popovertarget="lf-file-editor-choices"
                 aria-haspopup="menu"
+                aria-expanded="false"
               >
                 ${failure ? "Not saved" : "Changed on disk"}${iconTemplate(
                   "down",
@@ -331,7 +333,7 @@ customElements.define(
             >
           </div>
           <div
-            ${offered("lf-file-editor-choices")}
+            ${offered("lf-file-editor-choices lf-popover")}
             id="lf-file-editor-choices"
             popover="auto"
             role="menu"

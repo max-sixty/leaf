@@ -1,3 +1,4 @@
+import "/runtime/stage-integration.js";
 /* Authored inputs are captured before widgets render; presentation may then move
    nodes without changing the document coordinates those inputs established. */
 import assert from "node:assert/strict";
@@ -54,6 +55,7 @@ test("native idioms never become widget descriptors or authored widget ancestors
   document.body.innerHTML =
     '<main><table id="native"><tbody><tr><td><lf-nested id="nested">Value</lf-nested></td></tr></tbody></table></main>';
   adoptRegistry({
+    $layer: { generation: "native-idioms" },
     "lf-nested": {},
     table: { description: "A table idiom.", "x-example": "<table></table>" },
     "lf-nested.selected": {
@@ -133,7 +135,7 @@ test("member state owns each physical slot independently across a hierarchy", ()
 
 test("the contents drawing keeps its native state and keyed rows through revisions", () => {
   document.body.innerHTML =
-    '<main><h1>Field guide</h1><lf-toc id="contents"></lf-toc>' +
+    '<header><lf-toc id="contents"></lf-toc></header><main><h1>Field guide</h1>' +
     '<h2 id="first">Take inventory</h2><h3>Save a snapshot</h3></main>';
   const host = document.querySelector("lf-toc");
   const reading = {

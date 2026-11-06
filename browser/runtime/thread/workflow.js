@@ -6,9 +6,11 @@
    thread's attention from the records open in it. It also serves which thread each
    workflow stands in (`thread`) and the workflows strongest first (`served_workflows`).
    The application publisher adds the unresolved local send after the served ones; only
-   a thread the user opened takes its attention from it. Every message, compact thread row and margin entry reads
-   these values; none reclassifies receipts, streams, turn ownership, whose turn a
-   thread is, or which workflow is stronger. `strongestWorkflow` only places this tab's
+   a thread the user opened takes its attention from it. Every message, compact thread
+   row and margin entry reads these values; none reclassifies receipts, streams, turn
+   ownership, whose turn a thread is, or which workflow is stronger. Whether the agent
+   is at work on one is its `at_work`, which a fork's taking it on sets before its
+   stage moves. `strongestWorkflow` only places this tab's
    own sends against the served order. A workflow's word is `workflowWord`, its last
    step's line `workflowStep`, and its face on a control `progressFace`, on every
    surface; a thread's word is `threadAttention`'s, which Threads states as its status
@@ -24,11 +26,11 @@ import { agentSays, leafSays } from "../voice.js";
  * @returns {workflow is Extract<Workflow, {subject: {kind: "widget"}}>} */
 const widgetWorkflow = (workflow) => workflow.subject.kind === "widget";
 
-// The server chooses the first open agent to-do in this thread, and publication
-// retains that same order. User gestures can end only user-owned to-dos, which
-// live in userTodos, so local folding cannot remove the to-do this reading names.
+// The server chooses the first open to-do in this thread, and publication retains
+// that same order. Only the agent ends a to-do, so no local gesture removes the one
+// this reading names.
 /** @param {ThreadRecord} thread
- * @returns {thread is ThreadRecord & {todos: readonly [import("../framework/application.js").WireTodo, ...import("../framework/application.js").WireTodo[]]}} */
+ * @returns {thread is ThreadRecord & {todos: readonly [import("../../types/contract.js").ServedTodo, ...import("../../types/contract.js").ServedTodo[]]}} */
 const todoAttention = (thread) =>
   thread.attention?.kind === "waiting" && thread.attention.reason === "todo";
 
@@ -39,15 +41,16 @@ export const hasWorkflowLine = (workflow) => workflow.detail !== null;
 
 // Each stage's word, said by whoever says it (glossary.md, "Reader-facing words";
 // voice.js). Leaf speaks in the agent's voice where what the agent would say is
-// reliable: it started the update (On it), its reply is streaming in (Replying), or it
-// answered. Everything else is what Leaf observed of the update's way to the agent,
-// through the harness or the clock, so Leaf says it in its own voice: the update
-// waiting for the agent whether or not the server has logged it yet, the harness
-// queuing or delivering it, and every condition. The user chose this on 30 October
-// 2026, over stage words in the agent's voice such as "Got it", which put Leaf's
-// inference in the agent's mouth, and the same day gave the agent the reply it is
-// streaming; on 27 October they chose Leaf's "Queued for Claude" over the agent's "Not
-// seen yet".
+// reliable: it started the update, or a fork of its conversation took the update on
+// (On it), its reply is streaming in (Replying), or it answered. Everything else is
+// what Leaf observed of the update's way to the agent, through the harness or the
+// clock, so Leaf says it in its own voice: the update waiting for the agent whether or
+// not the server has logged it yet, the harness queuing or delivering it, and every
+// condition. The user chose this on 30 October 2026, over stage words in the agent's
+// voice such as "Got it", which put Leaf's inference in the agent's mouth, and the same
+// day gave the agent the reply it is streaming; on 27 October they chose Leaf's
+// "Queued for Claude" over the agent's "Not seen yet". On 5 November they gave a
+// fork's taking an update on the agent's On it, from the moment the fork starts.
 /** @param {string} agent */
 const queuedFor = (agent) => leafSays(`Queued for ${agent}`);
 const STAGES = Object.freeze({
@@ -86,8 +89,14 @@ export const workflowWord = (workflow, agent, { answered = false } = {}) => {
         ? NOT_ANSWERED
         : leafSays(CONDITION_WORDS[condition.kind] ?? "Failed");
   if (workflow.stage === "answered" && !answered) return null;
-  return STAGES[workflow.stage]?.(agent) ?? null;
+  return STAGES[shownStage(workflow)]?.(agent) ?? null;
 };
+
+// The stage a workflow's word shows: `working` where the agent is at work on an update
+// its session has yet to start, which a fork of its conversation took on (`at_work`).
+/** @param {Workflow} workflow */
+const shownStage = (workflow) =>
+  workflow.at_work && workflow.stage !== "replying" ? "working" : workflow.stage;
 
 /** @param {Workflow | null | undefined} workflow @param {string} agent */
 export const workflowTitle = (workflow, agent) =>
@@ -102,10 +111,10 @@ export const workflowTitle = (workflow, agent) =>
 export const progressFace = (workflow) =>
   !workflow || workflow.condition
     ? null
-    : workflow.stage === "picked_up"
-      ? "picked_up"
-      : ["working", "replying"].includes(workflow.stage)
-        ? "working"
+    : workflow.at_work
+      ? "working"
+      : workflow.stage === "picked_up"
+        ? "picked_up"
         : null;
 
 /** @param {Workflow | null | undefined} workflow */
@@ -154,7 +163,7 @@ export function strongestWorkflow(workflows) {
 // An open to-do's word, wherever it stands, in the agent's voice since it opened the
 // to-do: On it while a start runs on it, else what it means for the user's request,
 // which the user chose over "To-do open" (2026-10-27).
-/** @param {import("../framework/application.js").WireTodo["running"]} running */
+/** @param {import("../../types/contract.js").ServedTodo["running"]} running */
 export const todoWord = (running) => agentSays(running ? "On it" : "Still to do");
 
 // A thread's state while it isn't resolved, and its `word`.

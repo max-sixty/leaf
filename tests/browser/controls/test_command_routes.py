@@ -11,7 +11,6 @@ from render_harness import leaf_page, open_page
 
 from browser.navigation import offered_routes
 from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -113,7 +112,7 @@ KEYBOARD_HINT_REGISTRY = {
         "description": "Exercises declared keyboard commands and their controls.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "id": {"type": "string"},
             "asks": {"type": "boolean"},
             "restated": {"type": "boolean"},
         },
@@ -604,13 +603,11 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     expect(result).to_have_text("Action 11 applied")
     page.keyboard.press("?")
     unbound = page.locator(
-        '.lf-command-reference [role=row][data-lf-command="probe.action-11"]'
+        '.lf-command-reference [role=option][data-lf-command="probe.action-11"]'
     )
-    expect(unbound.locator(".lf-command-reference-command")).to_have_attribute(
-        "data-lf-available", "true"
-    )
+    expect(unbound).to_have_attribute("data-lf-available", "true")
     expect(unbound).to_contain_text("Action 11")
-    unbound.locator(".lf-command-reference-command").click()
+    unbound.click()
     expect(result).to_have_text("Action 11 applied")
 
     page.get_by_role("button", name="Replace declaration").click()
@@ -714,7 +711,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     expect(result).to_have_text("Applied 1")
     page.keyboard.press("?")
     reference_action = page.locator(
-        '.lf-command-reference [role=row][data-lf-command="probe.escape"] '
+        '.lf-command-reference [role=option][data-lf-command="probe.escape"]'
         ".lf-command-reference-command"
     )
     expect(reference_action).to_have_attribute("data-lf-available", "true")
@@ -775,11 +772,11 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
             ("probe.apply.context", "Neighbour operation"),
         ]:
             row = page.locator(
-                f'.lf-command-reference [role=row][data-lf-command="{command_id}"]'
+                f'.lf-command-reference [role=option][data-lf-command="{command_id}"]'
             )
             expect(row).to_have_count(1)
             expect(row).to_contain_text(title)
-            expect(row.locator(".lf-command-reference-command")).to_have_attribute(
+            expect(row).to_have_attribute(
                 "data-lf-available",
                 str(
                     current_location == "question" and command_id == "probe.apply"
@@ -840,11 +837,11 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     expect(result).to_have_text("Applied 1")
     page.keyboard.press("?")
     reference_row = page.locator(
-        '.lf-command-reference [role=row][data-lf-command="probe.guarded"]'
+        '.lf-command-reference [role=option][data-lf-command="probe.guarded"]'
     )
     expect(reference_row).to_contain_text("Guarded operation")
-    expect(reference_row.locator(".lf-command-reference-command")).to_have_count(0)
-    reference_row.click()
+    expect(reference_row).to_have_attribute("aria-disabled", "true")
+    reference_row.click(force=True)
     rendered(page)
     expect(result).to_have_text("Applied 1")
     page.keyboard.press("Escape")
@@ -871,7 +868,7 @@ customElements.define('lf-verdict', class extends HTMLElement {
         id: 'probe.inspect-proposal', binding: 'x', contextKeys: ['1'], decision: true,
         control, bindingBadge: null, title: 'Inspect the proposal',
       }],
-      run: binding => keepsText(result, `${binding}:${++count}`),
+      runKey: binding => keepsText(result, `${binding}:${++count}`),
     }] };
     commandsChanged(this);
   }

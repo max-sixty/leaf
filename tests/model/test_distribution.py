@@ -13,9 +13,9 @@ from leaf_dev.commands.distribution import bundle_runtime
 
 
 def test_a_leaf_serves_the_kernel_only_while_it_matches_the_tree(tmp_path, monkeypatch):
-    """A Leaf runs pages under the committed kernel built from the tree's own modules,
-    and the source modules once any of them changes, until the kernel is rebuilt. The
-    layer a page selects holds none of it."""
+    """A Leaf runs pages under a prepared installation's kernel, built from that
+    tree's own modules, and the source modules once any of them changes, until the
+    kernel is rebuilt. The layer a page selects holds none of it."""
     assets, kernel = tmp_path / "assets", tmp_path / "kernel"
     shutil.copytree(layer_model.ASSETS, assets)
     bundle_runtime(assets, kernel)
@@ -91,7 +91,13 @@ def test_a_leaf_serves_the_kernel_only_while_it_matches_the_tree(tmp_path, monke
 
 @pytest.mark.parametrize(
     "sheet",
-    ["styles/shadow-leading.css", "styles/shared.css", "layouts.css", "state.css"],
+    [
+        "styles/shadow-leading.css",
+        "styles/control-face.css",
+        "styles/shared.css",
+        "layouts.css",
+        "state.css",
+    ],
 )
 def test_runtime_identity_names_every_composed_core_stylesheet(
     tmp_path, monkeypatch, sheet
@@ -103,6 +109,7 @@ def test_runtime_identity_names_every_composed_core_stylesheet(
     (assets / "shadow.css").write_text('@import "./styles/shared.css";\n')
     for name in (
         "styles/shadow-leading.css",
+        "styles/control-face.css",
         "styles/shared.css",
         "layouts.css",
         "state.css",

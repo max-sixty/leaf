@@ -14,7 +14,6 @@
  * cluster; Max chose undo over it on 23 October 2026. Commands enter only through the
  * constructor.
  */
-import { scrollIntoView } from "./landing-scroll.js";
 import { nextRender } from "./rendering.js";
 import { holdFocus, onPressAway } from "./focus.js";
 import { fragmentId } from "./anchor-coordinate.js";
@@ -50,7 +49,7 @@ import { tokenEntry } from "./registry.js";
 import { isElement } from "./shadow-tree.js";
 import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
-import { offer, offered, reveal } from "./widget-elements.js";
+import { offer, offeredAction } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
 import { retainUserIntent } from "./user-intent.js";
 import { bareReaction } from "./thread/model.js";
@@ -181,19 +180,15 @@ export function createAnchorControls({
     return groups;
   }
 
-  /** @param {FocusEvent & {currentTarget: VisualActionControl}} event */
-  function focusVisualAction(event) {
-    const control = event.currentTarget;
-    let current = resolveAnchor(control.lfAnchor);
-    let element = targetParts(current)[0] ?? targetElement(current);
-    if (!element) return;
-    reveal(element, retainUserIntent());
-    current = resolveAnchor(control.lfAnchor);
-    element = targetParts(current)[0] ?? targetElement(current);
-    scrollIntoView(element, {
-      behavior: "instant",
-      block: "nearest",
-    });
+  // What a proxy stands for: the part it responds to, or the picture.
+  /** @param {Element} node */
+  function visualActionTarget(node) {
+    const control = /** @type {VisualActionControl | null} */ (
+      node.closest(".lf-visual-action")
+    );
+    if (!control) return null;
+    const current = resolveAnchor(control.lfAnchor);
+    return targetParts(current)[0] ?? targetElement(current);
   }
 
   /** @param {MouseEvent & {currentTarget: VisualActionControl}} event */
@@ -205,11 +200,10 @@ export function createAnchorControls({
   /** @param {VisualAction} target */
   const visualActionTemplate = ({ anchor, label }) => html`
     <button
-      ${offered("lf-visual-action lf-quiet")}
+      ${offeredAction("proxy", "lf-visual-action")}
       tabindex="-1"
       .lfAnchor=${anchor}
       .textContent=${`Respond to ${label}`}
-      @focus=${focusVisualAction}
       @click=${activateVisualAction}
     ></button>
   `;
@@ -233,7 +227,7 @@ export function createAnchorControls({
         html`${repeat(targets, ({ key }) => key, visualActionTemplate)}`,
         holder,
       );
-      shelve(seat, holder);
+      shelve(seat, holder, visualActionTarget);
       restoreFocus?.();
     }
     for (const [seat, holder] of visualActionHolders)
@@ -332,7 +326,6 @@ export function createAnchorControls({
               label: `${root.token} reaction actions`,
               behavior: "disclosure",
               rank: "secondary",
-              className: "lf-react-mark",
               scope: this.scope,
               relation: {
                 kind: "entries",
@@ -345,7 +338,6 @@ export function createAnchorControls({
               action: "undo",
               label: `Undo ${root.token} reaction`,
               rank: "secondary",
-              className: "lf-react-remove",
               scope: this.scope,
               visible: this.expanded === root.id,
             },
@@ -415,7 +407,7 @@ export function createAnchorControls({
       if (href === null) throw new Error("A message fragment reference has no href");
       const id = fragmentId(href);
       const alive = Boolean(fragmentTarget(href));
-      anchor.classList.toggle("detached", !alive);
+      anchor.toggleAttribute("data-lf-detached", !alive);
       keeps(anchor, "aria-disabled", alive ? null : "true");
       keeps(anchor, "title", alive ? `Jump to § ${id}` : missingReference(id));
     }

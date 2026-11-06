@@ -125,11 +125,11 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
     root_size = page.locator("html").evaluate(
         "node => parseFloat(getComputedStyle(node).fontSize)"
     )
-    assert abs(float(size.removesuffix("px")) - root_size * 0.88) < 0.01
+    assert abs(float(size.removesuffix("px")) - root_size * 0.84375) < 0.01
 
     page.evaluate("""() => document.querySelector('#change-theme').addEventListener('click', () => {
       const style = document.createElement('style');
-      style.textContent = ':root { --focus-ring: 7px dashed magenta; --focus-ring-w: 7px; --syn-string: rgb(0, 85, 102); } lf-file-editor { --lf-file-editor-size: 30px; }';
+      style.textContent = ':root { --focus-ring: 7px dashed magenta; --focus-ring-w: 7px; --syn-string: rgb(0, 85, 102); } lf-file-editor { --code-size: 30px; }';
       document.head.append(style);
     })""")
     page.get_by_role("button", name="Change theme", exact=True).click()
@@ -400,13 +400,14 @@ def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
     </style>
     <script type="module">
       let height = 220;
+      // Capturing, since the key that lets go of the editor scrolled away stops there.
       document.addEventListener('keydown', event => {
         if (event.key !== 'F2') return;
         event.preventDefault();
         document.querySelector('#file').style.setProperty(
           '--lf-file-editor-height', `${height}px`);
         height -= 40;
-      });
+      }, true);
     </script>
     <h1>File practice</h1><div style="width:3000px;height:4px"></div>
     <lf-file-editor id="file" binding="notes"></lf-file-editor>
@@ -441,6 +442,13 @@ def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
     page.evaluate("scrollTo(0, 0)")
     scroll_settled(page)
     page.keyboard.press("F2")
+    assert (
+        child.evaluate(
+            "document.querySelector('#file').style"
+            ".getPropertyValue('--lf-file-editor-height')"
+        )
+        == "220px"
+    )
     top = frame.evaluate("frame => frame.getBoundingClientRect().top + scrollY")
     before = round(top - page.viewport_size["height"] + 100)
     page.evaluate("y => scrollTo(0, y)", before)
@@ -456,7 +464,6 @@ def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
     one_frame(child)
     rendered(child)
     assert page.evaluate("scrollY") == before
-    expect(editor).to_be_focused()
 
 
 def test_an_exported_file_editor_stays_unavailable_without_starting_a_read(

@@ -39,6 +39,7 @@
    door as their Keyboard shortcuts row (page-controls.js), for a pointer. That row
    opens it from where the user was before pressing it, and Escape returns to the row's
    door. */
+import { labelWords } from "../words.js";
 import { setScroll } from "../arrivals.js";
 import {
   showNativeLayer,
@@ -58,7 +59,6 @@ import {
   hasRows,
   commandPresentations,
   commandBinding,
-  commandRun,
   contextBindings,
   allBindings,
   descriptionOf,
@@ -115,7 +115,7 @@ let stopReferenceReading = null;
 const commandReferenceSearch = searchField("lf-command-reference-search", {
   name: "shortcut-search",
   label: "Search commands",
-  placeholder: "Find a key or action",
+  placeholder: "Find a key or action…",
 });
 commandReferenceSearch.addEventListener("input", readCommandReferenceSearch);
 // Page-key presentation owns this retained native control's changing name and shortcut
@@ -290,11 +290,7 @@ let commandReferenceView = {
 };
 
 /** @param {string | null | undefined} value */
-const commandReferenceWords = (value) =>
-  String(value ?? "")
-    .toLocaleLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
+const commandReferenceWords = (value) => labelWords(value).toLocaleLowerCase();
 
 // A binding query retains a trailing separator: `g ` means the routes below the `g`
 // prefix. Case is retained for the first rank so `g t` and `g T` remain distinct.
@@ -399,10 +395,14 @@ function captureCommandReferenceCatalog() {
       ? routes.has(undefined)
       : alternatives.some((binding) => routes.has(binding));
   };
+  // Whether the reference can run a row is a fact of its declaration, and whether it
+  // can run it now is `available`'s.
   /** @param {Command} row @param {CommandRoute | null} route */
   const actionable = (row, route) =>
     Boolean(
-      (commandRun(row, commandBinding(row, route), null) || routedCommand(route)) &&
+      (row.run ||
+        (commandBinding(row, route) != null && row.runKey) ||
+        routedCommand(route)) &&
       (routedCommand(route)?.row ?? row).runFromCommandReference !== false,
     );
 
@@ -708,75 +708,88 @@ function activateCommandEntry(entry) {
   });
 }
 
+// A command is one option of the results' listbox, a row (control-faces.js,
+// `ACTION_FACES`) holding its title, its keys and its description, so the whole row is
+// the press and wears the row's wash and ring. One that can't run from the catalog, a
+// gesture with no command to run, stands as a disabled option at the same face.
 /** @param {ReferenceEntry} entry @param {boolean} [promoted] @param {boolean} [shown] */
 function commandEntryTemplate(entry, promoted = false, shown = true) {
   const selected = commandReferenceView.selectedCommandId === entry.id;
-  const action = entry.actionable
-    ? html`<button
-        type="button"
-        class="lf-command-reference-command"
-        data-lf-command=${entry.id}
-        data-lf-available=${String(entry.available)}
-        data-lf-selected=${String(selected)}
-        aria-describedby=${[
-          entry.keySequence ? entry.keyId : null,
-          entry.description ? entry.descriptionId : null,
-        ]
-          .filter(Boolean)
-          .join(" ")}
-        title=${
-          [entry.description, entry.available ? "" : entry.unavailableMessage]
-            .filter(Boolean)
-            .join("\n") || nothing
-        }
-        @click=${() => activateCommandEntry(entry)}
-        .textContent=${entry.title}
-      ></button>`
-    : entry.title;
+  const titleId = `${entry.rowId}-title`;
   const scope = promoted
     ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>`
     : nothing;
   // Whitespace in these cells is observable to accessibility and command consumers.
   // prettier-ignore
-  const actionCell = html`<div role="gridcell" class="lf-command-reference-action">${action}${scope}</div>`;
-  // prettier-ignore
-  const descriptionCell = entry.description ? html`<div role="gridcell" id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</div>` : nothing;
-  return html`
-    <div
+  const cells = html`<span class="lf-command-reference-action"><span id=${titleId} class="lf-command-reference-title-words">${entry.title}</span>${scope}</span><span class="lf-command-reference-key">${
+      entry.keySequence
+        ? keySequenceTemplate(entry.keySequence, {
+            id: entry.keyId,
+            label: entry.keyLabel,
+          })
+        : nothing
+    }</span>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}`;
+  const rowClass = `lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`;
+  // Every option says its keys and its description to a screen reader, whether or not
+  // it runs from here.
+  const describedBy =
+    [
+      entry.keySequence ? entry.keyId : null,
+      entry.description ? entry.descriptionId : null,
+    ]
+      .filter(Boolean)
+      .join(" ") || nothing;
+  if (!entry.actionable)
+    return html`<div
       id=${entry.rowId}
-      role="row"
-      ${offeredAction(
-        "row",
-        `lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`,
-      )}
+      role="option"
+      ${offeredAction("row", rowClass)}
       data-lf-command=${entry.id}
-      aria-selected=${entry.actionable ? String(selected) : nothing}
+      aria-disabled="true"
+      aria-labelledby=${titleId}
+      aria-describedby=${describedBy}
       ?hidden=${!shown}
     >
-      ${actionCell}
-      <div role="gridcell" class="lf-command-reference-key">
-        ${
-          entry.keySequence
-            ? keySequenceTemplate(entry.keySequence, {
-                id: entry.keyId,
-                label: entry.keyLabel,
-              })
-            : nothing
-        }
-      </div>
-      ${descriptionCell}
-    </div>
-  `;
+      ${cells}
+    </div>`;
+  return html`<button
+    type="button"
+    id=${entry.rowId}
+    role="option"
+    ${offeredAction("row", `${rowClass} lf-command-reference-command`)}
+    data-lf-command=${entry.id}
+    data-lf-available=${String(entry.available)}
+    data-lf-selected=${String(selected)}
+    aria-selected=${String(selected)}
+    aria-labelledby=${titleId}
+    aria-describedby=${describedBy}
+    title=${
+      [entry.description, entry.available ? "" : entry.unavailableMessage]
+        .filter(Boolean)
+        .join("\n") || nothing
+    }
+    ?hidden=${!shown}
+    @click=${() => activateCommandEntry(entry)}
+  >
+    ${cells}
+  </button>`;
 }
 
+// A section's band names the group of each command under it (`aria-labelledby`), as
+// a listbox holds only options and their groups, so it stands out of the
+// accessibility tree itself. Its box holds only the band, since every row stays under
+// one parent (`commandReferenceItems`), and takes no layout box (chrome.css).
+// The band's words stand in a part of their own, which cuts them where the band
+// ends, with no space around them, so the heading reads as its title alone.
 /** @param {string} id @param {string} title @param {boolean} [hidden] */
-const headingRow = (id, title, hidden = false) => html`
-  <div role="rowgroup" ?hidden=${hidden}>
-    <div role="row">
-      <div role="gridcell"><h3 class="lf-rows-head" id=${id}>${title}</h3></div>
+const headingRow = (id, title, hidden = false) => {
+  const name = html`<span class="lf-row-main">${title}</span>`;
+  return html`
+    <div class="lf-rows-group" role="none" ?hidden=${hidden}>
+      <h3 class="lf-rows-head" id=${id} aria-hidden="true">${name}</h3>
     </div>
-  </div>
-`;
+  `;
+};
 
 const commandReferenceItems = () => {
   /** @type {(ReferenceItem & {order: number})[]} */
@@ -848,7 +861,7 @@ const commandReferenceItems = () => {
 function commandReferenceItemTemplate(item) {
   if (item.kind === "heading") return headingRow(item.id, item.title, item.hidden);
   return html`<div
-    role="rowgroup"
+    role="group"
     aria-labelledby=${
       item.promoted ? "lf-command-reference-binding-matches" : item.entry.sectionId
     }
@@ -866,7 +879,7 @@ function commandReferenceTemplate() {
       <div class="lf-dialog-title">Command reference</div>
       ${commandReferenceClose}
     </div>
-    <label class="lf-command-reference-preference">
+    <label class="lf-choice lf-command-reference-preference">
       <input
         type="checkbox"
         name="quick-keyboard-shortcuts"
@@ -897,12 +910,17 @@ function commandReferenceTemplate() {
     <div
       id="lf-command-reference-results"
       class="lf-command-reference-results"
-      role="grid"
+      role="listbox"
       aria-label="Command reference"
     >
       ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
-      <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
-        <div class="lf-rows-empty" role="gridcell">No matching commands.</div>
+      <div
+        class="lf-rows-empty"
+        role="option"
+        aria-disabled="true"
+        ?hidden=${commandReferenceView.shown !== 0}
+      >
+        No matching commands.
       </div>
     </div>
   `;
@@ -925,7 +943,7 @@ function presentCommandReference() {
   keeps(search, "role", "combobox");
   keeps(search, "aria-autocomplete", "list");
   keeps(search, "aria-expanded", "true");
-  keeps(search, "aria-haspopup", "grid");
+  keeps(search, "aria-haspopup", "listbox");
   const results = referenceElement(".lf-command-reference-results");
   if (search.ariaControlsElements?.[0] !== results)
     search.ariaControlsElements = [results];
@@ -964,8 +982,8 @@ commandReferenceDialog.addEventListener("cancel", (event) => {
 /** @type {Element | null} */
 let commandReferenceReturn = null;
 
-/** @param {boolean} open @param {boolean} restoreFocus @param {InvokeCommand | null} invokeCommand @param {Element | null} returnTo */
-function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
+/** @param {boolean} open @param {boolean} restoreFocus @param {InvokeCommand | null} invokeCommand @param {Element | null} returnTo @param {string} [query] */
+function showCommandReference(open, restoreFocus, invokeCommand, returnTo, query) {
   const fresh = open && !commandReferenceDialog.open;
   // Focusing a text input replaces the document selection. Keep a passage the user has
   // in hand and focus Close instead; an ordinary opening lands directly in search.
@@ -994,14 +1012,14 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
   if (fresh) {
     commandReferenceCatalog = captureCommandReferenceCatalog();
     commandReferenceState = {
-      query: "",
+      query: query ?? "",
       selectedCommandId: null,
       metaOverride: null,
     };
     const results = presentCommandReference();
     // Native editing and scrolling values begin fresh and remain untouched by local Lit
     // renders.
-    commandReferenceSearch.value = "";
+    commandReferenceSearch.value = query ?? "";
     setScroll(results, { top: 0, behavior: "instant" });
     stopReferenceReading = registerReadingRegion({
       id: "lf-region:command-reference",
@@ -1075,12 +1093,9 @@ function moveCommandReferenceSelection(dir) {
     metaOverride: selectionMeta(nextRecord.entry),
   };
   presentCommandReference();
-  const row = referenceElement(`#${nextRecord.entry.rowId}`);
-  const next = referenceElement(
-    `#${nextRecord.entry.rowId} .lf-command-reference-command`,
-  );
+  const next = referenceElement(`#${nextRecord.entry.rowId}`);
   if (focusedId) focusDestination(next, "move");
-  scrollIntoView(row, { block: "nearest" });
+  scrollIntoView(next, { block: "nearest" });
   beginWalk("shortcut-command", "Command", () => {
     const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
     return listWalkPosition(
@@ -1106,11 +1121,11 @@ function activateSelectedCommand() {
 
 // The opening command supplies the action chosen from this particular reference. The
 // rendered catalog retains only ids and sends one back through that injected authority.
-/** @param {InvokeCommand | null} invokeCommand @param {Element | null} [returnTo] */
-const openCommandReference = (invokeCommand, returnTo = null) =>
-  showCommandReference(true, true, invokeCommand, returnTo);
+/** @param {InvokeCommand | null} invokeCommand @param {Element | null} [returnTo] @param {string} [query] */
+const openCommandReference = (invokeCommand, returnTo = null, query = "") =>
+  showCommandReference(true, true, invokeCommand, returnTo, query);
 const closeCommandReference = (restoreFocus = true) =>
-  showCommandReference(false, restoreFocus, null, null);
+  showCommandReference(false, restoreFocus, null, null, "");
 
 // The dialog's own keys. It is a modal search context and claims the whole keyboard while
 // it stands, so its rows are the only ones the user can reach; the boundary's one route
@@ -1178,11 +1193,15 @@ let closeInteractions = () => {};
 export function mountCommandReference({ beforeOpening }) {
   closeInteractions = beforeOpening;
 }
-/** @param {Element | null} [returnTo] */
-const openReference = (returnTo = null) => {
+/** @param {Element | null} [returnTo] @param {string} [query] */
+const openReference = (returnTo = null, query = "") => {
   closeInteractions();
-  openCommandReference((id) => executeCommand(id), returnTo);
+  openCommandReference((id) => executeCommand(id), returnTo, query);
 };
+// The reference opened on words already typed, as the leaf's menu passes on those its
+// own search holds, so one catalog answers every search for a command.
+/** @param {string} query @param {Element | null} [returnTo] */
+export const findCommands = (query, returnTo = null) => openReference(returnTo, query);
 
 // `?`, from wherever a key reaches.
 pageCommand({

@@ -15,7 +15,7 @@ So a rewrite that leaves out an open to-do ends nothing: the to-do stays on its 
 outside the plan. A plain step is no promise: work that must stay owed past the turn
 is a to-do the plan names. This is the shape the user chose on 2026-10-16 over giving
 to-dos a parent, which would have needed rules wherever a to-do ends (a stamp's
-`--completes`, undoing the user's Done) and left obligations out of the tree, over grouping
+`--completes`, `leaf task end`) and left obligations out of the tree, over grouping
 to-dos by the element they stand on, which shows no steps ahead, and over writing the
 plan into the page's markup, which makes every reshape a revision.
 
@@ -112,7 +112,7 @@ def plan_reading(
             return {
                 "title": todo["title"],
                 "state": "working" if running else todo["state"],
-                "owner": todo["owner"],
+                "owner": "agent",
                 "item": {"kind": "todo", "id": todo["id"]},
                 "running": running,
                 "since": running["ts"] if running else None,

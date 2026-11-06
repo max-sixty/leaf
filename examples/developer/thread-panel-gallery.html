@@ -17,6 +17,12 @@
         min-width: 0;
       }
 
+      /* A margin card opens only in a window that holds the column with a rail on
+         either side (--lf-rail-room); half the grid never does. */
+      #panel-on-you {
+        grid-column: 1 / -1;
+      }
+
       @media (max-width: 1100px) {
         #thread-panel-views {
           grid-template-columns: minmax(0, 1fr);
@@ -61,9 +67,9 @@
       </p>
       <nav id="thread-panel-jumps" aria-label="Panel views">
         <a href="#panel-overview">Open threads</a>
-        <a href="#panel-on-you">On me</a>
         <a href="#panel-resolved">Resolved</a>
         <a href="#panel-summary">Long discussion</a>
+        <a href="#panel-on-you">On me</a>
       </nav>
 
       <section
@@ -99,23 +105,6 @@
           </lf-sample>
         </section>
 
-        <section id="panel-on-you">
-          <h2>On me, beside the page</h2>
-          <p>
-            The anchored card shares the panel's message hierarchy and reply field. Open
-            Threads inside the sample to read the same discussion there.
-          </p>
-          <lf-sample id="on-you-sample" label="anchored conversation" window>
-            <template id="on-you-page" data-sample data-sample-threads="98850286">
-              <h1>Room photo</h1>
-              <p id="tpg-photo">
-                <strong>Agenda and room photo.</strong> Practice moves before lunch. The
-                room photo still needs a crop attendees can use.
-              </p>
-            </template>
-          </lf-sample>
-        </section>
-
         <section id="panel-resolved">
           <h2>Resolved</h2>
           <p>
@@ -141,6 +130,23 @@
               <h1>Afternoon workshop</h1>
               <p id="tpg-summary">
                 The afternoon workshop will pair people for hands-on debugging.
+              </p>
+            </template>
+          </lf-sample>
+        </section>
+
+        <section id="panel-on-you">
+          <h2>On me, beside the page</h2>
+          <p>
+            The anchored card shares the panel's message hierarchy and reply field. Open
+            Threads inside the sample to read the same discussion there.
+          </p>
+          <lf-sample id="on-you-sample" label="anchored conversation" window>
+            <template id="on-you-page" data-sample data-sample-threads="98850286">
+              <h1>Room photo</h1>
+              <p id="tpg-photo">
+                <strong>Agenda and room photo.</strong> Practice moves before lunch. The
+                room photo still needs a crop attendees can use.
               </p>
             </template>
           </lf-sample>

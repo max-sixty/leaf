@@ -73,7 +73,9 @@ Arrange the material so the reader can do the task with little navigation or mem
 Put alternatives at a comparable scale, controls beside the results they change, and
 an explanation beside the evidence it interprets. Use the registry's semantic HTML,
 widgets and class idioms for those roles, including the theme's `.metric` entry
-for a metric.
+for a metric. Arrange an experiment's results so each variant's effect against its
+baseline reads without arithmetic, and show what each variant changed beside its
+effect.
 
 Choose the Layout after the content: `layout-column` supports a sequence of views,
 including wide diagrams and comparisons; `layout-sidebar` keeps context beside a
@@ -81,8 +83,8 @@ working region; `layout-workspace` lets the user work within one screen. A Layou
 class on `main`. `page-layout.md` owns their geometry, custom arrangements, bounds,
 tiles, and pages with tabs or parts.
 
-A dashboard the reader glances at, or settings they tune against their evidence, keeps
-its working state in the first window, since a glance or a tuning pass doesn't scroll.
+A dashboard the reader glances at keeps its working state in the first window, since
+a glance doesn't scroll.
 Keep each relevant setting or status, its evidence and the reader's next action together
 in that window, and spend as little of it as the page allows on the title, the premise
 and supporting reading. By default that means a title and premise of a line or two,
@@ -130,8 +132,9 @@ and hierarchy within that treatment. Where the task calls for a design of its ow
 such as an instrument, an arrangement, or a look the user asks for, write it in
 ordinary CSS. A page whose design is wholly its own, such as an existing site, a
 mockup or a page the user brings, takes no theme instead (`leaf page init <page>
---no-theme`), so it starts from the browser's defaults and none of the theme shows
-through its rules; Leaf's widgets, threads and panel keep their own faces either way.
+--no-theme`), so it starts from the browser's defaults, its tables and code blocks
+included, and none of the theme shows through its rules; Leaf's widgets, threads and
+panel keep their own faces either way.
 `leaf theme list` names the themes a page can take (`package-themes.md`, "Personal
 themes"). Page CSS stands above every theme rule
 without `!important` or extra specificity, and an element rule of its own, such as
@@ -139,6 +142,10 @@ without `!important` or extra specificity, and an element rule of its own, such 
 too wherever the theme's would show through. Wrapping elements the theme already
 styles in a card adds visual weight without meaning; give a card a grouping or
 interaction to express.
+
+Wrap content with its own design in a themed page in a box that sets
+`--lf-reading-face: initial`, which keeps the reading face out of it
+(`package-themes.md`, "Personal themes").
 
 Restyle the whole page through the theme's tokens on `:root` rather than rules on
 `body`, so Leaf's widgets, threads and panel follow the page: `--paper` and `--ink` for
@@ -149,14 +156,20 @@ also sets `color-scheme: light` or `dark`, so the tokens it leaves alone take th
 scheme's values. `--col` sets the reading column's width, and the spacing steps
 `--sp-1` to `--sp-5` tighten under `density-working`.
 
-`body` is Leaf's: it holds the one `main`, which is the page, and Leaf's own interface,
-and pads its foot by `--lf-foot-room` so the page's end scrolls clear of the panel. Put
-the page's grid and header on or inside `main`, and its ground in `--paper`; a page that
-takes no theme paints its ground on `html` and names it in `--lf-ground`, since `body`
-is a container, which keeps its own background off the window below a short page. A
-reset that zeroes
-`body`'s padding, or an app shell whose own box scrolls, puts
-`padding-bottom: var(--lf-foot-room)` on whatever scrolls. A box page CSS makes opaque,
+The page is `body`. One `main` directly inside it holds the page's content, its title
+included, and carries its Layout. Site furniture around that content, such as a
+site-wide header, navigation or footer, can stand beside `main`, where comments,
+revisions and checks cover it as they cover `main`. Only `main` takes the Layout, so
+the page's CSS lays out what stands beside it (`page-layout.md`, "Layouts").
+
+Leaf pads `body`'s foot by `--lf-foot-room` so the page's end scrolls clear of the
+panel, and its head by `--lf-head-room`, the phone's status bar. Set the page's ground
+in `--paper`; a page that takes no theme paints its ground on `html` and sets
+`--lf-ground` there (`package-themes.md`, "A theme change"), since `body` is a
+container, which keeps its own background off the window below a short page. A reset
+that zeroes `body`'s padding, or an app shell whose own box scrolls, puts
+`padding-top: var(--lf-head-room)` and `padding-bottom: var(--lf-foot-room)` on
+whatever scrolls. A box page CSS makes opaque,
 such as a sticky bar, uses `background: var(--lf-ground)` to match its containing
 surface; cards and playground previews set this property for their contents.
 `page-layout.md`, "Page CSS and Leaf's controls", says how page CSS meets Leaf's own
@@ -256,15 +269,21 @@ adds keyboard access and continuation cues when content exceeds the box. Its CSS
 change overflow at a breakpoint; Leaf measures the declared surface, never all of its
 descendants. For a box that scrolls vertically, see `page-layout.md`, "Bounds and widths".
 
-Leaf scrolls a `<pre>` or table wider than its container and fits an image or SVG to
-it, whatever theme the page takes, so none needs a width. A table's columns size to
-their content, so leave its cells' widths and wrapping to Leaf too. Text that can't break, such as a bare
-identifier or a cell kept on one line, holds its column at its full length, and once
-the table scrolls sideways, prose in the other columns wraps a word per line. Put
-identifiers in `<code>`, which can break inside a cell, and keep the columns to what
-fits at the narrowest width the page's readers use. Write each row's name as its
-first cell, a `<th scope="row">`, and the names stay in view while the other columns
-scroll.
+Leaf fits an image or SVG to its container on every page. On a page that wears the
+reading face, as a themed page does (`package-themes.md`, "Personal themes"), Leaf
+also scrolls a `<pre>` wider than its container, so it needs no width, and a table's
+columns size to their content, so leave its cells' widths and wrapping to Leaf too. A
+table scrolls inside a box that sets its own width, such as the column, a panel or any
+other block. A box that takes its width from its content, such as a flex item or a
+grid `auto` track, widens to the table's columns instead, past a phone's window if
+they need it, so give that box `min-width: 0` to keep the table scrolling inside it.
+A page without the face keeps the browser's tables and code blocks, so it puts one
+that can outgrow a narrow window in a box of its own that scrolls sideways, as above. Text that can't break, such as a bare identifier or a cell kept on
+one line, holds its column at its full length, and once the table scrolls sideways,
+prose in the other columns wraps a word per line. Under the face, put identifiers in
+`<code>`, which can break inside a cell, and write each row's name as its first cell,
+a `<th scope="row">`, so the names stay in view while the other columns scroll. Keep
+the columns to what fits at the narrowest width the page's readers use.
 
 ## Stable anchors
 

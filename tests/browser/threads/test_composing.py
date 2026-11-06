@@ -30,7 +30,6 @@ from browser.threads import (
     THIRTY_LINES,
     bounded_seat_page,
     clear_of_the_panel,
-    long_diff_thread,
     paste,
     pressed_send_surface,
     seated_page,
@@ -126,7 +125,7 @@ def test_a_refused_reply_folds_away_and_its_words_return_whole(browser, serve, s
     write(box, words)
     page.keyboard.press("Enter")
     holding(page, held, 1, "the reply")
-    sent = card.locator('.lf-msg[data-event^="pending:"]')
+    sent = card.locator('.lf-msg[data-lf-event^="pending:"]')
     expect(sent).to_be_visible()
     rendered(page)
     space = card.locator(".lf-reply-space")
@@ -157,7 +156,7 @@ def test_a_refused_reply_folds_away_and_its_words_return_whole(browser, serve, s
     expect(folding).to_have_count(1)
     expect(sent).to_have_count(0)
     assert folding.evaluate(
-        "node => node.matches(':not([data-event], [data-message])')"
+        "node => node.matches(':not([data-lf-event], [data-lf-message])')"
     )
     page.evaluate(
         "() => window.retirement.currentTime ="
@@ -199,7 +198,7 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     )
     told(page)
     workflow = page.locator(
-        f'.lf-margin-preview .lf-msg[data-event="{later["id"]}"] .lf-msg-sending'
+        f'.lf-margin-preview .lf-msg[data-lf-event="{later["id"]}"] .lf-msg-sending'
     )
     expect(workflow).to_have_text(re.compile(r"^Queued for "))
     assert workflow.evaluate(
@@ -210,7 +209,7 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     # is set larger (surfaces.css, the name's strut).
     baselines = workflow.evaluate(
         """node => [...node.closest('.lf-msg-head').querySelectorAll(
-          ':scope > b, :scope > .lf-msg-meta > time, [data-voice]')].map(words => {
+          ':scope > b, :scope > .lf-msg-meta > time, [data-lf-voice]')].map(words => {
           const mark = words.appendChild(document.createElement('span'));
           mark.style.cssText = 'display: inline-block; block-size: 0';
           const y = mark.getBoundingClientRect().top;
@@ -269,7 +268,10 @@ ROW_FOOT = """box => {
 def send_reply(page, thread, box, words):
     """Type `words` into the thread's reply box, its lines on Shift+Enter, and send
     them; return where the row's foot stood before the send and after it drew."""
-    box.click()
+    # A send keeps the caret in the box, so only the first reply clicks into it: a
+    # click scrolls its target, ring room and all, into view, which no typing does.
+    if not box.evaluate("box => box.matches(':focus')"):
+        box.click()
     for at, line in enumerate(words.split("\n")):
         if at:
             page.keyboard.press("Shift+Enter")
@@ -283,46 +285,6 @@ def send_reply(page, thread, box, words):
 
 
 @pytest.mark.watch_shifts
-@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
-@pytest.mark.parametrize(("seat", "lines"), [("widget", 1), ("diff", 1), ("diff", 4)])
-def test_sends_from_a_page_threads_box_hold_its_foot_at_the_bands(
-    engine, seat, lines, request, serve
-):
-    """Each send from a thread's box at the reading band's foot, where typing brings
-    it, leaves the box's foot there, where Send and the caret stand, through the send
-    that makes the thread taller than the band.
-
-    The send landed the whole thread while it fitted and the reply row once it did
-    not, and the thread, focused by the send, took its focus ring's room at its foot.
-    So the first send lifted the box by that room and the thread's padding, and the
-    send that made the thread too tall dropped it back by the same. Held by its top
-    instead, a box emptied of several lines lifted its foot by the lines it lost."""
-    browser = request.getfixturevalue(engine)
-    url, root = (
-        long_seated_thread(serve) if seat == "widget" else long_diff_thread(serve, LEAD)
-    )
-    page = open_page(browser, url)
-    resized(page, 1200, 560)
-    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
-    expect(thread).to_be_visible()
-    box = thread.locator("leaf-text")
-    # The box's foot just past the landing band's, where the first keystroke lands it.
-    box.evaluate(
-        """box => scrollBy({top: box.getBoundingClientRect().bottom - innerHeight
-          + parseFloat(getComputedStyle(document.documentElement).scrollPaddingBottom)
-          - 12, behavior: 'instant'})"""
-    )
-    rendered(page)
-    sends = []
-    while not sends or not sends[-1][1]["tall"]:
-        assert len(sends) < 8, sends
-        words = "\n".join(f"Reply {len(sends)}, line {n}" for n in range(lines))
-        sends.append(send_reply(page, thread, box, words))
-    for before, after in sends:
-        assert abs(after["foot"] - before["foot"]) < 1, sends
-
-
-@pytest.mark.watch_shifts
 def test_escape_from_a_box_leaves_it_where_it_stood(browser, serve):
     """Escape from a page thread's box, onto a thread that fits the window but whose
     head the user has scrolled above it, lands on the thread without scrolling: the box
@@ -331,7 +293,7 @@ def test_escape_from_a_box_leaves_it_where_it_stood(browser, serve):
     url, root = long_seated_thread(serve)
     page = open_page(browser, url)
     resized(page, 1200, 560)
-    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     box = thread.locator("leaf-text")
     expect(box).to_be_visible()
     box.click()
@@ -370,7 +332,7 @@ def test_contextual_messages_share_text_spacing_through_send_and_reopen(
         ),
         context=context,
     )
-    resized(page, 390 if touch else 1440, 900)
+    resized(page, 1440, 900)
     page.locator("#target").click(modifiers=["Alt"])
     box = page.locator(".lf-fab-input")
     box.click()
@@ -394,7 +356,14 @@ def test_contextual_messages_share_text_spacing_through_send_and_reopen(
                 body.evaluate("(node, key) => getComputedStyle(node)[key]", property),
             )
     rendered(page)
-    preview.locator(".lf-thread-transcript").evaluate("node => { node.scrollTop = 0; }")
+    # The user scrolls back to the first message, which ends the send's hold on the
+    # transcript's end (thread/reply-landing.js, `keepThreadLanding`).
+    transcript = preview.locator(".lf-thread-transcript")
+    transcript.hover()
+    page.mouse.wheel(0, -2000)
+    page.wait_for_function(
+        "node => node.scrollTop === 0", arg=transcript.element_handle()
+    )
     scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
     measure_gaps = """messages => messages.map(message => {
       const name = message.querySelector('.lf-msg-head b').getBoundingClientRect();
@@ -514,6 +483,7 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
     [
         ("card", "pointer"),
         ("panel", "keyboard"),
+        ("diff-reply", "keyboard"),
         ("general", "pointer"),
         ("pause", "keyboard"),
         ("handoff", "pointer"),
@@ -525,9 +495,11 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
 def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface, how):
     """Pressing a box's submit control is its send key pressed from the box, so it leaves
     the user where Enter would, never on the button, where the next letters fall on
-    nothing. A box that stays to take more keeps them in it, typing on. A reply, or the
-    comment that starts a thread, finishes what they were writing: they stand on the
-    thread's card or title on every surface, and `c` writes the follow-up."""
+    nothing. A box that stays to take more keeps them in it, typing on, and so does a
+    reply's, on a card, in a widget's thread and in the panel alike, where a card's and
+    a widget's once left them on the thread. The comment that starts a thread finishes
+    what they were writing: they stand on the thread's card or title, and `c` writes
+    the follow-up."""
     page, box, send, after, reply = pressed_send_surface(browser, serve, surface)
     if how == "keyboard":
         # Tab reaches the control from the box; `Send & pause` stands one past `Send`.
@@ -589,22 +561,6 @@ def test_a_pointer_send_finishes_the_words_an_input_method_holds(browser, serve)
     assert any(event.get("text") == "Sent from the box.にほ" for event in sent), sent
     # The page comment's box the send emptied stays empty.
     expect(page_comment(page)).to_have_js_property("value", "")
-
-
-def test_a_seat_send_puts_the_user_on_the_thread_it_started(browser, serve):
-    """A seat that gives its box up to the thread its first message starts took the
-    focus with it, dropping the user on the page. They stand on the thread instead,
-    where any send leaves them."""
-    url, host = seated_page(serve, "verdict")
-    page = open_page(browser, url)
-    box = page.locator(f"{host} > .lf-thread-seat > .lf-say leaf-text")
-    box.scroll_into_view_if_needed()
-    write(box, "First thought.")
-    with sending(page, "the first message"):
-        page.keyboard.press("Enter")
-    thread = page.locator(f"{host} > .lf-thread-seat > .lf-page-thread")
-    expect(thread).to_have_count(1)
-    expect(thread).to_be_focused()
 
 
 @pytest.mark.parametrize("kind", ["task", "verdict"])

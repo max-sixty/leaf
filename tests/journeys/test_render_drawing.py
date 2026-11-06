@@ -82,7 +82,7 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert stroke[-1][0] / target_box["width"] == pytest.approx(1.7, abs=0.02)
     assert stroke[-1][1] / target_box["height"] == pytest.approx(1.8, abs=0.02)
 
-    posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
+    posted = f'.lf-drawing-posted[data-lf-thread="{event["id"]}"]'
     mark = page.locator(posted)
     expect(mark).to_have_count(1)
     drawn = mark_box(page, posted)
@@ -317,3 +317,83 @@ def test_a_drawing_takes_back_its_strokes_and_comes_off_its_comment(browser, ser
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["text"] == "Here."
     assert "drawing" not in event
+
+
+import pytest
+
+
+@pytest.mark.shifts_unsurveyed
+def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, serve):
+    """Draw mode outlasts a stroke. A later stroke joins the drawing its session opened,
+    in that drawing's frame wherever it starts, and keeps joining it after Escape puts its
+    box away or the user leaves and re-enters the mode; once the draft is sent the next
+    stroke starts another, and only Escape leaves the mode. Unsent ink never leaves the
+    page: with its box put away it stands parked, in and out of the mode, so the drawing
+    a stroke joins is the one the user can see."""
+    page = open_page(browser, serve(TARGETS_PAGE))
+    prose = page.locator("#prose")
+    draw_over(page, prose)
+    pending = page.locator(".lf-drawing-pending path")
+    parked = page.locator(".lf-drawing-parked path")
+    expect(pending).to_have_count(1)
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+
+    # Begun over another element, the stroke still belongs to the prose drawing.
+    start = stroke_over(page, page.locator("#fig"))
+    origin = prose.bounding_box()
+    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
+    expect(field).to_be_focused()
+    write(field, "All of these.")
+
+    # Escape puts the box away and keeps its draft, ink and all; the next stroke joins
+    # that draft.
+    page.keyboard.press("Escape")
+    expect(pending).to_have_count(0)
+    expect(parked).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    stroke_over(page, page.locator("#fig"), points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
+    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*M[^M]*$"))
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "All of these.")
+    with sending(page, "the three-stroke drawing"):
+        page.keyboard.press("ControlOrMeta+Enter")
+
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert event["anchor"] == {"section": "prose"}
+    assert event["text"] == "All of these."
+    first, second, third = event["drawing"]["strokes"]
+    assert min(len(first), len(second), len(third)) >= 2
+    assert second[0] == pytest.approx(
+        [start[0] - origin["x"], start[1] - origin["y"]], abs=0.5
+    )
+    expect(
+        page.locator(f'.lf-drawing-posted[data-lf-thread="{event["id"]}"] path')
+    ).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*M[^M]*$"))
+
+    # The sent draft holds no drawing any more, so the next stroke starts one.
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    stroke_over(page, page.locator("#fig"))
+    expect(pending).to_have_count(1)
+    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*$"))
+    expect(field).to_be_focused()
+
+    # The composer the stroke opened stands inside the mode, so it comes off first.
+    page.keyboard.press("Escape")
+    expect(pending).to_have_count(0)
+    expect(parked).to_have_count(1)
+    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    page.keyboard.press("Escape")
+    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator(".lf-live")).to_contain_text("Draw mode off")
+    expect(parked).to_have_attribute("d", re.compile(r"^M[^M]*$"))
+
+    # A new Draw mode session shows the draft before its first stroke, and draws into
+    # it rather than over it.
+    page.keyboard.press("w")
+    expect(parked).to_have_attribute("d", re.compile(r"^M[^M]*$"))
+    page.keyboard.press("w")
+    draw_over(page, page.locator("#fig"), points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
+    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
+    expect(parked).to_have_count(0)

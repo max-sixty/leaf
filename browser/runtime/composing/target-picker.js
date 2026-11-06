@@ -18,7 +18,7 @@ import {
   segmentBlock,
 } from "../passages.js";
 import { shownBox } from "../geometry.js";
-import { skipped } from "../shown-box.js";
+import { skipped } from "../shadow-tree.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { repaint } from "../repaint.js";
 import { intersect, union } from "../rect.js";
@@ -44,7 +44,7 @@ import {
   keySequenceTemplate,
   progressSteps,
 } from "../keyboard/key-sequence.js";
-import { announce } from "../notifications.js";
+import { announce, notice } from "../notifications.js";
 import { keeps } from "../keeps.js";
 import { beginWalk, walkPosition } from "../walk-position.js";
 
@@ -65,7 +65,7 @@ targetPickerHintLayer.append(hintRoot, markRoot);
 const pageSearchInput = searchField("lf-page-search-box", {
   name: "page-search",
   label: "Search page text",
-  placeholder: "Find text",
+  placeholder: "Find text…",
 });
 pageSearchInput.maxlength = 160;
 pageSearchInput.withClear = false;
@@ -95,7 +95,7 @@ const searchCount = (position, total) => `${position} of ${total}`;
 // Target choosing and whole-page text search. `s` opens a viewport-local map of
 // the same stable addressables and visual parts Alt-click reaches, then opens Comment on the
 // chosen target; `/` opens the page's text search directly or from that map. The leaf
-// menu's Annotations → Comment on an element opens this same picker. A choice
+// menu's Annotations → Select mode opens this same picker. A choice
 // in Design mode keeps that mode's design intent; Draw reserves the page for ink and
 // offers no picker. Area capture also claims the page until it ends. While the picker
 // stands, the page is armed as it is under a held Alt (aim.js): a mouse shows the target
@@ -218,7 +218,7 @@ export function createTargetPicker({
     if (!clip) return null;
     return (
       [...range.getClientRects()]
-        .map((box) => reading.clearPart(box, clip))
+        .map((box) => reading.clearPart(box, clip, owner))
         .find((part) => reading.exposes(null, part)) ?? null
     );
   }
@@ -569,7 +569,7 @@ export function createTargetPicker({
     if (!hasRows(found)) {
       repeatedSearch = null;
       active = -1;
-      announce("The page no longer contains that search.");
+      notice(`No matches left for “${repetition.query}”`);
       return repaint();
     }
     const from = Math.min(repetition.index, found.length - 1);
@@ -659,7 +659,7 @@ export function createTargetPicker({
     const own = owner && shownBox(owner);
     if (!segments || !first || !owner || !clip || !own) return marks.place([]);
     const boxes = [...rangeOf(segments).getClientRects()].filter((box) =>
-      reading.exposes(null, reading.clearPart(box, clip)),
+      reading.exposes(null, reading.clearPart(box, clip, owner)),
     );
     const anchor = anchorFor(first.node);
     marks.place(
@@ -712,8 +712,12 @@ export function createTargetPicker({
     title: "search matches",
     repeat: true,
     travels: true,
-    when: () => Boolean(repeatedSearch),
-    runKey: (binding) => repeatSearch(binding === "n" ? 1 : -1),
+    // With no search to repeat, the press says so, as every walk with nothing to step
+    // through does (keyboard/AGENTS.md, "Page grammar").
+    runKey: (binding) =>
+      repeatedSearch
+        ? repeatSearch(binding === "n" ? 1 : -1)
+        : notice("No search to repeat"),
   };
 
   /** @type {import("../keyboard/bindings.js").Command} */
@@ -873,11 +877,12 @@ export function createTargetPicker({
   pageScope("target picker", TARGET_PICKER_SCOPE);
   // The page itself is already a Comment target; `s` plus a hint names a more particular
   // one. Either route opens Comment, while reactions wait for a target. The leaf menu's
-  // Annotations lists it for every pointer, named for what it leads to. The user chose
-  // this on 24 October 2026 over listing it, as "Select element", only where no
-  // keyboard was there to press `s`: a mouse user who never learned `s` had no visible
-  // way to comment on a whole widget or picture, since selecting words picks neither.
-  // A row at the menu's top level was shown and set aside for Annotations.
+  // Annotations lists it for every pointer. The user chose this on 24 October 2026 over
+  // listing it only where no keyboard was there to press `s`: a mouse user who never
+  // learned `s` had no visible way to comment on a whole widget or picture, since
+  // selecting words picks neither. A row at the menu's top level was shown and set
+  // aside for Annotations. It is named Select mode beside Draw and Design mode, as the
+  // user chose on 30 October over Comment on an element.
   pageCommand({
     id: "target.picker.open",
     keys: ["s"],
@@ -885,8 +890,8 @@ export function createTargetPicker({
       bindings(TARGET_HINT_TYPE).length
         ? "Choose an element by pressing it or typing its hint, then comment"
         : "Choose an element by pressing it or browsing targets with Tab and Enter, then comment",
-    title: "comment on an element",
-    touch: "Comment on an element",
+    title: "select mode",
+    touch: "Select mode",
     menu: "annotate",
     when: canChoose,
     run: openTargetPicker,

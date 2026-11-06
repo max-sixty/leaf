@@ -2,7 +2,6 @@
 test modules share."""
 
 import json
-import urllib.error
 import urllib.request
 from email.message import Message
 from pathlib import Path

@@ -5,9 +5,9 @@
  * generated for the diff, but still page text a user can select and comment on. Paper
  * places those same words after the phrase.
  *
- * Hover is only the fastest route. The phrase is the visible affordance; an ordinary
- * Leaf offer at the same place gives Tab, Enter, and Space their native route without
- * adding a second mark to the prose. Clicking the phrase pins the card for touch and
+ * Hover is only the fastest route. The phrase is the visible affordance; a proxy at the
+ * same place (control-faces.js, `proxy`) gives Tab, Enter, and Space their native route
+ * without adding a second mark to the prose. Clicking the phrase pins the card for touch and
  * careful reading. An auto popover owns the top-layer lifecycle and light dismissal;
  * CSS anchors keep the card with its phrase. */
 import {
@@ -15,7 +15,7 @@ import {
   showNativeLayer,
   closeNativeLayer,
   isNativeLayer,
-  offer,
+  offerAction,
   generatedElement,
   once,
   reachedForWords,
@@ -33,7 +33,7 @@ customElements.define(
     #dismissed = false;
     #focused = false;
     #hovered = false;
-    #mark = offer("button", "lf-gloss-mark");
+    #mark = offerAction("proxy", "lf-gloss-mark");
     #pinned = false;
     #shown = false;
 
@@ -59,7 +59,7 @@ customElements.define(
 
       do this.#bubble.id = `lf-gloss-tip-${++nextId}`;
       while (document.getElementById(this.#bubble.id));
-      this.#bubble.className = "lf-gloss-popover";
+      this.#bubble.className = "lf-gloss-popover lf-popover";
       this.#bubble.dataset.lfSaid = "tip";
       generatedElement(this.#bubble, { says: true });
       this.#bubble.setAttribute("popover", "auto");

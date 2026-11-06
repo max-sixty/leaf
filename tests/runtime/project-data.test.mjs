@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { Buffer } from "node:buffer";
+import { gzipSync } from "node:zlib";
 
 // The context reads export delivery once, when its modules load. Supply the same
-// captured payload an exported page carries before importing the runtime graph.
+// captured payload an exported page carries before importing the runtime graph: the
+// manifest the reading delivers, and each deferred field as its own gzipped JSON body,
+// a span of the one embedded data file.
 const exported = document.createElement("script");
 exported.type = "application/json";
 exported.dataset.lfRuntime = "";
@@ -10,19 +14,23 @@ exported.dataset.lfOffline = "";
 const reading = {
   contract: "optional-payload",
   revision: "r1",
-  value: {
-    files: [
-      { key: "metadata" },
-      { key: "empty", patch: null },
-      { key: "text", patch: { contents: "evidence" } },
-    ],
-  },
+  value: { files: [{ key: "metadata" }, { key: "empty" }, { key: "text" }] },
 };
 const data = { version: "v1", sources: { files: reading } };
-exported.textContent = JSON.stringify({ data });
+const bodies = [null, { contents: "evidence" }].map((value) =>
+  gzipSync(JSON.stringify(value)),
+);
+const [empty, text] = bodies.map((body, index) => [
+  index ? bodies[0].length : 0,
+  body.length,
+]);
+exported.textContent = JSON.stringify({
+  data: `data:application/gzip;base64,${Buffer.concat(bodies).toString("base64")}`,
+  deferred: { files: { empty, text } },
+});
 document.head.append(exported);
-const { loadDeferred, acceptData, notifyDataSubscribers } =
-  await import("/runtime/data.js");
+const { acceptData, notifyDataSubscribers } = await import("/runtime/data.js");
+const { loadDeferred } = await import("/runtime/deferred-value.js");
 const { adoptRegistry } = await import("/runtime/registry.js");
 const { createDataProjection } = await import("/runtime/projection/data.js");
 const { LeafElement, nothing } = await import("/runtime/widget-api.js");
@@ -67,11 +75,11 @@ test("offline deferred reads refuse absent payloads while retaining valid null",
   assert.deepEqual(evidence, { contents: "evidence" });
   evidence.contents = "changed copy";
   assert.deepEqual(await loadDeferred(manifest, "text"), { contents: "evidence" });
-  await assert.rejects(loadDeferred(manifest, "metadata"), /no deferred field 'patch'/);
-  await assert.rejects(
-    loadDeferred(manifest, "unknown"),
-    /unknown record key 'unknown'/,
-  );
+  for (const key of ["metadata", "unknown"])
+    await assert.rejects(
+      loadDeferred(manifest, key),
+      new RegExp(`defers no field of record '${key}'`),
+    );
   // Only a value Leaf delivered names the revision its records belong to.
   await assert.rejects(
     loadDeferred(structuredClone(manifest), "text"),

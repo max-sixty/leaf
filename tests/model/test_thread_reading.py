@@ -95,6 +95,43 @@ def test_thread_read_is_exact_and_paginated(page_dir):
     assert continued["history"]["next_after"] is None
 
 
+def test_a_page_threads_later_readings_keep_what_the_user_had_on_screen(page_dir):
+    """A page comment's "this one" points into the sections it records as `viewing`
+    (events.md, "Anchors"). The delivery that carries the comment shows the event
+    whole; a later one shows it only as the thread's opening message, and so does
+    `page state`, so both keep the field there."""
+    root = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "Drop this one",
+            "viewing": ["results"],
+        },
+    )
+    answer = append_carried_log_record(
+        page_dir,
+        {"kind": "reply", "author": "agent", "parent": root["id"], "text": "Gone."},
+    )
+    latest = append_carried_log_record(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": answer["id"], "text": "Thanks"},
+    )
+
+    [digest] = thread_context_model.batch_threads(
+        events_model.read_events(page_dir),
+        [latest],
+        page_view_model.PageView(page_dir).within,
+    )
+    reading = CliRunner().invoke(
+        cli_model.cli, ["page", "state", str(page_dir), root["id"]]
+    )
+    assert reading.exit_code == 0, reading.output
+    assert digest["anchor"] is None
+    assert digest["messages"][0]["viewing"] == ["results"]
+    assert json.loads(reading.output)["content"][0]["viewing"] == ["results"]
+
+
 def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     root = append_carried_log_record(
         page_dir,
@@ -332,45 +369,76 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
     }
 
 
-def test_summary_hint_does_not_cross_ephemeral_updates(page_dir):
+def test_summary_hint_folds_completed_progress_and_stops_at_pending(page_dir):
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
     )
-    updates = [
-        append_carried_log_record(
-            page_dir,
-            {
-                "kind": "reply",
-                "author": "agent",
-                "parent": root["id"],
-                "text": "Checking details.",
-                "ephemeral": True,
-            },
-        )
-        for _ in range(2)
-    ]
+    progress = {
+        "kind": "reply",
+        "author": "agent",
+        "parent": root["id"],
+        "text": "Checking details.",
+        "ephemeral": True,
+    }
+    append_carried_log_record(page_dir, progress)
     older = append_carried_log_record(
         page_dir,
         {"kind": "reply", "author": "agent", "parent": root["id"], "text": "y" * 1000},
     )
-    for author in ("agent", "user"):
+    # A user who keeps writing while the agent is mid-work leaves its progress
+    # pending among spoken turns old enough to suggest.
+    append_carried_log_record(page_dir, progress)
+    for author in ("user", "user", "user", "user"):
         latest = append_carried_log_record(
             page_dir,
             {"kind": "reply", "author": author, "parent": root["id"], "text": "Next?"},
         )
-    within = page_view_model.PageView(page_dir).within
-    events = events_model.read_events(page_dir)
-    update_ids = {update["id"] for update in updates}
-    [unfolded] = thread_context_model.batch_threads(
-        [event for event in events if event["id"] not in update_ids], [latest], within
+    [digest] = thread_context_model.batch_threads(
+        events_model.read_events(page_dir),
+        [latest],
+        page_view_model.PageView(page_dir).within,
     )
-    assert unfolded["summary_hint"] == {"from": root["id"], "through": older["id"]}
-    [with_progress] = thread_context_model.batch_threads(events, [latest], within)
-    assert with_progress["summaries"] == []
-    assert "summary_hint" not in with_progress
+    assert digest["summaries"] == []
+    assert digest["summary_hint"] == {"from": root["id"], "through": older["id"]}
 
 
-def test_summary_hint_chooses_a_qualifying_run_over_more_short_messages(page_dir):
+def test_summary_hint_leaves_no_older_discussion_above_it(page_dir):
+    """Progress completed mid-thread once split the earlier discussion into runs,
+    and the hint took the longest, leaving the older run in full above the
+    summary (#5531)."""
+    root = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Plan the rollout."}
+    )
+    spoken = [root]
+
+    def say(author, text, **extra):
+        return append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": author,
+                "parent": root["id"],
+                "text": text,
+                **extra,
+            },
+        )
+
+    spoken.append(say("agent", "First pass."))
+    say("agent", "Checking the config.", ephemeral=True)
+    for number in range(8):
+        spoken.append(say("user" if number % 2 else "agent", f"Detail {number}."))
+    [digest] = thread_context_model.batch_threads(
+        events_model.read_events(page_dir),
+        [spoken[-1]],
+        page_view_model.PageView(page_dir).within,
+    )
+    assert digest["summary_hint"] == {
+        "from": root["id"],
+        "through": spoken[-3]["id"],
+    }
+
+
+def test_summary_hint_takes_the_earliest_qualifying_run(page_dir):
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
     )
@@ -378,20 +446,17 @@ def test_summary_hint_chooses_a_qualifying_run_over_more_short_messages(page_dir
         page_dir,
         {"kind": "reply", "author": "agent", "parent": root["id"], "text": "y" * 1000},
     )
-    for _ in range(2):
+    folded = [
         append_carried_log_record(
             page_dir,
-            {
-                "kind": "reply",
-                "author": "agent",
-                "parent": root["id"],
-                "text": "Checking details.",
-                "ephemeral": True,
-            },
+            {"kind": "reply", "author": "agent", "parent": root["id"], "text": "z"},
         )
-    # Three short older messages form a longer run, but the earlier two long
-    # messages are the only run that qualifies for a suggestion.
-    for author in ("agent", "user", "agent", "agent", "user"):
+        for _ in range(2)
+    ]
+    thread_model.cmd_summarize(page_dir, folded[0]["id"], folded[-1]["id"], "")
+    # Five short messages after the summary form a longer qualifying run, but the
+    # older run is the one a summary must not leave above it.
+    for author in ("agent", "user", "agent", "agent", "user", "agent", "user"):
         latest = append_carried_log_record(
             page_dir,
             {"kind": "reply", "author": author, "parent": root["id"], "text": "Next?"},

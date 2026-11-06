@@ -116,52 +116,6 @@
         flex: 2 1 28rem;
       }
 
-      /* A workspace Layout is a class on main, and this page's main is a column, so the
-         gallery bounds its panes itself: a wide box a laptop screen tall whose header
-         takes its content's height and whose regions take the rest, two columns with the
-         second split in two rows, the follow-ups taking more for the decision in their
-         footer. Each pane's body scrolls on its own, as a workspace
-         Layout's do. Where the window could not hold the box, it flows: the regions
-         stack in the order they are written and the page scrolls. */
-      #bg-layout-workspace > header > h3 {
-        margin: 0 0 var(--sp-3);
-      }
-
-      #bg-layout-columns,
-      #bg-layout-rows {
-        display: grid;
-        gap: var(--sp-3);
-      }
-
-      @media screen and (min-width: 720px) and (min-height: 480px) {
-        #bg-layout-workspace {
-          display: grid;
-          grid-template-rows: auto minmax(0, 1fr);
-          block-size: min(40rem, var(--lf-view-height));
-        }
-
-        #bg-layout-columns {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          min-block-size: 0;
-        }
-
-        #bg-layout-rows {
-          grid-template-rows: minmax(0, 2fr) minmax(0, 3fr);
-          min-block-size: 0;
-        }
-
-        #bg-layout-workspace lf-pane {
-          min-block-size: 0;
-        }
-
-        #bg-layout-workspace lf-pane > :not(header, footer) {
-          min-block-size: 0;
-          overflow: auto;
-          overscroll-behavior: contain;
-          scrollbar-gutter: stable;
-        }
-      }
-
       #bg-rollout-tabs {
         max-inline-size: 26rem;
       }
@@ -189,14 +143,6 @@
           "author": "agent",
           "text": "Which environment should I use for the rehearsal?",
           "obligation": true
-        },
-        {
-          "id": "bg-message-task",
-          "kind": "todo",
-          "author": "agent",
-          "owner": "user",
-          "subject": { "kind": "thread", "id": "bg-message-request" },
-          "title": "Try the rehearsal build on your phone"
         }
       ]
     </script>
@@ -445,8 +391,9 @@
               An <code>lf-ask</code> puts a heading and context around the choice below.
               <strong>On me</strong> lists everything waiting on you: open obligations,
               a question in a thread among them (such as the gallery thread about a
-              pasted image), to-dos the agent put on you, and updates whose reply failed
-              and need sending again.
+              pasted image), and updates whose reply failed and need sending again. Each
+              is answered where it asks: a widget's own controls, or a reply in its
+              thread.
             </p>
             <ul id="bg-core-surfaces-steps">
               <li>
@@ -500,25 +447,6 @@
               </button>
               <pre id="bg-question-reading" hidden></pre>
             </details>
-            <section id="bg-task-on-you" class="layout-flow">
-              <h3>A to-do on you</h3>
-              <p>
-                The agent put a to-do on you about this section with
-                <code>leaf task create … --on user</code>: check that the trail map
-                marks the shelter. Nothing on the page answers it, so it ends only when
-                you press Done.
-              </p>
-              <ul>
-                <li>
-                  Open On me: the to-do waits there, and its row has a Done button.
-                </li>
-                <li>
-                  Press <kbd>m</kbd> until it lands on the to-do, after the obligation
-                  above, then press <kbd>x</kbd>, or its row's <strong>Done</strong> in
-                  On me: the to-do moves under On me's Done, and the agent is told.
-                </li>
-              </ul>
-            </section>
             <section id="bg-widget-shortcut-hints" class="layout-flow">
               <h3>Inline hints outside a question</h3>
               <p>
@@ -1335,8 +1263,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   included.
                 </li>
                 <li>
-                  Start a conversation and mark the proofreading to-do Done: the
-                  package's lists and Leaf's On view show the same outcomes.
+                  Once you answer the channel question, compare the package's lists with
+                  Leaf's On view: both show the same outcome.
                 </li>
                 <li>
                   Use first-unread and question navigation: each lands in this reader.
@@ -1363,14 +1291,6 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     "author": "agent",
                     "parent": "api-opening",
                     "text": "The draft now has one paragraph."
-                  },
-                  {
-                    "id": "api-proofread",
-                    "kind": "todo",
-                    "author": "agent",
-                    "owner": "user",
-                    "subject": { "kind": "page" },
-                    "title": "Proofread the announcement"
                   }
                 ]
               </script>
@@ -1463,13 +1383,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <section id="bg-message-obligations" class="layout-flow">
               <h3>A message waiting on me</h3>
               <p>
-                Open Full view, then On me, and reply to the environment question. The
-                question leaves On me; the phone test stays until you press Done. Both
-                entries open the same page thread. Reset restores the question and task.
+                Open Full view, then On me, and reply to the environment question: the
+                question leaves On me. Its entry opens the page thread. Reset restores
+                the question.
               </p>
               <lf-sample
                 id="bg-message-obligation-sample"
-                label="Message and task obligations"
+                label="Message obligation"
                 window
               >
                 <template
@@ -1479,8 +1399,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 >
                   <h1>Rehearsal handoff</h1>
                   <p>
-                    The build is ready. The page thread holds the environment question
-                    and the phone test.
+                    The build is ready. The page thread holds the environment question.
                   </p>
                 </template>
               </lf-sample>
@@ -1789,12 +1708,16 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           <section id="bg-since-seen" class="layout-flow">
             <h2><strong>Changes in place</strong></h2>
             <p id="bg-since-seen-guide">
-              Switch to another tab, revise this page's source, and come back. The
-              blocks the revision changed are marked where they stand, with a Change
-              entry beside each; <kbd>h</kbd> and <kbd>Shift</kbd>+<kbd>h</kbd> step
-              through them. A revision that lands while you watch only flashes. While
-              the agent is On it for a comment, a bar in the margin stands beside the
-              comment's block until it answers.
+              Coming back after the agent has revised the page, a notice says how much
+              changed since the version you last saw. Press <kbd>v</kbd> to mark those
+              changes, or what changed since the latest version when you've seen them
+              all, or open Versions (<kbd>g</kbd> <kbd>V</kbd>) and press Compare beside
+              an earlier one. Each block changed since then has a green bar beside it
+              and a Change entry; <kbd>h</kbd> and <kbd>Shift</kbd>+<kbd>h</kbd> step
+              through them, <kbd>o</kbd> hides them with the other annotations, and
+              <kbd>v</kbd> again takes them off. A revision that lands while you watch
+              flashes. While the agent is On it for a comment, an accent bar stands
+              beside the comment's block until it answers.
             </p>
           </section>
 
@@ -1900,7 +1823,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               size it was drawn at, and stand apart, so no drawing runs into the next
               option's title.
             </p>
-            <lf-ask id="bg-pictured-ask" data-width="wide">
+            <lf-ask id="bg-pictured-ask">
               <h3>Should the sample queue group its tickets by owner?</h3>
               <lf-options id="bg-pictured-choice" choose data-width="wide">
                 <lf-option id="bg-pictured-group">
@@ -2218,7 +2141,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </lf-board>
               </template>
             </lf-sample>
-            <figure id="bg-margin-layer-figure">
+            <figure id="bg-margin-layer-figure" data-width="available">
               <table id="bg-margin-layer-table" data-width="available">
                 <thead>
                   <tr>
@@ -2456,6 +2379,16 @@ leaf page stamp ./proposal --text "Ready for review"</code></pre>
 const api = widgetController(source);
 // Read the source widget's current selection.
 const ids = api.read().state.choose.value;</code></pre>
+              <p id="bg-annotated-code-guide">
+                The marked return value keeps its annotation while the whole block shows
+                Python syntax colors. Line wrappers and the empty link target stay in
+                place too.
+              </p>
+              <pre
+                id="bg-annotated-code"
+              ><code class="language-python"><span id="bg-code-target"></span><span class="line">def load(path):</span>
+<span class="line">    data = read(path)</span>
+<span class="line">    return <mark>data</mark></span></code></pre>
               <lf-code id="bg-code" language="python" lines="40-43,58-59" hi="41-42">
                 <pre>
 def route(weather):
@@ -3103,12 +3036,13 @@ gallery/
                 divider to compare the same location. Choose Pair to see both run lists
                 at the same scale, and click either image to open its original. Resize
                 the window to inspect the paired layout. Pixels shows the changed
-                pixels; the … menu holds its color key and the scale choices. Outline
-                marks regions in Pair and Slider. Compare Fit with 100%: scrolling
-                either image in Pair at 100% moves both to the same location. In Slider,
-                a fully hidden image's label loses its shading. Outline preserves the
-                image's colors inside each border. The controls stay in place across
-                views and scales. Tab reaches each control.
+                pixels; the … menu holds its color key, the scale choices and Outline
+                changes, which marks regions in Pair and Slider. Compare Fit with 100%:
+                scrolling either image in Pair at 100% moves both to the same location.
+                In Slider, a fully hidden image's label loses its shading. An outline
+                preserves the image's colors inside each border. The controls stay in
+                place across views and scales. Tab reaches the chosen view and each
+                other control, and the arrow keys choose the next view.
               </p>
               <lf-shot
                 id="bg-shot"
@@ -3201,40 +3135,72 @@ gallery/
               A page whose work is a set of regions puts
               <code>layout-workspace</code> on <code>main</code>: the page fills the
               window, and each pane's body scrolls on its own under the pane's header
-              and above its footer. This page is a column, so it bounds the same panes
-              in a box of its own. Open the command trace: the evidence scrolls inside
-              its pane, and the page and the decision under the follow-ups stay where
-              they are. In a window too small to hold the box, the panes stack and the
-              page scrolls.
+              and above its footer. The window below is such a page. Open its command
+              trace: the evidence scrolls inside its pane, and the page and the decision
+              under the follow-ups stay where they are. In a window too small to hold
+              the panes, each takes its content's height and the page scrolls, and on a
+              phone they stack.
             </p>
-            <div id="bg-layout-workspace" data-width="wide">
-              <header><h3>Release candidate review</h3></header>
-              <div id="bg-layout-columns">
-                <lf-pane id="bg-layout-list" label="Changes">
-                  <header><h4>Changes</h4></header>
-                  <lf-tabs id="bg-layout-tabs">
-                    <lf-tab id="bg-layout-summary" label="Summary">
-                      <p>
-                        The candidate changes cache keys, receipts, and settlement jobs.
-                      </p>
-                      <ul>
-                        <li>Cache migration copies active entries before cutover.</li>
-                        <li>Receipts show refunds in the settlement currency.</li>
-                        <li>Invalid jobs leave the shared queue for review.</li>
-                      </ul>
-                    </lf-tab>
-                    <lf-tab id="bg-layout-risk" label="Risk">
-                      <p>
-                        The cache migration is the only change that rewrites stored
-                        data.
-                      </p>
-                    </lf-tab>
-                  </lf-tabs>
-                </lf-pane>
+            <lf-sample id="bg-layout-sample" label="workspace" window data-width="wide">
+              <template
+                id="bg-layout-page"
+                data-sample
+                class="layout-workspace density-working"
+              >
+                <style>
+                  /* The changes take the left column, and the evidence and the
+                     follow-ups share the right, stacked below 720px wide. */
+                  #bg-layout-regions {
+                    display: grid;
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                  }
 
-                <div id="bg-layout-rows">
+                  #bg-layout-list {
+                    grid-row: span 2;
+                  }
+
+                  @media (width < 720px) {
+                    #bg-layout-regions {
+                      grid-template-columns: minmax(0, 1fr);
+                    }
+                  }
+
+                  /* While the Layout holds the workspace to the window, the
+                     follow-ups take more of its height for the decision in their
+                     footer. Flowing, each row keeps its content's height. */
+                  @container style(--lf-full-height: 1) {
+                    #bg-layout-regions {
+                      grid-template-rows: minmax(0, 2fr) minmax(0, 3fr);
+                    }
+                  }
+                </style>
+                <header><h1>Release candidate review</h1></header>
+                <div id="bg-layout-regions">
+                  <lf-pane id="bg-layout-list" label="Changes">
+                    <header><h2>Changes</h2></header>
+                    <lf-tabs id="bg-layout-tabs">
+                      <lf-tab id="bg-layout-summary" label="Summary">
+                        <p>
+                          The candidate changes cache keys, receipts, and settlement
+                          jobs.
+                        </p>
+                        <ul>
+                          <li>Cache migration copies active entries before cutover.</li>
+                          <li>Receipts show refunds in the settlement currency.</li>
+                          <li>Invalid jobs leave the shared queue for review.</li>
+                        </ul>
+                      </lf-tab>
+                      <lf-tab id="bg-layout-risk" label="Risk">
+                        <p>
+                          The cache migration is the only change that rewrites stored
+                          data.
+                        </p>
+                      </lf-tab>
+                    </lf-tabs>
+                  </lf-pane>
+
                   <lf-pane id="bg-layout-evidence" label="Evidence">
-                    <header><h4>Evidence</h4></header>
+                    <header><h2>Evidence</h2></header>
                     <article id="bg-layout-article">
                       <header><strong>Migration rehearsal</strong></header>
                       <p>
@@ -3251,7 +3217,7 @@ switch --readers checkout-api,orders-api</code></pre>
                   </lf-pane>
 
                   <lf-pane id="bg-layout-tasks" label="Follow-ups">
-                    <header><h4>Follow-ups</h4></header>
+                    <header><h2>Follow-ups</h2></header>
                     <lf-board id="bg-layout-board">
                       <lf-column id="bg-layout-ready" label="Ready">
                         <lf-card id="bg-layout-cache-card"
@@ -3269,7 +3235,7 @@ switch --readers checkout-api,orders-api</code></pre>
                     </lf-board>
                     <footer>
                       <lf-ask id="bg-layout-ask">
-                        <h5>Is this candidate ready?</h5>
+                        <h3>Is this candidate ready?</h3>
                         <lf-options id="bg-layout-decision" choose>
                           <lf-option id="bg-layout-ship">Ship this candidate</lf-option>
                           <lf-option id="bg-layout-hold"
@@ -3280,8 +3246,8 @@ switch --readers checkout-api,orders-api</code></pre>
                     </footer>
                   </lf-pane>
                 </div>
-              </div>
-            </div>
+              </template>
+            </lf-sample>
           </section>
         </lf-tab>
 

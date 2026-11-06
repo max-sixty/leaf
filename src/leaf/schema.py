@@ -39,13 +39,17 @@ WIDGET_NAME_RULE = (
     "an element name is `lf-` followed by hyphen-separated words of lowercase "
     f"letters and digits, such as `lf-merge-film` ({WIDGET_NAME})"
 )
+# The grammars of the names Leaf looks up from a widget's attributes: an element id, a
+# data source and a data contract. Composition writes each into the attributes that
+# hold one (`registry.contract.stamp_grammars`), so no package declaration restates
+# one. The browser checks none of them.
 ELEMENT_ID = r"[a-z0-9][a-z0-9-]*"
+DATA_SOURCE_NAME = HTML_NAME
+DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
 # An id the log mints for an event. Page ids and event ids are one address space:
 # a command's ID is a widget or a message, whichever the page holds, so an authored
 # id may not take this shape (`validation.markup.id_errors`).
 EVENT_ID = r"[0-9a-f]{8}"
-DATA_SOURCE_NAME = HTML_NAME
-DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
 # The record forms one vocabulary of declared state draws on ($state in the
 # registry): how a unit's state reads in markup, each dispatched on by the gate,
 # the runtime, and the diff without any of them knowing a widget by name.
@@ -214,7 +218,8 @@ VERB_SCHEMA = {
             ]
         },
         "writer": {"const": "agent"},
-        "attention": {"type": "boolean"},
+        "attention": {"const": True},
+        "unsent": {"const": True},
         "creates": ACTION_CREATES,
         "decides": {"const": True},
         "contract": {
@@ -242,7 +247,9 @@ VERB_SCHEMA = {
                 }
             },
             "else": {"required": ["detail"]},
-        }
+        },
+        # Unsent work asks for nothing, so it can't also be a request.
+        {"not": {"required": ["attention", "unsent"]}},
     ],
     "additionalProperties": False,
     # An agent's verb moves declared state only, never body words — so the
@@ -313,7 +320,7 @@ DATA_INPUTS_SCHEMA = {
             "reference": {"type": "string", "pattern": f"^{HTML_NAME}$"},
             "output": {"type": "string", "pattern": f"^{HTML_NAME}$"},
             # The element property the runtime sets to the delivered value
-            # (leaf-element.js, "Bound values").
+            # (element-data.js, "Bound values").
             "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
         },
         "dependentRequired": {"reference": ["output"], "output": ["reference"]},
@@ -384,6 +391,7 @@ EXTENSION_SCHEMA = {
         "x-inline": {"type": "boolean"},
         "x-encloses": {"const": True},
         "x-language": _ATTRIBUTE_NAME,
+        "x-prepaint": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
         "x-measured": MEASURED_SCHEMA,
         "x-patch": {"enum": ["members"]},
@@ -447,6 +455,7 @@ EXTENSION_SCHEMA = {
             ]
         },
         "x-space": {"enum": ["wide", "available"]},
+        "x-flow": {"const": True},
         "x-bound": {"enum": ["start", "end"]},
         # A default height in CSS pixels, or `true` for a widget that has none and
         # reserves only what an occurrence's data-height states.
@@ -514,12 +523,12 @@ _CLAUSES = {
     },
 }
 # The shape of each shared layer fact a complete vocabulary carries, every one
-# required and each held to its schema on its own (`registry.layer.check_layer_facts`).
+# required and each held to its schema on its own (`registry.validation.check_layer_facts`).
 # Its consumers read each directly: a string `$tones.names` would answer the tone
 # check's membership test by substring, and a token without a `glyph` paints nothing.
 # What names another fact, or needs more than a shape (a clause's `when` and a
-# contract's `schema` are JSON Schemas, `resources` are JMESPath), `registry.layer`
-# checks.
+# contract's `schema` are JSON Schemas, `resources` are JMESPath), the same module's
+# `validate_layer_declarations` checks.
 LAYER_FACTS = {
     "$events": {
         "type": "object",
@@ -614,6 +623,7 @@ LAYER_FACTS = {
 ATTRIBUTE_KEYS = (
     "x-language",
     "x-name",
+    "x-prepaint",
     "x-refers",
     "x-says",
     "x-tone",
@@ -631,6 +641,7 @@ LAYER_TOP_FILES = (
     "theme.css",
     "shadow.css",
     "chrome.css",
+    "portable.css",
     "registry.json",
     "icon.svg",
 )

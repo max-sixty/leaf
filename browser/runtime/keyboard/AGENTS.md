@@ -28,7 +28,15 @@ A press goes to scopes from the focused element outward, ending at the page and 
 the browser. A scope owns every binding it declares while the user is in it, so when its
 command is unavailable the press reaches no other Leaf command. A text field keeps
 characters, composition, caret movement and deletion, and a native control keeps its
-activation press, ahead of any widget or page scope around it (`dispatch.js`).
+activation press, ahead of any widget or page scope around it (`dispatch.js`). A key
+other than typing or Escape, pressed while the user has scrolled the focused control
+out of sight, lets go of it first, without closing what stands beside it, and then
+acts from what they see, so no Leaf command, listener on the control or browser
+default acts on what they can't see (`controller.js`). A key
+typed into one of Leaf's fields, a `leaf-text` or a search box, stops at the field once
+the field and the dispatcher have read it there (`field-keys.js`), so the page never
+hears it bubble, and any other Leaf listener that needs keys typed into a field listens
+in capture.
 
 ## Escape
 
@@ -50,9 +58,10 @@ same step, through its row's `keep` where `run` would throw away unsent words
 - A composer, reply box or find box returns to its container: an element comment's
   composer to its element, a reply box to its thread, a find box to its panel. A layer
   opened from the floating panel's menu returns to the panel.
-- After Send, a reply or a thread's first comment leaves focus on the thread's card or
-  title, never on the page. The panel's field, and a box that stays open for more
-  messages such as a widget's thread box (`x-thread-seat`), keep focus.
+- After Send, a reply box keeps the caret for the next message, in a card, a seat and
+  the panel's field alike (`thread/replies.js`), and so does a box that stays open for
+  more messages such as a widget's thread box (`x-thread-seat`). A thread's first
+  comment leaves focus on the thread's card or title, never on the page.
 - A selected destination (a thread, an obligation, a heading) steps back to the document
   through `letGo` (`focus.js`), landing beside it while it is in view, else on the
   visible block, rather than on the control that opened it, so Tab carries on from it.
@@ -70,7 +79,11 @@ reopens it.
 Page scope holds commands about the page; a surface's scope holds commands about its
 contents. A page-level letter must be useful on every page; any other control is
 reachable by Tab, native activation, obligation digits or Go-to hints. A lowercase
-letter steps a walk forward and Shift steps it back, wrapping at either end. A walk, a
+letter steps a walk forward and Shift steps it back, wrapping at either end. A page
+walk with nothing to step through says so in the panel (`notice`, such as “No open
+threads”) rather than doing nothing, so its letter is live on every page. A walk over
+a list the server's reading brings says instead that the list can't be had while the
+server is offline. A walk, a
 scroll, Go-to and any other command that takes the user somewhere declares `travels`
 on its row; every other command leaves the control it was pressed on where it stood on
 screen (`bindings.js`). A surface
@@ -87,15 +100,20 @@ scope have controls beside the content they act on: a search box has arrows to m
 between matches, a drawing's composer can undo a stroke, and the page's field can
 comment on selected words. Page scope rows therefore have no touch labels: each row
 that runs a press declares `touch: false` or is the `exit` of a stance accessible by
-touch. Examples include page search, the target picker, Draw mode and the user's
-current to-do, whose exit is Done. The panel shows the innermost active stance's exit
-as one ✕, or the symbol of the action the row names (the to-do's check). It leaves the stance even
-where Escape would first close something inside it. The picker's ✕ is the exception:
+touch. Examples include page search, the target picker and Draw mode. The panel
+shows the innermost active stance's exit as one ✕. It leaves the stance even where
+Escape would first close something inside it. The picker's ✕ is the exception:
 while typed hint letters remain, it removes one (`target-picker.js`). The register
 refuses a page command without `touch` and a scope row whose `run` is neither `exit`
 nor `touch: false`.
 `false` means the result is directly accessible by scrolling and tapping or through
 the row's own control beside the content it changes.
+
+Words owe a finger the same reach. A `title` shows only to a pointer resting on its
+element, so it can't be the only place a state's reason or the rest of a cut word is
+said. A state says its word on the surface that holds it (`quoteReading`), a panel
+row's cut words stand whole where no pointer can hover (`floating-panel.css`), and a
+control that shows part of its word gives the rest to a held press (`held-word.js`).
 
 The comment field has one primary action, Dictate while empty and Send once it has
 words. Suggest and reactions share an anchored Other responses picker, reached by the

@@ -1,7 +1,6 @@
 """A reader can inspect and copy a page without changing the page being inspected."""
 
 import json
-from socket import gethostname
 
 from model_folds import leaf_page
 from playwright.sync_api import expect
@@ -11,13 +10,14 @@ from render_harness import (
     holding,
     http_error_console,
     open_page,
+    over_plain_http,
     panel_control,
     stamp_page,
     wait_for_revision,
 )
 
 
-def test_page_diagnostics_reads_and_copies_the_opening_view(browser, serve):
+def test_page_diagnostics_reads_and_copies_the_opening_view(browser, serve, subtests):
     source = leaf_page(
         "Inspection",
         '<h1 id="heading">Inspect this page</h1>'
@@ -85,7 +85,27 @@ def test_page_diagnostics_reads_and_copies_the_opening_view(browser, serve):
     panel_control(page, "inspection").click()
     expect(dialog).to_contain_text("Source captured for r1")
     expect(dialog.get_by_text("Diagnostics copied", exact=True)).not_to_be_visible()
+    # The same dialog combines the page's identity, which copies as text of its own.
+    with subtests.test("Leaf version"):
+        version = dialog.get_by_label("Leaf version", exact=True)
+        expect(version).to_contain_text("Leaf layer")
+        dialog.get_by_role("button", name="Copy Leaf version", exact=True).click()
+        page.wait_for_function(
+            "navigator.clipboard.readText().then(text => text.startsWith('Leaf layer'))"
+        )
+        assert page.evaluate("navigator.clipboard.readText()") == version.text_content()
+    with subtests.test("rendering environment"):
+        dialog.get_by_text("Rendering environment", exact=True).click()
+        dialog.get_by_role(
+            "button", name="Copy rendering environment", exact=True
+        ).click()
+        page.wait_for_function(
+            "navigator.clipboard.readText().then(text => text.startsWith('{'))"
+        )
+        identity = json.loads(page.evaluate("navigator.clipboard.readText()"))
+        assert identity["delivery"]["runtime"]
     page.keyboard.press("Escape")
+    expect(dialog).not_to_be_visible()
 
 
 def test_page_diagnostics_retry_keeps_a_way_out_while_pending(browser, serve):
@@ -254,48 +274,11 @@ def test_sample_diagnostics_copy_failure_keeps_a_visible_manual_copy_route(
     expect(dialog).not_to_be_visible()
 
 
-def test_about_combines_page_identity_and_diagnostics_with_copyable_text(
-    browser, serve
-):
-    page = open_page(
-        browser, serve(leaf_page("About", "<h1>Page details</h1>"), packages=())
-    )
-    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
-    panel_control(page, "inspection").click()
-    dialog = page.get_by_role("dialog", name="About this page", exact=True)
-    expect(dialog).to_be_visible()
-    expect(dialog).to_contain_text("Source captured for r1")
-    version = dialog.get_by_label("Leaf version", exact=True)
-    expect(version).to_contain_text("Leaf layer")
-    dialog.get_by_role("button", name="Copy Leaf version", exact=True).click()
-    page.wait_for_function(
-        "navigator.clipboard.readText().then(text => text.startsWith('Leaf layer'))"
-    )
-    assert page.evaluate("navigator.clipboard.readText()") == version.text_content()
-    dialog.get_by_text("Rendering environment", exact=True).click()
-    dialog.get_by_role("button", name="Copy rendering environment", exact=True).click()
-    page.wait_for_function(
-        "navigator.clipboard.readText().then(text => text.startsWith('{'))"
-    )
-    identity = json.loads(page.evaluate("navigator.clipboard.readText()"))
-    assert identity["delivery"]["runtime"]
-    page.keyboard.press("Escape")
-    expect(dialog).not_to_be_visible()
-
-
 def test_about_copy_on_plain_http_machine_name(browser, serve):
-    host = gethostname().lower()
     local_url = live_url(
         serve(leaf_page("About over HTTP", "<h1>Page details</h1>"), packages=())
     )
-    remote_url = local_url.replace("127.0.0.1", host)
-    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
-
-    def fetch_from_loopback(route):
-        response = route.fetch(url=route.request.url.replace(host, "127.0.0.1"))
-        route.fulfill(response=response)
-
-    context.route(f"http://{host}:**/*", fetch_from_loopback)
+    context, remote_url = over_plain_http(browser, local_url)
     page = open_page(browser, remote_url, context=context)
     assert page.evaluate("!isSecureContext && navigator.clipboard === undefined")
     panel_control(page, "inspection").click()

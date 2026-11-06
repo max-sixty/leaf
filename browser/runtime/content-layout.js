@@ -1,16 +1,18 @@
-/* CSS owns document tracks, wrapping sidebars and exhibit containment. This
+/* CSS owns the document's flow, wrapping sidebars and exhibit containment. This
  * document owner reads the sticky header height shared with landing geometry and
  * notifies annotation geometry after the document's native layout has changed. */
 import { setRuntimeRootStyle, removeRuntimeRootStyle } from "./root-state.js";
 import { nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { repaintPage } from "./repaint.js";
 import { layoutChanged } from "./widget-upgrade.js";
-import { layoutBox, pageDocument } from "./passages.js";
+import { layoutBox, layoutParts, pageDocument } from "./passages.js";
 import { pageControlsChanged } from "./page-controls.js";
 import { elementFrame } from "./element-frame.js";
-import { shellRight } from "./geometry.js";
+import { layoutWindow, shellRight } from "./geometry.js";
 import { union } from "./rect.js";
 import { syncLayoutRegion } from "./reading-regions.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { readPageHead } from "./root-headers.js";
 
 let documentLayoutOpen = false;
 /** @type {((changed: boolean) => unknown) | null | undefined} */
@@ -25,8 +27,13 @@ let watchedHead = null;
 let railAvailable = null;
 function readDocumentLayout() {
   const { changed } = readDocumentHeaders();
+  // The page's own head, read once the Layout's header has passed its height on, so
+  // the one is never read as the other (root-headers.js).
+  readPageHead();
   syncLayoutRegion();
-  const header = layoutBox()?.querySelector(":scope > header") ?? null;
+  const header =
+    [...(layoutBox()?.children ?? [])].find((child) => child.localName === "header") ??
+    null;
   if (header !== watchedHead) {
     headSizes ??= sizeObserver(scheduleDocumentLayout);
     if (watchedHead) headSizes.unobserve(watchedHead);
@@ -40,8 +47,8 @@ function readDocumentLayout() {
     pageControlsChanged();
   }
   if (changed) {
-    const main = pageDocument();
-    if (main) layoutChanged(main);
+    const page = pageDocument();
+    if (page) layoutChanged(page);
     repaintPage();
   }
 }
@@ -70,51 +77,35 @@ export function openDocumentLayout({ onRead }) {
   readDocumentLayout();
 }
 
-// Annotations read the browser's resolved prose track, never allocate it. A
-// sidebar's body may own that track; otherwise a custom page's actual box is its
-// reading region. Named lines keep this independent of Layout classes. CSSOM
-// resolves standalone tracks to named lines and pixel sizes:
-// https://www.w3.org/TR/css-grid/#resolved-track-list
+// Annotations read the browser's resolved prose, never allocate it. The box that
+// holds the prose declares its measure (`--lf-prose-measure`, layouts.css): the prose
+// starts at that box's content edge and runs the measure, or the content box where it
+// is narrower. A sidebar's body may hold it; otherwise a custom page's actual box is
+// its reading region. The declaration keeps this independent of Layout classes.
+/** @param {Element} node */
+export const proseMeasure = (node) =>
+  parseFloat(getComputedStyle(node).getPropertyValue("--lf-prose-measure")) || 0;
 /** @typedef {NonNullable<ReturnType<typeof union>>} ProseBox */
 /** @overload @param {Element} main @returns {ProseBox} */
 /** @overload @param {Element | null | undefined} [main] @returns {ProseBox | null} */
 /** @param {Element | null | undefined} [main] @returns {ProseBox | null} */
 export function proseRect(main = layoutBox()) {
   if (!main) return null;
-  const grid = [main, ...main.children].find((node) =>
-    getComputedStyle(node).gridTemplateColumns.includes("prose-start"),
-  );
-  if (!grid) return main.getBoundingClientRect();
-  const style = getComputedStyle(grid);
-  const frame = elementFrame(grid);
-  if (!frame) return grid.getBoundingClientRect();
-  const gap = parseFloat(style.columnGap) || 0;
-  let offset = 0;
-  let start;
-  let end;
-  for (const match of style.gridTemplateColumns.matchAll(
-    /\[([^\]]*)\]|(-?[\d.]+)px/g,
-  )) {
-    if (match[1] !== undefined) {
-      const names = match[1].split(/\s+/);
-      if (names.includes("prose-start")) start = offset;
-      if (names.includes("prose-end")) end = offset - gap;
-    } else offset += Number(match[2]) + gap;
-  }
-  // A single named edge does not declare a prose track; its grid's own box is
-  // still the native geometry, as where no named track or local frame exists.
-  if (start === undefined || end === undefined) return grid.getBoundingClientRect();
+  const holder = [main, ...main.children].find((node) => proseMeasure(node) > 0);
+  if (!holder) return main.getBoundingClientRect();
+  const style = getComputedStyle(holder);
+  const frame = elementFrame(holder);
+  if (!frame) return holder.getBoundingClientRect();
   /** @param {"Left" | "Right"} side */
   const edge = (side) =>
     parseFloat(style[`border${side}Width`]) + parseFloat(style[`padding${side}`]);
+  const width = Math.min(
+    proseMeasure(holder),
+    frame.width - edge("Left") - edge("Right"),
+  );
   const left =
-    style.direction === "rtl"
-      ? frame.width - edge("Right") - end
-      : edge("Left") + start;
-  const right =
-    style.direction === "rtl"
-      ? frame.width - edge("Right") - start
-      : edge("Left") + end;
+    style.direction === "rtl" ? frame.width - edge("Right") - width : edge("Left");
+  const right = left + width;
   /** @param {number} x @param {number} y */
   const corner = (x, y) => {
     const point = frame.matrix.transformPoint({ x, y });
@@ -138,24 +129,29 @@ export const railStands = (main = layoutBox()) => {
   const width = parseFloat(getComputedStyle(main).getPropertyValue("--rail")) || 0;
   return shellRight() - proseRect(main).right >= width;
 };
+// Whether the window has room for the rail: as wide as the column with a rail on either
+// side (`--lf-rail-room`, styles/tokens.css), the width at which a column page's rail stands
+// (`railStands`), whatever this page's own Layout or body does with the room. A
+// workspace keeps no rail at any width, and still has this room on a desktop's window.
+export const windowHoldsRail = () =>
+  layoutWindow().right >=
+  (parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue("--lf-rail-room"),
+  ) || 0);
 
 // A page of parts' title scrolls within its fixed column. Declare that
 // surface alongside the layout, so reach need not discover it by scanning content.
 // CSS anchors its list below the title (layouts.css, "A page of parts").
 const title = () => {
-  const main = document.querySelector("body > main");
-  const parts =
-    main && getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1"
-      ? main.querySelector(':scope > [data-lf-views="parts"]')
-      : null;
+  const parts = layoutParts();
   let marked = false;
   for (
     let node = parts?.previousElementSibling;
     node;
     node = node.previousElementSibling
   ) {
-    if (!node.classList.contains("scroll")) {
-      node.classList.add("scroll");
+    if (!node.hasAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface)) {
+      node.toggleAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface, true);
       marked = true;
     }
   }
@@ -180,7 +176,7 @@ const head = () => {
   else removeRuntimeRootStyle(body, HEAD);
   return true;
 };
-export const readDocumentHeaders = () => {
+const readDocumentHeaders = () => {
   const titled = title();
   const headed = head();
   return { changed: titled || headed };

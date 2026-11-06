@@ -45,17 +45,22 @@
    `leaving` and then `showing`, so a continuity owner keeps the reader's place in each
    subject and returns them to it.
 
-   `onReadingInput` tells a reader where the user explicitly clicked or stepped by Tab.
-   It includes unfocusable words, which update the reading region without a focus
-   arrival. Mechanical returns, programmatic arrivals and scrolling are not choices
-   of another passage. Each consumer interprets that target in its own domain. */
+   `onReadingInput` tells a reader where the user explicitly clicked. It includes
+   unfocusable words, which update the reading region without a focus arrival, and a
+   control already holding focus, where the browser announces none. A step by Tab is
+   an arrival, which a reader hears from `onCurrentLocation` (focus.js) as it hears
+   every other. Mechanical returns, programmatic arrivals and scrolling are not
+   choices of another passage. Each consumer interprets that target in its own
+   domain. */
+import { scrollersOf, installScrollerLookup } from "./scroll-containers.js";
+export { scrollersOf } from "./scroll-containers.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { landingBand, shownRect, userScrollport } from "./geometry.js";
-import { skipped } from "./shown-box.js";
+import { skipped } from "./shadow-tree.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, renderedUnder, renderedParent } from "./shadow.js";
-import { layoutBox, pageDocument } from "./passages.js";
+import { focusInPage, inPage, layoutBox } from "./passages.js";
 import { deepFocus, onCurrentLocation, pressing } from "./focus.js";
 
 /** @typedef {{id: string, host: Element & Partial<Pick<HTMLElement, "offsetWidth">>, body: Element, subject: string | null | undefined}} ReadingRegion
@@ -279,9 +284,9 @@ const actedAt = (at, arriving) => {
   const region = readingRegionFor(at);
   if (region) {
     recentRegionId = region.id;
-    if (under(region.host, pageDocument())) pageRegionId = region.id;
+    if (inPage(region.host)) pageRegionId = region.id;
   } else if (
-    (at === document.body || under(at, pageDocument())) &&
+    inPage(at) &&
     !(arriving && at === document.body && pressing()?.released === false)
   )
     recentRegionId = pageRegionId = null;
@@ -299,9 +304,8 @@ for (const type of ["pointerdown", "wheel", "touchstart", "click"])
     { capture: true, passive: true },
   );
 // An arrival, by whatever route, a move inside a widget's shadow tree included.
-onCurrentLocation((node, cause) => {
+onCurrentLocation((node) => {
   if (node) actedAt(node, true);
-  if (node && cause === "step") readingInput(node);
 });
 export const recentReadingRegion = () => readingRegion(recentRegionId);
 // A region hidden from layout — a closed panel's list, a pane in a tab not shown — is not
@@ -310,13 +314,13 @@ export const recentReadingRegion = () => readingRegion(recentRegionId);
 const shown = (region) => (region?.host.checkVisibility() ? region : undefined);
 export const pageReadingRegion = () => {
   const at = deepFocus();
-  if (under(at, pageDocument())) return readingRegionFor(at);
+  if (focusInPage(at)) return readingRegionFor(at);
   return shown(readingRegion(pageRegionId));
 };
 export const userReadingRegion = () => {
   const at = deepFocus();
   const region = readingRegionFor(at);
-  if (region || under(at, pageDocument())) return region;
+  if (region || focusInPage(at)) return region;
   return shown(recentReadingRegion()) ?? pageReadingRegion();
 };
 
@@ -389,21 +393,7 @@ export const scrollerFor = (el) => {
   return region ? effectiveScroller(region) : pageScroller;
 };
 
-// Every box whose scroll moves a node, innermost first: its region's scroller, then the
-// box scrolling that one, out to the page. A move the inner box cannot take whole is
-// the next one's to finish: a bounded block not yet full grows in the page rather than
-// scrolling, and a region scrolled to its end moves no further. A fixed box between a
-// node and a scroller stands still while that scroller moves, so the walk ends there.
-/** @param {Element | null} node @returns {Generator<Element>} */
-export function* scrollersOf(node) {
-  for (let box = scrollerFor(node); ; box = scrollerFor(renderedParent(box))) {
-    for (let at = node; at !== box; at = renderedParent(at))
-      if (!at || getComputedStyle(at).position === "fixed") return;
-    yield box;
-    if (box === pageScroller) return;
-    node = box;
-  }
-}
+installScrollerLookup(scrollerFor);
 
 // The boxes a scroll passes to once each inner one is spent, as native input chains it
 // at a box whose overscroll-behavior lets it go: `scrollersOf`'s, then the page's. A
@@ -483,7 +473,7 @@ const pageGeometry = () => ({
   band: landingBand(pageScroller)?.top ?? 0,
 });
 // A band that moves with the window's width shifts the page. One that moves without
-// it, as a page tab strip arriving does (`--lf-root-headers`, page-layout.js), comes with
+// it, as a page tab strip arriving does (`--lf-root-headers`, root-headers.js), comes with
 // the content that moved it, whose owner keeps the reader's place across it, so it is
 // taken as seen wherever it is read: no size need change with it, and left unseen it
 // would read as unsettled, recording nothing, until the window next changed.

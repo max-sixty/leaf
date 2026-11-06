@@ -8,6 +8,7 @@ import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
+    before_landing_frame,
     consume_browser_errors,
     holding,
     leaf_page,
@@ -295,21 +296,15 @@ def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
     datum = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
     expect(datum).to_be_in_viewport()
     page.locator("h1").click()
-    page.evaluate("""async () => {
-      const {navigateToDatum} = await window.__lfWidgetApi();
-      const scrollTo = Element.prototype.scrollTo;
-      Element.prototype.scrollTo = function(options) {
-        const result = scrollTo.call(this, options);
-        if (this === document.scrollingElement && options.behavior === 'smooth') {
-          Element.prototype.scrollTo = scrollTo;
+    before_landing_frame(
+        page,
+        """window.__lfWidgetApi().then(({navigateToDatum}) => () => {
           queueMicrotask(async () => {
             window.datumArrived = await navigateToDatum(document.querySelector('#files'),
               'for', '["app.py","new",1]');
           });
-        }
-        return result;
-      };
-    }""")
+        })""",
+    )
     page.keyboard.press("t")
     page.wait_for_function("window.datumArrived !== undefined")
     assert page.evaluate("datumArrived")
@@ -462,39 +457,93 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
     expect(tree.get_by_role("treeitem")).to_have_count(0)
 
 
-def test_file_tree_lands_at_the_file_start_in_a_scrolled_patch_pane(browser, serve):
-    """Choosing another file, or returning to the current one, starts its evidence
-    below the pane header rather than preserving or centering a mid-file offset."""
+def test_reloading_a_picked_file_reopens_it_in_a_one_file_view(browser, serve):
+    """Picking a file writes its key into the URL, and a reload opens that file again.
 
-    def patch(path):
+    A one-file view keeps every other file in the page, hidden until found, so the
+    picked file's node exists while it is closed: the arrival asks the diff to show it
+    rather than reading the node's existence as the file being drawn."""
+    patch = "".join(
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        f"@@ -1 +1 @@\n-old\n+{path} new\n"
+        for path in ("app.py", "lib.py")
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Pick a file",
+                '<h1>Review</h1><lf-file-tree id="files" for="patch"></lf-file-tree>'
+                f'<lf-diff id="patch" view="file"><pre>{escape(patch)}</pre></lf-diff>',
+            )
+        ),
+    )
+    lines = page.locator("#patch [data-line]")
+    picked = lines.filter(has_text="lib.py new")
+    expect(lines.filter(has_text="app.py new")).to_be_visible()
+    expect(picked).to_be_hidden()
+    page.locator("#files").get_by_role("treeitem", name="lib.py", exact=True).click()
+    expect(picked).to_be_visible()
+    page.wait_for_url(re.compile(r"#patch:"))
+    page.reload()
+    expect(picked).to_be_visible()
+    expect(lines.filter(has_text="app.py new")).to_be_hidden()
+
+
+@pytest.mark.parametrize("scroller", ["pane", "document"])
+def test_file_tree_lands_at_the_file_start_after_reading_down(browser, serve, scroller):
+    """File activation reveals its first line in document and nested scrollports,
+    including a return to the current file after reading further down."""
+
+    def patch(path, lines=100):
         return (
             f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
-            "@@ -1,100 +1,100 @@\n"
-            + "".join(f"-old line {line}\n+new line {line}\n" for line in range(100))
+            f"@@ -1,{lines} +1,{lines} @@\n"
+            + "".join(f"-old line {line}\n+new line {line}\n" for line in range(lines))
         )
 
+    pane = scroller == "pane"
+    tree_markup = '<lf-file-tree id="files" for="patch"></lf-file-tree>'
+    evidence_markup = (
+        '<div id="evidence"><p>Inspect the changes in each file.</p>'
+        '<lf-diff id="patch" source="change" view="file"></lf-diff>'
+        "</div>"
+    )
+    regions = (
+        '<lf-pane id="files-pane" label="Files"><header>Files</header>'
+        + tree_markup
+        + '</lf-pane><lf-pane id="patch-pane" label="Patch"><header>Patch</header>'
+        + evidence_markup
+        + "</lf-pane>"
+        if pane
+        else '<aside id="files-pane">' + tree_markup + "</aside>" + evidence_markup
+    )
     url = serve(
         leaf_page(
             "Navigate a long patch",
-            '<header><h1>Review two long files</h1></header><div id="regions">'
-            '<lf-pane id="files-pane" label="Files"><header>Files</header>'
-            '<lf-file-tree id="files" for="patch"></lf-file-tree></lf-pane>'
-            '<lf-pane id="patch-pane" label="Patch"><header>Patch</header>'
-            '<div id="evidence"><p>Inspect the changes in each file.</p>'
-            '<lf-diff id="patch" source="change" view="file"></lf-diff>'
-            "</div></lf-pane></div>",
+            '<header><h1>Review files</h1></header><div id="regions">'
+            + regions
+            + "</div>"
+            + ("" if pane else '<p style="min-height:1200px">Review context</p>'),
             head="""<style>
               #regions { display:grid; grid-template-columns:240px minmax(0,1fr); }
               #files { --lf-pane-top:0px; margin:0; padding:0; }
               #patch { margin:0; }
+              aside#files-pane { position:sticky; top:var(--lf-top); align-self:start; }
+              aside #files { --lf-file-tree-height:250px; }
             </style>""",
-            layout="workspace",
+            layout="workspace" if pane else "column",
         )
     )
     data_model.cmd_data_set(
         serve.page_dir,
         "change",
-        patch_manifest(patch("first.md") + patch("second.md")),
+        patch_manifest(
+            patch("first.md")
+            + patch("second.md")
+            + patch("third.md", 3)
+            + "diff --git a/z-mode.sh b/z-mode.sh\nold mode 100644\nnew mode 100755\n"
+        ),
     )
     context = browser.new_context(viewport={"width": 810, "height": 990})
     page = open_page(browser, url, context=context)
@@ -503,20 +552,25 @@ def test_file_tree_lands_at_the_file_start_in_a_scrolled_patch_pane(browser, ser
     visible = page.locator("#patch .lf-diff-fold:visible")
     expect(visible).to_contain_text("first.md")
     tree_box = tree.bounding_box()
-    pane = page.locator("#files-pane")
-    pane_box = pane.bounding_box()
-    border = pane.evaluate(
-        "node => parseFloat(getComputedStyle(node).borderBottomWidth)"
-    )
-    assert tree_box["y"] + tree_box["height"] == pytest.approx(
-        pane_box["y"] + pane_box["height"] - border, abs=0.5
-    ), "the navigator must fill the pane without an authored height override"
+    if pane:
+        pane_box = page.locator("#files-pane").bounding_box()
+        border = page.locator("#files-pane").evaluate(
+            "node => parseFloat(getComputedStyle(node).borderBottomWidth)"
+        )
+        assert tree_box["y"] + tree_box["height"] == pytest.approx(
+            pane_box["y"] + pane_box["height"] - border, abs=0.5
+        ), "the navigator must fill the pane without an authored height override"
     second = tree.get_by_role("treeitem", name="second.md", exact=True)
 
     def scroll_into_file():
         evidence.hover()
         page.mouse.wheel(0, 900)
-        page.wait_for_function("document.getElementById('evidence').scrollTop > 400")
+        page.wait_for_function(
+            "document.getElementById('evidence').scrollTop > 400"
+            if pane
+            else "scrollY > 400"
+        )
+        scroll_settled(page)
 
     def starts_below_header():
         page.wait_for_function("""() => {
@@ -527,12 +581,13 @@ def test_file_tree_lands_at_the_file_start_in_a_scrolled_patch_pane(browser, ser
           const firstLine = fold?.querySelector('.lf-diff-line > [data-line]');
           if (!summary || !firstLine?.textContent.includes('old line 0')) return false;
           const top = summary.getBoundingClientRect().top;
-          const edge = body.getBoundingClientRect().top + body.clientTop;
-          const padding = parseFloat(getComputedStyle(body).paddingTop);
+          const pane = body.closest('lf-pane');
+          const edge = pane ? body.getBoundingClientRect().top + body.clientTop : 0;
+          const bottom = pane ? body.getBoundingClientRect().bottom : innerHeight;
           const line = firstLine.getBoundingClientRect();
-          return top >= edge - 1 && top <= edge + padding + 4
+          return top >= edge - 1
             && line.top >= summary.getBoundingClientRect().bottom - 1
-            && line.bottom <= body.getBoundingClientRect().bottom;
+            && line.bottom <= bottom;
         }""")
 
     scroll_into_file()
@@ -545,6 +600,26 @@ def test_file_tree_lands_at_the_file_start_in_a_scrolled_patch_pane(browser, ser
     second.click()
     starts_below_header()
     expect(second).to_be_focused()
+    # Keyboard selection of a much shorter file must reveal its first line too;
+    # its pinned heading alone is not evidence that the beginning is visible.
+    scroll_into_file()
+    second.press("ArrowDown")
+    third = tree.get_by_role("treeitem", name="third.md", exact=True)
+    expect(third).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(visible).to_contain_text("third.md")
+    starts_below_header()
+    expect(third).to_be_focused()
+    # A mode-only file has a commentable metadata row, without a textual body.
+    third.press("ArrowDown")
+    mode = tree.get_by_role("treeitem", name="z-mode.sh", exact=True)
+    expect(mode).to_be_focused()
+    page.keyboard.press("Enter")
+    metadata = page.locator("#patch .lf-diff-metadata:visible")
+    expect(metadata).to_contain_text("z-mode.sh")
+    expect(metadata).to_be_in_viewport(ratio=1)
+    expect(visible).to_have_count(0)
+    expect(mode).to_be_focused()
 
 
 @pytest.mark.parametrize("bound", [False, True], ids=["inline", "bound"])
@@ -566,14 +641,14 @@ def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, 
     expect(page.locator("#d-bad .lf-error")).to_contain_text("repeats file path")
     returned = page.evaluate("""async () => {
         const diff = document.getElementById('d-bad');
-        const failure = diff.querySelector('.lf-error');
+        const failure = diff.shadowRoot.querySelector('.lf-error');
         const parent = diff.parentNode;
         const next = diff.nextSibling;
         diff.remove();
         await new Promise((resolve) => setTimeout(resolve));
         parent.insertBefore(diff, next);
         for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
-        return diff.querySelector('.lf-error') === failure;
+        return diff.shadowRoot.querySelector('.lf-error') === failure;
     }""")
     assert returned, "the returning diff cleared its completed refusal"
     errors = consume_browser_errors(page, '<lf-diff id="d-bad"> failed: ')
@@ -743,11 +818,10 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
     assert len(attempts) == 4
 
 
-@pytest.mark.parametrize("defer_first", [False, True])
-def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(
-    browser, serve, defer_first
-):
-    """Repeated basenames remain identifiable before tapping their source rows."""
+def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(browser, serve):
+    """Repeated basenames remain identifiable before tapping their source rows. The
+    first file's lines land after the tap's frame, its preparation held; the others'
+    come at once."""
     names = ("dispatch", "improving-instructions", "todos")
     patch = "".join(
         f"diff --git a/.claude/skills/{name}/CLAUDE.md b/.claude/skills/{name}/CLAUDE.md\n"
@@ -768,10 +842,9 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(
     )
     page = open_page(browser, url, context=context)
     page.evaluate("document.fonts.ready")
-    if defer_first:
-        # Hold the first file's preparation after the native disclosure opens.
-        # This orders insertion after the tap's settled frame without a delay.
-        page.evaluate("""() => {
+    # Hold the first file's preparation after the native disclosure opens. This orders
+    # insertion after the tap's settled frame without a delay.
+    page.evaluate("""() => {
       const diff = document.querySelector('#patch');
       const original = diff.prepareEntry;
       let release;
@@ -779,7 +852,7 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(
         release: () => release(),
       };
       diff.prepareEntry = async function(...args) {
-        if (args[1].path.endsWith('/dispatch/CLAUDE.md')) {
+        if (args[0].path.endsWith('/dispatch/CLAUDE.md')) {
           const held = new Promise(resolve => { release = resolve; });
           window.lfDiffPreparationStarted = true;
           await held;
@@ -809,7 +882,7 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(
         head.tap()
         file = head.locator("..")
         expect(file).to_have_attribute("open", "")
-        if defer_first and name == "dispatch":
+        if name == "dispatch":
             page.wait_for_function("window.lfDiffPreparationStarted === true")
             one_frame(page)
             page.evaluate("window.lfDiffPreparation.release()")
@@ -1454,3 +1527,6 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
     )
     details.evaluate("d => d.open = true")
     assert height() == pytest.approx(full, abs=1)
+
+
+import pytest

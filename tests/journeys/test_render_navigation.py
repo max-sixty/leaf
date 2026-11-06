@@ -7,14 +7,17 @@ import random
 import re
 
 import pytest
+from browser.margin.test_entries import _refreshes_restate_no_margin_name
+from browser.navigation import (
+    READING_REGIONS_PAGE,
+)
+from browser.threads import open_panel_thread
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATIONS_PAGE,
-    PANEL_PAGE,
     answered_comment,
     live_url,
-    panel_comment,
 )
 from render_cases_layout import page_at_rest, token_colour
 from render_cases_navigation import (
@@ -24,15 +27,9 @@ from render_cases_navigation import (
     address_codes,
 )
 from render_harness import (
-    CORPUS_SOURCES,
-    DEVELOPER_PAGES,
-    EXAMPLES,
     FEATURE_GALLERY,
     PANEL,
-    PANEL_THREAD,
-    PUBLIC_EXAMPLES,
     RELEASE_FOCUS,
-    ROOT,
     command_reference_rows,
     expect_obligations_answered,
     expect_open_threads,
@@ -54,20 +51,14 @@ from render_harness import (
     told,
 )
 
+from journeys import expect_showing
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import show_resolved
+from leaf_dev.browser import PANEL_THREAD, show_resolved
+from leaf_dev.example_data import named_source, published_sources
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-from browser.margin.test_entries import _refreshes_restate_no_margin_name
-from browser.navigation import (
-    READING_REGIONS_PAGE,
-)
-from browser.threads import open_panel_thread
-
-from journeys import expect_showing
 
 
 def go_to_passage(page, page_dir, words):
@@ -79,7 +70,7 @@ def go_to_passage(page, page_dir, words):
         if event["kind"] == "comment" and event["anchor"].get("quote") == words
     )
     open_panel_thread(page, thread)
-    page.locator(".lf-fp-controls").get_by_role("button", name="Show on page").click()
+    page.locator(".lf-fp-head").get_by_role("button", name="Show on page").click()
 
 
 # An obligation's digits beside a page-scoped command with a context key of its own,
@@ -183,7 +174,7 @@ def test_a_let_go_keeps_the_user_in_the_pane_they_read(browser, serve):
 def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyboard(
     browser, serve
 ):
-    example = next(e for e in CORPUS_SOURCES if e.stem == "review-queue")
+    example = named_source("review-queue")
 
     seeded = serve(example)
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
@@ -253,173 +244,13 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     ]
 
 
-def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, serve):
-    """One v1 choice remains authoritative in the v2 policy and rollout."""
-    example = next(e for e in CORPUS_SOURCES if e.stem == "current-proposed-comparison")
-
-    seeded = serve(example)
-    first = seeded.replace("/versions/v2.html", "/versions/v1.html")
-    page = open_page(browser, first)
-    expect_obligations_answered(page, "1/1")
-    expect(page.locator("#comparison-policy-shared")).to_have_attribute("chosen", "")
-    page.close()
-
-    newest = serve(example, seed_log=False)
-    first = newest.replace("/versions/v2.html", "/versions/v1.html")
-    page = open_page(browser, first)
-    expect_obligations_answered(page, "0/1")
-    expect(page.locator("#comparison-policy-shared")).not_to_have_attribute(
-        "chosen", ""
-    )
-
-    page.keyboard.press("m")
-    expect(page.locator("#comparison-policy-decision")).to_be_focused()
-    with sending(page, "the authentication retry policy decision"):
-        page.keyboard.press("2")
-    expect(page.locator("#comparison-policy-shared")).to_have_attribute("chosen", "")
-
-    page.goto(live_url(newest))
-    rendered(page)
-    expect_showing(page, 2)
-    expect(page.locator("#comparison-policy-shared")).to_have_attribute("chosen", "")
-    expect(page.locator("#comparison-proposed > header")).to_contain_text("selected")
-    expect(page.locator("#comparison-rollout")).to_contain_text(
-        "enables shared refreshes for web clients"
-    )
-    expect(page.locator("#comparison-policy")).to_have_attribute("settled", "")
-    # The obligation reading keeps an obligation the user answered after a later version settles it
-    # (`obligations.py`, the retained answered inventory).
-    expect_obligations_answered(page, "1/1")
-
-    actions = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "action"
-    ]
-    assert [event["detail"]["value"] for event in actions] == [
-        ["comparison-policy-shared"]
-    ]
-
-
-@pytest.mark.parametrize("viewport", [(1440, 900), (390, 844)])
-def test_pr_walkthrough_navigation_starts_the_review_at_every_width(
-    browser, serve, viewport
-):
-    """Contents must be available before the reader works through this long review.
-
-    The former sidebar placed the outline after the complete PR facts and history;
-    when the tracks stacked, it also came after the entire article. The authored
-    reading order now puts navigation first and supporting evidence in the article.
-    """
-    source = next(example for example in EXAMPLES if example.stem == "pr-walkthrough")
-    url = serve(source)
-    width, height = viewport
-    context = browser.new_context(
-        viewport={"width": width, "height": height},
-        has_touch=width < 500,
-        is_mobile=width < 500,
-    )
-    page = open_page(browser, url, context=context)
-    page.evaluate("() => document.fonts.ready")
-    navigation = page.locator("#pr-contents")
-    disclosure = navigation.locator("summary")
-    if disclosure.is_visible() and not navigation.locator("details").evaluate(
-        "node => node.open"
-    ):
-        disclosure.click()
-    first = navigation.get_by_role("link", name="Review finding", exact=True)
-    expect(first).to_be_in_viewport()
-    if width < 500:
-        assert (
-            page.locator("#pr-contents-panel").bounding_box()["y"]
-            < (page.locator("#pr-body").bounding_box()["y"])
-        )
-
-    # A real pointer press leaves the reader at a later section, with its heading
-    # visible rather than under page chrome. On desktop the same outline persists.
-    change = navigation.get_by_role("link", name="Change surface", exact=True)
-    expect(change).to_be_in_viewport()
-    change.click()
-    expect(page).to_have_url(re.compile(r"#pr-change-surface$"))
-    heading = page.locator("#pr-change-surface > h2")
-    expect(heading).to_be_in_viewport()
-    scroll_settled(page)
-    assert heading.bounding_box()["y"] >= 0
-    if width > 500:
-        expect(first).to_be_in_viewport()
-
-    # Begin again at the opening, and take the native tab order to another route.
-    navigate(page, url)
-    if disclosure.is_visible() and not navigation.locator("details").evaluate(
-        "node => node.open"
-    ):
-        disclosure.click()
-    page.evaluate(RELEASE_FOCUS)
-    invariant = navigation.get_by_role("link", name="Review invariants", exact=True)
-    for _ in range(30):
-        page.keyboard.press("Tab")
-        if invariant.evaluate("node => node.matches(':focus')"):
-            break
-    expect(invariant).to_be_focused()
-    assert invariant.evaluate("node => node.matches(':focus-visible')")
-    page.keyboard.press("Enter")
-    expect(page).to_have_url(re.compile(r"#pr-invariants$"))
-    expect(page.locator("#pr-invariants > h2")).to_be_in_viewport()
-    scroll_settled(page)
-    if width > 500:
-        expect(first).to_be_in_viewport()
-
-
-def test_a_panel_thread_closes_with_the_panel_as_go_to_threads_does(browser, serve):
-    """A thread with no page destination opens in the panel and Escape puts it away;
-    Go-to's Threads opens the panel's list and puts it away the same way."""
-    url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "This thread has no page anchor.")
-    panel_comment(serve.page_dir, "Another panel thread.")
-    page = open_page(browser, url)
-    view = page.locator(f'{PANEL_THREAD}[data-thread="{root}"]')
-    threads = page.locator(panel_view("threads"))
-
-    page.keyboard.press("t")
-    expect(view).to_be_focused()
-    # Threads, from the thread the user is located in, opens on that thread's row.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    expect(threads.locator(f'.lf-fp-thread[data-key="{root}"]')).to_be_focused()
-    page.keyboard.press("Escape")
-    panel_settled(page, open=False)
-    assert page.evaluate("() => document.activeElement === document.body")
-
-    page.keyboard.press("t")
-    expect(page.locator(PANEL_THREAD)).to_be_focused()
-    page.keyboard.press("Escape")
-    panel_settled(page, open=False)
-    assert page.evaluate("() => document.activeElement === document.body")
-
-    # From the page, Threads holds focus itself.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    expect(threads).to_be_focused()
-    page.keyboard.press("Escape")
-    panel_settled(page, open=False)
-    assert page.evaluate("() => document.activeElement === document.body")
-
-    # g T puts away the Threads it opened, as Escape does.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    expect(threads).to_be_visible()
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    panel_settled(page, open=False)
-
-
 def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     """The current page location unwinds before the panel view around it.
 
     An Ask stood on while On me stands lets go first, then On me. A thread's Ask
     reached by `m` with Threads open stands in the thread's margin card, since the
-    panel declines a thread about a passage, and Escape leaves the Ask for its passage,
-    then puts the card away, and only then puts Threads away."""
+    panel declines a thread about a passage. Escape closes that card beside its
+    target in one press, and only the next press puts Threads away."""
     # A page obligation stood on while On me, which the keyboard opened, stands over the page.
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     page.keyboard.press("g")
@@ -430,13 +261,13 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     expect(item).to_be_focused()
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "queue")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 
     # `m` from a heading into a thread's obligation, with Threads already open: each Escape
     # leaves one layer, the innermost first, without returning to the heading.
-    page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
+    page = open_page(browser, serve(named_source("ship-review")))
     open_threads(page)
     heading = page.locator("main h2").first
     heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
@@ -445,537 +276,12 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     card = page.locator(".lf-margin-preview")
     expect(card.locator("lf-ask[data-lf-obligation]")).to_be_focused()
     page.keyboard.press("Escape")
-    expect(page.locator("#off-t-resync")).to_be_focused()
-    page.keyboard.press("Escape")
     expect(card).to_be_hidden()
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
+    assert page.evaluate("() => document.activeElement === document.body")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "threads")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
-
-
-def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
-    browser, serve
-):
-    """Semantic prefixes narrow the current generated map instead of replacing it.
-
-    A filtered map preserves the codes its members had in the complete map. Its chips
-    show only those generated suffixes.
-    """
-    url = serve(
-        ADDRESSED_PAGE.replace(
-            '<p id="dsc-body">',
-            '<p id="dsc-body"><a id="revealed-link" href="#p2">Read next passage</a> ',
-        )
-    )
-    thread = answered_comment(
-        serve.page_dir, "A visible thread.", {"section": "opts-decision"}
-    )
-    page = open_page(browser, url)
-    resized(page, 1280, 800)
-    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
-
-    page.keyboard.press("?")
-    goto = command_reference_rows(page, "Go to")
-    filters = goto.locator('[role=row][data-lf-command^="navigation.target.filter."]')
-    assert filters.evaluate_all(
-        """rows => rows.map(row => ({
-          command: row.dataset.lfCommand,
-          keys: [...row.querySelectorAll('kbd')].map(key => key.textContent),
-          action: row.querySelector('.lf-command-reference-command').textContent,
-        }))"""
-    ) == [
-        {
-            "command": "navigation.target.filter.margin-entries",
-            "keys": ["g", "m"],
-            "action": "Show only visible margin targets",
-        },
-        {
-            "command": "navigation.target.filter.threads",
-            "keys": ["g", "t"],
-            "action": "Show only visible Thread controls",
-        },
-        {
-            "command": "navigation.target.filter.hyperlinks",
-            "keys": ["g", "h"],
-            "action": "Show only visible hyperlinks",
-        },
-        {
-            "command": "navigation.target.filter.folds",
-            "keys": ["g", "f"],
-            "action": "Show only visible folds",
-        },
-    ]
-    expect(filters.locator(".lf-command-reference-description")).to_have_count(0)
-    target_help = goto.locator('[role=row][data-lf-command="navigation.target"]')
-    expect(target_help.locator("kbd")).to_have_text(["g", "letters"])
-    expect(target_help).to_contain_text("Visible target")
-    expect(target_help).not_to_contain_text("filter first")
-    page.keyboard.press("Escape")
-
-    page.keyboard.press("g")
-    chips = page.locator(CHIPS)
-    expect(chips.first).to_be_visible()
-    initial_kinds = set(
-        chips.evaluate_all("els => els.map(el => el.dataset.lfGoToKind)")
-    )
-    assert {"Link", "Fold", "Control"} <= initial_kinds, initial_kinds
-    assert chips.evaluate_all(
-        "els => els.every(el => el.textContent === el.dataset.lfHintCode)"
-    ), "an inline hint repeated the sequence context"
-
-    mixed = page.locator(
-        f'{CHIPS}[data-lf-go-to-kind="Margin entry"]'
-        '[data-lf-go-to-target="opts-decision"]'
-    )
-    expect(
-        page.locator(f'{CHIPS}[data-lf-go-to-target="revealed-link"]')
-    ).to_have_count(0)
-    expect(mixed).to_have_count(2)
-    mixed_codes = mixed.evaluate_all(
-        "els => Object.fromEntries(els.map(el => "
-        "[el.dataset.lfGoToMarginEntry, el.dataset.lfHintCode]))"
-    )
-    thread_code = mixed_codes["reading:threadList"]
-    obligation_key = next(key for key in mixed_codes if key != "reading:threadList")
-
-    page.keyboard.press("m")
-    filtered = page.locator(CHIPS)
-    expect(filtered).to_have_count(2)
-    assert address_codes(page) == list(mixed_codes.values())
-    page.keyboard.press("Escape")
-
-    page.keyboard.press("t")
-    expect(filtered).to_have_count(1)
-    assert address_codes(page) == [thread_code]
-
-    page.keyboard.type(thread_code)
-    expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-margin-thread")).to_have_count(1)
-    page.keyboard.press("Escape")
-
-    # Reveal another target so rearming reads a different visible scene.
-    page.locator("#dsc-head").click()
-    expect(page.locator("#revealed-link")).to_be_visible()
-    page.keyboard.press("g")
-    expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
-    expect(page.locator(CHIPS).first).to_be_visible()
-    assert (
-        set(
-            page.locator(CHIPS).evaluate_all(
-                "els => els.map(el => el.dataset.lfGoToKind)"
-            )
-        )
-        == initial_kinds
-    )
-
-    # Navigation can change the visible scene. This new map assigns its own hints;
-    # filtering must preserve this map's ask code rather than the earlier map's.
-    expect(
-        page.locator(f'{CHIPS}[data-lf-go-to-target="revealed-link"]')
-    ).to_have_count(1)
-    obligation_code = address_code(
-        page, "Margin entry", "opts-decision", obligation_key
-    )
-    page.keyboard.type(obligation_code)
-    expect(page.locator("#opts-decision")).to_be_focused()
-    expect(page.locator("#opts-decision")).to_have_attribute("data-lf-obligation", "1")
-
-    # Scroll past the links to give the hyperlinks filter no members. An empty
-    # filter stays empty through resize; Escape restores the complete map.
-    page.locator("#opt-a").click()
-    append_carried_log_record(
-        serve.page_dir,
-        {"kind": "resolve", "author": "user", "parent": thread},
-    )
-    round_trip(page)
-    expect(page.locator('.lf-margin-marker[data-lf-kinds~="on-me"]')).to_have_count(0)
-    page.locator("#opts-decision").evaluate(
-        "node => document.scrollingElement.scrollTo(0, node.offsetTop)"
-    )
-    scroll_settled(page)
-    for target in ("lk1", "lk2", "revealed-link"):
-        expect(page.locator(f"#{target}")).not_to_be_in_viewport()
-    page.evaluate("() => document.activeElement?.blur()")
-    page.keyboard.press("g")
-    page.keyboard.press("h")
-    expect(page.locator(CHIPS)).to_have_count(0)
-    expect(page.locator(".lf-live")).to_have_text("No visible hyperlinks.")
-    expect_panel_says(page, "No visible hyperlinks.")
-    page.evaluate(
-        """async () => {
-          window.__liveChanges = [];
-          new MutationObserver(() => {
-            const words = document.querySelector('.lf-live').textContent;
-            if (words) window.__liveChanges.push(words);
-          }).observe(document.querySelector('.lf-live'), {
-            childList: true,
-            subtree: true,
-          });
-          (await window.__lfWidgetApi())
-            .notice('Agent replied — open Threads', {background: true});
-        }"""
-    )
-    expect(page.locator(".lf-live")).to_have_text("Agent replied — open Threads")
-    # The empty filter's word stands in the panel while Go-to does; the news waits.
-    assert "No visible hyperlinks." in panel_says(page)
-    assert "Agent replied" not in panel_says(page)
-    before = page.evaluate("() => document.scrollingElement.scrollTop")
-    page.keyboard.press("d")
-    expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
-    expect(page.locator(".lf-live")).to_have_text(
-        "No hint d. The current hints are unchanged."
-    )
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
-    resized(page, 1200, 800)
-    expect_panel_says(page, "No visible hyperlinks.")
-    expect(page.locator(CHIPS)).to_have_count(0)
-    page.keyboard.press("Escape")
-    expect(page.locator(CHIPS).first).to_be_visible()
-    expect(page.locator(".lf-live")).to_have_text("All go-to targets.")
-    page.wait_for_timeout(100)
-    assert (
-        page.evaluate(
-            "() => window.__liveChanges.filter(words => "
-            "words === 'Agent replied — open Threads').length"
-        )
-        == 1
-    ), "showing deferred news announced it a second time"
-
-    # The obligation route may scroll these hyperlinks out of the visible target map.
-    page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
-    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
-    scroll_settled(page)
-    for target in ("lk1", "lk2", "revealed-link"):
-        expect(page.locator(f"#{target}")).to_be_in_viewport()
-    page.keyboard.press("g")
-    page.keyboard.press("h")
-    links = page.locator(f'{CHIPS}[data-lf-go-to-kind="Link"]')
-    expect(links).to_have_count(3)
-    expect(page.locator(f'{CHIPS}:not([data-lf-go-to-kind="Link"])')).to_have_count(0)
-    resized(page, 1180, 800)
-    expect(links).to_have_count(3)
-    expect(page.locator(f'{CHIPS}:not([data-lf-go-to-kind="Link"])')).to_have_count(0)
-    page.keyboard.type(address_code(page, "Link", "lk2"))
-    page.wait_for_url(re.compile(r"#p2$"))
-    expect(page.locator("#p2")).to_be_focused()
-
-
-def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
-    """Mnemonics reach global surfaces; generated hints reach the visible scene.
-
-    The panel's Threads and On me, the Page Map dialog, and page edges keep stable
-    named routes. Margin entries,
-    tabs, links, folds, and the presses a widget built instead share one viewport-local
-    letter namespace."""
-    url = serve(ADDRESSED_PAGE)
-    d = serve.page_dir
-
-    def comment(anchor, text):
-        return append_carried_log_record(
-            d,
-            {
-                "kind": "comment",
-                "author": "user",
-                "revision": 1,
-                "text": text,
-                "anchor": anchor,
-            },
-        )["id"]
-
-    comment({"quote": "passage under discussion"}, "Sharpen this.")
-    comment({"quote": "two separate remarks"}, "Second thought.")
-    c3 = comment({"section": "p2"}, "The short one too.")
-    page = open_page(browser, url)
-    expect_open_threads(page, 3)
-    resized(page, 1280, 800)
-
-    # The complete reference shows each command once, preferring an executable intrinsic
-    # route over its contextual Go-to route. Keep identities across all sections so that
-    # a command such as Align current item can be covered by its permanent page route.
-    page.keyboard.press("?")
-    goto = command_reference_rows(page, "Go to")
-    reference_commands = set(
-        page.locator(".lf-command-reference [role=row][data-lf-command]").evaluate_all(
-            "rows => rows.map(row => row.dataset.lfCommand)"
-        )
-    )
-    alignment = page.locator(
-        '.lf-command-reference [role=row][data-lf-command="reading.align.top"]'
-    )
-    expect(alignment).to_have_count(1)
-    # Alignment has a page-level route even when no reading item stands while
-    # the reference opens from chrome.
-    expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "z"])
-    overlaps = goto.locator("[role=row][data-lf-command]").evaluate_all(
-        """rows => rows.flatMap(row => {
-          const key = row.querySelector('.lf-command-reference-key')
-            .firstElementChild.getBoundingClientRect();
-          const action = row.querySelector('.lf-command-reference-action')
-            .getBoundingClientRect();
-          const across = Math.min(key.right, action.right) - Math.max(key.left, action.left);
-          const down = Math.min(key.bottom, action.bottom) - Math.max(key.top, action.top);
-          const amount = Math.min(across, down);
-          return amount > 0.5 ? [{command: row.dataset.lfCommand, amount}] : [];
-        })"""
-    )
-    assert overlaps == [], f"a complete route overlaps its action: {overlaps}"
-    page.keyboard.press("Escape")
-
-    # Armed, the live Go to register's commands are all in the complete reference.
-    page.keyboard.press("g")
-    live_commands = set(
-        page.evaluate(
-            """async () => {
-              const {pageScopes} = await window.__lfCheckApi();
-              const {live, commandPresentations} = await window.__lfCheckApi();
-              const scope = pageScopes().find(scope => scope.rows?.some(
-                row => row.id === 'navigation.target'));
-              return scope.rows.filter(live).flatMap(row =>
-                commandPresentations(row).map(({id}) => id));
-            }"""
-        )
-    )
-    assert live_commands, "the page must contribute live Go to commands"
-    assert live_commands <= reference_commands, (
-        f"live Go to commands missing from the complete reference: "
-        f"{sorted(live_commands - reference_commands)}"
-    )
-    assert "navigation.panel.leaves" not in reference_commands
-    expect(page.locator(CHIPS).first).to_be_visible()
-    # The chips are the eye's copy of the Go-to sequence; a user who cannot see them is
-    # told the window opened and what it holds.
-    expect(page.locator(".lf-live")).to_contain_text("visible targets")
-    expect(page.locator(".lf-live")).to_contain_text("type a hint")
-
-    # A panel mnemonic completes the sequence and leaves the user in that view of the
-    # panel, where its own scoped keys are immediately available.
-    threads = page.locator(panel_view("threads"))
-    page.keyboard.press("Shift+t")
-    expect(threads).to_be_focused()
-    expect(page.locator(CHIPS)).to_have_count(0)
-    page.keyboard.press("Escape")
-    panel_settled(page, open=False)
-    assert page.evaluate("() => document.activeElement === document.body")
-
-    # The On me sequence follows the same contract: open the view, whose walk's first
-    # step lands on its first card.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
-    panel_settled(page, view="queue")
-    expect(page.locator(panel_view("queue"))).to_be_focused()
-    expect(page.locator(CHIPS)).to_have_count(0)
-    page.keyboard.press("ArrowDown")
-    expect(page.locator(".lf-fp-on-item").first).to_be_focused()
-
-    # Replacing one view with another is lateral: Threads replaces On me while it
-    # stands, and the Escape out of Threads lands on the page rather than putting On me
-    # back.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    panel_settled(page, view="threads")
-    page.keyboard.press("Escape")
-    panel_settled(page, open=False)
-    assert page.evaluate("() => document.activeElement === document.body")
-
-    # Page Map stands over whatever the user already had, so closing it leaves On me
-    # where it was.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
-    panel_settled(page, view="queue")
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+p")
-    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
-    expect(sheet).to_be_visible()
-    expect(
-        sheet.get_by_role(
-            "searchbox", name="Find an action, status, or location in Page Map"
-        )
-    ).to_be_focused()
-    # Its accessible name does not add a second visible caption above the placeholder.
-    assert (
-        sheet.locator(".lf-page-map-search").evaluate(
-            "node => node.shadowRoot.querySelector('[part~=form-control-label]')"
-            ".getBoundingClientRect().height"
-        )
-        <= 1
-    )
-    page.evaluate(
-        """() => {
-          window.__lfPageMapClosed = false;
-          document.querySelector('dialog.lf-page-map-dialog').addEventListener(
-            'close',
-            () => { window.__lfPageMapClosed = true; },
-            {once: true},
-          );
-        }"""
-    )
-    page.keyboard.press("Escape")
-    page.wait_for_function("() => window.__lfPageMapClosed")
-    expect(page.locator(PANEL)).to_have_attribute("data-open", "queue")
-    page.keyboard.press("Escape")
-    panel_settled(page, open=False)
-
-    # Uppercase M opens the complete Page Map rather than the numbered prefix.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+p")
-    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
-    expect(sheet).to_be_visible()
-    expect(sheet.locator(".lf-page-map-group")).not_to_have_count(0)
-    expect(
-        sheet.get_by_role(
-            "searchbox", name="Find an action, status, or location in Page Map"
-        )
-    ).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(sheet).to_be_hidden()
-
-    # A visible Margin entry shares the generated target map. Activating the hint
-    # opens the same thread preview as its marker. Each quoted passage in p1 stands its
-    # own entry, so the walk takes the first.
-    page.keyboard.press("g")
-    entries = page.locator(
-        f'{CHIPS}[data-lf-go-to-kind="Margin entry"][data-lf-go-to-target="p1"]'
-    )
-    expect(entries).to_have_count(2)
-    page.keyboard.type(entries.first.get_attribute("data-lf-hint-code"))
-    expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-margin-thread .lf-page-thread")).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
-
-    # The hyperlinks, from the head of the page where both are on screen. A hint is centred on the
-    # corner a member starts at, which for an inline that wraps is the corner of its first
-    # line and not of its bounding box — those run the width of the column, so a digit
-    # route's visible start rather than on the inline's wide union box.
-    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
-    page.keyboard.press("g")
-    expect(page.locator(f'{CHIPS}[data-lf-go-to-kind="Link"]')).to_have_count(2)
-    assert page.evaluate(
-        """() => {
-             const links = [...document.querySelectorAll('#refs a[href]')];
-             const chips = links.map(link => document.querySelector(
-               `.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-target="${link.id}"]`));
-             return {wrapped: links[0].getClientRects().length > 1,
-                     on: chips.map((chip, i) => {
-                       const c = chip.getBoundingClientRect();
-                       const first = links[i].getClientRects()[0];
-                       return Math.abs(c.left + c.width / 2 - first.left) < 2
-                           && Math.abs(c.top + c.height / 2 - first.top) < 2;
-                     })};
-           }"""
-    ) == {
-        "wrapped": True,
-        "on": [True, True],
-    }, "a chip is not on the corner its link starts at"
-    page.keyboard.press("Escape")
-
-    # At the foot of the page neither hyperlink is visible, so neither receives a route.
-    page.evaluate(
-        "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
-    )
-    page.keyboard.press("g")
-    expect(page.locator(f'{CHIPS}[data-lf-go-to-kind="Link"]')).to_have_count(0)
-    page.keyboard.press("Escape")
-
-    # A resolved thread is the panel's state rather than an authored fold. Read of the
-    # document at large, `f` must not offer a digit for it.
-    append_carried_log_record(d, {"kind": "resolve", "author": "user", "parent": c3})
-    told(page)
-    expect_open_threads(page, 2)
-    expect(page.locator("details.lf-details")).to_have_count(0)
-    page.keyboard.press("g")
-    expect(page.locator(f'{CHIPS}[data-lf-go-to-kind="Fold"]')).to_have_count(0)
-    page.keyboard.press("Escape")
-
-    # The folds, and the one arrival that changes the page it arrives at. Every
-    # other member is reached through a reveal that opens the collapsed boxes on the way;
-    # here the box is the member, so that same reveal is the whole motion, and the user
-    # who wanted a section open has it open having asked once.
-    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
-    page.keyboard.press("g")
-    fold_code = address_code(page, "Fold", "dsc-head")
-    assert page.evaluate(
-        """() => {
-             const c = document.querySelector(
-               '.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-target="dsc-head"]')
-                        .getBoundingClientRect();
-             const first = document.getElementById('dsc-head').getClientRects()[0];
-             return Math.abs(c.left + c.width / 2 - first.left) < 2
-                 && Math.abs(c.top + c.height / 2 - first.top) < 2;
-           }"""
-    ), "the chip is not on the corner the summary starts at"
-    expect(page.locator("#dsc")).not_to_have_attribute("open", "")
-    page.keyboard.type(fold_code)
-    expect(page.locator("#dsc-head")).to_be_focused()
-    expect(page.locator("#dsc")).to_have_attribute("open", "")
-
-    # Located there, Enter and Space both toggle it, as a summary answers both.
-    page.keyboard.press("Enter")
-    expect(page.locator("#dsc")).not_to_have_attribute("open", "")
-    page.keyboard.press(" ")
-    expect(page.locator("#dsc")).to_have_attribute("open", "")
-
-    # A press a widget built joins the same namespace, declared by the constructor that
-    # made it rather than by an entry here. A pick spends no page letter of its own — the
-    # register holds capabilities, and a control is a route to one — so before this the
-    # only keyboard way to it was Tab. The arrival is the press, so the option is chosen.
-    page.evaluate(
-        """() => document.scrollingElement.scrollTo(
-             0, document.getElementById('opts-decision').offsetTop - 80)"""
-    )
-    page.keyboard.press("g")
-    controls = page.locator(f'{CHIPS}[data-lf-go-to-kind="Control"]')
-    expect(controls).not_to_have_count(0)
-    pick_code = page.evaluate(
-        """() => {
-             const mark = document.querySelector('#opt-a .lf-pick').getBoundingClientRect();
-             const chip = [...document.querySelectorAll(
-               '.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-kind="Control"]')]
-               .find(c => {
-                 const r = c.getBoundingClientRect();
-                 return Math.abs(r.left + r.width / 2 - mark.left) < 2
-                     && Math.abs(r.top + r.height / 2 - mark.top) < 2;
-               });
-             return chip ? chip.dataset.lfHintCode : null;
-           }"""
-    )
-    assert pick_code, "the pick mark the widget built got no Go-to hint"
-    page.keyboard.type(pick_code)
-    expect(page.locator("#opt-a")).to_have_attribute("chosen", "")
-
-    # The two completions that take no digit: an edge of the page is one place, so the
-    # second key completes the route — G glides to the bottom, g to the top.
-    foot = page.evaluate(
-        "() => document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight"
-    )
-    assert foot > 0, "the page must scroll for an edge to be a move at all"
-    page.keyboard.press("g")
-    # Shift spelled out: a bare press("G") synthesizes key "G" with no shift modifier,
-    # which a real keyboard cannot do, and the dispatcher rightly reads it as g.
-    page.keyboard.press("Shift+G")
-    page.wait_for_function(
-        "foot => Math.abs(document.scrollingElement.scrollTop - foot) < 1", arg=foot
-    )
-    page.keyboard.press("g")
-    page.keyboard.press("g")
-    page.wait_for_function("() => document.scrollingElement.scrollTop === 0")
-
-    # A panel mnemonic completes the sequence directly wherever the user is on the page.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    expect(threads).to_be_focused()
-    page.keyboard.press("Escape")
-    panel_settled(page, open=False)
-
-    # Typing contexts are untouched: in a box, the whole sequence is text.
-    page.keyboard.press("c")
-    box = page.locator('.lf-fp-field leaf-text[name="comment"]')
-    expect(box).to_be_focused()
-    page.keyboard.type("gc1")
-    expect(box).to_have_js_property("value", "gc1")
-    expect(box).to_be_focused()
 
 
 def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
@@ -996,9 +302,7 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
 
     panel_settled(page, view="leaves")
     leaves = page.locator(panel_view("leaves"))
-    expect(leaves).to_be_focused()
     expect(leaves.locator(".lf-fp-page[href]")).to_have_count(2)
-    page.keyboard.press("ArrowDown")
     expect(leaves.locator(".lf-fp-page[href]").first).to_be_focused()
     expect(page.locator(CHIPS)).to_have_count(0)
 
@@ -1107,18 +411,17 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
     expect(page.locator("#side")).to_have_attribute("tabindex", "0")
 
 
-def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
+def test_c_leaves_an_item_its_own_scroller_has_taken_away(browser, serve):
     """What the press asks is whether the item is in front of the user, and only the
     page shows that. An item's own box is the box it would have — unclipped — so a card
     carried out of a board's sideways scroller still reports one inside the window, and a
-    gate reading that called it visible and opened the box on something entirely off
-    screen. `shownRect` is the reading the ⌥ aim's own paint takes, and this press is its
-    keyboard twin: the two decide "in front of the user" alike or they are not twins.
+    gate reading that called it visible opened the box on something entirely off screen.
+    A key pressed there lets go of the card first, so `c` opens the page's own field and
+    leaves the board where the user scrolled it.
 
     The control is the same board with the scroller left alone, where the card is really
-    in front of the user and nothing moves — the pointer's answer on the same card. A
-    test with only the scrolled case would pass just as well on a press that always
-    travelled, which is the behaviour this replaced."""
+    in front of the user and `c` comments on it where it stands. A test with only the
+    scrolled case would pass just as well on a press that never reached the card."""
     url = serve(
         leaf_page(
             "carried",
@@ -1162,10 +465,11 @@ def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
     )
     page.close()
 
-    # The same current location with only the board's next-item cue left in view. The
-    # sliver still supplies an attachment, so opening Comment preserves the board.
+    # The card itself with only the board's next-item cue left in view. The sliver is
+    # still where the user is and supplies an attachment, so opening Comment preserves
+    # the board.
     page = open_page(browser, url)
-    page.locator("#card0 a").focus()
+    page.locator("#card0").evaluate("card => { card.tabIndex = -1; card.focus(); }")
     page.evaluate(
         """() => {
           const card = document.querySelector('#card0');
@@ -1191,9 +495,10 @@ def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
         "the board did not carry the card off screen, so this proves nothing"
     )
     page.keyboard.press("c")
-    expect(page.locator(".lf-composer")).to_be_visible()
-    assert page.evaluate(seen)["onScreen"], (
-        "the box opened on a card the board had carried out of sight"
+    expect(page.locator('.lf-fp-field leaf-text[name="comment"]')).to_be_focused()
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    assert not page.evaluate(seen)["onScreen"], (
+        "the press took the board from where the user scrolled it"
     )
 
 
@@ -1226,19 +531,17 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     expect(setting).to_be_focused()
     setting.press("Space")
     expect(setting).not_to_be_checked()
-    comment = reference.locator('[role=row][data-lf-command="comment.create"]')
+    comment = reference.locator('[role=option][data-lf-command="comment.create"]')
     expect(comment.locator("kbd")).to_have_count(0)
     # Disabling the key makes the command actionable even from the text field where
     # that key was previously reserved for typing.
     page.get_by_role("combobox", name="Search commands").fill("Comment on the page")
-    expect(
-        comment.get_by_role("button", name="Comment on the page", exact=True)
-    ).to_have_attribute("data-lf-available", "true")
+    expect(comment).to_have_attribute("data-lf-available", "true")
     page.get_by_role("button", name="Close the command reference").click()
     page.locator("body").focus()
     settings()
     page.get_by_role("combobox", name="Search commands").fill("Comment on the page")
-    comment.get_by_role("button", name="Comment on the page", exact=True).click()
+    comment.click()
     field = page.get_by_role("textbox", name="Comment on the page", exact=True)
     expect(field).to_be_focused()
     page.keyboard.type("Sent with quick shortcuts off")
@@ -1262,10 +565,8 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
     expect(button).not_to_have_attribute("title", re.compile(r"\(1\)"))
     settings()
-    page.get_by_role("combobox", name="Search commands").fill("Comment on an element")
-    reference.locator('[role=row][data-lf-command="target.picker.open"]').get_by_role(
-        "button"
-    ).click()
+    page.get_by_role("combobox", name="Search commands").fill("Select mode")
+    reference.locator('[role=option][data-lf-command="target.picker.open"]').click()
     rendered(page)
     expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
     expect(page.locator(".lf-live")).not_to_contain_text("type one of")
@@ -1327,10 +628,8 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
 
     page.locator("body").focus()
     settings()
-    page.get_by_role("combobox", name="Search commands").fill("Comment on an element")
-    reference.locator('[role=row][data-lf-command="target.picker.open"]').get_by_role(
-        "button"
-    ).click()
+    page.get_by_role("combobox", name="Search commands").fill("Select mode")
+    reference.locator('[role=option][data-lf-command="target.picker.open"]').click()
     rendered(page)
     expect(page.locator(".lf-target-picker-hint").first).to_be_visible()
     page.keyboard.press("Escape")
@@ -1452,7 +751,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     )
     expect(map_obligation).to_have_count(1)
     expect(map_obligation).to_have_attribute(
-        "data-key", '["widget","widget:bg-choice"]'
+        "data-lf-key", '["widget","widget:bg-choice"]'
     )
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
@@ -1485,14 +784,18 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     shown = frame.locator(panel_view("thread"))
     expect(shown).to_have_count(0)
     page.locator('#bg-panel-presets [data-view="overview"]').click()
-    expect(shown).to_have_attribute("data-thread", "72e031c5bf0d485ba9054628e09869d4")
+    expect(shown).to_have_attribute(
+        "data-lf-thread", "72e031c5bf0d485ba9054628e09869d4"
+    )
 
     page.keyboard.press("Tab")
     you_button = page.locator('#bg-panel-presets [data-view="you"]')
     expect(you_button).to_be_focused()
     assert you_button.evaluate("element => element.matches(':focus-visible')")
     page.keyboard.press("Space")
-    expect(shown).to_have_attribute("data-thread", "2be2443f0bb6cc49fc86b52f340e6073")
+    expect(shown).to_have_attribute(
+        "data-lf-thread", "2be2443f0bb6cc49fc86b52f340e6073"
+    )
     expect(you_button).to_be_focused()
 
     for view, thread, title in (
@@ -1507,16 +810,20 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         ),
     ):
         page.locator(f'#bg-panel-presets [data-view="{view}"]').click()
-        expect(shown).to_have_attribute("data-thread", thread)
+        expect(shown).to_have_attribute("data-lf-thread", thread)
         expect(frame.locator(".lf-fp-title")).to_have_text(title)
 
     page.locator('#bg-panel-presets [data-view="resolved"]').click()
-    expect(shown).to_have_attribute("data-thread", "bab3cdfcfb8c02aacbb27da731de947a")
+    expect(shown).to_have_attribute(
+        "data-lf-thread", "bab3cdfcfb8c02aacbb27da731de947a"
+    )
     page.locator("#bg-panel-sample").get_by_role(
         "button", name="Reset", exact=True
     ).click()
     page.locator("#bg-panel-sample").evaluate("async sample => { await sample.ready; }")
-    expect(shown).to_have_attribute("data-thread", "bab3cdfcfb8c02aacbb27da731de947a")
+    expect(shown).to_have_attribute(
+        "data-lf-thread", "bab3cdfcfb8c02aacbb27da731de947a"
+    )
     # Latest commands and Reset cancel pending presentation across the port.
     result = page.locator("#bg-panel-sample").evaluate(
         """sample => Promise.all([
@@ -1920,9 +1227,7 @@ def _stale_keys(page):
     return stale
 
 
-@pytest.mark.parametrize(
-    "example", (*PUBLIC_EXAMPLES, *DEVELOPER_PAGES), ids=lambda path: path.stem
-)
+@pytest.mark.parametrize("example", published_sources(), ids=lambda path: path.stem)
 def test_presses_and_fills_leave_no_element_naming_stale_keys(browser, serve, example):
     """Each element's `aria-keyshortcuts` and a button's `aria-disabled` reflect its
     rows, and a reflection is a tracked effect: it reads again when a signal it read
@@ -1961,3 +1266,595 @@ def test_presses_and_fills_leave_no_element_naming_stale_keys(browser, serve, ex
         f" repainted {s['repainted']!r}"
         for s in stale
     )
+
+
+@pytest.mark.parametrize("viewport", [(1440, 900), (390, 844)])
+def test_pr_walkthrough_navigation_starts_the_review_at_every_width(
+    browser, serve, viewport
+):
+    """Contents must be available before the reader works through this long review.
+
+    The former sidebar placed the outline after the complete PR facts and history;
+    when the tracks stacked, it also came after the entire article. The authored
+    reading order now puts navigation first and supporting evidence in the article.
+    """
+    source = named_source("pr-walkthrough")
+    url = serve(source)
+    width, height = viewport
+    context = browser.new_context(
+        viewport={"width": width, "height": height},
+        has_touch=width < 500,
+        is_mobile=width < 500,
+    )
+    page = open_page(browser, url, context=context)
+    page.evaluate("() => document.fonts.ready")
+    navigation = page.locator("#pr-contents")
+    disclosure = navigation.locator("summary")
+    if disclosure.is_visible() and not navigation.locator("details").evaluate(
+        "node => node.open"
+    ):
+        disclosure.click()
+    first = navigation.get_by_role("link", name="Review finding", exact=True)
+    expect(first).to_be_in_viewport()
+    if width < 500:
+        assert (
+            page.locator("#pr-contents-panel").bounding_box()["y"]
+            < (page.locator("#pr-body").bounding_box()["y"])
+        )
+
+    # A real pointer press leaves the reader at a later section, with its heading
+    # visible rather than under page chrome. On desktop the same outline persists.
+    change = navigation.get_by_role("link", name="Change surface", exact=True)
+    expect(change).to_be_in_viewport()
+    change.click()
+    expect(page).to_have_url(re.compile(r"#pr-change-surface$"))
+    heading = page.locator("#pr-change-surface > h2")
+    expect(heading).to_be_in_viewport()
+    scroll_settled(page)
+    assert heading.bounding_box()["y"] >= 0
+    if width > 500:
+        expect(first).to_be_in_viewport()
+
+    # Begin again at the opening, and take the native tab order to another route.
+    navigate(page, url)
+    if disclosure.is_visible() and not navigation.locator("details").evaluate(
+        "node => node.open"
+    ):
+        disclosure.click()
+    page.evaluate(RELEASE_FOCUS)
+    invariant = navigation.get_by_role("link", name="Review invariants", exact=True)
+    for _ in range(30):
+        page.keyboard.press("Tab")
+        if invariant.evaluate("node => node.matches(':focus')"):
+            break
+    expect(invariant).to_be_focused()
+    assert invariant.evaluate("node => node.matches(':focus-visible')")
+    page.keyboard.press("Enter")
+    expect(page).to_have_url(re.compile(r"#pr-invariants$"))
+    expect(page.locator("#pr-invariants > h2")).to_be_in_viewport()
+    scroll_settled(page)
+    if width > 500:
+        expect(first).to_be_in_viewport()
+
+
+def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
+    browser, serve
+):
+    """Semantic prefixes narrow the current generated map instead of replacing it.
+
+    A filtered map preserves the codes its members had in the complete map. Its chips
+    show only those generated suffixes.
+    """
+    url = serve(
+        ADDRESSED_PAGE.replace(
+            '<p id="dsc-body">',
+            '<p id="dsc-body"><a id="revealed-link" href="#p2">Read next passage</a> ',
+        )
+    )
+    thread = answered_comment(
+        serve.page_dir, "A visible thread.", {"section": "opts-decision"}
+    )
+    page = open_page(browser, url)
+    resized(page, 1280, 800)
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
+
+    page.keyboard.press("?")
+    goto = command_reference_rows(page, "Go to")
+    filters = goto.locator(
+        '[role=option][data-lf-command^="navigation.target.filter."]'
+    )
+    assert filters.evaluate_all(
+        """rows => rows.map(row => ({
+          command: row.dataset.lfCommand,
+          keys: [...row.querySelectorAll('kbd')].map(key => key.textContent),
+          action: row.querySelector('.lf-command-reference-title-words').textContent,
+        }))"""
+    ) == [
+        {
+            "command": "navigation.target.filter.margin-entries",
+            "keys": ["g", "m"],
+            "action": "Show only visible margin targets",
+        },
+        {
+            "command": "navigation.target.filter.threads",
+            "keys": ["g", "t"],
+            "action": "Show only visible Thread controls",
+        },
+        {
+            "command": "navigation.target.filter.hyperlinks",
+            "keys": ["g", "h"],
+            "action": "Show only visible hyperlinks",
+        },
+        {
+            "command": "navigation.target.filter.folds",
+            "keys": ["g", "f"],
+            "action": "Show only visible folds",
+        },
+    ]
+    expect(filters.locator(".lf-command-reference-description")).to_have_count(0)
+    target_help = goto.locator('[role=option][data-lf-command="navigation.target"]')
+    expect(target_help.locator("kbd")).to_have_text(["g", "letters"])
+    expect(target_help).to_contain_text("Visible target")
+    expect(target_help).not_to_contain_text("filter first")
+    page.keyboard.press("Escape")
+
+    page.keyboard.press("g")
+    chips = page.locator(CHIPS)
+    expect(chips.first).to_be_visible()
+    initial_kinds = set(
+        chips.evaluate_all("els => els.map(el => el.dataset.lfGoToKind)")
+    )
+    assert {"Link", "Fold", "Control"} <= initial_kinds, initial_kinds
+    assert chips.evaluate_all(
+        "els => els.every(el => el.textContent === el.dataset.lfHintCode)"
+    ), "an inline hint repeated the sequence context"
+
+    mixed = page.locator(
+        f'{CHIPS}[data-lf-go-to-kind="Margin entry"]'
+        '[data-lf-go-to-target="opts-decision"]'
+    )
+    expect(
+        page.locator(f'{CHIPS}[data-lf-go-to-target="revealed-link"]')
+    ).to_have_count(0)
+    expect(mixed).to_have_count(2)
+    mixed_codes = mixed.evaluate_all(
+        "els => Object.fromEntries(els.map(el => "
+        "[el.dataset.lfGoToMarginEntry, el.dataset.lfHintCode]))"
+    )
+    thread_code = mixed_codes["reading:threadList"]
+    obligation_key = next(key for key in mixed_codes if key != "reading:threadList")
+
+    page.keyboard.press("m")
+    filtered = page.locator(CHIPS)
+    expect(filtered).to_have_count(2)
+    assert address_codes(page) == list(mixed_codes.values())
+    page.keyboard.press("Escape")
+
+    page.keyboard.press("t")
+    expect(filtered).to_have_count(1)
+    assert address_codes(page) == [thread_code]
+
+    page.keyboard.type(thread_code)
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-margin-thread")).to_have_count(1)
+    page.keyboard.press("Escape")
+
+    # Reveal another target so rearming reads a different visible scene.
+    page.locator("#dsc-head").click()
+    expect(page.locator("#revealed-link")).to_be_visible()
+    page.keyboard.press("g")
+    expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
+    expect(page.locator(CHIPS).first).to_be_visible()
+    assert (
+        set(
+            page.locator(CHIPS).evaluate_all(
+                "els => els.map(el => el.dataset.lfGoToKind)"
+            )
+        )
+        == initial_kinds
+    )
+
+    # Navigation can change the visible scene. This new map assigns its own hints;
+    # filtering must preserve this map's ask code rather than the earlier map's.
+    expect(
+        page.locator(f'{CHIPS}[data-lf-go-to-target="revealed-link"]')
+    ).to_have_count(1)
+    obligation_code = address_code(
+        page, "Margin entry", "opts-decision", obligation_key
+    )
+    page.keyboard.type(obligation_code)
+    expect(page.locator("#opts-decision")).to_be_focused()
+    expect(page.locator("#opts-decision")).to_have_attribute("data-lf-obligation", "1")
+
+    # Scroll past the links to give the hyperlinks filter no members. An empty
+    # filter stays empty through resize; Escape restores the complete map.
+    page.locator("#opt-a").click()
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "resolve", "author": "user", "parent": thread},
+    )
+    round_trip(page)
+    expect(page.locator('.lf-margin-marker[data-lf-kinds~="on-me"]')).to_have_count(0)
+    page.locator("#opts-decision").evaluate(
+        "node => document.scrollingElement.scrollTo(0, node.offsetTop)"
+    )
+    scroll_settled(page)
+    for target in ("lk1", "lk2", "revealed-link"):
+        expect(page.locator(f"#{target}")).not_to_be_in_viewport()
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("g")
+    page.keyboard.press("h")
+    expect(page.locator(CHIPS)).to_have_count(0)
+    expect(page.locator(".lf-live")).to_have_text("No visible hyperlinks.")
+    expect_panel_says(page, "No visible hyperlinks.")
+    page.evaluate(
+        """async () => {
+          window.__liveChanges = [];
+          new MutationObserver(() => {
+            const words = document.querySelector('.lf-live').textContent;
+            if (words) window.__liveChanges.push(words);
+          }).observe(document.querySelector('.lf-live'), {
+            childList: true,
+            subtree: true,
+          });
+          (await window.__lfWidgetApi())
+            .notice('Agent replied — open Threads', {background: true});
+        }"""
+    )
+    expect(page.locator(".lf-live")).to_have_text("Agent replied — open Threads")
+    # The empty filter's word stands in the panel while Go-to does; the news waits.
+    assert "No visible hyperlinks." in panel_says(page)
+    assert "Agent replied" not in panel_says(page)
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.keyboard.press("d")
+    expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
+    expect(page.locator(".lf-live")).to_have_text(
+        "No hint d. The current hints are unchanged."
+    )
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
+    resized(page, 1200, 800)
+    expect_panel_says(page, "No visible hyperlinks.")
+    expect(page.locator(CHIPS)).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(page.locator(CHIPS).first).to_be_visible()
+    expect(page.locator(".lf-live")).to_have_text("All go-to targets.")
+    page.wait_for_timeout(100)
+    assert (
+        page.evaluate(
+            "() => window.__liveChanges.filter(words => "
+            "words === 'Agent replied — open Threads').length"
+        )
+        == 1
+    ), "showing deferred news announced it a second time"
+
+    # The obligation route may scroll these hyperlinks out of the visible target map.
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
+    scroll_settled(page)
+    for target in ("lk1", "lk2", "revealed-link"):
+        expect(page.locator(f"#{target}")).to_be_in_viewport()
+    page.keyboard.press("g")
+    page.keyboard.press("h")
+    links = page.locator(f'{CHIPS}[data-lf-go-to-kind="Link"]')
+    expect(links).to_have_count(3)
+    expect(page.locator(f'{CHIPS}:not([data-lf-go-to-kind="Link"])')).to_have_count(0)
+    resized(page, 1180, 800)
+    expect(links).to_have_count(3)
+    expect(page.locator(f'{CHIPS}:not([data-lf-go-to-kind="Link"])')).to_have_count(0)
+    page.keyboard.type(address_code(page, "Link", "lk2"))
+    page.wait_for_url(re.compile(r"#p2$"))
+    expect(page.locator("#p2")).to_be_focused()
+
+
+def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
+    """Mnemonics reach global surfaces; generated hints reach the visible scene.
+
+    The panel's Threads and On me, the Page Map dialog, and page edges keep stable
+    named routes. Margin entries,
+    tabs, links, folds, and the presses a widget built instead share one viewport-local
+    letter namespace."""
+    url = serve(ADDRESSED_PAGE)
+    d = serve.page_dir
+
+    def comment(anchor, text):
+        return append_carried_log_record(
+            d,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": text,
+                "anchor": anchor,
+            },
+        )["id"]
+
+    comment({"quote": "passage under discussion"}, "Sharpen this.")
+    comment({"quote": "two separate remarks"}, "Second thought.")
+    c3 = comment({"section": "p2"}, "The short one too.")
+    page = open_page(browser, url)
+    expect_open_threads(page, 3)
+    resized(page, 1280, 800)
+
+    # The complete reference shows each command once, preferring an executable intrinsic
+    # route over its contextual Go-to route. Keep identities across all sections so that
+    # a command such as Align current item can be covered by its permanent page route.
+    page.keyboard.press("?")
+    goto = command_reference_rows(page, "Go to")
+    reference_commands = set(
+        page.locator(
+            ".lf-command-reference [role=option][data-lf-command]"
+        ).evaluate_all("rows => rows.map(row => row.dataset.lfCommand)")
+    )
+    alignment = page.locator(
+        '.lf-command-reference [role=option][data-lf-command="reading.align.top"]'
+    )
+    expect(alignment).to_have_count(1)
+    # Alignment has a page-level route even when no reading item stands while
+    # the reference opens from chrome.
+    expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "z"])
+    overlaps = goto.locator("[role=option][data-lf-command]").evaluate_all(
+        """rows => rows.flatMap(row => {
+          const key = row.querySelector('.lf-command-reference-key')
+            .firstElementChild.getBoundingClientRect();
+          const action = row.querySelector('.lf-command-reference-action')
+            .getBoundingClientRect();
+          const across = Math.min(key.right, action.right) - Math.max(key.left, action.left);
+          const down = Math.min(key.bottom, action.bottom) - Math.max(key.top, action.top);
+          const amount = Math.min(across, down);
+          return amount > 0.5 ? [{command: row.dataset.lfCommand, amount}] : [];
+        })"""
+    )
+    assert overlaps == [], f"a complete route overlaps its action: {overlaps}"
+    page.keyboard.press("Escape")
+
+    # Armed, the live Go to register's commands are all in the complete reference.
+    page.keyboard.press("g")
+    live_commands = set(
+        page.evaluate(
+            """async () => {
+              const {pageScopes} = await window.__lfCheckApi();
+              const {live, commandPresentations} = await window.__lfCheckApi();
+              const scope = pageScopes().find(scope => scope.rows?.some(
+                row => row.id === 'navigation.target'));
+              return scope.rows.filter(live).flatMap(row =>
+                commandPresentations(row).map(({id}) => id));
+            }"""
+        )
+    )
+    assert live_commands, "the page must contribute live Go to commands"
+    assert live_commands <= reference_commands, (
+        f"live Go to commands missing from the complete reference: "
+        f"{sorted(live_commands - reference_commands)}"
+    )
+    assert "navigation.panel.leaves" not in reference_commands
+    expect(page.locator(CHIPS).first).to_be_visible()
+    # The chips are the eye's copy of the Go-to sequence; a user who cannot see them is
+    # told the window opened and what it holds.
+    expect(page.locator(".lf-live")).to_contain_text("visible targets")
+    expect(page.locator(".lf-live")).to_contain_text("type a hint")
+
+    # A panel mnemonic completes the sequence and leaves the user on that view's first
+    # row, where its own scoped keys are immediately available.
+    threads = page.locator(panel_view("threads"))
+    page.keyboard.press("Shift+t")
+    expect(threads.locator(".lf-fp-thread").first).to_be_focused()
+    expect(page.locator(CHIPS)).to_have_count(0)
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+    assert page.evaluate("() => document.activeElement === document.body")
+
+    # The On me sequence follows the same contract: the view opens on its first card.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, view="queue")
+    expect(page.locator(".lf-fp-on-item").first).to_be_focused()
+    expect(page.locator(CHIPS)).to_have_count(0)
+
+    # Replacing one view with another is lateral: Threads replaces On me while it
+    # stands, and the Escape out of Threads lands on the page rather than putting On me
+    # back.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, view="threads")
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+    assert page.evaluate("() => document.activeElement === document.body")
+
+    # Page Map stands over whatever the user already had, so closing it leaves On me
+    # where it was.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, view="queue")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
+    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(sheet).to_be_visible()
+    expect(
+        sheet.get_by_role(
+            "searchbox", name="Find an action, status or location in Page Map"
+        )
+    ).to_be_focused()
+    # Its accessible name does not add a second visible caption above the placeholder.
+    assert (
+        sheet.locator(".lf-page-map-search").evaluate(
+            "node => node.shadowRoot.querySelector('[part~=form-control-label]')"
+            ".getBoundingClientRect().height"
+        )
+        <= 1
+    )
+    page.evaluate(
+        """() => {
+          window.__lfPageMapClosed = false;
+          document.querySelector('dialog.lf-page-map-dialog').addEventListener(
+            'close',
+            () => { window.__lfPageMapClosed = true; },
+            {once: true},
+          );
+        }"""
+    )
+    page.keyboard.press("Escape")
+    page.wait_for_function("() => window.__lfPageMapClosed")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "queue")
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+
+    # Uppercase M opens the complete Page Map rather than the numbered prefix.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
+    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(sheet).to_be_visible()
+    expect(sheet.locator(".lf-page-map-group")).not_to_have_count(0)
+    expect(
+        sheet.get_by_role(
+            "searchbox", name="Find an action, status or location in Page Map"
+        )
+    ).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(sheet).to_be_hidden()
+
+    # A visible Margin entry shares the generated target map. Activating the hint
+    # opens the same thread preview as its marker. Each quoted passage in p1 stands its
+    # own entry, so the walk takes the first.
+    page.keyboard.press("g")
+    entries = page.locator(
+        f'{CHIPS}[data-lf-go-to-kind="Margin entry"][data-lf-go-to-target="p1"]'
+    )
+    expect(entries).to_have_count(2)
+    page.keyboard.type(entries.first.get_attribute("data-lf-hint-code"))
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-margin-thread .lf-page-thread")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+    # The hyperlinks, from the head of the page where both are on screen. A hint is centred on the
+    # corner a member starts at, which for an inline that wraps is the corner of its first
+    # line and not of its bounding box — those run the width of the column, so a digit
+    # route's visible start rather than on the inline's wide union box.
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
+    page.keyboard.press("g")
+    expect(page.locator(f'{CHIPS}[data-lf-go-to-kind="Link"]')).to_have_count(2)
+    assert page.evaluate(
+        """() => {
+             const links = [...document.querySelectorAll('#refs a[href]')];
+             const chips = links.map(link => document.querySelector(
+               `.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-target="${link.id}"]`));
+             return {wrapped: links[0].getClientRects().length > 1,
+                     on: chips.map((chip, i) => {
+                       const c = chip.getBoundingClientRect();
+                       const first = links[i].getClientRects()[0];
+                       return Math.abs(c.left + c.width / 2 - first.left) < 2
+                           && Math.abs(c.top + c.height / 2 - first.top) < 2;
+                     })};
+           }"""
+    ) == {
+        "wrapped": True,
+        "on": [True, True],
+    }, "a chip is not on the corner its link starts at"
+    page.keyboard.press("Escape")
+
+    # At the foot of the page neither hyperlink is visible, so neither receives a route.
+    page.evaluate(
+        "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
+    )
+    page.keyboard.press("g")
+    expect(page.locator(f'{CHIPS}[data-lf-go-to-kind="Link"]')).to_have_count(0)
+    page.keyboard.press("Escape")
+
+    # A resolved thread is the panel's state rather than an authored fold. Read of the
+    # document at large, `f` must not offer a digit for it.
+    append_carried_log_record(d, {"kind": "resolve", "author": "user", "parent": c3})
+    told(page)
+    expect_open_threads(page, 2)
+    expect(page.locator("details.lf-details")).to_have_count(0)
+    page.keyboard.press("g")
+    expect(page.locator(f'{CHIPS}[data-lf-go-to-kind="Fold"]')).to_have_count(0)
+    page.keyboard.press("Escape")
+
+    # The folds, and the one arrival that changes the page it arrives at. Every
+    # other member is reached through a reveal that opens the collapsed boxes on the way;
+    # here the box is the member, so that same reveal is the whole motion, and the user
+    # who wanted a section open has it open having asked once.
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
+    page.keyboard.press("g")
+    fold_code = address_code(page, "Fold", "dsc-head")
+    assert page.evaluate(
+        """() => {
+             const c = document.querySelector(
+               '.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-target="dsc-head"]')
+                        .getBoundingClientRect();
+             const first = document.getElementById('dsc-head').getClientRects()[0];
+             return Math.abs(c.left + c.width / 2 - first.left) < 2
+                 && Math.abs(c.top + c.height / 2 - first.top) < 2;
+           }"""
+    ), "the chip is not on the corner the summary starts at"
+    expect(page.locator("#dsc")).not_to_have_attribute("open", "")
+    page.keyboard.type(fold_code)
+    expect(page.locator("#dsc-head")).to_be_focused()
+    expect(page.locator("#dsc")).to_have_attribute("open", "")
+
+    # Located there, Enter and Space both toggle it, as a summary answers both.
+    page.keyboard.press("Enter")
+    expect(page.locator("#dsc")).not_to_have_attribute("open", "")
+    page.keyboard.press(" ")
+    expect(page.locator("#dsc")).to_have_attribute("open", "")
+
+    # A press a widget built joins the same namespace, declared by the constructor that
+    # made it rather than by an entry here. A pick spends no page letter of its own — the
+    # register holds capabilities, and a control is a route to one — so before this the
+    # only keyboard way to it was Tab. The arrival is the press, so the option is chosen.
+    page.evaluate(
+        """() => document.scrollingElement.scrollTo(
+             0, document.getElementById('opts-decision').offsetTop - 80)"""
+    )
+    page.keyboard.press("g")
+    controls = page.locator(f'{CHIPS}[data-lf-go-to-kind="Control"]')
+    expect(controls).not_to_have_count(0)
+    pick_code = page.evaluate(
+        """() => {
+             const mark = document.querySelector('#opt-a .lf-pick').getBoundingClientRect();
+             const chip = [...document.querySelectorAll(
+               '.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-kind="Control"]')]
+               .find(c => {
+                 const r = c.getBoundingClientRect();
+                 return Math.abs(r.left + r.width / 2 - mark.left) < 2
+                     && Math.abs(r.top + r.height / 2 - mark.top) < 2;
+               });
+             return chip ? chip.dataset.lfHintCode : null;
+           }"""
+    )
+    assert pick_code, "the pick mark the widget built got no Go-to hint"
+    page.keyboard.type(pick_code)
+    expect(page.locator("#opt-a")).to_have_attribute("chosen", "")
+
+    # The two completions that take no digit: an edge of the page is one place, so the
+    # second key completes the route — G glides to the bottom, g to the top.
+    foot = page.evaluate(
+        "() => document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight"
+    )
+    assert foot > 0, "the page must scroll for an edge to be a move at all"
+    page.keyboard.press("g")
+    # Shift spelled out: a bare press("G") synthesizes key "G" with no shift modifier,
+    # which a real keyboard cannot do, and the dispatcher rightly reads it as g.
+    page.keyboard.press("Shift+G")
+    page.wait_for_function(
+        "foot => Math.abs(document.scrollingElement.scrollTop - foot) < 1", arg=foot
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("g")
+    page.wait_for_function("() => document.scrollingElement.scrollTop === 0")
+
+    # A panel mnemonic completes the sequence directly wherever the user is on the page.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(threads.locator(".lf-fp-thread").first).to_be_focused()
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+
+    # Typing contexts are untouched: in a box, the whole sequence is text.
+    page.keyboard.press("c")
+    box = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    expect(box).to_be_focused()
+    page.keyboard.type("gc1")
+    expect(box).to_have_js_property("value", "gc1")
+    expect(box).to_be_focused()

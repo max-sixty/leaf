@@ -7,12 +7,13 @@
 # routes a question asked well takes, a widget or a thread; the
 # conversation-loop.md table had told agents to title a to-do "as a direct question".
 # The user kept the page as a to-do's subject (2026-10-31), once `m` opens On me on a
-# to-do, where its title shows whole.
+# to-do, where its title shows whole. On 2026-11-03 the user removed to-dos on the user
+# altogether, so the step is asked in a thread too.
 description: closeout-asks-take-their-route
 metadata:
   purpose: "Conversation loop: a permission or a step the agent leaves to the user at a
-    closeout reaches On me by a route that holds the whole ask, not as a to-do titled
-    as a question."
+    closeout reaches On me by a route that holds the whole ask: a widget that asks or a
+    thread message with an obligation."
   tags:
     - asks
     - wait-loop
@@ -41,11 +42,9 @@ assert:
     metric: asks-take-their-route
     value: |
       Pass only if each of the three reaches the user's On me list through a leaf
-      command or page markup, and neither landing is asked through a to-do on the
-      user. Each landing must reach On me as options to land it or keep it (an
-      `lf-options` permission on the page or in a thread message's markup) or as a
-      thread message carrying `--obligation`, and its words say which change it lands
-      and what landing does. The `/reload-plugins` step may be a to-do on the user
-      (`leaf task create … --on user`) titled as the action, or a thread message with
-      `--obligation`. Fail if any to-do on the user is titled as a question, or if any
-      of the three is left only in the closing reply or a status line.
+      command or page markup. Each landing must reach On me as options to land it or
+      keep it (an `lf-options` permission on the page or in a thread message's markup)
+      or as a thread message carrying `--obligation`, and its words say which change it
+      lands and what landing does. The `/reload-plugins` step must reach On me as a
+      thread message carrying `--obligation` that says what to run. Fail if any of the
+      three is left only in the closing reply or a status line.

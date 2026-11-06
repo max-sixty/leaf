@@ -12,10 +12,8 @@ from render_cases_interaction import SUGGESTION_PAGE
 from render_cases_navigation import JOURNEY_V1, SENTENCE
 from render_cases_widgets import MANIFEST_DIFF_PAGE, MULTI_HUNK_PATCH, TYPED_PARTS_PAGE
 from render_harness import (
-    EXAMPLES,
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     consume_browser_errors,
     holding,
@@ -38,7 +36,8 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf.render_checks import wait_until_ready
 from leaf.runtime_selection import serving_runtime
-from leaf_dev.example_data import patch_manifest
+from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -119,9 +118,11 @@ Two classic models.</pre></lf-code>
     expect(rows).to_have_count(3)
     # The comment on the code's words found them: its quote is no detached one.
     rows.filter(has_text="Still anchored?").click()
-    quote = page.locator(f"{PANEL_THREAD} .lf-fp-quote")
+    quote = page.locator(f"{PANEL_THREAD} .lf-thread-quote")
     expect(quote).to_be_visible()
-    expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(page.locator(f"{PANEL_THREAD} .lf-thread-quote-head")).not_to_have_attribute(
+        "data-lf-detached", ""
+    )
 
 
 def _asked(context):
@@ -159,12 +160,13 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     renders under, so a page with no such widget never asks for it, and the theme
     arrives once, through the document's `<link>`.
     """
-    example = next(p for p in EXAMPLES if p.stem == "triage-board")
+    example = named_source("triage-board")
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     asked = _asked(context)
     page = open_page(browser, serve(example), context=context)
 
-    modules = sorted(p for p in asked if p.startswith("/widgets/"))
+    # Compare widget entry modules, leaving their internal imports unconstrained.
+    modules = sorted(p for p in asked if p.startswith("/widgets/lf-"))
     assert modules == [
         "/widgets/lf-activity.js",
         "/widgets/lf-board.js",
@@ -478,7 +480,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     already connected. The board is served first with no options anywhere on it, so
     the module can only have arrived because the reply asked for it.
     """
-    example = next(p for p in EXAMPLES if p.stem == "triage-board")
+    example = named_source("triage-board")
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     asked = _asked(context)
     page = open_page(browser, serve(example), context=context)
@@ -542,11 +544,12 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
             ),
         ),
         serve(LONG_PAGE),
+        upgraded=False,
     )
+    # The editor preloads Markdown after presentation. Waiting for arrival would
+    # wait on the very request this test releases after arranging the state race.
+    wait_until_ready(page, through="presented")
     open_threads(page)
-    page.evaluate(
-        "() => { window.__lfWidgetApi().then((markdown) => markdown.loadMarkdown()); }"
-    )
     holding(page, marked, 1, "the Markdown module")
     assert len(marked) == 1
 
@@ -614,6 +617,8 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     context.route("**/leaf-boot.js", boot_after_one_frame)
     page = open_page(browser, url, context=context)
     assert page.evaluate("window.apiImportedBeforeBoot") is True
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).click()
     round_trip(page)
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")

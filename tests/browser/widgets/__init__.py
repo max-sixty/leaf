@@ -5,7 +5,13 @@ import re
 
 from playwright.sync_api import expect
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
-from render_harness import PANEL, leaf_page, open_page, panel_field, panel_menu
+from render_harness import (
+    close_panel_menu,
+    leaf_page,
+    open_page,
+    panel_field,
+    panel_menu,
+)
 
 from leaf import data as data_model
 
@@ -22,19 +28,13 @@ def expect_accept_all(page, count):
     """Read the leaf's menu offering Accept all for `count` pending suggestions, enabled,
     then put the menu away; `count` 0 reads no such row at all."""
     menu = panel_menu(page)
-    row = menu.locator('.lf-fp-item[data-row="blanket:accept"]')
+    row = menu.locator('.lf-fp-item[data-lf-row="blanket:accept"]')
     if count:
         expect(row).to_be_enabled()
         expect(row).to_contain_text(f"Accept all ({count})")
     else:
         expect(row).to_have_count(0)
-    put_menu_away(page)
-
-
-def put_menu_away(page):
-    """Close the leaf's menu by its leaf, which keeps the focus the press gave it."""
-    page.locator(".lf-fp-leaf").click()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
+    close_panel_menu(page)
 
 
 def observe_live_region(page):
@@ -68,19 +68,19 @@ PLAYGROUND_PAGE = leaf_page(
 <lf-ask id="card-playground-ask">
   <h2>How should the card look?</h2>
   <lf-playground id="card-playground">
-    <lf-playground-control name="radius" label="Corner radius" kind="range"
+    <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range"
       value="12" min="0" max="28" step="1" unit="px"></lf-playground-control>
-    <lf-playground-control name="compact" label="Compact spacing" kind="toggle"
+    <lf-playground-control id="compact" name="compact" label="Compact spacing" kind="toggle"
       value="false"></lf-playground-control>
-    <lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">
-      <lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>
-      <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
+    <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
+      <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
+      <lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>
     </lf-playground-control>
-    <lf-playground-control name="accent" label="Accent" kind="color"
+    <lf-playground-control id="accent" name="accent" label="Accent" kind="color"
       value="#4f766f"></lf-playground-control>
-    <lf-playground-control name="title" label="Title" kind="text"
+    <lf-playground-control id="title" name="title" label="Title" kind="text"
       value="Field note" placeholder="Card title"></lf-playground-control>
-    <lf-playground-preset label="Dense">
+    <lf-playground-preset id="preset-dense" label="Dense">
       <lf-playground-setting for="radius" value="4"></lf-playground-setting>
       <lf-playground-setting for="compact" value="true"></lf-playground-setting>
       <lf-playground-setting for="tone" value="bold"></lf-playground-setting>

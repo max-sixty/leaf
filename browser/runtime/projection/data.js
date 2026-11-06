@@ -8,7 +8,7 @@
 
    A widget whose tag declares `x-data` names the items it drew from its bound value
    with plain attributes, and Leaf stamps them (`projectMarked`) once the widget
-   reports the value it drew (leaf-element.js, "Bound values"):
+   reports the value it drew (element-data.js, "Bound values"):
 
    - `data-lf-datum`, the key: a non-empty string unique within the seat, which core
      never interprets;
@@ -35,13 +35,17 @@
    This identity contract is experimental and open to change as more producers establish
    what persists through a replacement.
 
-   A selection wholly inside a derived datum captures `{section, datum, quote}`. A datum
+   A selection wholly inside a derived datum captures `{section, datum, quote}`, with a
+   `prefix` and `suffix` read from the datum's own words, never its neighbours', and
+   detaches where those can't tell the quote from another copy in the datum. A datum
    projected from a bound input also captures `{source, source_revision}`. A datum whose
    emitter supplies an identity follows that subject across value replacements, even if
    its rendering key changes. Other keys may name locations within one value, so their
    placements remain pinned to the captured revision. If the original words
    still stand, Leaf marks them. If their display changes, Leaf outlines the same datum
-   and keeps the old quote in the thread. A different source makes the placement
+   and keeps the old quote in the thread, where the quote was all of the datum's words;
+   a passage within a datum, captured with words of it around the quote, stands nowhere
+   on the page once its words are gone. A different source makes the placement
    outdated; a duplicate key detaches rather than guessing. Selections crossing datum
    boundaries remain ordinary quote anchors because they name a passage, not one fact.
 
@@ -64,6 +68,7 @@ import { registry } from "../registry.js";
 import { reachScrollers } from "../reach.js";
 import { composedParentNode, shadowRootsIn } from "../shadow.js";
 import { keeps } from "../keeps.js";
+import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 
 // The nodes a projection stamped under its root, in the trees that hold the page's
 // words: the ones anchor resolution can find (`pageQueryAll`), so what a replacement
@@ -155,7 +160,7 @@ export function createDataProjection({ invalidateDom }) {
   }
 
   /** Stamp the items a widget marked under `root` with the snapshot that supplied the
-   *  value it drew, or null for words no bound value supplied; leaf-element.js has
+   *  value it drew, or null for words no bound value supplied; element-data.js has
    *  matched the value to the snapshot.
    *  @param {Element} root @param {import("../data.js").DataSnapshot | null} snapshot */
   function projectMarked(root, snapshot) {
@@ -168,6 +173,7 @@ export function createDataProjection({ invalidateDom }) {
       keeps(node, "data-lf-source-revision", snapshot?.revision ?? null);
     };
     stampBasis(root);
+    keeps(root, PAGE_PAINT_ATTRIBUTE.drawReported, "");
     const projected = projectedDescendants(root);
     const keys = new Set();
     const identities = new Set();

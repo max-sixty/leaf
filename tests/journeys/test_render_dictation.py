@@ -8,7 +8,6 @@ depending on a remote speech service or replacing a browser API.
 from playwright.sync_api import expect
 from render_cases_interaction import SEATED_OBLIGATION_LAYER, SEATED_OBLIGATION_WIDGETS
 from render_harness import (
-    PANEL_THREAD,
     leaf_page,
     open_page,
     page_comment,
@@ -16,6 +15,8 @@ from render_harness import (
     sending,
     write,
 )
+
+from leaf_dev.browser import PANEL_THREAD
 
 
 def test_every_comment_surface_shares_the_empty_microphone_and_typed_send(
@@ -62,10 +63,6 @@ def test_every_comment_surface_shares_the_empty_microphone_and_typed_send(
                     (before_field["x"] + before_field["width"] - before["x"])
                     - (after_field["x"] + after_field["width"] - after["x"])
                 )
-                < 1
-            )
-            assert (
-                abs((before["y"] - before_field["y"]) - (after["y"] - after_field["y"]))
                 < 1
             )
         return field

@@ -58,7 +58,7 @@
   </head>
   <body>
     <main id="motion-page">
-      <lf-ask id="motion-question" data-width="available">
+      <lf-ask id="motion-question">
         <p class="eyebrow">Panel motion</p>
         <h1>How should the panel move?</h1>
         <p>
@@ -75,12 +75,14 @@
             >
               <div id="panel-candidates">
                 <lf-playground-control
+                  id="timing"
                   name="timing"
                   label="Panel timing"
                   kind="choice"
                   value="260 ms with cubic-bezier(.3, .7, .3, 1)"
                 >
                   <lf-playground-choice
+                    id="timing-original"
                     value="the original recorded 300 ms timing"
                     label="Keep the original timing"
                   >
@@ -108,6 +110,7 @@
                     </div>
                   </lf-playground-choice>
                   <lf-playground-choice
+                    id="timing-crisp"
                     value="220 ms with cubic-bezier(.23, 1, .32, 1)"
                     label="Make it crisp"
                   >
@@ -135,6 +138,7 @@
                     </div>
                   </lf-playground-choice>
                   <lf-playground-choice
+                    id="timing-balanced"
                     value="260 ms with cubic-bezier(.3, .7, .3, 1)"
                     label="Make it balanced"
                   >
@@ -163,6 +167,7 @@
                     </div>
                   </lf-playground-choice>
                   <lf-playground-choice
+                    id="timing-glide"
                     value="280 ms with cubic-bezier(.4, 0, .2, 1)"
                     label="Give it a glide"
                   >

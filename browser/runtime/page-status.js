@@ -15,7 +15,8 @@ import { announce } from "./notifications.js";
 import { effect, signal, untracked } from "/runtime/framework.js";
 import { agentName, readPart } from "./semantic-state.js";
 import { UPGRADE } from "./presentation.js";
-import { readQueues } from "./queue-api.js";
+import { onUserCount, readQueues } from "./queue-api.js";
+import { paintTabTitle } from "./tab-title.js";
 import { holdingError } from "./errors.js";
 
 // ---------- status ----------
@@ -117,7 +118,7 @@ export async function loadIcon() {
 let tone = "";
 function paintTab() {
   if (!iconMark || !toneProbe.isConnected) return;
-  keeps(toneProbe, "class", tone ? `lf-dot ${tone}` : "lf-dot");
+  keeps(toneProbe, "data-lf-tone", tone || null);
   // Written only on change: an unchanged poll must not hand the browser its icon again
   // every two seconds.
   keeps(
@@ -170,6 +171,11 @@ export function mountPageStatus() {
   effect(() => {
     const current = currentStatus();
     untracked(() => paintStatus(current));
+  });
+  // The count follows the same reading as the panel's badge (tab-title.js).
+  effect(() => {
+    const count = onUserCount();
+    untracked(() => paintTabTitle(count));
   });
   document.addEventListener(
     UPGRADE,

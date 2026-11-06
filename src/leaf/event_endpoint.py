@@ -6,7 +6,6 @@ they mean once it has them, is `event_contracts.append_admitted` — the one doo
 this endpoint shares with every other writer.
 """
 
-from collections.abc import Callable
 from pathlib import Path
 
 from .event_contracts import (
@@ -16,6 +15,7 @@ from .event_contracts import (
 )
 from .event_log import AttemptConflict
 from .findings import Finding
+from .forks import held_inputs
 from .harness import claim_harness
 from .presence import nudge_unwatched
 from .refusals import Refused
@@ -25,7 +25,6 @@ from .service import PageTransaction, requires_agent_attention
 from .thread_titles import name_admitted_thread
 
 EventAnswer = tuple[int, dict]
-StateReader = Callable[[], dict]
 
 
 def event_rejection(event: dict, refusal: Refused, status: int = 400) -> EventAnswer:
@@ -47,16 +46,28 @@ def event_fault(event: dict, error: str) -> EventAnswer:
     return 500, body
 
 
-def accept_event(
-    page_dir: Path,
-    event: dict,
-    state: StateReader,
-) -> EventAnswer:
-    """Validate and append one browser record, then return its current state."""
-    status, answer = _receive_event(page_dir, event)
-    # Admission has released its transaction before this reader takes a fresh one.
-    # A refusal also restores the tab from current truth, including other tabs' updates.
-    return status, {**answer, "state": state()}
+def accept_event(page_dir: Path, event: dict) -> EventAnswer:
+    """Validate and append one browser record. An acceptance names the event the log
+    holds for it; the transport adds the state that shows it (`with_state`)."""
+    return _receive_event(page_dir, event)
+
+
+def with_state(answer: dict, state: dict, sent: dict) -> dict:
+    """`answer` with the page's state, `state` whole and `sent` as the tab is sent it.
+
+    The state is read after admission has released its transaction, and a refusal
+    carries it too, which restores the tab from current truth, other tabs' updates
+    included. An acceptance also says whether the event owes the agent an answer: its
+    update stands among those the agent owes (`obligations.update_obligation`), which
+    a reader such as leaf.page's Worker, starting the hosted agent's turn, takes from
+    here rather than from the state, which may come as changes."""
+    if answer["ok"]:
+        answer = {
+            **answer,
+            "needs_reply": f"update:{answer['event']['id']}"
+            in state["activity"]["obligations"],
+        }
+    return {**answer, "state": sent}
 
 
 def _receive_event(page_dir: Path, event: dict) -> EventAnswer:
@@ -113,8 +124,12 @@ def _execute_event(
             return event_rejection(event, error)
         if appended:
             claim = page.active_claim
-            # Input that asks for the agent reaches it even when no watcher will.
-            if requires_agent_attention(admitted):
+            # Input that asks for the agent reaches it even when no watcher will,
+            # unless a fork of its conversation is deciding on it, whose hand-over
+            # nudges in its place (`forks`).
+            if requires_agent_attention(admitted) and admitted["id"] not in held_inputs(
+                page
+            ):
                 nudge_unwatched(page)
             if event["kind"] in kinds_declaring("message") and claim:
                 spoken = admitted["id"], claim
@@ -124,4 +139,4 @@ def _execute_event(
     # the page's lock, so it starts once the lock is given back.
     if spoken and (generate := claim_harness(spoken[1]).title_generator()):
         name_admitted_thread(generate, page_dir, spoken[0], spoken[1]["id"])
-    return 200, {"ok": True}
+    return 200, {"ok": True, "event": admitted}

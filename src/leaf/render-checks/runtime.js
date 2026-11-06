@@ -2,6 +2,7 @@ import {
   USER_VIEW_RESTORE_CASES,
   scrolling,
   exceptionText,
+  upFrom,
 } from "/runtime/check-api.js";
 import { readThreads, threadActions } from "/runtime/widget-api.js";
 import { at } from "./locate.js";
@@ -13,38 +14,54 @@ export const runtimeStarted = () =>
 export const upgraded = () => document.body.dataset.lfUpgraded === "1";
 
 // Finite animations delay final geometry reads. Infinite ambient animation, such as the
-// status indicator, does not. `moving` is the render gate's shared reading of that
+// status indicator, does not. `finiteMotion` is the render gate's shared reading of that
 // boundary. A component that animates forever must not appear in it; a state transition
 // that can still change boxes must. One on an element the page doesn't render changes
 // no box, and Firefox never starts it: a colour transition the scheme starts on a
-// control inside a closed `<details>` stays pending until the details open.
-export function moving() {
-  return openRoots(document)
+// control inside a closed `<details>` stays pending until the details open. A
+// scroll-driven animation, such as the contents map's lens, has no end in time, and a
+// paused one isn't running, so neither is in it.
+const finiteMotion = () =>
+  openRoots(document)
     .flatMap((root) => root.getAnimations())
-    .flatMap((animation) => {
+    .filter((animation) => {
       const effect = animation.effect;
       if (
         animation.playState !== "running" ||
         !Number.isFinite(effect?.getComputedTiming().endTime)
       )
-        return [];
+        return false;
       const target = effect instanceof KeyframeEffect ? effect.target : null;
-      if (target?.checkVisibility() === false) return [];
-      const name = animation instanceof CSSAnimation ? animation.animationName : "";
-      return [name ? `${at(target)} ${name}` : at(target)];
+      return target?.checkVisibility() !== false;
     });
+
+export const moving = () =>
+  finiteMotion().map((animation) => {
+    const effect = animation.effect;
+    const target = effect instanceof KeyframeEffect ? effect.target : null;
+    const name = animation instanceof CSSAnimation ? animation.animationName : "";
+    return name ? `${at(target)} ${name}` : at(target);
+  });
+
+// A resize can set the page moving where a load at that size would not: a value the
+// new width's rules change eases from the value the old width set. A load's reading
+// waits its motion out (`pageSettled`); the gate's sweep finishes what a resize started
+// instead, which ends on the same page, and says how many it finished.
+export function finishMoving() {
+  const motion = finiteMotion();
+  for (const animation of motion) animation.finish();
+  return motion.length;
 }
 
 // The page is settled once nothing is moving: no finite animation, and no scroll in
-// flight, such as a landing's smooth glide, which is no animation and moves every box
-// it scrolls. The runtime's reading of scrolls starts with its first call, so the
-// probes take one as they load, before any input they wait out.
-scrolling();
+// flight, such as a landing's glide, which is no animation and moves every box it
+// scrolls.
 export const pageSettled = () => moving().length === 0 && !scrolling();
 export const userViewRestoreCases = () => USER_VIEW_RESTORE_CASES;
 
 const formControl = (/** @type {Element} */ node) =>
-  customElements.get(node.localName)?.formAssociated === true;
+  node.ownerDocument.defaultView?.customElements.get(node.localName)?.formAssociated ===
+  true;
 
 // Where a node Chrome raised a DevTools issue about is, and whether the page owns it.
 // A form-associated control's shadow tree is its module's implementation, so an issue
@@ -54,16 +71,14 @@ export function issueNode(initial) {
   /** @type {Node | null} */
   let node = initial;
   let owned = true;
-  for (
-    let root = node.getRootNode();
-    root instanceof ShadowRoot;
-    root = root.host.getRootNode()
-  )
-    if (formControl(root.host)) owned = false;
+  // Roots and custom-element definitions belong to the node's own window.
+  for (let host = upFrom(node.getRootNode()); host; host = upFrom(host.getRootNode()))
+    if (formControl(host)) owned = false;
   // Read ownership before placing an embedded document's issue at the frame
   // the page author can find. Cross-origin frames withhold that element.
   const view = (/** @type {Node} */ n) =>
-    (n instanceof Document ? n : n.ownerDocument)?.defaultView;
+    (n.nodeType === n.DOCUMENT_NODE ? /** @type {Document} */ (n) : n.ownerDocument)
+      ?.defaultView;
   while (node && view(node) !== globalThis.top) node = view(node)?.frameElement ?? null;
   if (!node) return null;
   return { at: at(node), owned };

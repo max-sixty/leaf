@@ -16,22 +16,17 @@ from datetime import datetime
 
 import click
 
-from leaf_dev.commands.journey import CASES, samples_path
+from leaf_dev.commands.journey import CASES, HARNESS_TARGETS, samples_path
 
-# Exact-input milestones on the page server's clock, from comment admission.
+# The milestones the chart draws (`response_times.page_timings`), on the page
+# server's clock from the comment's admission.
 SIGNS = (
-    ("title", "sinceAdmissionMs", "titled", "var(--series-2)"),
-    ("picked up", "sinceAdmissionMs", "pickedUp", "var(--series-5)"),
-    ("work started", "sinceAdmissionMs", "started", "var(--series-1)"),
-    ("progress", "sinceAdmissionMs", "progress", "var(--series-4)"),
-    ("reply", "sinceAdmissionMs", "replied", "var(--series-3)"),
+    ("title", "titled", "var(--series-2)"),
+    ("picked up", "opened", "var(--series-5)"),
+    ("work started", "started", "var(--series-1)"),
+    ("progress", "progress", "var(--series-4)"),
+    ("reply", "answered", "var(--series-3)"),
 )
-TARGET_NAMES = {
-    "claude-code": "Claude Code",
-    "codex-app-server": "Codex App Server",
-    "codex-queue": "Codex queue",
-    "pi": "Pi",
-}
 TICKS = (0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500)
 # Plot sizes no margin to its labels: about this many px a character at its font.
 LABEL_PX = 5.5
@@ -40,22 +35,24 @@ LABEL_PX = 5.5
 def chart_target(sample: dict) -> str:
     """What a chart row names: the target, with the options it ran under and its
     user's end where that is not a browser."""
+    harness = HARNESS_TARGETS.get(sample["target"])
     return (
-        TARGET_NAMES.get(sample["target"], sample["target"])
+        (sample["target"] if harness is None else harness.title)
         + (" through a preview" if sample.get("preview") else "")
+        + (" with forks" if sample.get("forks") else "")
         + (" over HTTP" if sample.get("userEnd") == "http" else "")
     )
 
 
 def latest(samples: list[dict]) -> list[dict]:
     """The samples of the latest version each chart row's target ran in each case.
-    Samples kept before the journey ran its steps (`steps`) are left out: their
-    targets had other names, and their Claude Code ran headless."""
+    Samples kept before the journey read its milestones as `response-times` does
+    (`milestones`) are left out."""
 
     def row(sample: dict) -> tuple[str, str]:
         return chart_target(sample), sample.get("case", "waiting")
 
-    samples = [sample for sample in samples if "steps" in sample]
+    samples = [sample for sample in samples if "milestones" in sample["comment"]]
     versions = {row(sample): sample["version"] for sample in samples}
     return [s for s in samples if s["version"] == versions[row(s)]]
 
@@ -68,7 +65,8 @@ def chosen(samples: list[dict], since: datetime | None) -> list[dict]:
     return [
         sample
         for sample in samples
-        if "steps" in sample and datetime.fromisoformat(sample["at"]) >= since
+        if "milestones" in sample["comment"]
+        and datetime.fromisoformat(sample["at"]) >= since
     ]
 
 
@@ -178,9 +176,11 @@ def chart_rows(samples: list[dict], since: datetime | None = None) -> list[dict]
             " after a permission prompt" if sample["comment"].get("approved") else ""
         )
         row = f"{name}{prompted} at {version}"
-        for sign, clock, step, _ in SIGNS:
-            if (ms := sample["comment"][clock].get(step)) is not None:
-                rows.append({"row": row, "sign": sign, "s": round(ms / 1000, 2)})
+        for sign, key, _ in SIGNS:
+            if milestone := sample["comment"]["milestones"].get(key):
+                rows.append(
+                    {"row": row, "sign": sign, "s": round(milestone["elapsed_s"], 2)}
+                )
     return rows
 
 
@@ -239,11 +239,18 @@ def journey_chart(replies: bool, since: datetime | None) -> None:
     """Print an `lf-chart` of recorded delivery and work milestones, for
     the latest code version each target ran in this machine's kept samples."""
     path = samples_path()
-    if not path.exists():
-        raise click.ClickException(f"no samples kept in {path}; run `leaf-dev journey`")
     if since is not None and since.tzinfo is None:
         raise click.BadParameter("give a time zone, as in 2026-10-20T18:10-07:00")
-    samples = [json.loads(line) for line in path.read_text().splitlines()]
+    samples = (
+        [json.loads(line) for line in path.read_text().splitlines()]
+        if path.exists()
+        else []
+    )
+    if not chosen(samples, since):
+        kept = f" kept since {since.isoformat()}" if since is not None else ""
+        raise click.ClickException(
+            f"{path} holds no sample with milestones{kept}; run `leaf-dev journey`"
+        )
     print(
         reply_table(samples, since)
         if replies

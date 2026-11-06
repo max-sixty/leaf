@@ -48,9 +48,10 @@
 // children joining in its place, as the working message does to the answer. A
 // scrollport that grows at its foot by no more than that growth, as a floating card
 // sized to its thread does, is stationary for this: it keeps its other edges. One that declares it stands on its
-// foot (`data-lf-rises`), as the floating panel's thread view stands on its row, may
-// instead rise at its head by no more than that growth, carrying all it holds, and its
-// own head, up by its rise: the one case where news may carry controls (`appendGrowth`).
+// foot (`data-lf-rises`), as the floating panel's thread view stands on its row and
+// a margin card on the edge it holds, may instead rise at its head by no more than
+// that growth, carrying all it holds, and its own head, up by its rise: the one case
+// where news may carry controls (`appendGrowth`).
 // Layout coordinates remove scrolling; sticky descendants retain their
 // mechanical scroller's ownership. Portals with one unique anchor, in their tree or
 // inside the `anchor-scope` that limits its name, and a direct native anchor inset,
@@ -130,21 +131,22 @@
 // last complete reading and its population instead of reading every node again.
 // Every passive verdict starts from a layout-shift entry, and an entry, whether the
 // observer hears it or a paint checkpoint takes it, makes the reading that judges
-// it complete: every node is read, and the entry's paint is read then where the
-// following frame kept an unchanged reading, unless a later input already makes
-// that endpoint ambiguous. So whatever moved a landmark without input, its verdict
-// compares complete readings. Announcements keep the readings between entries
-// current, which input ownership and typing's verdicts rest on: a frame reads
-// completely when a change was announced since the last complete reading, and on
-// the frame after one that read an announced change, since native anchoring
-// follows its scroller a frame late. Each announcement is made in the task of the
-// change it covers: DOM writes in the document and every shadow root; a running
-// animation anywhere in the composed tree, or one that stopped or left the set,
-// except a scroll-driven one, which moves only as the scroll and layout announced
-// here move it; input, focus, scroll, drag, resize, load, reset and beforetoggle
-// events; the emulated media tests change; this frame's own visibility; and the
-// calls that restyle without a DOM write (custom states, constructed and adopted
-// sheets, form-control values and ranges, animation mutators). A child cannot
+// it complete: every node outside skipped content is read, and the entry's paint is
+// read then where the following frame kept an unchanged reading, unless a later
+// input already makes that endpoint ambiguous. So whatever moved a landmark
+// without input, its verdict compares complete readings. Announcements keep the
+// readings between entries current, which input ownership and typing's verdicts
+// rest on: a frame reads completely when a change was announced since the last
+// complete reading, and on the frame after one that read an announced change, since
+// native anchoring follows its scroller a frame late. Each announcement is made in
+// the task of the change it covers: DOM writes in the document and every shadow
+// root; a running animation anywhere in the composed tree, or one that stopped or
+// left the set, except a scroll-driven one, which moves only as the scroll and
+// layout announced here move it; input, focus, scroll, drag, resize, load, reset,
+// beforetoggle and contentvisibilityautostatechange events; the emulated media tests
+// change; this frame's own visibility; and the calls that restyle without a DOM
+// write (custom states, constructed and adopted sheets, form-control values and
+// ranges, animation mutators). A child cannot
 // observe every change in its embedding page, so child-frame readings remain
 // complete. Every
 // VERIFY-th unannounced frame, and the first one once the fixture asks for the test's
@@ -153,6 +155,19 @@
 // leaving the readings between entries stale. A page that writes while it is read
 // announces its change by that write. A change to this gate runs the suite with
 // VERIFY = 1, which checks every frame.
+//
+// Skipped content. The browser draws nothing in the content it skips (`skipped`,
+// shadow-tree.js): a shut tab's panel, a closed disclosure's content, the contents of
+// an off-screen `content-visibility: auto` box. Nothing there can move on screen, and
+// asking any box there for its style or rect makes the browser style and lay out the
+// whole skipped subtree first. So a complete reading leaves skipped content out, as
+// the runtime's own readings do. On the feature gallery, whose shut tabs hold most of
+// its nodes, reading them was more than half of the sensor's work. A node the last
+// reading read while it was drawn gets one more reading, the one that sees it go, so
+// a fold that shrinks and moves into closed history in one task still credits the
+// boxes its shrinking carried. A node is read again from the frame it is drawn again:
+// a DOM write or a `contentvisibilityautostatechange` reveals it, and both are
+// announcements.
 //
 // Unpresented frames. Until the runtime stamps `data-lf-presented`, movement without
 // input is exempt (Scope: the page before it presents). While such a page is still
@@ -256,7 +271,7 @@
   // whose targets are in shadow trees, so each connected shadow root adds its own.
   const allAnimations = () => [
     ...new Set(
-      [document, ...[...roots].filter((root) => root.host.isConnected)].flatMap(
+      [document, ...[...eachRoot()].filter((root) => root.host.isConnected)].flatMap(
         (tree) => tree.getAnimations(),
       ),
     ),
@@ -328,6 +343,10 @@
     condition instanceof CSSMediaRule
       ? matchMedia(condition.conditionText).matches
       : CSS.supports(condition.conditionText);
+  // Chrome's CSSOM reports a longhand that only an important `all` sets as
+  // normal, and keeps its importance on `all` alone.
+  const priority = (style, property) =>
+    style.getPropertyPriority(property) || style.getPropertyPriority("all");
   // An inline inset loses only to an important rule, so a box with one reads those
   // alone: the comment box's placer writes its insets on every frame it moves.
   const declaredRules = (node, property, importantOnly) => {
@@ -339,8 +358,7 @@
     ])
       for (const { rule, conditions } of rulesStating(sheet, property)) {
         const value = rule.style.getPropertyValue(property);
-        if (!value || (importantOnly && !rule.style.getPropertyPriority(property)))
-          continue;
+        if (!value || (importantOnly && !priority(rule.style, property))) continue;
         if (!conditions.every(holds)) continue;
         let matches = false;
         try {
@@ -349,9 +367,7 @@
           // A selector `matches` cannot take, such as a pseudo-element's.
         }
         if (matches)
-          found[rule.style.getPropertyPriority(property) ? "important" : "normal"].push(
-            value,
-          );
+          found[priority(rule.style, property) ? "important" : "normal"].push(value);
       }
     return found;
   };
@@ -360,7 +376,7 @@
   // every candidate in the winning tier must name the same animated variable.
   const declaredValues = (node, property) => {
     const inline = node.style.getPropertyValue(property);
-    if (inline && node.style.getPropertyPriority(property)) return [inline];
+    if (inline && priority(node.style, property)) return [inline];
     const rules = declaredRules(node, property, Boolean(inline));
     return rules.important.length ? rules.important : inline ? [inline] : rules.normal;
   };
@@ -371,7 +387,7 @@
     if (target && keys.length) {
       const trees = [
         target,
-        ...[...roots].filter((root) => {
+        ...[...eachRoot()].filter((root) => {
           for (let at = root.host; at; at = up(at)) if (at === target) return true;
           return false;
         }),
@@ -490,8 +506,7 @@
   };
   const anchoredInset = (node, style, property, axis) => {
     const inline = node.style.getPropertyValue(property);
-    if (inline && node.style.getPropertyPriority(property))
-      return anchorInset(inline, axis);
+    if (inline && priority(node.style, property)) return anchorInset(inline, axis);
     if (!style.positionAnchor.startsWith("--"))
       return inline ? anchorInset(inline, axis) : false;
     const candidates = declaredValues(node, property);
@@ -740,12 +755,27 @@
       return clear.call(this);
     },
   });
-  // Every shadow root, a closed one included, so a reading reaches every element.
-  const roots = new Set();
+  // Every shadow root, a closed one included, so a reading reaches every element. Held
+  // weakly: a tree the page let go of goes with it, so the watch keeps nothing alive
+  // that a count of what the page retains (`live_counts`) would read as its leak.
+  const rootRefs = new Set();
+  const knownRoots = new WeakSet();
+  const addRoot = (root) => {
+    knownRoots.add(root);
+    rootRefs.add(new WeakRef(root));
+  };
+  // Live iteration, so a root added while it runs is visited too.
+  function* eachRoot() {
+    for (const ref of rootRefs) {
+      const root = ref.deref();
+      if (root) yield root;
+      else rootRefs.delete(ref);
+    }
+  }
   const attachShadow = Element.prototype.attachShadow;
   Element.prototype.attachShadow = function (init) {
     const root = attachShadow.call(this, init);
-    roots.add(root);
+    addRoot(root);
     watchTree(root);
     announce();
     return root;
@@ -790,18 +820,23 @@
     }
     return readings;
   };
+  // "Skipped content" above: the nodes the last complete reading read while they were
+  // drawn, and the skipped nodes the current population holds for the reading that
+  // sees them go.
+  const readDrawn = new WeakSet();
+  let leaving = new Set();
   const everything = () => {
     const nodes = [...document.querySelectorAll("*")];
     // The HTML parser creates declarative roots without calling attachShadow.
     // Discover them in the same traversal that records their rendered ancestors.
     const discover = (node) => {
-      if (node.shadowRoot && !roots.has(node.shadowRoot)) {
-        roots.add(node.shadowRoot);
+      if (node.shadowRoot && !knownRoots.has(node.shadowRoot)) {
+        addRoot(node.shadowRoot);
         watchTree(node.shadowRoot);
       }
     };
     nodes.forEach(discover);
-    for (const root of roots)
+    for (const root of eachRoot())
       if (root.host.isConnected) {
         const children = [...root.querySelectorAll("*")];
         children.forEach(discover);
@@ -815,7 +850,39 @@
           !node.matches("script, style"),
       ),
     );
-    return [...nodes.filter((node) => !cameraNodes.has(node)), ...words];
+    const drawnNow = new Map();
+    const isDrawn = (element) => {
+      if (!drawnNow.has(element))
+        drawnNow.set(element, element.checkVisibility({ contentVisibilityAuto: true }));
+      return drawnNow.get(element);
+    };
+    // An element under one that is not drawn either stands in whatever that one stands
+    // in, so `skipped` is asked only where drawing stops.
+    const standsInSkipped = new Map();
+    const inSkipped = (element) => {
+      if (!standsInSkipped.has(element)) {
+        const parent = up(element);
+        standsInSkipped.set(
+          element,
+          !isDrawn(element) &&
+            (parent instanceof Element && !isDrawn(parent)
+              ? inSkipped(parent)
+              : skipped(element)),
+        );
+      }
+      return standsInSkipped.get(element);
+    };
+    leaving = new Set();
+    const kept = (node, element) => {
+      if (!inSkipped(element)) return true;
+      if (!readDrawn.has(node)) return false;
+      leaving.add(node);
+      return true;
+    };
+    return [
+      ...nodes.filter((node) => !cameraNodes.has(node) && kept(node, node)),
+      ...words.filter((word) => kept(word, up(word))),
+    ];
   };
   // Each frame keeps its node population; geometry and paint evidence keep changes
   // only. Later hiding, clipping, reparenting or removal cannot erase a sampled box.
@@ -1266,6 +1333,9 @@
     )
       misses.push([null, ["population"]]);
     held = nodes;
+    for (const node of nodes)
+      if (leaving.has(node)) readDrawn.delete(node);
+      else readDrawn.add(node);
     const anchors = new Map();
     for (const node of nodes.filter((node) => node instanceof Element)) {
       const tree = node.getRootNode();
@@ -1872,7 +1942,8 @@
     if (
       aim.event.type === "keydown" &&
       (!aim.event.defaultPrevented ||
-        (caretKeys.includes(aim.event.key) && window.lfInputs?.typesText(aim.node)))
+        (caretKeys.includes(aim.event.key) &&
+          Reflect.get(window, Symbol.for("leaf.inputs"))?.typesText(aim.node)))
     ) {
       rendering.aim = null;
       return;
@@ -2198,14 +2269,17 @@
   // every other edge, and counts as stationary.
   //
   // A scrollport that declares it stands on its foot (`data-lf-rises`), as the floating
-  // panel's thread view stands on its row, instead rises at its head as it grows with
+  // panel's thread view stands on its row and a margin card on the edge it holds
+  // (thread-preview.js), instead rises at its head as it grows with
   // that growth, by no more than it, keeping its other edges. Its holdings are then
   // read from its head, which carries them all up by its rise, and so does every box
   // standing on its foot with it (its stand): what stands in that stand above the
   // scrollport, such as the view's name, rises with it by the same distance and no
-  // more. This is the one place news may carry what is read without a gesture
-  // (the user's choice, recorded at `fitAnswer` in `floating-panel.js`: an answer the
-  // user waits for grows the panel's thread view).
+  // more. This is the one place news may carry what is read without a gesture (the
+  // user's choices, recorded at `answersAtOnce` in `floating-panel.js`, where an answer
+  // the user waits for grows the panel's thread view, and in thread-preview.js's header,
+  // where news lifts a margin card's head as it holds its foot or rises beside its
+  // subject).
   const appendGrowth = (around) => {
     if (around.length !== 3) return [];
     const first = around[0].at,
@@ -2508,7 +2582,14 @@
         containing = style.block;
       }
     }
-    return { paintable: true, visible: right > left && bottom > top };
+    const visible = right > left && bottom > top;
+    // What the node paints, which a clipping ancestor such as an ellipsis's box cuts:
+    // the glyphs past it are not painted, so they cannot leave a region.
+    return {
+      paintable: true,
+      visible,
+      painted: visible ? { left, top, right, bottom } : rect,
+    };
   };
   // Chrome signals a changed painted frame; actual reading/control geometry decides
   // motion. A container can grow at one edge while all protected landmarks stand.
@@ -2865,7 +2946,11 @@
       if (next === after) return true;
     return false;
   };
-  const sizeReaches = (target, element, from, to, axis, change) => {
+  const sizeReaches = (target, element, from, to, axis, change, proof) => {
+    const reject = (reason, node, readings = {}) => {
+      if (proof) proof.rejection = { reason, node, ...readings };
+      return false;
+    };
     const size = axis === "top" ? "height" : "width";
     // The source keeps its old layout path; the receiving box must still belong to
     // that flow in the new reading. Leaving flow cannot borrow the old fold's credit.
@@ -2874,30 +2959,35 @@
     const holding = new Set(path);
     let branch = target;
     while (boxParent(branch, from) && !holding.has(boxParent(branch, from))) {
-      if (!inFlow(branch, from)) return false;
+      if (!inFlow(branch, from)) return reject("source-out-of-flow", branch);
       branch = boxParent(branch, from);
       const before = boxAt(branch, from),
         after = boxAt(branch, to);
-      if (!before || !after || Math.abs(after[size] - before[size] - change) >= 1)
-        return false;
+      if (!before || !after)
+        return reject("missing-ancestor-box", branch, { before, after });
+      if (Math.abs(after[size] - before[size] - change) >= 1)
+        return reject("ancestor-size-mismatch", branch, { before, after });
     }
     const flow = boxParent(branch, from);
-    if (!inFlow(branch, from) || !flow) return false;
+    if (!inFlow(branch, from)) return reject("source-out-of-flow", branch);
+    if (!flow) return reject("missing-flow", branch);
     // An in-flow box moves with its parent, and an absolutely positioned one with its
     // containing block: its nearest positioned ancestor or a box nearer still, such as
     // a transformed one. So an absolute box is carried only where a positioned box
     // between it and the follower holds it, as a diff line holds its comment button.
     const reach = path.indexOf(flow);
-    if (reach < 1) return false;
+    if (reach < 1) return reject("receiver-outside-flow", flow);
     const follower = path[reach - 1];
     let placed = true;
     for (const box of path.slice(0, reach - 1)) {
       const style = paintAt(box, to);
-      if (style.position === "fixed" || style.float !== "none") return false;
+      if (style.position === "fixed" || style.float !== "none")
+        return reject("receiver-out-of-flow", box);
       if (style.position === "absolute") placed = false;
       else if (!placed && style.position !== "static") placed = true;
     }
-    if (!placed && paintAt(follower, to).position === "static") return false;
+    if (!placed && paintAt(follower, to).position === "static")
+      return reject("uncontained-absolute-receiver", follower);
     // Block-level children stack vertically in a horizontal-writing block flow.
     // A block container can also hold inline siblings, whose height does not carry
     // the next sibling down; flex, grid, and vertical writing have other axes.
@@ -2908,8 +2998,11 @@
       !["block", "flow-root"].includes(paintAt(branch, from).display) ||
       !["block", "flow-root"].includes(paintAt(follower, to).display)
     )
-      return false;
-    return inFlow(follower, to) && followsAt(branch, follower, from);
+      return reject("unsupported-block-flow", flow);
+    if (!inFlow(follower, to)) return reject("receiver-out-of-flow", follower);
+    if (!followsAt(branch, follower, from))
+      return reject("receiver-not-following", follower);
+    return true;
   };
   // A sticky box's inset is the line it sticks at, not an offset. While the box stands
   // at that line, a change of the inset moves it by that change within its containing
@@ -2968,7 +3061,7 @@
   };
   const animationMotion = (node, from, to, animations) => {
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
-    const motion = { left: 0, top: 0, terms: [] };
+    const motion = { left: 0, top: 0, terms: [], sizePropagation: [] };
     if (!element) return motion;
     for (const details of nativeClosures.keys()) {
       const before = boxAt(details, from),
@@ -3033,7 +3126,6 @@
           after = boxAt(target, to);
         const first = layoutAt(element, from),
           last = layoutAt(element, to);
-        if (!before || !after || !first || !last) continue;
         for (const axis of ["left", "top"]) {
           const size = axis === "top" ? "height" : "width";
           const logicalSize = axis === "top" ? "blockSize" : "inlineSize";
@@ -3043,13 +3135,24 @@
             )
           )
             continue;
-          const change = after[size] - before[size];
-          if (
-            Math.abs(change) < 1 ||
-            Math.abs(last[axis] - first[axis] - change) >= 1 ||
-            !sizeReaches(target, element, from, to, axis, change)
-          )
+          // Retain the exact rejected proof, including border boxes. Computed
+          // animation values alone cannot explain why native reflow lost credit.
+          const proof = { target, axis, before, after, first, last };
+          motion.sizePropagation.push(proof);
+          if (!before || !after || !first || !last) {
+            proof.rejection = { reason: "missing-endpoint" };
             continue;
+          }
+          const change = after[size] - before[size];
+          if (Math.abs(change) < 1) {
+            proof.rejection = { reason: "source-size-unchanged" };
+            continue;
+          }
+          if (Math.abs(last[axis] - first[axis] - change) >= 1) {
+            proof.rejection = { reason: "receiver-movement-mismatch" };
+            continue;
+          }
+          if (!sizeReaches(target, element, from, to, axis, change, proof)) continue;
           credit(motion, "animation_reflow", target, axis, change, {
             before,
             after,
@@ -3102,12 +3205,23 @@
               }
             : null,
         });
+        // Translation values alone cannot distinguish local travel from motion
+        // inherited from the holder. Keep both border-box endpoints from the same
+        // comparison, rather than reading geometry later when the report is drawn.
+        const parent = paintAt(target, to)?.parent;
         const inputs = {
           property,
           before: sample(before),
           after: sample(after),
           viewport: by,
           scroll,
+          geometry: {
+            before: boxAt(target, from),
+            after: boxAt(target, to),
+            parent,
+            parent_before: boxAt(parent, from),
+            parent_after: boxAt(parent, to),
+          },
         };
         for (const axis of ["left", "top"])
           credit(
@@ -3184,6 +3298,7 @@
       },
       scroll_terms: scroll.terms,
       animation_terms: motion.terms,
+      size_propagation: motion.sizePropagation,
       animations: motionEvidence(node, from, to, selected),
     };
   };
@@ -3275,7 +3390,14 @@
             readIn(around[before], node) &&
             readIn(around[after], node) &&
             !permittedAppend(node, previousRect, currentRect, around, growth) &&
-            !permittedReflow({ node, previousRect, currentRect }, around)
+            !permittedReflow(
+              {
+                node,
+                previousRect: fromPaint.painted,
+                currentRect: toPaint.painted,
+              },
+              around,
+            )
           )
             pendingMotion.push({
               node,
@@ -3486,10 +3608,12 @@
       // A newer input already dispatched makes this observation an ambiguous
       // endpoint. Retain the native entry for the ordinary frame ledger instead.
       if (renderings.some(({ start }) => start > entry.startTime)) continue;
+      // The population the reading at `at` covers, whether that reading was taken
+      // now or kept from the last complete one.
       const at = read(nativePerformance.now(), false);
       observedPaint.set(entry, {
         at,
-        nodes: everything(),
+        nodes: held,
         motion: frames[frame].motion,
       });
     }

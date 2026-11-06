@@ -10,9 +10,8 @@ from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATIONS_PAGE, live_url
 from render_cases_navigation import NOTED_PAGE
 from render_harness import (
-    INLINE_PAGE,
-    PANEL_THREAD,
     expect_open_threads,
+    expect_panel_says,
     open_page,
     page_comment,
     panel_field,
@@ -24,6 +23,7 @@ from render_harness import (
 from browser.navigation import expect_walk_position
 from browser.threads import open_panel_thread
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -83,13 +83,13 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     )
     expect(
         page.locator(
-            ".lf-command-reference [role=row]",
+            ".lf-command-reference [role=option]",
             has_text="Next on me",
         ).locator("kbd")
     ).to_have_text("m")
     expect(
         page.locator(
-            ".lf-command-reference [role=row]",
+            ".lf-command-reference [role=option]",
             has_text="Previous on me",
         ).locator("kbd")
     ).to_have_text("M")
@@ -213,6 +213,8 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
           const { commandsChanged } = await window.__lfWidgetApi();
           const owner = document.createElement('div');
           owner.tabIndex = -1;
+          // In view, where a key acts at the control it is pressed on.
+          owner.style.cssText = 'position:fixed;top:0;left:0;width:20px;height:20px';
           document.body.append(owner);
           owner.focus();
           let ran = 0;
@@ -235,15 +237,22 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
 
 def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, serve):
     """A phone names no keys but keeps passing words and the walk's position, and the
-    page's room stays whole: obligation hints still find what the page shows."""
+    page's room stays whole: obligation hints still find what the page shows.
+
+    A text field's placeholder is the same advert as a key's chip: the page's box said
+    "Comment on the page c" and a thread's box "Reply c" to a phone. Whether a surface
+    advertises keys is one reading (`advertisesKeys`), asked for the key that enters a box
+    as well as the one that sends it."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )
-    page = open_page(browser, serve(OBLIGATIONS_PAGE), context=context)
+    page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=2), context=context)
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
         "the touch fixture never reached Leaf's coarse-pointer rules"
     )
-    expect(page.locator(".lf-fp-field .lf-key-badge")).to_have_count(0)
+    # Rich placeholders retain an empty badge; only a painted key advertises a press.
+    badge = page.locator(".lf-fp-field .lf-key-badge:visible")
+    expect(badge).to_have_count(0)
 
     page.evaluate(
         """async () => {
@@ -265,6 +274,19 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
 
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 4 waiting on me · Options")
+
+    expect(page_comment(page)).not_to_have_attribute("placeholder", re.compile(r" c$"))
+    expect(badge).to_have_count(0)
+    thread = page.evaluate(
+        "async () => (await window.__lfWidgetApi()).readThreads().threads[0].id"
+    )
+    open_panel_thread(page, thread)
+    reply = panel_field(page)
+    expect(reply).to_have_attribute("name", "reply")
+    expect(reply).not_to_have_attribute("placeholder", re.compile(r" c$"))
+    reply.focus()
+    expect(reply).not_to_have_attribute("placeholder", re.compile(r" c$"))
+    expect(badge).to_have_count(0)
 
 
 def test_a_page_at_rest_repaints_the_panel_only_when_the_state_moves(browser, serve):
@@ -302,33 +324,6 @@ def test_a_page_at_rest_repaints_the_panel_only_when_the_state_moves(browser, se
         "the panel repainted without the state moving over "
         f"{probe['frames']} frames: {probe}"
     )
-
-
-def test_a_field_names_no_key_to_a_finger(browser, serve):
-    """A touch screen names no keys because they are presses the user cannot make, and
-    a text field's placeholder is the same advert: the page's box said "Comment on the
-    page c" and a thread's box "Reply c" to a phone. Whether a surface advertises keys
-    is one reading (`advertisesKeys`), asked for the key that enters a box as well as
-    the one that sends it."""
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=True
-    )
-    page = open_page(browser, serve(INLINE_PAGE, comments=2), context=context)
-    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
-    badge = page.locator(".lf-fp-field .lf-key-badge")
-    general = page_comment(page)
-    expect(general).not_to_have_attribute("placeholder", re.compile(r" c$"))
-    expect(badge).to_have_count(0)
-    thread = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).readThreads().threads[0].id"
-    )
-    open_panel_thread(page, thread)
-    reply = panel_field(page)
-    expect(reply).to_have_attribute("name", "reply")
-    expect(reply).not_to_have_attribute("placeholder", re.compile(r" c$"))
-    reply.focus()
-    expect(reply).not_to_have_attribute("placeholder", re.compile(r" c$"))
-    expect(badge).to_have_count(0)
 
 
 # The register's own answer to which commands a press can run, read with focus on the
@@ -389,7 +384,7 @@ def shown_commands(page):
     help_el = page.locator(".lf-command-reference")
     page.keyboard.press("?")
     expect(help_el).to_be_visible()
-    reference = help_el.locator("[role=row][data-lf-command]").evaluate_all(
+    reference = help_el.locator("[role=option][data-lf-command]").evaluate_all(
         "rows => rows.map(r => r.dataset.lfCommand)"
     )
     runnable = help_el.locator(
@@ -411,9 +406,9 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     that cannot run in a scope where it filters by liveness; a row it marks runnable
     runs. Liveness is one declaration the dispatcher and the reference ask, so the test
     holds the reference to the register by command id rather than by its words, in the
-    states that change what is live: a thread walk only once there are threads, and
-    still over resolved ones; a thread's own commands only once the page has one; and
-    the versions open from the page."""
+    states that change what is live: the thread walk with no threads, where it says so,
+    and over resolved ones; a thread's own commands only once the page has one; and the
+    versions open from the page."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir
     page = open_page(browser, live_url(url))
@@ -434,18 +429,20 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         )
         return register, reference
 
-    # No threads and one version: there is nothing to walk, so the walks are dead
-    # the current location, and the page has no thread scope and no link.
+    # No threads and one version: the thread walk still runs, as every page walk does
+    # (keyboard/AGENTS.md, "Page grammar"), and the page has no thread scope and no link.
     register, reference = surfaces_name_what_runs()
-    assert {"thread.next", "thread.previous"} <= register["dead"]
+    assert {"thread.next", "thread.previous"} <= register["runs"]
     assert {"thread.primary", "link.follow"} <= register["absent"]
-    # The dispatcher asks the same declaration: neither half of the walk runs.
+    # The dispatcher asks the same declaration: the press says there is nothing to walk
+    # and opens no thread.
     page.keyboard.press("t")
+    expect_panel_says(page, "No open threads")
     page.keyboard.press("Shift+t")
     rendered(page)
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
-    # Threads arrive, making the walk live and the thread scope the page's own.
+    # Threads arrive, giving the walk somewhere to go and the page a thread scope.
     for text in ["A thread.", "Another."]:
         append_carried_log_record(
             d, {"kind": "comment", "author": "user", "revision": 1, "text": text}
@@ -469,7 +466,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     wait_for_revision(page, 2)
     register, reference = surfaces_name_what_runs()
     assert "version.open" in register["runs"]
-    assert not {"version.later", "version.earlier"} & reference
+    assert "panel.floating.versions.pick" not in reference
 
     # With every thread resolved and a resolved one open, the reference still names
     # only what runs.
@@ -478,7 +475,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     )
     for n, thread in enumerate(threads, start=1):
         open_panel_thread(page, thread)
-        page.locator(".lf-fp-settle").click()
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
         expect_open_threads(page, 2 - n)
     open_panel_thread(page, threads[0]).focus()
     surfaces_name_what_runs()

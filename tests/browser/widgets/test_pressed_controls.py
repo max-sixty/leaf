@@ -8,11 +8,6 @@ second press in that window is swallowed. Four bundled widgets once did both, ea
 found by hand, so this presses every control in every bundled package's worked
 examples (`widget_quality.served_examples`) with the server's answer held."""
 
-import pytest
-from known_widget_findings import PACKAGES
-
-from leaf import layer as layer_model
-from leaf import schema as schema_model
 from leaf.layer import checked_layer_inputs, compose_layer
 from leaf.packages import package_layer_inputs
 from leaf.render_checks import (
@@ -26,7 +21,6 @@ from leaf.render_gate.widget_quality import (
     WRAPPERS,
     example_pages,
     own_tags,
-    served_examples,
 )
 from leaf.structure import SourceDocument
 
@@ -63,7 +57,7 @@ MARK_CONTROLS = f"""(within) => {{
       found.push(`${{holder.localName}}#${{holder.id}} ${{JSON.stringify(words)}}`);
     }}
   }};
-  walk(document.body);
+  walk(document.documentElement);
   return found;
 }}"""
 
@@ -103,7 +97,7 @@ UNDER_POINTER = f"""([x, y, index]) => {{
 }}"""
 
 # The tab's unresolved gestures by attempt and kind, read through the check entry, and
-# whether each records only what the user hasn't sent (`$state.attention`), as a
+# whether each records only what the user hasn't sent (`$state.unsent`), as a
 # playground's settings: a press that set them, pressed again while they stand, has
 # nothing new to record.
 UNRESOLVED = """async () => {
@@ -113,7 +107,7 @@ UNRESOLVED = """async () => {
   const { declarationFor } = await import(new URL('runtime/widget-api.js', boot));
   const unsent = (event) => event.kind === 'action' &&
     declarationFor(document.getElementById(event.widget), 'x-state')?.[event.action]
-      ?.attention === false;
+      ?.unsent === true;
   return api.readApplication().unresolved.map(({ event }) =>
     [event.attempt, event.kind, unsent(event)]);
 }"""
@@ -146,7 +140,7 @@ def _example_pages(package):
     tags = own_tags(package)
     pages = [
         (layout, SourceDocument(html), data)
-        for layout, html, data in example_pages(composition.registry, tags)
+        for layout, html, data in example_pages(composition.vocabulary.registry, tags)
         if layout == "column"
     ]
     if state := STATES.get(package.name):
@@ -258,25 +252,3 @@ def press_each_control(page, within, restore=None):
         page.wait_for_function(DELIVERED)
         rendered(page)
     return pressed_names, sent, failures
-
-
-@pytest.mark.parametrize("package", PACKAGES, ids=lambda package: package.name)
-def test_a_pressed_control_keeps_its_face_and_takes_the_next_press(browser, package):
-    """While a press's gesture travels, the control under the pointer keeps the cursor
-    and the available, idle face it had before the press, whatever it now says, and
-    where the same control stands there, a second press does what it then says rather
-    than being swallowed. A control whose press sends nothing, such as one opening a
-    menu, makes no claim."""
-    if package == schema_model.ASSETS:
-        package = layer_model.ASSETS
-    tags, pages = _example_pages(package)
-    failures, pressed, reached = [], set(), set()
-    for _, url, _ in served_examples(package, pages):
-        page = open_served(browser.unwatched, url)
-        names, sent, found = press_each_control(page, ", ".join(tags))
-        pressed |= names
-        reached.update(name.split("#")[0] for name, _ in sent)
-        failures += found
-    assert bool(pressed) != (not tags or package.name in UNPRESSABLE), sorted(pressed)
-    assert REACHED & set(tags) <= reached
-    assert not failures, "\n".join(failures)

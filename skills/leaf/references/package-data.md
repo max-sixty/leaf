@@ -58,8 +58,9 @@ For an optional command the agent should act on, such as Archive, declare
 that verb's state reach the agent without putting a question on the user's On me list.
 Use `x-awaits` below when the widget instead asks the user for an answer. A verb that
 records what the user is working on before they send it, as a playground's `tune` keeps
-its settings, declares `attention: false`: it reaches every tab and the agent's page
-state but asks the agent for nothing.
+its settings, declares `unsent: true`: it reaches every tab and the agent's page
+state but asks the agent for nothing, and a message the user writes about the widget
+reaches the agent with it.
 
 Only one widget records each attribute. A member's `value` record can't use the same
 attribute as an `attribute` record on a widget around it; `page check` refuses that in
@@ -169,10 +170,11 @@ widget can't answer.
 ## Instance input contracts
 
 A custom-detail verb can declare `contract: {"field": "values", "attribute": "contract"}`.
-The widget's `contract` attribute is a string matching the data contract name pattern
-from `schema.DATA_CONTRACT_NAME`. Its authored value selects a `$data.contracts` entry
-whose `schema` validates the complete `detail.values`, alongside the package's base
-schema. The field and attribute names belong to the package; core reads the declaration.
+The widget declares its `contract` attribute a string, and Leaf gives it the data
+contract name grammar ([packages.md, "A widget"](packages.md#a-widget)). Its authored
+value selects a `$data.contracts` entry whose `schema` validates the complete
+`detail.values`, alongside the package's base schema. The field and attribute names
+belong to the package; core reads the declaration.
 
 For example, two Playgrounds can use `contract="release-query"` and
 `contract="notification"`. Their page declares those contracts in
@@ -272,8 +274,8 @@ other unbound input to the widget. Tell page authors how to bind it in
   "lf-builds": {
     "type": "object",
     "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
-      "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+      "id": { "type": "string" },
+      "source": { "type": "string" }
     },
     "required": ["id", "source"],
     "additionalProperties": false,
@@ -325,7 +327,10 @@ is a widget publishing `files`. `page check` verifies the referenced widget decl
 named output with the input's contract. Consumers never identify a producer by tag.
 
 The producer calls `publishOutput(this, "files", value)` after deriving its complete
-value, and publishes `null` when that output is unavailable. `page check --render`
+value, and publishes `null` when that output is unavailable. This helper is also
+available from `portable-api.js`: it dispatches a bubbling, composed `lf-output`
+event carrying `{output, value}`. A plain host may listen without Leaf; Leaf reads
+the notification into its typed output and presentation system. `page check --render`
 and `package check --render` validate every output exercised during their render,
 including values later withdrawn or replaced and values from contained samples whose
 frames are later disposed. A mismatch is an error naming the

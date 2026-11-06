@@ -1,6 +1,8 @@
 """Response-time queries keep exact inputs, edits, missing evidence and clock bounds."""
 
 import json
+import os
+from datetime import datetime
 
 from click.testing import CliRunner
 
@@ -137,6 +139,22 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
         event("reply", "outside", 40, parent="first", responds="third"),
     ]:
         append_event(tmp_path, row)
+    append_interactions(
+        tmp_path,
+        [
+            {
+                "ts": "2026-10-14T12:00:06+00:00",
+                "source": "cli",
+                "type": "fork_reply",
+                "session": "session",
+                "thread": "first",
+                "inputs": ["second"],
+                "outcome": "hand_over",
+                "why": "it asks for a measurement",
+                "elapsedMs": 2100.0,
+            }
+        ],
+    )
     args = [
         "response-times",
         str(tmp_path),
@@ -149,6 +167,13 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
     assert result.exit_code == 0, result.output
     report = json.loads(result.output)
     rows = {row["input_id"]: row for row in report["samples"]}
+    # The fork that handed the message over decided its edit too, and the update
+    # read Delivered from its opened pickup to the agent's first words.
+    assert rows["edited"]["fork"] == {"outcome": "hand_over", "elapsed_s": 2.1}
+    assert rows["first"]["fork"] is None
+    assert report["summary"]["fork_hand_over"]["inputs"] == 2
+    assert report["summary"]["fork_hand_over"]["p50_s"] == 5
+    assert report["summary"]["delivered"]["p50_s"] == 2
     assert set(rows) == {"first", "second", "edited", "third"}
     assert rows["first"]["superseded_by_edit"] == "quiet-edit"
     assert rows["second"]["superseded_by_edit"] == "edited"
@@ -215,6 +240,7 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
         "p90_s": 4.7,
         "p95_s": 4.85,
         "max_s": 5,
+        "total_s": 7,
     }
     human = CliRunner().invoke(cli, args)
     assert human.exit_code == 0, human.output
@@ -289,6 +315,7 @@ def test_query_reports_clock_errors_and_requires_qualified_timestamps(tmp_path):
         "p90_s": None,
         "p95_s": None,
         "max_s": None,
+        "total_s": 0,
     }
     invalid = CliRunner().invoke(
         cli, ["response-times", str(tmp_path), "--since", "2026-10-14T12:00:00"]
@@ -499,3 +526,81 @@ def test_query_joins_one_browser_clock_and_selects_declared_purpose(
     filtered = json.loads(selected.output)
     assert {row["input_id"] for row in filtered["samples"]} == {"one", "three"}
     assert filtered["selection"]["excluded_inputs"] == 1
+
+
+def test_query_times_titles_and_publications_for_the_inputs_awaiting_them(tmp_path):
+    """A thread's first title times each input admitted while it had none, whether
+    the page server or the agent's own answer named it; one admitted later has none.
+    An answer times the publication of the revision it stands on where the page
+    published that revision after the input."""
+
+    def at(second):
+        return f"2026-10-14T12:00:{second:02d}Z"
+
+    def user(kind, identity, second, **fields):
+        return {
+            "kind": kind,
+            "id": identity,
+            "author": "user",
+            "attention": True,
+            "ts": at(second),
+            "revision": 1,
+            **fields,
+        }
+
+    def agent(kind, identity, second, **fields):
+        return {
+            "kind": kind,
+            "id": identity,
+            "author": "agent",
+            "ts": at(second),
+            **fields,
+        }
+
+    for row in [
+        user("comment", "asked", 0, text="Is it recorded?"),
+        agent("thread_title", "named", 2, thread="asked", title="Release record"),
+        user("reply", "again", 3, parent="asked", text="And the notes?"),
+        user("comment", "change", 4, text="Record it on the board."),
+        agent(
+            "reply",
+            "changed",
+            10,
+            parent="change",
+            responds="change",
+            title="Board change",
+            revision=2,
+            text="Recorded.",
+        ),
+        agent("reply", "said", 11, parent="asked", responds="asked", revision=1),
+    ]:
+        append_event(tmp_path, row)
+    revisions = tmp_path / "revisions"
+    revisions.mkdir()
+    for revision, published in ((1, "2026-10-14T11:59:00Z"), (2, at(8))):
+        marker = revisions / f"r{revision}-{revision:016x}.html"
+        marker.write_text("<main></main>")
+        stamp = datetime.fromisoformat(published).timestamp()
+        os.utime(marker, (stamp, stamp))
+    result = CliRunner().invoke(
+        cli, ["response-times", str(tmp_path), "--until", at(30), "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.output)
+    rows = {row["input_id"]: row for row in report["samples"]}
+    milestones = {
+        input_id: {
+            name: rows[input_id]["milestones"][name]["elapsed_s"]
+            for name in ("titled", "published")
+            if name in rows[input_id]["milestones"]
+        }
+        for input_id in rows
+    }
+    assert milestones == {
+        "asked": {"titled": 2},
+        "again": {},
+        "change": {"titled": 6, "published": 4},
+    }
+    assert rows["change"]["milestones"]["published"]["revision"] == 2
+    assert report["summary"]["titled"]["observed"] == 2
+    assert report["summary"]["published"]["observed"] == 1

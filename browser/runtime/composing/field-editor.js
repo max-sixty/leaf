@@ -30,7 +30,7 @@ import { isCanonicalMediaUrl, scopedMediaUrl } from "../media.js";
  * @typedef {{type: string, start: number, end: number, padStart: number, padEnd: number, inset: string, indent: string}} BlockFace
  * @typedef {{base: string, text: string, anchor: number, head: number, steps: readonly (readonly [() => void, () => void])[]}} FieldWords
  * @typedef {{typed: (native: boolean, insert: () => void) => void, returned: () => boolean,
- * oneLine: () => boolean, joined: () => boolean, revealed: (view: EditorView, pos: number) => void,
+ * oneLine: () => boolean, message: () => boolean, revealed: (view: EditorView, pos: number) => void,
  * focused: () => void, readOnly: boolean, attributes: Record<string, string>}} FieldConfiguration
  */
 
@@ -38,6 +38,9 @@ import { isCanonicalMediaUrl, scopedMediaUrl } from "../media.js";
 const indentation = (text) => text.length - text.replace(/^[ \t]*/, "").length;
 /** @param {string} text */
 const trailingIndentation = (text) => text.length - text.replace(/[ \t]*$/, "").length;
+// A fenced or an indented code block; only a file reads indentation as code.
+/** @param {import("markdown-it").Token} token */
+const isCode = (token) => token.type === "fence" || token.type === "code_block";
 
 // Whether the selection touches [from, to], ends included: the caret standing just
 // after a closing backtick still reveals it, so the user can delete what they see.
@@ -53,13 +56,14 @@ const touches = (state, from, to) =>
 // item is an item from its marker on, though the message reads an empty one as words of
 // the paragraph above it. Nothing is placed in the word itself. Empty until the renderer
 // has loaded.
-/** @param {EditorState} state */
-const read = (state) => {
+/** @param {EditorState} state @param {boolean} message the reading (markdown.js,
+ * `renderMarkdown`) */
+const read = (state, message) => {
   const source = state.doc.toString();
   const last = state.doc.line(state.doc.lines).text;
   if (!/^(?:[\s>]|(?:[-+*]|\d{1,9}[.)])[ \t])*$/.test(last))
-    return placedMarkdownTokens(source);
-  return placedMarkdownTokens(`${source}x`).filter(
+    return placedMarkdownTokens(source, message);
+  return placedMarkdownTokens(`${source}x`, message).filter(
     ({ token, to }) => token.block || to <= source.length,
   );
 };
@@ -308,6 +312,7 @@ export const DRAWN = new Set([
   "ordered_list_open",
   "list_item_open",
   "fence",
+  "code_block",
   "hr",
   "text",
   "hardbreak",
@@ -452,7 +457,7 @@ export function readFaces(field, display) {
 // The display trims the outer margins of its first and last blocks, so the field
 // leaves none there, but a list's first and last items keep theirs.
 /** @param {import("markdown-it").Token} token */
-const blockTag = (token) => (token.type === "fence" ? "pre" : token.tag);
+const blockTag = (token) => (isCode(token) ? "pre" : token.tag);
 /** @param {EditorState} state @param {PlacedTokens} blocks @param {import("@codemirror/state").Range<Decoration>[]} out @param {(className: string) => Decoration} line */
 function standBlocks(state, blocks, out, line) {
   /** @param {number} from @param {number} to @param {(line: import("@codemirror/state").Line) => void} each */
@@ -485,11 +490,10 @@ function standBlocks(state, blocks, out, line) {
   for (const { token, from, to } of blocks) {
     if (!token.block) continue;
     const tag = blockTag(token);
-    // A heading and a fence wear their faces wherever they stand.
+    // A heading and a code block wear their faces wherever they stand.
     if (token.type === "heading_open")
       lines(from, to, (each) => named(each.from, `lf-face-${tag}`));
-    else if (token.type === "fence")
-      lines(from, to, (each) => named(each.from, "lf-face-code"));
+    else if (isCode(token)) lines(from, to, (each) => named(each.from, "lf-face-code"));
     for (let last = open.at(-1); last && last.to <= from; last = open.at(-1)) {
       before.length = last.level + 1;
       open.pop();
@@ -635,7 +639,7 @@ function fieldEditor(
   const box = (from, to, level, attributes) =>
     BlockWrapper.create({
       tagName: "div",
-      attributes: { ...attributes, "data-level": String(level) },
+      attributes: { ...attributes, "data-lf-level": String(level) },
       rank: 100 - level,
     }).range(from, Math.max(from, to - 1));
 
@@ -849,23 +853,30 @@ function fieldEditor(
         const marks = start + indentation(state.doc.sliceString(start, rule.to));
         add(start, marks, hide);
         add(marks, rule.to, touches(state, rule.from, rule.to) ? dim : unseen);
-      } else if (isBlockPlacement(placement, "fence")) {
+      } else if (isCode(token)) {
         whole.push([from, to]);
         // Each line of code keeps the indent the parser's reading of it keeps; the rest,
-        // a list item's indent after its containers' markers, the message drops. The code's reading ends each line it holds with a
-        // break, except a last line the draft's end ends, and holds none for a fence
-        // with no code. An end no fence line stands for takes the padding on the
-        // code's own line.
+        // a list item's indent after its containers' markers or an indented block's
+        // four spaces, the rendered code drops. The code's reading ends each line it
+        // holds with a break, except a last line the draft's end ends, and holds none
+        // for a fence with no code. An end no fence line stands for, as at both ends of
+        // an indented block, takes the padding on the code's own line.
+        const markers = placement.markers ?? [];
         const body = token.content.split("\n");
         if (body.at(-1) === "") body.pop();
-        const opened = state.doc.lineAt(from).number + 1;
+        // Words on the opening line are the code's first line (markdown.js,
+        // `fence_words`), which then takes the padding its fence line stood for.
+        const opening = state.doc.lineAt(from);
+        const inline = markers.length > 0 && (markers[0]?.[1] ?? 0) < opening.to;
+        const opened = opening.number + (markers.length && !inline ? 1 : 0);
         lines(from, to, (each) => {
           const first = each.from <= from;
           const last = each.to + 1 >= to;
           const ends = [
             first ? " lf-md-code-first" : "",
+            first && (!markers.length || inline) ? " lf-md-code-pad-start" : "",
             last ? " lf-md-code-last" : "",
-            last && placement.markers.length < 2 ? " lf-md-code-pad-end" : "",
+            last && markers.length < 2 ? " lf-md-code-pad-end" : "",
           ].join("");
           out.push(line(`lf-md-code-block${ends}`).range(each.from));
           const kept = body[each.number - opened];
@@ -875,10 +886,12 @@ function fieldEditor(
           add(start, start + lead - indentation(kept), hide);
         });
         // A fence's lines stand for the message's code padding, and each shows its
-        // marks while the caret is on it.
-        for (const [a, b] of placement.markers) {
+        // marks while the caret is on it. Marks with code beside them hide as a code
+        // span's do, standing the code under the line below.
+        for (const [a, b] of markers) {
           const fence = state.doc.lineAt(a);
-          add(a, b, touches(state, fence.from, fence.to) ? dim : unseen);
+          const away = inline && fence.from === opening.from ? hide : unseen;
+          add(a, b, touches(state, fence.from, fence.to) ? dim : away);
         }
       } else if (isBlockPlacement(placement, "blockquote_open")) {
         boxes.push(box(from, to, token.level, { class: "lf-md-quote lf-face-quote" }));
@@ -1037,7 +1050,17 @@ function fieldEditor(
       }),
       selection.mainIndex,
     );
-    if (moved.eq(selection)) return false;
+    // A step that moves no caret leaves the press to the keys after this one, as Down
+    // on the last line leaves a code block (`leaveCode`), though it would drop the goal
+    // column a vertical step carries.
+    if (
+      moved.ranges.every(
+        (range, at) =>
+          range.anchor === selection.ranges[at]?.anchor &&
+          range.head === selection.ranges[at]?.head,
+      )
+    )
+      return false;
     view.dispatch({ selection: moved, scrollIntoView: true, userEvent: "select" });
     return true;
   };
@@ -1046,17 +1069,22 @@ function fieldEditor(
     { key: "ArrowDown", run: lineStep(true, false), shift: lineStep(true, true) },
   ];
 
-  // The draft as the renderer that will send it reads it (`read`), taken again when the
-  // words change or the renderer arrives. The preview, Shift+Enter and the joints below
-  // read it from the state, where CodeMirror takes a replacement across a line break.
+  // Whether the field's words read as a message (`field.message()`), or as the Markdown
+  // file a field editing a body in place shows (text-field.js, `facesOf`).
+  const message = Facet.define({ combine: (values) => values.every(Boolean) });
+  // The words as the renderer that will draw them reads them (`read`), in the field's
+  // reading. Taken again when the words change or the renderer arrives. The preview,
+  // Shift+Enter and the joints below read it from the state, where CodeMirror takes a
+  // replacement across a line break.
+  /** @param {EditorState} state */
+  const readField = (state) => ({
+    placed: read(state, state.facet(message)),
+    judged: markdownReady(),
+  });
   const reading = StateField.define({
-    create: (state) => ({ placed: read(state), judged: markdownReady() }),
-    update(value, tr) {
-      const judged = markdownReady();
-      return tr.docChanged || judged !== value.judged
-        ? { placed: read(tr.state), judged }
-        : value;
-    },
+    create: readField,
+    update: (value, tr) =>
+      tr.docChanged || markdownReady() !== value.judged ? readField(tr.state) : value,
   });
 
   /** @param {Placement} c @returns {c is ContainerPlacement} */
@@ -1080,19 +1108,18 @@ function fieldEditor(
   const carried = (c) =>
     isBlockPlacement(c, "blockquote_open") ? "> " : " ".repeat(c.token.lfSource.indent);
 
-  // A field that edits a Markdown body in place (`field.joined()`; text-field.js,
-  // `facesOf`) reads its words as the body does, as a file (markdown.js,
-  // `paintMarkdown`), where a line break among a paragraph's words, in a code span or a
-  // link's destination as anywhere else, is a space, and only a hard break's is a line.
-  // Each such break, with the spaces ending its line and the next line's markers and
-  // indent, stands as one space the caret steps over, and deleting it joins the words, so
-  // a paragraph wrapped for a wider editor wraps to the field as it does in the body. It
-  // is never revealed, since revealing it would rewrap the paragraph under the caret.
-  const joinsLines = Facet.define({ combine: (values) => values.some(Boolean) });
+  // A field that edits a Markdown body in place reads its words as the body does, as a
+  // file (markdown.js, `paintMarkdown`), where a line break among a paragraph's words,
+  // in a code span or a link's destination as anywhere else, is a space, and only a
+  // hard break's is a line. Each such break, with the spaces ending its line and the
+  // next line's markers and indent, stands as one space the caret steps over, and
+  // deleting it joins the words, so a paragraph wrapped for a wider editor wraps to the
+  // field as it does in the body. It is never revealed, since revealing it would rewrap
+  // the paragraph under the caret.
   const joint = Decoration.replace({ widget: new Spelled(" ") });
   /** @param {EditorState} state */
   const jointsOf = (state) => {
-    if (!state.facet(joinsLines)) return Decoration.none;
+    if (state.facet(message)) return Decoration.none;
     const { placed } = state.field(reading);
     const inline = placed.filter(({ token }) => !token.block);
     const hard = inline.filter(({ token }) => token.type === "hardbreak");
@@ -1122,7 +1149,7 @@ function fieldEditor(
     create: jointsOf,
     update: (set, tr) =>
       tr.state.field(reading) === tr.startState.field(reading) &&
-      tr.state.facet(joinsLines) === tr.startState.facet(joinsLines)
+      tr.state.facet(message) === tr.startState.facet(message)
         ? set
         : jointsOf(tr.state),
     provide: (field) => [
@@ -1131,10 +1158,11 @@ function fieldEditor(
     ],
   });
 
-  // Return in a field that joins lines begins a line the body shows too, carrying the
-  // markers of the containers the caret's line stands in. Among a paragraph's words it
-  // writes a hard break, whose backslash the preview hides, in place of the spaces, and
-  // any joint, the selection touches, and at a hard break it begins the line after it.
+  // Return in a field that reads as a file begins a line the body shows too, carrying
+  // the markers of the containers the caret's line stands in. Among a paragraph's words
+  // it writes a hard break, whose backslash the preview hides, in place of the spaces,
+  // and any joint, the selection touches, and at a hard break it begins the line after
+  // it.
   // After a paragraph's last words, where a hard break would end its block and show its
   // backslash, it begins a new paragraph, and in a list item the next item
   // (`continueBlocks`). With none of a paragraph's words before the caret, in a
@@ -1144,7 +1172,8 @@ function fieldEditor(
   /** @param {EditorView} view */
   function newLine(view) {
     const { state } = view;
-    if (!state.facet(joinsLines)) return insertNewline(view);
+    if (state.readOnly) return false;
+    if (state.facet(message)) return insertNewline(view);
     const { from, to } = state.selection.main;
     const { placed } = state.field(reading);
     const paragraph = placed.find(
@@ -1282,7 +1311,7 @@ function fieldEditor(
     const containers = all.filter(holds);
     const inner = containers.at(-1);
     if (!inner) return false;
-    const code = placed.some((c) => c.token.type === "fence" && holds(c));
+    const code = placed.some((c) => isCode(c.token) && holds(c));
     // A line holding nothing past its markers is bare.
     /** @param {import("@codemirror/state").Line} l */
     const bare = (l) => {
@@ -1346,6 +1375,105 @@ function fieldEditor(
     return true;
   }
 
+  // What begins a line below the one holding `at` in the quotes and list items that
+  // line stands in, as the preview reads the draft, or null where `at` stands before
+  // their markers end.
+  /** @param {EditorState} state @param {number} at */
+  function beginBelow(state, at) {
+    const { placed } = state.field(reading);
+    const line = state.doc.lineAt(at);
+    const containers = placed.filter(container).filter(holding(placed, line));
+    if (at < opened(line, containers)) return null;
+    return `\n${containers.map(carried).join("")}`;
+  }
+
+  // The code block, fenced or indented, that the line holding `at` stands in, as the
+  // preview reads the draft, and which of its fence's lines that line is, or null where
+  // no code holds it.
+  /** @param {EditorState} state @param {number} at */
+  function codeAt(state, at) {
+    const { placed } = state.field(reading);
+    const line = state.doc.lineAt(at);
+    const holds = holding(placed, line);
+    const fence = placed.find((c) => isCode(c.token) && holds(c));
+    if (!fence) return null;
+    const markers = fence.markers ?? [];
+    const [opening, closing] = markers.map(([a]) => a >= line.from && a <= line.to);
+    const containers = placed.filter(container).filter(holds);
+    return {
+      line,
+      fence,
+      opening,
+      closing,
+      // No marks close it, and this line is the last it holds.
+      open: markers.length < 2 && line.to + 1 >= fence.to,
+      begin: beginBelow(state, line.to) ?? "\n",
+      // The words on a line up to `to`, past its containers' markers.
+      /** @param {import("@codemirror/state").Line} l @param {number} [to] */
+      words: (l, to = l.to) => state.sliceDoc(opened(l, containers), to).trim(),
+    };
+  }
+
+  // Down from the draft's last line begins a line below the code block that holds it, in
+  // place of the blank lines ending its code: after the closing marks an open fence
+  // lacks, or after a blank line that ends an indented block's code, whose indent the
+  // preview hides and Return carries outside a quote or list item. Nothing else reaches
+  // a line below code the draft ends with. Rich editors leave a code block the same way.
+  /** @param {EditorView} view */
+  function leaveCode(view) {
+    const { state } = view;
+    const { main } = state.selection;
+    const at = main.empty ? codeAt(state, main.head) : null;
+    if (!at || state.readOnly) return false;
+    const { line, fence, closing, begin, words } = at;
+    let last = line;
+    while (!closing && !words(last) && last.number > 1)
+      last = state.doc.line(last.number - 1);
+    const change = closing
+      ? { from: line.to, insert: begin }
+      : { from: last.to, to: line.to, insert: begin + fence.token.markup + begin };
+    view.dispatch(
+      state.update({
+        changes: change,
+        selection: { anchor: change.from + change.insert.length },
+        scrollIntoView: true,
+        userEvent: "input",
+        annotations: isolateHistory.of("full"),
+      }),
+    );
+    return true;
+  }
+
+  // Where a line break goes so that text put at the caret leaves a fence's marks as
+  // marks, or null where it needs none. Words after closing marks start the line below,
+  // as words after a code span's closing backtick stand outside it. A paste after
+  // opening marks, or after a language, starts the code. A run of marks completed at the
+  // end of an open fence's code takes a line of its own, where it closes the fence, and
+  // the caret stays after it for the words that go below. The source stays a fence every
+  // Markdown reader takes alike, and marks meant as code stay code in a longer fence or
+  // a paste. Rejected: a closing fence the message's reading finds at a line's end, which
+  // leaves the next words in the code and misreads an agent's code whose line ends in
+  // marks; and closing only as the caret leaves the line, which shows nothing at the
+  // closing backtick.
+  /** @param {EditorState} state @param {string} put @param {boolean} pasted */
+  function fenceBreak(state, put, pasted) {
+    const { head: caret, empty } = state.selection.main;
+    const at = empty ? codeAt(state, caret) : null;
+    if (!at || caret !== at.line.to) return null;
+    const { fence, line, opening, closing, open, words } = at;
+    const { markup } = fence.token;
+    const mark = markup.charAt(0);
+    if (closing) return put.startsWith(mark) ? null : caret;
+    if (opening) {
+      const marks = (fence.markers?.[0]?.[0] ?? line.from) + markup.length;
+      const language = !/\s/.test(state.sliceDoc(marks, caret).trim());
+      return pasted && language ? caret : null;
+    }
+    const run = caret - markup.length + 1;
+    const closes = put === mark && line.text.endsWith(markup.slice(1));
+    return open && !pasted && closes && words(line, run) ? run : null;
+  }
+
   /** @param {boolean} deeper @returns {(view: EditorView) => boolean} */
   const nest = (deeper) => (view) => {
     const { state } = view;
@@ -1377,7 +1505,8 @@ function fieldEditor(
    * `head` are its selection. `field.typed(native, insert)` runs text input the editor
    * takes, saying whether the DOM has already changed, `field.returned()` says
    * whether Return may insert a line, `field.oneLine()` whether the field holds one
-   * line, `field.joined()` whether it joins a paragraph's lines (`joints`),
+   * line, `field.message()` whether its words read as a message or, where it edits a
+   * Markdown body in place, as a file, which joins a paragraph's lines (`joints`),
    * `field.revealed(view, pos)` shows the row holding `pos` in the field's
    * host, and `field.focused()` hears the editor take or lose focus. */
   /** @param {FieldWords} words @param {FieldConfiguration} field */
@@ -1459,6 +1588,55 @@ function fieldEditor(
           });
           return breaks.length ? [tr, { changes: breaks, sequential: true }] : tr;
         }),
+        EditorState.transactionFilter.of((tr) => {
+          const pasted = tr.isUserEvent("input.paste");
+          if (
+            field.oneLine() ||
+            !(pasted || tr.isUserEvent("input.type")) ||
+            tr.isUserEvent("input.type.compose")
+          )
+            return tr;
+          // The one change that puts text in place of the selection.
+          const { startState: state } = tr;
+          const { from: start, to: end } = state.selection.main;
+          let put = "";
+          let at = start;
+          tr.changes.iterChanges((from, to, fromB, _toB, inserted) => {
+            if (from === start && to === end) {
+              put = inserted.toString();
+              at = fromB;
+            }
+          });
+          if (!put) return tr;
+          // Pasted code stays in the quotes and list items the caret stands in, as a
+          // line begun with Shift+Enter does, since code's lines don't continue them
+          // lazily as a paragraph's do. Pasted prose keeps its own markers, so a pasted
+          // item stays the item it was.
+          const begin = beginBelow(state, start);
+          const code =
+            codeAt(state, start) !== null || /^ {0,3}(`{3,}|~{3,})/m.test(put);
+          const lines =
+            pasted && code && begin && begin !== "\n"
+              ? [...put.matchAll(/\n/g)].map(({ index }) => ({
+                  from: at + index,
+                  to: at + index + 1,
+                  insert: begin,
+                }))
+              : [];
+          const from = fenceBreak(state, put, pasted);
+          const changes =
+            from === null ? lines : [{ from, insert: begin ?? "\n" }, ...lines];
+          return changes.length
+            ? [
+                tr,
+                {
+                  changes,
+                  sequential: true,
+                  annotations: isolateHistory.of("full"),
+                },
+              ]
+            : tr;
+        }),
         invertedEffects.of((tr) =>
           tr.effects
             .filter((effect) => effect.is(ownerStep))
@@ -1466,11 +1644,11 @@ function fieldEditor(
         ),
         keymap.of([
           // A one-line field takes no line break (`field.oneLine`).
-          { key: "Shift-Enter", run: () => field.oneLine() },
+          { key: "Shift-Enter", run: (view) => field.oneLine() || view.state.readOnly },
           { key: "Enter", run: (view) => field.returned() && newLine(view) },
           {
             key: "Shift-Enter",
-            run: (view) => view.state.facet(joinsLines) && newLine(view),
+            run: (view) => !view.state.facet(message) && newLine(view),
           },
           { key: "Shift-Enter", run: (view) => continueBlocks(view) },
           // Tab in a list item nests it (`nestItems`), and stays in the field where
@@ -1497,13 +1675,15 @@ function fieldEditor(
               true
             ),
           },
+          // Down reaches here only where the caret has no line below (`lineStep`).
+          { key: "ArrowDown", run: (view) => !field.oneLine() && leaveCode(view) },
           ...standardKeymap.filter(
             ({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter",
           ),
           ...historyKeymap,
         ]),
         reading,
-        joinsLines.of(field.joined()),
+        message.of(field.message()),
         joints,
         livePreview,
         EditorView.lineWrapping,

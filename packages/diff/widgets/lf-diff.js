@@ -60,14 +60,13 @@ import {
   offer,
   offerAction,
   LeafElement,
+  PendingTaskEvent,
   publishOutput,
-  projectedDatum,
   threadSurface,
   releaseOutlets,
   reportFailure,
   retainUserIntent,
   scrollBehavior,
-  scrollIntoReadingBand,
   searchField,
   setChildren,
   shadowStage,
@@ -78,7 +77,7 @@ import {
   focused,
   currentLocationIn,
   commandsChanged,
-} from "/runtime/widget-api.js";
+} from "/runtime/portable-api.js";
 import {
   diffDatumKey,
   diffLocationKey,
@@ -87,7 +86,8 @@ import {
   readDiffCoordinate,
 } from "./diff-coordinates.js";
 import { overflowFor } from "./overflow.js";
-import "/vendor/webawesome.esm.js";
+// The search field's `wa-input`, which a plain page has no chrome to define.
+import "/vendor/webawesome-chrome.js";
 import { pierre, markSyntax } from "/widgets/pierre.js";
 // Only a diff that is actually rendering has any use for Pierre's renderer —
 // an authored <lf-diff> bound to data
@@ -230,8 +230,25 @@ const unmark = (node) => {
   for (const name of MARKS) node.removeAttribute(name);
 };
 
+/** @param {SourceLine} line @param {boolean} canComment */
+function lineNumber(line, canComment) {
+  const number = canComment
+    ? offerAction("gutter", "lf-diff-line-number lf-diff-comment lf-diff-line-comment")
+    : offer("span", "lf-diff-line-number");
+  if (number instanceof HTMLButtonElement) {
+    number.type = "button";
+    number.tabIndex = -1;
+    number.setAttribute("aria-label", `Comment on ${lineLabel(line)}`);
+    number.setAttribute(LINE_KEY, diffDatumKey(line));
+  }
+  relabel(number, String(line.side === "old" ? line.oldLine : line.newLine), {
+    says: "echo",
+  });
+  return number;
+}
+
 // Pierre owns parsing, highlighting and word differences. Leaf gives each source
-// line one native row: its number is the comment control, and a conversation can
+// line one native row: its number offers Comment while a surface is registered, and a conversation can
 // follow that row without a second gutter column to reconcile or measure.
 /** @param {NativeFile} file @param {DocumentFragment} content */
 function renderedLines(file, content) {
@@ -255,16 +272,9 @@ function renderedLines(file, content) {
     const row = document.createElement("div");
     row.className = "lf-diff-line";
     keeps(row, "data-line-type", node.getAttribute("data-line-type"));
-    const comment = offer("button", "lf-diff-comment lf-diff-line-comment");
-    comment.type = "button";
-    comment.tabIndex = -1;
-    comment.setAttribute("aria-label", `Comment on ${lineLabel(record)}`);
-    comment.setAttribute(LINE_KEY, key);
-    relabel(comment, String(record.side === "old" ? record.oldLine : record.newLine), {
-      says: "echo",
-    });
+    const number = lineNumber(record, false);
     node.replaceWith(row);
-    row.append(comment, node);
+    row.append(number, node);
     return { ...record, node, row, content: node.innerHTML };
   });
 }
@@ -294,17 +304,18 @@ function pathTemplate(path) {
     }<span class="lf-diff-base">${base}</span>`;
 }
 
-// While a file's row cuts its path short, the row wears `data-path-cut`, which draws the
-// whole path for the keyboard and a held press (widget-shadow.css), and the path's title holds
-// it for a pointer resting there. A path the row shows whole has neither, since each
-// would repeat it. Whether the row cuts the path changes only with the width of a part
-// of it, the folders or the name (at a new window width, face or press beside it), so
-// each part's size is watched rather than polled. A part is cut where its words run
-// past its box, measured by a Range to the layout unit: `scrollWidth` rounds to whole
-// pixels, and the ellipsis is drawn for a fraction of one. A folder region too small
-// for this font's ellipsis is left blank: the browser otherwise paints a glyph sliver.
-// Its CSS measurement box supplies the native width. Opacity elides only paint, leaving
-// flex allocation and the full path for accessibility, title and held-word intact.
+// While a file's row cuts its path short, the row wears `data-lf-path-cut`, which draws
+// the whole path for the keyboard and a held press (widget-shadow.css), and the path's
+// title holds it for a pointer resting there. A path the row shows whole has neither,
+// since each would repeat it. Whether the row cuts the path changes only with the width
+// of a part of it, the folders or the name (at a new window width, face or press beside
+// it), so each part's size is watched rather than polled. A part is cut where its words
+// run past its box, measured by a Range to the layout unit: `scrollWidth` rounds to
+// whole pixels, and the ellipsis is drawn for a fraction of one. A folder region too
+// small for this font's ellipsis is left blank: the browser otherwise paints a glyph
+// sliver. Its CSS measurement box supplies the native width. Opacity elides only paint,
+// leaving flex allocation and the full path for accessibility, title and held-word
+// intact.
 //
 // One observer watches every file's row, so a delivery reads every row it names before
 // writing any. A summary's paint starts watching its path parts and moves that
@@ -353,10 +364,10 @@ const pathSizes = sizeObserver((entries) => {
     };
   });
   for (const { path, header, cut, folders } of readings) {
-    header.toggleAttribute("data-path-cut", cut);
+    header.toggleAttribute("data-lf-path-cut", cut);
     keeps(path, "title", cut ? path.textContent : null);
     for (const { part, hidden } of folders)
-      part.toggleAttribute("data-folder-hidden", hidden);
+      part.toggleAttribute("data-lf-folder-hidden", hidden);
   }
 });
 
@@ -374,7 +385,7 @@ function filePathTemplate({ path, previousPath }) {
   const displayPath = previousPath ? `${previousPath} → ${path}` : name;
   return html`<span
     class="lf-diff-path"
-    data-path=${displayPath.replaceAll("/", "/\u200b")}
+    data-lf-path=${displayPath.replaceAll("/", "/\u200b")}
     >${
       previousPath
         ? html`<span class="lf-diff-source-path">${pathTemplate(previousPath)}</span
@@ -626,7 +637,7 @@ function diffTools(host) {
   const search = searchField("lf-diff-tools lf-diff-search", {
     name: "diff-search",
     label: "Filter diff files",
-    placeholder: "Filter files",
+    placeholder: "Filter files…",
   });
   search.addEventListener("input", () => host.filterFiles(search.value));
   const progress = document.createElement("span");
@@ -796,11 +807,15 @@ async function renderFile(file, overflow) {
     separator.classList.add("lf-ui");
   markSyntax(content, foreground);
   const lines = renderedLines(file, content);
+  // The block is its source's ring frame (surfaces.css, `.lf-ring-frame`): the ring
+  // stands over the rows the source scrolls, outside its scrollport.
   const pre = document.createElement("pre");
+  pre.className = "lf-ring-frame";
   pre.dataset.overflow = overflow;
   const viewport = document.createElement("code");
   viewport.dataset.code = "";
-  viewport.className = "lf-text-scroller scroll";
+  viewport.className = "lf-text-scroller";
+  viewport.toggleAttribute("data-lf-scroll", true);
   viewport.setAttribute("role", "region");
   viewport.setAttribute("aria-label", file.name || "diff");
   const rows = document.createElement("div");
@@ -812,10 +827,7 @@ async function renderFile(file, overflow) {
   rows.style.setProperty("--lf-diff-gutter", `${String(largest).length + 3}ch`);
   rows.append(content);
   viewport.append(rows);
-  const frame = document.createElement("span");
-  frame.className = "lf-diff-frame";
-  frame.setAttribute("aria-hidden", "true");
-  pre.append(viewport, frame);
+  pre.append(viewport);
   return { pre, rows, lines };
 }
 
@@ -1032,15 +1044,6 @@ customElements.define(
       this.value = null;
     }
 
-    /** @param {import("lit").PropertyValues} changed */
-    shouldUpdate(changed) {
-      const ready = super.shouldUpdate(changed);
-      if (!ready) return false;
-      // Only new evidence or preparation interrupted by departure needs a draw;
-      // a no-op update would clear a completed refusal.
-      return this.#shown === undefined || this.value !== this.#shown;
-    }
-
     setup() {
       this.singleFile = this.getAttribute("view") === "file";
       this.lfCommands = {
@@ -1157,6 +1160,9 @@ customElements.define(
 
     render() {
       this.#delivered = this.value;
+      // Drawn files offer Comment while a surface is registered; reading the opener
+      // here draws again when it changes, and `updated` reconciles the controls.
+      void threadSurface(this).open;
       return nothing;
     }
 
@@ -1165,8 +1171,9 @@ customElements.define(
     /** @param {import("lit").PropertyValues} changed */
     updated(changed) {
       super.updated(changed);
-      this.#rendered = undefined;
+      for (const entry of this.fileEntries ?? []) this.reconcileEntryComments(entry);
       if (this.#delivered === this.#shown) return;
+      this.#rendered = undefined;
       this.#shown = this.#delivered;
       this.#showing = true;
       const rendering = this.show(this.#delivered);
@@ -1264,7 +1271,7 @@ customElements.define(
         const fresh = [];
         /** @type {((() => unknown) | null)[]} */
         const restores = [];
-        const resume = this.controller.defer();
+        const resume = this.defer();
         try {
           const entries = plans.map(({ record, evidence, previous, prepared }) => {
             const metadata =
@@ -1322,6 +1329,7 @@ customElements.define(
           if (this.singleFile || entries.length < 2) this.diffTools = null;
           else this.diffTools ??= diffTools(this);
           for (const entry of fresh) this.attachEntryControls(entry);
+          for (const entry of entries) this.reconcileEntryComments(entry);
           for (const entry of entries) this.attachDisclosure(entry);
           this.filesBody ??= diffBody([]);
           // A file the patch dropped goes with its outlets, which core's composer leaves first.
@@ -1353,8 +1361,11 @@ customElements.define(
         this.filesBody = null;
         this.classList.toggle("lf-rendered", false);
         // The failure box quotes a patch text; a manifest has none to quote. It takes
-        // the place of every outlet, which core's composer leaves first.
+        // the place of every outlet, which core's composer leaves first. It stands as
+        // the shadow stage, as files do, so it lasts until the next `show` stages
+        // another rendering; an update that leaves the source unchanged keeps it.
         releaseOutlets(this);
+        shadowStage(this, []);
         failSoft(this, err, typeof source === "string" ? source : undefined);
         this.markFiles(source);
       }
@@ -1402,7 +1413,9 @@ customElements.define(
       if ("parsed" in record) return { file: record.parsed };
       let patch;
       try {
-        patch = await loadDeferred(record.manifest, record.path);
+        patch = /** @type {string} */ (
+          await loadDeferred(record.manifest, record.path)
+        );
       } catch (error) {
         return { error, retry: true };
       }
@@ -1687,6 +1700,7 @@ customElements.define(
       entry.loaded = true;
       entry.details.querySelector("pre")?.toggleAttribute("hidden", false);
       paintFileDetails(entry, entry.record);
+      this.reconcileEntryComments(entry);
       return restore;
     }
 
@@ -1702,7 +1716,18 @@ customElements.define(
       if (outdated) return entry.node;
       if (!entry.loaded || entry.filtered) return entry.node;
       const line = findDiffLine(entry.rendered?.lines ?? [], coordinate);
-      return line ? projectedDatum(this, diffDatumKey(line)) : null;
+      return line?.node ?? null;
+    }
+
+    // A file navigation opens its evidence from the beginning. Its comment datum
+    // stays on the header, which can remain visible while stuck over later lines.
+    /** @param {string} key @returns {Element[]} */
+    lfElementsFor(key) {
+      const coordinate = readDiffCoordinate(key);
+      const node = coordinate?.file
+        ? findDiffFile(this.fileEntries, coordinate)?.node
+        : this.lfDataDatum(key);
+      return node ? [node] : [];
     }
 
     // A datum's label is its coordinate's, so a thread on a line of a file not yet
@@ -1765,24 +1790,49 @@ customElements.define(
         const button =
           target instanceof Element ? target.closest(".lf-diff-line-comment") : null;
         const line = button?.nextElementSibling;
-        if (line) threadSurface(this).open(line);
+        if (line) threadSurface(this).open?.(line);
       });
       entry.node.addEventListener("beforematch", () => {
         if (this.singleFile) this.selectFile(entry);
         else this.clearFilter();
       });
-      const label = entry.record.path || "file";
-      const fileComment = commentButton(
-        label,
-        () => threadSurface(this).open(fileNode(entry)),
-        "lf-diff-file-comment",
-      );
-      entry.actions.prepend(fileComment);
+    }
+
+    // A surface owns whether Comment is available. Its registration can arrive after
+    // the evidence, or leave while the same value remains, so this updates retained
+    // affordances independently of parsing and preserves the source rows themselves.
+    /** @param {FileEntry} entry */
+    reconcileEntryComments(entry) {
+      const opener = threadSurface(this).open;
+      const fileComment = entry.actions.querySelector(".lf-diff-file-comment");
+      if (opener && !fileComment) {
+        entry.actions.prepend(
+          commentButton(
+            entry.record.path || "file",
+            () => threadSurface(this).open?.(fileNode(entry)),
+            "lf-diff-file-comment",
+          ),
+        );
+      } else if (!opener && fileComment) {
+        const restore = holdFocus(fileComment);
+        fileComment.remove();
+        restore?.(entry.header);
+      }
+      for (const line of entry.rendered?.lines ?? []) {
+        const previous = line.row.firstElementChild;
+        if (!previous || (previous.localName === "button") === Boolean(opener))
+          continue;
+        const restore = holdFocus(previous);
+        const number = lineNumber(line, Boolean(opener));
+        previous.replaceWith(number);
+        restore?.(number);
+      }
     }
 
     /** @param {PromiseLike<unknown>} promise */
     present(promise) {
-      return this.controller.present(promise);
+      this.dispatchEvent(new PendingTaskEvent(promise));
+      return promise;
     }
 
     /** @param {string | null} query */
@@ -1857,7 +1907,7 @@ customElements.define(
       const all = `${total} file${total === 1 ? "" : "s"}`;
       const matching = `${shown.length} of ${total}`;
       // Filtering changes the count inside its room, never its containing field.
-      keeps(this.diffTools.progress, "data-room", `${all}\n${total} of ${total}`);
+      keeps(this.diffTools.progress, "data-lf-room", `${all}\n${total} of ${total}`);
       keepsText(this.diffTools.count, shown.length === total ? all : matching);
       this.paintFoldAll();
       commandsChanged(this);
@@ -2025,11 +2075,15 @@ customElements.define(
     // already is one, and writing a tabindex of -1 onto it would take it out of the
     // order a user tabs through.
     //
-    // The shared reading-region landing moves only vertically, including through
-    // the shadow host. Neither the file nor a region around it loses its sideways place.
+    // The landing moves only vertically, including through the shadow host, so neither
+    // the file nor a region around it loses its sideways place.
     /** @param {Element} box @param {Element} [node] */
     land(box, node = box) {
-      scrollIntoReadingBand(box, box, "start", scrollBehavior());
+      scrollIntoView(box, {
+        block: "start",
+        behavior: scrollBehavior(),
+        sideways: false,
+      });
       focusDestination(node, "move");
     }
 

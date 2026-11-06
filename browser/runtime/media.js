@@ -19,7 +19,11 @@
    native dialog remains a retained chrome node. The image first appears in PhotoSwipe,
    once its module has loaded and the image has decoded, since PhotoSwipe needs the
    image's size up front; a second renderer shown meanwhile would have to agree with
-   it on every box. An image opened from inside a popover, such as a draft's attachment
+   it on every box. For the same reason PhotoSwipe draws no stand-in box of its own,
+   which would sit behind the decoded image, doubling its shadow, until PhotoSwipe
+   removed it a second later. Loading and decoding hold the page's rendering
+   (rendering.js, `holdRendering`), so a reader outside the page waits for the image
+   rather than the empty viewer. An image opened from inside a popover, such as a draft's attachment
    in the page comment card, leaves that popover and its draft standing beneath the
    viewer (layer-stack.js, `showNativeLayer`). A queued close from an earlier opening leaves a reopened viewer's
    image and focus intact. */
@@ -46,6 +50,7 @@ import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import { reducedMotion, foldDuration } from "./motion.js";
 import { says } from "./passages.js";
 import { plainPress } from "./pointer.js";
+import { holdRendering } from "./rendering.js";
 
 // Page media is whatever a reference names under this directory. The name a file there
 // takes is the server's (Python's `schema.MEDIA_DIGEST`), which answers no other, so the
@@ -93,7 +98,8 @@ const viewerZoom = offerAction("word", "lf-media-viewer-zoom", "100%");
 const stage = document.createElement("div");
 stage.className = "lf-media-viewer-stage";
 const caption = document.createElement("p");
-caption.className = "lf-media-viewer-caption scroll";
+caption.className = "lf-media-viewer-caption";
+caption.toggleAttribute("data-lf-scroll", true);
 
 /** @type {import("photoswipe").default | null} */
 let inspector = null;
@@ -232,6 +238,9 @@ const cellHeads = (/** @type {Element} */ from) => {
 
 // The viewer hands the user back to the image they opened it from (focus.js,
 // `openLayer`) once the platform has closed it, by its button, Escape or a press outside.
+// Opening settles once PhotoSwipe draws the image or the viewer says it is
+// unavailable. An opening that a newer one or the viewer's close supersedes still
+// waits for its own image to be prepared before it settles, and then draws nothing.
 /** @param {string | HTMLCanvasElement} source @param {string} alt @param {Element} from */
 const open = async (source, alt, from) => {
   const attempt = ++opening;
@@ -280,7 +289,7 @@ const open = async (source, alt, from) => {
   );
   const probe = stage.querySelector("img");
   if (!probe) throw new Error("Image inspection needs its rendered decode probe");
-  Promise.all([imageTools(), probe.decode()]).then(
+  await Promise.all([imageTools(), probe.decode()]).then(
     ([PhotoSwipe]) => {
       // A delayed load belongs only to the image the reader still has open.
       if (attempt !== opening || !mediaViewer.open) return;
@@ -327,6 +336,7 @@ const open = async (source, alt, from) => {
         tapAction: "zoom",
       });
       inspector = current;
+      current.addFilter("useContentPlaceholder", () => false);
       current.on("keydown", (event) => {
         // PhotoSwipe owns only native panning in the active viewer. Leaf owns zoom,
         // cancellation and scopes, and Tab stays the browser's. Its document
@@ -386,7 +396,9 @@ mediaViewer.addEventListener("close", () => {
   );
 });
 document.addEventListener("click", (event) => {
-  if (event.defaultPrevented || !plainPress(event)) return;
+  // Startup seats the viewer in the chrome after this module loads; until then a
+  // press keeps the link's own destination.
+  if (event.defaultPrevented || !plainPress(event) || !mediaViewer.isConnected) return;
   // The path ends at the document and the window, and an element whose id is
   // `matches` puts an object at `window.matches`, so only elements are asked.
   const path = event.composedPath();
@@ -416,11 +428,12 @@ document.addEventListener("click", (event) => {
     (link && imageLink ? link.href : null);
   if (!source) throw new Error("Image inspection needs a canvas or image URL");
   event.preventDefault();
+  const release = holdRendering();
   void open(
     source,
     trigger?.getAttribute("data-lf-media-alt") ||
       (trigger?.querySelector("img") || image)?.alt ||
       "Image",
     origin,
-  );
+  ).finally(release);
 });

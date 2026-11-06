@@ -6,7 +6,7 @@ repos:
     hooks:
       - id: trailing-whitespace
         # Generated output, source patches and captured evidence keep their bytes.
-        exclude: &verbatim ^((browser/vendor|dist/kernel|packages/.*/vendor)/|examples/(corpus\.html|pr-walkthrough\.patch)$|evals/ui-review-detection/fixtures/)|\.patch$
+        exclude: &verbatim ^((browser/vendor|packages/.*/vendor)/|examples/pr-walkthrough\.patch$|evals/ui-review-detection/fixtures/)|\.patch$
       - id: end-of-file-fixer
         exclude: *verbatim
       - id: check-yaml
@@ -15,7 +15,7 @@ repos:
       - id: mixed-line-ending
         exclude: *verbatim
       - id: check-added-large-files
-        exclude: ^((browser/vendor|dist/kernel|packages/.*/vendor)/|examples/(corpus\.html|pr-walkthrough\.patch)$|evals/ui-review-detection/fixtures/)
+        exclude: ^((browser/vendor|packages/.*/vendor)/|examples/pr-walkthrough\.patch$|evals/ui-review-detection/fixtures/)
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.17.3
     hooks:
@@ -58,6 +58,15 @@ repos:
         entry: depcruise --output-type err browser/runtime
         pass_filenames: false
         files: ^(browser/(leaf\.js|runtime/.*\.js)|\.dependency-cruiser\.mjs)$
+      # JavaScript's vulture: the modules, exports and types nothing reads, and
+      # import cycles (`knip.config.js`). Whole-tree; files only wakes it.
+      - id: knip
+        name: knip
+        language: node
+        additional_dependencies: [knip@6.44.1]
+        entry: knip --no-progress
+        pass_filenames: false
+        files: '\.(js|mjs|cjs|ts)$'
   - repo: https://github.com/adhtruong/mirrors-typos
     rev: v1.48.0
     hooks:

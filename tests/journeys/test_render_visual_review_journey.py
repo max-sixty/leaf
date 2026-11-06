@@ -13,6 +13,7 @@ from render_harness import (
     open_page,
     panel_settled,
     panel_view,
+    reported_browser_errors,
     resized,
     scroll_settled,
     sending,
@@ -343,7 +344,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user.keyboard.press("Escape")
     user.keyboard.press("Escape")
     assert user.evaluate("() => document.activeElement === document.body")
-    compare = second.get_by_role("button", name="Pair", exact=True)
+    compare = second.get_by_role("radio", name="Pair", exact=True)
     go_to(user, compare)
     assert_keyboard_focus(user, compare)
     corrected = shifted | {
@@ -392,3 +393,181 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert capture_key not in exported.read_text(encoding="utf-8")
     assert capture_key not in data_text
     assert "?t=" not in data_text
+
+
+import hashlib
+
+import pytest
+from browser.test_render_visual_review_journey import VISUAL_REVIEW_GALLERY
+from render_cases_layout import (
+    solid_png,
+)
+
+
+@pytest.mark.shifts_unsurveyed
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_cases(
+    request, serve, engine
+):
+    """New captures retain inspection; a removed case returns focus to the next case."""
+    browser = request.getfixturevalue(engine)
+    captures = [
+        solid_png(1200, 1000, color) for color in ((220, 230, 240), (240, 230, 220))
+    ]
+    sources = [
+        f"/media/{hashlib.sha256(data).hexdigest()[:16]}.png" for data in captures
+    ]
+    page = open_page(
+        browser,
+        serve(VISUAL_REVIEW_GALLERY, media=dict(zip(sources, captures, strict=True))),
+    )
+    widget = page.locator("#visual-review-run")
+    case = widget.locator(".lf-vr-case:not([hidden])")
+    shot = case.locator("lf-shot")
+    control = case.get_by_role("radio", name="Slider", exact=True)
+    control.click()
+    case.get_by_role("button", name="Image options").click()
+    case.get_by_role("button", name="100%", exact=True).click()
+    divider = shot.get_by_role("scrollbar")
+    divider.press("Home")
+    divider.press("ArrowRight")
+    control.focus()
+    expect(control).to_be_focused()
+    original = shot.element_handle()
+    record = json.loads(VISUAL_REVIEW_GALLERY.with_suffix(".data.json").read_text())[
+        "gallery-visual-run"
+    ]
+    changed = record | {
+        "cases": [
+            record["cases"][0]
+            | {
+                "before": record["cases"][0]["after"],
+                "after": record["cases"][0]["before"],
+            },
+            *record["cases"][1:],
+        ]
+    }
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", changed)
+    told(page)
+    expect(control).to_be_focused()
+    assert shot.evaluate("(node, original) => node === original", original)
+    expect(control).to_have_attribute("aria-checked", "true")
+    expect(shot.locator("wa-comparison")).to_have_attribute("position", "1")
+    expect(
+        case.get_by_role("button", name="100%", exact=True, include_hidden=True)
+    ).to_have_attribute("aria-pressed", "true")
+
+    # A refused replacement leaves usable old evidence, and correcting it must
+    # publish new dimensions even in Firefox, whose reused-image decode can be stale.
+    invalid = changed | {
+        "cases": [changed["cases"][0] | {"after": sources[1]}, *changed["cases"][1:]]
+    }
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", invalid)
+    told(page)
+    expect(shot.locator(".lf-error")).to_contain_text(
+        "a pair has to be shot at one viewport"
+    )
+    reported_browser_errors(page, "a pair has to be shot at one viewport")
+    expect(control).to_be_focused()
+    changed = invalid | {
+        "cases": [
+            invalid["cases"][0]
+            | {
+                "before": sources[0],
+                "capture": invalid["cases"][0]["capture"]
+                | {"viewport": {"width": 600, "height": 500}, "deviceScaleFactor": 2},
+                "focus": {"x": 300, "y": 200, "width": 200, "height": 200},
+            },
+            *invalid["cases"][1:],
+        ]
+    }
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", changed)
+    told(page)
+    expect(shot.locator(".lf-error")).to_have_count(0)
+    expect(control).to_be_focused()
+    assert shot.locator(".lf-shotframe img").evaluate_all(
+        "images => images.map(image => [image.naturalWidth, image.naturalHeight, image.getBoundingClientRect().width])"
+    ) == [[1200, 1000, 600], [1200, 1000, 600]]
+
+    # Refreshing captures also replaces the cached pixel mask and its background.
+    pixels = case.get_by_role("radio", name="Pixels", exact=True)
+    pixels.click()
+    page.wait_for_function(
+        """() => document.querySelector(
+          '.lf-vr-case:not([hidden]) .lf-shotpixels .lf-shot-pixel-mask'
+        )?.style.getPropertyValue('--lf-shot-pixels')"""
+    )
+    painted_pixels = """node => ({
+      ground: node.querySelector('.lf-shotpixels img').src,
+      mask: node.querySelector('.lf-shotpixels .lf-shot-pixel-mask')
+        .style.getPropertyValue('--lf-shot-pixels'),
+    })"""
+    previous_pixels = shot.evaluate(painted_pixels)
+    # Hold the platform's mask encoding at an actual asynchronous boundary.
+    # Refresh must keep the whole old difference until the new mask is ready.
+    page.evaluate(
+        """() => {
+          const encode = OffscreenCanvas.prototype.convertToBlob;
+          window.heldShotMasks = [];
+          OffscreenCanvas.prototype.convertToBlob = async function(...args) {
+            const blob = await encode.apply(this, args);
+            await new Promise(resolve => window.heldShotMasks.push(resolve));
+            return blob;
+          };
+          window.releaseShotMasks = () => {
+            OffscreenCanvas.prototype.convertToBlob = encode;
+            for (const release of window.heldShotMasks) release();
+          };
+        }"""
+    )
+    identical = changed | {
+        "cases": [
+            changed["cases"][0] | {"after": changed["cases"][0]["before"]},
+            *changed["cases"][1:],
+        ]
+    }
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", identical)
+    told(page)
+    page.wait_for_function("window.heldShotMasks.length === 1")
+    assert shot.evaluate(painted_pixels) == previous_pixels
+    # Metadata arriving after image validation owns a new request; it cannot
+    # smuggle an invalid crop into the already-preparing pair.
+    invalid_focus = identical | {
+        "cases": [
+            identical["cases"][0]
+            | {"focus": {"x": 900, "y": 200, "width": 200, "height": 200}},
+            *identical["cases"][1:],
+        ]
+    }
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", invalid_focus)
+    told(page)
+    expect(shot.locator(".lf-error")).to_contain_text(
+        "falls outside its captured images"
+    )
+    reported_browser_errors(page, "falls outside its captured images")
+    assert shot.evaluate(painted_pixels) == previous_pixels
+    page.evaluate("window.releaseShotMasks()")
+    # Correcting metadata alone must recover without changing either image URL.
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", identical)
+    told(page)
+    expect(shot.locator(".lf-error")).to_have_count(0)
+    expect(pixels).to_be_focused()
+    expect(pixels).to_have_attribute("aria-checked", "true")
+    expect(shot.locator(".lf-shotstage")).to_have_attribute(
+        "aria-description", "identical"
+    )
+    corrected_pixels = shot.evaluate(painted_pixels)
+    assert corrected_pixels["mask"]
+    assert corrected_pixels["mask"] != previous_pixels["mask"]
+    assert shot.locator(".lf-shotpixels img").evaluate(
+        "node => node.src"
+    ) == shot.locator('.lf-shotframe[data-lf-state="after"] img').evaluate(
+        "node => node.src"
+    )
+    data_model.cmd_data_set(
+        serve.page_dir, "gallery-visual-run", record | {"cases": record["cases"][1:]}
+    )
+    told(page)
+    expect(case.locator(".lf-vr-title")).to_be_focused()
+    expect(case.locator(".lf-vr-title")).to_have_text(record["cases"][1]["title"])
+    expect(case.locator(".lf-vr-title")).to_be_in_viewport()

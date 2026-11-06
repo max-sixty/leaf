@@ -41,7 +41,7 @@ from ..state import EVENTS_FILE, SESSION_SUFFIX, flocked, session_file
 # request it answers; counting either would make a read say it changed itself, and
 # waking on either would rouse every watcher of a page a tab is merely looking at.
 UNWATCHED = frozenset({INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK})
-# The page's trees stamped file by file: the authored `page/` tree and `data/`.
+# The page's trees stamped entry by entry: the authored `page/` tree and `data/`.
 TREES = ("page", DATA_DIR)
 
 
@@ -49,7 +49,7 @@ def page_input(page_dir: Path, path: Path) -> bool:
     """Whether a write at `path` inside or above the page directory is a page input.
 
     The directory itself and its ancestors count, since replacing one replaces the
-    page. Inside it: each direct child but the diagnostics (`UNWATCHED`); every file
+    page. Inside it: each direct child but the diagnostics (`UNWATCHED`); every entry
     in `TREES`; and each entry of another directory, whose stamp moves when one is
     added or removed. A file an atomic write is still staging (`STAGED`) is not one:
     the rename that publishes it is."""
@@ -66,31 +66,39 @@ def page_input(page_dir: Path, path: Path) -> bool:
     return parts[0] in TREES or len(parts) == 2
 
 
-def page_roots(page_dir: Path) -> dict[Path, bool]:
-    """The directories whose notifications report every `page_input`, each with
-    whether its whole tree counts.
+def page_roots(page_dir: Path) -> set[Path]:
+    """The directories whose notifications report every `page_input`. The page's
+    parent reports the page directory being replaced, and the page directory its
+    direct children. Each other direct subdirectory reports the entries whose
+    arrival or removal moves its stamp, and each directory in `TREES`, at any depth,
+    every file in it. Nothing deeper is an input, so what each revision in
+    `revisions/` holds and the page's package copies go unwatched.
 
-    The page's parent reports the page directory being replaced, and the page
-    directory its direct children. Each other directory among them reports the
-    entries whose arrival or removal moves its stamp, and each of `TREES` every
-    file beneath it. Nothing deeper is an input, so what each revision in
-    `revisions/` holds and the page's package copies go unwatched. The roots follow
-    the page's direct subdirectories as they stand: one created later is reported
-    by the page directory, and the owner's next subscription takes it in."""
-    roots = {page_dir.parent: False, page_dir: False}
+    None counts its tree, so a process watching pages holds no recursive watcher
+    (`file_changes`). The roots follow the directories as they stand: the reading
+    stamps each one, so one created later moves the reading, and the owner's next
+    subscription takes it in."""
+    roots = {page_dir.parent, page_dir}
     try:
         entries = list(page_dir.iterdir())
     except FileNotFoundError:
         return roots
     for entry in entries:
         if entry.is_dir() and not STAGED.fullmatch(entry.name):
-            roots[entry] = entry.name in TREES
+            roots.add(entry)
+            if entry.name in TREES:
+                roots.update(
+                    nested
+                    for nested in entry.rglob("*")
+                    if nested.is_dir() and not STAGED.fullmatch(nested.name)
+                )
     return roots
 
 
 def outside_inputs(page_dir: Path) -> set[Path]:
     """The files outside the page directory its reading stamps: the claim, its
-    claimant session's lifecycle, and each bound file. A watcher subscribes to these
+    claimant session's lifecycle and forks' hand-overs (`forks.HANDED`), which
+    change what is deliverable, and each bound file. A watcher subscribes to these
     by path, and follows a new set when the claim or the grants change."""
     return {path for _name, path in _outside(page_dir)}
 
@@ -102,6 +110,7 @@ def _outside(page_dir: Path) -> list[tuple[str, Path]]:
         # Turn openings/closings and SessionEnd are shared session publications,
         # not rewrites of every page claim. They change each claimed page's state.
         named.append(("$session", session_file(claim["id"], SESSION_SUFFIX).resolve()))
+        named.append(("$forks", session_file(claim["id"], "forks").resolve()))
     return named + _bound(page_dir)
 
 
@@ -133,6 +142,15 @@ def page_reading(page_dir: Path) -> str:
         return held_page_reading(page_dir)
 
 
+def page_readings(page_dir: Path) -> tuple[str, tuple[str, str]]:
+    """`page_reading` and the `source_readings` of the same stamps, from one pass over
+    them under the log's lease, for the news a tab asks for several times a second
+    (`LivePage._activated`)."""
+    with flocked(page_dir / EVENTS_FILE):
+        stamps = _page_stamps(page_dir)
+        return _token([*stamps, *_outside_stamps(page_dir)]), _split(stamps)
+
+
 def held_page_reading(page_dir: Path) -> str:
     """`page_reading` for a caller that holds the log's lease.
 
@@ -142,7 +160,9 @@ def held_page_reading(page_dir: Path) -> str:
     nothing red to say so. The authored `page/` tree is stamped recursively: changing
     a module dependency or stylesheet is a candidate revision even when the HTML stays
     unchanged. So is `data/`, whose publication files `leaf data set` replaces
-    atomically. Other directories are stamped without descending — a new revision
+    atomically. Both trees' directories are stamped as well as their files, so a
+    new directory moves the reading and its watchers take it in (`page_roots`).
+    Other directories are stamped without descending — a new revision
     moves `revisions/`, a stamp moves `events.jsonl`, and the layer cannot change
     under a served page at all: the server composes it once (`layer.selected_layer`),
     and `page init`, which rewrites the record and the page's package copies,
@@ -156,9 +176,11 @@ def held_page_reading(page_dir: Path) -> str:
     also carries each bound file's stamp (`file_bindings.binding_stamps`), naming
     which binding moved.
     """
-    stamps = _page_stamps(page_dir)
-    stamps.extend((name, file_stamp(path)) for name, path in _outside(page_dir))
-    return _token(stamps)
+    return _token([*_page_stamps(page_dir), *_outside_stamps(page_dir)])
+
+
+def _outside_stamps(page_dir: Path) -> list[tuple[str, object]]:
+    return [(name, file_stamp(path)) for name, path in _outside(page_dir)]
 
 
 def record_reading(page_dir: Path) -> str:
@@ -190,9 +212,11 @@ def source_readings(page_dir: Path) -> tuple[str, str]:
     lease without the next state read validating the whole page again; declaring a
     status and acknowledging a delivery append to the log, which is history.
     """
-    stamps = [
-        stamp for stamp in _page_stamps(page_dir) if stamp[0] not in SESSION_FILES
-    ]
+    return _split(_page_stamps(page_dir))
+
+
+def _split(stamps: list[tuple[str, object]]) -> tuple[str, str]:
+    stamps = [stamp for stamp in stamps if stamp[0] not in SESSION_FILES]
     return (
         _token([stamp for stamp in stamps if stamp[0] not in HISTORY]),
         _token([stamp for stamp in stamps if stamp[0] in HISTORY]),
@@ -205,7 +229,7 @@ def _page_stamps(page_dir: Path) -> list[tuple[str, object]]:
         (entry.relative_to(page_dir).as_posix(), file_stamp(entry))
         for tree in TREES
         for entry in sorted((page_dir / tree).rglob("*"))
-        if entry.is_file() and not STAGED.fullmatch(entry.name)
+        if not STAGED.fullmatch(entry.name)
     )
     return stamps
 

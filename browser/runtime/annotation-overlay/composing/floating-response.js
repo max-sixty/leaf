@@ -22,14 +22,24 @@
    room withholds it (`data-lf-withheld`); annotation-chrome.css hides it otherwise. This
    presenter writes those attributes and never the bar's visibility, and composition
    writes only whether the bar stands inline (`data-lf-presentation`), so neither leaves
-   a visibility behind for the other to undo. */
+   a visibility behind for the other to undo.
+
+   The box at rest beside a target (`response.rests`; composing/surface.js, `restFab`)
+   stands where its editor will and is carried as its editor is, so opening it moves
+   nothing. It has no editor yet, so it has no height to fit and no motion to follow.
+   It stands only in the room beside what it is about, the margin its rail stands in
+   (margin-layout.js, `railStandsBeside`), whatever rows stand there already. Under or
+   over its target, slid across a target with no room beside it, or beside a target
+   the rail doesn't stand by, as a workspace pane whose neighbour fills the window
+   beside it, it would lie on the page's own words and controls, the one just pressed
+   among them, and the next press there would open it (browser/AGENTS.md, "Controls
+   stay where the user aims"), so there it waits for `c`. */
 import { pageRange } from "../../native-selection.js";
-import { setScroll } from "../../arrivals.js";
-import { cancelRender, nextFrame, nextRender, sizeObserver } from "../../rendering.js";
+import { cancelRender, nextRender } from "../../rendering.js";
 import { boxMotion } from "../../box-motion.js";
 import { sameAnchor } from "../../anchor-coordinate.js";
 import { declareOffFlowSurface } from "../../off-flow.js";
-import { rightCover, shownBox } from "../../geometry.js";
+import { shownBox } from "../../geometry.js";
 import {
   passageGeometry,
   rangeGeometry,
@@ -44,7 +54,7 @@ import { coarsePointer } from "../../pointer.js";
 import { LAYOUT } from "../../widget-upgrade.js";
 import { under } from "../../shadow.js";
 import { union } from "../../rect.js";
-import { floatingPlacement, floatingUi, heldEdges } from "../floating.js";
+import { floatingPlacement, floatingUi } from "../floating.js";
 import { surfaceGrip } from "../surface-grip.js";
 import {
   commentAttachment,
@@ -52,9 +62,10 @@ import {
   commentBoundary,
   commentPlacement,
 } from "../comment-placement.js";
+import { railStandsBeside } from "../margin-layout.js";
 import { pointBand } from "../../pointed-place.js";
 import { keeps, roomPx } from "../../keeps.js";
-import { pageScroller, placeKept } from "../../scrolling.js";
+import { pageScroller } from "../../scrolling.js";
 
 /** @typedef {import("../../../types/domain.js").Anchor} Anchor */
 /** @param {{bar: HTMLElement, input: HTMLElement,
@@ -73,8 +84,7 @@ export function createFloatingResponsePlacement({
   scrollToRange,
 }) {
   /** @param {Element} [scroller] */
-  const floatBoundary = (scroller) =>
-    commentBoundary({ scroller, right: rightCover() });
+  const floatBoundary = (scroller) => commentBoundary({ scroller });
   // The side the bar holds and its inline start, by the rule the thread card it becomes
   // stands by too (comment-placement.js).
   const fabPlacement = commentPlacement();
@@ -125,44 +135,36 @@ export function createFloatingResponsePlacement({
   // it is"). The field's frame is the box, drawn by a surface behind it, and the
   // composer holding the field and the pictures hanging off it is what moves, so the
   // grip beside it, whose clip opens its middle to the field's presses, is never cut.
-  // It reads in the plane its placement stands it in (floating.js, `heldEdges`), so a
-  // scroll or a carry that moves it whole moves nothing in it. A box no placement
-  // stands has nothing to move from, and one seated in a widget's outlet stands in
-  // that widget's flow.
+  // It reads in the plane its placement stands it in, so a scroll or a carry that moves
+  // it whole moves nothing in it, and a change of the open box's size asks for its
+  // placement first (box-motion.js, `placed`). A box no placement stands has nothing
+  // to move from, and one seated in a widget's outlet stands in that widget's flow.
   /** @type {ReturnType<typeof boxMotion> | null} */
   let following = null;
-  const readFab = () => {
-    if (!following && !response.open) return;
-    if (!response.floating || !fabBar.hasAttribute("data-lf-placement"))
-      return following?.forget();
-    following ??= fabMotion();
-    following.follow();
-  };
-  // A change of the open box's size can move its placement too, as a line taking it
-  // past the window's edge shifts it. That placement lands asynchronously, but before
-  // this frame paints, so the reading waits for it and the box travels once, from
-  // where it was drawn to where it then stands. Read first, the box set out for where
-  // its old placement stood it and turned back a frame later.
-  const followed = sizeObserver(() => {
-    if (following && response.open && fabBar.hasAttribute("data-lf-placement")) {
-      nativeAttachment = false;
-      if (placeFab()) return;
-    }
-    readFab();
-  });
   function fabMotion() {
     const box = fabField();
+    // The composer holding the composition is the root, since the composition's frame is
+    // a wrapper with no box of its own (`display: contents`), whose empty rectangle
+    // carries nothing with the plane.
+    const composer = /** @type {HTMLElement} */ (
+      response.composition().frame.parentElement
+    );
     const motion = boxMotion({
-      root: response.composition().frame,
+      root: composer,
       box,
       surface: "lf-fab-ground",
       lift: 1,
       outset: 0,
-      observer: followed,
-      held: () => heldEdges(fabBar),
+      placement: {
+        held: fabPosition.held,
+        place: () => {
+          if (!response.open || !fabBar.hasAttribute("data-lf-placement")) return false;
+          nativeAttachment = false;
+          return placeFab();
+        },
+      },
     });
     fabBar.prepend(motion.ground);
-    followed.observe(response.composition().frame);
     return motion;
   }
   // The browser's selected Range is a mechanical place even when its durable quote
@@ -196,7 +198,7 @@ export function createFloatingResponsePlacement({
         height * scaleY,
       ),
       placement: fabPlacement.capture(),
-      // The field the card grows out of (thread-preview.js, `followCard`).
+      // The field the card grows out of (box-motion.js, `drawnAt`).
       field: following?.outline() ?? field,
       // How far the words stand above their end: where the user was reading them,
       // which the card Send opens keeps (thread-preview.js, `showArrival`).
@@ -237,7 +239,6 @@ export function createFloatingResponsePlacement({
     cancelRender(fabPositionFrame);
     fabPositionFrame = 0;
     if (!reset) return;
-    following?.forget();
     editingAttachment = null;
     windowPosture = false;
     fabPlacement.forget();
@@ -342,7 +343,7 @@ export function createFloatingResponsePlacement({
     fabPosition.watch(
       target,
       reference,
-      response.open ? observes.editing : observes.compact,
+      response.open || response.rests ? observes.editing : observes.compact,
     );
   }
   // A retained native Range and a resolved passage are two routes to geometry. Only
@@ -501,6 +502,15 @@ export function createFloatingResponsePlacement({
       scroller: boundary.scroller,
       coarse: coarsePointer.matches,
     });
+    if (
+      response.rests &&
+      (!railStandsBeside(place.element) ||
+        seat.side === "top" ||
+        seat.side === "bottom")
+    ) {
+      withholdFab();
+      return false;
+    }
 
     const epoch = fabPosition.begin();
     const stillCurrent = () =>
@@ -533,11 +543,14 @@ export function createFloatingResponsePlacement({
               withholdFab();
           },
         });
+        // We could consider, in future, placing the open box again on every scroll, as
+        // the card is: it would then need no "page" here, and floating.js no exception
+        // for a box its owner keeps in the page's plane.
         return fabPosition.position(
           ui.computePosition,
           commentReference(place, reference),
           { placement, middleware },
-          response.open && seatedOwner ? () => "page" : plane,
+          (response.open || response.rests) && seatedOwner ? "page" : plane,
           seatedOwner ?? document.documentElement,
         );
       })
@@ -545,21 +558,22 @@ export function createFloatingResponsePlacement({
         if (!position || !stillCurrent()) return;
         fabPlacement.landed(position);
         editingAttachment = response.open ? attachment : null;
-        // An open box's placement moves it only for a change of layout, as a line
-        // taking it past the window's edge shifts it, and never for a scroll, which
-        // carries it by CSS anchors (`watchFabPosition`), so what it moves travels.
+        // A scroll carries the box by CSS anchors (`watchFabPosition`); what a placement
+        // moves travels when it follows a change of the box's size (box-motion.js,
+        // `placed`). The open box's first spot is the first reading its motion follows
+        // from. A drag the grip carried ends where the placement stands the box.
         const stand = () => {
           keeps(fabBar, "data-lf-placement", position.placement);
-          fabPosition.stand(position);
+          const moved = fabPosition.stand(position);
+          carry.placed();
+          return moved;
         };
-        if (following) following.placed(stand);
+        if (response.open) following ??= fabMotion();
+        if (following && response.open) following.placed(stand);
         else stand();
-        carry.placed();
         nativeAttachment = response.open && fabPosition.follows();
         positioned(true);
         stoodAgain();
-        // The box's spot is the first reading its motion follows from.
-        readFab();
         return true;
       })
       .catch((error) => {
@@ -595,28 +609,6 @@ export function createFloatingResponsePlacement({
     returning?.();
   }
   function mount() {
-    // Chromium can reveal the caret by scrolling the document before it delivers
-    // `input`, even though this editor is in a fixed frame that will fit the new
-    // text inside the window. Keep the reader's page place in that same input task;
-    // a deliberate wheel or navigation is a separate gesture.
-    /** @type {number | null} */
-    let beforeInputScroll = null;
-    let inputEpoch = 0;
-    fabInput.addEventListener("lf-before-edit", () => {
-      beforeInputScroll =
-        response.open && response.floating ? pageScroller.scrollTop : null;
-      const epoch = ++inputEpoch;
-      nextFrame(() => {
-        if (inputEpoch === epoch) beforeInputScroll = null;
-      });
-    });
-    fabInput.addEventListener("input", () => {
-      if (beforeInputScroll === null) return;
-      if (pageScroller.scrollTop !== beforeInputScroll) {
-        setScroll(pageScroller, { top: beforeInputScroll, behavior: "instant" });
-        placeKept(pageScroller);
-      }
-    });
     // Widgets declare moves inside a stable outer box here. Scroll has its own
     // mechanical owner and never emits this geometry-invalidating publication.
     document.addEventListener(LAYOUT, (event) => {

@@ -16,12 +16,17 @@
  * lists what is drawn). List markers reveal their source only inside the marker: the
  * caret after its trailing space is ready to type content, so even an empty new item
  * already shows its bullet or number. The user can move back into the marker to edit every source
- * character. Nothing is converted: the value is always the source the user typed,
- * which is what the agent reads. The constructs come from the renderer that sends the
- * message (`markdownTokens`), never from a second grammar, so the preview and the
- * message agree on what is a link, a heading or code, Shift+Enter continues the
- * quotes and list items the message will hold, and Tab and Shift+Tab nest a list item
- * and take it out a level.
+ * character. Nothing is converted: the value is always the source, which is what the
+ * agent reads, holding what the user typed and the markers and line breaks their keys
+ * write. The constructs come from the renderer that sends the message
+ * (`markdownTokens`), never from a second grammar, so the preview and the message agree
+ * on what is a link, a heading or code, Shift+Enter and pasted code continue the quotes
+ * and list items the message will hold, and Tab and Shift+Tab nest a list item and take
+ * it out a level.
+ * A fence is left as a code span is, by typing its marks, wherever the code's last line
+ * ends, and the next words go below it (field-editor.js, `fenceBreak`). Down from the
+ * draft's last line leaves it too, and leaves the indented code a body reads
+ * (`leaveCode`).
  *
  * A field that edits words where they are shown, as a draft's does over its prose, names
  * the element that shows them (`facesOf`) and draws them in that display's faces
@@ -38,11 +43,13 @@
  * removed in the same task. The rules it yields go in a sheet of the field's own, which
  * the classes of the lines and of the quotes' boxes name, so the field draws nothing
  * differently without one. A list's inner gaps, a quote's inner blocks, a rule, a code
- * fence's lines and a table keep the source's lines. Rejected: rules the theme states
- * for each element also stated for parts the field exposes, which can set type but not
- * the gaps, since CodeMirror measures a line without its margins and a gap collapses
- * two blocks'; and a style attribute on each line, which CodeMirror writes again on
- * every redraw.
+ * fence's lines and a table keep the source's lines. So does a setext heading's
+ * underline, for which the display draws no line, so opening the editor over one moves
+ * the words below it down a line; a draft rarely holds one. Rejected: rules the theme
+ * states for each element also stated for parts the field exposes, which can set type
+ * but not the gaps, since CodeMirror measures a line without its margins and a gap
+ * collapses two blocks'; and a style attribute on each line, which CodeMirror writes
+ * again on every redraw.
  *
  * Focus is the field's own, as a textarea's is. `focus()` puts the user in the words
  * with the caret where it stood, `blur()` takes them out, and a press anywhere in the
@@ -134,6 +141,9 @@
  * for what its draft holds beside them (`record`), such as a composer's drawing, each
  * taken back or redone in the order it was made.
  *
+ * A key typed in the field stops at the host once the editor and Leaf's key dispatcher
+ * have handled it, so the page's listeners never hear it bubble (field-keys.js).
+ *
  * The host is the textarea's scrollport. CodeMirror's content-sized inner scroller
  * never clips the words; the page sizes the host. The field reveals the caret's whole
  * row, its leading as well as the caret, inside the host's padding, so typing on the
@@ -153,17 +163,23 @@ import { TEXT_FIELD } from "../control-selectors.js";
 import { afterPresentation } from "../presentation.js";
 import { loadFieldEditor, readFaces } from "./field-editor.js";
 import { holdRendering, sizeObserver } from "../rendering.js";
+import { keepFieldKeys } from "../field-keys.js";
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
-  :host { display: block; cursor: text; }
+  /* The caret is drawn in the ink of the words it stands in, unless a rule on the
+     field gives it another colour, as one on a textarea does. A screenshot's style
+     hides it that way where the browser can't hold its blink
+     (dev/leaf_dev/browser.py, \`screenshot\`). */
+  :host { display: block; cursor: text; caret-color: currentColor; }
   /* CodeMirror's provider places its defaults in lf-base. This control owns the
-     unlayered editor face: the host supplies type and colour, and these are the
-     only internal padding declarations before Markdown's explicit insets below. */
+     unlayered editor face: the host supplies type and colour, caret colour included,
+     and these are the only internal padding declarations before Markdown's explicit
+     insets below. */
   .cm-editor { font: inherit; color: inherit; background-color: transparent; }
   .cm-editor.cm-focused { outline: none; }
   .cm-scroller { font-family: inherit; line-height: inherit; overflow: visible; }
-  .cm-content { padding: 0; caret-color: currentColor; min-height: 1lh; }
+  .cm-content { padding: 0; caret-color: inherit; min-height: 1lh; }
   /* An empty field draws no editor until the user arrives in it (#build). This box
      holds the empty line's place, as tall as the editor's line, and takes the focus
      that builds the editor; while the editor loads, it holds the words, wrapped as
@@ -283,9 +299,11 @@ sheet.replaceSync(`
     user-select: none;
     -webkit-user-select: none; }
   /* A fence's line is a line of the code box, the sent pre's padding of one code line
-     (reading.css, \`.lf-msg-body pre\`), and the end of a fence its container or the
-     draft ends, where no fence line stands, takes that padding on the code's own line
+     (reading.css, \`.lf-msg-body pre\`), and an end where no fence line stands, as
+     where a fence's container or the draft ends it, where code shares its opening line
+     and at both ends of an indented block, takes that padding on the code's own line
      instead. */
+  .cm-line.lf-md-code-pad-start { padding-block-start: var(--code-line); }
   .cm-line.lf-md-code-pad-end { padding-block-end: var(--code-line); }
 `);
 
@@ -427,7 +445,7 @@ class LeafText extends HTMLElement {
     return travel < 0 ? Math.floor(travel) : Math.ceil(travel);
   }
 
-  // Whether the host's words overflow it (`data-scrolls`), and which edges they run
+  // Whether the host's words overflow it (`data-lf-overflows`), and which edges they run
   // past (`more-above`, `more-below`), read again as the host scrolls, so an owner can
   // show there is more without a scrollbar. The host stops at the page's height limit
   // while words grow inside it, so the reading watches the editor's content too, in the
@@ -455,8 +473,8 @@ class LeafText extends HTMLElement {
       write: (reading) => {
         // WebKit can retain style from a removed custom state after the words shrink.
         // An attribute invalidates the field's CSS at the same layout boundary.
-        if (this.hasAttribute("data-scrolls") !== reading.scrolls)
-          this.toggleAttribute("data-scrolls", reading.scrolls);
+        if (this.hasAttribute("data-lf-overflows") !== reading.scrolls)
+          this.toggleAttribute("data-lf-overflows", reading.scrolls);
         /** @type {readonly (readonly [string, boolean])[]} */
         const states = [
           ["more-above", reading.scrolls && reading.above],
@@ -569,6 +587,7 @@ class LeafText extends HTMLElement {
     // announce every edit twice. The host's is the one the page hears.
     for (const type of ["input", "beforeinput"])
       this.#root.addEventListener(type, (event) => event.stopPropagation());
+    keepFieldKeys(this);
   }
 
   // What the user types before the editor has loaded lands natively in the empty line's
@@ -684,7 +703,7 @@ class LeafText extends HTMLElement {
       returned: () => this.#returned(),
       oneLine: () => this.#oneLine,
       // Words edited where a Markdown body shows them read as that body does.
-      joined: () => this.facesOf !== null,
+      message: () => this.facesOf === null,
       // The caret counts toward the corner only while it shows.
       focused: () => this.#measureOverflow(),
       revealed: (view, pos) => moveScrollerBy(this, this.#rowTravel(module, view, pos)),
@@ -754,7 +773,7 @@ class LeafText extends HTMLElement {
   }
 
   connectedCallback() {
-    this.classList.toggle("scroll", true);
+    this.toggleAttribute("data-lf-scroll", true);
     // A move by `insertBefore` reconnects within the task, keeping the view
     // (`disconnectedCallback`); the hold that returns the user restores the caret.
     if (this.#view) return;

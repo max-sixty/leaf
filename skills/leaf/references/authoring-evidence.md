@@ -151,7 +151,8 @@ Put invented examples inside `lf-sample` and make them visibly fictional.
 viewport. Before writing the prose and `alt`, open both images and compare them where
 the change should be. For a small change, crop both frames to the subject rather than
 making the reader search a whole window. Check the pair as it first appears: Fit
-may shrink the captures to fit the available space. Choose crops and page space that make
+shrinks the captures to the available width and, in Slider and Pixels, to the screen's
+height, so a long full-page capture shows small. Choose crops and page space that make
 the relevant change readable there, without requiring the reader to zoom first.
 
 Every pair starts in **Slider**, followed by **Pair** and **Pixels** in the shared
@@ -161,8 +162,8 @@ them, whichever draws them larger, so short wide captures stack and tall narrow 
 side by side; stacked frames fit together within the screen or the comparison's height limit. At 100%, both panes stay visible and scrolling either image moves
 the other to the same location. This scale uses CSS pixels when capture metadata
 supplies the pixel ratio, or bitmap pixels otherwise. The **…** menu offers Fit,
-100%, the Changed pixels color key and, for a pair with focus metadata, Full frame to inspect
-beyond that region. Outline changes stays beside the menu.
+100%, Outline changes, the Changed pixels color key and, for a pair with focus metadata, Full
+frame to inspect beyond that region.
 
 In Slider, click or tap the image to alternate between the complete Before and After
 frames. Drag the divider for an intermediate comparison, or focus it and use the

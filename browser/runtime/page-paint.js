@@ -22,19 +22,48 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   dataVersion: "data-lf-data-version",
   source: "data-lf-source",
   sourceRevision: "data-lf-source-revision",
+  // A data widget that has reported a draw (projection/data.js, `projectMarked`), so
+  // its source stamps say which revision it shows (anchor-resolution.js).
+  drawReported: "data-lf-draw-reported",
   userOverride: "data-lf-user-override",
   presented: "data-lf-presented",
   reported: "data-lf-reported",
   upgraded: "data-lf-upgraded",
+  // A box the runtime opts into scroll reach (reach.js), as the page's `scroll` class
+  // does for its own boxes.
+  scrollSurface: "data-lf-scroll",
   scrolls: "data-lf-scrolls",
   moreBefore: "data-lf-more-before",
   moreAfter: "data-lf-more-after",
   scrollDirection: "data-lf-scroll-direction",
   moreBelow: "data-lf-more-below",
   goto: "data-lf-go-to-active",
+  // On the root while the user is in an editor a floating surface holds
+  // (annotation-overlay/floating.js).
+  floatingEditor: "data-lf-floating-editor",
   traffic: "data-lf-traffic",
   // A recording playing through the runtime's controls (video-controls.js).
   player: "data-lf-player",
+  // One of the page's own headers over the document (root-headers.js, `pageHeads`).
+  pageHead: "data-lf-page-head",
+  // The marks the runtime draws round a box as its outline (target-paint.js,
+  // surfaces.css): the aim, the trace a margin entry draws on what it concerns, the proxy
+  // ring and the location ring. Attributes rather than classes, so an observer of the
+  // page's classes, such as the margin's (margin-layout.js), hears none of them.
+  aimed: "data-lf-aimed",
+  traced: "data-lf-traced",
+  proxied: "data-lf-proxied",
+  location: "data-lf-projected-location",
+  // The cursor's paint, which the margin likewise does not hear: the hand over a
+  // thread's mark, on the element under the pointer (annotation-overlay/anchor-paint.js,
+  // annotation-chrome.css), the armed aim on `body` (composing/aim.js), and the aim's
+  // hand on the element under the pointer where it has an item (page-geometry.js).
+  overMark: "data-lf-over-mark",
+  aiming: "data-lf-aiming",
+  overItem: "data-lf-over-item",
+  // The anchor name a heading holds while its link shows (heading-links.js, marks.css),
+  // which the margin likewise does not hear.
+  headingLink: "data-lf-heading-link",
 });
 
 export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
@@ -59,3 +88,11 @@ export const pagePresented = () =>
 // Whether widgets and anchor preparation have finished, independently of state.
 export const pageUpgraded = () =>
   document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.upgraded);
+
+// Whether the decision `element`, which wears the location mark (`obligation`), has a
+// control inside that carries the location itself, which it says on the decision with
+// `--lf-obligation-ring: none`. The location ring (target-paint.js) and a landing that
+// reveals it (landing-scroll.js) read it here.
+/** @param {Element} element */
+export const locationStandsDown = (element) =>
+  getComputedStyle(element).getPropertyValue("--lf-obligation-ring").trim() === "none";

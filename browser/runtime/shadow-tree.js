@@ -2,7 +2,9 @@
    this walk, including slots and roots from another window, and with it the one reading
    of whether a node is an open native layer or stands in one: keyboard/layer-stack.js
    keeps the order layers opened in, and imports focus and inertness, which ask this
-   too. */
+   too. It also holds the one reading of whether a node stands in content the browser
+   skips (`skipper`), which the suite's shift watch bundles into an init script and so
+   takes from a module that imports nothing. */
 // The host of `root` when it is a shadow root, else null: the one test of whether a climb
 // crosses to a host. It asks the root's kind, since other roots answer `host` too — a
 // document names its `<form name="host">` there, and a detached subtree's root is an
@@ -46,17 +48,70 @@ export const shadowHost = (root) => (isShadowRoot(root) ? root.host : null);
 // instead.
 /** @param {Node | null | undefined} node @returns {Element | null} */
 export const upFrom = (node) => node?.parentElement ?? shadowHost(node?.getRootNode());
+// What stands for `node` in the tree `root` roots (a Document or a ShadowRoot): the node
+// itself when it is in that tree, else the host of the shadow tree holding it, climbed
+// out until one is. Null when none is: a detached node, or one outside `root`
+// altogether. A shadow tree renders where its host stands, so a range question, which
+// the platform answers only within one tree, is asked of this; an order question asks
+// `renderedOrder`, which also follows slots.
+/** @template {Node} N @param {N | null | undefined} node @param {Node} root
+ * @returns {N | Element | null} */
+export const hostIn = (node, root) => {
+  /** @type {N | Element | null} */
+  let at = node ?? null;
+  while (at && at.getRootNode() !== root) at = shadowHost(at.getRootNode());
+  return at;
+};
 /** Native inline style belongs to HTML, SVG and MathML elements, in any window.
  * @param {Element} node @returns {node is HTMLElement | SVGElement | MathMLElement} */
 export const isStyledElement = (node) =>
   node.namespaceURI === "http://www.w3.org/1999/xhtml" ||
   node.namespaceURI === "http://www.w3.org/2000/svg" ||
   node.namespaceURI === "http://www.w3.org/1998/Math/MathML";
+// closest() stops at a shadow boundary, so a node inside a widget's shadow tree can't
+// reach the section that holds it or the chrome marker above it — both out in the
+// document. Same climb as upFrom, asked with a selector at each tree it passes through.
+/** @param {Node | null} node @param {string} selector @returns {Element | null} */
+export function closestAcross(node, selector) {
+  let el = isElement(node) ? node : upFrom(node);
+  while (el) {
+    const hit = el.closest(selector);
+    if (hit) return hit;
+    el = shadowHost(el.getRootNode());
+  }
+  return null;
+}
+
+// A different question the class also used to answer, and not a question about looks at
+// all: which document is this element in? The runtime's layer is one container, so a
+// widget inside a reply — markup frozen in the log, carried by no version — is exactly
+// what that container holds, and the reading position is a place in the page rather than
+// in the panel over it. `.lf-ui` reached those elements and a widget's own controls out
+// on the page besides, which is the look standing in for the place.
+// Across the boundary as closestAcross does: the marker lives out in
+// the document, so a node inside a widget's shadow tree can only reach it by leaving the
+// tree, and a widget staged inside a reply would otherwise read as page content.
+/** @param {Node | null} node */
+export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrome"));
+
 // The same step through the tree as rendered: a node slotted into a shadow tree renders
 // inside its slot, so the slot is where it is scrolled and ordered, not its light parent.
 /** @param {Node | null | undefined} node @returns {Element | null} */
 export const renderedParent = (node) =>
   (isSlottable(node) ? node.assignedSlot : null) ?? upFrom(node);
+// The same step taken down: the elements whose `renderedParent` is `element`. A slot's
+// assigned elements, each once, slots forwarded into it included; a host's open shadow
+// tree; and the light children no slot takes. A closed tree answers no `shadowRoot` and
+// hides its slots from `assignedSlot`, so its elements are left to whoever holds the
+// tree, as the climb leaves its host's light children in place.
+/** @param {Element} element @returns {Element[]} */
+export const renderedChildElements = (element) => [
+  ...(isHTML(element, "slot")
+    ? element.assignedElements().filter((child) => child.assignedSlot === element)
+    : []),
+  ...(element.shadowRoot?.children ?? []),
+  ...[...element.children].filter((child) => !child.assignedSlot),
+];
 
 // The same two climbs through every node rather than every element: a root, a shadow root
 // or the document, is a step of its own, so a reading can stop at a root as well as at an
@@ -67,52 +122,110 @@ export const composedParentNode = (node) => node.parentNode ?? shadowHost(node);
 /** @param {Node} node @returns {Node | null} */
 const renderedParentNode = (node) =>
   (isSlottable(node) ? node.assignedSlot : null) ?? composedParentNode(node);
+// What one climb says about any two nodes, so its order and containment can't disagree.
+// `order` is which of them a reader coming down that tree reaches first: negative when
+// `a` is, positive when `b` is, 0 for one node. A node comes before what it holds, so a
+// section reaches the reader before the paragraph inside it. `compareDocumentPosition`
+// calls nodes in separate shadow trees disconnected, in an implementation-specific
+// order, and a host stands for its whole tree only by losing the order inside it, so the
+// two ancestries are compared from the top instead: the first nodes where they part
+// share a parent, and that parent's tree orders them. A host's shadow root and its other
+// children share a parent and no tree, and the root comes first. `under` is whether
+// `node` is inside `root`, or `root` itself.
+/** @param {(node: Node) => Node | null} parentOf */
+export function alongClimb(parentOf) {
+  /** @param {Node} node */
+  const chain = (node) => {
+    const nodes = [];
+    for (let at = /** @type {Node | null} */ (node); at; at = parentOf(at))
+      nodes.push(at);
+    return nodes.reverse();
+  };
+  return {
+    /** @param {Node} a @param {Node} b */
+    order(a, b) {
+      if (a === b) return 0;
+      const left = chain(a);
+      const right = chain(b);
+      let index = 0;
+      while (
+        index < left.length &&
+        index < right.length &&
+        left[index] === right[index]
+      )
+        index += 1;
+      const first = left[index];
+      const second = right[index];
+      if (!first || !second) return left.length - right.length;
+      if (isShadowRoot(first)) return -1;
+      if (isShadowRoot(second)) return 1;
+      return first.compareDocumentPosition(second) & first.DOCUMENT_POSITION_FOLLOWING
+        ? -1
+        : 1;
+    },
+    /** @param {Node | null | undefined} node @param {Node | null | undefined} root */
+    under(node, root) {
+      for (let at = node; at; at = parentOf(at)) if (at === root) return true;
+      return false;
+    },
+  };
+}
 // Is `node` inside `root`, or `root` itself? `Element.contains` stops at a shadow
 // boundary and these readings walk through one, so the climb is the same one
 // `closestAcross` makes. The boundary decides whether a quote is found at all: a section
 // holding an x-shadow widget does not `contains` the words that widget renders, so
 // narrowing a search to that section threw away every candidate inside it and the
 // passage resolved to nothing — the anchor captured, the mark never painted.
-/** @param {Node | null | undefined} node @param {Node | null | undefined} root */
-export const under = (node, root) => {
-  for (let at = node; at; at = composedParentNode(at)) if (at === root) return true;
-  return false;
-};
-// Containment in the rendered tree, which includes slots and their shadow ancestors.
-/** @param {Node | null | undefined} node @param {Node | null | undefined} root */
-export const renderedUnder = (node, root) => {
-  for (let at = node; at; at = renderedParentNode(at)) if (at === root) return true;
-  return false;
-};
+export const under = alongClimb(composedParentNode).under;
+// Which of two nodes the reader reaches first in the page as rendered, and containment in
+// the rendered tree, which includes slots and their shadow ancestors.
+const rendered = alongClimb(renderedParentNode);
+export const renderedOrder = rendered.order;
+export const renderedUnder = rendered.under;
 
-// Which of two nodes the reader reaches first in the page as rendered: negative when `a`
-// is, positive when `b` is, 0 for one node. A node comes before what it holds, so a
-// section reaches the reader before the paragraph inside it. `compareDocumentPosition`
-// calls nodes in separate shadow trees disconnected, in an implementation-specific
-// order, and a host stands for its whole tree only by losing the order inside it, so
-// the two rendered ancestries are compared from the top instead: the first nodes where
-// they part share a parent, and that parent's tree orders them.
-/** @param {Node | null} node */
-const renderedChain = (node) => {
-  const chain = [];
-  for (let at = node; at; at = renderedParent(at)) chain.push(at);
-  return chain.reverse();
+// Which layer a node stands in — the runtime's chrome, a declared label, or the
+// document — is asked by every reading that climbs out of a widget, so it is answered
+// here, beside the climb, where geometry.js and widget-elements.js can ask it without
+// importing the passage readings back.
+// The chrome over a node, read within one frame: above the frame it is nobody's, and with
+// no frame at all it is the document's own reading, unchanged.
+/** @param {Element} el @param {string} selector @param {Element | null | undefined} frame */
+export const overIn = (el, selector, frame) => {
+  const near = el.closest(selector);
+  return near && (!frame || under(near, frame)) ? near : null;
 };
-/** @param {Node} a @param {Node} b */
-export function renderedOrder(a, b) {
-  if (a === b) return 0;
-  const left = renderedChain(a);
-  const right = renderedChain(b);
-  let index = 0;
-  while (index < left.length && index < right.length && left[index] === right[index])
-    index += 1;
-  const first = left[index];
-  const second = right[index];
-  if (!first || !second) return left.length - right.length;
-  return first.compareDocumentPosition(second) & first.DOCUMENT_POSITION_FOLLOWING
-    ? -1
-    : 1;
-}
+// A label a widget declared as the page speaking (generatedElement), which the anchor
+// pass reads over the chrome it sits in.
+export const SAID = "[data-lf-said]";
+// The pair `uiInside` weighs, the nearer deciding. The passage walk reads the same pair one
+// element at a time on its way down (passages.js, `chromeMark`).
+export const UI_MARKS = `.lf-ui, ${SAID}`;
+// The same question one node at a time: is this the runtime's own chrome rather than the
+// document? Every affordance asks it before acting on where the pointer or the caret is.
+// The nearest element that answers wins: a declared label is the page's words inside the
+// control it labels, and a control nested inside one is chrome again. `.lf-ui` alone was
+// the answer once, and it is a look — which is how a user ended up reading a heading
+// they could not point at, twice.
+//
+// Bounded or not, by the second argument, and that is the whole difference between the
+// two ways this gets asked. Unbounded — `inUi` — the answer is about the page: a
+// control is the runtime's apparatus wherever it stands, which is what a pointer or a
+// caret needs to know. Bounded at an element, the answer is about that element's own
+// insides, which is what a reading of one widget needs: the panel holding a widget an
+// agent sent in a reply is itself `.lf-ui`, so asked the unbounded way every child of
+// such a widget answers yes, and the widget reads as having nothing of its own left.
+// The text readings took the same seam (quotable, shownParts, settledAway, authored);
+// it is stated once here so
+// that what a mark may hang on, what a settlement has emptied, and what a quote may
+// name cannot come apart.
+/** @param {Element | null | undefined} el @param {Element | null | undefined} within */
+export const uiInside = (el, within) => {
+  const near = el && overIn(el, UI_MARKS, within);
+  return !!near && !near.matches(SAID);
+};
+/** @param {Node | null | undefined} node */
+export const inUi = (node) =>
+  uiInside(isElement(node) ? node : node?.parentElement, null);
 
 // `items` in the page's rendered order of their places (`placeOfItem`), those with no
 // place after every placed one; items at one place, and the unplaced, keep their given
@@ -170,3 +283,46 @@ export function excludedByInert(node) {
   }
   return false;
 }
+
+// Whether `el` stands in content the browser skips: what a `content-visibility: hidden`
+// box holds, which a hidden tab's panel (`hidden="until-found"`) is, what an
+// off-screen `content-visibility: auto` box holds, which a long text document's runs
+// are, and a closed disclosure's content. The browser leaves skipped content unstyled and unlaid, and one
+// question about any box inside — its computed style, its rect, its scroll offsets —
+// makes it style and lay out that whole subtree first to answer. On the corpus, whose
+// examples each stand in a hidden tab, those forced passes were most of a revision's
+// style time. So a reading that has nothing to say about a box on no screen — where it
+// stands, whether it scrolls, what room it takes — asks this first and leaves the box
+// out until a pass after it is drawn: revealing a panel or opening a disclosure resizes
+// what holds it, which brings those passes round. A reading that marks what the user
+// will see once it is drawn (an anchor's outline) still asks, and pays.
+//
+// Answered without forcing anything: `checkVisibility({contentVisibilityAuto: true})`
+// reads the tree the browser has, and is false for a box that is not drawn for any
+// reason. Without that option the browser styles skipped `auto` content to answer, which
+// over a long text document's lines restyled every run on the first scroll. The nearest
+// drawn ancestor says which reason — a box skipping what it holds, or `display:
+// none`/`contents` on the way down, which are not skipped and cheap to ask about — and
+// it is drawn, so its own style is not skipped either. A disclosure skips through a
+// pseudo-element of its own, so it is asked by its state rather than by its style.
+//
+// `skipper` names the box that skips `el`, so a reading over many elements under it,
+// such as a long text document's lines in one run, asks once and passes over the rest.
+/** @param {Element} element @returns {Element | null} */
+export const skipper = (element) => {
+  const drawn = (/** @type {Element} */ box) =>
+    box.checkVisibility({ contentVisibilityAuto: true });
+  if (drawn(element)) return null;
+  let child = element;
+  let box = renderedParent(element);
+  while (box && !drawn(box)) {
+    child = box;
+    box = renderedParent(box);
+  }
+  if (!box) return null;
+  if (box.localName === "details")
+    return !box.hasAttribute("open") && child.localName !== "summary" ? box : null;
+  return getComputedStyle(box).contentVisibility !== "visible" ? box : null;
+};
+/** @param {Element} element */
+export const skipped = (element) => Boolean(skipper(element));

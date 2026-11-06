@@ -413,7 +413,8 @@ function show(from, route, read = null, at, again = false) {
   if (!again && shown?.from === from && shown.route === route) return true;
   const found = readFrom(from, route, read);
   const standing = again && found && shown?.from === from ? shown : null;
-  if (standing) standing.stop();
+  // Ending the standing record's watch runs its disconnect, which would hide it.
+  if (standing) ((shown = null), standing.stop());
   else hide();
   if (!found) return false;
   const { target, holder, reading } = found;

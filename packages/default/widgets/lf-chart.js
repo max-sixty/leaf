@@ -46,7 +46,6 @@ import {
   announce,
   bodyText,
   commandsChanged,
-  html,
   keeps,
   whileConnected,
   failSoft,
@@ -138,18 +137,12 @@ customElements.define(
     #by = "pointer";
     #over = false;
 
-    // What the point the reader is on says, beside its ring.
+    // What the point the reader is on says, standing above its ring, on every route.
+    // Off a point the chart adds nothing, so what holds it may say its own.
     lfPreview = () => {
-      const at = this.#at;
       const ring = this.#reading?.ring.lastElementChild;
-      if (!at || !ring) return null;
-      const { name, detail } = sayPoint(at);
-      return {
-        words: html`<span class="lf-preview-word">${name}</span>${detail.map(
-            (line) => html`<span class="lf-preview-more">${line}</span>`,
-          )}`,
-        at: ring.getBoundingClientRect(),
-      };
+      if (!this.#at || !ring) return null;
+      return { ...sayPoint(this.#at), at: ring.getBoundingClientRect() };
     };
 
     connectedCallback() {

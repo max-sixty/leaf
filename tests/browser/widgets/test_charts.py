@@ -13,6 +13,7 @@ from render_cases_widgets import (
     chart_markup,
 )
 from render_harness import (
+    PREVIEW,
     consume_browser_errors,
     leaf_page,
     names,
@@ -659,7 +660,6 @@ HOURS = chart_markup(
 VALUES_PAGE = leaf_page(
     "chart values", f'<h1 id="t">Hours</h1><button id="before">Before</button>{HOURS}'
 )
-PREVIEW = "#lf-preview"
 
 
 def said(page):
@@ -670,7 +670,7 @@ def said(page):
         return None
     return [
         preview.locator(".lf-preview-word").inner_text(),
-        *preview.locator(".lf-preview-more").all_inner_texts(),
+        *preview.locator(".lf-preview-detail").all_inner_texts(),
     ]
 
 
@@ -682,13 +682,16 @@ def column(page, chart, week, height=0.15):
     return box["x"] + box["width"] / 2, drawing["y"] + drawing["height"] * height
 
 
-def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(browser, serve):
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
+    engine, request, serve
+):
     """A resting pointer reads the point nearest it, standing above the ring on that
     point, and moving along the drawing reads each point it comes to at once; leaving
     the drawing puts both away. Focus the browser shows lands on the first point, the
-    arrows step along a series and across to the other, Home and End reach a series'
-    ends, and Escape puts the preview away while still taking its own step."""
-    page = open_page(browser, serve(VALUES_PAGE))
+    arrows step along a series and across to the other, and Home and End reach a
+    series' ends. Escape puts the preview away, and the next leaves the chart."""
+    page = open_page(request.getfixturevalue(engine), serve(VALUES_PAGE))
     chart = page.locator("#hours")
     preview = page.locator(PREVIEW)
     ring = chart.locator(".lf-chart-at circle")
@@ -703,6 +706,8 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(browser, serv
     assert tip["y"] + tip["height"] <= at["y"], (tip, at)
     page.mouse.move(*column(page, "hours", "w1", 0.85))
     expect(preview.locator(".lf-preview-word")).to_have_text("w1 · features")
+    # Redrawn where it stands, never put away between the points.
+    assert said(page) == ["w1 · features", "21 hours"]
     page.mouse.move(2, 2)
     expect(preview).to_be_hidden()
     expect(ring).to_be_hidden()
@@ -724,12 +729,15 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(browser, serv
         assert said(page) == words, key
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
+    expect(chart).to_be_focused()
+    page.keyboard.press("Escape")
     expect(chart).not_to_be_focused()
 
 
 def test_a_finger_held_on_a_chart_reads_the_point_under_it(browser, serve):
     """A finger held on the drawing reads the point under it above the finger, reads
-    each point it slides across to, and puts the preview away as it lifts."""
+    each point it slides across to, and puts the preview away as it lifts. Chromium
+    alone: Playwright holds no finger in Firefox."""
     context = browser.new_context(has_touch=True)
     page = open_page(browser, serve(VALUES_PAGE), context=context)
     preview = page.locator(PREVIEW)
@@ -757,8 +765,9 @@ def test_a_finger_held_on_a_chart_reads_the_point_under_it(browser, serve):
     expect(preview).to_be_hidden()
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_chart_s_author_picks_which_marks_say_their_values_and_their_words(
-    browser, serve
+    engine, request, serve
 ):
     """Where an author gives some marks Plot's `tip`, only those say their values, and
     a mark's `title` channel says its own words, its first line as the name and the rest
@@ -782,7 +791,8 @@ def test_a_chart_s_author_picks_which_marks_say_their_values_and_their_words(
 }""",
     )
     page = open_page(
-        browser, serve(leaf_page("picked", f'<h1 id="t">Hours</h1>{picked}'))
+        request.getfixturevalue(engine),
+        serve(leaf_page("picked", f'<h1 id="t">Hours</h1>{picked}')),
     )
     preview = page.locator(PREVIEW)
     expect(page.locator("#picked svg[role=img]")).to_be_visible()

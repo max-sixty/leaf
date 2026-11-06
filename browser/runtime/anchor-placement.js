@@ -18,17 +18,19 @@
    words can change under a passage, by a revision, a widget or any script, and what a
    quote's resolution depends on is in the page's index of quotes (passages.js,
    `trackQuotes`): every copy of each quote the threads name, placed or not, and the
-   words a resolution read beside them to tell copies apart. After each change to the
-   page's words, the index reads what changed off the readings before and after it and
-   searches only there, so placement places again only the threads whose quotes it
-   says changed (`quotesChanged`): words moved, a copy gone, a second copy anywhere, or
-   lost words put back. A thread is placed again too where a change wrote or took out
-   the text its passage stands in, whose live ranges the DOM moved however the page then
-   reads. Each is placed again, kept, or found no longer to stand (`settle`). Those who
-   draw from it hear which threads it placed again (`hearPlaced`), as the anchor paint
-   paints them and finds the pointer in them, so they read no change to the page
-   themselves. A change elsewhere, as a counter a widget redraws each frame, places no
-   thread again. */
+   words a resolution read beside them to tell copies apart. When a reader next asks
+   where things stand (the hit test, a presentation), the index reads what changed off
+   the reading it last read and the page's reading now, however many changes came
+   between, and searches only there, so placement places again only the threads whose
+   quotes it says changed (`quotesChanged`): words moved, a copy gone, a second copy
+   anywhere, or lost words put back. A change that wrote or took out the text a placed
+   passage stands in, whose live ranges the DOM moved however the page then reads, is
+   settled after its script, without waiting to be asked. Each thread is placed again,
+   kept, or found no longer to stand (`settle`). Those who draw from it hear which
+   threads it placed again (`hearPlaced`), as the anchor paint paints them and finds the
+   pointer in them, so they read no change to the page themselves. A change elsewhere,
+   as a counter a widget redraws each frame, places no thread again, and reads the page
+   again only once something asks. */
 import { anchoringIsReady, resolveAnchor } from "./anchor-resolution.js";
 import { resolvedInMessage, targetElement } from "./resolved-target.js";
 import {
@@ -129,7 +131,8 @@ export function createAnchorPlacement() {
   let names = new Map();
   // The threads the last reading placed: all of them, by id and by each quote their
   // anchors name; for each text node a placed passage's segment stands in, its threads;
-  // the threads whose text nodes a change wrote or took out, not yet placed again; and
+  // the threads whose text nodes a change wrote or took out, not yet placed again;
+  // whether the page's words changed since placement last read them (`stale`); and
   // those who hear which threads were.
   /** @type {readonly Thread[]} */
   let threads = [];
@@ -141,6 +144,7 @@ export function createAnchorPlacement() {
   const inNode = new Map();
   /** @type {Set<string>} */
   const rewritten = new Set();
+  let stale = false;
   /** @type {Set<(ids: readonly string[]) => void>} */
   const hearers = new Set();
   /** @param {string} id @param {Placement | undefined} placement @param {boolean} on */
@@ -155,12 +159,17 @@ export function createAnchorPlacement() {
     }
   };
   // Any change to the page's words may have moved a quote's words, put a second copy of
-  // them anywhere, or put back words a quote lost, so each is settled after the script
-  // that made it, if anything is placed by quote.
+  // them anywhere, or put back words a quote lost, so placement is stale until it
+  // settles, which waits for a reader to ask: the hit test, a presentation, the thread
+  // walk's pass. Changes then cost one comparison of the readings however many come
+  // first, as a counter redrawn each frame does. A change that wrote or took out the
+  // text a placed passage stands in is settled after the script, since the DOM has
+  // moved that passage's live ranges and its marks no longer show where it is.
   hearPageWords(({ written }) => {
     for (const node of written)
       for (const id of inNode.get(node) ?? []) rewritten.add(id);
-    if (byQuote.size || rewritten.size) afterScript(settle);
+    stale ||= byQuote.size > 0;
+    if (rewritten.size) afterScript(settle);
   });
 
   // A thread's placement, as its anchor resolves now: in the message holding the element
@@ -240,6 +249,7 @@ export function createAnchorPlacement() {
     // This reading placed every anchor, those changes touched before it included.
     quotesChanged();
     rewritten.clear();
+    stale = false;
     if (
       before.size !== placed.size ||
       [...placed].some(([id, placement]) => !samePlacement(before.get(id), placement))
@@ -247,14 +257,15 @@ export function createAnchorPlacement() {
       tick(version);
     return { readings, draft: { ...draft, resolved: resolvedDraft }, action };
   }
-  // Place again the threads changes to the page's words touched, after the script that
-  // made them, or at once where something reads them first (the hit test): those whose
-  // quote's copies, or the words beside them its resolution read, changed (passages.js,
-  // `quotesChanged`), placed or not, and those whose text nodes a change wrote or took
-  // out. Each is placed again, kept where it stands as it stood, or no longer placed;
-  // those who hear hear which threads changed.
+  // Place again the threads changes to the page's words touched since placement last
+  // read them, where a reader asks (the hit test) or after the script that rewrote a
+  // placed passage's text: those whose quote's copies, or the words beside them its
+  // resolution read, changed (passages.js, `quotesChanged`), placed or not, and those
+  // whose text nodes a change wrote or took out. Each is placed again, kept where it
+  // stands as it stood, or no longer placed; those who hear hear which threads changed.
   function settle() {
-    if (!anchoringIsReady()) return;
+    if ((!stale && !rewritten.size) || !anchoringIsReady()) return;
+    stale = false;
     const ids = new Set(rewritten);
     rewritten.clear();
     for (const quote of quotesChanged())

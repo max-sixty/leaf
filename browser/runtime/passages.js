@@ -1023,8 +1023,8 @@ function readSegments(segments, mapCharacters, visit, after) {
   }
   return mapCharacters ? { text, units } : text;
 }
-/** @param {readonly Segment[]} segments */
-export const quoteFrom = (segments) => readSegments(segments, false);
+/** @param {readonly Segment[]} segments @param {Visit} [visit] */
+export const quoteFrom = (segments, visit) => readSegments(segments, false, visit);
 /** @param {readonly Segment[]} segments */
 export const readingFrom = (segments) => readSegments(segments, true);
 // Cutting one to length is the caller's business and always by code point: half a surrogate
@@ -1822,36 +1822,28 @@ function prefixHashes(length, codeAt) {
 }
 /** @param {Int32Array} sums @param {number} t @param {number} n */
 const sliceHash = (sums, t, n) =>
-  /** @type {number} */ (
-    sums[t + n] - Math.imul(/** @type {number} */ (sums[t]), power(n))
-  ) | 0;
-// How many of a quote's letters its keys hash: a few, so the pass asks each place of the
-// page few hashes, then more, so quotes that start alike, as rows of a list do, are told
-// apart by a hash rather than by reading each one's words.
+  ((sums[t + n] ?? 0) - Math.imul(sums[t] ?? 0, power(n))) | 0;
+// How many code units a string's keys hash: a few, so a pass asks each place few
+// hashes, then more, so strings that start alike, as rows of a list do, are told apart
+// by a hash rather than by reading each one.
 const FIRST_KEY = 16;
 const LONG_KEY = 256;
-/** @typedef {{from: number, to: number, near: [number, number] | null}} Copy */
-/** @typedef {{quote: string, words: string[], letters: number, first: number,
- * firstHash: number, long: number, longHash: number, copies: Copy[]}} QuoteEntry */
-/** @typedef {{keys: Map<number, Map<number, Map<number, Map<number, QuoteEntry[]>>>>,
- * longest: number, widest: number}} QuoteTable */
-/** @param {string} quote @returns {QuoteEntry | null} */
-function quoteEntry(quote) {
-  const words = quote.trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return null;
-  const letters = words.join("");
+/** @typedef {{first: number, firstHash: number, long: number, longHash: number,
+ * length: number}} Key */
+/** @template {Key} K
+ * @typedef {{keys: Map<number, Map<number, Map<number, Map<number, K[]>>>>,
+ * longest: number, widest: number}} KeyTable */
+/** @param {string} letters @returns {Key} */
+function keyOf(letters) {
   const sums = prefixHashes(letters.length, (t) => letters.charCodeAt(t));
   const first = Math.min(letters.length, FIRST_KEY);
   const long = Math.min(letters.length, LONG_KEY);
   return {
-    quote,
-    words,
-    letters: letters.length,
     first,
     firstHash: sliceHash(sums, 0, first),
     long,
     longHash: sliceHash(sums, 0, long),
-    copies: [],
+    length: letters.length,
   };
 }
 /** @template K, V @param {Map<K, V>} map @param {K} key @param {() => V} make */
@@ -1860,9 +1852,9 @@ function slot(map, key, make) {
   if (value === undefined) map.set(key, (value = make()));
   return value;
 }
-/** @param {Iterable<QuoteEntry>} entries @returns {QuoteTable} */
+/** @template {Key} K @param {Iterable<K>} entries @returns {KeyTable<K>} */
 function tableOf(entries) {
-  /** @type {QuoteTable["keys"]} */
+  /** @type {KeyTable<K>["keys"]} */
   const keys = new Map();
   let longest = 0;
   let widest = 0;
@@ -1872,17 +1864,66 @@ function tableOf(entries) {
     slot(
       slot(byLong, entry.long, () => new Map()),
       entry.longHash,
-      () => [],
+      () => /** @type {K[]} */ ([]),
     ).push(entry);
     longest = Math.max(longest, entry.long);
-    widest = Math.max(widest, entry.letters);
+    widest = Math.max(widest, entry.length);
   }
   return { keys, longest, widest };
 }
+// Each place before `until` in a run of code units where one of a table's strings
+// starts, by the hashes of its code units: the string's entry and the place, for the
+// caller to read against its own rule.
+/** @template {Key} K @param {number} length @param {(t: number) => number} codeAt
+ * @param {KeyTable<K>} table @param {number} until @param {(entry: K, t: number) => void} take */
+function keyStarts(length, codeAt, table, until, take) {
+  const sums = prefixHashes(length, codeAt);
+  for (let t = 0; t < until; t++)
+    for (const [first, byFirst] of table.keys) {
+      if (t + first > length) continue;
+      for (const [long, byHash] of byFirst.get(sliceHash(sums, t, first)) ?? []) {
+        if (t + long > length) continue;
+        for (const entry of byHash.get(sliceHash(sums, t, long)) ?? []) take(entry, t);
+      }
+    }
+}
+// Every place each of `strings` starts in `text`, copies that overlap included, found by
+// one pass over the text for all of them.
+/** @param {string} text @param {Iterable<string>} strings @returns {Map<string, number[]>} */
+export function findEach(text, strings) {
+  /** @type {Map<string, number[]>} */
+  const found = new Map();
+  /** @type {(Key & {string: string})[]} */
+  const entries = [];
+  for (const string of strings) {
+    if (found.has(string)) continue;
+    found.set(string, []);
+    if (string) entries.push({ ...keyOf(string), string });
+  }
+  const table = tableOf(entries);
+  keyStarts(
+    text.length,
+    (t) => text.charCodeAt(t),
+    table,
+    text.length,
+    (entry, t) => {
+      if (text.startsWith(entry.string, t)) found.get(entry.string)?.push(t);
+    },
+  );
+  return found;
+}
+/** @typedef {{from: number, to: number, near: [number, number] | null}} Copy */
+/** @typedef {Key & {quote: string, words: string[], copies: Copy[]}} QuoteEntry */
+/** @param {string} quote @returns {QuoteEntry | null} */
+function quoteEntry(quote) {
+  const words = quote.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return null;
+  return { ...keyOf(words.join("")), quote, words, copies: [] };
+}
 // Every copy of a table's quotes that starts in raw[lo..hi): each place the page's
-// letters start as a quote's do, by their hashes, read against the quote's words, and
-// kept where no fence parts it.
-/** @param {PageReading} reading @param {QuoteTable} table @param {number} lo @param {number} hi
+// letters start as a quote's do, read against the quote's words, and kept where no
+// fence parts it.
+/** @param {PageReading} reading @param {KeyTable<QuoteEntry>} table @param {number} lo @param {number} hi
  * @param {(entry: QuoteEntry, copy: Copy) => void} take */
 function scan(reading, table, lo, hi, take) {
   const { raw } = reading;
@@ -1890,28 +1931,21 @@ function scan(reading, table, lo, hi, take) {
   const codes = [];
   /** @type {number[]} */
   const places = [];
+  let starts = 0;
   for (let i = lo, past = 0; i < raw.length; i++) {
     if (gapAt(raw, i)) continue;
     if (i >= hi && ++past > table.longest) break;
+    if (i < hi) starts += 1;
     codes.push(raw.charCodeAt(i));
     places.push(i);
   }
-  const sums = prefixHashes(codes.length, (t) => /** @type {number} */ (codes[t]));
-  for (let t = 0; t < codes.length; t++) {
+  const codeAt = (/** @type {number} */ t) => /** @type {number} */ (codes[t]);
+  keyStarts(codes.length, codeAt, table, starts, (entry, t) => {
     const from = /** @type {number} */ (places[t]);
-    if (from >= hi) break;
-    for (const [first, byFirst] of table.keys) {
-      if (t + first > codes.length) continue;
-      for (const [long, byHash] of byFirst.get(sliceHash(sums, t, first)) ?? []) {
-        if (t + long > codes.length) continue;
-        for (const entry of byHash.get(sliceHash(sums, t, long)) ?? []) {
-          const to = matchAt(raw, from, entry.words);
-          if (to !== -1 && withinCell(reading, from, to))
-            take(entry, { from, to, near: null });
-        }
-      }
-    }
-  }
+    const to = matchAt(raw, from, entry.words);
+    if (to !== -1 && withinCell(reading, from, to))
+      take(entry, { from, to, near: null });
+  });
 }
 // Where two readings of the page part, as the span of each that differs. Before it both
 // hold the same characters, in the same text nodes at the same offsets and in the same
@@ -2008,6 +2042,7 @@ const index = {
   reading: null,
   /** @type {Map<string, QuoteEntry>} */
   entries: new Map(),
+  /** @type {KeyTable<QuoteEntry>} */
   table: tableOf([]),
   /** @type {Set<string>} */
   changed: new Set(),

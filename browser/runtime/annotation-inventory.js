@@ -23,6 +23,7 @@ import { ago } from "./presence.js";
 import { runtime } from "./context.js";
 import {
   elementById,
+  findEach,
   GENERATED,
   inChrome,
   quoteFrom,
@@ -80,6 +81,7 @@ const inProgress = readPart(
  * @typedef {import("./framework/application.js").Workflow} Workflow
  * @typedef {import("./thread/workflow.js").ThreadRecord} ThreadRecord
  * @typedef {import("./anchor-placement.js").Placement} Placement
+ * @typedef {import("./passages.js").Segment} Segment
  * @typedef {{activate: () => unknown, discloses?: () => ReturnType<typeof changeCard>, change?: import("./version.js").Change}} ItemSource
  * @typedef {AnnotationItem & ItemSource} LiveItem
  * @typedef {{key: string | null, element?: Element | null, passage?: Placement | null, words?: string | null | undefined}} Pointed
@@ -266,26 +268,60 @@ export function createAnnotationInventory({
     return group;
   }
 
-  // The row key for threads quoting `passage` of `target`: its words as the page reads
-  // them, and which occurrence of those words in the target's reading it is. Threads
-  // quoting the same words share it, and none settling or arriving changes it, so the
-  // row and a card open on it outlive them. A re-render that removes an earlier
-  // occurrence renumbers it and builds the row again, as a shifted path does an id-less
-  // target's.
-  /** @param {Element} target @param {readonly [import("./passages.js").Segment, ...import("./passages.js").Segment[]]} segments */
-  function passageRow(target, segments) {
-    const page = textNodesUnder(target);
-    const at = page.findIndex(({ node }) => node === segments[0].node);
-    const before = page.flatMap((segment, index) =>
-      index < at || at < 0
-        ? [segment]
-        : index === at
-          ? [{ ...segment, end: segments[0].start }]
-          : [],
-    );
-    const words = quoteFrom(segments);
-    return JSON.stringify([words, quoteFrom(before).split(words).length - 1]);
+  // The row key for threads quoting a passage of `target`: its words as the page reads
+  // them, and which occurrence of those words in the target's reading it is, counting
+  // the copies that stand wholly before it, one after another. Threads quoting the same
+  // words share it, and none settling or arriving changes it, so the row and a card
+  // open on it outlive them. A re-render that removes an earlier occurrence renumbers it
+  // and builds the row again, as a shifted path does an id-less target's.
+  //
+  // Every passage threads quote in a target is keyed from one reading of it: where each
+  // passage starts among the target's words, heard as they are read, and every place each
+  // passage's words stand in them, found by one pass for all of them. So a paragraph
+  // holding many quoted passages costs its words and its passages, not their product.
+  /** @param {Element} target @param {readonly (readonly [Segment, ...Segment[]])[]} quoted
+   * @returns {string[]} */
+  function passageRows(target, quoted) {
+    // How many of the target's words stand before each passage's first character, as
+    // reading the target only up to there would say: all of them where the passage
+    // starts in none of its text nodes.
+    /** @type {Map<Text, Map<number, number | undefined>>} */
+    const starts = new Map();
+    for (const [{ node, start }] of quoted)
+      starts.set(node, (starts.get(node) ?? new Map()).set(start, undefined));
+    const text = quoteFrom(textNodesUnder(target), (node, offset, length) => {
+      const at = starts.get(node);
+      if (at?.has(offset)) at.set(offset, length);
+    });
+    /** @param {Segment} first */
+    const before = ({ node, start }) => starts.get(node)?.get(start) ?? text.length;
+    const words = quoted.map((segments) => quoteFrom(segments));
+    const places = findEach(text, words);
+    return quoted.map(([first], at) => {
+      const said = /** @type {string} */ (words[at]);
+      const ahead = before(first);
+      // No words split a reading between every character.
+      let count = said ? 0 : ahead - 1;
+      let end = 0;
+      for (const place of said ? (places.get(said) ?? []) : []) {
+        if (place < end) continue;
+        if (place + said.length > ahead) break;
+        count += 1;
+        end = place + said.length;
+      }
+      return JSON.stringify([said, count]);
+    });
   }
+  // A reading of each target made once a pass, however many of its groups ask.
+  /** @template T @param {(target: Element) => T} read */
+  const perTarget = (read) => {
+    /** @type {Map<Element, T>} */
+    const kept = new Map();
+    return (/** @type {Element} */ target) => {
+      if (!kept.has(target)) kept.set(target, read(target));
+      return /** @type {T} */ (kept.get(target));
+    };
+  };
 
   /** @param {Groups} groups @param {Element | null | undefined} target @param {LiveItem} item @param {Pointed | null} [pointed] */
   function add(groups, target, item, pointed = null) {
@@ -408,25 +444,37 @@ export function createAnnotationInventory({
       const coordinate = receipt.coordinate;
       receiptByCoordinate.set(JSON.stringify(coordinate), receipt);
     }
+    const standing = [];
+    /** @type {Map<Element, (readonly [Segment, ...Segment[]])[]>} */
+    const quotedIn = new Map();
     for (const thread of threadList()) {
       if (!threadHasDiscussion(thread) || !thread.anchor || claimed(thread.id))
         continue;
-      const id = thread.id;
-      const placement = placedAt(id);
+      const placement = placedAt(thread.id);
       const target = placement?.place;
       if (!target) continue;
-      const [firstSegment, ...otherSegments] = targetSegments(placement);
-      const point = livePoint(target, placement?.point);
-      const pointed =
-        point && placement
-          ? { key: placement.pointRow, element: point, words: placement.pointWords }
-          : firstSegment
-            ? {
-                key: passageRow(target, [firstSegment, ...otherSegments]),
-                passage: placement,
-                words: thread.anchor.quote,
-              }
-            : null;
+      const [first, ...rest] = targetSegments(placement);
+      const point = livePoint(target, placement.point);
+      /** @type {readonly [Segment, ...Segment[]] | null} */
+      const passage = !point && first ? [first, ...rest] : null;
+      if (passage) quotedIn.set(target, [...(quotedIn.get(target) ?? []), passage]);
+      standing.push({ thread, placement, target, point, passage });
+    }
+    /** @type {Map<Element, string[]>} */
+    const rows = new Map(
+      [...quotedIn].map(([target, quoted]) => [target, passageRows(target, quoted)]),
+    );
+    for (const { thread, placement, target, point, passage } of standing) {
+      const id = thread.id;
+      const pointed = point
+        ? { key: placement.pointRow, element: point, words: placement.pointWords }
+        : passage
+          ? {
+              key: /** @type {string} */ (rows.get(target)?.shift()),
+              passage: placement,
+              words: thread.anchor?.quote,
+            }
+          : null;
       add(
         groups,
         target,
@@ -681,11 +729,15 @@ export function createAnnotationInventory({
     passages.clear();
     /** @type {typeof lastEntries} */
     const nextEntries = new Map();
+    const subjectOf = perTarget((target) =>
+      outlineSubjectFor(target, subjects, outline),
+    );
+    const labelOf = perTarget(addressableLabel);
     entries = Object.freeze(
       collected
         .sort((left, right) => readingOrder(placeIn(left), placeIn(right)))
         .map((group) => {
-          const subject = outlineSubjectFor(group.target, subjects, outline);
+          const subject = subjectOf(group.target);
           targets.set(group.key, group.target);
           if (group.point) points.set(group.key, group.point);
           if (group.passage) passages.set(group.key, group.passage);
@@ -698,7 +750,7 @@ export function createAnnotationInventory({
               [
                 group.subject ? null : subject.context,
                 group.word,
-                group.subject ?? addressableLabel(group.target),
+                group.subject ?? labelOf(group.target),
                 // A pointed row is named by the words it stands by, so it and the
                 // target's own row do not read alike.
                 pointName(group.pointWords),

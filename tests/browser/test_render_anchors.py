@@ -5927,8 +5927,9 @@ MARKED = "() => [...(CSS.highlights.get('lf-mark') ?? [])].map(String).join('|')
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_mark_whose_words_a_script_puts_back_is_marked_again(engine, request, serve):
     """A script that writes other words into a marked phrase and, in a later task, takes
-    them out again leaves the phrase as the thread's quote names it, so it is marked
-    again, where the pointer finds it, as reading the page again finds."""
+    them out again leaves the phrase as the thread's quote names it, so once the
+    pointer asks where the marks stand, the phrase is marked again, where the pointer
+    finds it, as reading the page again finds."""
     page = _changed_page(request, engine, serve)
     page.evaluate(
         """() => {
@@ -5943,8 +5944,10 @@ def test_a_mark_whose_words_a_script_puts_back_is_marked_again(engine, request, 
           text.deleteData(text.data.indexOf('unrelated '), 'unrelated '.length);
         }"""
     )
+    box = page.evaluate(PHRASE_AT, "marked")
+    _rest_on(page, box)
     page.wait_for_function(f"() => ({MARKED})() === 'marked phrase'", timeout=2000)
-    assert _rest_on(page, page.evaluate(PHRASE_AT, "marked"))
+    assert _rest_on(page, box)
     expect(page.locator("#lf-preview .lf-preview-word")).to_have_text(
         "About the phrase?"
     )
@@ -5956,8 +5959,8 @@ def test_a_marked_phrase_a_script_writes_again_is_marked_no_more(
 ):
     """A script that writes a marked phrase a second time in its section, where nothing
     the thread kept around the phrase tells the two apart, leaves its quote naming no
-    one passage: the first is marked no more, and the pointer finds no mark on it, as
-    reading the page again finds."""
+    one passage: the pointer finds no mark on the first, and once it has asked, the
+    first is marked no more, as reading the page again finds."""
     page = _changed_page(request, engine, serve)
     page.evaluate(
         """() => {
@@ -5966,8 +5969,8 @@ def test_a_marked_phrase_a_script_writes_again_is_marked_no_more(
           document.getElementById('changed').append(again);
         }"""
     )
-    page.wait_for_function(f"() => ({MARKED})() === ''", timeout=2000)
     assert not _rest_on(page, page.evaluate(PHRASE_AT, "marked"))
+    page.wait_for_function(f"() => ({MARKED})() === ''", timeout=2000)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -5976,8 +5979,9 @@ def test_words_a_script_puts_inside_a_passage_s_shadow_stage_unmark_it(
 ):
     """A script that writes a word at the start of a declared shadow stage a marked
     passage runs into from the page's words before it puts that word inside the
-    passage, which its thread's quote no longer names: neither piece is marked, and the
-    pointer finds no mark on the page's piece, as reading the page again finds."""
+    passage, which its thread's quote no longer names: the pointer finds no mark on the
+    page's piece, and once it has asked, neither piece is marked, as reading the page
+    again finds."""
     url = serve(
         leaf_page(
             "Across a root",
@@ -6007,7 +6011,6 @@ def test_words_a_script_puts_inside_a_passage_s_shadow_stage_unmark_it(
         """() => document.getElementById('late').shadowRoot.querySelector('p')
           .prepend('Inserted ')"""
     )
-    page.wait_for_function(f"() => ({MARKED})() === ''", timeout=2000)
     line = page.evaluate(
         """() => {
           const text = document.querySelector('#both > p').firstChild;
@@ -6019,6 +6022,7 @@ def test_words_a_script_puts_inside_a_passage_s_shadow_stage_unmark_it(
         }"""
     )
     assert not _rest_on(page, line)
+    page.wait_for_function(f"() => ({MARKED})() === ''", timeout=2000)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -6027,8 +6031,8 @@ def test_a_passage_a_script_makes_editable_inside_is_marked_no_more(
 ):
     """A script that makes an element inside a marked passage editable puts an edge of
     the passage's words at either end of it, which a quote does not run across, so the
-    passage is marked no more and the pointer finds no mark on it, as reading the page
-    again finds."""
+    pointer finds no mark on the passage, and once it has asked, the passage is marked
+    no more, as reading the page again finds."""
     url = serve(
         leaf_page(
             "Editable",
@@ -6051,7 +6055,6 @@ def test_a_passage_a_script_makes_editable_inside_is_marked_no_more(
     page.evaluate(
         "() => { document.getElementById('inner').contentEditable = 'true'; }"
     )
-    page.wait_for_function(f"() => ({MARKED})() === ''", timeout=2000)
     word = page.evaluate(
         """() => {
           const range = document.createRange();
@@ -6061,6 +6064,7 @@ def test_a_passage_a_script_makes_editable_inside_is_marked_no_more(
         }"""
     )
     assert not _rest_on(page, word)
+    page.wait_for_function(f"() => ({MARKED})() === ''", timeout=2000)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

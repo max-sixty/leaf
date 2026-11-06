@@ -555,11 +555,16 @@ export function createAnchorPaint({
 
   // Hover reads the pointer, and the rows and margin entries it is on, inside the
   // scheduled frame. Capturing a node at event time would leave reconciliation able to
-  // replace it before paint.
+  // replace it before paint. The frame asks first where the marks stand, so a change to
+  // the page's words placement has yet to place, which may have made the page's only
+  // mark or taken it, is placed before the hover reads them, once a frame however many
+  // moves it holds.
   function refreshHover() {
-    if (hoverFrame || (!marked.size && !hovering && !hoveredRow && !pointed)) return;
+    if (hoverFrame) return;
     hoverFrame = nextRender(() => {
       hoverFrame = 0;
+      settle();
+      if (!marked.size && !hovering && !hoveredRow && !pointed) return;
       const at = pointer();
       const under = elementFromPointAcross(at.x, at.y);
       const hit = markHit(at.x, at.y, under);

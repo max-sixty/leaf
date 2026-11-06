@@ -27,6 +27,7 @@ import {
   elementReading,
   fencedAt,
   fencePassageParts,
+  findEach,
   findQuote,
   inChrome,
   neighbourhood,
@@ -685,6 +686,36 @@ test("a kept quote answers each change as a fresh pass over the page does", () =
   }
   assert.ok(answer("beta gamma") && answer("mu nu xi"));
   trackQuotes([]);
+});
+
+// The margin keys each passage by how many copies of its words stand before it, and finds
+// every copy of every passage's words in a block by one pass over it: overlapping copies
+// included, and strings that start alike for longer than their first hash told apart.
+test("one pass over a text finds every place each string starts", () => {
+  const long = "Row of the table that starts alike: ";
+  const text = `aaaa ab aab ${long}one; ${long}two; 😀a😀a`;
+  const found = findEach(text, [
+    "aa",
+    "ab",
+    `${long}two`,
+    `${long}one`,
+    "😀a",
+    "zz",
+    "",
+  ]);
+  const expected = (/** @type {string} */ string) => {
+    const places = [];
+    for (
+      let at = string ? text.indexOf(string) : -1;
+      at !== -1;
+      at = text.indexOf(string, at + 1)
+    )
+      places.push(at);
+    return places;
+  };
+  for (const [string, places] of found)
+    assert.deepEqual(places, expected(string), string);
+  assert.deepEqual(found.get("aa"), [0, 1, 2, 8]);
 });
 
 // A repeated quote's copies are told apart by the words beside them, so a change there is

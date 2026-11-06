@@ -74,8 +74,6 @@ import {
 } from "./chart-points.js";
 
 const SVG = "http://www.w3.org/2000/svg";
-// What the page shows a preview in, as Leaf's does (preview.js).
-const TOOLTIP = '[role="tooltip"]';
 
 /** @typedef {import("./chart-points.js").Point} Point
  * @typedef {import("./chart-points.js").PlotBundle} PlotBundle
@@ -170,13 +168,25 @@ customElements.define(
     /** @type {Point | null} */
     #away = null;
     // What the chart last declared to the page's preview, which names the reading a
-    // preview that ends had (`PREVIEW_ENDED`).
+    // preview that ends had (`PREVIEW_ENDED`), and where a finger last touched the
+    // drawing.
     /** @type {object | null} */
     #declared = null;
+    /** @type {[number, number] | null} */
+    #finger = null;
 
-    // What the point the reader is on says, standing above its ring, on every route.
-    // Off a point the chart adds nothing, so what holds it may say its own.
-    lfPreview = () => {
+    // What the point the reader is on says, standing above its ring, on every route,
+    // in a new object each time. Off a point the chart adds nothing, so what holds it
+    // may say its own. A hold reads the point nearest where the finger is, whatever
+    // the preview before it left: the press that starts a hold puts away the last
+    // one's preview, and its point with it.
+    /** @param {"pointer" | "focus" | "hold"} route */
+    lfPreview = (route) => {
+      if (route === "hold" && this.#finger) {
+        const point = this.#pointAt(...this.#finger);
+        this.#by = "pointer";
+        if (point !== this.#at) this.#mark(point);
+      }
       const ring = this.#reading?.ring.lastElementChild;
       this.#declared =
         this.#at && ring
@@ -198,13 +208,11 @@ customElements.define(
           if (event.pointerType === "mouse" && event.buttons) return;
           if (!reading || !(event.target instanceof Node)) return this.#leave();
           if (!reading.svg.contains(event.target)) return this.#leave();
-          const screen = reading.svg.getScreenCTM();
-          if (!screen) return;
+          if (!reading.svg.getScreenCTM()) return;
           this.#over = true;
-          const at = new DOMPoint(event.clientX, event.clientY).matrixTransform(
-            screen.inverse(),
-          );
-          const point = nearest(reading, at.x, at.y);
+          if (event.pointerType === "touch")
+            this.#finger = [event.clientX, event.clientY];
+          const point = this.#pointAt(event.clientX, event.clientY);
           if (point && point === this.#away) return;
           this.#away = null;
           if (point || this.#by === "pointer") this.#choose(point, "pointer", true);
@@ -219,11 +227,7 @@ customElements.define(
           },
           { signal, passive: true },
         );
-        this.addEventListener(
-          "pointerleave",
-          (event) => this.#leave(event.relatedTarget),
-          { signal },
-        );
+        this.addEventListener("pointerleave", () => this.#leave(), { signal });
         // Focus the browser shows lands the reader on a point, the one they are on or
         // the first, which the arrows then step from: the keyboard's from then on.
         this.addEventListener(
@@ -449,6 +453,23 @@ customElements.define(
     #choose(point, by, aim = false) {
       this.#by = by;
       if (point === this.#at) return;
+      this.#mark(point);
+      previewChanged(this, { aim: aim && point !== null });
+    }
+
+    // The point nearest a place in the window, by Plot's pointer's rule, or none.
+    /** @param {number} x @param {number} y */
+    #pointAt(x, y) {
+      const reading = this.#reading;
+      const screen = reading?.svg.getScreenCTM();
+      if (!reading || !screen) return null;
+      const at = new DOMPoint(x, y).matrixTransform(screen.inverse());
+      return nearest(reading, at.x, at.y);
+    }
+
+    // The reader on `point`, or on none, and the ring on it.
+    /** @param {Point | null} point */
+    #mark(point) {
       this.#at = point;
       const reading = this.#reading;
       if (reading) {
@@ -462,7 +483,6 @@ customElements.define(
           keeps(rule, "y2", String(across ? 0 : point.drawn.bottom - point.y));
         }
       }
-      previewChanged(this, { aim: aim && point !== null });
     }
 
     // A key's step is a walk along the reading's series, a new aim wherever it lands; a
@@ -483,18 +503,17 @@ customElements.define(
     }
 
     // The pointer or finger left the drawing. A point the keyboard reached stays, and so
-    // does the pointer's while the pointer reads its preview, which takes the pointer
-    // and may stand where the pointer rests, and a held finger's once it lifts, whose
-    // preview stands until the next touch (`data-lf-held`, preview.js), each until the
-    // page puts the preview away (`PREVIEW_ENDED`); back on the drawing, it reads from
-    // where it comes.
-    /** @param {EventTarget | null} [onto] */
-    #leave(onto = null) {
+    // does a held finger's once it lifts, whose preview stands until the next touch
+    // (`data-lf-held`, preview.js), until the page puts the preview away
+    // (`PREVIEW_ENDED`); back on the drawing, it reads from where it comes. The
+    // preview of a point takes no pointer (preview.js), so the pointer under it is
+    // still on the drawing.
+    #leave() {
       this.#over = false;
       this.#away = null;
+      this.#finger = null;
       if (this.#by !== "pointer" || this.hasAttribute("data-lf-held")) return;
-      if (!(onto instanceof Element && onto.closest(TOOLTIP)))
-        this.#choose(null, "pointer");
+      this.#choose(null, "pointer");
     }
 
     /** @param {PlotBundle} bundle @param {Function} body @param {number} width

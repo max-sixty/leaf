@@ -315,7 +315,8 @@ come back the same leave the preview as it is. It returns:
   declaring element by default: another element, as a message's age stands its preview
   by its `<time>`, or a box in client coordinates (`{left, top, right, bottom}`, such as
   a `DOMRect`) inside the element, as a chart's value stands over its point, which the
-  preview stands above. `about` is the element the preview is about, which Leaf leaves
+  preview stands above and takes no pointer, so the pointer goes on reading the element
+  beneath it. `about` is the element the preview is about, which Leaf leaves
   in view as it places the preview, as a margin entry's passage or a time's message;
   the box it stands by is always left in view. `excerpt: true` gives a preview that
   quotes a block of the page the face's wider room. A preview taller than the room beside its element shows the
@@ -345,10 +346,12 @@ reads, as a chart's ring on the point it names, comes off when Leaf dispatches
 `PREVIEW_ENDED` (`"lf-preview-ended"`, from the same module) at the element, a
 `CustomEvent` whose `detail.declared` is the object `lfPreview` returned for the
 reading that ended, as the preview goes for any reason: the pointer or focus leaving,
-the pointer leaving the window from the preview, the next touch after a finger's hold,
-Escape, or another target's preview taking its place. A redraw with new words is no
-ending. A widget that has returned a newer reading since, as focus arriving reads the
-point a pointer's preview had, keeps the mark for that one.
+the pointer leaving the window, the next touch after a finger's hold, Escape, or
+another target's preview taking its place. `lfPreview` returns a new object for each
+reading, since that object is how a widget tells the reading that ended from one it
+has returned since. A redraw with new words is no ending. A widget that has returned a
+newer reading since, as focus arriving reads the point a pointer's preview had, keeps
+the mark for that one.
 
 A `title` stays the browser's: a pointer over an element with one, or inside one, gets
 the browser's tooltip and no preview, and focus and a finger, which the browser's

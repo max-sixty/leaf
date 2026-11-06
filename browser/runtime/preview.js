@@ -35,7 +35,7 @@
      hold, Escape or another target's taking its place, the element hears
      `lf-preview-ended` (`PREVIEW_ENDED`), a `CustomEvent` dispatched at it alone, whose
      `detail.declared` is what its `lfPreview` returned for the reading that ended, the
-     last it returned while that preview stood, so a mark it drew for that reading, as a
+     last it returned while that preview stood, a new object for each reading, so a mark it drew for that reading, as a
      chart's ring on its point, comes off then, and one it drew for a reading it has
      declared since stays. It returns null where it adds nothing,
      so the search goes on outward, and false where nothing shows and nothing around it
@@ -69,8 +69,8 @@
    topmost one, since a modal makes everything outside it inert, a top-layer popover
    too, and the pointer couldn't reach a preview there. It holds no control, so it is
    no layer the keyboard tiers its scopes over (layer-stack.js). A pointer's preview
-   takes the pointer, so the pointer can cross from the target onto it and read it
-   there; leaving it puts it away after a dwell, and reaching another target from it
+   takes the pointer, a point's excepted (below), so the pointer can cross from the
+   target onto it and read it there; leaving it puts it away after a dwell, and reaching another target from it
    shows that one at once (WCAG 1.4.13, "Hoverable").
 
    Where it stands is one decision (`stand`), made again whenever what it rests on may
@@ -94,9 +94,9 @@
    "The page holds still under the user's aim") nor cover anything. A new aim inside the
    element it stands for (`previewChanged` with `aim`), as a chart's next point, keeps
    its side by the new box, standing by the edge that side stands by, its bottom above
-   the box and its top below or beside it, so the preview rides along the drawing on
-   one side as the pointer sweeps it, and a longer reading grows away from its point.
-   Afresh, as for a new target or a corner whose room no longer holds a line, it takes
+   the box and its top below or beside it, where that side's room holds the new
+   reading whole, so the preview rides along the drawing on one side as the pointer
+   sweeps it, and a longer reading grows away from its point or stands afresh. Afresh, as for a new target or a corner whose room no longer holds a line, it takes
    the first side whose room holds it whole, in order: below, then above, from the
    box's start edge and then its end edge, so a right-to-left target's starts at its
    right edge; beside, toward the nearer window edge first; then centred across the
@@ -105,7 +105,11 @@
    holds a line does it stand over what it covers, on the side the window gives the most
    room, over the target itself where no side holds a line at all, and take no pointer,
    so the pointer reaches what it covers (`data-lf-covers`); where even that holds none,
-   it shows nothing. Each length is compared at the precision layout keeps, so a room
+   it shows nothing. A preview that stands for a box inside its declaring element, as
+   a chart's point, takes no pointer either, wherever it stands, so the pointer goes on
+   reading the element beneath it: what it covers there, as the chart's next point, is
+   that element's own, which no side's room is tested against, since only other
+   controls and what the preview is about are. Each length is compared at the precision layout keeps, so a room
    and the line it is asked to hold, read off two boxes at one edge, are one length. A
    target thinner than the grid's step can stand under it unseen, and some of Leaf's
    own are thinner, as the trace timeline's marks are, which declare their lane as what
@@ -1098,10 +1102,12 @@ function stand(record, reading, standing, aim = false) {
   let chosen = null;
   let held = 0;
   // Where it stands now stays while its clear room holds a whole line, held to that
-  // room, so words that grow never move it nor cover anything.
+  // room, so words that grow never move it nor cover anything. A new aim's side stays
+  // only where its room holds the new reading whole, which is a new reading's to show.
   if (now && inside(now)) {
     const clearOf = clearHeight(now);
-    if (linesIn(clearOf) >= 1) [chosen, held] = [now, clearOf];
+    if (aim ? clearOf >= height : linesIn(clearOf) >= 1)
+      [chosen, held] = [now, clearOf];
   }
   // Afresh, the first place whose clear room holds it whole; else the one whose clear
   // room holds the most whole lines, held there.
@@ -1176,7 +1182,7 @@ function stand(record, reading, standing, aim = false) {
     "--lf-preview-room",
     held >= height ? "none" : layoutPx(Math.max(held, 0)),
   );
-  keeps(tip, "data-lf-covers", covering ? "" : null);
+  keeps(tip, "data-lf-covers", covering || point ? "" : null);
   fit(reading, held >= height ? Infinity : held);
   return true;
 

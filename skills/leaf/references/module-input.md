@@ -306,7 +306,7 @@ once each time the preview shows, with the route that asked: `"pointer"`, `"focu
 stands, so what it says follows the page without tracking its own inputs; words that
 come back the same leave the preview as it is. It returns:
 
-- `{name, keys, detail, at, excerpt, fits}`, every field optional. `name` replaces the
+- `{name, keys, detail, list, at, excerpt}`, every field optional. `name` replaces the
   control's accessible name in the preview, or names an element that has none. `keys`
   lists presses the register can't see, each as the steps its chips draw, as a control's
   own activation keys a drag grip names. `detail` is lines under the name, each words or
@@ -316,10 +316,11 @@ come back the same leave the preview as it is. It returns:
   a `DOMRect`) inside the element, as a chart's value stands over its point, which the
   preview stands above. `excerpt: true` gives a preview that quotes a block of the page
   the face's wider room. A preview taller than the room beside its element is held to
-  that room and its face scrolls; `fits: true` says its lines fit themselves to the
-  room instead, as a list that counts the rows that fit, by a `ResizeObserver` on the
-  preview (`closest('.lf-preview')`), and says how many more there are, so the face
-  clips them.
+  that room and its face scrolls. `list: {items, more}` is items under the lines, each
+  words or a template, as the threads standing at one place: Leaf shows as many as the
+  room holds, through every resize, and under them `more(count)`'s words for the rest,
+  such as `` (n) => `and ${n} more threads` ``, so the items need no measuring of their
+  own; the rest are hidden from sight and from a screen reader alike.
 - `null` where the element adds nothing now: a control keeps its own preview, and the
   search goes on to what holds the element.
 - `false` where nothing should preview here or around it, as a pinned card already

@@ -417,9 +417,19 @@ svg[data-lf-icon] {
   margin: 0;
   pointer-events: none;
 }
-/* Lines that fit themselves to the room the face is held to take no scrolling. */
-.lf-preview[data-lf-fits] {
+/* A list the owner fits to the room its face is held to (`fitList`, preview.js) clips
+   rather than scrolls, its count of the rest standing at the face's foot. */
+.lf-preview[data-lf-list] {
   overflow: clip;
+}
+.lf-preview-more {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  padding: var(--tip-pad);
+  padding-block-start: 0;
+  background: var(--tip-bg);
+  color: color-mix(in srgb, var(--tip-ink) 76%, transparent);
 }
 .lf-preview[data-lf-face="excerpt"] {
   max-width: min(26rem, calc(100vw - 16px));

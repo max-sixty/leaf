@@ -663,3 +663,56 @@ def test_a_preview_stands_by_its_target_as_the_page_moves(engine, request, serve
     held = page.evaluate(beside, "inner")
     assert held["top"] >= 0 and held["bottom"] <= held["window"], held
     assert held["scrolls"], held
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_list_preview_shows_what_its_room_holds_and_counts_the_rest(
+    engine, request, serve
+):
+    """A preview's list longer than the room its face is held to shows the items that
+    fit and, under them, its declaration's words for how many more there are, the
+    rest hidden from sight and from a screen reader; the window growing shows them
+    all again, with no count."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Lists",
+                '<p><button id="before">Before</button> '
+                '<span id="place" tabindex="0">Threads here</span></p>',
+            )
+        ),
+    )
+    page.evaluate(
+        """() => { document.getElementById('place').lfPreview = () => ({
+          name: '30 threads',
+          list: {items: Array.from({length: 30}, (_, i) => `Thread ${i + 1}`),
+            more: (count) => `and ${count} more threads`}}); }"""
+    )
+    tip = page.locator(PREVIEW)
+    read = """() => {
+      const tip = document.getElementById('lf-preview');
+      const more = tip.querySelector('.lf-preview-more');
+      const items = [...tip.querySelectorAll('.lf-preview-item')];
+      const box = tip.getBoundingClientRect();
+      const counted = getComputedStyle(more).visibility === 'visible';
+      const end = counted ? more.getBoundingClientRect().top : box.bottom;
+      return {seen: items.filter((item) => getComputedStyle(item).visibility === 'visible'
+          && item.getBoundingClientRect().bottom <= end + 1).length,
+        hidden: items.filter((item) => getComputedStyle(item).visibility === 'hidden')
+          .length,
+        more: counted ? more.textContent : null, inside: box.bottom <= innerHeight};
+    }"""
+    size = page.viewport_size
+    page.set_viewport_size({"width": size["width"], "height": 260})
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(tip.locator(".lf-preview-word")).to_have_text("30 threads")
+    short = page.evaluate(read)
+    assert 0 < short["seen"] < 30 and short["seen"] + short["hidden"] == 30, short
+    assert short["more"] == f"and {short['hidden']} more threads", short
+    assert short["inside"], short
+    page.set_viewport_size({"width": size["width"], "height": 1400})
+    page.wait_for_timeout(400)
+    tall = page.evaluate(read)
+    assert tall["hidden"] == 0 and tall["more"] is None, tall

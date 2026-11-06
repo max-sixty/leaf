@@ -14,16 +14,17 @@
      as its preview shows on that route (`"pointer"`, `"focus"` or `"hold"`), and again
      for each new presentation of the document while the preview stands, so the words
      follow the page, a thread's turn or a link's place, redrawn in place with no fade
-     and left as they are where they come back the same: `{name, keys, detail, at,
-     excerpt, fits}`, every field optional (module-input.md, "Previews"). On a control its
+     and left as they are where they come back the same: `{name, keys, detail, list,
+     at, excerpt}`, every field optional (module-input.md, "Previews"). On a control its
      lines stand under the control's own name and keys, and its name replaces the
      accessible name where that says more than the face should; `at` is where to stand,
      the declaring element by default, another element or a box in client coordinates
      inside it, as a chart's point, which the preview stands above; `excerpt` asks
-     for the face's room for a block of the page; and `fits` says its lines fit
-     themselves to the room the face is held to, as a list of threads that counts the
-     ones that fit and says how many more there are, so the face clips them where it
-     would scroll. When what it says changes under an aim
+     for the face's room for a block of the page; and `list` is items under the lines,
+     `{items, more}`, as the threads standing at one place, of which the face shows as
+     many as the room it is held to holds, and under them the words `more(count)` gives
+     for the rest, as "and 26 more threads" (`fitList`), where another preview's face
+     scrolls. When what it says changes under an aim
      that stays inside the element, as a chart's point, it says so (`previewChanged`,
      widget-upgrade.js), and a standing preview redraws in place, or a pointer resting
      on the element or a finger holding it reads it; a preview the user put away stays
@@ -203,6 +204,7 @@ import {
 import { commandRunning } from "./keyboard/dispatch.js";
 import { PREVIEW, PREVIEW_ENDED } from "./widget-upgrade.js";
 import { keeps, layoutPx } from "./keeps.js";
+import { sizeObserver } from "./rendering.js";
 import { watchOwner } from "./arrivals.js";
 import { actionClass } from "./control-faces.js";
 import { shownParts } from "./geometry.js";
@@ -212,11 +214,12 @@ import { WALK } from "./walk-declaration.js";
  * @typedef {Word | readonly Word[]} Words
  * @typedef {readonly (readonly string[])[]} Presses
  * @typedef {Words | null | undefined | false} Line
- * @typedef {{name?: Words | null, keys?: Presses, detail?: readonly Line[], at?: Element | import("./rect.js").Box | null, excerpt?: boolean, fits?: boolean}} Preview
+ * @typedef {{items: readonly Words[], more: (count: number) => Words}} List
+ * @typedef {{name?: Words | null, keys?: Presses, detail?: readonly Line[], list?: List | null, at?: Element | import("./rect.js").Box | null, excerpt?: boolean}} Preview
  * @typedef {Preview | null | undefined | false} Declared
  * @typedef {"pointer" | "focus" | "hold"} Route
  * @typedef {(route: Route) => Declared} Read
- * @typedef {{name: Words | null, keys: Presses, detail: Words[], at: Element | import("./rect.js").Box | null, excerpt: boolean, fits: boolean, restates: boolean}} Reading
+ * @typedef {{name: Words | null, keys: Presses, detail: Words[], list: List | null, at: Element | import("./rect.js").Box | null, excerpt: boolean, restates: boolean}} Reading
  * @typedef {import("./rect.js").Box} Box
  * @typedef {Element | Range} Target
  * @typedef {{from: Target, target: Target, holder: Element, route: Route, read: Read | null, at: {x: number, y: number} | undefined, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
@@ -253,15 +256,65 @@ const chips = (/** @type {readonly string[]} */ steps) =>
   html`<span class="lf-preview-keys">${steps.map(chip)}</span>`;
 const detailLine = (/** @type {Words} */ line) =>
   html`<span class="lf-preview-detail">${line}</span>`;
+const item = (/** @type {Words} */ line) =>
+  html`<span class="lf-preview-detail lf-preview-item">${line}</span>`;
 /** @type {(reading: Reading) => unknown[]} */
-const face = ({ name, keys, detail }) => [
+const face = ({ name, keys, detail, list }) => [
   name || keys.length
     ? html`<span class="lf-preview-name"
         ><span class="lf-preview-word">${name}</span>${keys.map(chips)}</span
       >`
     : nothing,
   ...detail.map(detailLine),
+  ...(list
+    ? [...list.items.map(item), html`<span class="lf-preview-more"></span>`]
+    : []),
 ];
+
+// A list longer than the room its face is held to shows the items that fit and, in
+// their place below, the words its declaration gives for how many more there are. The
+// rest stay laid out, unseen and unheard (`visibility: hidden`), so what the face
+// shows changes nothing about its size, and the browser's choice of where it stands,
+// which a shorter face could change, holds; a resize the face's bound follows fits it
+// again (`fitting`). Each fit reads the face's items, a few at one place.
+/** @type {List | null} */
+let listing = null;
+/** @param {List | null} list */
+function fitList(list) {
+  listing = list;
+  if (!list) return;
+  const items = /** @type {HTMLElement[]} */ ([
+    ...tip.querySelectorAll(".lf-preview-item"),
+  ]);
+  const more = /** @type {HTMLElement | null} */ (
+    tip.querySelector(".lf-preview-more")
+  );
+  if (!more) return;
+  // Each place is written once, with its final value: the count line stands laid out
+  // and unseen, so it measures before it says anything, its first words those for all
+  // the items, the longest it can say.
+  let fit = items.length;
+  if (tip.scrollHeight > tip.clientHeight + 1) {
+    if (!more.textContent) render(list.more(items.length), more);
+    const end = more.getBoundingClientRect().top;
+    const over = items.findIndex((line) => line.getBoundingClientRect().bottom > end);
+    if (over >= 0) fit = over;
+  }
+  items.forEach((line, at) => {
+    line.style.visibility = at < fit ? "" : "hidden";
+  });
+  if (fit < items.length) render(list.more(items.length - fit), more);
+  more.style.visibility = fit < items.length ? "" : "hidden";
+}
+// The face's box, which a resize of the room it is held to changes, fits its list again.
+const fitting = sizeObserver(
+  () => {
+    if (shown && listing) fitList(listing);
+  },
+  // A preview comes and goes for as long as the page plays.
+  { counted: false },
+);
+fitting.observe(tip);
 
 const CONTROL = 'button, summary, a[href], [role="button"], [data-lf-offer]';
 // A proxy stands in for what the pointer takes by itself (control-faces.js, `proxy`),
@@ -353,14 +406,15 @@ function lines(declared, own) {
   ])
     if (line && !(typeof line === "string" && said.includes(line))) said.push(line);
   const [name = null, ...detail] = said;
-  if (!name && !keys.length) return null;
+  const list = declared?.list?.items.length ? declared.list : null;
+  if (!name && !keys.length && !list) return null;
   return {
     name,
     keys,
     detail,
     at: declared?.at ?? null,
     excerpt: Boolean(declared?.excerpt),
-    fits: Boolean(declared?.fits),
+    list,
     restates: false,
   };
 }
@@ -510,12 +564,13 @@ function show(from, route, read = null, at, again = false) {
   shown = record;
   keeps(tip, "data-lf-route", route);
   keeps(tip, "data-lf-face", reading.excerpt ? "excerpt" : null);
-  keeps(tip, "data-lf-fits", reading.fits ? "" : null);
+  keeps(tip, "data-lf-list", reading.list ? "" : null);
   if (route === "hold") keeps(holder, "data-lf-held", "");
   if (!stand(record, reading, Boolean(standing))) {
     hide();
     return false;
   }
+  fitList(reading.list);
   if (standing) {
     record.described = standing.described;
     return true;
@@ -885,6 +940,7 @@ function refresh() {
   const before = tip.textContent;
   render(face(found.reading), tip);
   if (tip.textContent !== before) stand(record, found.reading, true);
+  fitList(found.reading.list);
 }
 let refreshing = false;
 

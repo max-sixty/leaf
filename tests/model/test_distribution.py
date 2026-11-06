@@ -126,6 +126,59 @@ def test_runtime_identity_names_every_composed_core_stylesheet(
     assert identity() != before
 
 
+def test_runtime_identity_follows_package_browser_contributions(tmp_path, monkeypatch):
+    """Running a package's Python tool cannot make an unchanged page reload, while
+    an imported stylesheet or widget change still selects a new runtime."""
+    import py_compile
+
+    assets = tmp_path / "browser"
+    assets.mkdir()
+    (assets / "base.css").write_text(":root { color: black; }\n")
+    package = tmp_path / "packages" / "sample"
+    for directory in (
+        "styles",
+        "widgets",
+        "runtime",
+        "vendor",
+        "scripts",
+        "instructions",
+    ):
+        (package / directory).mkdir(parents=True)
+    (package / "defaults.css").write_text('@import "./styles/widget.css";\n')
+    sheet = package / "styles/widget.css"
+    sheet.write_text("lf-sample { color: black; }\n")
+    widget = package / "widgets/lf-sample.js"
+    widget.write_text("export const value = 1;\n")
+    registry = package / "registry.json"
+    registry.write_text("{}\n")
+    helper = package / "runtime/helper.js"
+    helper.write_text("export const value = 1;\n")
+    asset = package / "vendor/data.json"
+    asset.write_text("{}\n")
+    monkeypatch.setattr(runtime_selection, "ASSETS", assets)
+    monkeypatch.setattr(runtime_selection, "PLUGIN_ROOT", tmp_path)
+
+    def identity():
+        return runtime_selection.ServingRuntime({}, None, frozenset(), {}).identity
+
+    before = identity()
+    script = package / "scripts/tool.py"
+    script.write_text("value = 1\n")
+    py_compile.compile(str(script), doraise=True)
+    (package / "README.md").write_text("Package development notes.\n")
+    (package / "instructions/author.md").write_text("Authoring guidance.\n")
+    assert identity() == before
+
+    sheet.write_text("lf-sample { color: red; }\n")
+    restyled = identity()
+    assert restyled != before
+    for contribution in (widget, registry, helper, asset):
+        contribution.write_bytes(contribution.read_bytes() + b"\n")
+        changed = identity()
+        assert changed != restyled, contribution
+        restyled = changed
+
+
 @pytest.mark.parametrize("directory", ["runtime", "widgets", "vendor"])
 @pytest.mark.parametrize("suffix", [".js", ".mjs"])
 def test_package_private_imports_are_refused(directory, suffix, tmp_path):

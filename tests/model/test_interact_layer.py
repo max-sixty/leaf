@@ -4618,6 +4618,38 @@ def test_a_revision_reads_its_package_copy_after_the_selection_moves_on(
     assert "/widgets/helper.js" in layer_files_of_revision(page, 1)
 
 
+def test_package_instructions_do_not_change_a_revisions_browser_address(
+    tmp_path, monkeypatch
+):
+    from leaf.revision_artifact import read_artifact
+    from leaf.revisioning import activate_source
+    from leaf.runtime_selection import executing
+
+    monkeypatch.chdir(tmp_path)
+    custom = tmp_path / "custom"
+    (custom / "instructions").mkdir(parents=True)
+    (custom / "instructions" / "author.md").write_text("Initial instructions.\n")
+    page = tmp_path / "page"
+    init = ["page", "init", "--package", "./custom", str(page)]
+    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
+    (page / "index.html").write_text(PLAIN_PAGE)
+    assert activate_source(page).error is None
+    artifact = read_artifact(page, 1)
+    record = json.loads(artifact.manifest)["layer"]
+    first_layer = registry_storage.selected(record, page)
+    first = executing(artifact)
+
+    (custom / "instructions" / "author.md").write_text("Revised instructions.\n")
+    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
+    second_layer = registry_storage.selected(record, page)
+    second = executing(artifact)
+
+    assert second_layer.fingerprint != first_layer.fingerprint
+    assert second.package_copies != first.package_copies
+    assert second.resources == first.resources
+    assert second.identity == first.identity
+
+
 def layer_files_of_revision(page: Path, revision: int) -> dict[str, bytes]:
     from leaf.revision_artifact import read_artifact
 

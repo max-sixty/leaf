@@ -91,59 +91,6 @@ def test_a_control_previews_its_word_and_every_key_that_presses_it(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_range_previews_beside_the_line_the_pointer_rests_on(engine, request, serve):
-    """A range with no element of its own, as a passage mark is, previews through its
-    owner's word of where the pointer rests: beside the line pointed at, carried with it
-    through a scroll, and gone a dwell after the pointer leaves the range. An owner that makes the
-    range again on every move points at the same range, so the dwell runs out once."""
-    words = " ".join(["The passage runs across more than one line of the column."] * 6)
-    page = open_page(
-        request.getfixturevalue(engine),
-        serve(
-            leaf_page("Ranges", f'<p id="passage">{words}</p>' + "<p>More.</p>" * 40)
-        ),
-    )
-    reading = page.evaluate(
-        """async () => {
-          const {pointRange} = await window.__lfCheckApi();
-          const text = document.getElementById('passage').firstChild;
-          const range = document.createRange();
-          range.setStart(text, 0);
-          range.setEnd(text, text.length);
-          const lines = [...range.getClientRects()];
-          const line = lines[1];
-          const tip = document.getElementById('lf-preview');
-          const started = performance.now();
-          while (!tip.matches(':popover-open') && performance.now() - started < 2000) {
-            pointRange(range.cloneRange(), () => ({name: 'Its thread'}),
-              {x: line.left + 2, y: line.top + line.height / 2});
-            await new Promise((done) => setTimeout(done, 20));
-          }
-          const box = tip.getBoundingClientRect();
-          scrollBy(0, 30);
-          // Firefox carries an anchored box after its own scroll a frame or two late
-          // under load.
-          const offset = () => tip.getBoundingClientRect().top
-            - range.getClientRects()[1].bottom;
-          for (let n = 0; n < 10 && Math.abs(offset() - (box.top - line.bottom)) >= 1; n++)
-            await new Promise(requestAnimationFrame);
-          const carried = offset();
-          pointRange(null);
-          const leaving = tip.matches(':popover-open');
-          await new Promise((done) => setTimeout(done, 400));
-          return {text: tip.innerText, gap: box.top - line.bottom, left: box.left - line.left,
-            carried, leaving, open: tip.matches(':popover-open')};
-        }"""
-    )
-    assert reading["text"] == "Its thread"
-    assert reading["gap"] > 0 and reading["left"] == 0, reading
-    assert abs(reading["carried"] - reading["gap"]) < 1, "the scroll left it behind"
-    # It waits a dwell, as the pointer may be on its way onto the preview.
-    assert reading["leaving"], "the preview went before the pointer could reach it"
-    assert not reading["open"], "the preview stayed once the pointer left the range"
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_preview_shown_on_focus_describes_what_focus_is_on(engine, request, serve):
     """A screen reader hears a preview the keyboard's focus shows as the focused
     element's description while it stands, whatever supplied it, and the element's own
@@ -248,45 +195,6 @@ def test_a_standing_preview_reads_its_element_again_as_the_page_presents_news(
     expect(tip).to_be_visible()
 
 
-def test_a_standing_range_preview_says_its_owners_latest_words(browser, serve):
-    """A range's preview standing while what its owner says about it changes, as a
-    thread turning to the user's under its passage, says the new words with no pointer
-    input: on the page's next presentation, and when the owner declares the same range
-    again with other words."""
-    url = serve(PANEL_PAGE)
-    page = open_page(browser, url)
-    tip = page.locator(PREVIEW)
-    page.evaluate(
-        """async () => {
-          const {pointRange} = await window.__lfCheckApi();
-          const text = document.getElementById('lede').firstChild;
-          const range = document.createRange();
-          range.setStart(text, 0);
-          range.setEnd(text, 8);
-          const line = range.getClientRects()[0];
-          window.lfWords = '2 messages';
-          window.lfRange = range;
-          window.lfAt = {x: line.left + 2, y: line.top + line.height / 2};
-          pointRange(range, () => ({name: window.lfWords}), window.lfAt);
-        }"""
-    )
-    expect(tip.locator(".lf-preview-word")).to_have_text("2 messages")
-
-    page.evaluate("() => { window.lfWords = '3 messages · your turn'; }")
-    panel_comment(serve.page_dir, "News the page presents.")
-    told(page)
-    expect(tip.locator(".lf-preview-word")).to_have_text("3 messages · your turn")
-
-    page.evaluate(
-        """async () => {
-          const {pointRange} = await window.__lfCheckApi();
-          pointRange(window.lfRange.cloneRange(), () => ({name: 'Resolved'}), window.lfAt);
-        }"""
-    )
-    expect(tip.locator(".lf-preview-word")).to_have_text("Resolved")
-    expect(tip).to_be_visible()
-
-
 def test_a_standing_preview_says_what_a_new_revision_changed(browser, serve):
     """A preview standing over a link while a new revision changes the place it points
     at says the place's new words, with no pointer input: a revision ends in a
@@ -316,52 +224,6 @@ def test_a_standing_preview_says_what_a_new_revision_changed(browser, serve):
     expect(page.locator("#dest")).to_have_text("The revised words")
     expect(tip.locator(".lf-preview-word")).to_have_text("The revised words")
     expect(tip).to_be_visible()
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_the_innermost_target_previews_on_every_route(engine, request, serve):
-    """A link inside a passage a range's owner previews, as a link in a commented
-    paragraph, previews as the link: to a resting pointer, though the passage's owner
-    reports its range under the pointer after the link's boundary, as to the keyboard
-    and a finger. The passage's words around the link still preview as the passage."""
-    page = open_page(
-        request.getfixturevalue(engine),
-        serve(
-            leaf_page(
-                "Innermost",
-                '<p id="passage">The words a thread is about, with '
-                '<a id="go" href="#more">a link</a> among them, and more words after '
-                "the link so the passage runs on.</p>"
-                + '<p id="more">More.</p>'
-                + "<p>More words.</p>" * 3,
-            )
-        ),
-    )
-    page.evaluate(
-        """async () => {
-          const {pointRange} = await window.__lfCheckApi();
-          const passage = document.getElementById('passage');
-          document.getElementById('go').lfPreview = () => ({name: 'The link'});
-          const range = document.createRange();
-          range.selectNodeContents(passage);
-          passage.addEventListener('pointermove', (event) =>
-            pointRange(range.cloneRange(), () => ({name: 'The thread'}),
-              {x: event.clientX, y: event.clientY}));
-          passage.addEventListener('pointerleave', () => pointRange(null));
-        }"""
-    )
-    tip = page.locator(PREVIEW)
-    word = tip.locator(".lf-preview-word")
-    page.mouse.move(2, 2)
-    box = page.locator("#passage").bounding_box()
-    page.mouse.move(box["x"] + 20, box["y"] + 8, steps=4)
-    expect(word).to_have_text("The thread")
-    page.mouse.move(2, 2)
-    expect(tip).to_be_hidden()
-    link = page.locator("#go").bounding_box()
-    page.mouse.move(link["x"] + 4, link["y"] + link["height"] / 2, steps=4)
-    page.mouse.move(link["x"] + 8, link["y"] + link["height"] / 2, steps=2)
-    expect(word).to_have_text("The link")
 
 
 # How many times the margin lays out (`lf-margin-layout`) and which of the page's boxes
@@ -395,8 +257,8 @@ def test_a_preview_writes_nothing_on_the_page(engine, request, serve):
     """A preview shows with its target as its source and the browser places it, so it
     writes nothing on the page's boxes, its root or a box that scrolls its target,
     which the margin would hear as a change and lay out again: the session's first
-    preview, a range's on a paragraph, and the first inside an authored scroller. The
-    pointer comes from words beside each target, so its travel reads nothing either."""
+    preview, inside an authored scroller. The pointer comes from words beside the
+    target, so its travel reads nothing either."""
     url = serve(
         leaf_page(
             "Quiet previews",
@@ -413,24 +275,6 @@ def test_a_preview_writes_nothing_on_the_page(engine, request, serve):
         page.locator('[data-lf-margin-for="lede"] .lf-margin-marker')
     ).to_be_visible()
     tip = page.locator(PREVIEW)
-    margins_laid_out(page)
-    rendered(page)
-    page.evaluate(HEARD)
-    page.evaluate(
-        """async () => {
-          const {pointRange} = await window.__lfCheckApi();
-          const range = document.createRange();
-          range.selectNodeContents(document.getElementById('lede'));
-          const line = range.getClientRects()[0];
-          pointRange(range, () => ({name: 'Its thread'}),
-            {x: line.left + 2, y: line.top + 4});
-        }"""
-    )
-    expect(tip.locator(".lf-preview-word")).to_have_text("Its thread")
-    assert page.evaluate("window.lfHeard()") == {"marginPasses": 0, "written": []}
-    page.evaluate("async () => (await window.__lfCheckApi()).pointRange(null)")
-    expect(tip).to_be_hidden()
-
     page.locator("#calm").hover()
     margins_laid_out(page)
     rendered(page)

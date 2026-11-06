@@ -250,11 +250,10 @@ playable").
   and a finger, so two tooltips never stand together. Leaf's own controls declare
   their words to the preview and write no title on Leaf.
 - **One owner shows every preview.** An element adds to what pointing at it reads
-  (`lfPreview`, `../skills/leaf/references/module-input.md`, "Previews"), a control's
-  word and keys come from its name and the register, and a range's owner says where
-  the pointer rests on it. `runtime/preview.js` shows one at a time on every route,
-  puts it away on leave, blur or a press, and gives a screen reader the words it shows
-  on focus as the focused element's description.
+  (`lfPreview`, `../skills/leaf/references/module-input.md`, "Previews"), and a
+  control's word and keys come from its name and the register. `runtime/preview.js`
+  shows one at a time on every route, puts it away on leave, blur or a press, and gives
+  a screen reader the words it shows on focus as the focused element's description.
   While one stands it is Escape's first step, which does nothing else, so a preview
   over the surface the user is in never costs them that surface (WCAG 1.4.13). Check:
   `test_a_control_previews_its_word_and_every_key_that_presses_it`.
@@ -622,7 +621,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowWord`, `progressFace`, `todoWord`                    |
 | A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                             |
 | What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                    |
-| What an element (its `lfPreview`), control or range says when pointed at, on every route              | `preview.js` `pointRange`                                                          |
+| What an element (its `lfPreview`) or control says when pointed at, on every route                     | `preview.js`                                                                       |
 | The keys that press a control                                                                         | `keyboard/control-keys.js` `controlKeys`                                           |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                              |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |

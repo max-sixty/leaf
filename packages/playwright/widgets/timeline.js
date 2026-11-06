@@ -60,11 +60,10 @@ const CLUSTER_WIDTH = 168;
 // stands in, which the user reads along, so the preview keeps clear of the whole lane.
 // The lane's marks are thinner than the preview owner's hit tests are apart, so naming
 // the lane is what keeps the preview off the mark's neighbours.
-// A moment's flag names none: listing its moments outweighs thin marks it may cover.
 /** @param {string} text */
 const kept = (text) => text.replace(/(\d) s\b/g, "$1\u00a0s");
 /** @param {Element} mark */
-const laneOf = (mark) => mark.closest(".lf-trace-lane:not(.lf-trace-lane-moments)");
+const laneOf = (mark) => mark.closest(".lf-trace-lane");
 /** @param {Tip} tip */
 const said = (tip) =>
   /** @this {Element} */

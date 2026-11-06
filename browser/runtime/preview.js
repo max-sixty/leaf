@@ -240,7 +240,8 @@ import { nextRender, sizeObserver } from "./rendering.js";
 import { atClock, clockNow } from "./presence.js";
 import { watchOwner } from "./arrivals.js";
 import { actionClass } from "./control-faces.js";
-import { pressedControl, WORKS } from "./control-selectors.js";
+import { WORKS } from "./control-selectors.js";
+import { pressedControl } from "./widget-elements.js";
 import { shownParts, shownWindow, visualViewport } from "./geometry.js";
 import { linkPreview } from "./place-preview.js";
 
@@ -626,10 +627,11 @@ let cooled = -Infinity;
 // otherwise: the element `pointerover` found that previews itself (`over`), and the
 // range a range's owner says it rests on, with what pointing at it reads and where the
 // pointer was (`ranged`, `pointRange`). Pointing reads what a press there acts on
-// (`aimed`): where a press reaches a working control (control-selectors.js,
-// `pressedControl`), as a link holding a thread's words or a link inside them, the
-// element, or nothing where the browser shows the control's title; elsewhere the range,
-// where one is said, since the press opens its thread; else the element. The pointer
+// (`aimed`): where a press reaches an element that takes it (widget-elements.js,
+// `pressedControl`), as a link holding a thread's words or inside them, a gloss's phrase
+// or an option, whatever in it previews itself, or nothing, as where the browser shows
+// a control's title or the element says nothing; elsewhere the innermost reading, the
+// range where one is said, since a press opens its thread, else the element. The pointer
 // leaving a link for the passage's words around it is on the passage again with nothing
 // told anew.
 /** @type {Element | null} */
@@ -1415,7 +1417,9 @@ const sameTarget = (a, b) => a === b || (a instanceof Range && sameRange(a, b));
 // The pointer's target, from what each layer says it rests on (`over`, `ranged`).
 /** @returns {Target | null} */
 function aimed() {
-  return ranged && !(beneath && pressedControl(beneath)) ? ranged.range : over;
+  const pressed = beneath && pressedControl(beneath);
+  if (pressed) return over && under(over, pressed) ? over : null;
+  return ranged ? ranged.range : over;
 }
 function aim() {
   const target = aimed();

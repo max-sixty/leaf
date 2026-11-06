@@ -13,6 +13,7 @@
     "required": ["id", "aria-label"],
     "additionalProperties": false,
     "x-content": "members",
+    "x-press": { "region": "[data-lf-step]" },
     "x-upgrade": true,
     "x-visual": {
       "prefixes": ["event:"]

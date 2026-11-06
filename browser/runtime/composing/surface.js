@@ -81,7 +81,8 @@ import {
   visualAt,
 } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
-import { CARET_KEYS, pressedControl, selectsAll } from "../control-selectors.js";
+import { CARET_KEYS, selectsAll } from "../control-selectors.js";
+import { pressedControl } from "../widget-elements.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { covered, placeBox, seenRect } from "../geometry.js";
 import { scrollIntoView } from "../landing-scroll.js";

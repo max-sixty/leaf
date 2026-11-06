@@ -20,6 +20,7 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
+    "x-press": { "region": "lf-playground-choice" },
     "x-upgrade": true,
     "x-awaits": {
       "value": "choose",

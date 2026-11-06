@@ -413,6 +413,9 @@
     "required": ["id", "source"],
     "additionalProperties": false,
     "x-content": "members",
+    "x-press": {
+      "region": ".lf-trace-timeline, .lf-trace-image-viewport, .lf-trace-metadata"
+    },
     "x-data": {
       "trace": {
         "contract": "playwright-trace",

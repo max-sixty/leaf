@@ -102,10 +102,10 @@
    it shows nothing. Each length is compared at the precision layout keeps, so a room
    and the line it is asked to hold, read off two boxes at one edge, are one length. A
    target thinner than the grid's step can stand under it unseen, and some of Leaf's
-   own are thinner, as the trace timeline's marks are, which declare their lane as what
-   they are about so their previews keep clear of it. No sampling proves a target
-   absent, so that is the grid's stated limit, as the holder's own box, which it
-   doesn't test, is its bound on cost.
+   own are thinner, as the trace timeline's input and call marks are, which declare
+   their lane as what they are about so their previews keep clear of it. No sampling
+   proves a target absent, so that is the grid's stated limit, as the holder's own box,
+   which it doesn't test, is its bound on cost.
 
    Its routes:
 
@@ -1180,11 +1180,11 @@ function stand(record, reading, standing, again) {
 // within `reach`: hit tests every `REACH` across its width, row by row out from that
 // edge, through the preview where it stands now, the first row that finds one ending
 // the room at its near edge. A control thinner than `REACH` can stand unseen between
-// the points, as the trace timeline's marks can, which declare their lane as what they
-// are about so their previews keep clear of it, since no sampling proves a control
-// absent, which is the grid's limit. A point inside the holder's own box finds the
-// holder or what it holds, which are no other control, so it is not tested, as most of
-// a preview standing over a chart is not, which bounds its cost.
+// the points, as the trace timeline's input and call marks can, which declare their
+// lane as what they are about so their previews keep clear of it, since no sampling
+// proves a control absent, which is the grid's limit. A point inside the holder's own
+// box finds the holder or what it holds, which are no other control, so it is not
+// tested, as most of a preview standing over a chart is not, which bounds its cost.
 /** @param {Placement} at @param {number} reach @param {Element} holder */
 function clearRoom(at, reach, holder) {
   const own = holder.getBoundingClientRect();

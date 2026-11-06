@@ -2088,17 +2088,10 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
         user.emulate_media(color_scheme=color_scheme)
         shared.hover()
         expect(tip).to_be_visible()
-        # The flag names its count and each moment's words on a line of its own. The
-        # lanes around it leave room above for its first line, so the rest is cut
-        # there, as any preview held to a room is (preview.js, `fit`), and says
-        # itself whole where the room allows.
-        expect(tip.locator(".lf-preview-word")).to_be_visible()
-        expect(tip.locator(".lf-preview-word, .lf-preview-detail")).to_have_text(
-            [
-                "2 moments",
-                f"{labels[0]} · Moment 1 · {docs_time:.3f} s",
-                f"{labels[1]} · Moment 2 · {docs_time:.3f} s",
-            ]
+        expect(tip).to_have_text(
+            f"2 moments\n{labels[0]} · Moment 1 · {docs_time:.3f} s\n"
+            f"{labels[1]} · Moment 2 · {docs_time:.3f} s",
+            use_inner_text=True,
         )
         # Its face is what is drawn, ink on its ground (preview.js).
         reading = tip.locator(".lf-preview-face").evaluate(

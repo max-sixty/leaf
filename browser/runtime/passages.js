@@ -293,10 +293,9 @@ export function settledAway(el) {
   );
 }
 export const GENERATED = ".lf-ui, [data-lf-gen]";
-// A message's body, which holds the markup its author sent, and the text the runtime
-// renders from its words beside that markup.
+// A message's body: the markup its writer sent, and the text the runtime renders from
+// their words beside that markup.
 const MESSAGE_BODY = ".lf-msg-body";
-const MESSAGE_TEXT = ".lf-msg-text";
 // Every heading, which names the part of the page under it.
 export const HEADING = "h1, h2, h3, h4, h5, h6";
 export const DATUM = "[data-lf-projection][data-lf-datum]";
@@ -413,24 +412,20 @@ function refusesBareText(root) {
 // So chrome between the words and their widget is that widget's own apparatus, and chrome
 // above the widget is somebody else's. Rooting the search at the element handed in says
 // almost the same thing and is wrong in one case that matters: a reading can start
-// *inside* generated chrome. A thread box's messages are `<p>`s the runtime built,
-// on the page, inside the group they belong to — so bounded at the block, each of them
-// stopped being generated, and the authored reading took the user's own comments for
-// words the author wrote.
+// *inside* generated chrome, and everything generated over it would read as authored.
 //
-// A message's authored markup is a document of its own (`authoredScope`), standing in
-// the message's body inside the chrome that draws the message, so the body frames a
-// reading there as a widget does. The message's text beside that markup, which the
-// runtime renders from its words (`MESSAGE_TEXT`), keeps the frame over the message:
-// a thread box's messages are that text.
+// A message is the other frame. Its body, the markup its writer sent and the text the
+// runtime renders from their words, is a document of its own (`authoredScope`) standing
+// inside the chrome that draws the message, so the body frames a reading there as a
+// widget does, and the words read as their writer's: a heading in a reply names what
+// follows it there. The version diff once read every block on the live page, a
+// conversation's paragraphs among them, and so took a reader's comments for the page's
+// words; it compares versions' sources now (version.js, `paintedSource`) and reads no
+// message.
 /** @param {Node | null} node */
 const frameOf = (node) => {
-  let text = false;
-  for (let a = isElement(node) ? node : upFrom(node); a; a = upFrom(a)) {
-    if (a.localName?.startsWith("lf-")) return a;
-    if (a.matches(MESSAGE_TEXT)) text = true;
-    else if (!text && a.matches(MESSAGE_BODY)) return a;
-  }
+  for (let a = isElement(node) ? node : upFrom(node); a; a = upFrom(a))
+    if (a.localName?.startsWith("lf-") || a.matches(MESSAGE_BODY)) return a;
   return null;
 };
 // What a reading carries down to the text under an element. Every question the walk

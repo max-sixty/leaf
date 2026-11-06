@@ -458,7 +458,7 @@ def test_a_message_s_parts_follow_its_accepted_edit(browser, serve):
 def test_a_message_s_parts_follow_an_edit_the_card_held_as_news(browser, serve):
     """An edit arriving while a card holds the message back as news outlines the
     message once the card shows it, not before: the old words stand under their old
-    heading while held, and the new under the new once shown."""
+    heading while held, and the new under the new once shown, which names them."""
     url = serve(LINKS_PAGE)
     thread = panel_comment(
         serve.page_dir,
@@ -494,6 +494,16 @@ def test_a_message_s_parts_follow_an_edit_the_card_held_as_news(browser, serve):
     news.click()
     expect(card.locator(".lf-msg-body")).to_contain_text("Changed paragraph.")
     assert page.evaluate(part, "Changed paragraph.") == "Changed heading"
+    # A place in the message's text is named as the message reads: by its heading.
+    named = page.evaluate(
+        """async () => {
+          const {placePreview} = await import('/runtime/place-preview.js');
+          const said = [...document.querySelectorAll('.lf-margin-preview .lf-msg-body p')]
+            .find((p) => p.textContent.includes('Changed paragraph.'));
+          return placePreview(said)?.name ?? null;
+        }"""
+    )
+    assert named == "Changed heading"
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

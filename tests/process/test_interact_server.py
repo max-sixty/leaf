@@ -4138,7 +4138,9 @@ def test_comparison_revision_reads_stay_inside_the_page_transaction(
     monkeypatch.setattr(read_context, "read_data", held_data)
     status, body = fetch(f"{server}/api/view?revision=1&through_seq={latest}&shown=2")
     assert status == 200, body
-    assert set(observed) == {1, 2}
+    # The base is read; a revision of the version shown only where an action rests on
+    # its containment (`provenance.saved_after`).
+    assert set(observed) == {1}
 
 
 def _coarse_write_clock(monkeypatch):

@@ -17,7 +17,13 @@ from interact_support import append_command, response_reference, wait_for
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import compare_with, open_page, stamp_page, wait_for_revision
+from render_harness import (
+    compare_with,
+    open_page,
+    preview_parts,
+    stamp_page,
+    wait_for_revision,
+)
 
 from leaf import cli as cli_model
 from leaf import event_log as events_model
@@ -574,13 +580,14 @@ def test_a_version_says_which_comments_it_was_saved_after(browser, serve):
     revise(d, ('<h1 id="t">Plan</h1>', '<h1 id="t">Plan for spring</h1>'))
     page = open_page(browser, url)
     wait_for_revision(page, 3)
-    labels = page.locator('[data-lf-kinds~="change"] .lf-margin-entry-label')
+    entries = page.locator('[data-lf-kinds~="change"]')
     page.keyboard.press("v")
-    expect(labels).to_have_count(1)
-    expect(labels).to_contain_text(
-        "Draft saved while your comment waited: “Is the title right?”"
-    )
-    expect(labels).not_to_contain_text("Beta first?")
+    expect(entries).to_have_count(1)
+    parts = preview_parts(entries.first)
+    assert parts[-2:] == [
+        "Draft saved while your comment waited:",
+        "“Is the title right?”",
+    ], parts
     page.keyboard.press("h")
     expect(page.locator(".lf-live")).to_contain_text(
         "Draft saved while your comment waited: “Is the title right?”"
@@ -588,9 +595,9 @@ def test_a_version_says_which_comments_it_was_saved_after(browser, serve):
     page.keyboard.press("v")
     compare_with(page, 1)
     page.keyboard.press("Escape")
-    expect(labels).to_have_count(2)
+    expect(entries).to_have_count(2)
     for at in range(2):
-        expect(labels.nth(at)).not_to_contain_text("saved")
+        assert not any("saved" in part for part in preview_parts(entries.nth(at)))
 
 
 def _comment_on(d, section, words, revision=1, text="Say which way?"):

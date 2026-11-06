@@ -6,7 +6,7 @@ import { renderedUnder } from "./shadow-tree.js";
 import { html, render } from "/runtime/framework.js";
 import { iconTemplate } from "./icons.js";
 import { progressFace, workflowWord } from "./thread/workflow.js";
-import { agentSays, saidBy, voiced } from "./voice.js";
+import { agentSays, linesOf, saidBy, voiced } from "./voice.js";
 import { agentName } from "./semantic-state.js";
 import { elementDirective, offerActionElement } from "./widget-elements.js";
 import { keeps, inlineStyle } from "./keeps.js";
@@ -282,7 +282,8 @@ function entryPreview() {
   return {
     name: record.voice ? voiced(saidBy(record.voice, label)) : label,
     detail: [
-      record.context ? voiced(record.context) : null,
+      // A context of several lines says each on its own (voice.js, `linesOf`).
+      ...(record.context ? linesOf(record.context).map(voiced) : []),
       more.length ? voiced(more) : null,
     ],
   };

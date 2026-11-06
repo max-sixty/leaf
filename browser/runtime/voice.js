@@ -57,6 +57,19 @@ export function voiceOf(words) {
   return voices.size === 1 ? voice : null;
 }
 
+/** The run's lines, split where a part is a line break ("\n"), as a change's account
+ * stands over what its version was saved after (change-provenance.js), for a seat that
+ * draws each line as its own.
+ * @param {Words} words @returns {(string | Said)[][]} */
+export function linesOf(words) {
+  /** @type {(string | Said)[][]} */
+  const lines = [[]];
+  for (const part of runOf(words))
+    if (part === "\n") lines.push([]);
+    else lines[lines.length - 1]?.push(part);
+  return lines;
+}
+
 /** The words in their speakers' faces.
  * @param {Words} words */
 export const voiced = (words) =>

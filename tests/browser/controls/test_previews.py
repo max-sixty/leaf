@@ -293,6 +293,52 @@ def test_a_link_into_the_page_previews_where_it_points(engine, request, serve):
     expect(held).to_be_hidden()
 
 
+# Places longer than a card shows: a log of long lines, a paragraph and a list whose first
+# item each run past what a card holds.
+LONG_LINE = "x" * 300
+CUT_PAGE = leaf_page(
+    "Places that run on",
+    """
+<p><a id="to-log" href="#log">the log</a>, <a id="to-prose" href="#prose">the prose</a>
+and <a id="to-items" href="#items">the items</a></p>
+<pre id="log">"""
+    + "\n".join(f"L{n} {LONG_LINE}" for n in range(1, 41))
+    + """</pre>
+<p id="prose">"""
+    + " ".join(["The reconnect stalls until the app is backgrounded."] * 30)
+    + """</p>
+<ul id="items"><li>"""
+    + " ".join(["A first item that runs on and on."] * 30)
+    + """</li><li>Second.</li></ul>
+""",
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_card_cut_short_says_so_with_an_ellipsis(engine, request, serve):
+    """A card reads no more of a place than it shows, and says so where the place runs
+    on: a log of long lines shows its first four lines whole and then an ellipsis, and a
+    paragraph and a list's first item longer than the card holds end in one."""
+    page = open_page(request.getfixturevalue(engine), serve(CUT_PAGE))
+    preview = page.locator(PREVIEW)
+
+    def card(link):
+        page.mouse.move(0, 0)
+        expect(preview).to_be_hidden()
+        page.locator(link).hover()
+        expect(preview).to_be_visible()
+
+    card("#to-log")
+    lines = preview.locator(".lf-place-code").inner_text().split("\n")
+    assert [line[:3] for line in lines] == ["L1 ", "L2 ", "L3 ", "L4 "], lines
+    assert all(LONG_LINE in line for line in lines), lines
+    assert lines[-1].endswith("…"), lines[-1][-20:]
+    card("#to-prose")
+    assert preview.locator(".lf-place-text").inner_text().endswith("…")
+    card("#to-items")
+    assert preview.locator(".lf-place-item").first.inner_text().endswith("…")
+
+
 DRAWN_PAGE = leaf_page(
     "What a place draws",
     """

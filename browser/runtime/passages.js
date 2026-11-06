@@ -145,7 +145,7 @@ import { excerptWords } from "./words.js";
  * island: Element | null, cells: CellChain | null}} ReadingContext
  * @typedef {{node: Text, start: number, end: number, block: Element | null,
  * textBlock: Element | null, gen: Element | null, breakBefore?: boolean,
- * lineBefore?: string, whiteSpace?: string}} Segment
+ * lineBefore?: string, whiteSpace?: string, cut?: boolean}} Segment
  * @typedef {Segment & {rawStart: number}} IndexedSegment
  * @typedef {{raw: string, positions: WeakMap<Text, number>,
  * fences: number[], segments: IndexedSegment[], blocks?: Element[],
@@ -750,14 +750,17 @@ export { readingUnder };
 // whitespace; ordinary passage readings never ask the browser for these styles.
 // `drawn` keeps only the words the page draws now (`drawsWithin`), asked of each word and
 // break as the walk meets it, so a break before a word left out still stands before the
-// next; `until` ends the reading where that element starts; and `upTo` ends it once it
-// holds that many characters other than whitespace, cutting the text it ends in there, for
-// a reader that shows no more than that, as a link's preview does, so a long block costs
-// what the reader shows rather than what the block holds.
+// next; `until` ends the reading where that element starts. A reader that shows no more
+// than the start of what it reads bounds it (`excerpt`): `upTo` characters other than
+// whitespace, and in the lines format `lines` line breaks. The reading ends where either is
+// met, cutting the text it ends in there, so a long block costs what the reader shows
+// rather than what the block holds; and where a word still follows, the segment it ended
+// in says so (`cut`), found by reading on to that one word.
 /** @param {Node} root @param {Reading} [reading]
  * @param {((element: Element, count: number) => boolean) | null} [boundary]
  * @param {"prose" | "lines"} [format]
- * @param {{drawn?: boolean, until?: Element | null, upTo?: number}} [only] @returns {Segment[]} */
+ * @param {{drawn?: boolean, until?: Element | null, upTo?: number, lines?: number}} [only]
+ * @returns {Segment[]} */
 export function textNodesUnder(
   root,
   reading = "says",
@@ -768,10 +771,25 @@ export function textNodesUnder(
   const keeps = READINGS[reading];
   const draws = only.drawn ? drawnHere() : null;
   let ended = false;
-  // Characters other than whitespace still to read, where the reader set a bound.
+  // What the reader's bounds still allow: characters other than whitespace, and line
+  // breaks; and whether one was met, after which the next word says the reading was cut.
   let wanted = only.upTo ?? Infinity;
+  let breaks = format === "lines" ? (only.lines ?? Infinity) : Infinity;
+  let met = false;
   /** @type {Segment[]} */
   const segments = [];
+  // A word after `from` in `text`, which says a bound met there cut the reading short.
+  /** @param {string} text @param {number} from */
+  const wordAfter = (text, from) => {
+    const word = /\S/gu;
+    word.lastIndex = from;
+    return word.test(text);
+  };
+  const cutShort = () => {
+    const last = segments.at(-1);
+    if (last) last.cut = true;
+    ended = true;
+  };
   let breakBefore = false;
   let lineBefore = "";
   const styles = new Map();
@@ -784,31 +802,50 @@ export function textNodesUnder(
   walk(
     root,
     (node, ctx) => {
-      if (!ended && keeps(ctx) && (!draws || draws(node))) {
-        let end = node.data.length;
-        if (wanted !== Infinity) {
-          // Read once: an engine may copy a long node's text on every read of `data`.
-          const text = node.data;
-          const words = /\S/gu;
-          while (wanted > 0 && words.exec(text)) wanted -= 1;
-          if (wanted === 0) {
-            end = words.lastIndex || end;
-            ended = true;
-          }
-        }
-        segments.push({
-          ...segmentIn(node, ctx),
-          end,
-          breakBefore,
-          ...(format === "lines" && {
-            lineBefore,
-            whiteSpace: style(node.assignedSlot ?? elementOver(node))
-              .whiteSpaceCollapse,
-          }),
-        });
-        breakBefore = false;
-        lineBefore = "";
+      if (ended || !keeps(ctx) || (draws && !draws(node))) return;
+      // Read once: an engine may copy a long node's text on every read of `data`.
+      const text = node.data;
+      if (met) {
+        if (wordAfter(text, 0)) cutShort();
+        return;
       }
+      const whiteSpace =
+        format === "lines"
+          ? style(node.assignedSlot ?? elementOver(node)).whiteSpaceCollapse
+          : "";
+      let end = text.length;
+      if (
+        breaks !== Infinity &&
+        lineBefore === "\n" &&
+        segments.length &&
+        --breaks === 0
+      ) {
+        met = true;
+        if (wordAfter(text, 0)) cutShort();
+        return;
+      }
+      const newlines =
+        breaks !== Infinity &&
+        ["preserve", "break-spaces", "preserve-breaks"].includes(whiteSpace);
+      if (wanted !== Infinity || newlines) {
+        const marks = newlines ? /\S|\n/gu : /\S/gu;
+        for (let mark; (mark = marks.exec(text));) {
+          const line = mark[0] === "\n";
+          if (line ? --breaks > 0 : --wanted > 0) continue;
+          end = line ? mark.index : marks.lastIndex;
+          met = true;
+          break;
+        }
+      }
+      segments.push({
+        ...segmentIn(node, ctx),
+        end,
+        breakBefore,
+        ...(format === "lines" && { lineBefore, whiteSpace }),
+      });
+      breakBefore = false;
+      lineBefore = "";
+      if (met && wordAfter(text, end)) cutShort();
     },
     (child) =>
       (ended ||= child === only.until) ||
@@ -1162,11 +1199,25 @@ function linesFrom(segments) {
 // somewhere else, as a link's preview does, and `until` stops at an element
 // (`textNodesUnder`).
 /** @param {Node} el
- * @param {{format?: "prose" | "lines", drawn?: boolean, until?: Element | null, upTo?: number}} [options] */
+ * @param {{format?: "prose" | "lines", drawn?: boolean, until?: Element | null}} [options] */
 export const says = (el, options = {}) => {
   const segments = textNodesUnder(el, "says", null, options.format, options);
   return options.format === "lines" ? linesFrom(segments) : quoteFrom(segments);
 };
+/** The start of what an element says, as `says` reads it, for a reader that shows no
+ * more than that: read no further than `upTo` characters other than whitespace and, in
+ * the lines format, `lines` line breaks (`textNodesUnder`). `cut` is whether a bound ended
+ * it with words still to follow, so the reader can say the place runs on.
+ * @param {Node} el
+ * @param {{format?: "prose" | "lines", drawn?: boolean, until?: Element | null, upTo?: number, lines?: number}} options
+ * @returns {{text: string, cut: boolean}} */
+export function excerpt(el, options) {
+  const segments = textNodesUnder(el, "says", null, options.format, options);
+  return {
+    text: options.format === "lines" ? linesFrom(segments) : quoteFrom(segments),
+    cut: segments.at(-1)?.cut === true,
+  };
+}
 // Whether an element stands within a line of words: HTML's phrasing content
 // (`$passages.phrasing`), or a widget declared to stand among the words around it
 // (x-inline). Every other element, a widget included, starts a block of its own.

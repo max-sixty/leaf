@@ -71,6 +71,7 @@ import { hasObligationSource } from "./obligations/source.js";
 import {
   authoredScope,
   drawsWithin,
+  excerpt,
   GENERATED,
   headed,
   HEADING,
@@ -80,7 +81,6 @@ import {
   readingChildren,
   readingParent,
   readingUnder,
-  says,
 } from "./passages.js";
 import { declarationFor, registry } from "./registry.js";
 import { readPart } from "./semantic-state.js";
@@ -108,9 +108,11 @@ const ROWS = 3;
 const COLUMNS = 4;
 const LINES = 4;
 // The most of an element's words a preview reads, other than whitespace: enough for each
-// cut above, with a title read before a part's words, so pointing at a link to a long log
-// or a deep outline costs what the preview shows.
+// cut above, with a title read before a part's words; and of a code block's, its lines,
+// each up to far longer than a card shows of one. So pointing at a link to a long log or
+// a deep outline costs what the preview shows.
 const READ = 2 * WORDS;
+const CODE = LINES * 1000;
 
 // What Leaf draws in a place, which is no part of what its author put there.
 const LEAF_DRAWN = `${GENERATED}, ${LEAF_SURFACE}`;
@@ -127,12 +129,22 @@ const full = (parts) => reading.ended || parts.length >= PARTS;
 // The words an element shows, as the page draws them now, up to the heading that ends
 // the excerpt (passages.js, `says`): the one reader of every word the preview says.
 // `whole` reads them drawn or not, as a widget's members are named (`membersPart`).
-/** @param {Element} element @param {"prose" | "lines"} [format] @param {boolean} [whole] */
-const said = (element, format = "prose", whole = reading.whole) =>
-  says(element, { format, drawn: !whole, until: reading.stop, upTo: READ });
+// Each reading reads no more than the preview shows (passages.js, `excerpt`), and words
+// cut short end in an ellipsis.
+/** @param {Element} element @param {"prose" | "lines"} [format] @param {boolean} [whole]
+ * @param {{upTo?: number, lines?: number}} [bound] */
+const said = (
+  element,
+  format = "prose",
+  whole = reading.whole,
+  bound = { upTo: READ },
+) => excerpt(element, { format, drawn: !whole, until: reading.stop, ...bound });
 /** @param {Element} element @param {boolean} [whole] */
-const words = (element, whole = reading.whole) =>
-  labelWords(said(element, "prose", whole));
+const words = (element, whole = reading.whole) => {
+  const { text, cut } = said(element, "prose", whole);
+  const shown = labelWords(text);
+  return cut && shown ? `${shown}…` : shown;
+};
 // Whether the page draws what `element` holds, for a part with no words of its own to
 // ask, as a list's item counted or a row of a table.
 /** @param {Element} element */
@@ -299,11 +311,14 @@ function drawn(element, parts) {
   else if (element.localName === "figure" || element.localName === "img")
     figurePart(element, parts);
   else if (element.localName === "pre") {
-    // Code cut short ends in the ellipsis cut prose does (words.js, `excerptWords`).
-    const all = said(element, "lines").trimEnd().split("\n");
-    const lines = all.slice(0, LINES).join("\n");
-    if (lines.trim())
-      parts.push({ kind: "code", lines: all.length > LINES ? `${lines}…` : lines });
+    // Its first lines, and where the block runs on, the ellipsis cut prose ends in
+    // (words.js, `excerptWords`).
+    const { text, cut } = said(element, "lines", reading.whole, {
+      lines: LINES,
+      upTo: CODE,
+    });
+    const lines = text.trimEnd();
+    if (lines.trim()) parts.push({ kind: "code", lines: cut ? `${lines}…` : lines });
   } else if (textual) {
     part(parts, "text", words(element));
     if (holdsStop) reading.ended = true;

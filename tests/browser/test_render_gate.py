@@ -3894,7 +3894,10 @@ def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, 
 
 def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     """An obligation holding a wide block keeps it inside the ring. Boxes pulled or
-    sized past the actual page edge remain render-gate findings."""
+    sized past the actual page edge remain render-gate findings: each is past the
+    column, and a box pulled off the leading edge, which no scroll reaches, is also
+    clipped out. A box sized past only the trailing edge is reached by the root's
+    sideways scroll, so it is not clipped out."""
     item = """<lf-ask id="{id}"><h2>Which one?</h2>
   <figure data-width="wide"><p>Evidence the room holds.</p></figure>
   <lf-options id="{id}-o" choose><lf-option id="{id}-a">This one</lf-option></lf-options>
@@ -3928,7 +3931,6 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     found = sorted((m["code"], m["at"]) for m in misplaced)
     assert found == [
         ("clipped-out", "<div id=bare>"),
-        ("clipped-out", "<div id=sized>"),
         ("clipped-out", "<div id=tinted>"),
         ("past-column", "<div id=bare>"),
         ("past-column", "<div id=sized>"),

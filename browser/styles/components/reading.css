@@ -399,40 +399,50 @@ dl.lf-facts dd {
        before the scroll position (controls.css, `--lf-more-fade-start`) moves off that
        edge to the names' far side, where the columns pass under them: the same 24px
        from the ground to clear, painted over what scrolls there, and gone while focus
-       is in the table, as the mask is. */
-    table:has(> * > tr > th[scope="row"]:first-child) {
+       is in the table, as the mask is. It clears toward the table's inline end, which a
+       gradient can name only as a physical side, so the table states that side once
+       from its scroll direction; an override of the fade's own rule had weighed less
+       than the rule and left a right-to-left table's fade facing the names.
+       Every row's first cell asks the table whether its rows open with names, and
+       Chromium reads a `:has(> …)` afresh for each one that asks, so asked alone, the
+       exact question made a table's style grow with the square of its rows. It keeps
+       a `:has()` whose argument starts with a descendant combinator for the restyle,
+       so each rule asks that first, whether any row anywhere in the table opens with a
+       name, which a table without one fails once, and only then the exact question,
+       which keeps a table nested in a cell read for itself. The table of captures
+       below asks the same way. An `@scope` rooted on the table also answers once, but a
+       scope's root names a class, id or attribute, never a type alone
+       (test_an_untyped_has_leads_only_to_a_typed_subject). */
+    table:has(th[scope="row"]:first-child):has(> * > tr > th[scope="row"]:first-child) {
       --lf-more-fade-start: 0px;
-    }
-    table:has(> * > tr > th[scope="row"]:first-child) > * > tr > :first-child {
-      position: sticky;
-      inset-inline-start: 0;
-    }
-    table:has(> * > tr > th[scope="row"]:first-child)[data-lf-more-before]
-      > *
-      > tr
-      > :first-child {
-      background: var(--lf-ground);
-    }
-    @media screen {
-      table:has(> * > tr > th[scope="row"]:first-child)[data-lf-more-before]:not(
-          [data-lf-focus-within]
-        )
-        > *
-        > tr
-        > :first-child::after {
-        content: "";
-        position: absolute;
-        inset-block: 0;
-        inset-inline-start: 100%;
-        inline-size: var(--lf-more-fade, 24px);
-        background: linear-gradient(to right, var(--lf-ground), transparent);
-        pointer-events: none;
+      --lf-names-clear-to: right;
+      &[data-lf-scroll-direction="rtl"] {
+        --lf-names-clear-to: left;
       }
-      table:has(> * > tr > th[scope="row"]:first-child)[data-lf-scroll-direction="rtl"]
-        > *
-        > tr
-        > :first-child::after {
-        background: linear-gradient(to left, var(--lf-ground), transparent);
+      & > * > tr > :first-child {
+        position: sticky;
+        inset-inline-start: 0;
+      }
+      &[data-lf-more-before] > * > tr > :first-child {
+        background: var(--lf-ground);
+      }
+      @media screen {
+        &[data-lf-more-before]:not([data-lf-focus-within])
+          > *
+          > tr
+          > :first-child::after {
+          content: "";
+          position: absolute;
+          inset-block: 0;
+          inset-inline-start: 100%;
+          inline-size: var(--lf-more-fade, 24px);
+          background: linear-gradient(
+            to var(--lf-names-clear-to),
+            var(--lf-ground),
+            transparent
+          );
+          pointer-events: none;
+        }
       }
     }
     img:where(:not(.lf-media-frame img, [data-lf-frame] img)) {
@@ -455,24 +465,17 @@ dl.lf-facts dd {
        wider at 1440px); breaking heads anywhere evened the scale but split "Documentation"
        mid-word on a phone. A table is one of captures where a cell of its own rows holds
        nothing but an image, linked or not, so a table nested in a cell is read for itself. */
-    table:has(
+    table:has(td > img:only-child, td > a:only-child > img:only-child):has(
         > * > tr > td > img:only-child,
         > * > tr > td > a:only-child > img:only-child
-      )
-      > *
-      > tr
-      > :is(th, td) {
-      vertical-align: middle;
-    }
-    table:has(
-        > * > tr > td > img:only-child,
-        > * > tr > td > a:only-child > img:only-child
-      )
-      > *
-      > tr
-      > th:not([scope="row"]) {
-      text-align: center;
-      color: var(--ink);
+      ) {
+      & > * > tr > :is(th, td) {
+        vertical-align: middle;
+      }
+      & > * > tr > th:not([scope="row"]) {
+        text-align: center;
+        color: var(--ink);
+      }
     }
     :is(ul, ol) {
       margin: 10px 0;

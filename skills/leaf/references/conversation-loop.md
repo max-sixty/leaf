@@ -214,12 +214,12 @@ no control of its own, such as a Done, to answer an item: on the page, the user 
 through the widget's own actions or a reply in the thread, and you record an answer
 they give elsewhere, such as in chat, with `leaf task end` (below).
 
-| Request                                                                  | Register it                                                                                                                      | What answers it                                                                                 |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| A decision or input recorded by a widget                                 | Author a widget that records it, on the page or in a thread message's `--markup` (`authoring-on-me.md`)                          | The widget's declared answer; a multiple-choice widget also needs the user's Done               |
-| A question answered in words                                             | `--obligation` on `thread create` or `thread reply` (`threads.md`)                                                               | The user's next message there or a settling reaction                                            |
-| Permission for a stated action                                           | Options to take the action or keep things as they are (`authoring-on-me.md`, "Permission")                                       | The user's pick and its row in On me                                                            |
-| An action the user takes, such as trying a build or connecting a browser | `--obligation` on a message saying what to do and asking for a reply once it's done, in a thread on what it concerns or the page | The user's reply or a settling reaction, or your `leaf task end … done` if you confirm it first |
+| Request                                                                  | Register it                                                                                                                                                                       | What answers it                                                                                                                            |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| A decision or input recorded by a widget                                 | Author a widget that records it, on the page or in a thread message's `--markup` (`authoring-on-me.md`)                                                                           | The widget's declared answer; a multiple-choice widget also needs the user's Done                                                          |
+| A question answered in words                                             | `--obligation` on `thread create` or `thread reply` (`threads.md`)                                                                                                                | The user's next message there or a settling reaction                                                                                       |
+| Permission for a stated action                                           | Options to take the action or keep things as they are (`authoring-on-me.md`, "Permission")                                                                                        | The user's pick and its row in On me                                                                                                       |
+| An action the user takes, such as trying a build or connecting a browser | `--obligation` on a message saying what to do, asking for a reply only for what the user alone can report or your next step waits on, in a thread on what it concerns or the page | Your `leaf task end … done` once you see its effect, which you check yourself wherever you can; or the user's reply or a settling reaction |
 
 Generally pass `--obligation` when a message hands the next move to the user,
 including an answer that informs a decision already on On me. A message that asks a
@@ -271,7 +271,9 @@ unblock it, and leave questions about another session's work to that session.
 When the user answers a question your message asked by another route than the one it
 offered, such as in chat, or in words where it offered a choice, use the answer and end
 its obligation with `leaf task end`, using the id from `page state`: `done` records
-where they answered; `dropped` withdraws a question that no longer applies. Neither
+where they answered; `dropped` withdraws a question that no longer applies. End a
+step on On me the same way, with `done`, once you see its effect, `--text` saying what
+you saw; whenever you read the lists, check the effect of each step you can. Neither
 outcome fabricates an answer in the page's history:
 
 ```bash

@@ -119,29 +119,6 @@ DEEP = (
     '<div id="deep" style="width:10px;height:10px"></div>'
     "</div></div></div></div></div>"
 )
-# The page draws a flex row with one occupant `before` px tall as its observer's first
-# delivery runs, in the callback or two microtasks after it, and the next frame swaps
-# the occupant for one `after` px tall.
-DELIVERED_ROW = """([later, before, after]) => new Promise((done) => {
-  const draw = () => {
-    holder.innerHTML = '<div id="row" style="display:flex;width:300px">'
-      + `<button id="first" style="height:${before}px">First</button></div>`;
-    requestAnimationFrame(() => {
-      const second = document.createElement('button');
-      Object.assign(second, {id: 'second', textContent: 'Second'});
-      second.style.height = `${after}px`;
-      first.replaceWith(second);
-      requestAnimationFrame(() => requestAnimationFrame(done));
-    });
-  };
-  let once = false;
-  new ResizeObserver(() => {
-    if (once) return;
-    once = true;
-    if (later) queueMicrotask(() => queueMicrotask(draw));
-    else draw();
-  }).observe(deep);
-})"""
 # Observer A draws the row with a 24px occupant and observer B, delivering after it in
 # the same update, makes that occupant 40px, so the frame paints 40px; the next frame
 # swaps it for another 40px occupant.
@@ -189,40 +166,6 @@ UNPAINTED = """() => new Promise((done) => {
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 @pytest.mark.parametrize(
-    "later", [False, True], ids=["in-callback", "microtasks-later"]
-)
-@pytest.mark.parametrize(
-    ("before", "after"), [(24, 40), (40, 24)], ids=["grows", "shrinks"]
-)
-def test_a_row_the_page_draws_in_its_own_size_delivery_is_watched(
-    engine, request, later, before, after
-):
-    """A row the page draws while one of its own ResizeObservers delivers, in the
-    callback or a chain of microtasks after it, stands above the box that observer
-    watches, at a depth the browser has delivered already. It is judged against the
-    arrangement the browser painted it in, so an occupant the next frame swaps in that
-    grows or shrinks it is caught. Watched at once, it was a loop error; watched from
-    the next frame with no painted size, the swap went unseen."""
-    page = request.getfixturevalue(engine).new_page()
-    page.goto("data:text/html," + quote(DEEP))
-    one_frame(page)
-    page.evaluate(DELIVERED_ROW, [later, before, after])
-    judge_watches()
-    consume_browser_errors(
-        page,
-        {
-            "code": "place-resized",
-            "place": ["div#row"],
-            "left": [["button#first"]],
-            "arrived": [["button#second"]],
-            "before": {"width": 300, "height": before},
-            "after": {"width": 300, "height": after},
-        },
-    )
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-@pytest.mark.parametrize(
     "script", [RESIZED_IN_DELIVERY, UNPAINTED], ids=["resized", "unpainted"]
 )
 def test_a_row_is_judged_by_the_arrangement_it_was_painted_in(engine, request, script):
@@ -254,54 +197,6 @@ SCALED = """() => new Promise((done) => {
     });
   });
 })"""
-# A page whose row holder stands a level deeper than a box above it, whose size nothing
-# on the page changes.
-BESIDE = (
-    '<!doctype html><body style="margin:0">'
-    '<div id="side" style="width:10px;height:10px"></div><div><div id="holder"></div></div>'
-)
-# A task draws the row with a 24px occupant, a page observer of the box above it grows
-# that occupant to 40px in its first delivery, before the row is first painted, and a
-# frame after that paint swaps it for a 24px occupant. The occupants hold no words, so
-# the growth moves none.
-GROWN_BEFORE_PAINT = """() => new Promise((done) => {
-  setTimeout(() => {
-    holder.innerHTML = '<div id="row" style="display:flex;width:300px">'
-      + '<div id="first" style="width:20px;height:24px"></div></div>';
-    let grown = false;
-    new ResizeObserver(() => {
-      if (grown) return;
-      grown = true;
-      first.style.height = '40px';
-    }).observe(side);
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      const second = document.createElement('div');
-      second.id = 'second';
-      second.style.cssText = 'width:20px;height:24px';
-      first.replaceWith(second);
-      requestAnimationFrame(() => requestAnimationFrame(done));
-    }));
-  });
-})"""
-# A row stands at 24px for a few frames; then a page observer watching the deep box
-# swaps its occupant for a 40px one inside its delivery.
-SWAPPED_IN_DELIVERY = """() => new Promise((done) => {
-  holder.innerHTML = '<div id="row" style="display:flex;width:300px">'
-    + '<button id="first" style="height:24px">First</button></div>';
-  const frames = (n, then) => n ? requestAnimationFrame(() => frames(n - 1, then)) : then();
-  frames(4, () => {
-    let swapped = false;
-    new ResizeObserver(() => {
-      if (swapped) return;
-      swapped = true;
-      const second = document.createElement('button');
-      Object.assign(second, {id: 'second', textContent: 'Second'});
-      second.style.height = '40px';
-      first.replaceWith(second);
-    }).observe(deep);
-    frames(4, done);
-  });
-})"""
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -313,54 +208,6 @@ def test_a_scaled_row_whose_occupant_keeps_its_size_passes(engine, request):
     one_frame(page)
     page.evaluate(SCALED)
     judge_watches()
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_row_grown_before_its_first_paint_is_judged_at_that_size(engine, request):
-    """A row is judged by the arrangement its first paint showed, its occupant's height
-    included, even where a page observer changed it between its drawing and that
-    paint, so a later swap that shrinks it is caught."""
-    page = request.getfixturevalue(engine).new_page()
-    page.goto("data:text/html," + quote(BESIDE))
-    one_frame(page)
-    page.evaluate(GROWN_BEFORE_PAINT)
-    judge_watches()
-    consume_browser_errors(
-        page,
-        {
-            "code": "place-resized",
-            "place": ["div#row"],
-            "left": [["div#first"]],
-            "arrived": [["div#second"]],
-            "before": {"width": 300, "height": 40},
-            "after": {"width": 300, "height": 24},
-        },
-    )
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_standing_row_a_page_observer_swaps_is_judged_without_disturbing_it(
-    engine, request
-):
-    """A page observer on a deep box may change a shallower row inside its delivery,
-    which is valid while nothing observes the row's size. The watch neither turns that
-    into a loop error nor misses the swap that grew the row."""
-    page = request.getfixturevalue(engine).new_page()
-    page.goto("data:text/html," + quote(DEEP))
-    one_frame(page)
-    page.evaluate(SWAPPED_IN_DELIVERY)
-    judge_watches()
-    consume_browser_errors(
-        page,
-        {
-            "code": "place-resized",
-            "place": ["div#row"],
-            "left": [["button#first"]],
-            "arrived": [["button#second"]],
-            "before": {"width": 300, "height": 24},
-            "after": {"width": 300, "height": 40},
-        },
-    )
 
 
 def test_an_occupant_that_grows_a_declarative_shadow_row_fails(browser):

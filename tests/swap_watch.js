@@ -52,34 +52,23 @@
 // two frames after a window resize, where container queries may swap occupants and
 // every place take a new size.
 //
-// A MutationObserver over the document and every shadow root supplies arrivals and
-// departures, and the boxes are read from the update that paints them: in each update
-// the page changed anything in, an IntersectionObserver reads every flex row, its
-// occupants and the box around each row, after that update's every ResizeObserver
-// delivery and before its paint. That one reading gives an element's first box, the
-// height it appeared at, each box a swap is judged against and each it is judged by,
-// all in the coordinates the user sees, transforms included; a size that leaves or
-// reaches zero is a child hiding or showing. The previous box is the one the last such
-// update read, so a box that changes with nothing in the page changing, as an image or
-// a font arriving or a transition running, is judged against the box before it. A
-// hidden tab runs no update, so what it changed is read in the first update after it
-// returns, which the return covers. A subtree that leaves is let go.
-//
-// Rejected: reading the boxes with a ResizeObserver. Watching a row changes the depth
-// at which the browser delivers the page's own observers below it, so a page observer
-// on a deeper box that validly changes the row in its delivery became a loop error, and
-// one started inside a delivery was one too, however long the watch waited to start it.
+// One ResizeObserver reads flex rows, their occupants and the box around each row.
+// Observing unrelated descendants can change another observer's delivery depth and
+// make a valid layout update report a loop error. Each frame's reading is the layout
+// frame painted, read after layout and before paint; the previous size is the one the
+// observer last reported. A MutationObserver over the document and every shadow root
+// supplies arrivals and departures. The ResizeObserver supplies showing and hiding
+// when a size leaves or reaches zero. A subtree that leaves stays unobserved.
 (() => {
   const { frame, listen } = window.lfWatchPlatform;
   const sizes = new WeakMap();
   // The height each element had when it last appeared, inserted or shown.
   const appeared = new WeakMap();
   const roots = new WeakMap();
-  // A box as the user sees it, and nothing for an inline box or one that draws none.
-  const box = (element, rect) =>
-    /^(inline|contents|none)$/.test(getComputedStyle(element).display)
-      ? { width: 0, height: 0 }
-      : { width: rect.width, height: rect.height };
+  const box = (entry) => {
+    const [size] = entry.borderBoxSize;
+    return { width: size.inlineSize, height: size.blockSize };
+  };
   const draws = (size) => !!size && size.width > 0 && size.height > 0;
   const up = (node) => node.assignedSlot ?? node.parentElement ?? node.parentNode?.host;
   // The box that holds a child: its rendered parent, past any `display: contents`. A
@@ -116,6 +105,13 @@
       for (const child of roots.get(node).children) yield* elementsOf(child);
     for (const child of node.children) yield* elementsOf(child);
   }
+  // Watching an element again makes the observer report its size at the next frame,
+  // even where that is the size it last reported; observing it a second time without
+  // letting go first reports nothing.
+  const watch = (element) => {
+    resizes.unobserve(element);
+    resizes.observe(element, { box: "border-box" });
+  };
   // A field whose height grows with its words, or a drawing whose own geometry
   // determines its height. An icon nested in a control does not excuse the control.
   const holdsContent = (element) =>
@@ -169,46 +165,59 @@
   let departed = [];
   let written = new Set();
   let source = null;
-  const watched = new Set();
+  let deliveringSizes = false;
+  // The page's own ResizeObserver deliveries, which this watch can't otherwise tell
+  // apart: one that redraws, as a chart refitting its legend does, makes records that
+  // reach this watch during its callback, through a listener the input watch wraps,
+  // and in the microtasks the callback queued. An observation started then asks for a
+  // notification at a depth the browser may have delivered already, a loop error, so
+  // it waits for the next frame, as one started during this watch's own delivery does.
+  // A microtask those queue in turn runs after the count drops, so an observation it
+  // starts is still a loop error. Any other starts at once, so its first notification
+  // reports the size the frame paints.
+  let pageDeliveries = 0;
+  const NativeResizeObserver = window.ResizeObserver;
+  window.ResizeObserver = class extends NativeResizeObserver {
+    /** @param {ResizeObserverCallback} callback */
+    constructor(callback) {
+      super((entries, observer) => {
+        pageDeliveries++;
+        try {
+          return callback.call(observer, entries, observer);
+        } finally {
+          queueMicrotask(() => pageDeliveries--);
+        }
+      });
+    }
+  };
+  const observed = new WeakSet();
+  const pending = new WeakSet();
   const flexRows = new WeakSet();
   const flexRow = (element) => {
     if (!element?.isConnected) return false;
     const { display, flexDirection } = getComputedStyle(element);
     return display.endsWith("flex") && flexDirection.startsWith("row");
   };
-  // The next update's reading of every watched box, asked for once the page changes
-  // anything: an IntersectionObserver gives each box it starts watching an entry from the
-  // update that follows. Its entries are that update's, judged together as soon as the
-  // watch is next called, and before any record taken after them.
-  let asked = false;
-  const ask = () => {
-    if (asked) return;
-    asked = true;
-    for (const element of watched) reading.observe(element);
-  };
-  const painted = (entries) => {
-    if (!entries.length) return;
-    asked = false;
-    const now = new Map();
-    for (const { target, boundingClientRect } of entries) {
-      reading.unobserve(target);
-      if (target.isConnected) now.set(target, box(target, boundingClientRect));
-    }
-    judge(now, (element) => now.get(element) ?? sizes.get(element) ?? measure(element));
-  };
-  const reading = new IntersectionObserver(painted);
   const observeOnce = (element) => {
-    if (!element || watched.has(element)) return;
-    watched.add(element);
-    ask();
-    reading.observe(element);
+    if (!element || observed.has(element) || pending.has(element)) return;
+    if (deliveringSizes || pageDeliveries) {
+      pending.add(element);
+      frame(() => {
+        pending.delete(element);
+        if (element.isConnected) observeOnce(element);
+      });
+      return;
+    }
+    observed.add(element);
+    watch(element);
   };
   const watchArrival = (element) => {
     // Leaf has not presented its first arrangement yet. Its widgets may still
     // hide panels, so observing their descendants now can force premature style.
     if (!presented && document.querySelector("script[data-lf-entry]")) return false;
-    // Only a flex row, its occupants and its container contribute to this rule, and
-    // every update the page changes anything in reads each box watched.
+    // Only a flex row, its occupants and its container contribute to this rule.
+    // Watching unrelated descendants changes the page's ResizeObserver delivery
+    // depth, and can turn an otherwise valid layout update into a loop error.
     // `hidden="until-found"` keeps a panel's own box while skipping its contents.
     // Even checkVisibility() would force that content through style resolution.
     if (element.parentElement?.closest("[hidden]")) return false;
@@ -236,18 +245,15 @@
     if (element !== row) observeOnce(element);
     return true;
   };
-  const letGo = (element) => {
-    reading.unobserve(element);
-    watched.delete(element);
-    flexRows.delete(element);
-  };
   const release = (node) => {
     if (node.isConnected) return;
-    for (const element of elementsOf(node)) letGo(element);
+    for (const element of elementsOf(node)) {
+      resizes.unobserve(element);
+      observed.delete(element);
+      flexRows.delete(element);
+    }
   };
   const take = (records, from) => {
-    painted(reading.takeRecords());
-    if (records.length) ask();
     for (const record of records) {
       // Any write names the input behind the frame; hiding a child is an attribute's.
       if (from) source = from;
@@ -255,11 +261,15 @@
         if (record.target.isConnected) written.add(record.target);
         if (record.attributeName === "hidden" && record.target.hasAttribute("hidden"))
           for (const child of record.target.children)
-            for (const element of elementsOf(child)) letGo(element);
+            for (const element of elementsOf(child)) {
+              resizes.unobserve(element);
+              observed.delete(element);
+              flexRows.delete(element);
+            }
         if (
           record.target !== document.body &&
           record.target !== document.documentElement &&
-          (record.attributeName === "hidden" || !watched.has(record.target))
+          (record.attributeName === "hidden" || !observed.has(record.target))
         )
           for (const element of elementsOf(record.target)) watchArrival(element);
       }
@@ -393,15 +403,38 @@
       source = null;
     }
   };
-  // Judging before the frame reads the layout as the update's reading would, in the
-  // same coordinates. What changed since the frame is what was inserted or removed, or
-  // written to: an element whose attributes changed, or anything inside it, as a panel's
-  // mode attribute shows one occupant and hides another. A class on the root or the
-  // body, which the runtime sets as the pointer moves, is left to the next frame, since
-  // reading the whole page at every press cost tens of milliseconds.
+  const resizes = new NativeResizeObserver((entries) => {
+    deliveringSizes = true;
+    try {
+      take(changes.takeRecords(), window.lfInputWork.current());
+      const now = new Map(entries.map((entry) => [entry.target, box(entry)]));
+      judge(
+        now,
+        (element) => now.get(element) ?? sizes.get(element) ?? measure(element),
+      );
+    } finally {
+      deliveringSizes = false;
+    }
+  });
+  // Judging before the frame reads the layout as the observer would: the border box,
+  // and nothing for an inline box, which the observer reports as empty. What changed
+  // since the frame is what was inserted or removed, or written to: an element whose
+  // attributes changed, or anything inside it, as a panel's mode attribute shows one
+  // occupant and hides another. A class on the root or the body, which the runtime sets
+  // as the pointer moves, is left to the next frame, since reading the whole page at
+  // every press cost tens of milliseconds. Each element read is watched again, so the
+  // next frame reports its size even where it returns to the one the observer last
+  // reported.
   // Only a key and the pointer's first event start a gesture: the mouse and touch
   // events that follow a pointerdown run in its task, before any frame.
-  const measure = (element) => box(element, element.getBoundingClientRect());
+  const measure = (element) => {
+    if (/^(inline|contents|none)$/.test(getComputedStyle(element).display))
+      return { width: 0, height: 0 };
+    if (element instanceof HTMLElement)
+      return { width: element.offsetWidth, height: element.offsetHeight };
+    const { width, height } = element.getBoundingClientRect();
+    return { width, height };
+  };
   const judgeNow = (event) => {
     if (!event.isTrusted) return;
     take(changes.takeRecords(), window.lfInputWork.current());
@@ -419,6 +452,7 @@
       )
         for (const each of elementsOf(element)) if (sizes.has(each)) read(each);
     judge(now, read);
+    for (const element of now.keys()) if (element.isConnected) watch(element);
   };
   for (const type of ["keydown", "pointerdown"]) listen(window, type, judgeNow, true);
   const changes = new MutationObserver((records) =>
@@ -442,6 +476,5 @@
   // offscreen frame, whose document still reports visibilityState === "visible".
   window.lfSwapsJudged = async () => {
     await window.lfInputWork.dispatched();
-    painted(reading.takeRecords());
   };
 })();

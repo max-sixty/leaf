@@ -2696,11 +2696,14 @@ export function createFloatingPanel({
   const joinedNotice = newsNotice();
   // The notice's press: the list settles, and the first row it named, in the list's
   // order, comes into sight with the walk standing on it, and focus too where the
-  // notice held it.
+  // notice or a row of the list held it, since a focused row is where the walk
+  // stands. A press from elsewhere, such as a pointer's while the caret is in the
+  // field, leaves focus where it is.
   function showJoined() {
     const { joined } = threadsListing();
     const keys = new Set(joined.map(({ thread }) => thread.key));
-    const pressed = focused() === joinedNotice.node;
+    const at = focused();
+    const carried = at === joinedNotice.node || threadRows().some((row) => row === at);
     // Where only resolved threads joined, the row it lands on stands under Resolved,
     // which unfolds to show it (`settledHeading`).
     if (joined.every(({ now }) => now === "resolved") && !unfolded.has("resolved")) {
@@ -2719,7 +2722,7 @@ export function createFloatingPanel({
     });
     if (!row) return null;
     scrollIntoView(row, { block: "nearest" });
-    if (pressed) focusDestination(row, "move");
+    if (carried) focusDestination(row, "move");
     return null;
   }
   // The notice while the list holds a row, else nothing.
@@ -4441,13 +4444,15 @@ export function createFloatingPanel({
       fitted = outlet;
     }
     const listed = listRows();
+    // A notice's landing outranks the focused row, and `showJoined` then moves focus
+    // to the landing.
     rove(
       listed,
-      listed.find((row) => row === focused()) ??
-        listed.find((row) => {
-          const key = row.dataset.lfKey;
-          return key !== undefined && landingKeys?.has(key);
-        }) ??
+      listed.find((row) => {
+        const key = row.dataset.lfKey;
+        return key !== undefined && landingKeys?.has(key);
+      }) ??
+        listed.find((row) => row === focused()) ??
         listed.find((row) => row.getAttribute("tabindex") === "0") ??
         listed[0],
     );

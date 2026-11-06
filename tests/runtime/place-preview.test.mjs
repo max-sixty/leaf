@@ -6,6 +6,7 @@
    show, and the browser test that hovers a link holds them
    (`tests/browser/controls/test_previews.py`). */
 
+import "/runtime/stage-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { render } from "/runtime/framework.js";
@@ -199,6 +200,13 @@ test("a heading's section is walked through declared shadow trees and their slot
   render(read.detail, tip);
   assert.equal(read.name, "First section");
   assert.equal(tip.textContent.replace(/\s+/g, " ").trim(), "First paragraph.");
+  // The widget redrawing its own tree, with no message drawn, moves the reply's outline.
+  const words = staged.nextElementSibling;
+  assert.equal(placePreview(words).name, "First section");
+  const renamed = document.createElement("h2");
+  renamed.textContent = "Renamed section";
+  staged.replaceWith(renamed);
+  assert.equal(placePreview(words).name, "Renamed section");
   // Slots order what they take as the tree draws them, whatever the light order.
   document.body.innerHTML = `<main><h2 id="it">Lead</h2><lf-staged id="slotted">
     </lf-staged><h2>Next</h2></main>`;
@@ -303,6 +311,21 @@ test("a place with no name of its own is named by the part it stands in, as On m
     previewed(`<p><span id="it"><strong>Replace.</strong> The meeting starts
     at ten.</span></p>`).parts[0]?.join(":"),
     "name:Replace.",
+  );
+  // Whatever inline element carries the words the title runs into.
+  for (const follower of ["em", "a", "code", "span"])
+    named(
+      `<h2>Outer</h2><p><strong>Label</strong> <${follower} id="it">Following
+      words</${follower}></p>`,
+      "Outer",
+      "heading",
+    );
+  // A title over a nested list heads the list: no words share its line.
+  named(
+    `<h2>Outer</h2><ul><li><strong>Group</strong>
+    <ul><li id="it">Member.</li></ul></li></ul>`,
+    "Group",
+    "li",
   );
   // A <strong> that titles a container of blocks names the container as a part.
   named(

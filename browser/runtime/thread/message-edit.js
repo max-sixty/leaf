@@ -187,10 +187,6 @@ const drawn = signal(0);
 export const messageDrawn = () => {
   drawn.value = drawn.peek() + 1;
 };
-// How many draws of a message there have been, read without subscribing: a reading kept
-// from a message's drawn markup, as its outline is (thread/placement.js), stands while
-// this does, since a message's markup changes only as a view draws it.
-export const messageDraws = () => drawn.peek();
 
 // Whether `view` draws the editor for message `id`: the view holding it, or the first to
 // ask once no view does.

@@ -469,6 +469,7 @@ use it:
 | Which of Leaf's surfaces paints over which, with the page beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, inside the chrome's root after `body` at the largest z-index |
 | Whether a box is rendered at all                                           | `checkVisibility`                                                                                                                 |
 | Whether a word in a box is drawn                                           | `checkVisibility` of the nearest box, its `content-visibility`, and the word's `visibility` (`passages.js` `drawsWithin`)         |
+| Whether a box starts a line of its own                                     | its computed `display` (`passages.js` `blockLevel`)                                                                               |
 | Where the reader's place stays as content above it changes height          | scroll anchoring, over renders that keep the nodes they don't change                                                              |
 | Which rules reach an element                                               | cascade layers, `@scope`, and a shadow root as the boundary                                                                       |
 
@@ -622,6 +623,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                             |
 | What names the part of the page or a message a node stands in, and where a heading's part ends        | `thread/placement.js` `partOver`, `headingAfter`                                   |
 | A document's outline, and what stood over each element, as the walk reading it met them               | `passages.js` `pageOutlineReading`, `outlineReading`, `headed`                     |
+| When a document's words last changed: the page's, or any message's                                    | `passages.js` `pageReadingVersion`, `documentReadingVersion`                       |
 
 ### Facts both runtimes know
 

@@ -37,7 +37,10 @@
    input with no door is a reading that goes stale silently — the mark lands on the
    words the page used to say. The reverse holds too: a change lands where the walk
    reads or it is no change to the reading, by the walk's own rules (`contextAt`), so
-   the runtime repainting its chrome does not cost the page a walk.
+   the runtime repainting its chrome does not cost the page a walk. A change inside a
+   message's body is read by the same rules against that message, a document of its
+   own (`authoredScope`), and moves `documentReadingVersion`, which a reading kept from
+   a message keys on.
 
    Native editing hosts and readonly islands inside them are passage cells. Context
    outside a field never borrows its mutable value; an actual native selection inside
@@ -698,6 +701,12 @@ export const readingChildren = (element) =>
     ? /** @type {HTMLSlotElement} */ (element).assignedElements({ flatten: true })
     : [...(declaredRoot(element) ?? element).children];
 const { order: readingOrder, under: readingUnder } = alongClimb(readingParent);
+// A box drawn as a block, which starts a line of its own: the `lines` reading breaks at
+// one, and no title runs into words past one (thread/placement.js, `partOver`).
+const BLOCK_LEVEL = /^(block|flow-root|list-item|flex|grid|table|-webkit-box)/;
+/** @param {Element} element */
+export const blockLevel = (element) =>
+  BLOCK_LEVEL.test(getComputedStyle(element).display);
 // One named reading's segments under `root`, carrying their reading block (`blockAt`),
 // typographic text block and generated element (`gen`, the nearest `[data-lf-gen]`
 // in their tree).
@@ -767,9 +776,7 @@ export function textNodesUnder(
           const display = style(element).display;
           if (display === "table-cell") {
             if (!entering && lineBefore !== "\n") lineBefore = "\t";
-          } else if (
-            /^(block|flow-root|list-item|flex|grid|table|-webkit-box)/.test(display)
-          ) {
+          } else if (BLOCK_LEVEL.test(display)) {
             lineBefore = "\n";
           }
         }
@@ -1483,6 +1490,11 @@ let watcher = null;
 /** @param {Node | null} over */
 const pageReads = (over) =>
   !isElement(over) || (!leafSurface(over) && READINGS.says(contextAt(over, null)));
+// The same question asked of a message's body, a document of its own (`authoredScope`):
+// its chrome counts from the body down, as its own walk counts it (`outlineReading`).
+/** @param {Element} body @returns {(over: Node | null) => boolean} */
+const messageReads = (body) => (over) =>
+  !isElement(over) || READINGS.says(contextAt(over, body));
 // A declared label belongs to the page even inside generated widget apparatus.
 // Runtime surfaces remain separate documents, including the messages they hold.
 /** @param {Node} node */
@@ -1499,14 +1511,15 @@ const speaks = (node, read) =>
 // Records are read when the queue drains rather than when they were written, so a place
 // is asked about as it stands now. That is still exact: a node that moved between the
 // page and the chrome left a childList record at its page end, which speaks either way.
-/** @param {MutationRecord} record */
-const changesTheReading = (record) => {
+// `reads` is where the document the record landed in reads (`pageReads`, `messageReads`).
+/** @param {MutationRecord} record @param {(over: Node | null) => boolean} reads */
+const changesTheReading = (record, reads) => {
   const { target } = record;
   if (record.type === "childList") {
-    const read = pageReads(target);
+    const read = reads(target);
     return [...record.addedNodes, ...record.removedNodes].some((n) => speaks(n, read));
   }
-  if (record.type === "characterData") return pageReads(target.parentNode);
+  if (record.type === "characterData") return reads(target.parentNode);
   // A marker moved on `target` itself, so its own markers are what is changing and only
   // its place and its labels answer — including a label it has just stopped being.
   if (!isElement(target)) return false;
@@ -1516,27 +1529,52 @@ const changesTheReading = (record) => {
   }
   if (record.attributeName === "name" && target.localName !== "slot") return false;
   const wasSaid = record.attributeName === "data-lf-said" && record.oldValue !== null;
-  return wasSaid || holdsSaid(target) || pageReads(target.parentNode);
+  return wasSaid || holdsSaid(target) || reads(target.parentNode);
 };
-// Which page reading stands: it advances each time one is forgotten, so a reading
+// Which reading stands. The page's advances each time it is forgotten, so a reading
 // derived from the page's own nodes, as the visual responses are, keeps what it derived
-// while this stands.
+// while this stands. Every document's advances with it and also when the words of a
+// message's body change: a message is a document of its own (`authoredScope`), read by
+// its own walk where it is asked about (`outlineReading`) and kept by whoever asked, so
+// what it needs from here is when to read it again.
 let readingVersion = 0;
+let documentsVersion = 0;
 const forgetReading = () => {
   reading = null;
   elementReadings = new WeakMap();
   elementAnswers = new WeakMap();
   readingVersion += 1;
+  documentsVersion += 1;
 };
 export function pageReadingVersion() {
   catchUpReading();
   return readingVersion;
 }
+/** Which reading of every document stands: the page's and each message body's. */
+export function documentReadingVersion() {
+  catchUpReading();
+  return documentsVersion;
+}
+// Each record is read against the document it landed in: the page, or the message body
+// over it. One standing in a Leaf surface outside any message body is in no document.
+const DOCUMENTS = `${MESSAGE_BODY}, ${LEAF_SURFACE}`;
+/** @param {readonly MutationRecord[]} records */
+function hear(records) {
+  let page = false;
+  let message = false;
+  for (const record of records) {
+    const at = closestAcross(record.target, DOCUMENTS);
+    if (!at) page ||= changesTheReading(record, pageReads);
+    else if (at.matches(MESSAGE_BODY))
+      message ||= changesTheReading(record, messageReads(at));
+    if (page) break;
+  }
+  if (page) forgetReading();
+  else if (message) documentsVersion += 1;
+}
 function watchReading() {
   if (watcher) return watcher;
-  watcher = new MutationObserver((records) => {
-    if (records.some(changesTheReading)) forgetReading();
-  });
+  watcher = new MutationObserver(hear);
   watcher.observe(document, WATCH_READING);
   return watcher;
 }
@@ -1583,10 +1621,10 @@ export function pageText() {
   return (reading ??= readPage());
 }
 function catchUpReading() {
-  const moved = watchReading().takeRecords().some(changesTheReading);
+  hear(watchReading().takeRecords());
   const vocabulary = registry.$layer?.generation;
   settlements();
-  if (moved || vocabulary !== readingVocabulary || settledKey !== readingSettled)
+  if (vocabulary !== readingVocabulary || settledKey !== readingSettled)
     forgetReading();
   readingVocabulary = vocabulary;
   readingSettled = settledKey;

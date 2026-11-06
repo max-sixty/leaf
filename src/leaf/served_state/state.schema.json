@@ -985,15 +985,7 @@
           "required": ["revision", "through_seq"],
           "additionalProperties": false
         },
-        "document": {
-          "type": "object",
-          "properties": {
-            "revision": { "type": "integer" },
-            "projection": { "$ref": "#/$defs/Projection" }
-          },
-          "required": ["revision", "projection"],
-          "additionalProperties": false
-        },
+        "document": { "$ref": "#/$defs/ViewDocument" },
         "thread": {
           "description": "The frozen threads as this revision reads them: its registry classifies their widgets' decisions, and so the obligations and attention those give.",
           "type": "object",
@@ -1663,11 +1655,21 @@
       "description": "How far an update has reached the agent; `answered` is only ever a retained failed response.",
       "enum": ["sent", "queued", "picked_up", "working", "replying", "answered"]
     },
-    "ViewAnswer": {
-      "description": "The answer `GET /api/view` gives (`served_state.service.PageStateService.page_browser_view`): one revision's browser reading at an exact log boundary, which version comparison folds.",
+    "ViewDocument": {
+      "description": "A revision's document as a view serves it: its widget state's projection under the registry it captured (`served_state.document.browser_document`).",
       "type": "object",
       "properties": {
-        "browser": { "$ref": "#/$defs/Browser" },
+        "revision": { "type": "integer" },
+        "projection": { "$ref": "#/$defs/Projection" }
+      },
+      "required": ["revision", "projection"],
+      "additionalProperties": false
+    },
+    "ViewAnswer": {
+      "description": "The answer `GET /api/view` gives (`served_state.service.PageStateService.page_comparison`): what a version comparison folds of one revision at an exact log boundary.",
+      "type": "object",
+      "properties": {
+        "document": { "$ref": "#/$defs/ViewDocument" },
         "saved_after": {
           "description": "Where the request names `shown`, the user's messages that waited while the version at that revision was saved, compared with this one, in the order they were sent (`provenance.saved_after`); null where it names none, or where nothing can be said.",
           "anyOf": [
@@ -1691,7 +1693,7 @@
           ]
         }
       },
-      "required": ["browser", "saved_after"],
+      "required": ["document", "saved_after"],
       "additionalProperties": false
     },
     "Tail": {

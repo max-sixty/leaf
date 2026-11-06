@@ -549,8 +549,9 @@ def test_a_version_says_which_comments_it_was_saved_after(browser, serve):
     """Comparing a version with the one before it, each change's ⇄ entry says under
     what it did which of the user's comments waited while that version was saved,
     with the words each then had: not one the agent had answered before, wherever on
-    the page it stands. A comparison across several versions says nothing of it, since
-    nothing knows which version made which change (change-provenance.js)."""
+    the page it stands, and the change walk says the same to a listener. A comparison
+    across several versions says nothing of it, since nothing knows which version made
+    which change (change-provenance.js)."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     asked = _comment_on(
@@ -580,6 +581,10 @@ def test_a_version_says_which_comments_it_was_saved_after(browser, serve):
         "Draft saved while your comment waited: “Is the title right?”"
     )
     expect(labels).not_to_contain_text("Beta first?")
+    page.keyboard.press("h")
+    expect(page.locator(".lf-live")).to_contain_text(
+        "Draft saved while your comment waited: “Is the title right?”"
+    )
     page.keyboard.press("v")
     compare_with(page, 1)
     page.keyboard.press("Escape")

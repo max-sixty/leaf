@@ -172,10 +172,10 @@ def served_view(
     base: int,
     shown: int | None = None,
 ) -> dict:
-    """The `/api/view` answer (`PageStateService.page_browser_view`) for revision
+    """The `/api/view` answer (`PageStateService.page_comparison`) for revision
     `base` at the end of the log `served_reading` would fold, compared with `shown`."""
     folded = _fold(documents, events)
-    sent = PageStateService(Path(), source=_FoldedPage(folded)).page_browser_view(
+    sent = PageStateService(Path(), source=_FoldedPage(folded)).page_comparison(
         base, len(folded.events), shown
     )
     assert (error := served_state_error(sent, "ViewAnswer")) is None, error

@@ -25,6 +25,7 @@ from ..files import (
     stamped_version,
 )
 from ..passages import SourceReading
+from ..projection import page_reading
 from ..provenance import revision_places, saved_after
 from ..registry.storage import require_registry
 from ..revision_artifact import Resource, RevisionArtifact, read_artifact, read_revision
@@ -34,6 +35,7 @@ from . import browser as served_browser
 from . import page as served_page
 from . import reading as served_reading
 from .context import PageRead, read_page
+from .document import browser_document
 from .thread import thread_counts
 
 
@@ -256,33 +258,37 @@ class PageStateService:
             live = {key: context.presence[key] for key in presence_model.LIVE_FACTS}
         return row, reading, live
 
-    def page_browser_view(
-        self, view_revision: int, through_seq: int, shown: int | None = None
+    def page_comparison(
+        self, revision: int, through_seq: int, shown: int | None = None
     ) -> dict:
-        """The `/api/view` answer: the revision's browser reading at the log boundary,
-        and, where the tab compares it with the revision `shown`, the user's messages
-        that waited while the version `shown` was saved (`provenance.saved_after`)."""
+        """The `/api/view` answer: what a comparison with `revision` folds, its
+        document at the log boundary (`document.browser_document`), and, where the tab
+        compares it with the revision `shown`, the user's messages that waited while
+        the version `shown` was saved (`provenance.saved_after`)."""
         with self.source.state_read() as (context, _reading, _source_error):
             if context.active is None:
                 raise ValueError(missing_revision(self.page_dir))
+            if revision not in context.revisions:
+                raise ValueError(f"unknown view revision r{revision}")
             read = context.through(through_seq)
-            projected = served_browser.project_browser_state(
-                read, view_revision, include_active_view=False
+            page = page_reading(
+                read.revision(revision),
+                read.events,
+                revision,
+                revisions=read.revisions,
+                revision_reader=read.revision,
             )
-            if projected is None:
-                raise ValueError("page registry cannot be projected")
-            view, _reading = projected
             waited = (
                 None
                 if shown is None
                 else saved_after(
                     read.events,
-                    context.revision(context.active["revision"]).within,
+                    read.revision(context.active["revision"]).within,
                     revision_places(read.events),
                     read.revisions,
                     {version["revision"] for version in read.versions},
-                    view_revision,
+                    revision,
                     shown,
                 )
             )
-        return {"browser": view, "saved_after": waited}
+        return {"document": browser_document(page), "saved_after": waited}

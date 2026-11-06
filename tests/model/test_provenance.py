@@ -133,18 +133,32 @@ def test_a_message_waited_where_its_thread_stood_open_at_any_of_the_versions_rev
     assert saved_after(reopened, 2, 3, pages) == []
 
 
-def test_a_version_says_nothing_where_the_log_cannot_place_it():
-    """A comparison across a stamped version says nothing, and so does a version one
-    of whose revisions no event places, as a Leaf before the activation event left
-    it: saying none waited there would assert what the log doesn't hold."""
-    unplaced = [
+def test_each_revision_is_judged_by_the_log_before_it():
+    """Who waited at each of a version's revisions is read from the log up to it: a
+    comment taken back after one revision went live waited there, and a rewrite taken
+    back after it is quoted, for it was what waited."""
+    undone_comment = [
         live(1),
         {"kind": "comment", "text": "Why?"},
-        {"kind": "resolve", "parent": "e2"},
+        live(2),
+        {"kind": "undo", "undoes": "e2"},
         live(3),
     ]
-    assert saved_after(unplaced, 1, 3) is None
-    assert saved_after(unplaced, 2, 3) == []
+    assert saved_after(undone_comment, 1, 3) == [waited("e2", "Why?")]
+    assert saved_after(undone_comment, 2, 3) == []
+    undone_rewrite = [
+        {"kind": "comment", "text": "Make it blue"},
+        {"kind": "edit", "message": "e1", "text": "Make it red"},
+        live(2),
+        {"kind": "reply", "parent": "e1", "responds": "e2", "text": "Red.", **AGENT},
+        {"kind": "undo", "undoes": "e2"},
+        live(3),
+    ]
+    assert saved_after(undone_rewrite, 1, 3) == [waited("e1", "Make it red")]
+
+
+def test_a_comparison_across_a_stamped_version_says_nothing():
+    """Nothing knows which of several versions made a change."""
     stamped = [
         live(1),
         live(2),

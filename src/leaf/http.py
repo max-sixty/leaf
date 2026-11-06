@@ -553,14 +553,12 @@ class PageEndpoint:
         )
         return {**answer, "events": scope_page_urls(answer["events"], self.page_root)}
 
-    def page_browser_view(
-        self, view_revision: int, through_seq: int, shown: int | None
+    def page_comparison(
+        self, revision: int, through_seq: int, shown: int | None
     ) -> dict:
-        """One revision projected at an exact already-observed log boundary, and what
-        the version `shown` was saved after."""
-        return self._state_service().page_browser_view(
-            view_revision, through_seq, shown
-        )
+        """What a comparison with one revision folds, at an exact already-observed log
+        boundary, and what the version `shown` was saved after."""
+        return self._state_service().page_comparison(revision, through_seq, shown)
 
     def requested_view_revision(self) -> int | None:
         raw = self.query.get("revision", [None])[-1] or self.headers.get(
@@ -1195,7 +1193,7 @@ class PageEndpoint:
                     raise ValueError("view revision is required")
                 sequence = self.requested_view_sequence()
                 shown = self.query.get("shown", [None])[-1]
-                answer = self.page_browser_view(
+                answer = self.page_comparison(
                     revision,
                     sequence,
                     None if shown in (None, "") else _query_int(shown, "shown", 1),

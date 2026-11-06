@@ -285,13 +285,13 @@ function advance(entry, signal, admitted = null) {
 
 // The server classifies a view's page and thread entries alike under that revision's
 // registry, so every entry is one the view's widgets can draw.
-/** @param {PageView | null | undefined} view */
-function normalizedProjection(view) {
+/** @param {readonly (PageView["document"]["projection"] | undefined)[]} projections */
+function normalizedProjection(projections) {
   const entries = [];
   const actionIds = [];
   const reportIds = [];
   const desiredIds = [];
-  for (const projection of [view?.document.projection, view?.thread.projection]) {
+  for (const projection of projections) {
     if (!projection) continue;
     for (const wire of projection.entries) {
       const e = wire.event;
@@ -913,7 +913,10 @@ export function createSemanticApplication({ presentation } = {}) {
     const served = state?.browser.views[String(document.revision)];
     /** @type {PageView | null} */
     const view = served ? (({ basis: _basis, ...rest }) => rest)(served) : null;
-    const admitted = normalizedProjection(view);
+    const admitted = normalizedProjection([
+      view?.document.projection,
+      view?.thread.projection,
+    ]);
     const coverage = logCoverage(view, events);
     const classifiedIds = new Set(admitted.entries.map(({ e }) => e.id));
     // A revision may reuse a widget/verb with a different operation. Keep its pending
@@ -1344,10 +1347,10 @@ export function createSemanticApplication({ presentation } = {}) {
     // Version comparison receives a server projection already interpreted through the
     // requested revision's registry. Keep that admitted spec on the wire; the current
     // document contract must not reinterpret historical events.
-    /** @param {ServedView} view */
-    projectView(view) {
+    /** @param {ServedView["document"]["projection"]} projection */
+    projectDocument(projection) {
       return foldProjection({
-        ...normalizedProjection(view),
+        ...normalizedProjection([projection]),
         pendingEntries: [],
       });
     },

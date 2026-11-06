@@ -161,7 +161,7 @@ import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
 import { LayerRefused, admitReading, reportPageError } from "./layer-client.js";
-import { projectView, readApplication } from "./semantic-state.js";
+import { projectDocument, readApplication } from "./semantic-state.js";
 import { batch, effect, signal } from "/runtime/framework.js";
 
 import {
@@ -724,8 +724,8 @@ function diffBlocks(root) {
     a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
   );
 }
-/** One revision's browser reading at a log boundary, as `/api/view` answers it, and,
- * where `shown` names the revision compared with it, what that version was saved after.
+/** What a comparison folds of one revision at a log boundary, as `/api/view` answers it:
+ * its document projection, and what the version at `shown` was saved after.
  * @param {number} baseRevision @param {number} throughSeq @param {number | null} shown
  * @returns {Promise<import("../types/contract.js").ServedViewAnswer>} */
 async function baseReading(baseRevision, throughSeq, shown) {
@@ -1165,11 +1165,8 @@ export function servedElements() {
 // readings its cards show, and its changes (`commitDiff` puts them on the page). A
 // count of the changes reads the same answer and marks nothing (`changesSince`).
 /** @param {Document} doc @param {Parameters<typeof foldWidgetStates>[0]} baseAuthored
- * @param {ComparisonBase} baseRevision @param {import("../types/contract.js").ServedViewAnswer["browser"]} baseReading */
-function diffWith(doc, baseAuthored, baseRevision, baseReading) {
-  const baseView = baseReading.views[String(baseRevision.revision)];
-  if (!baseView)
-    throw new Error("The comparison answer omitted its requested revision");
+ * @param {import("../types/contract.js").ServedViewAnswer["document"]} baseDocument */
+function diffWith(doc, baseAuthored, baseDocument) {
   // The base version's widget state, folded as the publisher folds the current one:
   // its authored values, staged before its Markdown was formatted, under the
   // projection the server read for it. A report in force at the base painted there
@@ -1177,7 +1174,7 @@ function diffWith(doc, baseAuthored, baseRevision, baseReading) {
   // event under the declaration it was admitted with, and the base's authored values
   // are decoded under this document's; an entry whose verb was declared otherwise
   // then has no value here to compare, so the fold leaves it out.
-  const baseProjection = projectView(baseView);
+  const baseProjection = projectDocument(baseDocument.projection);
   const declaredAlike = (
     /** @type {import("../types/domain.js").ProjectionEntry} */ { e, spec },
   ) => {
@@ -1529,7 +1526,7 @@ export async function showComparison(base) {
     return;
   }
   if (!loaded || !wanted()) return;
-  const diff = diffWith(loaded.doc, loaded.baseAuthored, base, loaded.reading);
+  const diff = diffWith(loaded.doc, loaded.baseAuthored, loaded.baseDocument);
   commitDiff(diff);
   diffSavedAfter = loaded.savedAfter;
   setDiff(true, base);
@@ -1540,7 +1537,7 @@ export async function showComparison(base) {
       : `No text changes since ${base.name}`,
   );
 }
-// A base's document and the server's reading of it at the log this tab has applied,
+// A base's document and the server's projection of it at the log this tab has applied,
 // which `diffWith` reads, and what the version at `shown` was saved after. Null once
 // `wanted` says a later press made it moot.
 /** @param {ComparisonBase} base @param {() => boolean} wanted
@@ -1551,10 +1548,11 @@ async function loadBase(base, wanted, shown = null) {
     const throughSeq = runtime.lastEventSeq;
     if (throughSeq === null)
       throw new Error("A comparison requires an accepted log reading");
-    const [doc, { browser: reading, saved_after: savedAfter }] = await Promise.all([
-      documentRequest,
-      baseReading(base.revision, throughSeq, shown),
-    ]);
+    const [doc, { document: baseDocument, saved_after: savedAfter }] =
+      await Promise.all([
+        documentRequest,
+        baseReading(base.revision, throughSeq, shown),
+      ]);
     if (!wanted()) return null;
     if (runtime.lastEventSeq !== throughSeq) continue;
     // Typed authored state reads the source, which formatting leaves alone: it formats
@@ -1564,7 +1562,7 @@ async function loadBase(base, wanted, shown = null) {
     if (!source)
       throw new Error("A comparison revision must contain its authored document");
     await loadDeclaredMarkdown(source);
-    return { doc, reading, baseAuthored, savedAfter };
+    return { doc, baseDocument, baseAuthored, savedAfter };
   }
 }
 /** How many changes a comparison with `base` would mark, read without marking any, or
@@ -1575,7 +1573,7 @@ export async function changesSince(base) {
   const wanted = () => runtime.currentRevision === revision;
   const loaded = await loadBase(base, wanted);
   if (!loaded || !wanted()) return null;
-  return diffWith(loaded.doc, loaded.baseAuthored, base, loaded.reading).changes.length;
+  return diffWith(loaded.doc, loaded.baseAuthored, loaded.baseDocument).changes.length;
 }
 // A press that ends a comparison says so, as `o` does when it hides annotations, so a
 // screen reader hears the marks go rather than keeping the comparison's count.

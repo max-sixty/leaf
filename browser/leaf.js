@@ -487,7 +487,7 @@ async function boot() {
     arrive: anchorTravel.arrive,
     announce,
   });
-  const changeWalk = createChangeWalk();
+  createChangeWalk();
   const commandHints = createCommandHints({
     presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
   });
@@ -737,7 +737,6 @@ async function boot() {
     pageGeometry.mount();
     pageMapDialog.mount(chromeForeground);
     items.mount();
-    changeWalk.mount();
     commandHints.mount();
     app.mountAnnotations();
     app.overlay?.mount();

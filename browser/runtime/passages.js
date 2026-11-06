@@ -1112,9 +1112,11 @@ export const says = (el, options = {}) => {
   const segments = textNodesUnder(el, "says", null, options.format, options);
   return options.format === "lines" ? linesFrom(segments) : quoteFrom(segments);
 };
-// What the page draws now, by what the browser computes for the element each word or
-// break is drawn in (its slot, its parent, or a shadow root's host), not by pruning the
-// elements over it, since a word can be drawn where its parent is not. A closed
+// What the page draws now, by what the browser computes for the element each word is
+// drawn in (its slot, its parent, or a shadow root's host), and for each break, the
+// `<br>` itself, which `hidden` or `display: none` takes off the line while its parent
+// stands; not by pruning the elements over it, since a word can be drawn where its
+// parent is not. A closed
 // disclosure's own words beside its summary are drawn in a tree the page can't see,
 // which draws only the summary, so the disclosure answers for them. No primitive gives
 // this reading: in Chromium and Firefox `innerText` keeps Leaf's own controls, reads a
@@ -1126,7 +1128,7 @@ const drawnHere = () => {
   const asked = new Map();
   /** @param {Node} node */
   return (node) => {
-    const holder = renderedParent(node);
+    const holder = isElement(node) ? node : renderedParent(node);
     if (!holder) return false;
     let drawn = asked.get(holder);
     if (drawn === undefined)
@@ -1762,12 +1764,20 @@ export function outlineReading(root) {
 }
 // The container a heading heads, from where it stands on: what holds it, or what holds
 // the `header` or `hgroup` it stands in, as HTML's outline reads a page's title in its
-// header heading the page's sections.
+// header heading the page's sections. What holds it is what the walk that records the
+// outline came down from (`readingParent`): a slot for a heading assigned to one, so a
+// heading a widget's tree draws in its slot heads what is drawn after it there, and a
+// declared root's host for a heading at the top of that root.
 const HEADERS = "header, hgroup";
+/** @param {Element} node @returns {Element | null} */
+const holder = (node) => {
+  const at = readingParent(node);
+  return shadowHost(at) ?? (isElement(at) ? at : null);
+};
 /** @param {Element} heading */
 export const headed = (heading) => {
-  const at = upFrom(heading);
-  return at?.matches(HEADERS) ? upFrom(at) : at;
+  const at = holder(heading);
+  return at?.matches(HEADERS) ? holder(at) : at;
 };
 // The page's text blocks in reading order: each block (`blockAt`) holding a word of the
 // page's reading, once. Kept on the reading it came from, so it moves exactly when the

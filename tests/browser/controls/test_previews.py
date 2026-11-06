@@ -8,7 +8,7 @@ from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url, panel_comment
 from render_cases_navigation import _publish
-from render_harness import leaf_page, margins_laid_out, open_page, told
+from render_harness import leaf_page, margins_laid_out, open_page, post_event, told
 
 from browser.threads import open_panel_thread
 from leaf.render_checks import rendered
@@ -333,8 +333,9 @@ DRAWN_PAGE = leaf_page(
 <a id="to-code" href="#code">code with hidden words and a control</a>,
 <a id="to-broken" href="#broken">a line broken before hidden words</a>,
 <a id="to-skipping" href="#skipping">a block skipping its own words</a>,
-<a id="to-folded" href="#folded">a folded panel</a> and
-<a id="to-far" href="#far">words out of view</a>.</p>
+<a id="to-folded" href="#folded">a folded panel</a>,
+<a id="to-far" href="#far">words out of view</a> and
+<a id="to-joined" href="#joined">code joined over a hidden break</a>.</p>
 <details id="closed"><summary>Method</summary>Secret text<p>Hidden paragraph.</p></details>
 <div id="held">Intro <details><summary>More</summary><p>Hidden words.</p></details></div>
 <p id="spans">Before <span style="display: none">Gone</span> <span hidden>Attr</span>
@@ -358,6 +359,7 @@ five</pre>
 CV</div><div hidden="until-found">SECRET FOUND</div></div>
 <section id="folded" hidden="until-found"><h3>Folded title</h3><p>Folded body.</p>
 </section>
+<pre id="joined"><code>con<br hidden>st value = 1;</code></pre>
 """
     + "<p>More of the page.</p>" * 40
     + """<div style="content-visibility: auto; contain-intrinsic-size: auto 40px">
@@ -377,7 +379,8 @@ def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve)
     break before hidden words still a break, words a block's `content-visibility` skips
     nothing, a folded panel, which draws none of what it holds, all of it, and words a
     `content-visibility: auto` box skips out of view as they will draw: without what
-    their own styles hide. Code cut short ends in an ellipsis, as cut prose does."""
+    their own styles hide. Code cut short ends in an ellipsis, as cut prose does, and a
+    hidden break joins the line it would have split."""
     page = open_page(request.getfixturevalue(engine), serve(DRAWN_PAGE))
     # Words Leaf writes into a block, as the paint pass writes a comment's count.
     page.evaluate(
@@ -404,6 +407,7 @@ def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve)
         ("#to-skipping", None, "Shown words."),
         ("#to-folded", "Folded title", "Folded body."),
         ("#to-far", None, "Far words."),
+        ("#to-joined", None, "const value = 1;"),
     ):
         page.mouse.move(0, 0)
         expect(preview).to_be_hidden()
@@ -449,6 +453,47 @@ def test_a_message_s_parts_follow_its_accepted_edit(browser, serve):
     told(page)
     expect(view.locator("h3")).to_have_text("Changed heading")
     assert page.evaluate(part) == "Changed heading"
+
+
+def test_a_message_s_parts_follow_an_edit_the_card_held_as_news(browser, serve):
+    """An edit arriving while a card holds the message back as news outlines the
+    message once the card shows it, not before: the old words stand under their old
+    heading while held, and the new under the new once shown."""
+    url = serve(LINKS_PAGE)
+    thread = panel_comment(
+        serve.page_dir,
+        "## Original heading\n\nOriginal paragraph.",
+        {"section": "stall"},
+    )
+    page = open_page(browser, url)
+    page.locator('[data-lf-margin-for="stall"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    expect(card.locator(".lf-msg-body")).to_contain_text("Original paragraph.")
+    part = """async (words) => {
+      const {partOver} = await import('/runtime/thread/placement.js');
+      const said = [...document.querySelectorAll('.lf-margin-preview .lf-msg-body p')]
+        .find((p) => p.textContent.includes(words));
+      const over = partOver(said);
+      return over?.isConnected ? over.textContent.trim() : null;
+    }"""
+    assert page.evaluate(part, "Original paragraph.") == "Original heading"
+    post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "edit",
+            "message": thread,
+            "base": thread,
+            "text": "### Changed heading\n\nChanged paragraph.",
+        },
+    )
+    told(page)
+    news = card.locator(".lf-thread-news")
+    expect(news).to_be_visible()
+    assert page.evaluate(part, "Original paragraph.") == "Original heading"
+    news.click()
+    expect(card.locator(".lf-msg-body")).to_contain_text("Changed paragraph.")
+    assert page.evaluate(part, "Changed paragraph.") == "Changed heading"
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

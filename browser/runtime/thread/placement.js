@@ -16,7 +16,8 @@ import {
 import { agentName } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
 import { byRenderedOrder, overIn, upFrom } from "../shadow.js";
-import { threadNamed, threadState } from "./state.js";
+import { messageDraws } from "./message-edit.js";
+import { threadState } from "./state.js";
 import { threadAttention } from "./workflow.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
@@ -73,9 +74,10 @@ export const inPageOrder = (threads, placedAt) =>
 // (passages.js, `outlineFold`), so it holds what that reading holds, in its order:
 // declared shadow trees as they draw, a slot's assignment and not its fallback, and none
 // of Leaf's chrome. The page's stands as long as the page's reading does. A message's is
-// kept against what it is read from: the message as the thread reading publishes it,
-// whose value is new exactly when its words change, and the page reading's version,
-// which a widget staging its declared tree in the message moves.
+// kept against what draws the markup it is read from: the draws of messages, which move
+// as a view draws one (message-edit.js, `messageDraws`), as an accepted edit does once
+// it is shown and not while the view holds it back as news; and the page reading's
+// version, which a widget staging its declared tree in the message moves.
 /** @type {WeakMap<Element, {key: readonly unknown[], reading: import("../passages.js").OutlineReading}>} */
 const messageOutlines = new WeakMap();
 /** @param {readonly unknown[] | undefined} kept @param {readonly unknown[]} key */
@@ -86,20 +88,12 @@ const current = (kept, key) =>
 function outlineOf(node) {
   const scope = authoredScope(node);
   if (scope === pageDocument(scope.ownerDocument)) return pageOutlineReading();
-  const message = messageOf(scope);
-  const key = [message, pageReadingVersion()];
+  const key = [messageDraws(), pageReadingVersion()];
   const kept = messageOutlines.get(scope);
-  if (message && kept && current(kept.key, key)) return kept.reading;
+  if (kept && current(kept.key, key)) return kept.reading;
   const reading = outlineReading(scope);
   messageOutlines.set(scope, { key, reading });
   return reading;
-}
-// The message whose markup `body` draws, as the thread reading publishes it.
-/** @param {Element} body */
-function messageOf(body) {
-  const id = body.closest("[data-lf-event]")?.getAttribute("data-lf-event");
-  const thread = id ? threadNamed(id) : null;
-  return thread?.msgs.find((message) => message.id === id) ?? null;
 }
 export const pageOutline = () => pageOutlineReading().outline;
 /** The heading after `heading` in its document's outline, or null.
@@ -124,10 +118,13 @@ export function headingAfter(heading) {
 // its author gave it. So a <section> the author wrote names what stands in it before
 // its heading, a sub-heading inside it heads what follows the sub-heading, a captioned
 // figure or table names what it holds, and a region the author labelled is a part. A
-// run-in title, a line's or a titled member's leading <strong>, names its own element
-// and makes no part: a bold label opening a line is no place a reader groups by, so
-// On me's bands and a preview's name go on to the part holding the line. The contract stops short of the document the node
-// stands in and the page's column, whose leading heading titles the page, and passes a
+// run-in label, a leading <strong> followed by words of the line it opens, as a
+// paragraph's or a titled option's is, names its own element and makes no part: a bold
+// label opening a line is no place a reader groups by, so On me's bands and a preview's
+// name go on to the part holding the line. A <strong> that titles a container of blocks,
+// with no words of the container's own after it, names that container as a part, as a
+// heading would. The contract stops short of the document the node stands in and the
+// page's column, whose leading heading titles the page, and passes a
 // slot, whose own children are the fallback its assignment replaces, and what Leaf
 // generates in the document, whose labels are Leaf's. A heading in a `header` or
 // `hgroup` heads what holds that, so a page's title in its header heads the page's
@@ -166,11 +163,19 @@ export function partOver(node) {
     // A heading that titles its container heads what the container holds; any other
     // name makes the container the part.
     if (!("by" in naming)) return container;
-    if (naming.by === node || naming.by.localName === "strong") continue;
+    if (naming.by === node || (naming.by.localName === "strong" && runIn(container)))
+      continue;
     return naming.by.matches(HEADING) ? naming.by : container;
   }
   return null;
 }
+// Whether a container is a line its leading title runs into: it holds words of its own,
+// beside that title, rather than only blocks.
+/** @param {Element} container */
+const runIn = (container) =>
+  [...container.childNodes].some(
+    (node) => node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim()),
+  );
 // Whether the contract's name for `container` names what it holds: short of the document
 // it stands in and the page's column, never a slot, and never what Leaf generated there.
 /** @param {Element} container @param {Element} scope */
@@ -189,8 +194,8 @@ const namesWhatItHolds = (container, scope) =>
 // itself, so a conversation about a heading is its part's, not the part before it.
 // Kept against exactly what it reads: the threads as the thread reading publishes them,
 // a new value whenever any thread's contents change, its turns included; the agent's
-// name the turns are said in; and the page's outline reading, which moves with the
-// page's reading.
+// name the turns are said in; the page's outline reading, which moves with the page's
+// reading; and the draws of messages, whose markup a conversation may stand in.
 /** @typedef {{threads: number, turn: NonNullable<ReturnType<typeof threadAttention>> | null}} Conversations
  * @typedef {{key: readonly unknown[], inside: Map<Element, Conversations>, headed: Map<Element, Conversations>}} Gathered */
 /** @type {Gathered | null} */
@@ -199,7 +204,7 @@ let gathered = null;
 function gatherConversations() {
   const { all, bySection } = threadState();
   const agent = agentName();
-  const key = [all, agent, pageOutlineReading()];
+  const key = [all, agent, pageOutlineReading(), messageDraws()];
   if (gathered && current(gathered.key, key)) return gathered;
   /** @type {Map<Element, Conversations>} */
   const inside = new Map();

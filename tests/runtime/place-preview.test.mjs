@@ -215,6 +215,22 @@ test("a heading's section is walked through declared shadow trees and their slot
     [...lines.querySelectorAll(".lf-place-text")].map((part) => part.textContent),
     ["Drawn first.", "Drawn second."],
   );
+  // A heading assigned to a slot heads what is drawn after it there, inside the part
+  // the tree around the slot heads.
+  document.body.innerHTML = `<main><lf-staged id="slotted-topic"></lf-staged></main>`;
+  const around = document.createElement("template");
+  around.innerHTML = `<section><h2>Outer section</h2><slot></slot></section>`;
+  const topic = document.getElementById("slotted-topic");
+  shadowStage(topic, [...around.content.childNodes]);
+  topic.innerHTML = `<h3>Slotted topic</h3><p id="slotted-words">Its words.</p>`;
+  assert.equal(
+    partOver(document.getElementById("slotted-words"))?.textContent,
+    "Slotted topic",
+  );
+  assert.equal(
+    placePreview(document.getElementById("slotted-words")).name,
+    "Slotted topic",
+  );
   // A slot's fallback, replaced by what is assigned to it, is no part of the outline,
   // so its heading ends nothing.
   document.body.innerHTML = `<main><lf-staged id="fallback"></lf-staged></main>`;
@@ -287,6 +303,13 @@ test("a place with no name of its own is named by the part it stands in, as On m
     previewed(`<p><span id="it"><strong>Replace.</strong> The meeting starts
     at ten.</span></p>`).parts[0]?.join(":"),
     "name:Replace.",
+  );
+  // A <strong> that titles a container of blocks names the container as a part.
+  named(
+    `<h2>Earlier</h2><section><strong>Bold container</strong><p id="it">Text
+    inside it.</p></section>`,
+    "Bold container",
+    "section",
   );
   // What Leaf generates in the page names nothing, whatever it is labelled.
   named(

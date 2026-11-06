@@ -27,11 +27,13 @@
  * to the next, Home and End to its ends. A redraw keeps the reader on their datum where
  * the new drawing still holds it. The point the reader is on wears a ring, with a rule
  * to the axis it stands at, and its words stand beside it in the page's preview
- * (`lfPreview`), which the chart reads again as the aim moves to another point
- * (`previewChanged`). The ring goes when the aim leaves, the pointer and finger by
- * leaving the drawing and the keyboard by leaving the chart, and when the page puts
- * the preview away (`PREVIEW_ENDED`), as Escape does. A finger slides across the
- * drawing to read along it, and scrolls the page up and down it.
+ * (`lfPreview`), which the chart reads again as the aim moves to another point, each a
+ * new aim (`previewChanged` with `aim`), so a point the pointer or a key reaches after
+ * Escape put the preview away shows its own. The ring goes when the aim leaves, the
+ * pointer by leaving the drawing and the keyboard by leaving the chart, and when the
+ * page puts the preview away (`PREVIEW_ENDED`), as Escape does and as the next touch
+ * does after a held finger lifts. A finger slides across the drawing to read along it,
+ * and scrolls the page up and down it.
  *
  * The vendored bundle loads once, on the first draw rather than with this module: a chart
  * in a shut panel has no box, so measure holds its draw, and the 384KB bundle waits with
@@ -152,8 +154,10 @@ customElements.define(
     /** @type {number | undefined} */
     drawn;
     // The points the drawing showing says, the one the reader is on and what brought
-    // them there, whether a pointer or finger is over the drawing, and the point the
-    // keys step on from once Escape has put the keyboard's reading away.
+    // them there, whether a pointer or finger is over the drawing, the point the keys
+    // step on from once Escape has put the keyboard's reading away, and the one the
+    // pointer rests on whose reading the page put away, quiet until the pointer reaches
+    // another.
     /** @type {Reading | null} */
     #reading = null;
     /** @type {Point | null} */
@@ -163,6 +167,8 @@ customElements.define(
     #over = false;
     /** @type {Point | null} */
     #place = null;
+    /** @type {Point | null} */
+    #away = null;
 
     // What the point the reader is on says, standing above its ring, on every route.
     // Off a point the chart adds nothing, so what holds it may say its own.
@@ -177,8 +183,9 @@ customElements.define(
       whileConnected(this, (signal) => {
         // The pointer and a finger read the point nearest them on the drawing, by
         // Plot's pointer's rule, and nothing elsewhere, as over a legend: one reading
-        // for each move. A mouse carrying a press is dragging. A pointer that picks
-        // nothing leaves the keyboard's point where it was.
+        // for each move, each point reached a new aim. A mouse carrying a press is
+        // dragging. A pointer that picks nothing leaves the keyboard's point where it
+        // was, and one still on the point whose reading the page put away reads nothing.
         const aim = (/** @type {PointerEvent} */ event) => {
           const reading = this.#reading;
           if (event.pointerType === "mouse" && event.buttons) return;
@@ -191,7 +198,9 @@ customElements.define(
             screen.inverse(),
           );
           const point = nearest(reading, at.x, at.y);
-          if (point || this.#by === "pointer") this.#choose(point, "pointer");
+          if (point && point === this.#away) return;
+          this.#away = null;
+          if (point || this.#by === "pointer") this.#choose(point, "pointer", true);
         };
         // A mouse reads where it moves to, so a drawing that arrives under a still one
         // says nothing; a finger, which lands before it moves, reads where it lands.
@@ -229,12 +238,14 @@ customElements.define(
         );
         // The ring marks the point the page's preview says, so it comes off when the
         // page puts the preview away, whatever puts it away: the pointer leaving the
-        // window from it, a finger lifting, Escape. A redraw then has no point to read
-        // again, and the next aim reads from where it lands, the keys stepping on from
-        // the point the keyboard put away. It comes off once the task that put the
-        // preview away is done, and only if the route whose preview went still holds the
-        // point: a Tab that puts a resting pointer's preview away lands focus here in
-        // the same task, and the keyboard takes the point on.
+        // window from it, the next touch after a held finger lifts, Escape. A redraw
+        // then has no point to read again, and the next aim reads from where it lands,
+        // the keys stepping on from the point the keyboard put away, and a pointer still
+        // over the drawing reading nothing until it reaches another point. It comes off
+        // once the task that put the preview away is done, and only if the route whose
+        // preview went still holds the point: a Tab that puts a resting pointer's
+        // preview away lands focus here in the same task, and the keyboard takes the
+        // point on.
         this.addEventListener(
           PREVIEW_ENDED,
           (event) => {
@@ -245,6 +256,7 @@ customElements.define(
                 route === "focus" ? this.#by !== "pointer" : this.#by === "pointer";
               if (!holds || this.#at !== read) return;
               if (route === "focus") this.#place = read;
+              else if (this.#over) this.#away = read;
               this.#choose(null, "pointer");
             });
           },
@@ -374,6 +386,7 @@ customElements.define(
       this.#reading = reading;
       this.#at = null;
       this.#place = reading && this.#place ? sameDatum(reading, this.#place) : null;
+      this.#away = reading && this.#away ? sameDatum(reading, this.#away) : null;
       const points = reading?.points.length ?? 0;
       keeps(this, "tabindex", points ? "0" : null);
       this.lfCommands = reading && points ? this.#keys(reading) : null;
@@ -423,9 +436,11 @@ customElements.define(
     }
 
     // Puts the reader on `point`, or on none: its ring, a rule from it to the axis it
-    // stands at, and the preview read again. A key's step says where it landed.
-    /** @param {Point | null} point @param {By} by */
-    #choose(point, by) {
+    // stands at, and the preview read again, as a new aim where the user's own move
+    // reached the point (`aim`), which shows its preview though Escape put the last
+    // one away.
+    /** @param {Point | null} point @param {By} by @param {boolean} [aim] */
+    #choose(point, by, aim = false) {
       this.#by = by;
       if (point === this.#at) return;
       this.#at = point;
@@ -441,17 +456,16 @@ customElements.define(
           keeps(rule, "y2", String(across ? 0 : point.drawn.bottom - point.y));
         }
       }
-      previewChanged(this);
+      previewChanged(this, { aim: aim && point !== null });
     }
 
-    // A key's step is a walk along the reading's series, the user aiming anew wherever
-    // it lands, so the page shows its preview again though Escape put it away; a
+    // A key's step is a walk along the reading's series, a new aim wherever it lands; a
     // redraw that keeps the reader on their point is none. It says where it landed:
     // the point's words, then its place in its series.
     /** @param {Point | null} point */
     #step(point) {
       this.#place = null;
-      this.#choose(point, "key");
+      this.#choose(point, "key", true);
       const reading = this.#reading;
       if (!point || !reading) return;
       const series = reading.series[point.series] ?? [];
@@ -464,12 +478,15 @@ customElements.define(
 
     // The pointer or finger left the drawing. A point the keyboard reached stays, and so
     // does the pointer's while the pointer reads its preview, which takes the pointer
-    // and may stand where the pointer rests, until the page puts the preview away
-    // (`PREVIEW_ENDED`); back on the drawing, it reads from where it comes.
+    // and may stand where the pointer rests, and a held finger's once it lifts, whose
+    // preview stands until the next touch (`data-lf-held`, preview.js), each until the
+    // page puts the preview away (`PREVIEW_ENDED`); back on the drawing, it reads from
+    // where it comes.
     /** @param {EventTarget | null} [onto] */
     #leave(onto = null) {
       this.#over = false;
-      if (this.#by !== "pointer") return;
+      this.#away = null;
+      if (this.#by !== "pointer" || this.hasAttribute("data-lf-held")) return;
       if (!(onto instanceof Element && onto.closest(TOOLTIP)))
         this.#choose(null, "pointer");
     }

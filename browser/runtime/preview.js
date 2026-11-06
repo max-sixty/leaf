@@ -89,8 +89,10 @@
    stands by at the same offsets from the box it stands by, and it stays there while
    that room holds a whole line, held to it and its words fitted to it as to any room
    (`fit`), so words that grow never move it under the user's aim (browser/AGENTS.md,
-   "The page holds still under the user's aim") nor cover anything. Afresh, as for a new
-   target, a new aim (`previewChanged` with `aim`) or a corner whose room no longer
+   "The page holds still under the user's aim") nor cover anything. A new aim inside the
+   element it stands for (`previewChanged` with `aim`), as a chart's next point, keeps
+   that place by the new box, so the preview rides along the drawing on one side as the
+   pointer sweeps it. Afresh, as for a new target or a corner whose room no longer
    holds a line, it takes the first side whose room holds it whole, in order: below,
    then above, from the box's start edge and then its end edge, so a right-to-left
    target's starts at its right edge; beside, toward the nearer window edge first; then
@@ -199,9 +201,11 @@
    box in the chrome copied onto a declared box, which kept still as the box scrolling
    the target moved; `position-try-fallbacks` behind the side test,
    which drew another box than the one tested; a preview that scrolls, whose detail no
-   key reached and a pointer passed through where it covered a target; and keeping the
+   key reached and a pointer passed through where it covered a target; keeping the
    preview inside the box around its target, which only a script measuring that box
-   could do, where the window's edge serves. */
+   could do, where the window's edge serves; and placing it afresh at each new aim
+   inside its element, which flipped a chart's preview between above and below its
+   points four times in one sweep along a chart at the window's top. */
 import { html, nothing, render } from "/runtime/framework.js";
 import {
   carryChromeStyles,
@@ -664,8 +668,8 @@ function readFrom(from, route) {
 // as empty space inside a chart, leaves it standing, as plain text does, and a preview
 // shown `again` for what it stands for goes once that says nothing. Shown `again`, it
 // draws what its target says now where it stands, with no fade.
-/** @param {Element} from @param {Route} route @param {boolean} [again] @param {boolean} [fresh] */
-function show(from, route, again = false, fresh = false) {
+/** @param {Element} from @param {Route} route @param {boolean} [again] */
+function show(from, route, again = false) {
   if (!again && shown?.from === from && shown.route === route) return true;
   const found = readFrom(from, route);
   const standing = again && shown?.from === from ? shown : null;
@@ -702,7 +706,7 @@ function show(from, route, again = false, fresh = false) {
   keeps(tip, "data-lf-face", reading.excerpt ? "excerpt" : null);
   keeps(tip, "data-lf-list", reading.list ? "" : null);
   if (route === "hold") keeps(holder, "data-lf-held", "");
-  if (!stand(record, reading, Boolean(standing), Boolean(standing) && !fresh)) {
+  if (!stand(record, reading, Boolean(standing))) {
     hide();
     // What focus or a finger reached out of view waits until it comes into view, as a
     // scroll that lands it decides again (`decide`); a pointer reaches only what shows.
@@ -927,7 +931,7 @@ function decide(reread) {
     const read = rereading;
     if (shown) {
       if (read) refresh();
-      else if (!stand(shown, shown.reading, true, true)) hide();
+      else if (!stand(shown, shown.reading, true)) hide();
     } else if (waiting) show(waiting.from, waiting.route);
     deciding = 0;
     rereading = false;
@@ -943,10 +947,11 @@ function decide(reread) {
 let placed = null;
 
 // Stand the preview by its anchor, and say whether it stands: the one decision of where
-// it stands, made `again` for the target it already stands for, which tries the place it
-// stands at now first, and afresh for a new target or a new aim.
-/** @param {Shown} record @param {Reading} reading @param {boolean} standing @param {boolean} again */
-function stand(record, reading, standing, again) {
+// it stands, made again for the target it already stands for (`standing`), which tries
+// the place it stands at now first, a new aim inside it included, and afresh for a new
+// target.
+/** @param {Shown} record @param {Reading} reading @param {boolean} standing */
+function stand(record, reading, standing) {
   const moved = seat();
   const anchor = anchorOf(record, reading);
   if (!anchor) return false;
@@ -1031,7 +1036,7 @@ function stand(record, reading, standing, again) {
     : /** @type {const} */ (["left", "right"]);
   // Where it stands now: its top corner on the edge it stands by at the same offsets
   // from the box it stands by.
-  const was = again && placed?.target === target ? placed : null;
+  const was = standing && placed?.target === target ? placed : null;
   const now = was
     ? placeAt(
         "top",
@@ -1334,7 +1339,7 @@ function changed(node, aim) {
   const within = (at) => isElement(at) && renderedUnder(at, node);
   if (aim && within(quiet)) quiet = null;
   if (shown && (shown.target === node || shown.from === node)) {
-    show(shown.from, shown.route, true, aim);
+    show(shown.from, shown.route, true);
     return;
   }
   const on = focused();
@@ -1372,12 +1377,11 @@ function refresh() {
   if (!record) return;
   const found = atClock(record.clock, () => readFrom(record.from, record.route));
   if (!found) return hide();
-  if (found.target !== record.target)
-    return void show(record.from, record.route, true, true);
+  if (found.target !== record.target) return void show(record.from, record.route, true);
   render(face(found.reading), body);
   record.reading = found.reading;
   takeWithin(record);
-  if (!stand(record, found.reading, true, true)) hide();
+  if (!stand(record, found.reading, true)) hide();
 }
 let refreshing = false;
 

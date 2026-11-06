@@ -16,6 +16,7 @@ from render_harness import (
     PREVIEW,
     consume_browser_errors,
     leaf_page,
+    long_press,
     names,
     open_page,
     plant_quiet_word,
@@ -730,7 +731,9 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
 ):
     """A resting pointer reads the point nearest it, standing above the ring on that
     point, and moving along the drawing reads each point it comes to at once; leaving
-    the drawing puts both away, and so does leaving the window from the preview. Focus
+    the drawing puts both away, and so does leaving the window from the preview. After
+    Escape puts them away, the pointer reads nothing on that point and reads the next
+    point it reaches. Focus
     the browser shows lands on the first point, the arrows step along a series and
     across to the other, and Home and End reach a series' ends. Escape puts the preview
     and the ring away, a redraw brings back neither, and an arrow steps on from where
@@ -760,6 +763,19 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
     )
     # Redrawn where it stands, never put away between the points.
     assert said(page) == ["week w1", "kind features", "hours 21"]
+    # Escape puts the preview and the ring away; the pointer still on that point reads
+    # nothing, and the next point it reaches reads at once.
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
+    page.mouse.move(*column(page, "hours", "w1", 0.8))
+    page.wait_for_timeout(300)
+    expect(preview).to_be_hidden()
+    page.mouse.move(*column(page, "hours", "w2", 0.15))
+    expect(preview.locator(".lf-preview-detail")).to_have_text(
+        ["kind fixes", "hours 14"]
+    )
+    expect(ring).to_be_visible()
     page.mouse.move(2, 2)
     expect(preview).to_be_hidden()
     expect(ring).to_be_hidden()
@@ -839,12 +855,14 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
 
 
 def test_a_finger_held_on_a_chart_reads_the_point_under_it(browser, serve):
-    """A finger held on the drawing reads the point under it above the finger, reads
-    each point it slides across to, and puts the preview away as it lifts. Chromium
-    alone: Playwright holds no finger in Firefox."""
+    """A finger held on the drawing reads the point under it at the platform's long
+    press, above the finger, and reads each point it slides across to. Lifting presses
+    nothing and leaves the preview and its ring standing, until the next touch puts
+    them away. Chromium alone: Playwright holds no finger in Firefox."""
     context = browser.new_context(has_touch=True)
     page = open_page(browser, serve(VALUES_PAGE), context=context)
     preview = page.locator(PREVIEW)
+    ring = page.locator("#hours .lf-chart-at circle")
     expect(page.locator("#hours svg[role=img]")).to_be_visible()
     cdp = context.new_cdp_session(page)
 
@@ -854,6 +872,9 @@ def test_a_finger_held_on_a_chart_reads_the_point_under_it(browser, serve):
 
     start = column(page, "hours", "w2")
     touch("touchStart", start)
+    page.wait_for_timeout(600)
+    expect(preview).to_be_hidden()
+    assert long_press(page, {"x": start[0], "y": start[1]}) is False
     expect(preview).to_be_visible()
     expect(preview).to_have_attribute("data-lf-route", "hold")
     assert said(page) == ["week w2", "kind fixes", "hours 14"]
@@ -866,7 +887,63 @@ def test_a_finger_held_on_a_chart_reads_the_point_under_it(browser, serve):
     expect(preview).to_be_visible()
     assert said(page) == ["week w1", "kind fixes", "hours 9"]
     touch("touchEnd")
+    render_checks_model.rendered(page)
+    expect(preview).to_be_visible()
+    assert said(page) == ["week w1", "kind fixes", "hours 9"]
+    expect(ring).to_be_visible()
+    heading = page.locator("#t").bounding_box()
+    touch("touchStart", (heading["x"] + 10, heading["y"] + heading["height"] / 2))
+    touch("touchEnd")
     expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_chart_s_preview_keeps_its_side_from_point_to_point(engine, request, serve):
+    """A pointer sweeping a chart at the window's top reads each point with the preview
+    on one side of it, never over it: above while there is room, and below from the
+    first point too high for that, staying there for the points after."""
+    swings = chart_markup(
+        "swings",
+        """{
+  ariaLabel: "A value rising and falling over twelve steps",
+  marks: [Plot.lineY(
+    Array.from({length: 12}, (_, n) => ({step: n, value: n % 3 ? 80 - n * 3 : 5})),
+    {x: "step", y: "value", marker: "dot"},
+  )],
+}""",
+    ).replace('<lf-chart id="swings">', '<lf-chart id="swings" data-height="320">')
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "swings",
+                f'<h1 id="t">Swings</h1>{swings}<p style="height: 1200px">After.</p>',
+            )
+        ),
+    )
+    chart = page.locator("#swings")
+    expect(chart.locator("svg[role=img]")).to_be_visible()
+    chart.evaluate("el => { el.scrollIntoView({block: 'start'}); scrollBy(0, -6); }")
+    drawing = chart.locator("svg[role=img]").bounding_box()
+    sides = []
+    for k in range(48):
+        x = drawing["x"] + drawing["width"] * (0.04 + 0.92 * k / 47)
+        page.mouse.move(x, drawing["y"] + drawing["height"] / 2)
+        page.wait_for_timeout(250 if k == 0 else 30)
+        side = page.evaluate(
+            """() => {
+              const tip = document.getElementById('lf-preview');
+              const ring = document.querySelector('#swings .lf-chart-at circle');
+              if (!tip.matches(':popover-open') || !ring) return null;
+              const t = tip.getBoundingClientRect(), r = ring.getBoundingClientRect();
+              return t.bottom <= r.top + 0.5 ? 'above' : t.top >= r.bottom - 0.5
+                ? 'below' : 'over';
+            }"""
+        )
+        if side and (not sides or sides[-1] != side):
+            sides.append(side)
+    assert sides in (["above"], ["above", "below"], ["below"]), sides
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

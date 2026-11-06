@@ -92,8 +92,9 @@ export const layoutChanged = (el) => {
 export const PREVIEW = "lf-preview";
 /** @param {Element} el */
 // `aim: true` says the user aimed at something new inside the element, as a chart's
-// pointer or key reaching another point: a new target, which shows its preview whatever
-// put the last one away, where a redraw of the same reading shows nothing new.
+// pointer or key reaching another point, which shows its preview whatever put the last
+// one away, on the side a standing one stood, where a redraw of the same reading shows
+// nothing new.
 /** @param {Element} el @param {{aim?: boolean}} [options] */
 export const previewChanged = (el, { aim = false } = {}) => {
   el.dispatchEvent(

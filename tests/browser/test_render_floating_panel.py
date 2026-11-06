@@ -32,6 +32,7 @@ from render_harness import (
     EDITOR_ROOTS,
     LONG_PAGE,
     PREVIEW,
+    accessible_node,
     close_panel_menu,
     consume_browser_errors,
     expect_preview_words,
@@ -478,16 +479,24 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
         "data-lf-says", "notice"
     )
-    notice = page.locator(".lf-fp-row-notice")
-    expect(notice).to_be_visible()
-    expect(notice).to_contain_text(f"Resolved “{first}” · Undo")
-    expect(notice.locator("kbd")).to_have_text("z")
-    # Its press is the one the row offers while it passes.
-    expect(page.locator(".lf-fp-field .lf-compose-placeholder > kbd")).to_be_hidden()
+    # The field says what was resolved, and its end the press that takes it back,
+    # Undo and its key, where Comment or Reply and c stand at rest.
+    hint = page.locator(".lf-fp-field .lf-compose-placeholder")
+    expect(hint.locator(".lf-compose-placeholder-words")).to_have_text(
+        f"Resolved “{first}”"
+    )
+    undo = page.locator(".lf-fp-field .lf-compose-press")
+    expect(undo.locator(".lf-compose-press-word")).to_have_text("Undo")
+    expect(undo.locator("kbd")).to_have_text("z")
+    # A screen reader is given the press too, though the field's words are hidden
+    # from it as its placeholder.
+    node = accessible_node(undo)
+    assert not node.get("ignored") and node["role"]["value"] == "button", node
+    assert node["name"]["value"].startswith("Undo"), node
     second = page.locator(".lf-fp-head .lf-fp-title").inner_text()
     # Taking the first resolve back returns the user to the thread they resolved.
     with sending(page, "the undo"):
-        notice.get_by_role("button").click()
+        undo.click()
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
     expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(first)
     expect(thread).to_be_focused()
@@ -508,7 +517,7 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
 
 
 def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
-    """The row's "Resolved “…” · Undo" names one gesture. The log refusing that
+    """The row's "Resolved “…”" and its Undo name one gesture. The log refusing that
     Resolve takes the notice away with it, and its press takes back that Resolve
     even once another gesture of the user's is the newest, the one `z` would take: a
     press that ran `z` took back an earlier gesture once its own was refused. The
@@ -530,7 +539,8 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     title = page.locator(".lf-fp-head .lf-fp-title")
     expect(thread).to_be_visible()
     first = title.inner_text()
-    notice = page.locator(".lf-fp-row-notice")
+    said = page.locator(".lf-fp-field .lf-compose-placeholder-words")
+    undo = page.locator(".lf-fp-field .lf-compose-press")
 
     held = []
     page.route(
@@ -544,17 +554,19 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     thread.focus()
     page.keyboard.press("r")
     holding(page, held, 1, "the resolve")
-    expect(notice).to_contain_text(f"Resolved “{first}” · Undo")
+    expect(said).to_have_text(f"Resolved “{first}”")
+    expect(undo).to_contain_text("Undo")
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     page.unroute("**/api/event")
     expect(title).to_have_text(first)
-    expect(notice).to_be_hidden()
+    expect(undo).to_have_count(0)
 
     thread.focus()
     with sending(page, "the resolve"):
         page.keyboard.press("r")
     expect(title).not_to_have_text(first)
-    expect(notice).to_contain_text(f"Resolved “{first}” · Undo")
+    expect(said).to_have_text(f"Resolved “{first}”")
+    expect(undo).to_contain_text("Undo")
     # Another tab of the user's resolves the thread left over, so `z` would take that.
     (other,) = set(roots) - {first, title.inner_text()}
     append_carried_log_record(
@@ -579,7 +591,7 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     )
     told(page)
     with sending(page, "the undo"):
-        notice.get_by_role("button").click()
+        undo.click()
     events = events_model.read_events(serve.page_dir)
     assert [event["undoes"] for event in events if event["kind"] == "undo"] == [
         resolved

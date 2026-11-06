@@ -920,7 +920,12 @@ def test_a_standing_preview_takes_its_place_again_as_what_holds_it_changes(
     page.locator("#before").focus()
     page.keyboard.press("Tab")
     expect(tip.locator(".lf-preview-word")).to_have_text("Scrolled value")
-    page.locator("#scroller").evaluate("el => { el.scrollTop = 200; }")
+    # The user scrolls the box with the wheel, over none of its controls, the preview
+    # or Leaf's own at the window's foot, so the preview's new side is the scroll's
+    # doing, under their input.
+    page.mouse.move(650, 60)
+    page.mouse.wheel(0, 200)
+    page.wait_for_function("document.getElementById('scroller').scrollTop >= 150")
     rendered(page)
     scrolled = page.evaluate(AGAINST, "held")
     assert scrolled["top"] >= 0 and scrolled["bottom"] <= scrolled["window"], scrolled

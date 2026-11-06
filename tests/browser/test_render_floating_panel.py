@@ -878,9 +878,19 @@ def test_clicking_into_the_field_moves_none_of_an_open_view_s_controls(browser, 
     page.locator(".lf-fp-send").hover()
     expect(page.locator("#lf-preview")).to_be_visible()
     expect(page.locator("#lf-preview .lf-preview-word")).to_have_text("Send")
-    # The key that sends, and where Return sends, the one that makes a new line.
-    expect(page.locator("#lf-preview kbd")).to_have_text(["⏎", "⇧⏎"])
-    expect(page.locator("#lf-preview .lf-preview-detail")).to_have_text("New line ⇧⏎")
+    # The key that sends, and where Return sends, the one that makes a new line, each
+    # as the register spells it on this platform (keyboard/bindings.js, `spell`), which
+    # writes Shift as ⇧ on a Mac and as Shift+ elsewhere.
+    send, line = page.evaluate(
+        """async () => {
+          const {spell} = await import('/runtime/keyboard/bindings.js');
+          return [spell('Enter'), spell('Shift+Enter')];
+        }"""
+    )
+    expect(page.locator("#lf-preview kbd")).to_have_text([send, line])
+    expect(page.locator("#lf-preview .lf-preview-detail")).to_have_text(
+        f"New line {line}"
+    )
     settled(page)
     assert page.locator(".lf-fp-close").bounding_box() == close
     assert view.bounding_box() == stands

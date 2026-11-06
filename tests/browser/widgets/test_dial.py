@@ -1,4 +1,5 @@
-"""A detail dial: Skim folds all but the headings and gists and keeps the reader's place,
+"""A detail dial: Skim folds all but the lede, the gists and the headings above them and
+keeps the reader's place,
 ⋯ unfolds one section, Everything opens every closed detail, and Read takes back
 exactly what the dial changed."""
 
@@ -145,3 +146,44 @@ def test_a_folded_block_that_sets_its_own_height_takes_no_room(browser, serve):
     depth(page, "Skim")
     expect(page.locator("#drawn")).to_have_attribute("data-lf-dial-folded", "")
     expect(page.locator("#drawn")).to_be_hidden()
+
+
+def test_a_section_without_a_gist_folds_whole(browser, serve):
+    """Skim kept every heading, so a section the author gave no gist still showed its
+    heading over nothing. A heading stands only for a lede or gist it heads, in a
+    `section` or in flat markup, so such a section folds whole behind its ⋯."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Dial",
+                '<hgroup id="title"><h1>Report</h1></hgroup>'
+                '<p class="lede">What happened.</p><lf-dial id="dial"></lf-dial>'
+                '<section id="cause"><h2>Cause</h2>'
+                '<p class="gist" id="cause-gist">The key changed.</p>'
+                '<section id="detail"><h3 id="detail-heading">Detail</h3>'
+                '<p id="detail-0">How the key changed.</p></section></section>'
+                '<section id="method"><h2 id="method-heading">Method</h2>'
+                '<p id="method-0">How we measured.</p></section>'
+                '<h2 id="fix-heading">Fix</h2><p class="gist">Roll back.</p>'
+                '<h3 id="steps-heading">Steps</h3><p id="steps-0">First this.</p>'
+                '<h2 id="appendix-heading">Appendix</h2><p id="appendix-0">Raw.</p>',
+            )
+        ),
+    )
+    depth(page, "Skim")
+    for kept in ("#title h1", "#cause h2", "#cause-gist", "#fix-heading"):
+        expect(page.locator(kept)).to_be_visible()
+    for folded in (
+        "#detail-heading",
+        "#method-heading",
+        "#method-0",
+        "#steps-heading",
+        "#appendix-heading",
+        "#appendix-0",
+    ):
+        expect(page.locator(folded)).to_be_hidden()
+    page.locator("#cause .lf-dial-more button").click()
+    expect(page.locator("#detail-heading")).to_be_visible()
+    depth(page, "Read")
+    expect(page.locator("main [hidden]")).to_have_count(0)

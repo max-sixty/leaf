@@ -1,10 +1,10 @@
-/* lf-dial: how much of the page to show, from each section's gist to every detail.
+/* lf-dial: how much of the page to show, from the author's gists to every detail.
  *
  * Three depths, each showing all the one before it shows and more, so turning the
  * dial only ever adds or removes text and never swaps one wording for another:
- * Skim shows the headings, the lede and each block the author marked `.gist`; Read
- * shows the page as written; Everything also opens every closed `details`. Which
- * depth stands is this tab's view of the page, as a tab set's open panel is
+ * Skim shows the lede, each block the author marked `.gist` and the headings above
+ * them; Read shows the page as written; Everything also opens every closed `details`.
+ * Which depth stands is this tab's view of the page, as a tab set's open panel is
  * (`tabStore`): no event records it, and a reload comes back to it. Read is the
  * default, so a page shows as authored until the reader turns the dial.
  *
@@ -12,11 +12,15 @@
  * walk and travel to a comment still reach folded text and open the run holding it
  * (`beforematch`, `lf-reveal`). Folding walks the dial's document (the view or `main`
  * holding it, as `lf-toc`'s outline does) and descends only into plain structure that
- * holds a heading or a gist. A Leaf element is folded or kept whole, never entered,
- * since its children are its own. Each run of folded blocks gets a quiet ⋯ after the
- * block it follows, which unfolds that run alone. The dial writes only what it folded:
- * an element already hidden, such as an inactive tab, is never touched, the margin is
- * never folded, and leaving Skim takes back exactly the folds and markers it made.
+ * holds the lede or a gist. A heading stands at Skim when a lede or gist follows it
+ * before the next heading of its rank or above, so a section the author gave no gist
+ * folds whole, heading included, behind its ⋯. Keeping every heading was rejected: it
+ * made Skim a fixed cut of every section, whether or not one had anything for a
+ * skimmer. A Leaf element is folded or kept whole, never entered, since its children
+ * are its own. Each run of folded blocks gets a quiet ⋯ after the block it follows,
+ * which unfolds that run alone. The dial writes only what it folded: an element
+ * already hidden, such as an inactive tab, is never touched, the margin is never
+ * folded, and leaving Skim takes back exactly the folds and markers it made.
  *
  * Turning the dial keeps the reader's place. The block at the reading line, a quarter
  * of the way down the window, stays where it stood; when Skim folds that block, the
@@ -55,12 +59,14 @@ import {
 import "/vendor/webawesome-views.js";
 
 const DEPTHS = [
-  { name: "skim", label: "Skim", title: "Headings and each section's gist" },
+  { name: "skim", label: "Skim", title: "The page's argument and what it asks of you" },
   { name: "read", label: "Read", title: "The page as written" },
   { name: "all", label: "Everything", title: "With every closed detail open" },
 ];
-const HEADING = "h1, h2, h3, h4, h5, h6, hgroup";
-const KEPT = `${HEADING}, .lede, .gist`;
+const RANKED = "h1, h2, h3, h4, h5, h6";
+const HEADING = `${RANKED}, hgroup`;
+// What Skim keeps for its own sake; a heading stands for the ones it heads.
+const SUMMARY = ".lede, .gist";
 // Never folded: what the reader steers by or what isn't the page's flow.
 const STANDS = "script, style, template, [data-lf-gen], aside";
 const FOLDED = "data-lf-dial-folded";
@@ -69,6 +75,23 @@ const MOVING = 120;
 
 /** @param {Element} node */
 const isLeafElement = (node) => node.localName.startsWith("lf-");
+/** @param {Element} heading */
+const rank = (heading) =>
+  Number(
+    (heading.matches(RANKED) ? heading : heading.querySelector(RANKED))?.localName[1] ??
+      7,
+  );
+// Whether a lede or gist follows a heading before the next heading of its rank or above.
+/** @param {Element} heading */
+const heads = (heading) => {
+  const own = rank(heading);
+  for (let next = heading.nextElementSibling; next; next = next.nextElementSibling) {
+    if (next.matches(STANDS)) continue;
+    if (next.matches(HEADING) && rank(next) <= own) return false;
+    if (next.matches(SUMMARY) || next.querySelector(SUMMARY)) return true;
+  }
+  return false;
+};
 /** @param {Element} node */
 const shown = (node) => node.isConnected && !node.closest(`[${FOLDED}]`);
 
@@ -216,12 +239,16 @@ customElements.define(
     // Whether a child is kept whole at Skim, and whether the dial descends into it.
     /** @param {Element} child */
     #kept(child) {
-      return child === this || child.matches(KEPT);
+      return (
+        child === this ||
+        child.matches(SUMMARY) ||
+        (child.matches(HEADING) && heads(child))
+      );
     }
     /** @param {Element} child */
     #holds(child) {
       if (isLeafElement(child)) return Boolean(child.querySelector(".gist"));
-      return child.contains(this) || Boolean(child.querySelector(KEPT));
+      return child.contains(this) || Boolean(child.querySelector(SUMMARY));
     }
 
     // The blocks the dial lays out: each child of the document, and the children of

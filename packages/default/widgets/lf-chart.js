@@ -169,13 +169,20 @@ customElements.define(
     #place = null;
     /** @type {Point | null} */
     #away = null;
+    // What the chart last declared to the page's preview, which names the reading a
+    // preview that ends had (`PREVIEW_ENDED`).
+    /** @type {object | null} */
+    #declared = null;
 
     // What the point the reader is on says, standing above its ring, on every route.
     // Off a point the chart adds nothing, so what holds it may say its own.
     lfPreview = () => {
       const ring = this.#reading?.ring.lastElementChild;
-      if (!this.#at || !ring) return null;
-      return { ...sayPoint(this.#at), at: ring.getBoundingClientRect() };
+      this.#declared =
+        this.#at && ring
+          ? { ...sayPoint(this.#at), at: ring.getBoundingClientRect() }
+          : null;
+      return this.#declared;
     };
 
     connectedCallback() {
@@ -240,23 +247,22 @@ customElements.define(
         // page puts the preview away, whatever puts it away: the pointer leaving the
         // window from it, the next touch after a held finger lifts, Escape. A redraw
         // then has no point to read again, and the next aim reads from where it lands,
-        // the keys stepping on from the point the keyboard put away, and a pointer still
-        // over the drawing reading nothing until it reaches another point. It comes off
-        // once the task that put the preview away is done, and only if the route whose
-        // preview went still holds the point: a Tab that puts a resting pointer's
-        // preview away lands focus here in the same task, and the keyboard takes the
-        // point on.
+        // the keys stepping on from the point put away while the chart has focus, and a
+        // pointer still over the drawing reading nothing until it reaches another point.
+        // It comes off once the task that put the preview away is done, and only if the
+        // reading that ended is still the chart's last and its point still the reader's:
+        // a Tab that puts a resting pointer's preview away lands focus here in the same
+        // task, whose preview reads the point again, and the keyboard takes it on.
         this.addEventListener(
           PREVIEW_ENDED,
           (event) => {
-            const { route } = /** @type {CustomEvent} */ (event).detail;
+            const { declared } = /** @type {CustomEvent} */ (event).detail;
             const read = this.#at;
             nextRender(() => {
-              const holds =
-                route === "focus" ? this.#by !== "pointer" : this.#by === "pointer";
-              if (!holds || this.#at !== read) return;
-              if (route === "focus") this.#place = read;
-              else if (this.#over) this.#away = read;
+              if (!declared || declared !== this.#declared || this.#at !== read) return;
+              this.#declared = null;
+              if (this.matches(":focus")) this.#place = read;
+              if (this.#over) this.#away = read;
               this.#choose(null, "pointer");
             });
           },
@@ -512,9 +518,12 @@ customElements.define(
         // Plot's pointer reports what it points at by dispatching `input` on its figure,
         // for a notebook's viewof. On a page that is an input the user never gave, and the
         // runtime reads every `input` as the user's own, dropping a delayed move it was
-        // holding. Leaf gives Plot no tips, so only a pointer an author draws speaks. A
-        // figure turned into a box above is detached, so only this one speaks.
-        built.dispatchEvent = () => true;
+        // holding. Leaf gives Plot no tips, so only a pointer an author draws speaks, and
+        // only its `input` is held back: any other event dispatched at the drawing, as
+        // a script's long press over empty space, reaches the page. A figure turned into
+        // a box above is detached, so only this one speaks.
+        built.dispatchEvent = (event) =>
+          event.type === "input" || Element.prototype.dispatchEvent.call(built, event);
       }
       // The drawing is the <svg> carrying the author's ariaLabel: a legend Plot puts beside
       // it is an <svg> too, a colour ramp one of its own.

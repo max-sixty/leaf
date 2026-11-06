@@ -343,10 +343,12 @@ element, as a chart's pointer or arrow key reaching another point, the widget sa
 put the last one away, to the pointer, the keyboard's focus or a finger. A mark the widget draws for what its preview
 reads, as a chart's ring on the point it names, comes off when Leaf dispatches
 `PREVIEW_ENDED` (`"lf-preview-ended"`, from the same module) at the element, a
-`CustomEvent` whose `detail.route` names the route that read it, as the preview goes
-for any reason: the pointer or focus leaving, the pointer leaving the window from the
-preview, the next touch after a finger's hold, Escape, or another target's preview
-taking its place. A redraw with new words is no ending.
+`CustomEvent` whose `detail.declared` is the object `lfPreview` returned for the
+reading that ended, as the preview goes for any reason: the pointer or focus leaving,
+the pointer leaving the window from the preview, the next touch after a finger's hold,
+Escape, or another target's preview taking its place. A redraw with new words is no
+ending. A widget that has returned a newer reading since, as focus arriving reads the
+point a pointer's preview had, keeps the mark for that one.
 
 A `title` stays the browser's: a pointer over an element with one, or inside one, gets
 the browser's tooltip and no preview, and focus and a finger, which the browser's

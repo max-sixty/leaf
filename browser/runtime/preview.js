@@ -34,8 +34,10 @@
      whatever puts it away, the pointer or focus leaving, the press after a finger's
      hold, Escape or another target's taking its place, the element hears
      `lf-preview-ended` (`PREVIEW_ENDED`), a `CustomEvent` dispatched at it alone, whose
-     `detail.route` is the route that read it, so a mark it drew for the reading, as a
-     chart's ring on its point, comes off then. It returns null where it adds nothing,
+     `detail.declared` is what its `lfPreview` returned for the reading that ended, the
+     last it returned while that preview stood, so a mark it drew for that reading, as a
+     chart's ring on its point, comes off then, and one it drew for a reading it has
+     declared since stays. It returns null where it adds nothing,
      so the search goes on outward, and false where nothing shows and nothing around it
      may. A widget declares it with no import, as it declares `lfCommands` and
      `lfCopy()`, so off Leaf it reads nothing. What a declaration throws is reported and shows nothing.
@@ -91,12 +93,14 @@
    (`fit`), so words that grow never move it under the user's aim (browser/AGENTS.md,
    "The page holds still under the user's aim") nor cover anything. A new aim inside the
    element it stands for (`previewChanged` with `aim`), as a chart's next point, keeps
-   that place by the new box, so the preview rides along the drawing on one side as the
-   pointer sweeps it. Afresh, as for a new target or a corner whose room no longer
-   holds a line, it takes the first side whose room holds it whole, in order: below,
-   then above, from the box's start edge and then its end edge, so a right-to-left
-   target's starts at its right edge; beside, toward the nearer window edge first; then
-   centred across the window, a finger's and a point's trying above first. Else it takes
+   its side by the new box, standing by the edge that side stands by, its bottom above
+   the box and its top below or beside it, so the preview rides along the drawing on
+   one side as the pointer sweeps it, and a longer reading grows away from its point.
+   Afresh, as for a new target or a corner whose room no longer holds a line, it takes
+   the first side whose room holds it whole, in order: below, then above, from the
+   box's start edge and then its end edge, so a right-to-left target's starts at its
+   right edge; beside, toward the nearer window edge first; then centred across the
+   window, a finger's and a point's trying above first. Else it takes
    the side whose room holds the most whole lines, held there. Only where no side's room
    holds a line does it stand over what it covers, on the side the window gives the most
    room, over the target itself where no side holds a line at all, and take no pointer,
@@ -203,9 +207,11 @@
    which drew another box than the one tested; a preview that scrolls, whose detail no
    key reached and a pointer passed through where it covered a target; keeping the
    preview inside the box around its target, which only a script measuring that box
-   could do, where the window's edge serves; and placing it afresh at each new aim
-   inside its element, which flipped a chart's preview between above and below its
-   points four times in one sweep along a chart at the window's top. */
+   could do, where the window's edge serves; placing it afresh at each new aim inside
+   its element, which flipped a chart's preview between above and below its points
+   four times in one sweep along a chart at the window's top; and keeping its top
+   corner for a new aim, which held a three-line reading above a point to the one line
+   between that corner and the point. */
 import { html, nothing, render } from "/runtime/framework.js";
 import {
   carryChromeStyles,
@@ -245,7 +251,7 @@ import { shownParts, shownWindow, visualViewport } from "./geometry.js";
  * @typedef {Preview | null | undefined | false} Declared
  * @typedef {"pointer" | "focus" | "hold"} Route
  * @typedef {(route: Route) => Declared} Read
- * @typedef {{name: Words | null, keys: Presses, detail: Words[], list: List | null, at: Element | import("./rect.js").Box | null, about: Element | null, excerpt: boolean, restates: boolean}} Reading
+ * @typedef {{name: Words | null, keys: Presses, detail: Words[], list: List | null, at: Element | import("./rect.js").Box | null, about: Element | null, excerpt: boolean, restates: boolean, declared: Preview | null}} Reading
  * @typedef {import("./rect.js").Box} Box
  * @typedef {{from: Element, target: Element, holder: Element, route: Route, within?: Box | null, reading: Reading, clock: number, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
  * @typedef {{pointerId: number, parent: Element | null, target: Element | null, armed: boolean, read: boolean, timer: ReturnType<typeof setTimeout> | undefined}} Hold */
@@ -548,6 +554,7 @@ function lines(declared, own) {
     excerpt: Boolean(declared?.excerpt),
     list,
     restates: false,
+    declared,
   };
 }
 
@@ -670,9 +677,11 @@ function readFrom(from, route) {
 // only a new reading replaces the standing preview: an aim at what says nothing there,
 // as empty space inside a chart, leaves it standing, as plain text does, and a preview
 // shown `again` for what it stands for goes once that says nothing. Shown `again`, it
-// draws what its target says now where it stands, with no fade.
-/** @param {Element} from @param {Route} route @param {boolean} [again] */
-function show(from, route, again = false) {
+// draws what its target says now where it stands, with no fade, as a new `aim` inside
+// it where that is what changed. A hold that shows a reading has read, whichever way
+// the reading came, so its release presses nothing.
+/** @param {Element} from @param {Route} route @param {boolean} [again] @param {boolean} [aim] */
+function show(from, route, again = false, aim = false) {
   if (!again && shown?.from === from && shown.route === route) return true;
   const found = readFrom(from, route);
   const standing = again && shown?.from === from ? shown : null;
@@ -709,7 +718,7 @@ function show(from, route, again = false) {
   keeps(tip, "data-lf-face", reading.excerpt ? "excerpt" : null);
   keeps(tip, "data-lf-list", reading.list ? "" : null);
   if (route === "hold") keeps(holder, "data-lf-held", "");
-  if (!stand(record, reading, Boolean(standing))) {
+  if (!stand(record, reading, Boolean(standing), aim)) {
     hide();
     // What focus or a finger reached out of view waits until it comes into view, as a
     // scroll that lands it decides again (`decide`); a pointer reaches only what shows.
@@ -717,6 +726,7 @@ function show(from, route, again = false) {
     return false;
   }
   wait(null);
+  if (route === "hold" && hold) hold.read = true;
   if (standing) {
     record.described = standing.described;
     return true;
@@ -942,19 +952,20 @@ function decide(reread) {
 }
 
 /** @typedef {{y: "below" | "above" | "top", x: "left" | "right" | "after" | "before" | "center", from: number, room: number, box: Box}} Placement */
-// The target the standing preview stands for, the edge across it stands by, left or
-// right, and its top corner on that edge as offsets from the box it stands by, which the
-// next decision for that target tries first. What stands around it is tested afresh
-// every time, since the page may have changed there whatever the target did.
-/** @type {{target: Element, x: "left" | "right", corner: {x: number, y: number}} | null} */
+// The target the standing preview stands for, the side it stands on, the edge across it
+// stands by, left or right, and its top corner on that edge as offsets from the box it
+// stands by, which the next decision for that target tries first. What stands around it
+// is tested afresh every time, since the page may have changed there whatever the
+// target did.
+/** @type {{target: Element, side: {y: Placement["y"], x: Placement["x"]}, x: "left" | "right", corner: {x: number, y: number}} | null} */
 let placed = null;
 
 // Stand the preview by its anchor, and say whether it stands: the one decision of where
 // it stands, made again for the target it already stands for (`standing`), which tries
-// the place it stands at now first, a new aim inside it included, and afresh for a new
-// target.
-/** @param {Shown} record @param {Reading} reading @param {boolean} standing */
-function stand(record, reading, standing) {
+// the place it stands at now first, or its side by the new box for a new `aim` inside
+// it, and afresh for a new target.
+/** @param {Shown} record @param {Reading} reading @param {boolean} standing @param {boolean} [aim] */
+function stand(record, reading, standing, aim = false) {
   const moved = seat();
   const anchor = anchorOf(record, reading);
   if (!anchor) return false;
@@ -1038,17 +1049,24 @@ function stand(record, reading, standing) {
     ? /** @type {const} */ (["right", "left"])
     : /** @type {const} */ (["left", "right"]);
   // Where it stands now: its top corner on the edge it stands by at the same offsets
-  // from the box it stands by.
+  // from the box it stands by, so words that grow keep its first line still. A new aim
+  // keeps its side by the new box instead, standing by the edge that side stands by, its
+  // bottom above the box and its top below or beside it, so a longer reading grows away
+  // from what it reads.
   const was = standing && placed?.target === target ? placed : null;
-  const now = was
-    ? placeAt(
-        "top",
-        was.x,
-        box.top + was.corner.y,
-        room.bottom - (box.top + was.corner.y),
-        was.x === "right" ? box.right - was.corner.x - width : box.left + was.corner.x,
-      )
-    : null;
+  const now = !was
+    ? null
+    : aim
+      ? placement(was.side.y, was.side.x)
+      : placeAt(
+          "top",
+          was.x,
+          box.top + was.corner.y,
+          room.bottom - (box.top + was.corner.y),
+          was.x === "right"
+            ? box.right - was.corner.x - width
+            : box.left + was.corner.x,
+        );
   /** @type {Placement["y"][]} */
   const rows = route === "hold" || point ? ["above", "below"] : ["below", "above"];
   /** @type {Placement[]} */
@@ -1145,6 +1163,7 @@ function stand(record, reading, standing) {
   const right = chosen.x === "right" || chosen.x === "before";
   placed = {
     target,
+    side: was && chosen === now && !aim ? was.side : { y: chosen.y, x: chosen.x },
     x: right ? "right" : "left",
     corner: {
       x: right ? box.right - drawn.right : drawn.left - box.left,
@@ -1283,12 +1302,12 @@ function hide() {
   ended(record);
 }
 // The element whose preview `record` read hears that it ended (`PREVIEW_ENDED`), with
-// the route that read it, as a chart that drew a mark for the point it read takes the
-// mark off.
+// what it declared for that reading, as a chart that drew a mark for the point it read
+// takes the mark off.
 /** @param {Shown} record */
 function ended(record) {
   record.target.dispatchEvent(
-    new CustomEvent(PREVIEW_ENDED, { detail: { route: record.route } }),
+    new CustomEvent(PREVIEW_ENDED, { detail: { declared: record.reading.declared } }),
   );
 }
 
@@ -1342,7 +1361,7 @@ function changed(node, aim) {
   const within = (at) => isElement(at) && renderedUnder(at, node);
   if (aim && within(quiet)) quiet = null;
   if (shown && (shown.target === node || shown.from === node)) {
-    show(shown.from, shown.route, true);
+    show(shown.from, shown.route, true, aim);
     return;
   }
   const on = focused();
@@ -1542,8 +1561,7 @@ export function mountPreviews(chrome) {
       if (neighbour === hold.target) return;
       hold.target = neighbour;
       if (!hold.armed) return;
-      if (neighbour && show(neighbour, "hold")) hold.read = true;
-      else hide();
+      if (!neighbour || !show(neighbour, "hold")) hide();
     },
     { capture: true, passive: true },
   );
@@ -1605,7 +1623,7 @@ function arm(held) {
   if (hold !== held || held.armed) return;
   clearTimeout(held.timer);
   held.armed = true;
-  if (held.target && show(held.target, "hold")) held.read = true;
+  if (held.target) show(held.target, "hold");
 }
 
 // The hold ends with its release, and what it read stands until the next press.

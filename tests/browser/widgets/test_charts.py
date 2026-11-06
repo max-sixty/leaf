@@ -946,6 +946,121 @@ def test_a_chart_s_preview_keeps_its_side_from_point_to_point(engine, request, s
     assert sides in (["above"], ["above", "below"], ["below"]), sides
 
 
+# Two dots at one height, the second titled with two lines more than the first, in the
+# window's middle.
+TITLED = chart_markup(
+    "titled",
+    """{
+  ariaLabel: "Two tasks at one height",
+  marks: [Plot.dot(
+    [{x: 1, y: 5, t: "First"}, {x: 2, y: 5, t: "Second\\n20 hours\\n3 tasks"}],
+    {x: "x", y: "y", title: "t"},
+  )],
+}""",
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_longer_reading_at_the_next_point_grows_away_from_it(engine, request, serve):
+    """The pointer moving from a point that says one line to one that says three keeps
+    the preview above the points, and the longer reading grows up from the new point
+    whole, where there is room for it."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(leaf_page("titled", f'<h1 id="t">Tasks</h1>{TITLED}')),
+    )
+    chart = page.locator("#titled")
+    preview = page.locator(PREVIEW)
+    ring = chart.locator(".lf-chart-at circle")
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+
+    def at(n):
+        box = dots.nth(n).bounding_box()
+        return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+
+    first = at(0)
+    page.mouse.move(first[0] - 4, first[1])
+    page.mouse.move(*first)
+    expect(preview).to_be_visible()
+    assert said(page) == ["First"]
+    page.mouse.move(*at(1))
+    expect(preview.locator(".lf-preview-word")).to_have_text("Second")
+    assert said(page) == ["Second", "20 hours", "3 tasks"]
+    assert preview.evaluate(
+        "tip => !tip.querySelector('[data-lf-clamp], [data-lf-cut]')"
+    ), "the longer reading was cut short"
+    tip, point = preview.bounding_box(), ring.bounding_box()
+    assert tip["y"] + tip["height"] <= point["y"] + 0.5, (tip, point)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_escape_takes_the_ring_off_whichever_route_read_the_point(
+    engine, request, serve
+):
+    """Focus lands on a chart's first point, the pointer then reads another, and Escape
+    puts the preview away: the ring comes off the point it read, and the chart reads
+    nothing there, whichever route first showed the preview."""
+    page = open_page(request.getfixturevalue(engine), serve(VALUES_PAGE))
+    chart = page.locator("#hours")
+    preview = page.locator(PREVIEW)
+    ring = chart.locator(".lf-chart-at circle")
+    expect(chart.locator("svg[role=img]")).to_be_visible()
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(chart).to_be_focused()
+    assert said(page) == ["week w1", "kind features", "hours 21"]
+    page.mouse.move(*column(page, "hours", "w2", 0.2))
+    page.mouse.move(*column(page, "hours", "w2", 0.15))
+    expect(preview.locator(".lf-preview-detail")).to_have_text(
+        ["kind fixes", "hours 14"]
+    )
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
+    assert chart.evaluate("el => el.lfPreview()") is None
+
+
+def test_a_finger_that_slides_onto_a_point_after_the_long_press_presses_nothing(
+    browser, serve
+):
+    """A finger held where no point is near enough to read reads nothing at the long
+    press; sliding onto a point then reads it, and lifting presses nothing and leaves
+    the preview standing, as a hold that read at once does. Chromium alone:
+    Playwright holds no finger in Firefox."""
+    context = browser.new_context(has_touch=True)
+    page = open_page(browser, serve(leaf_page("titled", TITLED)), context=context)
+    preview = page.locator(PREVIEW)
+    dots = page.locator("#titled [data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    page.evaluate(
+        "() => { window.lfClicks = 0;"
+        " document.addEventListener('click', () => { window.lfClicks += 1; }, true); }"
+    )
+    cdp = context.new_cdp_session(page)
+
+    def touch(kind, at=None):
+        points = [{"x": at[0], "y": at[1]}] if at else []
+        cdp.send("Input.dispatchTouchEvent", {"type": kind, "touchPoints": points})
+
+    box = dots.nth(0).bounding_box()
+    point = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    # Plot's pointer reads a point within 40 px of the finger.
+    away = (point[0] + 42, point[1])
+    touch("touchStart", away)
+    page.wait_for_timeout(600)
+    long_press(page, {"x": away[0], "y": away[1]})
+    expect(preview).to_be_hidden()
+    touch("touchMove", (point[0] + 38, point[1]))
+    expect(preview).to_be_visible()
+    assert said(page) == ["First"]
+    touch("touchEnd")
+    render_checks_model.rendered(page)
+    expect(preview).to_be_visible()
+    assert page.evaluate("window.lfClicks") == 0, "the release pressed"
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_chart_s_author_picks_which_marks_say_their_values_and_their_words(
     engine, request, serve

@@ -102,8 +102,9 @@ export const previewChanged = (el, { aim = false } = {}) => {
   );
 };
 // That the preview Leaf showed of an element has gone, a `CustomEvent` dispatched at
-// that element alone whose `detail.route` is the route that read it (preview.js): a mark
-// the widget drew for what it read, as a chart's ring on its point, comes off then.
+// that element alone whose `detail.declared` is what its `lfPreview` returned for the
+// reading that ended (preview.js): a mark the widget drew for that reading, as a chart's
+// ring on its point, comes off then, and one for a reading declared since stays.
 export const PREVIEW_ENDED = "lf-preview-ended";
 export const COMMANDS = "lf-commands";
 const CHANGED = Symbol("element whose commands changed");

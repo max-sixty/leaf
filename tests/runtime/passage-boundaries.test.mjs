@@ -35,8 +35,10 @@ import {
   pageWords,
   pointAt,
   quoteFrom,
+  quotesChanged,
   says,
   segmentsIn,
+  trackQuotes,
 } from "/runtime/passages.js";
 import { upFrom } from "/runtime/shadow.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
@@ -583,6 +585,122 @@ test("telling a quote's copies apart reads only around them", () => {
     delete node.data;
   }
   assert.ok(read < 10_000, `${read} characters read to tell two copies apart`);
+});
+
+// The index of quotes carries each quote's copies from one reading to the next through
+// the span the two differ in, and searches only there. Whatever a change does — writes
+// words into a copy or puts them back, writes a second copy, makes or removes a fence
+// inside one, replaces a node with the same words, or writes into a shadow stage a
+// passage runs into — a carried quote answers as a pass over the page afresh does, which
+// a quote the index doesn't keep is found by (a key with a space before it names the
+// same words). And the quotes it says changed are those whose answer did, and only
+// those a change came near.
+test("a kept quote answers each change as a fresh pass over the page does", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "quote-index" },
+  });
+  document.body.innerHTML =
+    '<main><p id="a">Alpha beta gamma.</p><p id="b">Delta <span id="s">epsilon ' +
+    'zeta</span> eta theta.</p><p id="c">Iota kappa.</p><div id="d"><p>Lambda mu' +
+    "</p><lf-staged><p>nu xi omicron.</p></lf-staged></div><p>Pi rho.</p></main>";
+  const stage = shadowStage(document.querySelector("lf-staged"), [
+    ...document.querySelector("lf-staged").childNodes,
+  ]);
+  const [a, b, c, s] = ["#a", "#b", "#c", "#s"].map((at) => document.querySelector(at));
+  const quotes = [
+    "beta gamma",
+    "epsilon zeta eta",
+    "Delta epsilon",
+    "kappa",
+    "gamma. Delta",
+    "mu nu xi",
+    "Pi rho.",
+  ];
+  trackQuotes(quotes);
+  quotesChanged();
+  // Each answer as the text nodes it stands in, by name, and its offsets in them.
+  const names = new Map();
+  const answer = (/** @type {string} */ quote) =>
+    findQuote(pageText(), quote, {})
+      .map(({ node, start, end }) => {
+        if (!names.has(node)) names.set(node, names.size);
+        return `${names.get(node)}:${start}-${end}`;
+      })
+      .join(" ");
+  /** @type {[string, () => void, string[]][]} */
+  const steps = [
+    [
+      "words written into a copy",
+      () => (a.firstChild.data = "Alpha beta"),
+      ["beta gamma", "gamma. Delta"],
+    ],
+    [
+      "the words put back",
+      () => (a.firstChild.data = "Alpha beta gamma."),
+      ["beta gamma", "gamma. Delta"],
+    ],
+    ["a second copy", () => c.append(" beta gamma"), ["beta gamma"]],
+    ["the second copy taken out", () => c.lastChild.remove(), ["beta gamma"]],
+    [
+      "a fence inside a copy",
+      () => (s.contentEditable = "true"),
+      ["epsilon zeta eta", "Delta epsilon"],
+    ],
+    [
+      "the fence taken out",
+      () => s.removeAttribute("contenteditable"),
+      ["epsilon zeta eta", "Delta epsilon"],
+    ],
+    [
+      "a node replaced by the same words",
+      () => b.replaceChild(document.createTextNode("Delta "), b.firstChild),
+      ["Delta epsilon", "gamma. Delta"],
+    ],
+    [
+      "a word inside a stage",
+      () => stage.querySelector("p").prepend("Inserted "),
+      ["mu nu xi"],
+    ],
+    [
+      "the word taken out",
+      () => stage.querySelector("p").firstChild.remove(),
+      ["mu nu xi"],
+    ],
+  ];
+  for (const [change, step, near] of steps) {
+    const before = quotes.map(answer);
+    step();
+    const after = quotes.map(answer);
+    assert.deepEqual(
+      after,
+      quotes.map((quote) => answer(` ${quote}`)),
+      change,
+    );
+    const changed = quotesChanged();
+    for (const [at, quote] of quotes.entries())
+      if (before[at] !== after[at])
+        assert.ok(changed.has(quote), `${change}: ${quote} changed`);
+    for (const quote of changed) assert.ok(near.includes(quote), `${change}: ${quote}`);
+  }
+  assert.ok(answer("beta gamma") && answer("mu nu xi"));
+  trackQuotes([]);
+});
+
+// A repeated quote's copies are told apart by the words beside them, so a change there is
+// a change to the quote even where no copy moved: the words its resolution read are kept
+// with the copy, and a change among them says the quote changed.
+test("a change beside a kept quote's copy, where it was told apart, changes the quote", () => {
+  document.body.innerHTML =
+    '<main><p id="x">one MARK two</p><p id="y">three MARK four</p></main>';
+  const anchor = { prefix: "one", suffix: "two" };
+  trackQuotes(["MARK"]);
+  quotesChanged();
+  assert.equal(findQuote(pageText(), "MARK", anchor)[0]?.node.parentElement?.id, "x");
+  document.querySelector("#x").firstChild.data = "uno MARK two";
+  assert.ok(quotesChanged().has("MARK"));
+  assert.deepEqual(findQuote(pageText(), "MARK", anchor), []);
+  trackQuotes([]);
 });
 
 // `says` and `wrote` are two answers for one element, and a kept reading must not hand

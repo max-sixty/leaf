@@ -835,9 +835,10 @@ marks from using it to say which mark the pointer is on
 
 So `markHit` takes the caret lookup's text node and offset, reads the one or two
 characters' boxes around the offset, and finds the marks covering that character in
-an index of the marks' live ranges, the ones the highlight paints. A change to the
-page's words names the text nodes it touched (passages.js, `hearPageChanges`), and the
-next hit reads again only the ranges indexed there. Recheck by timing
+an index of the marks' live ranges, the ones the highlight paints. After a change to
+the page's words, anchor placement places again only the threads whose quotes the
+page's index of quotes says changed (passages.js, `quotesChanged`), and the index reads
+again only those threads' ranges. Recheck by timing
 `highlightsFromPoint` over a mark on pages of 32 and 512 marks, and at a point under a
 covering box; once its cost holds still and every engine names nothing under a cover,
 `markHit` can ask it instead of keeping its own index.

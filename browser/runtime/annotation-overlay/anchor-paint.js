@@ -135,6 +135,10 @@ export function createAnchorPaint({
   const passages = new Map();
   /** @type {Map<string, readonly Range[]>} */
   const reacted = new Map();
+  // The threads the last paint marks nothing for by their own state: resolved, or
+  // drawn rather than marked.
+  /** @type {Set<string>} */
+  const unmarked = new Set();
   /** @type {Map<Element, Findable[]>} */
   const onElement = new Map();
   /** @type {Set<ShadowRoot>} */
@@ -416,9 +420,18 @@ export function createAnchorPaint({
   // (anchor-placement.js, `settle`): their passages' marks are its new ranges, painted
   // in place of the old ones, and the index reads again only the text nodes they left
   // and stand in, each once, however many of their pieces it holds. A thread whose
-  // anchor now stands on an element, or on nothing it marks, is painted again whole.
+  // anchor now stands on an element, or on nothing it marks, is painted again whole, and
+  // so is one placed where the last paint marked nothing for it and chose not to mark it
+  // for nothing, as a resolved thread, since only a paint of the page knows where it
+  // falls among the marks.
   /** @param {readonly string[]} ids */
   function replace(ids) {
+    const arrived = ids.some((id) => {
+      if (passages.has(id) || reacted.has(id) || unmarked.has(id)) return false;
+      const found = placedAt(id);
+      return Boolean(found && found.status !== "outdated");
+    });
+    if (arrived) return void presentDocument();
     const affected = new Set(ids.filter((id) => passages.has(id) || reacted.has(id)));
     if (!affected.size) return;
     const mark = CSS.highlights.get(MARK);
@@ -581,6 +594,7 @@ export function createAnchorPaint({
     marked.clear();
     passages.clear();
     reacted.clear();
+    unmarked.clear();
     orderOf.clear();
     pendingOutline = [];
     actionOutline = [];
@@ -596,6 +610,7 @@ export function createAnchorPaint({
       readingOrder(readingPlace(left.placement), readingPlace(right.placement)),
     );
     for (const { thread, placement: found } of inOrder) {
+      if (thread.resolved || thread.root.drawing) unmarked.add(thread.id);
       if (found.status === "outdated" || thread.resolved) continue;
 
       const ranges = found.kind === "passage" ? (found.ranges ?? []) : [];
@@ -688,6 +703,7 @@ export function createAnchorPaint({
     marked.clear();
     passages.clear();
     reacted.clear();
+    unmarked.clear();
     index();
     pendingOutline = [];
     actionOutline = [];

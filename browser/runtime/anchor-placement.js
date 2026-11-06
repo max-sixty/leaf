@@ -15,18 +15,29 @@
    status without changing its thread.
 
    Placement is the one record of where each passage stands. Between readings the page's
-   words can change under a passage, by a revision, a widget or any script, and the
-   page-words watcher says which text each change touched (passages.js,
-   `hearPageWords`): placement reads again only the anchors whose segments stand in text
-   it wrote or took away, or whose passage runs on past text put in after them, and
-   places each again, keeps it, or finds it no longer stands (`settle`). Those who draw
-   from it hear which threads it placed again (`hearPlaced`), as the anchor paint
+   words can change under a passage, by a revision, a widget or any script, and what a
+   quote's resolution depends on is in the page's index of quotes (passages.js,
+   `trackQuotes`): every copy of each quote the threads name, placed or not, and the
+   words a resolution read beside them to tell copies apart. After each change to the
+   page's words, the index reads what changed off the readings before and after it and
+   searches only there, so placement places again only the threads whose quotes it
+   says changed (`quotesChanged`): words moved, a copy gone, a second copy anywhere, or
+   lost words put back. A thread is placed again too where a change wrote or took out
+   the text its passage stands in, whose live ranges the DOM moved however the page then
+   reads. Each is placed again, kept, or found no longer to stand (`settle`). Those who
+   draw from it hear which threads it placed again (`hearPlaced`), as the anchor paint
    paints them and finds the pointer in them, so they read no change to the page
-   themselves. A change elsewhere, as a counter a widget redraws each frame, reads no
-   anchor again. */
+   themselves. A change elsewhere, as a counter a widget redraws each frame, places no
+   thread again. */
 import { anchoringIsReady, resolveAnchor } from "./anchor-resolution.js";
 import { resolvedInMessage, targetElement } from "./resolved-target.js";
-import { hearPageWords, inChrome, pageReadingVersion, rangeOf } from "./passages.js";
+import {
+  hearPageWords,
+  inChrome,
+  quotesChanged,
+  rangeOf,
+  trackQuotes,
+} from "./passages.js";
 import { afterScript } from "./rendering.js";
 import { placePoints } from "./pointed-place.js";
 import { threadKey, threadNames } from "./thread/model.js";
@@ -116,91 +127,102 @@ export function createAnchorPlacement() {
   let pendingPlaced = null;
   /** @type {Map<string, Thread>} */
   let names = new Map();
-  // The threads the last reading placed, by id; for each text node a placed passage's
-  // segment stands in, its threads, and the threads whose passage runs on past it; the
-  // threads a change to the page's words touched, not yet placed again; and those who
-  // hear which threads were.
+  // The threads the last reading placed: all of them, by id and by each quote their
+  // anchors name; for each text node a placed passage's segment stands in, its threads;
+  // the threads whose text nodes a change wrote or took out, not yet placed again; and
+  // those who hear which threads were.
+  /** @type {readonly Thread[]} */
+  let threads = [];
   /** @type {Map<string, Thread>} */
   let byId = new Map();
+  /** @type {Map<string, Set<string>>} */
+  let byQuote = new Map();
   /** @type {Map<Node, Set<string>>} */
   const inNode = new Map();
-  /** @type {Map<Node, Set<string>>} */
-  const runsOn = new Map();
   /** @type {Set<string>} */
-  const touched = new Set();
+  const rewritten = new Set();
   /** @type {Set<(ids: readonly string[]) => void>} */
   const hearers = new Set();
-  /** @param {Map<Node, Set<string>>} map @param {Node} node @param {string} id @param {boolean} on */
-  const mark = (map, node, id, on) => {
-    const ids = map.get(node) ?? new Set();
-    if (on) ids.add(id);
-    else ids.delete(id);
-    if (ids.size) map.set(node, ids);
-    else map.delete(node);
-  };
   /** @param {string} id @param {Placement | undefined} placement @param {boolean} on */
   const note = (id, placement, on) => {
     if (placement?.kind !== "passage") return;
-    placement.segments.forEach((segment, at) => {
-      mark(inNode, segment.node, id, on);
-      if (at < placement.segments.length - 1) mark(runsOn, segment.node, id, on);
-    });
-  };
-  hearPageWords(({ written, added }) => {
-    for (const node of written)
-      for (const id of inNode.get(node) ?? []) touched.add(id);
-    for (const node of added) {
-      const walker = document.createTreeWalker(
-        node.getRootNode(),
-        NodeFilter.SHOW_TEXT,
-      );
-      walker.currentNode = node;
-      const before = walker.previousNode();
-      for (const id of (before && runsOn.get(before)) ?? []) touched.add(id);
+    for (const { node } of placement.segments) {
+      const ids = inNode.get(node) ?? new Set();
+      if (on) ids.add(id);
+      else ids.delete(id);
+      if (ids.size) inNode.set(node, ids);
+      else inNode.delete(node);
     }
-    if (touched.size) afterScript(settle);
+  };
+  // Any change to the page's words may have moved a quote's words, put a second copy of
+  // them anywhere, or put back words a quote lost, so each is settled after the script
+  // that made it, if anything is placed by quote.
+  hearPageWords(({ written }) => {
+    for (const node of written)
+      for (const id of inNode.get(node) ?? []) rewritten.add(id);
+    if (byQuote.size || rewritten.size) afterScript(settle);
   });
 
+  // A thread's placement, as its anchor resolves now: in the message holding the element
+  // it names where the page doesn't hold it, and over its passage the ranges `was` had
+  // where they still stand.
+  /** @param {Thread & {anchor: Anchor}} thread @param {Placement | undefined} was
+   * @returns {Placement | undefined} */
+  function place(thread, was) {
+    const found = resolveAnchor(thread.anchor);
+    const held =
+      found && !inChrome(found.place) ? null : heldIn(thread.anchor, threads);
+    const resolved = !held
+      ? found
+      : found
+        ? Object.assign(found, { message: held.message })
+        : resolvedInMessage(held);
+    if (!resolved) return undefined;
+    if (resolved.kind === "passage")
+      resolved.ranges = liveRanges(was, resolved.segments);
+    return Object.assign(resolved, {
+      messageTarget: held,
+      point: null,
+      pointRow: null,
+      pointWords: null,
+    });
+  }
+
   /** @param {{threads: readonly Thread[], draft: ThreadDraft, actionAnchor: Anchor | null}} options */
-  function read({ threads, draft, actionAnchor }) {
+  function read({ threads: all, draft, actionAnchor }) {
     if (!anchoringIsReady()) return null;
     const before = new Map(placed);
     placed.clear();
     // Names for the threads this read placed, so `placedAt` answers from the same
     // reading as `placed` until the next read, not from a later publication.
-    names = threadNames(threads);
-    byId = new Map(threads.map((thread) => [thread.id, thread]));
+    names = threadNames(all);
+    threads = all;
+    byId = new Map(all.map((thread) => [thread.id, thread]));
+    byQuote = new Map();
+    for (const { id, anchor } of all)
+      if (anchor?.quote) {
+        const ids = byQuote.get(anchor.quote) ?? new Set();
+        byQuote.set(anchor.quote, ids.add(id));
+      }
+    trackQuotes(byQuote.keys());
     inNode.clear();
-    runsOn.clear();
     const readings = [];
     const pointable = [];
-    for (const thread of threads) {
+    for (const thread of all) {
       if (!thread.anchor) continue;
-      const found = resolveAnchor(thread.anchor);
-      const held =
-        found && !inChrome(found.place) ? null : heldIn(thread.anchor, threads);
-      const resolved = !held
-        ? found
-        : found
-          ? Object.assign(found, { message: held.message })
-          : resolvedInMessage(held);
-      if (!resolved) continue;
-      if (resolved.kind === "passage")
-        resolved.ranges = liveRanges(before.get(thread.id), resolved.segments);
-      const target = targetElement(resolved) ?? resolved.place;
-      const placement = Object.assign(resolved, {
-        messageTarget: held,
-        point: null,
-        pointRow: null,
-        pointWords: null,
-      });
+      const placement = place(
+        /** @type {Thread & {anchor: Anchor}} */ (thread),
+        before.get(thread.id),
+      );
+      if (!placement) continue;
+      const target = targetElement(placement) ?? placement.place;
       placed.set(thread.id, placement);
       note(thread.id, placement, true);
       readings.push({ thread, placement });
       if (!thread.resolved && !thread.anchor.quote && !thread.anchor.visual && target)
         pointable.push({ id: thread.id, key: threadKey(thread), target, placement });
     }
-    const pointed = placePoints(pointable, new Set(threads.map(threadKey)));
+    const pointed = placePoints(pointable, new Set(all.map(threadKey)));
     for (const { placement, key } of pointable) {
       const point = pointed.get(key);
       if (point)
@@ -216,7 +238,8 @@ export function createAnchorPlacement() {
     const active = draft.open ? null : actionAnchor;
     const action = active && !active.quote ? resolveAnchor(active) : null;
     // This reading placed every anchor, those changes touched before it included.
-    touched.clear();
+    quotesChanged();
+    rewritten.clear();
     if (
       before.size !== placed.size ||
       [...placed].some(([id, placement]) => !samePlacement(before.get(id), placement))
@@ -224,36 +247,28 @@ export function createAnchorPlacement() {
       tick(version);
     return { readings, draft: { ...draft, resolved: resolvedDraft }, action };
   }
-  // Read again the anchors changes to the page's words touched, after the script that
-  // made them, or at once where something reads them first (the hit test): each placed
-  // again, kept where it stands as it stood, or no longer placed where it no longer
-  // resolves; those who hear hear which threads changed.
+  // Place again the threads changes to the page's words touched, after the script that
+  // made them, or at once where something reads them first (the hit test): those whose
+  // quote's copies, or the words beside them its resolution read, changed (passages.js,
+  // `quotesChanged`), placed or not, and those whose text nodes a change wrote or took
+  // out. Each is placed again, kept where it stands as it stood, or no longer placed;
+  // those who hear hear which threads changed.
   function settle() {
-    pageReadingVersion();
-    if (!touched.size || !anchoringIsReady()) return;
-    const ids = [...touched];
-    touched.clear();
+    if (!anchoringIsReady()) return;
+    const ids = new Set(rewritten);
+    rewritten.clear();
+    for (const quote of quotesChanged())
+      for (const id of byQuote.get(quote) ?? []) ids.add(id);
     /** @type {string[]} */
     const changed = [];
     for (const id of ids) {
-      const was = placed.get(id);
       const thread = byId.get(id);
-      if (!was || !thread?.anchor) continue;
+      if (!thread?.anchor) continue;
+      const was = placed.get(id);
       note(id, was, false);
-      const found = resolveAnchor(thread.anchor);
-      if (!found) {
-        placed.delete(id);
-        changed.push(id);
-        continue;
-      }
-      if (found.kind === "passage") found.ranges = liveRanges(was, found.segments);
-      const placement = Object.assign(found, {
-        messageTarget: was.messageTarget,
-        point: was.point,
-        pointRow: was.pointRow,
-        pointWords: was.pointWords,
-      });
-      placed.set(id, placement);
+      const placement = place(/** @type {Thread & {anchor: Anchor}} */ (thread), was);
+      if (placement) placed.set(id, placement);
+      else placed.delete(id);
       note(id, placement, true);
       if (!samePlacement(was, placement)) changed.push(id);
     }

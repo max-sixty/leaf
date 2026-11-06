@@ -73,10 +73,11 @@
    runtime-owned surfaces and widget apparatus, and its comment says which hole
    each half alone leaves.
 
-   The search pattern uses only a bounded lead (`LEAD_CAP`) to locate candidates.
-   `confirmRest` walks the remainder against passage text. Do not truncate the stored
-   quote to satisfy a regular-expression limit; the stored quote is the passage the
-   user selected.
+   A quote's copies are found by hashing its letters, and each is read against the page
+   by `matchAt`, a comparison per character however long the quote, so the stored quote
+   is never truncated: it is the passage the user selected. The copies of the quotes
+   anchor placement keeps are carried from one reading to the next through the span the
+   two differ in (`carry`), so a change to the page is searched only around it.
 
    Shadow trees: only open roots declared through `x-shadow` join the page reading;
    any other root is opaque, and its host reads by its light children (`walk`).
@@ -1111,25 +1112,49 @@ export const segmentPieces = (segments) =>
     block: segmentBlock(segment),
     lines: [...rangeOf([segment]).getClientRects()],
   }));
-// Where a passage starts: the line its first piece starts on, which a passage is
+// Whether a character's box stands on a line after `line`, as lines follow one another
+// along the block axis of the writing mode they are set in: down the page, or across
+// it from the right or from the left.
+/** @param {DOMRect} box @param {DOMRect} line */
+const lineBelow = (box, line) => box.top >= line.bottom;
+/** @param {DOMRect} box @param {DOMRect} line */
+const lineLeft = (box, line) => box.right <= line.left;
+/** @param {DOMRect} box @param {DOMRect} line */
+const lineRight = (box, line) => box.left >= line.right;
+/** @type {Record<string, typeof lineBelow>} */
+const LINE_AFTER = {
+  "vertical-rl": lineLeft,
+  "sideways-rl": lineLeft,
+  "vertical-lr": lineRight,
+  "sideways-lr": lineRight,
+};
+// Where a passage starts: the first line the browser draws it on, which a passage is
 // travelled to and asked whether it shows by, so a passage taller than the window, or
 // one whose end alone shows, as one running into a shadow stage far below its start, is
 // brought to where it is read from, and the whole of that line, a panel covering part
-// of it included. Search, thread travel and the comment box all go there. The line's
-// end is found by halving the piece, a character's box at a time.
+// of it included. Search, thread travel and the comment box all go there. Words the
+// page draws no box for, as hidden ones, start no line. The line's end is found by
+// halving the first piece drawn, a character's box at a time.
 /** @param {readonly Segment[]} segments @returns {Segment[]} */
 export function passageStart(segments) {
-  const [first] = segments;
+  const first =
+    segments.find((segment) =>
+      [...rangeOf([segment]).getClientRects()].some((box) => box.width || box.height),
+    ) ?? segments[0];
   if (!first) return [];
   /** @param {number} at */
   const character = (at) =>
     rangeOf([{ ...first, start: at, end: at + 1 }]).getBoundingClientRect();
+  const mode = first.node.parentElement
+    ? getComputedStyle(first.node.parentElement).writingMode
+    : "horizontal-tb";
+  const after = LINE_AFTER[mode] ?? lineBelow;
   const line = character(first.start);
   let low = first.start + 1;
   for (let high = first.end; low < high;) {
     const mid = (low + high) >> 1;
-    if (character(mid).top < line.bottom) low = mid + 1;
-    else high = mid;
+    if (after(character(mid), line)) high = mid;
+    else low = mid + 1;
   }
   return [{ ...first, end: low }];
 }
@@ -1246,8 +1271,11 @@ function spanOf(reading, lo, hi) {
 // compares in. Only copies that need telling apart are asked about, but a capture asks
 // about every copy at each width it tries, and the copies of a repeated paragraph agree
 // for thousands of characters before one differs.
-/** @param {PageReading} reading @param {number} at @param {string} want @param {boolean} before */
-const holds = (reading, at, want, before) => {
+//
+// What a copy's sides were read from is kept on it (`near`), so the index of quotes
+// asks them again only once a change lands there (`carry`).
+/** @param {PageReading} reading @param {number} at @param {string} want @param {boolean} before @param {Copy} [copy] */
+const holds = (reading, at, want, before, copy) => {
   const edge = fenceEdge(reading, at, before);
   // One character is all it takes to refute an empty side, and asking for none would answer
   // with none: doubling zero never grows.
@@ -1257,6 +1285,10 @@ const holds = (reading, at, want, before) => {
     const hi = before ? at : Math.min(edge, at + raw);
     const there = wordsBetween(reading, lo, hi);
     if (there.length >= enough || (before ? lo === edge : hi === edge)) {
+      if (copy)
+        copy.near = copy.near
+          ? [Math.min(copy.near[0], lo), Math.max(copy.near[1], hi)]
+          : [lo, hi];
       if (!want) return there === "";
       return before ? there.endsWith(want) : there.startsWith(want);
     }
@@ -1498,36 +1530,39 @@ function watchReading() {
   watcher.observe(document, WATCH_READING);
   return watcher;
 }
-// What keeps a reading of where things stand in the page's words, as anchor placement
-// keeps where each anchor stands (anchor-placement.js), hears which of the page's text
-// each change the watcher hears touched, as it happens (`hearPageWords`): the text
-// nodes it wrote or took away, and those it put in.
-/** @typedef {{written: ReadonlySet<Node>, added: readonly Node[]}} WordsChange */
+// What keeps a record of where things stand in the page's words, as anchor placement
+// keeps where each anchor stands (anchor-placement.js), hears that the reading changed,
+// as it happens (`hearPageWords`), and reads what changed off the two readings
+// (`quotesChanged`), by the reading's own rules: its text, its edges and fences, and the
+// order its walk puts the page's trees in. It hears one thing besides, which no reading
+// shows: the text nodes a change wrote or took out of the tree (`written`), whose live
+// ranges the DOM moved, by its own rule, which is the light tree's (DOM, "replace data"
+// and "remove"), even where the page then says just what it said before.
+/** @typedef {{written: ReadonlySet<Node>}} WordsChange */
 /** @type {Set<(change: WordsChange) => void>} */
 const hearers = new Set();
+/** @param {ReadonlySet<Node>} [written] */
+function changeReading(written = new Set()) {
+  forgetReading();
+  for (const hear of hearers) hear({ written });
+}
 /** @param {MutationRecord[]} records */
 function heardChanges(records) {
   const changing = records.filter(changesTheReading);
   if (!changing.length) return;
-  forgetReading();
-  if (!hearers.size) return;
   /** @type {Set<Node>} */
   const written = new Set();
-  /** @type {Node[]} */
-  const added = [];
-  /** @param {Node} node @param {(text: Node) => void} take */
-  const texts = (node, take) => {
-    if (isText(node)) return take(node);
-    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-    for (let text = walker.nextNode(); text; text = walker.nextNode()) take(text);
-  };
   for (const record of changing) {
     if (record.type === "characterData") written.add(record.target);
-    if (record.type !== "childList") continue;
-    record.removedNodes.forEach((node) => texts(node, (text) => written.add(text)));
-    record.addedNodes.forEach((node) => texts(node, (text) => added.push(text)));
+    if (record.type !== "childList" || !hearers.size) continue;
+    for (const node of record.removedNodes) {
+      if (isText(node)) written.add(node);
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      for (let text = walker.nextNode(); text; text = walker.nextNode())
+        written.add(text);
+    }
   }
-  for (const hear of hearers) hear({ written, added });
+  changeReading(written);
 }
 /** @param {(change: WordsChange) => void} hear */
 export function hearPageWords(hear) {
@@ -1545,7 +1580,7 @@ export function hearPageWords(hear) {
 /** @param {ShadowRoot} root */
 export function watchPassageRoot(root) {
   watchReading().observe(root, WATCH_READING);
-  forgetReading();
+  changeReading();
   if (pagePresented()) queueMicrotask(presentDocument);
 }
 // An opaque widget and its original direct children fence the cell walk. Marking them is
@@ -1557,7 +1592,7 @@ export function watchPassageRoot(root) {
 export function fencePassageParts(root, children = root.children) {
   passageFences.add(root);
   for (const child of children) passageFences.add(child);
-  forgetReading();
+  changeReading();
 }
 // What the page says, once, as one string with a way back to the nodes it came from. Built
 // per document state rather than per caller: every anchor a pass places is asking about the
@@ -1724,103 +1759,395 @@ export function spanIn(reading, segments) {
 }
 /** @param {string} s */
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-// How much of a quote the search compiles into its pattern. The bound is the pattern's,
-// never the passage's: one expression covering every word of a long passage is a term
-// per character, and V8 refuses to compile one that long at all — a ceiling a user
-// reaches by selecting a page and pressing c. Measured on the corpus: 1.3ms at this
-// length, 11.6ms at five thousand characters, and a SyntaxError at twelve. So the lead
-// finds the candidates and the rest of the quote is walked against the text from each,
-// which is a comparison per character rather than a term, and the search stays flat in
-// the passage's length instead of ending at a wall.
-const LEAD_CAP = 400;
-// The rest of a quote, matched from `at` by the pattern's own rules: any run of
-// whitespace or edges between words, an edge free to fall between two characters of
-// one. Answers where the passage ends, or -1 where the text stops saying it.
+// Whether no fence stands strictly inside raw[from..to).
+/** @param {PageReading} text @param {number} from @param {number} to */
+const withinCell = (text, from, to) => fenceEdge(text, from + 1, false) >= to;
+
+// Where a quote's words stand. Its letters are its words' characters without the gaps
+// between them, and a copy of the quote starts wherever the page's letters start as its
+// do, read against the page from there (`matchAt`). The letters are found by hashing:
+// any run of the page's letters hashes in two reads (`sliceHash`), so one pass over the
+// page finds every copy of every quote the page's threads name, which a pattern apiece
+// searched the whole page for, as many times as there were threads.
+//
+// Whether raw[i] separates words: an edge, or whitespace by the rule a quote is split
+// into words by. Each code unit is put to the rule once.
+const gapKinds = new Uint8Array(0x10000);
+/** @param {string} raw @param {number} i */
+function gapAt(raw, i) {
+  const code = raw.charCodeAt(i);
+  if (!gapKinds[code])
+    gapKinds[code] = raw[i] === EDGE || /\s/.test(raw.charAt(i)) ? 1 : 2;
+  return gapKinds[code] === 1;
+}
+// Where a quote's words, read from `at`, end, by the rules they are quoted by: any run of
+// whitespace or edges between two words, and at least one, an edge free to fall between
+// two characters of one. -1 where the text stops saying them.
 /** @param {string} raw @param {number} at @param {readonly string[]} words */
-function confirmRest(raw, at, words) {
+function matchAt(raw, at, words) {
   let i = at;
-  for (const w of words) {
-    const gap = i;
-    while (i < raw.length && (raw[i] === EDGE || /\s/.test(raw.charAt(i)))) i++;
-    if (i === gap) return -1; // two words the text runs together are not these two
-    for (const ch of w) {
-      while (raw[i] === EDGE) i++;
+  for (const [n, word] of words.entries()) {
+    if (n) {
+      const gap = i;
+      while (i < raw.length && gapAt(raw, i)) i++;
+      if (i === gap) return -1; // two words the text runs together are not these two
+    }
+    let inside = false;
+    for (const ch of word) {
+      if (inside) while (raw[i] === EDGE) i++;
+      inside = true;
       if (!raw.startsWith(ch, i)) return -1;
       i += ch.length;
     }
   }
   return i;
 }
-/** @param {PageReading} text @param {number} from @param {number} to */
-const withinCell = (text, from, to) =>
-  !text.fences.some((fence) => from < fence && fence < to);
+const HASH_BASE = 0x01000193;
+/** @type {number[]} */
+const powers = [1];
+/** @param {number} n */
+function power(n) {
+  for (let last = /** @type {number} */ (powers.at(-1)); powers.length <= n;)
+    powers.push((last = Math.imul(last, HASH_BASE)));
+  return /** @type {number} */ (powers[n]);
+}
+// The hash of each prefix of a run of code units, so any slice's is two reads.
+/** @param {number} length @param {(t: number) => number} codeAt */
+function prefixHashes(length, codeAt) {
+  const sums = new Int32Array(length + 1);
+  for (let t = 0; t < length; t++)
+    sums[t + 1] =
+      (Math.imul(/** @type {number} */ (sums[t]), HASH_BASE) + codeAt(t)) | 0;
+  return sums;
+}
+/** @param {Int32Array} sums @param {number} t @param {number} n */
+const sliceHash = (sums, t, n) =>
+  /** @type {number} */ (
+    sums[t + n] - Math.imul(/** @type {number} */ (sums[t]), power(n))
+  ) | 0;
+// How many of a quote's letters its keys hash: a few, so the pass asks each place of the
+// page few hashes, then more, so quotes that start alike, as rows of a list do, are told
+// apart by a hash rather than by reading each one's words.
+const FIRST_KEY = 16;
+const LONG_KEY = 256;
+/** @typedef {{from: number, to: number, near: [number, number] | null}} Copy */
+/** @typedef {{quote: string, words: string[], letters: number, first: number,
+ * firstHash: number, long: number, longHash: number, copies: Copy[]}} QuoteEntry */
+/** @typedef {{keys: Map<number, Map<number, Map<number, Map<number, QuoteEntry[]>>>>,
+ * longest: number, widest: number}} QuoteTable */
+/** @param {string} quote @returns {QuoteEntry | null} */
+function quoteEntry(quote) {
+  const words = quote.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return null;
+  const letters = words.join("");
+  const sums = prefixHashes(letters.length, (t) => letters.charCodeAt(t));
+  const first = Math.min(letters.length, FIRST_KEY);
+  const long = Math.min(letters.length, LONG_KEY);
+  return {
+    quote,
+    words,
+    letters: letters.length,
+    first,
+    firstHash: sliceHash(sums, 0, first),
+    long,
+    longHash: sliceHash(sums, 0, long),
+    copies: [],
+  };
+}
+/** @template K, V @param {Map<K, V>} map @param {K} key @param {() => V} make */
+function slot(map, key, make) {
+  let value = map.get(key);
+  if (value === undefined) map.set(key, (value = make()));
+  return value;
+}
+/** @param {Iterable<QuoteEntry>} entries @returns {QuoteTable} */
+function tableOf(entries) {
+  /** @type {QuoteTable["keys"]} */
+  const keys = new Map();
+  let longest = 0;
+  let widest = 0;
+  for (const entry of entries) {
+    const byFirst = slot(keys, entry.first, () => new Map());
+    const byLong = slot(byFirst, entry.firstHash, () => new Map());
+    slot(
+      slot(byLong, entry.long, () => new Map()),
+      entry.longHash,
+      () => [],
+    ).push(entry);
+    longest = Math.max(longest, entry.long);
+    widest = Math.max(widest, entry.letters);
+  }
+  return { keys, longest, widest };
+}
+// Every copy of a table's quotes that starts in raw[lo..hi): each place the page's
+// letters start as a quote's do, by their hashes, read against the quote's words, and
+// kept where no fence parts it.
+/** @param {PageReading} reading @param {QuoteTable} table @param {number} lo @param {number} hi
+ * @param {(entry: QuoteEntry, copy: Copy) => void} take */
+function scan(reading, table, lo, hi, take) {
+  const { raw } = reading;
+  /** @type {number[]} */
+  const codes = [];
+  /** @type {number[]} */
+  const places = [];
+  for (let i = lo, past = 0; i < raw.length; i++) {
+    if (gapAt(raw, i)) continue;
+    if (i >= hi && ++past > table.longest) break;
+    codes.push(raw.charCodeAt(i));
+    places.push(i);
+  }
+  const sums = prefixHashes(codes.length, (t) => /** @type {number} */ (codes[t]));
+  for (let t = 0; t < codes.length; t++) {
+    const from = /** @type {number} */ (places[t]);
+    if (from >= hi) break;
+    for (const [first, byFirst] of table.keys) {
+      if (t + first > codes.length) continue;
+      for (const [long, byHash] of byFirst.get(sliceHash(sums, t, first)) ?? []) {
+        if (t + long > codes.length) continue;
+        for (const entry of byHash.get(sliceHash(sums, t, long)) ?? []) {
+          const to = matchAt(raw, from, entry.words);
+          if (to !== -1 && withinCell(reading, from, to))
+            take(entry, { from, to, near: null });
+        }
+      }
+    }
+  }
+}
+// Where two readings of the page part, as the span of each that differs. Before it both
+// hold the same characters, in the same text nodes at the same offsets and in the same
+// blocks, with the same fences, and after it they do again, everything there standing
+// moved by the difference in their lengths. A change to the page's text, to the edges or
+// fences between its words, or to the order its trees are read in shows here by the
+// reading's own rules, since it is the readings that are compared. Null where nothing
+// differs.
+/** @param {PageReading} was @param {PageReading} now
+ * @returns {{from: number, was: number, now: number} | null} */
+function changedSpan(was, now) {
+  const [a, b] = [was.raw, now.raw];
+  const shift = b.length - a.length;
+  const shorter = Math.min(a.length, b.length);
+  /** @param {IndexedSegment} x @param {IndexedSegment} y @param {number} by */
+  const same = (x, y, by) =>
+    x.node === y.node &&
+    x.start === y.start &&
+    x.end === y.end &&
+    x.rawStart + by === y.rawStart &&
+    x.block === y.block &&
+    x.textBlock === y.textBlock &&
+    x.gen === y.gen;
+  let from = 0;
+  while (from < shorter && a.charCodeAt(from) === b.charCodeAt(from)) from++;
+  for (let k = 0; k < was.segments.length || k < now.segments.length; k++) {
+    const x = was.segments[k];
+    const y = now.segments[k];
+    // A segment begins at the edge before it, which says where it stands.
+    const start = Math.max(0, Math.min(x?.rawStart ?? from, y?.rawStart ?? from) - 1);
+    if (start >= from) break;
+    if (!x || !y || !same(x, y, 0)) {
+      from = start;
+      break;
+    }
+  }
+  for (let k = 0; ; k++) {
+    const x = was.fences[k];
+    const y = now.fences[k];
+    if (x === undefined && y === undefined) break;
+    if (x === y) {
+      if (/** @type {number} */ (x) >= from) break;
+      continue;
+    }
+    from = Math.min(from, x ?? from, y ?? from);
+    break;
+  }
+  let back = 0;
+  while (
+    back < shorter - from &&
+    a.charCodeAt(a.length - 1 - back) === b.charCodeAt(b.length - 1 - back)
+  )
+    back++;
+  for (let k = 1; k <= was.segments.length && k <= now.segments.length; k++) {
+    const x = /** @type {IndexedSegment} */ (was.segments[was.segments.length - k]);
+    const y = /** @type {IndexedSegment} */ (now.segments[now.segments.length - k]);
+    const xEnd = x.rawStart + x.end - x.start;
+    if (a.length - xEnd >= back) break;
+    if (!same(x, y, shift)) {
+      back = Math.min(back, a.length - xEnd, b.length - (y.rawStart + y.end - y.start));
+      break;
+    }
+  }
+  for (let k = 1; ; k++) {
+    const x = was.fences[was.fences.length - k];
+    const y = now.fences[now.fences.length - k];
+    if (x === undefined && y === undefined) break;
+    if (x !== undefined && x + shift === y) {
+      if (x < a.length - back) break;
+      continue;
+    }
+    // A fence that moved is a change at the edge it stands at.
+    if (x !== undefined) back = Math.min(back, Math.max(0, a.length - x - 1));
+    if (y !== undefined) back = Math.min(back, Math.max(0, b.length - y - 1));
+    break;
+  }
+  const span = { from, was: a.length - back, now: b.length - back };
+  return span.was === from && span.now === from ? null : span;
+}
+// The place `count` of the page's letters before `at`, or its start.
+/** @param {string} raw @param {number} at @param {number} count */
+function lettersBefore(raw, at, count) {
+  let i = at;
+  for (let seen = 0; i > 0 && seen < count;) if (!gapAt(raw, --i)) seen += 1;
+  return i;
+}
 
-/** @typedef {{from: number, to: number}} Occurrence */
-/** @type {WeakMap<PageReading, Map<Element | null, Map<string, Occurrence[]>>>} */
-const occurrenceIndexes = new WeakMap();
-// A quote's occurrences in a reading, found once by `find` and kept with the reading.
-/** @param {PageReading} text @param {string} quote @param {Element | null} within @param {() => Occurrence[]} find */
-function occurrences(text, quote, within, find) {
-  let byWithin = occurrenceIndexes.get(text);
-  if (!byWithin) occurrenceIndexes.set(text, (byWithin = new Map()));
-  let byQuote = byWithin.get(within);
-  if (!byQuote) byWithin.set(within, (byQuote = new Map()));
-  let found = byQuote.get(quote);
-  if (!found) byQuote.set(quote, (found = find()));
-  return found;
+// The quotes anchor placement keeps (`trackQuotes`), each with every copy the page
+// reads of it, carried from one reading to the next through what changed between the
+// two (`carry`), and the quotes whose copies, or the words a resolution read beside one,
+// changed since placement last asked (`quotesChanged`).
+const index = {
+  /** @type {PageReading | null} */
+  reading: null,
+  /** @type {Map<string, QuoteEntry>} */
+  entries: new Map(),
+  table: tableOf([]),
+  /** @type {Set<string>} */
+  changed: new Set(),
+};
+// The index brought to `now` from the reading it was last brought to. A copy before the
+// change stands where it stood, one after it stands moved by what the change put in or
+// took out, and one the change touched is gone; the copies there are now are read from
+// the change and as many letters before it as the widest quote holds, since a copy that
+// starts further back ends before the change. Each quote whose copies moved has changed,
+// and so has one with a change in the words a resolution read beside a copy of it.
+/** @param {PageReading} now */
+function carry(now) {
+  const was = index.reading;
+  index.reading = now;
+  if (!was || was === now || !index.entries.size) return;
+  const span = changedSpan(was, now);
+  if (!span) return;
+  const { from } = span;
+  const shift = span.now - span.was;
+  /** @type {Set<QuoteEntry>} */
+  const moved = new Set();
+  for (const entry of index.entries.values()) {
+    /** @type {Copy[]} */
+    const copies = [];
+    let changed = false;
+    for (const copy of entry.copies) {
+      const { near } = copy;
+      if (near && near[0] <= span.was && near[1] >= from) changed = true;
+      if (copy.to <= from) copies.push(copy);
+      else if (copy.from >= span.was) {
+        copies.push({
+          from: copy.from + shift,
+          to: copy.to + shift,
+          near: near && [near[0] + shift, near[1] + shift],
+        });
+      } else changed = true;
+    }
+    entry.copies = copies;
+    if (changed) moved.add(entry);
+  }
+  const lo = lettersBefore(now.raw, from, index.table.widest);
+  scan(now, index.table, lo, span.now, (entry, copy) => {
+    if (copy.to <= from) return; // standing before the change, as it stood
+    entry.copies.push(copy);
+    moved.add(entry);
+  });
+  for (const entry of moved) {
+    entry.copies = entry.copies
+      .map((copy) => ({ ...copy, near: null }))
+      .sort((left, right) => left.from - right.from);
+    index.changed.add(entry.quote);
+  }
+}
+// Keep the index for these quotes, each quote anchor placement's threads name: a quote it
+// names no longer is let go, and the new ones are found by one pass over the page for
+// all of them.
+/** @param {Iterable<string>} quotes */
+export function trackQuotes(quotes) {
+  const wanted = new Set(quotes);
+  const gone = [...index.entries.keys()].filter((quote) => !wanted.has(quote));
+  const fresh = [...wanted]
+    .filter((quote) => !index.entries.has(quote))
+    .map(quoteEntry)
+    .filter((entry) => entry !== null);
+  if (!gone.length && !fresh.length) return;
+  const now = pageText();
+  carry(now);
+  for (const quote of gone) {
+    index.entries.delete(quote);
+    index.changed.delete(quote);
+  }
+  for (const entry of fresh) index.entries.set(entry.quote, entry);
+  index.table = tableOf(index.entries.values());
+  if (fresh.length)
+    scan(now, tableOf(fresh), 0, now.raw.length, (entry, copy) =>
+      entry.copies.push(copy),
+    );
+}
+// The quotes whose copies changed since this was last asked, the index brought to the
+// page as it reads now.
+export function quotesChanged() {
+  if (index.entries.size) carry(pageText());
+  const { changed } = index;
+  index.changed = new Set();
+  return changed;
+}
+// A quote the index doesn't keep, as a draft's, asked of one reading: found by a pass
+// of its own, kept with the reading, since a capture asks it at each width of context.
+/** @type {WeakMap<PageReading, Map<string, QuoteEntry | null>>} */
+const askedOf = new WeakMap();
+/** @param {PageReading} text @param {string} quote */
+function copiesOf(text, quote) {
+  const kept = index.entries.get(quote);
+  if (kept && text === reading) {
+    carry(text);
+    return kept;
+  }
+  let asked = askedOf.get(text);
+  if (!asked) askedOf.set(text, (asked = new Map()));
+  if (asked.has(quote)) return asked.get(quote) ?? null;
+  const entry = quoteEntry(quote);
+  if (entry)
+    scan(text, tableOf([entry]), 0, text.raw.length, (_, copy) =>
+      entry.copies.push(copy),
+    );
+  asked.set(quote, entry);
+  return entry;
 }
 /** @param {PageReading} text @param {string} quote @param {{prefix?: string, suffix?: string}} anchor @param {Element | null} [within] */
 export function findQuote(text, quote, anchor, within) {
-  const { raw } = text;
-  const words = quote.trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return [];
-  // Whole words up to the cap, and never none: a single word longer than it is still
-  // the only lead there is, and one that spent the cap exactly is not worth a term
-  // the walk would take anyway.
-  /** @type {string[]} */
-  const lead = [];
-  let spent = 0;
-  for (const next of words) {
-    if (lead.length && spent + next.length > LEAD_CAP) break;
-    lead.push(next);
-    spent += next.length + 1;
-  }
-  const rest = words.slice(lead.length);
+  const entry = copiesOf(text, quote);
+  if (!entry) return [];
   // A unique exact-context occurrence wins. If no context survives, a sole quote
   // occurrence is still identifiable; two are not. Document order is not identity:
   // guessing the first copy after the intended one's neighbours changed quietly moves
-  // a comment to words it was never made on. matchAll steps past each lead, so two
-  // occurrences overlapping within it are one candidate — which is the lead's own
-  // repetition and not the passage's, since the walk still has to confirm the rest.
-  // The occurrences are kept with the reading, since a capture resolves one quote at
-  // each width of context it tries. Context is read only to tell copies apart: a sole
-  // candidate is the answer whatever its neighbours say, and a second exact one settles
-  // that none is unique.
-  const [pre, post] = [anchor.prefix ?? "", anchor.suffix ?? ""];
-  const candidates = occurrences(text, quote, within ?? null, () => {
-    const pattern = new RegExp(
-      lead.map((w) => [...w].map(escape).join(`${EDGE}*`)).join(`[\\s${EDGE}]+`),
-      "g",
-    );
-    const found = [];
-    for (const at of raw.matchAll(pattern)) {
-      const stop = confirmRest(raw, at.index + at[0].length, rest);
-      if (stop === -1 || !withinCell(text, at.index, stop)) continue;
-      if (
-        within &&
-        !(
-          under(pointAt(text, at.index)?.node, within) &&
-          under(pointAt(text, stop - 1)?.node, within)
-        )
+  // a comment to words it was never made on. Copies that overlap are one candidate, the
+  // first: that is the quote repeating itself, as "aa" does in "aaa", not the page
+  // saying it twice. Context is read only to tell copies apart: a sole candidate is the
+  // answer whatever its neighbours say, and a second exact one settles that none is
+  // unique.
+  /** @type {Copy[]} */
+  const copies = [];
+  for (const copy of entry.copies) {
+    const last = copies.at(-1);
+    if (!last || copy.from >= last.to) copies.push(copy);
+  }
+  const candidates = within
+    ? copies.filter(
+        ({ from, to }) =>
+          under(pointAt(text, from)?.node, within) &&
+          under(pointAt(text, to - 1)?.node, within),
       )
-        continue;
-      found.push({ from: at.index, to: stop });
-    }
-    return found;
-  });
+    : copies;
+  const [pre, post] = [anchor.prefix ?? "", anchor.suffix ?? ""];
   const exact = [];
   for (const hit of candidates.length > 1 ? candidates : []) {
-    if (!holds(text, hit.from, pre, true) || !holds(text, hit.to, post, false))
+    if (
+      !holds(text, hit.from, pre, true, hit) ||
+      !holds(text, hit.to, post, false, hit)
+    )
       continue;
     exact.push(hit);
     if (exact.length > 1) break;

@@ -5921,6 +5921,148 @@ def test_a_mark_whose_words_a_script_broke_up_is_marked_no_more(engine, request,
     expect(page.locator(".lf-margin-preview:not([hidden])")).to_have_count(0)
 
 
+MARKED = "() => [...(CSS.highlights.get('lf-mark') ?? [])].map(String).join('|')"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_mark_whose_words_a_script_puts_back_is_marked_again(engine, request, serve):
+    """A script that writes other words into a marked phrase and, in a later task, takes
+    them out again leaves the phrase as the thread's quote names it, so it is marked
+    again, where the pointer finds it, as reading the page again finds."""
+    page = _changed_page(request, engine, serve)
+    page.evaluate(
+        """() => {
+          const text = document.getElementById('changed').childNodes[1];
+          text.insertData(text.data.indexOf('phrase'), 'unrelated ');
+        }"""
+    )
+    page.wait_for_function(f"() => ({MARKED})() === ''", timeout=2000)
+    page.evaluate(
+        """() => {
+          const text = document.getElementById('changed').childNodes[1];
+          text.deleteData(text.data.indexOf('unrelated '), 'unrelated '.length);
+        }"""
+    )
+    page.wait_for_function(f"() => ({MARKED})() === 'marked phrase'", timeout=2000)
+    assert _rest_on(page, page.evaluate(PHRASE_AT, "marked"))
+    expect(page.locator("#lf-preview .lf-preview-word")).to_have_text(
+        "About the phrase?"
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_marked_phrase_a_script_writes_again_is_marked_no_more(
+    engine, request, serve
+):
+    """A script that writes a marked phrase a second time in its section, where nothing
+    the thread kept around the phrase tells the two apart, leaves its quote naming no
+    one passage: the first is marked no more, and the pointer finds no mark on it, as
+    reading the page again finds."""
+    page = _changed_page(request, engine, serve)
+    page.evaluate(
+        """() => {
+          const again = document.createElement('em');
+          again.textContent = 'The marked phrase again.';
+          document.getElementById('changed').append(again);
+        }"""
+    )
+    page.wait_for_function(f"() => ({MARKED})() === ''", timeout=2000)
+    assert not _rest_on(page, page.evaluate(PHRASE_AT, "marked"))
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_a_script_puts_inside_a_passage_s_shadow_stage_unmark_it(
+    engine, request, serve
+):
+    """A script that writes a word at the start of a declared shadow stage a marked
+    passage runs into from the page's words before it puts that word inside the
+    passage, which its thread's quote no longer names: neither piece is marked, and the
+    pointer finds no mark on the page's piece, as reading the page again finds."""
+    url = serve(
+        leaf_page(
+            "Across a root",
+            '<div id="both"><p>The first line of the passage ends here.</p>'
+            '<lf-late-stage id="late"><p>Its second line stands inside the widget.</p>'
+            "</lf-late-stage></div>" + "<p>After.</p>" * 4,
+        ),
+        layer_registry={"lf-late-stage": VERBATIM_STAGE},
+        layer_widgets={"lf-late-stage.js": STAGED_ON_CONNECT},
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Across the root?",
+            "anchor": {
+                "section": "both",
+                "quote": "passage ends here. Its second line",
+            },
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function(f"() => ({MARKED})().split('|').length === 2")
+    page.evaluate(
+        """() => document.getElementById('late').shadowRoot.querySelector('p')
+          .prepend('Inserted ')"""
+    )
+    page.wait_for_function(f"() => ({MARKED})() === ''", timeout=2000)
+    line = page.evaluate(
+        """() => {
+          const text = document.querySelector('#both > p').firstChild;
+          const at = text.data.indexOf('passage ends');
+          const range = document.createRange();
+          range.setStart(text, at);
+          range.setEnd(text, at + 3);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    assert not _rest_on(page, line)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_passage_a_script_makes_editable_inside_is_marked_no_more(
+    engine, request, serve
+):
+    """A script that makes an element inside a marked passage editable puts an edge of
+    the passage's words at either end of it, which a quote does not run across, so the
+    passage is marked no more and the pointer finds no mark on it, as reading the page
+    again finds."""
+    url = serve(
+        leaf_page(
+            "Editable",
+            '<p id="edit">The passage <span id="inner">runs through</span> this '
+            "span.</p>" + "<p>More.</p>" * 4,
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Through it?",
+            "anchor": {"section": "edit", "quote": "passage runs through this"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function(f"() => ({MARKED})() === 'passage |runs through| this'")
+    page.evaluate(
+        "() => { document.getElementById('inner').contentEditable = 'true'; }"
+    )
+    page.wait_for_function(f"() => ({MARKED})() === ''", timeout=2000)
+    word = page.evaluate(
+        """() => {
+          const range = document.createRange();
+          range.setStart(document.getElementById('edit').firstChild, 4);
+          range.setEnd(document.getElementById('edit').firstChild, 7);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    assert not _rest_on(page, word)
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_search_match_whose_end_shows_is_brought_to_its_start(engine, request, serve):
     """A page search's match whose end stands in the window while its start stands
@@ -6010,6 +6152,60 @@ def test_travel_to_a_thread_on_a_tall_passage_shows_where_it_starts(
         }"""
     )
     assert 0 <= start["top"] and start["bottom"] <= 500, start
+
+
+@pytest.mark.parametrize(
+    ("before", "words", "quote"),
+    [
+        (
+            680,
+            '<p style="writing-mode: vertical-rl; height: 400px; width: 120px">A '
+            "passage whose words run down several columns before they reach the end, "
+            "with a further sentence to fill them.</p>",
+            "A passage whose words run down several columns before they reach the end,"
+            " with a further sentence to fill them.",
+        ),
+        (
+            1600,
+            '<p><span style="display: none">Hidden beginning </span>Visible passage '
+            "ending for the reader.</p>",
+            "Hidden beginning Visible passage ending for the reader.",
+        ),
+    ],
+    ids=["vertical", "hidden-start"],
+)
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_travel_to_a_thread_shows_the_first_line_its_passage_draws(
+    engine, before, words, quote, request, serve
+):
+    """The thread walk brings into sight the first line its passage draws: in vertical
+    writing, the whole of its first column, though its first word already shows, and
+    where its first words draw no box, the line its first drawn words stand on."""
+    url = serve(
+        leaf_page(
+            "First line",
+            f'<p style="height: {before}px">Before.</p>'
+            f'<section id="target">{words}</section>'
+            '<p style="height: 1600px">After.</p>',
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About this?",
+            "anchor": {"section": "target", "quote": quote},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.set_viewport_size({"width": 1200, "height": 900})
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 1")
+    page.keyboard.press("t")
+    page.wait_for_timeout(600)
+    box = page.locator("#target p").bounding_box()
+    assert 0 <= box["y"] and box["y"] + box["height"] <= 900, box
 
 
 # A widget whose words read as the page's prose (`x-verbatim`), staged in a declared

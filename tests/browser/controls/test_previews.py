@@ -1498,6 +1498,95 @@ def test_a_passage_previews_again_once_the_pointer_leaves_a_link_inside_it(
     expect(word).to_have_text("Is the link right?")
 
 
+# Where `words` stand in the element `selector` names: the middle of their first box.
+WORDS_AT = """([selector, words]) => {
+  const walker = document.createTreeWalker(document.querySelector(selector),
+    NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const at = node.data.indexOf(words);
+    if (at < 0) continue;
+    const range = document.createRange();
+    range.setStart(node, at);
+    range.setEnd(node, at + words.length);
+    const box = range.getClientRects()[0];
+    return {x: box.left + box.width / 2, y: box.top + box.height / 2};
+  }
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_passage_entered_by_bold_words_lets_the_link_and_gloss_in_it_preview(
+    engine, request, serve
+):
+    """A thread's passage that starts in bold words previews as the thread there, and the
+    link and the gloss further on in it preview as themselves: they stand inside the
+    passage, whichever of its pieces the pointer came onto it by. A link that only
+    partly overlaps a passage previews as the link on the words they share, however the
+    pointer reached them, since it doesn't hold the whole passage."""
+    url = serve(
+        leaf_page(
+            "Rollout",
+            '<p id="marked"><strong id="lead">The rollout starts with</strong> '
+            '<a id="linked" href="#destination">a small cohort</a> and uses '
+            '<lf-gloss id="gloss" tip="Check every gate before expanding.">a gate'
+            "</lf-gloss> before expanding.</p>"
+            '<p id="partial">This section keeps <a id="partial-link" '
+            'href="#destination">the first group and the remaining group</a> '
+            "together.</p>"
+            + "<p>More words.</p>"
+            * 6
+            + '<section id="destination"><h2>Destination details</h2>'
+            "<p>The second stage starts once the cohort remains healthy.</p></section>",
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "Should we expand this rollout?",
+            "anchor": {
+                "section": "marked",
+                "quote": "The rollout starts with a small cohort and uses a gate",
+            },
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "Check the first group only.",
+            "anchor": {"section": "partial", "quote": "This section keeps the first"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    word = page.locator(PREVIEW).locator(".lf-preview-word")
+    rendered(page)
+
+    def onto(selector, words):
+        at = page.evaluate(WORDS_AT, [selector, words])
+        page.mouse.move(at["x"], at["y"], steps=3)
+
+    page.mouse.move(2, 2)
+    onto("#lead", "rollout")
+    expect(word).to_have_text("Should we expand this rollout?")
+    onto("#linked", "cohort")
+    expect(word).to_have_text("Destination details")
+    onto("#gloss", "gate")
+    expect(word).to_have_text("a gate")
+    onto("#lead", "rollout")
+    expect(word).to_have_text("Should we expand this rollout?")
+
+    page.mouse.move(2, 2)
+    onto("#partial-link", "first")
+    expect(word).to_have_text("Destination details")
+    onto("#partial", "section")
+    expect(word).to_have_text("Check the first group only.")
+    onto("#partial-link", "first")
+    expect(word).to_have_text("Destination details")
+
+
 def test_a_standing_preview_says_what_a_new_revision_changed(browser, serve):
     """A preview standing over a link while a new revision changes the place it points
     at says the place's new words, with no pointer input: a revision ends in a

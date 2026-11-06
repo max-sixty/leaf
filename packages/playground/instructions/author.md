@@ -240,6 +240,16 @@ A value the controls of the comment's `revision` can't hold, such as a radius pa
 lowered `max`, showed as that control's authored value. `leaf page state` holds the
 current one.
 
+## After applying a configuration
+
+A playground whose submitted configuration you have applied becomes a record too.
+Author each control at the chosen value, so the preview, Reset and the page's account
+of the choice agree, and keep it and its evidence open beside what came of the choice,
+since the user reads the record against that evidence. The user can still explore from
+it. Keep the recorded configuration identifiable when working values change; a
+changing preview shows the working configuration and is labeled accordingly.
+Reset brings the preview back to the record.
+
 ## Stateful previews
 
 Write a preview's script as an inline `<script type="module">`, and put the candidates

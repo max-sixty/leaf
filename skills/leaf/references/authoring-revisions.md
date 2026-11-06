@@ -14,6 +14,10 @@ the rest of the output may be wrong until you do.
 `data_bindings` names each external data source and the widgets that read it; change a
 source's value with `leaf data set`.
 
+Read the author instructions for the page's packages and the widgets you are revising
+(`page-authoring.md`, "Read the registry"). They own how each widget keeps the user's
+answer and presents it after you have acted on it.
+
 ## Publish several authored files together
 
 When the HTML and its modules must change together, save `source.digest` from
@@ -32,9 +36,9 @@ and external data.
 ## Revisions and user-owned words
 
 Write new content directly. Rewrite prose the user has already seen as an
-`lf-suggestion`: `lf-old` holds the current markup verbatim, `lf-new` the replacement,
-and `resolves="<comment-id>"` links a requested fix to its thread. Introduce the first
-suggestion in prose so the user knows they can comment on its new words too.
+`lf-suggestion`, following its instructions for markup and linking a requested fix
+to its thread. Introduce the first suggestion in prose so the user knows they can
+comment on its new words too.
 
 A suggestion is for wording the user might prefer to keep. A correction is not: when
 the page got a number, a source or a unit wrong, or when work has landed, a decision
@@ -52,17 +56,11 @@ so don't copy them into the markup. Revise your own markup when the content need
 keeping the meaning of the user's decisions. To withdraw a decision, follow the
 registry's `$restated`.
 
-When you move cards in a board, place each card in the column and rank `state` gives
-it (`$state` defines ranks).
-
 Take in a user's answer to a page's obligation in a stamped version. Where the widget's
-`x-state` declares a `record` form, write that form: `chosen` on exactly the picked
-`lf-option` elements you wrote, or the user's words as the body of a `needed`
-`lf-draft`. Leave an option the user added out of the markup; the log keeps it. Where
-the widget declares no form, as for an accepted suggestion or submitted playground
-settings, the next stamp takes in the answer. A worker's report likewise stays provisional until the
-stamped revision its `handling` asks for. When you work a decided suggestion into the
-surrounding prose, keep its surviving branch and its ids.
+`x-state` declares a `record` form, write that form as its author instructions describe.
+Where it declares no form, the next stamp takes in the answer. Preserve the user's
+decisions and the ids of content you retain. A worker's report likewise stays
+provisional until the stamped revision its `handling` asks for.
 
 ## Make changes easy to find
 
@@ -89,22 +87,15 @@ members. Remove material the current state replaces, such as a concluded run or 
 superseded section; keep older material, collapsed, only where current work needs its
 context. Keep deferred work in the list with enough context to resume it.
 
-A decision the user answered and you have acted on becomes a record. Give its
-`lf-options` group the `settled` attribute, which collapses it to the pick, and say
-beside it what you did about the choice. Anything the choice sets in motion that
-hasn't happened yet reads as decided, not under way. Keep the result and its evidence
+A decision the user answered and you have acted on becomes a record. Present it as
+the widget's instructions describe, and say beside it what you did about the choice.
+Anything the choice sets in motion that hasn't happened yet reads as decided, not
+under way. Keep the result and its evidence
 in the current reading flow while the reader still needs them (`page-authoring.md`,
 "Reading cost"); retire the superseded interaction as finished work. Pose anything
 still worth asking as a new decision with new ids. Use `$restated` to withdraw the
 decision and ask again.
-Don't mark a decision `settled` until you have finished applying it, and keep a section
-open while the user is still commenting there.
-
-A playground whose submitted configuration you have applied becomes a record too.
-Author each control at the chosen value, so the preview, Reset and the page's account
-of the choice agree, and keep it and its evidence open beside what came of the choice,
-since the user reads the record against that evidence. The user can still explore from
-it, and Reset brings them back to the record.
+Keep a section open while the user is still commenting there.
 
 The user reads threads to find out how their input was addressed. When a revision
 resolves the question or completes the work discussed in an open thread, reply there

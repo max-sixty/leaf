@@ -5,6 +5,34 @@ the patch, select the `file-tree` package too; its author instructions describe 
 navigator and selected-file composition. A small flat patch can use the diff's listing
 alone.
 
+## Supplying a patch
+
+Keep the complete Git patch, including file-operation metadata: files without
+textual hunks still have commentable rows.
+The `lf-diff` instructions give the markup for an inline patch.
+
+A source-bound patch:
+
+```html
+<lf-diff id="review-patch" source="review-patch" collapsed></lf-diff>
+```
+
+Set the source to one JSON string:
+
+```bash
+wt step diff | jq -Rs . | leaf data set <page> review-patch
+```
+
+Run the pipeline again to refresh the open page. For a large patch, use the manifest
+producer described by the contract:
+
+```bash
+leaf page instructions <page> --contract unified-diff | jq -er '.producer'
+```
+
+`references/authoring-evidence.md`, "Source files and media", owns when evidence
+follows a source and when it keeps a snapshot.
+
 ## Worktree snapshots
 
 Use `lf-worktree-diffs` when the reader needs to inspect a supplied set of worktrees.

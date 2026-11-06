@@ -665,7 +665,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           class="lf-compose-error"
           aria-hidden="true"
           ?hidden=${!error}
-          title=${error?.message ?? nothing}
+          .lfPreview=${() => (error ? { name: error.message } : null)}
           @pointerdown=${
             /** @param {PointerEvent} event */ (event) => {
               event.preventDefault();

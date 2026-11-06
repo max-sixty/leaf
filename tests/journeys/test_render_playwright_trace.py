@@ -2110,11 +2110,14 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
             }"""
         )
         assert reading["contrast"] >= 4.5, (color_scheme, reading)
-        # The tooltip never covers the flag it describes.
+        # The tooltip never covers the flag it describes, standing beside its lane or
+        # above or below it.
         tip_box, pin_box = tip.bounding_box(), shared.bounding_box()
         assert (
             tip_box["y"] + tip_box["height"] <= pin_box["y"] + 1
             or tip_box["y"] >= pin_box["y"] + pin_box["height"] - 1
+            or tip_box["x"] + tip_box["width"] <= pin_box["x"] + 1
+            or tip_box["x"] >= pin_box["x"] + pin_box["width"] - 1
         ), (tip_box, pin_box)
     user.emulate_media(color_scheme="light")
     user.mouse.move(0, 0)

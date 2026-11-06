@@ -45,6 +45,7 @@ from render_harness import (
     open_threads,
     page_comment,
     panel_settled,
+    preview_parts,
     resized,
     round_trip,
     scroll_settled,
@@ -551,11 +552,13 @@ def test_tab_opens_the_comment_picker_with_individual_emoji_buttons(browser, ser
     undo_offered(page)
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
-    expect(
+    said = preview_parts(
         page.locator('.lf-command-reference-command[data-lf-command="history.undo"]')
-    ).to_have_attribute(
-        "title", re.compile("^Undo: shorten reaction on “The store is capped.* · ")
     )
+    assert any(
+        re.match("^Undo: shorten reaction on “The store is capped.* · ", line)
+        for line in said
+    ), said
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).to_be_hidden()
 

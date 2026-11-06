@@ -724,6 +724,9 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     ).to_be_focused()
     page.keyboard.press("x")
     expect(result).to_have_text("Applied 3")
+    # The Tab showed the control's preview, Escape's first step (WCAG 1.4.13).
+    page.keyboard.press("Escape")
+    expect(page.locator("#lf-preview")).to_be_hidden()
     page.keyboard.press("Escape")
     expect(result).to_have_text("Applied 4")
 

@@ -8,6 +8,7 @@ import { PAGE_ROOT } from "./context.js";
 import { focused } from "./focus.js";
 import { isNativeLayer } from "./shadow-tree.js";
 import { randomId } from "./ids.js";
+import { titleWords } from "./element-markers.js";
 
 // A document with no declared root has no server to record to: an interactive export,
 // or a file opened on its own.
@@ -115,8 +116,7 @@ function describe(event) {
   }
   const labelTarget = control ?? target;
   if (labelTarget instanceof Element) {
-    const label =
-      labelTarget.getAttribute("aria-label") || labelTarget.getAttribute("title");
+    const label = labelTarget.getAttribute("aria-label") || titleWords(labelTarget);
     if (label) entry.label = label;
     else if (control) entry.label = control.textContent?.trim().slice(0, 200);
   }

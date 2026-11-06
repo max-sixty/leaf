@@ -289,9 +289,9 @@ itself (`module-annotations.md`, "Reading and opening Threads from a widget").
 Pointing reads; pressing acts (`interface-goals.md`). Leaf previews an element when a
 pointer rests on it, when the keyboard focuses it or something inside it, and when a
 finger holds it, beside the element over the page, in one face: a name with key chips,
-then lines of detail. The preview takes no pointer and holds no control, so a control
-the user presses stays on the widget, and a finger's release after a hold presses the
-element, so a widget that answers a click answers the hold too.
+then lines of detail. The preview holds no control, so a control the user presses stays
+on the widget; a pointer may cross onto it to read it, and a finger's release after a
+hold presses the element, so a widget that answers a click answers the hold too.
 
 A control needs no declaration. It previews its accessible name where its face shows a
 symbol or doesn't say that name, and every key the register binds to it as chips. A
@@ -302,7 +302,9 @@ control whose face says its name and that no key reaches previews nothing. Its
 A widget adds to that, or previews an element that isn't a control, by declaring the
 element's `lfPreview(route)`, with no import, as it declares `lfCommands`. Leaf calls it
 once each time the preview shows, with the route that asked: `"pointer"`, `"focus"` or
-`"hold"`. It returns:
+`"hold"`, and again for each new presentation of the document while the preview
+stands, so what it says follows the page without tracking its own inputs; words that
+come back the same leave the preview as it is. It returns:
 
 - `{name, keys, detail, at, excerpt}`, every field optional. `name` replaces the
   control's accessible name in the preview, or names an element that has none. `keys`
@@ -328,7 +330,10 @@ new one on the route reading the element, and off Leaf the call does nothing.
 
 A `title` is the element's words too: off Leaf the browser shows it, and on Leaf the
 preview does, on every route, with no second tooltip, so a portable widget that writes
-one needs nothing else. Off Leaf nothing reads `lfPreview`.
+one needs nothing else. The preview takes the attribute off the element the first time
+the pointer comes and keeps its words, so words a widget may later remove or blank go
+in `lfPreview` instead: removing a title the preview has taken removes nothing. Off Leaf
+nothing reads `lfPreview`.
 
 A link an author wrote to a place on the page previews that place with no declaration.
 A link a widget draws previews nothing of the place unless the widget declares it,

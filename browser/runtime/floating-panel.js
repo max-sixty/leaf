@@ -666,7 +666,10 @@ export function createFloatingPanel({
                 class="lf-fp-mode"
                 ?hidden=${mode === nothing}
                 aria-label=${search ? searchLabel : nothing}
-                title=${search ? searchLabel : selection ? reading.words : nothing}
+                .lfPreview=${() => {
+                  const words = search ? searchLabel : selection ? reading.words : null;
+                  return words ? { name: words } : null;
+                }}
                 >${mode}</span
               >
               <div class="lf-fp-actions" ?hidden=${!searchControls.length}>
@@ -2134,7 +2137,7 @@ export function createFloatingPanel({
     html`<button
       type="button"
       data-lf-row=${row ?? nothing}
-      title=${title ?? nothing}
+      .lfPreview=${() => (title ? { detail: [title] } : null)}
       ${offeredAction("row", "lf-fp-item")}
       aria-current=${current ? "true" : nothing}
       ?disabled=${disabled}
@@ -3536,7 +3539,8 @@ export function createFloatingPanel({
         if (choice.commits)
           return html`<button
             ${offeredAction("commit", "lf-fp-commit")}
-            title=${choice.description || nothing}
+            .lfPreview=${() =>
+              choice.description ? { detail: [choice.description] } : null}
             aria-pressed=${String(choice.chosen)}
             @click=${press}
           >
@@ -4493,7 +4497,7 @@ export function createFloatingPanel({
               <button
                 type="button"
                 ${offeredAction("inline", "lf-fp-row-notice-press")}
-                title=${press.title ?? nothing}
+                .lfPreview=${() => (press.title ? { detail: [press.title] } : null)}
                 ?disabled=${press.disabled}
                 ?data-lf-notice-press=${Boolean(passing)}
                 @click=${press.run}

@@ -1837,8 +1837,10 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     }"""
     assert head.evaluate(read)["word"] is None
 
-    page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
+    # A key moves focus there, the user's own move, so the focus is visible and reads.
+    page.keyboard.down("Shift")
     head.focus()
+    page.keyboard.up("Shift")
     expect(preview).to_be_visible()
     focused = head.evaluate(read)
     assert focused == {

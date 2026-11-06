@@ -2761,23 +2761,31 @@ LANDING_TOP = "(await window.__lfCheckApi()).landingBand(document.scrollingEleme
 PREVIEW = "#lf-preview"
 
 
-def preview_parts(target):
-    """What `target`'s preview shows a pointer resting on it (runtime/preview.js): its
-    name, then each line of detail, as the face draws them, key chips left out. The
-    pointer leaves it again after, so the next reading is a new one."""
+def preview_parts(target, route="pointer"):
+    """What `target`'s preview shows a pointer resting on it (runtime/preview.js), or
+    with `route="focus"` the keyboard moving onto it: its name, then each line of
+    detail, as the face draws them, key chips left out. The pointer leaves it again
+    after, so the next reading is a new one."""
     page = target.page
     tip = page.locator("#lf-preview")
-    # From somewhere else: a pointer already resting where the target now stands reads
-    # nothing there until it moves (preview.js).
-    page.mouse.move(2, 2)
-    target.hover()
+    if route == "focus":
+        # A key is down as focus lands, the user's own move (preview.js, `aimed`).
+        page.keyboard.down("Shift")
+        target.focus()
+        page.keyboard.up("Shift")
+    else:
+        # From somewhere else: a pointer already resting where the target now stands
+        # reads nothing there until it moves (preview.js).
+        page.mouse.move(2, 2)
+        target.hover()
     expect(tip).to_be_visible()
-    expect(tip).to_have_attribute("data-lf-route", "pointer")
+    expect(tip).to_have_attribute("data-lf-route", route)
     parts = tip.evaluate(
         """(tip) => [...tip.querySelectorAll('.lf-preview-word, .lf-preview-detail')]
           .map((part) => part.textContent)"""
     )
-    page.mouse.move(0, 0)
+    if route == "pointer":
+        page.mouse.move(0, 0)
     return parts
 
 

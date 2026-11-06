@@ -536,6 +536,18 @@ def test_a_preview_put_away_stays_away_until_the_user_aims_again(
     page.evaluate(changed, "chart")
     page.wait_for_timeout(300)
     expect(tip).to_be_hidden()
+    # A new point aimed at inside it is a new target, which shows again.
+    page.evaluate(
+        """async () => {
+          const {previewChanged} = await window.__lfWidgetApi();
+          window.lf.point = 3;
+          previewChanged(document.getElementById('chart'), {aim: true});
+        }"""
+    )
+    expect(tip).to_have_text("Point 3")
+    page.keyboard.press("Escape")
+    expect(tip).to_be_hidden()
+    page.evaluate("() => { window.lf.point = 2; }")
 
     page.keyboard.press("Tab")
     expect(tip).to_have_text("Drag to move")
@@ -802,3 +814,35 @@ def test_a_preview_stands_where_it_covers_no_small_target_and_fits_any_window(
         }"""
     )
     assert held["top"] >= 0 and held["bottom"] <= held["window"] and held["cut"], held
+
+
+def test_focus_a_command_places_in_a_surface_it_opens_shows_no_preview(browser, serve):
+    """`m` walks to the question waiting on the user and opens its card with focus in
+    it: the card placed that focus as it opened, so nothing previews until the user
+    moves on, as Tab inside the card does. Every element the walk focuses previews
+    here, so a preview the placement showed would show."""
+    url = serve(PANEL_PAGE)
+    panel_comment(
+        serve.page_dir,
+        "Which day suits the launch?",
+        {"section": "lede"},
+        author="agent",
+        obligation=True,
+    )
+    page = open_page(browser, url)
+    page.evaluate(
+        """() => document.addEventListener('focusin', (event) => {
+          const el = event.composedPath()[0];
+          if (el instanceof Element && !el.lfPreview)
+            el.lfPreview = () => ({name: 'Placed here'});
+        }, true)"""
+    )
+    tip = page.locator(PREVIEW)
+    page.locator("body").focus()
+    page.keyboard.press("m")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    page.wait_for_timeout(300)
+    expect(tip).to_be_hidden()
+    page.keyboard.press("Tab")
+    expect(tip).to_have_text("Placed here")

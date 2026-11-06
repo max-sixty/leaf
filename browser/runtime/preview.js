@@ -984,10 +984,13 @@ export function pointRange(range, read, at) {
 // What `node` previews changed (`previewChanged`): a preview standing for it reads it
 // again where it stands, with no dwell and no fade, or goes where it now says nothing;
 // otherwise a finger holding it or one beside it reads it, and a pointer resting over
-// it after the dwell, unless the user put its preview away. Focus on it opens none:
-// only the user's own move there does (`showFocus`).
-/** @param {Element} node */
-function changed(node) {
+// it after the dwell, unless the user put its preview away. Focus on it opens none for
+// a redraw. Where the user aimed at something new inside it (`aim`), as a chart's next
+// point, the aim is a new target: whatever put the last preview away, the route reading
+// the element shows it, focus included.
+/** @param {Element} node @param {boolean} aim */
+function changed(node, aim) {
+  if (aim && quiet === node) quiet = null;
   if (shown && shown.from === node) {
     show(node, shown.route, null, undefined, true);
     return;
@@ -997,7 +1000,8 @@ function changed(node) {
       hold.target = node;
       show(node, "hold");
     }
-  } else if (beneath && under(beneath, node) && quiet !== node) {
+  } else if (aim && focused() === node) showFocus(node);
+  else if (beneath && under(beneath, node) && quiet !== node) {
     pointing = null;
     point(node);
   }
@@ -1064,7 +1068,8 @@ export function mountPreviews(chrome) {
     PREVIEW,
     (event) => {
       const [node] = event.composedPath();
-      if (isElement(node)) changed(node);
+      if (isElement(node))
+        changed(node, Boolean(/** @type {CustomEvent} */ (event).detail?.aim));
     },
     { capture: true },
   );

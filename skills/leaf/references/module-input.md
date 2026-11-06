@@ -334,7 +334,10 @@ point, or a grip's words stop being true once its card is grabbed, the widget ca
 calls `lfPreview` again and redraws a standing preview where it stands, or shows the
 new one to a pointer resting on the element or a finger holding it, and off Leaf the
 call does nothing. It never brings back a preview the user put away, nor opens one on
-focus: only the user aiming again does. A mark the widget draws for what its preview
+focus: only the user aiming again does. Where the user aimed at something new inside the
+element, as a chart's pointer or arrow key reaching another point, the widget says so,
+`previewChanged(element, {aim: true})`, and the new target shows its preview whatever
+put the last one away, to the pointer, the keyboard's focus or a finger. A mark the widget draws for what its preview
 reads, as a chart's ring on the point it names, comes off when Leaf dispatches
 `PREVIEW_ENDED` (`"lf-preview-ended"`, from the same module) at the element, a
 `CustomEvent` whose `detail.route` names the route that read it, as the preview goes

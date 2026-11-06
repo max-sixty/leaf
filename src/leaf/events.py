@@ -206,7 +206,9 @@ def build_threads(
     within: dict,
     *,
     withdrawn: set | None = None,
-    containments: Iterable[tuple[int, Callable[[], dict]]] = (),
+    containments: Iterable[
+        tuple[int, Callable[[], dict], Callable[[], frozenset[str]] | None]
+    ] = (),
 ) -> dict:
     """Fold threads using the admitted answer coordinate.
 
@@ -237,9 +239,11 @@ def build_threads(
     so what a closure ended stayed ended until then (`provenance.saved_after`);
     only the server reads it. ``resolved`` is the closing that stands at the end of
     the log, or null. `containments` hands the fold, in order, each place where
-    another revision's containment takes hold and a reader of it, so the history at
-    each such place is the one a fold under that containment would read
-    (`InForce.contain`); the containment `within` stands until the first.
+    another revision's containment takes hold, a reader of it, and a reader of the
+    elements whose holders it moved since the one handed over before it, or None
+    where that may be any, so the history at each such place is the one a fold under
+    that containment would read (`InForce.contain`); the containment `within` stands
+    until the first.
 
     Each thread is keyed by, and carries as ``id``, the id of the comment that
     opened it, its ``root``: the name every obligation, workflow, summary, and title
@@ -290,7 +294,7 @@ def build_threads(
     for e in [*events, None]:
         while switch is not None and (e is None or (e.get("seq") or inf) >= switch[0]):
             put, out = [], []
-            moved(in_force.contain(switch[1]), put, out)
+            moved(in_force.contain(*switch[1:]), put, out)
             closures.step(switch[0] - 0.5, put, out)
             switch = next(switches, None)
         if e is None:
@@ -941,12 +945,11 @@ class InForce:
 
     Each step costs what it touches, judging families rather than actions: a note
     moves the threshold of each family resting on what it restates, and a
-    containment compares what owners hold of the restated elements families name and
-    moves the threshold of each family whose owner gained or lost one. Each move
-    costs the logarithm of the family, and a coordinate's winner is the latest of
-    its families' current actions, so however many actions one family or coordinate
-    collects, a walk costs the log times its logarithm, beside that comparison at
-    each containment."""
+    containment compares what owners hold of the restated elements families name
+    that it moved, and moves the threshold of each family whose owner gained or lost
+    one. Each move costs the logarithm of the family, and a coordinate's winner is
+    the latest of its families' current actions, so however many actions one family
+    or coordinate collects, a walk costs the log times its logarithm."""
 
     def __init__(self, within: dict, floors: dict | None = None, withdrawn=frozenset()):
         self._within = within
@@ -1077,38 +1080,57 @@ class InForce:
             self._refresh(family)
         return self._changes(before)
 
-    def contain(self, within: Callable[[], dict]) -> list[Change]:
+    def contain(
+        self,
+        within: Callable[[], dict],
+        moved: Callable[[], frozenset[str]] | None = None,
+    ) -> list[Change]:
         """Judge every kept action again under the containment `within` reads, where
         it differs from the one before for an element a version restated and an
         action names as its owner's: its owner gaining that element raises the
         threshold of the families naming it, and losing it may lower theirs.
 
-        `within` is read only where some step asks what an owner holds: at once
-        where an action stands or falls on a restated element its owner holds, and
-        otherwise at the next step that asks, if no later containment took hold
-        first."""
+        `moved` reads the elements whose holders the containment moved since the one
+        handed over before it (`passages.moved_ids`), and only those are compared;
+        without it, every such element is. `within` and `moved` are read only where
+        some step asks what an owner holds: at once where an action stands or falls
+        on a restated element its owner holds, and otherwise at the next step that
+        asks, if no later containment took hold first. Either way, the containment
+        compared against is the one handed over before, since nothing asks until
+        some action names a restated element, and from then on each is read where it
+        takes hold."""
         if not self._contested:
             self._reading = within
             return []
         was, now = self.within, within()
         if now is was:
             return []
+        contested = self._contested
+        if moved is not None:
+            changed = moved()
+            contested = (
+                [element for element in changed if element in contested]
+                if len(changed) < len(contested)
+                else [element for element in contested if element in changed]
+            )
         # Each family whose owner gained or lost an element it names, with those
         # it gained.
-        moved: dict[_Family, list[str]] = {}
-        for element in self._contested:
+        shifted: dict[_Family, list[str]] = {}
+        for element in contested:
             held, holds = was.get(element, ()), now.get(element, ())
             if held == holds:
                 continue
             for owner in dict.fromkeys([*held, *holds]):
                 if (owner in held) != (owner in holds):
                     for family in self._watching.get((owner, element), {}):
-                        gained = moved.setdefault(family, [])
+                        gained = shifted.setdefault(family, [])
                         if owner in holds:
                             gained.append(element)
-        before = {family.coordinate: self.winner(family.coordinate) for family in moved}
+        before = {
+            family.coordinate: self.winner(family.coordinate) for family in shifted
+        }
         self._within = now
-        for family, gained in moved.items():
+        for family, gained in shifted.items():
             for element in gained:
                 self._raise(family, element)
             self._refresh(family)

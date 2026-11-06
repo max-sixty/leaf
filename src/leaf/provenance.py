@@ -65,8 +65,12 @@ from collections.abc import Callable
 from functools import partial
 from math import inf
 from operator import itemgetter
+from typing import TYPE_CHECKING
 
 from .events import build_threads, settlements
+
+if TYPE_CHECKING:
+    from .passages import SourceReading
 
 
 def revision_places(events: list) -> dict[int, int]:
@@ -82,7 +86,7 @@ def revision_places(events: list) -> dict[int, int]:
 
 def saved_after(
     events: list,
-    containment: Callable[[int], dict],
+    reading: "Callable[[int], SourceReading]",
     places: dict[int, int],
     revisions,
     stamped: set[int],
@@ -95,7 +99,7 @@ def saved_after(
     `message`, in the order they were sent, with `said`, the event whose words it had
     at the latest of those, the message itself or a rewrite of it. None where a
     revision `stamped` with a version stands between the two; every revision between
-    them has a place among `places`. `containment` reads a revision's (`within`).
+    them has a place among `places`. `reading` reads a revision (`read_revision`).
 
     One fold of the log before `shown` went live (`events.build_threads`) reads every
     message as it was said, none taken back, with each of those revisions'
@@ -105,8 +109,10 @@ def saved_after(
     place where, by the log before it, it had been sent and not taken back, had no
     answer yet, and its thread stood open; the reply or note that answered it stands at
     its end. Its words there are those of its latest rewrite before that place not yet
-    taken back, else those it was sent with. Containment is read only where a decision
-    could rest otherwise under it (`events.InForce.contain`)."""
+    taken back, else those it was sent with. A revision's containment is read only
+    where a decision could rest otherwise under it, and from the second on, only the
+    elements whose holders it moved since the one before are compared
+    (`events.InForce.contain`, `SourceReading.moved_since`)."""
     if any(base < revision < shown for revision in stamped):
         return None
     span = sorted(
@@ -124,7 +130,14 @@ def saved_after(
         {},
         withdrawn=set(),
         containments=[
-            (place, partial(containment, revision)) for place, revision in span
+            (
+                place,
+                partial(_within, reading, revision),
+                partial(_moved, reading, span[index - 1][1], revision)
+                if index
+                else None,
+            )
+            for index, (place, revision) in enumerate(span)
         ],
     )
     # Each message that waited: its reading, its thread, the latest place it waited.
@@ -170,6 +183,16 @@ def saved_after(
             found.values(), key=lambda each: each[0]["seq"]
         )
     ]
+
+
+def _within(reading: "Callable[[int], SourceReading]", revision: int) -> dict:
+    return reading(revision).within
+
+
+def _moved(
+    reading: "Callable[[int], SourceReading]", earlier: int, revision: int
+) -> frozenset[str]:
+    return reading(revision).moved_since(reading(earlier))
 
 
 def _latest_open(

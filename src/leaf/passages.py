@@ -748,6 +748,22 @@ class SourceReading:
         vocabulary anything (`enclosing_ids`)."""
         return self.passages.enclosing
 
+    def moved_since(self, earlier: "SourceReading") -> frozenset[str]:
+        """The ids whose holders differ between `earlier`'s containment and this
+        one's (`moved_ids`).
+
+        Compared once for each earlier reading while both are held: a stored
+        revision's reading is held across requests (`revision_artifact.read_revision`),
+        so a reader stepping through a version's revisions pays the page-sized
+        comparison once for each pair, and every later read only for what moved."""
+        if (moved := self._moved.get(earlier)) is None:
+            moved = self._moved[earlier] = moved_ids(earlier.within, self.within)
+        return moved
+
+    @cached_property
+    def _moved(self) -> "weakref.WeakKeyDictionary[SourceReading, frozenset[str]]":
+        return weakref.WeakKeyDictionary()
+
     def decided_passages(
         self, decided: dict, rewrites: dict | None = None, additions: dict | None = None
     ) -> Passages:
@@ -812,3 +828,12 @@ def enclosing_ids(document: SourceDocument) -> dict:
 _ENCLOSING: "weakref.WeakKeyDictionary[SourceDocument, dict]" = (
     weakref.WeakKeyDictionary()
 )
+
+
+def moved_ids(was: dict, now: dict) -> frozenset[str]:
+    """The ids whose holders differ between two containments (`SourceReading.within`):
+    each that one carries and the other doesn't, and each whose enclosing chain
+    changed."""
+    return frozenset(
+        identity for identity, chain in now.items() if was.get(identity) != chain
+    ) | (was.keys() - now.keys())

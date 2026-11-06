@@ -283,7 +283,7 @@ class PageStateService:
                 if shown is None
                 else saved_after(
                     read.events,
-                    lambda revision: read.revision(revision).within,
+                    read.revision,
                     revision_places(read.events),
                     read.revisions,
                     {version["revision"] for version in read.versions},

@@ -715,8 +715,9 @@ def test_a_walk_reads_each_coordinate_as_the_retraction_rule_does_at_every_step(
     containments taking hold (`InForce`), each coordinate's winner and the actions
     in force are those `action_retracted` gives from scratch under that step's
     floors and containment, and the step reports exactly the winners it moved. A
-    containment handed over before any decision turns on one still holds when a
-    note later makes one turn on it."""
+    containment handed over with what it moved since the one before
+    (`passages.moved_ids`) reads as one handed over alone, and one handed over before
+    any decision turns on one still holds when a note later makes one turn on it."""
     owners, units, elements = ["g1", "g2", "g3"], ["u1", "u2"], ["o1", "o2", "o3"]
     retracted = event_folds_model.action_retracted
 
@@ -763,13 +764,20 @@ def test_a_walk_reads_each_coordinate_as_the_retraction_rule_does_at_every_step(
                     floors[element] = max(floors.get(element, 0), note["revision"])
                 changes = walk.restate(note)
             else:
-                within = {
-                    element: rng.sample(owners, rng.randrange(3))
-                    if rng.random() < 0.5
-                    else holders
-                    for element, holders in within.items()
-                }
-                changes = walk.contain(lambda within=within: within)
+                was, within = (
+                    within,
+                    {
+                        element: rng.sample(owners, rng.randrange(3))
+                        if rng.random() < 0.5
+                        else holders
+                        for element, holders in within.items()
+                    },
+                )
+                moved = passages_model.moved_ids(was, within)
+                changes = walk.contain(
+                    lambda within=within: within,
+                    None if rng.random() < 0.2 else lambda moved=moved: moved,
+                )
             after = reading(kept, floors, within)
             assert {
                 change.coordinate: (change.before, change.after)

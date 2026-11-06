@@ -15,7 +15,7 @@ from leaf import event_log as event_log_model
 from leaf.event_contracts import admitted_event
 from leaf.event_log import EventRefused
 from leaf.events import build_threads, spoken_turns, taken_back, unanswered_turns
-from leaf.passages import enclosing_ids
+from leaf.passages import SourceReading, enclosing_ids
 from leaf.provenance import revision_places
 from leaf.provenance import saved_after as line_of
 from leaf.registry.kernel import kernel_event_kinds
@@ -365,12 +365,14 @@ def folded_at_each_revision(log, within, base, shown):
     return [entry for _seq, entry in sorted(found.values(), key=itemgetter(0))]
 
 
-def read_line(log, within, base, shown):
+def read_line(log, documents, base, shown):
+    """The line `saved_after` reads, each revision read as a server holds it."""
+    readings = {r: SourceReading(document, {}) for r, document in documents.items()}
     return line_of(
         log,
-        within.__getitem__,
+        readings.__getitem__,
         revision_places(log),
-        range(1, max(within) + 1),
+        range(1, max(readings) + 1),
         set(),
         base,
         shown,
@@ -421,7 +423,7 @@ def test_a_choice_stays_conditional_beside_a_creation_of_the_same_option():
     within = {r: enclosing_ids(document) for r, document in page.documents.items()}
     asked = [waited("e2")]
     assert folded_at_each_revision(log, within, 3, 5) == asked
-    assert read_line(log, within, 3, 5) == asked
+    assert read_line(log, page.documents, 3, 5) == asked
 
 
 def test_the_line_reads_each_revision_as_a_fold_up_to_it_would():
@@ -523,6 +525,6 @@ def test_the_line_reads_each_revision_as_a_fold_up_to_it_would():
         log.append(admit(page, log, live(revision)))
         within = {r: enclosing_ids(document) for r, document in page.documents.items()}
         for base in sorted({1, revision - 1, rng.randrange(1, revision)}):
-            assert read_line(log, within, base, revision) == folded_at_each_revision(
-                log, within, base, revision
-            ), (seed, base)
+            assert read_line(
+                log, page.documents, base, revision
+            ) == folded_at_each_revision(log, within, base, revision), (seed, base)

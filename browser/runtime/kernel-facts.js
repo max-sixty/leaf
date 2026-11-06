@@ -15,7 +15,7 @@
    read it here. */
 import kernel from "./kernel-registry.json" with { type: "json" };
 
-const { collapse, blocks, context } = kernel.$passages;
+const { collapse, blocks, inline, context } = kernel.$passages;
 // How a page turns into text (`leaf/passages.py`): a run of these characters is one
 // space, each of these tags is one block, and an anchor starts with this much context
 // on each side of its quote. Escaped, since a character class gives `]`, `\`, `^` and
@@ -26,6 +26,8 @@ const escaped = collapse
   .join("");
 export const COLLAPSE = new RegExp(`[${escaped}]+`, "g");
 export const TEXT_BLOCK = blocks.join(",");
+// The tags HTML draws inline, whose text reads in the block around them.
+export const INLINE = new Set(inline);
 export const CONTEXT = context;
 
 // A widget's tag, which tells a widget declaration from an idiom selector.

@@ -73,7 +73,8 @@ def test_a_quote_resolves_where_the_browser_resolves_it(case):
     from leaf.anchor_capture import resolve_quote
 
     passages = passages_model.page_passages(
-        structure_model.SourceDocument(f"<main>{case['markup']}</main>")
+        structure_model.SourceDocument(f"<main>{case['markup']}</main>"),
+        case.get("registry"),
     )
     at = resolve_quote(passages, case["anchor"])
     lo = passages.spans[case["anchor"]["section"]][0]

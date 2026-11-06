@@ -73,9 +73,9 @@
    runtime-owned surfaces and widget apparatus, and its comment says which hole
    each half alone leaves.
 
-   A quote's copies are found by hashing its letters, and each is read against the page
-   by `matchAt`, a comparison per character however long the quote, so the stored quote
-   is never truncated: it is the passage the user selected. The copies of the quotes
+   A quote's copies are found by one automaton over every quote's spelling (`scan`), in
+   time with the page however long or many the quotes, so the stored quote is never
+   truncated: it is the passage the user selected. The copies of the quotes
    anchor placement keeps are carried from one reading to the next through the span the
    two differ in (`carry`), so a change to the page is searched only around it.
 
@@ -132,7 +132,7 @@ import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
 import { presentDocument, readPart } from "./semantic-state.js";
-import { COLLAPSE, TEXT_BLOCK } from "./kernel-facts.js";
+import { COLLAPSE, INLINE, TEXT_BLOCK } from "./kernel-facts.js";
 import { textUnits } from "./text-alignment.js";
 import { excerptWords } from "./words.js";
 import { union } from "./rect.js";
@@ -959,8 +959,17 @@ export const blockAt = (node) => {
 /** @param {Segment} segment */
 export const segmentBlock = (segment) => segment.block ?? segment.node.parentElement;
 // Typography follows the HTML text blocks, independently of projected datum identity.
+// Text in no text block reads in the nearest element around it that HTML doesn't draw
+// inline (the kernel's `inline` tags), so words in two spans side by side are one word
+// wherever the spans stand, and only a block's end or a line break parts them
+// (passages.py reads the same).
 /** @param {Segment} segment */
-const segmentTextBlock = (segment) => segment.textBlock ?? segment.node.parentElement;
+const segmentTextBlock = (segment) => {
+  if (segment.textBlock) return segment.textBlock;
+  let at = segment.node.parentElement;
+  while (at && INLINE.has(at.localName)) at = at.parentElement;
+  return at;
+};
 const COLLAPSIBLE = new RegExp(`^(?:${COLLAPSE.source})$`, "u");
 
 // The normalized reading and, when requested, one DOM span for each character in it.
@@ -1558,13 +1567,17 @@ function watchReading() {
 // as it happens (`hearPageWords`), and reads what changed off the two readings
 // (`quotesChanged`), by the reading's own rules: its text, its edges and fences, and the
 // order its walk puts the page's trees in. It hears what no reading shows besides: the
-// text nodes a change wrote or took out of the tree (`written`), whose live ranges the
-// DOM moved, by its own rule, which is the light tree's (DOM, "replace data" and
-// "remove"), and which may have moved into or out of a section, even where the page
-// then says just what it said before; and the ids the page's elements gained or lost
-// (`ids`), with the elements whose own id changed (`renamed`), since an anchor's
-// section is found by its id. A reader that must not read older than the DOM takes the
-// changes not yet heard first (`catchUpWords`).
+// text nodes a change wrote or took out (`written`), found in what it took out by the
+// reading's own walk, the declared shadow trees there included, whose passages' live
+// ranges the DOM moved or left in a tree no longer the page's, and which may have moved
+// into or out of a section, even where the page then says just what it said before;
+// and the ids the page's elements gained or lost (`ids`), with the elements whose own
+// id changed (`renamed`), since an anchor's section is found by its id. Ids are read
+// where `elementById` looks for one, the light tree and the declared stages on it
+// (`shadowRootsIn`), which is not the walk's reach: the walk passes over a declared
+// host's light children no slot shows, and an id among them is still found. A reader
+// that must not read older than the DOM takes the changes not yet heard first
+// (`catchUpWords`).
 /** @typedef {{written: ReadonlySet<Node>, ids: ReadonlySet<string>, renamed: ReadonlySet<Element>}} WordsChange */
 /** @type {Set<(change: WordsChange) => void>} */
 const hearers = new Set();
@@ -1592,8 +1605,8 @@ function heardChanges(records) {
   const ids = new Set();
   /** @type {Set<Element>} */
   const renamed = new Set();
-  // The ids an element and what it holds bear, in its light tree and the declared
-  // shadow trees an id is looked for in (`elementById`).
+  // The ids an element and what it holds bear, where an id is looked for
+  // (`elementById`).
   /** @param {Node} node */
   const idsUnder = (node) => {
     if (!isElement(node)) return;
@@ -1617,12 +1630,13 @@ function heardChanges(records) {
   for (const record of changing) {
     if (record.type === "characterData") written.add(record.target);
     if (record.type !== "childList" || !hearers.size) continue;
-    for (const node of record.removedNodes) {
+    // The text the reading's own walk finds in what was taken out, where the page's
+    // passages can have stood: the declared shadow trees it holds included, its own
+    // where it is a declared host, which a walk handed the host would pass by.
+    for (const node of record.removedNodes)
       if (isText(node)) written.add(node);
-      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-      for (let text = walker.nextNode(); text; text = walker.nextNode())
-        written.add(text);
-    }
+      else if (isElement(node))
+        walk(declaredRoot(node) ?? node, (text) => written.add(text));
   }
   if (changing.length) changeReading({ written, ids, renamed });
   else if (ids.size) tellHearers({ written, ids, renamed });
@@ -1835,12 +1849,14 @@ const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** @param {PageReading} text @param {number} from @param {number} to */
 const withinCell = (text, from, to) => fenceEdge(text, from + 1, false) >= to;
 
-// Where a quote's words stand. Its letters are its words' characters without the gaps
-// between them, and a copy of the quote starts wherever the page's letters start as its
-// do, read against the page from there (`matchAt`). The letters are found by an
-// automaton over every quote's (`automatonOf`), so one pass over the page finds every
-// copy of every quote the page's threads name, which a pattern apiece searched the
-// whole page for, as many times as there were threads.
+// Where a quote's words stand. Its spelling is its words with one gap between each
+// (`GAP`), and the page is spelled alike: each character but whitespace and edges, a gap
+// for each run of them that holds whitespace, and nothing for a run of edges alone, which
+// falls inside a word. A copy of the quote stands wherever the page spells it, which an
+// automaton over every quote's spelling (`automatonOf`) finds in one pass over the page:
+// the rules a quote is matched by are in the spelling, so a copy found is a copy, with
+// nothing read again. What the automaton costs to build is its quotes' spellings: 1,600
+// quotes of 640 letters each, a million characters, take about 120 ms.
 //
 // Whether raw[i] separates words: an edge, or whitespace by the rule a quote is split
 // into words by. Each code unit is put to the rule once.
@@ -1852,28 +1868,8 @@ function gapAt(raw, i) {
     gapKinds[code] = raw[i] === EDGE || /\s/.test(raw.charAt(i)) ? 1 : 2;
   return gapKinds[code] === 1;
 }
-// Where a quote's words, read from `at`, end, by the rules they are quoted by: between
-// two words a run of whitespace and edges holding some whitespace, an edge free to fall
-// between two characters of one. -1 where the text stops saying them.
-/** @param {string} raw @param {number} at @param {readonly string[]} words */
-function matchAt(raw, at, words) {
-  let i = at;
-  for (const [n, word] of words.entries()) {
-    if (n) {
-      let spaced = false;
-      for (; i < raw.length && gapAt(raw, i); i++) spaced ||= raw[i] !== EDGE;
-      if (!spaced) return -1; // two words the text runs together are not these two
-    }
-    let inside = false;
-    for (const ch of word) {
-      if (inside) while (raw[i] === EDGE) i++;
-      inside = true;
-      if (!raw.startsWith(ch, i)) return -1;
-      i += ch.length;
-    }
-  }
-  return i;
-}
+// A gap in a spelling: the edge's code unit, which no word holds.
+const GAP = EDGE;
 // An automaton over a set of strings (Aho–Corasick): a trie of their code units, each
 // state's longest proper suffix that is also a state (`fail`), and the nearest such
 // suffix at which a string ends (`link`). One pass over a run of code units then hears
@@ -1976,22 +1972,20 @@ export function findEach(text, strings) {
   return found;
 }
 /** @typedef {{from: number, to: number, fenced: boolean, near: [number, number] | null}} Copy */
-/** @typedef {{quote: string, words: string[], letters: string, copies: Copy[],
- * changedAt: number}} QuoteEntry */
+/** @typedef {{quote: string, spelling: string, copies: Copy[], changedAt: number}} QuoteEntry */
 /** @param {string} quote @returns {QuoteEntry | null} */
 function quoteEntry(quote) {
   const words = quote.trim().split(/\s+/).filter(Boolean);
   if (!words.length) return null;
-  return { quote, words, letters: words.join(""), copies: [], changedAt: 0 };
+  return { quote, spelling: words.join(GAP), copies: [], changedAt: 0 };
 }
 /** @param {Iterable<QuoteEntry>} entries @returns {Automaton<QuoteEntry>} */
 const quotesAutomaton = (entries) =>
   automatonOf(
-    [...entries].map((entry) => /** @type {const} */ ([entry.letters, entry])),
+    [...entries].map((entry) => /** @type {const} */ ([entry.spelling, entry])),
   );
-// Every copy of an automaton's quotes that starts in raw[lo..hi): each place the page's
-// letters spell a quote's, read against the quote's words, and whether a fence parts
-// it.
+// Every copy of an automaton's quotes that starts in raw[lo..hi): each place the page
+// spells a quote, and whether a fence parts it.
 /** @param {PageReading} reading @param {Automaton<QuoteEntry>} automaton @param {number} lo
  * @param {number} hi @param {(entry: QuoteEntry, copy: Copy) => void} take */
 function scan(reading, automaton, lo, hi, take) {
@@ -2000,19 +1994,28 @@ function scan(reading, automaton, lo, hi, take) {
   const codes = [];
   /** @type {number[]} */
   const places = [];
+  // Whether the run of separators since the last character holds whitespace.
+  let spaced = false;
   for (let i = lo, past = 0; i < raw.length; i++) {
-    if (gapAt(raw, i)) continue;
+    if (gapAt(raw, i)) {
+      spaced ||= raw[i] !== EDGE;
+      continue;
+    }
     if (i >= hi && ++past > automaton.widest) break;
+    if (spaced && codes.length) {
+      codes.push(GAP.charCodeAt(0));
+      places.push(i);
+    }
+    spaced = false;
     codes.push(raw.charCodeAt(i));
     places.push(i);
   }
   const codeAt = (/** @type {number} */ t) => /** @type {number} */ (codes[t]);
   runAutomaton(automaton, codes.length, codeAt, (entry, end) => {
-    const from = /** @type {number} */ (places[end - entry.letters.length]);
+    const from = /** @type {number} */ (places[end - entry.spelling.length]);
     if (from >= hi) return;
-    const to = matchAt(raw, from, entry.words);
-    if (to !== -1)
-      take(entry, { from, to, fenced: !withinCell(reading, from, to), near: null });
+    const to = /** @type {number} */ (places[end - 1]) + 1;
+    take(entry, { from, to, fenced: !withinCell(reading, from, to), near: null });
   });
 }
 // Where two readings of the page part, as the span of each that differs. Before it both
@@ -2328,7 +2331,7 @@ function searchableWords() {
 // anchor resolution: a search is allowed to find repeated words, while a stored anchor
 // must identify one occurrence or detach. It does keep the passage reader's other rules —
 // elastic whitespace, edges free to fall inside words and in a gap but never one by
-// themselves (`matchAt`), and no match crossing an opaque passage fence — so choosing a
+// themselves (`scan`'s spelling), and no match crossing an opaque passage fence — so choosing a
 // result produces exactly the kind of segments capture and resolution use.
 /** @param {PageReading} text @param {string} query */
 export function findText(text, query) {

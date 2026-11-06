@@ -259,6 +259,9 @@ class _OwnedWords:
 # The tags whose text is one block: one space goes between two runs of text in
 # different blocks and none between runs that share one.
 TEXT_BLOCK_TAGS = frozenset(kernel_passages()["blocks"])
+# The tags HTML draws inline, whose text reads in the block of the element around them,
+# as the runtime's `segmentTextBlock` reads it.
+INLINE_TAGS = frozenset(kernel_passages()["inline"])
 # Text no anchor can reach: executable/style content and native field defaults.
 # head is outside the browser's tree altogether, which starts at document.body —
 # without it a page's <title> would be quotable and land nowhere.
@@ -425,7 +428,13 @@ class _PassageParser:
             if tag in TEXT_BLOCK_TAGS
             else (parent["tb"] if parent else None)
         )
-        block = tb if tb else self._fresh()
+        block = (
+            tb
+            if tb
+            else parent["block"]
+            if parent and tag in INLINE_TAGS
+            else self._fresh()
+        )
         if entry.get("x-upgrade"):
             for ancestor in reversed(self.stack):
                 if ancestor["verbatim"]:
@@ -516,9 +525,10 @@ class _PassageParser:
             "verbatim": provenance,
             "fenced": opaque or bool(parent and parent["opaque"]) or editing_boundary,
             "tb": tb,
-            # …and where there is none, the element is its own text node's parent, which
-            # is what the runtime falls back to. Fresh per element, so `a<em>b</em>c`
-            # under a <div> reads as three blocks and under a <p> as one.
+            # …and where there is none, the nearest element around that HTML doesn't
+            # draw inline, which is what the runtime falls back to: fresh for each such
+            # element, its parent's for an inline one, so `a<em>b</em>c` reads as one
+            # block under a <div> as under a <p>, and `<div>a</div><div>b</div>` as two.
             "block": block,
             "tail": [],
         }

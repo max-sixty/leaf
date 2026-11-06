@@ -6309,6 +6309,109 @@ def test_words_a_script_sets_in_elements_of_their_own_run_together(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_page_search_finds_words_two_spans_run_together_outside_a_text_block(
+    engine, request, serve
+):
+    """Page search finds the one word two spans side by side show, where they stand in
+    no text block, as the page shows it and the browser's own find finds it."""
+    url = serve(
+        leaf_page(
+            "Run together",
+            '<div id="joined"><span>alpha</span><span>beta</span></div>'
+            + "<p>More.</p>" * 4,
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("alphabeta")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+
+
+# A thread's quote inside a staged widget, scoped to the element around the widget.
+STAGED_QUOTE = (
+    '<div id="around"><p>Before the widget.</p><lf-late-stage id="late">'
+    '<p id="inside">Words inside the stage hold the passage.</p></lf-late-stage></div>'
+    + "<p>After.</p>"
+    * 4
+)
+# A widget staged alike, filled while it stands apart, then put in the first one's place
+# in a later task, so nothing the filling did reads the page after the swap.
+STAGE_AGAIN = """async () => {
+  const host = document.createElement('lf-late-stage');
+  host.innerHTML = '<p id="inside">Words inside the stage hold the passage.</p>';
+  host.stage();
+  await new Promise(requestAnimationFrame);
+  await new Promise(requestAnimationFrame);
+  host.id = 'late';
+  document.getElementById('late').replaceWith(host);
+}"""
+# Each range a highlight paints: its words, and whether they still stand in the page.
+PAINTED = """(name) => [...(CSS.highlights.get(name) ?? [])]
+  .map((range) => [String(range), range.startContainer.isConnected])"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_mark_in_a_widget_staged_again_moves_to_the_new_stage(engine, request, serve):
+    """A script that replaces a widget whose shadow stage holds a marked passage with one
+    staged alike, the passage's section being the element around the widget, moves the
+    mark to the new stage's words at once, before anything asks where it stands."""
+    url = serve(
+        leaf_page("Staged mark", STAGED_QUOTE),
+        layer_registry={"lf-late-stage": VERBATIM_STAGE},
+        layer_widgets={"lf-late-stage.js": LATE_STAGE_MODULE},
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Inside?",
+            "anchor": {"section": "around", "quote": "inside the stage hold"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.mouse.move(1, 1)
+    page.evaluate("() => document.getElementById('late').stage()")
+    page.wait_for_function(f"() => ({MARKED})() === 'inside the stage hold'")
+    page.evaluate(STAGE_AGAIN)
+    page.wait_for_timeout(300)
+    # Read once: a reader asking would settle placement and hide the fault.
+    assert page.evaluate(PAINTED, "lf-mark") == [["inside the stage hold", True]]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_draft_in_a_widget_staged_again_moves_to_the_new_stage(
+    engine, request, serve
+):
+    """A script that replaces a widget whose shadow stage holds the passage a user is
+    commenting on with one staged alike moves the draft's mark to the new stage's words
+    at once, before anything asks where it stands."""
+    url = serve(
+        leaf_page("Staged draft", STAGED_QUOTE),
+        layer_registry={"lf-late-stage": VERBATIM_STAGE},
+        layer_widgets={"lf-late-stage.js": LATE_STAGE_MODULE},
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.evaluate("() => document.getElementById('late').stage()")
+    page.evaluate(
+        """() => {
+          const text = document.getElementById('late').shadowRoot
+            .getElementById('inside').firstChild;
+          const at = text.data.indexOf('inside the stage hold');
+          getSelection().setBaseAndExtent(text, at, text, at + 'inside the stage hold'.length);
+        }"""
+    )
+    page.keyboard.press("c")
+    page.wait_for_function(f"() => ({PAINTED})('lf-pending').length > 0")
+    page.mouse.move(1, 1)
+    words = page.evaluate(PAINTED, "lf-pending")
+    page.evaluate(STAGE_AGAIN)
+    page.wait_for_timeout(300)
+    assert page.evaluate(PAINTED, "lf-pending") == words
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_search_match_whose_end_shows_is_brought_to_its_start(engine, request, serve):
     """A page search's match whose end stands in the window while its start stands
     above it, as one running from the page's words into a declared shadow stage far

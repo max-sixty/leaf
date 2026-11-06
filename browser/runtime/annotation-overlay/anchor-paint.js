@@ -18,9 +18,14 @@ import {
   targetSegments,
   targetSurface,
 } from "../resolved-target.js";
-import { elementFromPointAcross, pageWords, rangeOf } from "../passages.js";
+import {
+  closestAcross,
+  elementFromPointAcross,
+  pageWords,
+  rangeOf,
+} from "../passages.js";
 import { presentDocument } from "../semantic-state.js";
-import { pressedControl } from "../control-selectors.js";
+import { WORKS } from "../control-selectors.js";
 import { bareReaction } from "../thread/model.js";
 import { threadNamed } from "../thread/state.js";
 import { threadPreview } from "../thread/messages.js";
@@ -522,7 +527,9 @@ export function createAnchorPaint({
   // on them, so the preview stands once by the line first pointed at as the pointer
   // crosses the pieces an inline element or a shadow root splits a passage into
   // (preview.js, `pointRange`). One range from the first piece to the last collapsed
-  // where a passage ran into a shadow tree (passages.js, `rangeOf`). The owner reads a
+  // where a passage ran into a shadow tree (passages.js, `rangeOf`). It is told the
+  // thread's every mark too, the passage that decides whether an element under the
+  // pointer, as a link, stands inside the passage or holds it. The owner reads a
   // standing preview again each time it is told its range, so it is told again only
   // when the threads under the pointer change: telling it on each move drew 512
   // threads' lines on every move over a word 512 threads mark.
@@ -568,6 +575,7 @@ export function createAnchorPaint({
         );
       },
       at,
+      marksFor(id),
     );
   }
   // The user moved the pointer, or pressed a finger, which may rest on a mark.
@@ -610,7 +618,7 @@ export function createAnchorPaint({
       const hit = markHit(at.x, at.y, under);
       const onMark = hit?.id ?? null;
       if (userAimed) pointMark(hit, at);
-      const presses = onMark && !pressedControl(under);
+      const presses = onMark && !closestAcross(under, WORKS);
       paintHand(presses ? document.elementFromPoint(at.x, at.y) : null);
       const row = rowThread(under);
       const id = row ?? onMark;

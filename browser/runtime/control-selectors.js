@@ -12,7 +12,6 @@
 // textarea on an author's page still does. One spelling of each lets the field's
 // element change without a lookup somewhere silently finding nothing.
 import { inputs } from "./inputs.js";
-import { closestAcross, upFrom } from "./shadow-tree.js";
 export const TEXT_FIELD = inputs.textField;
 
 // The same modifiers as the platform's own keydowns: what `ev.key` says when a modifier
@@ -91,11 +90,10 @@ const PRESS_SELECTORS = [
 // Reach lends a mechanical tab stop to overflowing prose. That stop does not
 // turn its content into an authored interactive region.
 export const LENT_REACH_STOP = "data-lf-lent-reach-stop";
-// A tab panel's stop lets the reader reach and scroll its contents; the panel itself
-// has no press to protect from a thread mark inside those contents.
-const TAB_STOP_REGION = `[tabindex]:not([tabindex='-1']):not([${LENT_REACH_STOP}]):not([role='tabpanel'])`;
 const REGION_SELECTORS = [
-  TAB_STOP_REGION,
+  // A tab panel's stop lets the reader reach and scroll its contents; the panel
+  // itself has no press to protect from a thread mark inside those contents.
+  `[tabindex]:not([tabindex='-1']):not([${LENT_REACH_STOP}]):not([role='tabpanel'])`,
   "[contenteditable]:not([contenteditable='false'])",
   "[draggable='true']",
   "[role='application']",
@@ -111,30 +109,3 @@ const REGION_SELECTORS = [
 ];
 export const PRESSES = PRESS_SELECTORS.join(",");
 export const WORKS = [...PRESS_SELECTORS, ...REGION_SELECTORS].join(",");
-// What takes a press as its own, short of a tab stop: a press control, and a region
-// whose gesture is the press, an editing surface, a drag source or a composite widget.
-const TAKES_PRESS = [
-  ...PRESS_SELECTORS,
-  ...REGION_SELECTORS.filter((selector) => selector !== TAB_STOP_REGION),
-].join(",");
-/** What a press at `node` acts on, at any point on the page, marked words or not: the
- * nearest element around it that takes the press as its own, or null where the press
- * acts on the page's words. One takes it where it is
- * - a press control (`PRESSES`), as a link or a titled button, whose own click keeps
- *   its meaning;
- * - a region whose gesture is the press, an editing surface, a drag source or a
- *   composite widget (`WORKS`' other regions);
- * - a tab stop that declares its own preview (`lfPreview`), as a focusable card that
- *   acts on a press: the words around a chart in it reach the card.
- * A plain tab stop, a scrolling or focusable box, takes no press of its own, so words
- * in it reach nothing. Where the press reaches nothing it acts on the words, and on a
- * thread's mark there opens the thread (composing/surface.js); a pointer resting there
- * reads what the press would act on (preview.js, `aimed`), and the hand over a mark
- * stands only where the press reaches the words (anchor-paint.js).
- * @param {Node | null} node @returns {Element | null} */
-export function pressedControl(node) {
-  for (let at = closestAcross(node, WORKS); at; at = closestAcross(upFrom(at), WORKS))
-    if (at.matches(TAKES_PRESS) || typeof Reflect.get(at, "lfPreview") === "function")
-      return at;
-  return null;
-}

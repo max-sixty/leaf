@@ -1515,20 +1515,21 @@ WORDS_AT = """([selector, words]) => {
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_passage_entered_by_bold_words_lets_a_link_in_it_preview(
+def test_a_passage_entered_by_bold_words_lets_the_link_and_gloss_in_it_preview(
     engine, request, serve
 ):
-    """A thread's passage that starts in bold words previews as the thread there, and a
-    link further on in it previews as the link, since a press there follows the link,
-    whichever of the passage's pieces the pointer came onto it by. A link that only
+    """A thread's passage that starts in bold words previews as the thread there, and the
+    link and the gloss further on in it preview as themselves: they stand inside the
+    passage, whichever of its pieces the pointer came onto it by. A link that only
     partly overlaps a passage previews as the link on the words they share, however the
-    pointer reached them, and as the thread on the passage's other words."""
+    pointer reached them, since it doesn't hold the whole passage."""
     url = serve(
         leaf_page(
             "Rollout",
             '<p id="marked"><strong id="lead">The rollout starts with</strong> '
             '<a id="linked" href="#destination">a small cohort</a> and uses '
-            "a gate before expanding.</p>"
+            '<lf-gloss id="gloss" tip="Check every gate before expanding.">a gate'
+            "</lf-gloss> before expanding.</p>"
             '<p id="partial">This section keeps <a id="partial-link" '
             'href="#destination">the first group and the remaining group</a> '
             "together.</p>"
@@ -1572,10 +1573,8 @@ def test_a_passage_entered_by_bold_words_lets_a_link_in_it_preview(
     expect(word).to_have_text("Should we expand this rollout?")
     onto("#linked", "cohort")
     expect(word).to_have_text("Destination details")
-    onto("#marked", "gate")
-    expect(word).to_have_text("Should we expand this rollout?")
-    onto("#linked", "cohort")
-    expect(word).to_have_text("Destination details")
+    onto("#gloss", "gate")
+    expect(word).to_have_text("a gate")
     onto("#lead", "rollout")
     expect(word).to_have_text("Should we expand this rollout?")
 
@@ -1586,64 +1585,6 @@ def test_a_passage_entered_by_bold_words_lets_a_link_in_it_preview(
     expect(word).to_have_text("Check the first group only.")
     onto("#partial-link", "first")
     expect(word).to_have_text("Destination details")
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_passage_a_control_holds_previews_what_a_press_there_acts_on(
-    engine, request, serve
-):
-    """Pointing reads what pressing acts on. A press on a thread's words inside a link,
-    or on words that are all of a link, follows the link, so they preview as the link;
-    a press on them inside a titled button presses the button, whose title the browser
-    shows, so Leaf adds no preview of its own."""
-    url = serve(
-        leaf_page(
-            "Held",
-            '<p id="inside">Read <a id="holder" href="#destination">the plan for the '
-            "small cohort today</a> first.</p>"
-            '<p id="equal">Then <a id="whole" href="#destination">the whole link</a>'
-            " again.</p>"
-            '<p id="titled-block"><button id="titled" type="button" '
-            'title="Inspect the rollout">Inspect the small group</button></p>'
-            + "<p>More words.</p>"
-            * 6
-            + '<section id="destination"><h2>Destination details</h2>'
-            "<p>The second stage starts once the cohort remains healthy.</p></section>",
-        )
-    )
-    for section, quote in (
-        ("inside", "small cohort"),
-        ("equal", "the whole link"),
-        ("titled-block", "small group"),
-    ):
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "comment",
-                "author": "user",
-                "text": f"Is {quote} right?",
-                "anchor": {"section": section, "quote": quote},
-            },
-        )
-    page = open_page(request.getfixturevalue(engine), url)
-    tip = page.locator(PREVIEW)
-    word = tip.locator(".lf-preview-word")
-    rendered(page)
-
-    def reads(selector, words):
-        """What the preview says once the pointer rests on `words` past the dwell."""
-        at = page.evaluate(WORDS_AT, [selector, words])
-        page.mouse.move(2, 2)
-        page.wait_for_timeout(400)
-        page.mouse.move(at["x"], at["y"], steps=3)
-        page.wait_for_timeout(600)
-        return word.inner_text() if tip.is_visible() else None
-
-    assert [
-        reads("#holder", "cohort"),
-        reads("#whole", "whole"),
-        reads("#titled", "small"),
-    ] == ["Destination details", "Destination details", None]
 
 
 def test_a_standing_preview_says_what_a_new_revision_changed(browser, serve):

@@ -56,8 +56,7 @@
    on as one act (`closeLayer`), holding a place in a keyed list (`holdFocus` with `key`),
    and a group's one Tab stop (`rove`).
 
-   The selector vocabulary lives in control-selectors.js, which imports no owner
-   (`.dependency-cruiser.mjs`, `exactClosures`).
+   The selector vocabulary lives in control-selectors.js, which imports nothing.
    In a framed document, a sample's or any other, only the document already holding
    input may place focus: one the user has not entered would take them from the page
    around it. A top-level document always may, since placing focus in a background tab

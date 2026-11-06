@@ -240,7 +240,7 @@ import { nextRender, sizeObserver } from "./rendering.js";
 import { atClock, clockNow } from "./presence.js";
 import { watchOwner } from "./arrivals.js";
 import { actionClass } from "./control-faces.js";
-import { pressedControl, WORKS } from "./control-selectors.js";
+import { WORKS } from "./control-selectors.js";
 import { shownParts, shownWindow, visualViewport } from "./geometry.js";
 import { linkPreview } from "./place-preview.js";
 
@@ -624,17 +624,17 @@ let shown = null;
 let cooled = -Infinity;
 // What a hovering pointer rests on, in two layers, each kept until whoever said it says
 // otherwise: the element `pointerover` found that previews itself (`over`), and the
-// range a range's owner says it rests on, with what pointing at it reads and where the
-// pointer was (`ranged`, `pointRange`). Pointing reads what a press there acts on
-// (`aimed`): where a press reaches a working control (control-selectors.js,
-// `pressedControl`), as a link holding a thread's words or a link inside them, the
-// element, or nothing where the browser shows the control's title; elsewhere the range,
-// where one is said, since the press opens its thread; else the element. The pointer
-// leaving a link for the passage's words around it is on the passage again with nothing
-// told anew.
+// range a range's owner says it rests on, with what pointing at it reads, where the
+// pointer was and the passage it is a piece of (`ranged`, `pointRange`). The target is
+// the element unless it holds the whole passage, so a link inside the passage or
+// overlapping part of it previews as the link, and a passage inside a widget that
+// previews itself as the passage; the range where no element is found; and the
+// element where no range is said (`aimed`). The pointer leaving a link for the
+// passage's words around it is on the passage again with nothing told anew.
+/** @typedef {{range: Range, read: Read | null, at: {x: number, y: number} | undefined, passage: readonly (Range | Element)[]}} Ranged */
 /** @type {Element | null} */
 let over = null;
-/** @type {{range: Range, read: Read | null, at: {x: number, y: number} | undefined} | null} */
+/** @type {Ranged | null} */
 let ranged = null;
 // The target under a hovering pointer, the read its range's owner gave, and the dwell
 // before its preview.
@@ -1415,7 +1415,16 @@ const sameTarget = (a, b) => a === b || (a instanceof Range && sameRange(a, b));
 // The pointer's target, from what each layer says it rests on (`over`, `ranged`).
 /** @returns {Target | null} */
 function aimed() {
-  return ranged && !(beneath && pressedControl(beneath)) ? ranged.range : over;
+  if (!ranged) return over;
+  if (!over) return ranged.range;
+  const element = over;
+  const holds = ranged.passage.every((piece) =>
+    renderedUnder(
+      piece instanceof Range ? piece.commonAncestorContainer : piece,
+      element,
+    ),
+  );
+  return holds ? ranged.range : element;
 }
 function aim() {
   const target = aimed();
@@ -1427,15 +1436,18 @@ function aim() {
  * pointing at it reads, and where the pointer is, which picks the line it stands by. A
  * range with the same boundaries as the one pointed at is the same range, however many
  * times its owner makes it, and its latest read is the one a standing preview says. The
- * range stands until its owner says none (`ranged`): where a press would act on a
- * control under the pointer, as a link holding the range's words or inside them, the
- * control is what pointing reads, and the range is the target again once the pointer
- * leaves it for the range's words (`aimed`). A pointer on the
+ * range is the piece the preview stands by; `passage` is every piece of what the
+ * pointer rests on, the range alone where its owner names no more. The range stands
+ * until its owner says none (`ranged`): an element under the pointer that doesn't hold
+ * the whole passage, as a link in a thread's passage, is the innermost and wins, as it
+ * does for the keyboard and a finger, and the range is the target again once the
+ * pointer leaves that element for the passage's words (`aimed`). A pointer on the
  * range's preview keeps the range, as one on an element's preview keeps the element
  * (WCAG 1.4.13, "Hoverable"). A finger holding a press holds the range it rests on
  * (`holdRange`); one that only moved reads none.
- * @param {Range | null} range @param {Read} [read] @param {{x: number, y: number}} [at] */
-export function pointRange(range, read, at) {
+ * @param {Range | null} range @param {Read} [read] @param {{x: number, y: number}} [at]
+ * @param {readonly (Range | Element)[]} [passage] */
+export function pointRange(range, read, at, passage = range ? [range] : []) {
   if (hold) holdRange(hold, range, read, at);
   else if (finger) return;
   else if (!range) {
@@ -1446,6 +1458,7 @@ export function pointRange(range, read, at) {
     // The same range again may say other words: its declaration is the latest, and a
     // preview standing for it reads it now.
     ranged.read = read ?? null;
+    ranged.passage = passage;
     if (!sameTarget(pointing, ranged.range)) aim();
     else {
       pointingRead = ranged.read;
@@ -1455,7 +1468,7 @@ export function pointRange(range, read, at) {
       }
     }
   } else {
-    ranged = { range, read: read ?? null, at };
+    ranged = { range, read: read ?? null, at, passage };
     aim();
   }
 }

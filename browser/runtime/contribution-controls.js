@@ -259,6 +259,19 @@ function paintAgentDescription(control) {
   );
 }
 
+// A context's lines, broken where its words say, as a change's says what it came after
+// under what it did (change-provenance.js).
+/** @param {import("./voice.js").Words | null | undefined} words */
+function contextLines(words) {
+  if (!words) return [];
+  /** @type {(string | import("./voice.js").Said)[][]} */
+  const lines = [[]];
+  for (const part of Array.isArray(words) ? words : [words])
+    if (part === "\n") lines.push([]);
+    else lines.at(-1)?.push(part);
+  return lines.filter((line) => line.length).map((line) => voiced(line));
+}
+
 // What an entry says when pointed at (preview.js): its label, the context its
 // projection gives it, and what its title says beyond the label, such as an agent's work
 // on it, each word said by whoever says it. A finger holding the entry reads the same.
@@ -281,10 +294,7 @@ function entryPreview() {
     .flatMap((part, index) => (index ? [" · ", part] : [part]));
   return {
     name: record.voice ? voiced(saidBy(record.voice, label)) : label,
-    detail: [
-      record.context ? voiced(record.context) : null,
-      more.length ? voiced(more) : null,
-    ],
+    detail: [...contextLines(record.context), more.length ? voiced(more) : null],
   };
 }
 
@@ -452,7 +462,7 @@ export const contributionReceipts = elementDirective(
 );
 
 /** @param {HTMLElement} control @param {EntryInput | PresentedEntry} offered
- * @param {HostOptions & {preview?: (() => import("./preview.js").Preview | null) | null}} [options] */
+ * @param {HostOptions & {preview?: import("./preview.js").Read | null}} [options] */
 export function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))

@@ -72,15 +72,12 @@ export function createAnchorPaint({
   let hereParts = [];
   let hoverFrame = 0;
   let mounted = false;
-  // Whether the hover pass reads the pointer where the user's own input put it, and
-  // whether it rests there rather than carrying a press, as selecting words does; the
-  // kind of pointer that put it there; and the thread whose words the preview owner was
-  // last told it rests on (`pointMark`), undefined where it is to be told again.
+  // Whether the hover pass reads the pointer where the user's own input put it, whether
+  // it rests there rather than carrying a press, as selecting words does, and whether
+  // the preview owner was last told it rests on a thread's words (`pointMark`).
   let aimed = false;
   let resting = false;
-  let aimedWith = "";
-  /** @type {string | null | undefined} */
-  let pointed = null;
+  let pointed = false;
 
   /** @param {string | null} id */
   const marksFor = (id) => (id === null ? [] : (marked.get(id) ?? []));
@@ -261,16 +258,25 @@ export function createAnchorPaint({
   // pointer, so a mark a scroll or a repaint carries under a still pointer shows
   // nothing, as the owner holds for elements, and a pointer carrying a press, as in
   // selecting words, rests on no mark.
+  // The owner is told the whole passage, from its first piece's start to its last's
+  // end, which keeps its bounds as the pointer crosses the pieces an inline element
+  // splits it into, or a repaint makes it again, so its preview stands once (preview.js,
+  // `pointRange`) by the line the pointer is on.
   /** @param {{id: string, where: Mark} | null} hit @param {{x: number, y: number}} at */
   function pointMark(hit, at) {
     const id = resting && hit?.where instanceof Range ? hit.id : null;
-    if (id === pointed) return;
-    pointed = id;
-    if (!id || !(hit?.where instanceof Range)) return void pointRange(null);
+    const pieces = marksFor(id).filter((mark) => mark instanceof Range);
+    const [first] = pieces;
+    const last = pieces.at(-1);
+    pointed = Boolean(first && last);
+    if (!id || !first || !last) return void pointRange(null);
+    const passage = document.createRange();
+    passage.setStart(first.startContainer, first.startOffset);
+    passage.setEnd(last.endContainer, last.endOffset);
     // The thread the user is in is in front of them already, as an entry standing
     // open previews nothing (preview.js).
     pointRange(
-      hit.where,
+      passage,
       () => {
         const thread = id === currentLocationThreadId() ? null : threadNamed(id);
         return thread ? threadPreview([thread]) : null;
@@ -278,19 +284,11 @@ export function createAnchorPaint({
       at,
     );
   }
-  // The user moved the pointer, or pressed a finger, which may rest on a mark: a
-  // finger's press is a new aim, and so is another kind of pointer's first move, so the
-  // mark it lands on is said again.
+  // The user moved the pointer, or pressed a finger, which may rest on a mark.
   /** @param {PointerEvent} event */
   function pointerAimed(event) {
     aimed = true;
     resting = event.pointerType === "touch" || !event.buttons;
-    if (
-      event.pointerType !== aimedWith ||
-      (event.type === "pointerdown" && event.pointerType === "touch")
-    )
-      pointed = undefined;
-    aimedWith = event.pointerType;
     refreshHover();
   }
 
@@ -412,7 +410,7 @@ export function createAnchorPaint({
     }
     mounted = false;
     if (pointed) pointRange(null);
-    pointed = null;
+    pointed = false;
     if (hoverFrame) cancelRender(hoverFrame);
     hoverFrame = 0;
     const before = outlined();

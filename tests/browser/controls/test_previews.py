@@ -150,6 +150,8 @@ MARK_LINE = """(words) => {
   return range.getClientRects()[0].toJSON();
 }"""
 CARD = ".lf-margin-preview:not([hidden])"
+# The ids of what a screen reader hears describe a node.
+DESCRIBED = "(node) => (node.ariaDescribedByElements ?? []).map((el) => el.id)"
 
 
 def _thread_on_a_passage(serve, viewport=None):
@@ -191,7 +193,7 @@ def _says_where_the_thread_stands(preview):
     """The thread's name, then who said its last message and when, that message's
     opening line, and where the thread stands, in the turn's colour."""
     expect(preview.locator(".lf-preview-word")).to_have_text("Why ship with that?")
-    lines = preview.locator(".lf-preview-more")
+    lines = preview.locator(".lf-preview-detail")
     expect(lines).to_have_text(
         [
             "Claude · 3h ago",
@@ -199,17 +201,23 @@ def _says_where_the_thread_stands(preview):
             "Your turn · 1 unread · 2 messages",
         ]
     )
-    expect(lines.last).to_have_attribute("data-lf-turn", "user")
+    expect(lines.last.locator("[data-lf-turn]")).to_have_attribute(
+        "data-lf-turn", "user"
+    )
 
 
-def test_a_thread_previews_where_it_stands_from_its_words_and_its_entry(browser, serve):
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_thread_previews_where_it_stands_from_its_words_and_its_entry(
+    engine, request, serve
+):
     """A thread's passage mark and its margin entry say the same thing when pointed at,
     from the reading every surface paints the thread from: the thread's name, who wrote
     its last message and when, that message's opening line, and the thread's word, what
-    it holds unread and how many messages. A resting pointer reads it beside the line it rests on, the
-    keyboard on the entry reads it at once, and a press on the words still opens the
-    card (thread/messages.js, `threadPreview`)."""
-    page = open_page(browser, _thread_on_a_passage(serve))
+    it holds unread and how many messages. A resting pointer reads it beside the line it
+    rests on, the keyboard on the entry reads it at once, which a screen reader hears as
+    the entry's description, and a press on the words still opens the card
+    (thread/messages.js, `threadPreview`)."""
+    page = open_page(request.getfixturevalue(engine), _thread_on_a_passage(serve))
     preview = page.locator(PREVIEW)
     line = page.evaluate(MARK_LINE, MARKED)
     rendered(page)
@@ -233,8 +241,10 @@ def test_a_thread_previews_where_it_stands_from_its_words_and_its_entry(browser,
     entry.focus()
     expect(preview).to_be_visible()
     assert preview.inner_text() == said
+    assert "lf-preview" in entry.evaluate(DESCRIBED)
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
+    assert "lf-preview" not in entry.evaluate(DESCRIBED)
 
     page.mouse.click(line["left"] + 10, line["top"] + line["height"] / 2)
     expect(page.locator(CARD)).to_be_visible()
@@ -269,11 +279,13 @@ def test_a_finger_holding_a_thread_s_words_reads_it_above_them(browser, serve):
     expect(page.locator(CARD)).to_be_visible()
 
 
-def test_an_age_previews_its_clock_time_in_the_reader_s_zone(browser, serve):
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, serve):
     """An age says how long ago, and its preview says when, in the reader's own zone:
-    a message's age to a resting pointer, the message the keyboard stands on whether or
-    not its head shows the age, and the panel's ages, which are times too. No title
-    stands beside it."""
+    a message's age to a resting pointer, and the message the keyboard stands on,
+    beside its age, which a screen reader hears as the message's description; the
+    message's words say no time to a pointer. The panel's ages are times too. No title
+    stands beside any of them."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     asked = append_carried_log_record(
@@ -297,6 +309,7 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(browser, serve):
             "ts": "2026-08-16T01:30:00Z",
         },
     )
+    browser = request.getfixturevalue(engine)
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, timezone_id="America/Los_Angeles"
     )
@@ -307,8 +320,21 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(browser, serve):
     question = page.locator(f'.lf-msg[data-lf-event="{asked}"]')
     expect(question).to_be_focused()
     expect(preview).to_have_text("Sat 15 Aug 2026, 14:02 PT")
+    assert "lf-preview" in question.evaluate(DESCRIBED)
+    # It stands by the age, not under the whole message.
+    tip = preview.bounding_box()
+    time = question.locator(".lf-msg-head time").bounding_box()
+    assert 0 <= tip["y"] - (time["y"] + time["height"]) <= 24, (tip, time)
+    assert (
+        tip["x"] <= time["x"] + time["width"] and tip["x"] + tip["width"] >= time["x"]
+    )
+    # A pointer on the words of the message the keyboard is on hears no time from them.
+    body = question.locator(".lf-msg-body").bounding_box()
+    page.mouse.move(body["x"] + 8, body["y"] + body["height"] / 2, steps=3)
+    page.wait_for_timeout(500)
+    expect(preview).not_to_have_text("Sat 15 Aug 2026, 14:02 PT")
+    page.mouse.move(0, 0)
     page.keyboard.press("Escape")
-    expect(preview).to_be_hidden()
 
     view = open_panel_thread(page, asked)
     age = view.locator(".lf-msg-head time").first

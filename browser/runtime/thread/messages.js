@@ -244,57 +244,52 @@ function threadStands(thread) {
 }
 
 /** What pointing at threads reads (preview.js), on a passage mark and on a margin entry
- * alike, from the reading every surface paints a thread from, as a name and the lines
- * under it. One thread is named as every surface names it (`threadName`), and its lines
+ * alike, from the reading every surface paints a thread from, as a name and lines of
+ * detail. One thread is named as every surface names it (`threadName`), and its lines
  * say who wrote its last message and when, that message's opening line, and where the
  * thread stands: "Your turn · 1 unread · 5 messages". An untitled thread's name is its
  * opening words, so a thread whose last message is its first says them once. A target
  * holding several threads is named by their count, as the card a press opens lists
  * them, and gives each a line, its name and where it stands, then how many more past
- * the first few.
- * @param {readonly import("./workflow.js").ThreadRecord[]} threads */
+ * the first few. A line in the user's turn wears the turn's mark (`data-lf-turn`).
+ * @param {readonly import("./workflow.js").ThreadRecord[]} threads
+ * @returns {import("../preview.js").Preview | null} */
 export function threadPreview(threads) {
   const [only] = threads;
   if (!only) return null;
-  /** @param {ReturnType<typeof threadStands>} stands @param {unknown} [lead] */
-  const standing = ({ turn, words }, lead = nothing) =>
-    html`<span class="lf-preview-more" data-lf-turn=${turn ?? nothing}
-      >${lead}${voiced(words)}</span
-    >`;
+  /** @param {ReturnType<typeof threadStands>} stands @param {string} [lead] */
+  const standing = ({ turn, words }, lead = "") =>
+    html`<span data-lf-turn=${turn ?? nothing}>${lead}${voiced(words)}</span>`;
   if (threads.length === 1) {
     const last = turns(only).at(-1) ?? only.root;
     const opening = last.id === only.root.id && only.title == null;
-    return html`<span class="lf-preview-word"
-        >${excerptWords(threadName(only), PREVIEWED_LINE)}</span
-      ><span class="lf-preview-more">${authorName(last)} · ${ago(last.ts)}</span>${
-        opening
-          ? nothing
-          : html`<span class="lf-preview-more lf-preview-said"
-              >${
-                deleted(last)
-                  ? voiced(DELETED)
-                  : excerptWords(openingLine(last), PREVIEWED_LINE)
-              }</span
-            >`
-      }${standing(threadStands(only))}`;
+    return {
+      name: excerptWords(threadName(only), PREVIEWED_LINE),
+      detail: [
+        `${authorName(last)} · ${ago(last.ts)}`,
+        !opening &&
+          (deleted(last)
+            ? voiced(DELETED)
+            : excerptWords(openingLine(last), PREVIEWED_LINE)),
+        standing(threadStands(only)),
+      ],
+    };
   }
   const shown =
     threads.length > PREVIEWED_THREADS
       ? threads.slice(0, PREVIEWED_THREADS - 1)
       : threads;
   const more = threads.length - shown.length;
-  return html`<span class="lf-preview-word">${counted(threads.length, "thread")}</span
-    >${shown.map((thread) =>
-      standing(threadStands(thread), `${excerptWords(threadName(thread), 60)} · `),
-    )}${
-      more
-        ? html`<span class="lf-preview-more"
-            >${voiced(
-              leafSays(`and ${counted(more, "more thread", "more threads")}`),
-            )}</span
-          >`
-        : nothing
-    }`;
+  return {
+    name: counted(threads.length, "thread"),
+    detail: [
+      ...shown.map((thread) =>
+        standing(threadStands(thread), `${excerptWords(threadName(thread), 60)} · `),
+      ),
+      more > 0 &&
+        voiced(leafSays(`and ${counted(more, "more thread", "more threads")}`)),
+    ],
+  };
 }
 
 // A rollback can withdraw an authored island, but neither retry nor a prose edit
@@ -585,11 +580,20 @@ export class MessageView {
       generatedElement(this.node, { says: false });
       this.node.dataset.lfOffer = "";
       // A message the keyboard stands on previews when it was said, the clock time its
-      // age says to a pointer or a finger (`agePreview`), whether or not its head shows
-      // the age. Its words preview nothing, since they are what the user reads.
-      this.node.lfPreview = () =>
-        (this.node.matches(":focus-visible") && clockTime(this.#model?.timestamp)) ||
-        null;
+      // age says to a pointer or a finger (`agePreview`), beside the age where its head
+      // shows one. Its words preview nothing to a pointer or a finger, since they are
+      // what the user reads.
+      this.node.lfPreview = (/** @type {import("../preview.js").Route} */ route) => {
+        const at = route === "focus" ? clockTime(this.#model?.timestamp) : "";
+        return at
+          ? {
+              name: at,
+              at: this.node.querySelector(
+                ":scope > .lf-msg-head > .lf-msg-meta > time",
+              ),
+            }
+          : null;
+      };
       // A double click on the user's own words opens them for rewriting, as the word
       // under it would otherwise only be selected. The word it selected goes first: the
       // editor then sets its own caret, which clearing the selection after would take. A

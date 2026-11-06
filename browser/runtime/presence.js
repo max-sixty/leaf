@@ -90,9 +90,10 @@ export function clockTime(ts) {
 // What an age previews (preview.js): the clock time of the instant its `<time>` holds,
 // so every age the page draws declares one function and holds its instant once, in
 // `datetime`, where the platform keeps it.
-/** @this {Element} */
+/** @this {Element} @returns {import("./preview.js").Preview | null} */
 export function agePreview() {
-  return clockTime(this.getAttribute("datetime")) || null;
+  const at = clockTime(this.getAttribute("datetime"));
+  return at ? { name: at } : null;
 }
 
 // How long working may go unheard before it reads as quiet. The server's activity fold

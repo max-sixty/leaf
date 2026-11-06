@@ -593,20 +593,18 @@ def test_a_change_says_which_comment_it_came_after(browser, serve):
             f'[data-lf-margin-for="{section}"] .lf-margin-marker[data-lf-kinds~="change"]'
         ).hover()
         expect(preview).to_be_visible()
-        return preview.locator(".lf-preview-more")
+        return preview.locator(".lf-preview-detail")
 
-    lines = pointed("b")
-    expect(lines).to_contain_text(
-        "1 paragraph edited since v1 In v2, after your comment: “Beta first?”"
+    expect(pointed("b")).to_have_text(
+        [
+            "1 paragraph edited since v1",
+            "In v2, after your comment:",
+            "“Beta first?”",
+        ]
     )
-    assert lines.evaluate("node => node.innerText.split('\\n')") == [
-        "1 paragraph edited since v1",
-        "In v2, after your comment:",
-        "“Beta first?”",
-    ]
-    expect(pointed("d")).to_contain_text("In v3, with none of your comments waiting")
+    expect(pointed("d")).to_contain_text(["In v3, with none of your comments waiting"])
     expect(pointed("t")).to_contain_text(
-        "In Draft, after your comment: “Is the title right?”"
+        ["In Draft, after your comment:", "“Is the title right?”"]
     )
     page.mouse.move(0, 0)
     page.keyboard.press("h")

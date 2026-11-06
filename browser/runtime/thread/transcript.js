@@ -151,6 +151,8 @@ export class Transcript {
   #id = ++nextTranscriptId;
   // Counts the ids this transcript gives covered messages.
   #named = 0;
+  /** @type {unknown} */
+  #awaited = nothing;
 
   /**
    * @param {object} options
@@ -214,7 +216,11 @@ export class Transcript {
   // behind its run's face among them, stand in the transcript hidden, so the last
   // message alone may show nothing.
   get foot() {
-    return [...this.node.children].findLast((node) => showsContents(node)) ?? null;
+    return (
+      [...this.node.children].findLast(
+        (node) => !node.matches(".lf-awaited") && showsContents(node),
+      ) ?? null
+    );
   }
 
   // Whether the progress behind the working message stood open when last drawn, opened by
@@ -260,10 +266,12 @@ export class Transcript {
    * disclosure that took over the one the user was on, where this draw replaced it, as
    * the answer's head takes progress over from the working message.
    * @param {import("./thread-card.js").ThreadViewModel} model
-   * @param {{arrived?: boolean}} [options]
+   * @param {{arrived?: boolean, awaited?: unknown}} [options] `awaited` is what the
+   *   reader says stands after the messages: New reply (thread-card.js).
    * @returns {HTMLElement | null}
    */
-  present(model, { arrived = false } = {}) {
+  present(model, { arrived = false, awaited = nothing } = {}) {
+    this.#awaited = awaited;
     const prior = this.#model;
     const currentLocation = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
@@ -585,11 +593,11 @@ export class Transcript {
 
   #paint() {
     render(
-      repeat(
+      html`${repeat(
         this.#rows,
         (row) => row.key,
         (row) => (typeof row.body === "function" ? row.body(!!row.tail) : row.body),
-      ),
+      )}${this.#awaited}`,
       this.node,
     );
   }

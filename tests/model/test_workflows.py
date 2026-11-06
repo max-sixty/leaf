@@ -588,9 +588,9 @@ def test_settings_the_user_has_not_sent_ask_nothing_of_the_agent():
     attention and leaves the submission the agent's one input on the widget."""
     page = ModelPage(
         '<lf-ask id="ask"><h2>Which tone?</h2><lf-playground id="tone-playground">'
-        '<lf-playground-control name="tone" label="Tone" kind="choice" value="calm">'
-        '<lf-playground-choice value="calm" label="Calm"></lf-playground-choice>'
-        '<lf-playground-choice value="urgent" label="Urgent"></lf-playground-choice>'
+        '<lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="calm">'
+        '<lf-playground-choice id="tone-calm" value="calm" label="Calm"></lf-playground-choice>'
+        '<lf-playground-choice id="tone-urgent" value="urgent" label="Urgent"></lf-playground-choice>'
         "</lf-playground-control>"
         "<lf-playground-preview><p>Deployed.</p></lf-playground-preview>"
         "<lf-playground-output>Build it.</lf-playground-output>"
@@ -646,6 +646,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
     def workflow(id, seq, subject, stage, obligation=None):
         return {
             "id": id,
+            "input": id,
             "seq": seq,
             "subject": subject,
             "stage": stage,
@@ -703,7 +704,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         assert browser_served_model._thread_attention(
             thread,
             [owed],
-            work_served_model.served_workflows(workflows, frozen, records),
+            work_served_model.served_workflows(workflows, frozen, records, frozenset()),
             todos,
         ) == {
             "kind": "waiting",
@@ -728,6 +729,7 @@ def test_served_workflows_list_the_strongest_first():
     def workflow(id, seq, stage, condition=None, obligation=None):
         return {
             "id": id,
+            "input": id,
             "seq": seq,
             "subject": {"kind": "thread", "id": "root"},
             "stage": stage,
@@ -781,7 +783,9 @@ def test_served_workflows_list_the_strongest_first():
     )
     records = obligations_model.collection([handed_back])
     for workflows, expected in cases:
-        served = work_served_model.served_workflows(workflows, frozen, records)
+        served = work_served_model.served_workflows(
+            workflows, frozen, records, frozenset()
+        )
         assert [item["id"] for item in served] == expected
 
 

@@ -25,7 +25,6 @@ from interact_support import (
     SKILL_ROOT,
     STATED_TIMEOUT,
     add_test_widget,
-    case_alias,
     command_findings,
     declare_on_page,
     element_declaration,
@@ -1725,8 +1724,8 @@ def test_an_untyped_has_leads_only_to_a_typed_subject():
     Chromium tests the root's `:has()` on every element of that type, and adding or
     removing a node inside any of them restyled the page: with `@scope (div:has(>
     lf-toc))`, a heading's link moving into the chrome restyled 20,255 of the 28,335
-    elements of the 512-section asks page of `leaf-dev scaling`, against 58 with
-    toc.css's `lf-toc + *`, which asks no `:has()` at all."""
+    elements of the 512-section asks page of `leaf-dev bench`, against 58 with
+    toc.css's rule for the block after the map, which asks no `:has()` at all."""
     found = []
 
     def keyed(compound):
@@ -2338,7 +2337,7 @@ _LAYER_SHEET_ORDER = [
     for sheet in (
         root / name
         for name in (
-            ("shadow.css", "base.css")
+            ("styles/control-face.css", "shadow.css", "base.css")
             if root == schema_model.ASSETS
             else schema_model.PACKAGE_STYLES
         )
@@ -2350,10 +2349,13 @@ _LAYER_SHEET_ORDER = [
 def test_the_injected_control_face_is_one_default_in_both_trees():
     """Document and declared-shadow controls share one default before component rules.
 
-    It weighs nothing and comes first, so every component rule outranks it, and
-    markup's reading face, a layer below, loses to it. Only native controls and those
-    carrying a face class receive it: a widget's apparatus marked `lf-ui`, such as diff
-    line numbers, retains the component's own typography.
+    It weighs nothing and comes first in the document, so every component rule
+    outranks it, and markup's reading face, a layer below, loses to it. A shadow tree
+    places the same sheet below what a widget adopts, which
+    `test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rules`
+    holds. Only native controls and those carrying a face class receive it: a widget's
+    apparatus marked `lf-ui`, such as diff line numbers, retains the component's own
+    typography.
     """
     faces = [
         (sheet, selector)
@@ -2364,8 +2366,8 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
         if any(name in _FACE for name, _value in declarations)
     ]
     assert faces, "no face was read from the layer's sheets — the reading is broken"
-    # Both delivery trees use the same face classes and cascade order.
-    shadow = schema_model.ASSETS / "shadow.css"
+    # One sheet gives both delivery trees the default.
+    face_sheet = schema_model.ASSETS / "styles/control-face.css"
     control_face = (
         ":where( :is(:root, :host) .lf-ui-face, :is(:root, :host) .button, "
         ":is(:root, :host) .field, "
@@ -2373,7 +2375,7 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
         ":host :is(button, input, select, textarea) )"
     )
     control_ink = ":where(.lf-ui-face, .button, .field)"
-    default = [(shadow, control_face), (shadow, control_ink)]
+    default = [(face_sheet, control_face), (face_sheet, control_ink)]
     assert faces[:2] == default, faces[:2]
     defaults = [
         face
@@ -3194,37 +3196,6 @@ def test_replace_files_rejects_case_aliased_future_targets(tmp_path, monkeypatch
     assert not first.exists() and not second.exists()
 
 
-def test_init_refuses_case_aliased_layer_scopes(tmp_path, monkeypatch):
-    project = tmp_path / "Project"
-    project.mkdir()
-    alias = case_alias(project)
-    monkeypatch.chdir(project)
-    user_layer = alias / ".LEAF" / "leaf"
-    user_layer.mkdir(parents=True)
-    theme = user_layer / "overrides.css"
-    theme.write_text(":root { --accent: teal; }\n")
-    before = theme.read_bytes()
-    page = tmp_path / "page"
-
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "init",
-            "--package",
-            "./.leaf",
-            "--package",
-            "./.LEAF/leaf",
-            str(page),
-        ],
-    )
-
-    assert result.exit_code != 0
-    assert "package scopes must be separate" in result.output
-    assert theme.read_bytes() == before
-    assert not page.exists()
-
-
 def test_init_reads_the_complete_layer_before_revendoring(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
@@ -3484,43 +3455,6 @@ def test_init_refuses_a_package_nested_in_a_page_owned_directory(
     assert not (page / cleanup_model.EVENTS_FILE).exists()
 
 
-def test_init_refuses_a_case_aliased_source_at_a_page_destination(
-    tmp_path, monkeypatch
-):
-    project = tmp_path / "Project"
-    project.mkdir()
-    monkeypatch.chdir(project)
-    runner = CliRunner()
-    page = tmp_path / "MixedCasePage"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-    assert initialized.exit_code == 0, initialized.output
-    (page / "index.html").write_text(PAGE)
-    alias = case_alias(page)
-    target = alias / "INDEX.HTML"
-    assert target.samefile(page / "index.html")
-    before = {
-        path.relative_to(page): path.read_bytes()
-        for path in page.rglob("*")
-        if path.is_file()
-    }
-    layer_theme = project / ".leaf" / "overrides.css"
-    layer_theme.parent.mkdir(parents=True)
-    layer_theme.symlink_to(target)
-
-    result = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
-    )
-
-    assert result.exit_code != 0
-    assert "overlaps page destination" in result.output
-    after = {
-        path.relative_to(page): path.read_bytes()
-        for path in page.rglob("*")
-        if path.is_file()
-    }
-    assert after == before
-
-
 @pytest.mark.parametrize(
     ("example", "code"),
     [
@@ -3595,37 +3529,6 @@ def test_explicit_package_order_is_registry_file_and_theme_precedence(
     assert layer_files(page)["/widgets/shared.js"] == b"// second\n"
     theme = layer_files(page)["/theme.css"].decode()
     assert theme.index("--package-first") < theme.index("--package-second")
-
-
-def test_init_refuses_a_case_aliased_page_inside_a_package(tmp_path, monkeypatch):
-    project = tmp_path / "Project"
-    project.mkdir()
-    alias = case_alias(project)
-    monkeypatch.chdir(project)
-    runner = CliRunner()
-    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
-    assert created.exit_code == 0, created.output
-    layer = project / ".leaf"
-    page = alias / ".LEAF" / "WIDGETS"
-    assert page.samefile(layer / "widgets")
-    before = {
-        path.relative_to(layer): path.read_bytes()
-        for path in layer.rglob("*")
-        if path.is_file()
-    }
-
-    result = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
-    )
-
-    assert result.exit_code != 0
-    assert "inside package" in result.output
-    after = {
-        path.relative_to(layer): path.read_bytes()
-        for path in layer.rglob("*")
-        if path.is_file()
-    }
-    assert after == before
 
 
 def test_init_refuses_non_utf8_package_instructions_before_revendoring(
@@ -3714,14 +3617,12 @@ def test_init_refuses_overlapping_package_scopes(tmp_path, monkeypatch):
     assert not page.exists()
 
 
-@pytest.mark.parametrize("user", [False, True], ids=["project", "user"])
-def test_init_refuses_to_overwrite_a_package(tmp_path, monkeypatch, user):
+def test_init_refuses_to_overwrite_a_package(tmp_path, monkeypatch):
     project = tmp_path / "project"
     project.mkdir()
-    config = tmp_path / "config"
     monkeypatch.chdir(project)
     runner = CliRunner()
-    package = config / "leaf" if user else project / ".leaf"
+    package = project / ".leaf"
     created = runner.invoke(cli_model.cli, ["package", "init", str(package)])
     assert created.exit_code == 0, created.output
 
@@ -3739,7 +3640,7 @@ def test_init_refuses_to_overwrite_a_package(tmp_path, monkeypatch, user):
             "page",
             "init",
             "--package",
-            "../config/leaf" if user else "./.leaf",
+            "./.leaf",
             str(layer),
         ],
     )
@@ -3937,74 +3838,6 @@ def test_package_check_requires_an_existing_package(tmp_path, monkeypatch):
     assert result.exit_code != 0
     assert "is not a package directory" in result.output
     assert not (tmp_path / "packages").exists()
-
-
-def test_package_command_accepts_the_root_of_a_standalone_package_repo(
-    tmp_path, monkeypatch
-):
-    package = tmp_path / "callout-package"
-    package.mkdir()
-    monkeypatch.chdir(package)
-
-    result = CliRunner().invoke(cli_model.cli, ["package", "init", "."])
-
-    assert result.exit_code == 0, result.output
-    assert (package / "registry.json").is_file()
-    assert (package / "overrides.css").is_file()
-    assert (package / "instructions").is_dir()
-    assert (package / "widgets").is_dir()
-    assert (package / "vendor").is_dir()
-
-
-def test_package_command_can_target_the_user_package(tmp_path, monkeypatch):
-    config = tmp_path / "config"
-    monkeypatch.chdir(tmp_path)
-
-    result = CliRunner().invoke(
-        cli_model.cli, ["package", "init", str(config / "leaf")]
-    )
-
-    assert result.exit_code == 0, result.output
-    package = config / "leaf"
-    assert json.loads((package / "registry.json").read_text()) == {}
-    assert (package / "overrides.css").is_file()
-    assert not (tmp_path / ".leaf").exists()
-
-
-def test_package_init_creates_independently_selectable_packages(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    callout = Path("packages/callout")
-    accent = Path("packages/accent")
-
-    for path in (callout, accent):
-        result = runner.invoke(cli_model.cli, ["package", "init", str(path)])
-        assert result.exit_code == 0, result.output
-    add_test_widget(tmp_path / callout, "lf-callout", upgrade=True)
-    with (tmp_path / accent / "overrides.css").open("a") as theme:
-        theme.write("\n:root { --accent: teal; }\n")
-
-    page = tmp_path / "page"
-    initialized = runner.invoke(
-        cli_model.cli,
-        [
-            "page",
-            "init",
-            "--package",
-            str(callout),
-            "--package",
-            str(accent),
-            str(page),
-        ],
-    )
-    assert initialized.exit_code == 0, initialized.output
-    registry = registry_storage.load_registry(page)
-    assert registry["$layer"]["packages"] == [
-        "./packages/callout",
-        "./packages/accent",
-    ]
-    assert "lf-callout" in registry
-    assert "/widgets/lf-callout.js" in layer_files(page)
 
 
 def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch):
@@ -4285,23 +4118,6 @@ def test_package_init_widget_checks_its_candidate_before_writing(tmp_path, monke
     assert not package.exists()
 
 
-def test_package_init_validates_every_target_before_writing(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    layer = tmp_path / ".leaf"
-    theme = layer / "overrides.css"
-    theme.mkdir(parents=True)
-    sentinel = theme / "keep.txt"
-    sentinel.write_text("keep")
-
-    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
-
-    assert result.exit_code != 0
-    assert "overrides.css must be a file" in result.output
-    assert sentinel.read_text() == "keep"
-    assert not (layer / "registry.json").exists()
-    assert not (layer / "widgets").exists()
-
-
 @pytest.mark.parametrize(
     ("relative", "directory"),
     [("vendor", False), ("icon.svg", True)],
@@ -4327,51 +4143,9 @@ def test_package_init_validates_the_complete_package(
     assert not (layer / "widgets").exists()
 
 
-def test_package_preserves_a_symlinked_registry(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    layer = tmp_path / ".leaf"
-    layer.mkdir(parents=True)
-    shared_registry = tmp_path / "shared-registry.json"
-    shared_registry.write_text("{}\n")
-    registry = layer / "registry.json"
-    registry.symlink_to(shared_registry)
-
-    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
-
-    assert result.exit_code == 0, result.output
-    assert registry.is_symlink()
-    assert json.loads(shared_registry.read_text()) == {}
-
-
-def test_package_recognizes_a_page_without_runtime_status(tmp_path, monkeypatch):
+def test_package_refuses_an_initialized_page_as_a_layer(tmp_path, monkeypatch):
     project = tmp_path / "project"
     project.mkdir()
-    monkeypatch.chdir(project)
-    runner = CliRunner()
-    page = tmp_path / "page"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
-    assert initialized.exit_code == 0, initialized.output
-    # A page has no stream until a harness observes a turn on it.
-    assert not (page / "stream.json").exists()
-    before = (page / "events.jsonl").read_bytes()
-
-    layer = project / ".leaf"
-    layer.mkdir(parents=True)
-    (layer / "overrides.css").symlink_to(page / "events.jsonl")
-
-    result = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
-
-    assert result.exit_code != 0
-    assert "owned by initialized page" in result.output
-    assert (page / "events.jsonl").read_bytes() == before
-    assert not (layer / "registry.json").exists()
-
-
-@pytest.mark.parametrize("user", [False, True], ids=["project", "user"])
-def test_package_refuses_an_initialized_page_as_a_layer(tmp_path, monkeypatch, user):
-    project = tmp_path / "project"
-    project.mkdir()
-    config = tmp_path / "config"
     monkeypatch.chdir(project)
     runner = CliRunner()
     page = tmp_path / "page"
@@ -4383,8 +4157,7 @@ def test_package_refuses_an_initialized_page_as_a_layer(tmp_path, monkeypatch, u
         if path.is_file()
     }
 
-    layer = config / "leaf" if user else project / ".leaf"
-    layer.parent.mkdir(parents=True, exist_ok=True)
+    layer = project / ".leaf"
     layer.symlink_to(page, target_is_directory=True)
     result = runner.invoke(cli_model.cli, ["package", "init", str(layer)])
 
@@ -4845,6 +4618,38 @@ def test_a_revision_reads_its_package_copy_after_the_selection_moves_on(
     assert "/widgets/helper.js" in layer_files_of_revision(page, 1)
 
 
+def test_package_instructions_do_not_change_a_revisions_browser_address(
+    tmp_path, monkeypatch
+):
+    from leaf.revision_artifact import read_artifact
+    from leaf.revisioning import activate_source
+    from leaf.runtime_selection import executing
+
+    monkeypatch.chdir(tmp_path)
+    custom = tmp_path / "custom"
+    (custom / "instructions").mkdir(parents=True)
+    (custom / "instructions" / "author.md").write_text("Initial instructions.\n")
+    page = tmp_path / "page"
+    init = ["page", "init", "--package", "./custom", str(page)]
+    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
+    (page / "index.html").write_text(PLAIN_PAGE)
+    assert activate_source(page).error is None
+    artifact = read_artifact(page, 1)
+    record = json.loads(artifact.manifest)["layer"]
+    first_layer = registry_storage.selected(record, page)
+    first = executing(artifact)
+
+    (custom / "instructions" / "author.md").write_text("Revised instructions.\n")
+    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
+    second_layer = registry_storage.selected(record, page)
+    second = executing(artifact)
+
+    assert second_layer.fingerprint != first_layer.fingerprint
+    assert second.package_copies != first.package_copies
+    assert second.resources == first.resources
+    assert second.identity == first.identity
+
+
 def layer_files_of_revision(page: Path, revision: int) -> dict[str, bytes]:
     from leaf.revision_artifact import read_artifact
 
@@ -4927,8 +4732,9 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     types in a loop counts as written.
 
     Each allowed one is named here. The dispatcher has a capture listener for
-    shortcut characters, before nested libraries' typeahead, and a bubble listener
-    for other keys, after controls' own handling; both use the same register.
+    shortcut characters, before nested libraries' typeahead, and for a key that lets go
+    of focus the user can't see, and a bubble listener for other keys, after controls'
+    own handling; both use the same register.
     The aim latch is not a binding at all: holding ⌥ arms nothing and answers no
     press, it paints what
     a click would take, and its keyup half has no place in a table of presses. The

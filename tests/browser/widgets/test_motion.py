@@ -1,9 +1,21 @@
 """Motion studies share an inspectable clock across authored views and release it
 when detached. Playback and seeking remain local presentation state."""
 
+import shutil
+
 import pytest
 from playwright.sync_api import expect
-from render_harness import leaf_page, open_page, reported_browser_errors
+from render_cases_interaction import live_url
+from render_harness import (
+    example_media,
+    leaf_page,
+    open_page,
+    reported_browser_errors,
+    resized,
+    scroll_settled,
+    stamp_page,
+    wait_for_revision,
+)
 
 from leaf.render_checks import wait_until_ready
 
@@ -354,3 +366,96 @@ def test_play_arrives_available_only_where_there_is_something_to_play(browser, s
     # A study with nothing to play takes no press.
     sketch.click(force=True)
     expect(sketch).to_have_accessible_name("Play")
+
+
+def revised_study(added=""):
+    """A study long enough to read inside, whose revision adds paragraphs at its top."""
+    notes = "".join(
+        f'<p id="note-{n}">Note {n} on the travel sketch.</p>' for n in range(40)
+    )
+    return leaf_page(
+        "Motion revision",
+        f"""<h1>Motion revision</h1>
+<lf-motion id="study" duration="1000" aria-label="A travel sketch">
+  <p>The sketch, introduced.</p>{added}
+  <svg viewBox="0 0 300 80" role="img" aria-label="Travel">
+    <circle cx="20" cy="40" r="10" /></svg>
+  {notes}
+</lf-motion>
+<div style="height: 1200px"></div>""",
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_revision_inside_a_study_keeps_the_paragraph_read_where_it_stood(
+    request, serve, engine
+):
+    """A study builds its transport beside the authored previews and reads none of
+    them (`x-patch: members`), so a revision adding paragraphs above the one the reader
+    reads inside it edits the study in place: the paragraph stays the node the browser's
+    scroll anchoring holds, and stands where it stood. Replaced whole, the study took
+    that node away."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        live_url(serve(revised_study(), packages=("motion",))),
+    )
+    resized(page, 900, 600)
+    read = page.locator("#note-20")
+    read.evaluate(
+        "el => { window.__read = el;"
+        " scrollBy({top: el.getBoundingClientRect().top - 300, behavior: 'instant'}); }"
+    )
+    scroll_settled(page)
+    before = read.evaluate("el => el.getBoundingClientRect().top")
+    # The revision adds its paragraphs after this one, above the window.
+    intro = page.locator("#study > p").first
+    assert intro.evaluate("el => el.getBoundingClientRect().bottom") < 0
+    added = "".join(f"<p>Context {n} the revision adds.</p>" for n in range(5))
+    stamp_page(serve.page_dir, revised_study(added), "add context to the study")
+    wait_for_revision(page, 2)
+    expect(page.locator("#study p", has_text="Context 4")).to_have_count(1)
+    assert page.evaluate("window.__read === document.getElementById('note-20')"), (
+        "the revision replaced the paragraph being read"
+    )
+    assert read.evaluate("el => el.getBoundingClientRect().top") == pytest.approx(
+        before, abs=1
+    )
+    # The transport the study built stays first, where it sticks over the previews.
+    expect(page.locator("#study .lf-motion-controls")).to_have_count(1)
+    expect(page.locator("#study > .lf-motion-transport:first-child")).to_have_count(1)
+
+
+def test_recordings_a_revision_adds_join_the_studys_clock(browser, serve):
+    """A revision edits inside a study in place, so recordings it adds to a study the
+    reader has already sought arrive into a clock that is running its course. Once
+    their metadata loads they stand at the clock's time, rather than at their first
+    frame, and Play has them to play."""
+
+    def study(added=""):
+        return leaf_page(
+            "Recording revision",
+            f"""<h1>Recording revision</h1>
+<lf-motion id="study" duration="8000" aria-label="Two recordings">
+  <p>The recordings follow.</p>{added}
+</lf-motion>""",
+        )
+
+    page = open_page(browser, live_url(serve(study(), packages=("motion",))))
+    play = page.locator("#study .lf-motion-play")
+    expect(play).to_have_attribute("aria-disabled", "true")
+    page.locator("#study").evaluate("study => study.currentTime = 2000")
+    # The recordings' file joins the page as `leaf page media` puts it there.
+    (serve.page_dir / "media").mkdir(exist_ok=True)
+    shutil.copy2(example_media() / "2930ad3df7819c50.mp4", serve.page_dir / "media")
+    recordings = "".join(
+        f'<video muted playsinline width="320" height="180" aria-label="{label}"'
+        ' src="/media/2930ad3df7819c50.mp4"></video>'
+        for label in ("Current", "Candidate")
+    )
+    stamp_page(serve.page_dir, study(recordings), "add the recordings")
+    wait_for_revision(page, 2)
+    page.wait_for_function(
+        "[...document.querySelectorAll('#study video')].map(v => v.currentTime)"
+        ".join() === '2,2'",
+    )
+    expect(play).not_to_have_attribute("aria-disabled", "true")

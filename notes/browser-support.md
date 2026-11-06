@@ -89,16 +89,6 @@ The Chromium behavior and interruption contract are covered by
 `test_pointer_tab_underline_moves_without_delaying_the_view` in
 `tests/browser/widgets/test_tabs.py`.
 
-### Scroll-state containers
-
-Firefox 157 and Playwright Firefox and WebKit 26.6 lacked CSS scroll-state
-containers on 2026-10-14. `browser/layouts.css` declares `normal` before
-`scroll-state` so breakout tables keep their intended width in those engines;
-other tables keep the `inline-size` container from
-`browser/styles/components/reading.css`. Recheck table width with
-`test_a_table_of_prose_wraps_inside_its_box_in_every_engine` in
-`tests/browser/test_render_pages.py` before removing the fallback.
-
 ### Baseline content-alignment
 
 Option cards laid across align their titles with `align-content: first baseline`
@@ -149,6 +139,24 @@ Revisit the fallback when supported engines provide it.
 `test_the_lens_follows_the_scroll_without_a_scroll_timeline` in
 `tests/browser/widgets/test_contents_and_glosses.py` checks the fallback against
 the native timeline with the API removed.
+
+### Sticky boxes' own place
+
+A margin pin's seat is read against the room around its target, with a sticky box
+counted at its own place, where it stands before sticking (`stuckShift` in
+`browser/runtime/geometry.js`). Only a view timeline reads that place without
+writing to the page. Installed Playwright Firefox 157.0, build 1555, had no
+`ViewTimeline` on 2026-11-05. Release Firefox 159.0 on macOS builds a `ViewTimeline` the
+same day but throws NotSupportedError on reading its `startOffset` or `endOffset`, which
+stopped each margin layout pass whose pin passed a sticky box; `stuckShift` now asks for an
+offset once and reads nothing further from timelines where it throws. In both, a sticky
+box counts where it is drawn. A pass
+made while a header inside the target is stuck down the page can then seat the pin
+where the header stands once the user scrolls back, and a later unrelated pass moves
+the pin with no input. Playwright Chromium 156.0.8078.4 (build 1248) and WebKit 27.2
+(build 2370) read the place the same way. Recheck by adding `firefox_browser` to
+`test_a_pin_by_a_sticky_header_takes_one_seat_at_every_scroll` in
+`tests/browser/margin/test_scrollers.py`.
 
 ### Highlight style inheritance
 
@@ -218,6 +226,33 @@ closures on 2026-10-21; Firefox 155 closed immediately. Firefox's intrinsic
 interpolation is not near ("Intrinsic block retirement motion" has the bugs,
 checked 2026-10-25). Recheck both capabilities and keyboard access when
 changing this enhancement.
+
+### A short name in a table's first column
+
+`browser/styles/components/reading.css` keeps code in a row's first cell on one
+line up to 20ch or a quarter of its container, with `calc-size()` behind
+`@supports`. Engines without `calc-size()` keep the name breakable anywhere, so
+in a column of short option names beside a column of sentences, `--output-dir`
+reads as `--output-` over `dir`. The table still fits and every name stays
+readable, so this is an accepted visual difference. No fallback caps the
+minimum the same way, since `min()` takes no `max-content`.
+
+On 2026-11-06, Playwright 1.64.1's Firefox 157.0 (build 1555) and WebKit
+(Safari 27.2, build 2370) on Linux reported no `calc-size()` support. On the
+three-row table in the test below, the names `--plugin`, `--dry-run` and
+`--output-dir` took 1, 2 and 3 lines in Firefox at 1600 and 800px and 2, 2
+and 3 at 420px, and 2, 2 and 3 lines in WebKit at all three widths. The Chromium
+headless shell 156.0.8078.4 (build 1248) kept each on one line. Firefox tracks
+`calc-size()` in
+[bug 1896734](https://bugzilla.mozilla.org/show_bug.cgi?id=1896734)
+("Intrinsic block retirement motion" has its status), and WebKit in
+[bug 274177](https://bugs.webkit.org/show_bug.cgi?id=274177).
+
+Recheck by running
+`test_a_short_name_in_a_rows_first_cell_stays_on_one_line` in
+`tests/browser/test_render_gate.py` with `firefox_browser` or `webkit_browser`
+in place of `browser`; it fails while the gap holds. When both engines pass,
+parametrize the test over them.
 
 ### Browser dictation in comment boxes
 
@@ -324,7 +359,7 @@ Chrome 155 trimmed block-flow margins but left flex and grid item margins;
 a generated child could prevent trimming the authored paragraph. Playwright
 Chromium 153.0.8010.12 and Firefox 155 did not accept the property.
 Recheck wrapper and row behavior, not just parser support, against
-`test_frame_edges_pass_through_whatever_stands_at_them` and
+`test_block_margins_follow_density_frames_and_the_column_on_one_page` and
 `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` in
 `tests/browser/test_render_gate.py`.
 
@@ -452,10 +487,26 @@ types, so nothing marks the card the thread keys act on. Playwright Chromium
 156.0.8078.4 matched `:focus-visible` on the clicked thread at the next key, Shift
 included; Playwright Firefox 157.0 never did, on 2026-11-02. `focus.js`
 (`visibleFocus`) follows the browser's answer, and the open card is the only thread
-keys reach, and only while the user hasn't scrolled it away (`keyboard/dispatch.js`).
+keys reach; a key pressed after scrolling it away lets go of it
+(`keyboard/controller.js`).
 Recheck with a probe on
 `review-a-plan`: click the first margin marker, press Shift, and read whether the
 card's `.lf-page-thread` matches `:focus-visible`.
+
+### A control's own arrows after focus leaves it in Chromium
+
+A key pressed at a control the user has scrolled away from lets go of it first
+(`keyboard/controller.js`), and Chromium still applies a radio's, slider's or
+select's own arrows at the control the key was aimed at: a radio's ArrowDown checked
+the next radio and scrolled the page back to it, a slider's ArrowRight stepped its
+value, and a closed select's ArrowDown kept focus and scrolled the page back to it.
+Playwright Chromium 156.0.8078.4 did each of these, and Playwright Firefox 157.0 did
+none, scrolling the page by the arrow from where focus had gone, on 2026-11-04. The
+controller withholds those arrows in every engine (focus.js,
+`controlNavigationKeys`), so the arrow that lets go scrolls nothing. Recheck on a
+plain page holding two radios of one name, the first checked and focused, whose
+capturing `keydown` listener on the document blurs the focused element: the gap is
+closed when ArrowDown leaves the first radio checked.
 
 ### A stuck sticky anchor in Firefox
 
@@ -611,6 +662,29 @@ scroller when a horizontal strip's edge extended just beyond its band.
 Recheck a partly clipped strip's inner and outer scroll offsets before
 replacing Leaf's bounded walk with native reveal.
 
+### A repeated reveal of an anchored fixed box in Chromium
+
+Chromium and WebKit reveal a caret in a `position: fixed` box anchored to page
+content by scrolling the page, which carries the box, and Chromium reveals the
+box itself the same way (`scrollIntoView`, focus). Playwright Chromium
+156.0.8078.4 (build 1248), on 2026-11-05, scrolled the page again for each such
+reveal made before the next frame, as if the first had not moved the box. Give
+a 4000px body an absolutely positioned anchor at `top: 2000px`, a 20px fixed
+box at `top: anchor(top)` through `position-anchor`, and the root
+`scroll-padding-bottom: 100px`; scroll the anchor 830px down an 860px window
+and call `scrollIntoView({block: "nearest"})` on the box. One call scrolled
+90px, two 180px and three 270px. Typing four keys back to back into such a
+box's contenteditable at the window's foot scrolled 240px where one key
+scrolled 60px. Playwright WebKit 27.2 (build 2370) scrolled 0px for the calls
+and 60px for the keys, however many; Playwright Firefox 157 (build 1555)
+reveals no fixed box through the page.
+
+In Leaf the root drops its scroll padding while the user writes in a floating
+box (`base.css`, `data-lf-floating-editor`), so only a caret outside the window
+is revealed, and each key that lands in the same frame adds another reveal's
+scroll; #5417 accepted that overshoot. Recheck the three calls in Chromium; a
+90px scroll means the gap has closed.
+
 ### `calc()` in `overflow-clip-margin` in Chromium
 
 Playwright Chromium 153.0.8010.12 rejected `overflow-clip-margin: calc(2px + 5px)`
@@ -724,6 +798,38 @@ short. To recheck, draw a `content-visibility: auto` box with
 `contain-intrinsic-size: auto 100px`, scroll it out of view, write
 `contain-intrinsic-size: 300px` and read its height a few frames later: 300 px is the
 specified behaviour.
+
+### Styling content Firefox skips
+
+Firefox 157 (Playwright build 1555, macOS) styles every element inside a box whose
+content it skips, a `content-visibility: auto` run out of view and a closed tab's
+`hidden="until-found"` panel included, on each restyle that reaches it. Chromium 156
+leaves skipped content unstyled until it is drawn. So in Firefox a restyle that
+reaches a long text document's listing styles every row and its line number. On
+2026-11-04 the Firefox Profiler's `Styles` marker counted 194,514 elements when the
+runtime's scroll mark changed three inherited values on a listing of 97,000 rows (250
+to 330 ms; 25 to 45 in Chromium), and 2.1 million when a page of 30 documents of
+50,000 lines presented (2.6 s).
+
+Leaf keeps its own writes off the rows while a page loads: a listing states its slot
+restart from the first paint (`text-document.css`), and a closed tab's document draws
+after the page presents (`lf-text-document.js`, `drawLater`). Two restyles still reach
+every row in Firefox. A newly started Firefox restyles every page on each
+`font-info-updated` in its first seconds, 1.4 s each on the page of 30 documents. And
+Gecko answers an insertion into an element whose children a `+`, `~` or
+`:nth-*(… of …)` selector has been matched against by restyling every later
+sibling's subtree. The frame-edge trims in `reading.css` are matched against every
+element, as are `.lf-inspection-body :is(h2, h3) + *` (`chrome.css`) and the reading
+theme's `.eyebrow + :is(h1, h2, h3)` against every heading, so a paragraph added at
+the top of `main` restyled the whole page: 280 to 310 ms over 97,000 rows, and 24 ms
+with the trims written as `:first-child` and `:last-child` and the two sibling rules
+taken out. The first is Firefox's to change; rewriting the rules is
+open (#4781).
+
+To recheck, build a `pre` of 97,000 `div` rows in runs of 128 with
+`content-visibility: auto`, each row numbered by a `::before` counter, let it paint,
+then set an inherited custom property on the `pre` and time the next frame: 70 to 77
+ms in Firefox, 17 to 19 in Chromium.
 
 ### A traversal's own scroll restoration under the Navigation API
 

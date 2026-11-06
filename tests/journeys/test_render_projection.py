@@ -75,7 +75,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.threads import open_panel_thread
 
-from journeys import first_thread_quote
+from journeys import first_thread_head
 
 
 def test_visual_review_guides_one_typed_still_run(browser, serve):
@@ -212,7 +212,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     widget.locator(".lf-vr-case-button").nth(1).click()
     expect(first).to_be_hidden()
     expect(second).to_be_visible()
-    second.get_by_role("button", name="Slider").click()
+    second.get_by_role("radio", name="Slider").click()
 
     inserted = record["cases"][1] | {"id": "run-middle", "title": "Inserted run case"}
     changed: dict = record | {
@@ -237,8 +237,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "node => node === document.querySelector('.lf-vr-case[data-lf-datum=\"run-detail\"]')"
     )
     expect(second).to_be_visible()
-    expect(second.get_by_role("button", name="Slider")).to_have_attribute(
-        "aria-pressed", "true"
+    expect(second.get_by_role("radio", name="Slider")).to_have_attribute(
+        "aria-checked", "true"
     )
     expect(
         first.get_by_role("checkbox", name="Looks right", include_hidden=True)
@@ -776,7 +776,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     page = open_page(browser, url)
     expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
     expect(page.locator("#th-cache lf-proposed")).to_be_hidden()
-    expect(first_thread_quote(page, serve.page_dir)).to_have_attribute(
+    expect(first_thread_head(page, serve.page_dir)).to_have_attribute(
         "data-lf-detached", ""
     )
     assert painted(page, "lf-mark") == "", (
@@ -809,7 +809,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     page = open_page(browser, url)
     assert page.locator("#th-cache").get_attribute("data-lf-state") is None
     expect(page.locator("#th-cache lf-proposed")).to_be_visible()
-    expect(first_thread_quote(page, serve.page_dir)).not_to_have_attribute(
+    expect(first_thread_head(page, serve.page_dir)).not_to_have_attribute(
         "data-lf-detached", ""
     )
     assert painted(page, "lf-mark") != "", (

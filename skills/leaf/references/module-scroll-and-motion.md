@@ -80,13 +80,19 @@ otherwise it waits until the growth is out of view or the reading is interrupted
 The returned function cancels the pending change. When a user's own gesture requests
 that change, cancel the hold and apply the change in that gesture.
 
-When a widget redraws or resizes content where the user is reading, keep their place
-with `placeKeeper(scroller, {items, identity})` rather than restoring `scrollTop`.
-`items` selects the nodes that can mark a place, and `identity(node)` returns the key
-each is drawn under, so a keyed redraw hands the place to the replacement. Wrap one
-synchronous change, which must not scroll anything itself, in `around(mutate)`. For a
-change spanning tasks, call `const hold = take()` before and `finish(hold, following)`
-after; the keeper holds the place frame by frame while `following()` is true.
+When a widget redraws or resizes content where the user is reading, the browser's
+scroll anchoring keeps their place: don't restore `scrollTop` or set
+`overflow-anchor: none`. Redraw by keeping the nodes the change leaves as they were,
+as `setRenderedChildren` does for a subtree the module renders whole
+([module-authoring.md](module-authoring.md), "Retained nodes"), since a node that replaces
+the one anchoring holds loses the place. Where a change
+hides what the reader is reading, as folding it does, anchoring can't hold it: read
+`const hold = holdPlace(node, standIn)` before the change and call `hold()` after it,
+in the same task, and `node`, or the node `standIn` names for it once the change hid
+or removed it, lands where `node` stood. `readingAt(column)` is what stands at the reading line, a
+quarter of the way down the window, in `column`'s middle: a range over the words there,
+which `holdPlace` takes too, else the element drawn there. The change itself scrolls
+nothing.
 
 A widget that hides a view and shows it again later keeps the place as
 `capturePlace()`, a landmark in the page's words, and returns to it with
@@ -135,7 +141,9 @@ readers before that position paints, including writes during resize delivery. Sm
 scrolling reports its positions through the browser's scroll events.
 
 `scrollLimit(box)` is how far a box scrolls down, and `atScrollEnd(box)` whether it is
-there. `landingInsets(scroller)` reads a scroller's `scroll-padding`.
+there. `landingInsets(scroller)` is how far a landing keeps from each edge of a
+scroller: its `scroll-padding`, and on the document the band Leaf states for its
+chrome, which holds while the user writes in a floating box.
 `shownWindow({within, gap, across})` is the window's visible rectangle clear of Leaf's
 fixed chrome, narrowed to `within` and inset by `gap`; with `across` (`{left, right}`),
 only chrome standing across those columns takes room.

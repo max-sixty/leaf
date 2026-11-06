@@ -25,7 +25,48 @@ module
 here that the others import, never through `sys.path`, `PYTHONPATH` or a file path.
 Before writing a mechanism, read the headers of the modules beside `cli.py`: `arms.py`
 builds arms and isolated harness sessions, `page_fixtures.py` page directories, and
-`browser.py` the browser every command drives.
+`browser.py` the browser every command drives. What a page or an input costs is
+measured by `leaf-dev bench`, so a new page, input or reading belongs in
+`commands/bench.py` (`COLLECTIONS`, `INPUTS`), whose header names what it reads.
+
+## Experiments
+
+`leaf-dev eval` runs the catalog, the cases that score Leaf's shipped instructions on
+its arms; a new case is `evals/<task>/case.yaml` (`evals/README.md`). Any other
+question put to a model is an experiment. An experiment adds one folder under `evals/`,
+and a `pnpm run eval:<name>` script that runs its config:
+
+- `promptfooconfig.yaml` declares the arms as `providers`, the samples as `tests` and
+  the graders as assertions. Use `promptfooconfig.mjs` where those have to be computed,
+  as they are where providers name their models.
+- The folder holds the config's `provider.mjs`, `grade.mjs` and fixtures, and a README
+  saying how to run it and read the results.
+- What a run must set up or summarise for the tests the config declares goes in
+  Promptfoo's `beforeAll` and `afterAll` hooks, named under the config's `extensions`.
+  Promptfoo applies its filters before `beforeAll` and takes no providers from it, so
+  setup that produces the tests themselves runs before Promptfoo, in the script.
+- A new comparison is another provider in the config, since a `--condition` value or
+  option on `leaf-dev eval` would stay in the catalog's code after the experiment ends.
+  Promptfoo's own options choose what a run takes: `--filter-providers`,
+  `--filter-pattern`, `--repeat`.
+
+`evals/control-legibility/` produces its tests in its script, and
+`evals/ui-review-detection/` prepares them in its hooks.
+
+A `leaf-dev` command exists only for a mechanism two experiments share, so an experiment
+gets none of its own. A mechanism stays in the first experiment's folder until a second
+one needs it. It then moves into a module in `leaf_dev`, with a command if it is run on
+its own.
+
+An experiment's folder and script stay while someone will run them again. Once it has
+answered its question, delete them, and have the pull request name the last commit that
+holds them, so they can be restored from git.
+
+Developer tooling picks the model it runs only through `MODELS`, `JUDGE_MODELS` and
+`COMPARED_MODELS` in `arms.py`, so moving a pin moves every run. Node code reads them
+through `leaf_dev/arms.mjs`, and a model new to a comparison goes in `COMPARED_MODELS`.
+A table keyed by model id, such as `fork_eval.PRICES`, looks up what a run already used
+and picks nothing.
 
 ## Tests
 

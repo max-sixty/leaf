@@ -357,6 +357,44 @@ def test_a_revival_that_does_not_hold_ends_the_wait(
     ) in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("hook", ["Stop", "UserPromptSubmit"])
+def test_the_watch_between_turns_leaves_a_server_it_cannot_revive_to_the_next_prompt(
+    claimed, interactive, monkeypatch, hook
+):
+    """A watch whose every page lost its server, and failed to revive it, ends
+    without waking the session: the next prompt's hook serves the page again or
+    says why it can't (`reconnect`). Its wake had told the agent to run `leaf
+    server start`, and a prompt's watch woke the turn it followed, whose prompt
+    hook said the same; each wake opened a prompt whose watch woke again."""
+    leases_model.mark_hooks("s1")
+    write_record(
+        claimed / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": available_loopback_port(),
+            "enabled": True,
+            "lifetime": "session",
+            "server_id": "retired-server",
+        },
+    )
+    session_model.cmd_waiting(claimed)
+
+    def refused_start(*_args, **_kwargs):
+        raise StartRefused("the port is taken")
+
+    monkeypatch.setattr(hosting_model, "start_server", refused_start)
+
+    assert (
+        hooks_model.cmd_watch(
+            "claude-code", {"hook_event_name": hook, "session_id": "s1"}
+        )
+        is None
+    )
+    [ended] = read_interactions(claimed, types=("watch",))
+    assert ended["ended"] == "server-down"
+
+
 def test_a_page_without_a_declaration_leaves_the_sessions_wait_running(
     page_dir, tmp_path
 ):
@@ -669,10 +707,17 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     monkeypatch.setattr(harness_model, "process_argv", launched)
 
     initialized = threading.Event()
+    passes = []
+    # Set, each pass waits for no news, so the watch reconsiders its input as fast as it
+    # can rather than once per `REVIVAL_CHECK_S` (tests/AGENTS.md, "Absences").
+    brisk = threading.Event()
     await_news = session_model.Watch.await_news
 
     def after_first_pass(watch, mark, *args, **kwargs):
         initialized.set()
+        passes.append(mark)
+        if brisk.is_set():
+            return await_news(watch, mark, timeout=0)
         return await_news(watch, mark, *args, **kwargs)
 
     monkeypatch.setattr(session_model.Watch, "await_news", after_first_pass)
@@ -710,7 +755,15 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     )
     outcome = []
     watch = watching(outcome)
-    time.sleep(session_model.REVIVAL_CHECK_S / 5)
+    # Two more passes reconsider the pending input, and neither wakes for it.
+    brisk.set()
+    since = len(passes)
+    wait_for(
+        lambda: (len(passes), watch.is_alive()),
+        lambda now: now[0] >= since + 2 or not now[1],
+        failure="the watch made no further pass",
+    )
+    brisk.clear()
     assert outcome == []
     cleanup_model.close_session_turn("s1")
     watch.join(timeout=STATED_TIMEOUT)
@@ -1257,10 +1310,7 @@ def test_an_unnamed_bare_shell_wait_has_no_watch_set(page_dir, sessionless, caps
     assert "nothing to watch" in printed.err
 
 
-@pytest.mark.parametrize("acknowledge", ["receive_delivery", "cmd_delivery_ack"])
-def test_a_wait_delivers_input_even_after_its_hooks_stop(
-    page_dir, monkeypatch, capsys, acknowledge
-):
+def test_a_wait_delivers_input_even_after_its_hooks_stop(page_dir, monkeypatch, capsys):
     """An explicit wait is a complete delivery route even when hooks succeeded
     earlier but cannot run now. A permanent capability mark cannot establish
     that the next hook will deliver; no timeout can establish that either."""
@@ -1277,7 +1327,7 @@ def test_a_wait_delivers_input_even_after_its_hooks_stop(
     payload = json.loads(capsys.readouterr().out)
     assert f"leaf delivery ack {payload['id']} && leaf wait" in payload["acknowledge"]
     assert [event["id"] for event in payload["batches"][0]["events"]] == [first["id"]]
-    getattr(delivery_model, acknowledge)(payload["id"])
+    delivery_model.cmd_delivery_ack(payload["id"])
 
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "unhooked"}
@@ -1297,7 +1347,7 @@ def test_a_wait_delivers_input_even_after_its_hooks_stop(
     payload, _, shown = printed(capsys.readouterr().out)
     assert [event["id"] for event in shown] == [second["id"]]
     assert page_state(page_dir)["pending"] == 1
-    getattr(delivery_model, acknowledge)(payload["id"])
+    delivery_model.cmd_delivery_ack(payload["id"])
     assert page_state(page_dir)["pending"] == 0
     observed = cleanup_model.session_record("unhooked")
     assert observed is not None

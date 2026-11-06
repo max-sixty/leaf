@@ -14,11 +14,18 @@
    never once the user has taken it in, here or in another tab. What the user has
    not read is news on the first reading too, since it arrived while they were away.
    Every other kind of news is a change between readings, so the first reading
-   establishes it without announcing it. */
+   establishes it without announcing it.
+
+   On me emptying is news, in the words its empty view says, whoever emptied it: the
+   user's last answer, one from another tab, or a revision that took the last
+   obligation away. The list is the one the panel's badge counts (queue-api.js,
+   `onUserCount`). The user asked on 5 November 2026 to be told when they finish
+   what waits on them, taking words over a flash of the panel's colour for now. */
 import { moved } from "./thread/model.js";
 import { NOT_ANSWERED } from "./thread/workflow.js";
 import { agentSays, leafSays } from "./voice.js";
 import { counted, excerptWords } from "./words.js";
+import { NOTHING_ON_ME } from "./queues.js";
 
 /** @typedef {ReturnType<typeof semanticNewsReading>} NewsReading
  * @typedef {import("../types/domain.js").Message} Message
@@ -27,8 +34,10 @@ import { counted, excerptWords } from "./words.js";
  * input: string, thread: string | null, seq: number}} FailureNews
  * @typedef {{kind: "user_obligation", key: string, sourceKey: string, episode: number,
  * source: string, thread: string | null, message: string | null}} ObligationNews
- * @typedef {ContentNews | FailureNews | ObligationNews} SemanticNews
- * @typedef {{content: Set<string>, failures: Set<string>, obligations: Set<string>, obligationEpisodes: Map<string, number>}} ObservedNews
+ * @typedef {{kind: "on_me_empty", key: string}} EmptiedNews
+ * @typedef {ContentNews | FailureNews | ObligationNews | EmptiedNews} SemanticNews
+ * @typedef {{content: Set<string>, failures: Set<string>, obligations: Set<string>,
+ * obligationEpisodes: Map<string, number>, onMe: number}} ObservedNews
  */
 
 /** @param {{attempt?: string | null, id?: string | null}} record */
@@ -48,6 +57,7 @@ export function semanticNewsReading(root) {
     obligations: view.obligations,
     thread: view.thread,
     workflows: state.workflows,
+    onMe: root.effective.queues.on_user.length,
   };
 }
 
@@ -123,6 +133,7 @@ export function observeSemanticNews(prior, reading) {
     failures: new Set(prior?.failures),
     obligations: new Set(obligations.keys()),
     obligationEpisodes: new Map(prior?.obligationEpisodes),
+    onMe: reading.onMe,
   };
   /** @type {SemanticNews[]} */
   const news = [];
@@ -161,6 +172,8 @@ export function observeSemanticNews(prior, reading) {
         ...obligation,
       });
   }
+  if (prior && prior.onMe > 0 && reading.onMe === 0)
+    news.push({ kind: "on_me_empty", key: "on_me_empty" });
   return { observed, news };
 }
 
@@ -180,6 +193,7 @@ export function currentSemanticNews(news, reading, observed) {
         const current = failures.get(item.key.slice("response:".length));
         return current ? [{ ...item, condition: current.kind }] : [];
       }
+      if (item.kind === "on_me_empty") return reading.onMe === 0 ? [item] : [];
       return obligations.has(item.sourceKey) &&
         item.episode === observed.obligationEpisodes.get(item.sourceKey)
         ? [item]
@@ -251,6 +265,8 @@ export function semanticNewsNotice(news) {
         obligations.length === 1 ? "New on me" : `${obligations.length} new on me`,
       ),
     ]);
+  if (news.some((item) => item.kind === "on_me_empty"))
+    clauses.push([leafSays(NOTHING_ON_ME)]);
   return clauses.flatMap((clause, index) =>
     index ? [leafSays(" · "), ...clause] : clause,
   );

@@ -338,19 +338,25 @@ widget by name. To measure a page before its runtime starts, call `displayed` fi
 
 ## Waits
 
-### Functional results do not depend on execution speed
+### Results do not depend on execution speed
 
-A functional test, fixtures and watches included, gives the same result and still
-exercises its situation when the system runs ten times slower. Test performance
-separately, under controlled conditions.
+Every test, fixtures and watches included, gives the same result and still exercises
+its situation on a machine ten times slower than the one it was written on, since CI's
+runner and a host running other sessions' suites are both slower than an idle
+development machine. So no test asserts a duration, and no test passes or fails on a
+benchmark's reading: a benchmark reports its readings (`leaf-dev bench`, charted
+daily), and a reader judges them. Check a test against the rule with
+`--cpu-throttle 10` ("Races"). It slows only Chromium's renderer, not the server, Python
+or the driver, and doesn't reach a page from `browser.unwatched`.
 
 Control or advance the clock that decides an age, lease, grace period or timer; a fixed
-`Date.now()` doesn't stop timers, animation frames, paint or observer delivery. Bound a
-hang with a real deadline that leaves room for slow execution, and on expiry report
-which completion is still missing. A time limit must never turn unfinished work into a
-pass. To test a race, hold and release the request, callback, frame or lock explicitly,
-check that the outcome holds with completion delayed tenfold, and keep a control that
-still fails.
+`Date.now()` doesn't stop timers, animation frames, paint or observer delivery. Bound
+each operation that could hang with a real deadline at least ten times the longest that
+operation takes on CI's runner, where a `test` job's junit results record each test's
+time (`leaf-dev suite-profile`), and on expiry report which completion is still missing.
+A time limit must never turn unfinished work into a pass. To test a race,
+hold and release the request, callback, frame or lock explicitly, check that the
+outcome holds with completion delayed tenfold, and keep a control that still fails.
 
 Wait for the operation's own completion signal. Elapsed time, matching samples, a fixed
 number of frames and network quiet look the same for an effect that hasn't started as
@@ -409,7 +415,7 @@ browser's record (`opened_tab`).
 A watch finding that CI reports and this machine doesn't is usually a frame that lands
 later on CI's slower runner, after the input window that credits it has closed. Load
 alone rarely shows it; a slower CPU does. `--cpu-throttle RATE`, given to pytest or
-`leaf-dev flake`, slows every Chromium page the browser fixtures open. Past findings
+`leaf-dev flake`, slows every Chromium page the `browser` fixture watches. Past findings
 reproduced at rates from 6 to 20, and one rate can miss a finding another reproduces,
 so try more than one. Run the merge base under the same rate to learn whether the
 change caused it. A test whose subject is a slow CPU slows its own page
@@ -472,7 +478,12 @@ or typed box joins its journey by its keys or route.
 
 An absence asserted before the runtime's deferred step passes on the frame before the
 decision. Read it once, after the step that would have caused the forbidden behavior,
-and keep a control that first produces it.
+and keep a control that first produces it. A fixed wait isn't that step, since a slower
+machine takes longer to reach it: wait for a later event ordered after the moment the
+forbidden behavior would have happened, then check that it is absent. The page's sends
+coming back (`round_trip`), the page taking in what the server holds (`told`) and the
+shared clock's next tick (`ticked`) are such events, and so is a later gesture of the
+same kind, whose result arrives behind anything the earlier one caused.
 
 ### Sweeps over controls
 
@@ -480,9 +491,18 @@ Pin the ids or count a sweep walks, before and after any reload, and assert that
 is non-empty and every expected kind was reached, rather than an assertion whose
 condition can vanish with the behavior.
 
+### Removing a test another covers
+
+One surviving test has to reach the same fixture state by the same route and make the
+same assertion. Several survivors that each hold one of those leave the combination
+unheld, and two routes into one command can differ in what happens around it, as a menu
+row closing over the thread it just opened. Read the survivor itself, since a name or
+docstring can claim a state its fixture never reaches.
+
 ## Failure messages
 
 Pair `capture_output=True` with `check=True` only when the exception is unpacked; a test
 that needs the streams asserts the return code and puts stdout and stderr in the
 message. Assert output by meaning: use `spoken` for the registry-backed reading, and
-match the attribute that carries a claim.
+match the attribute that carries a claim. A refusal test reads the refusal's words,
+since a nonzero exit also passes on a crash.

@@ -127,7 +127,8 @@ threadActions.setReaction(thread.key, agentMessage.key, token, true);
 margin mark would: the page's primary reader ("Owning the primary conversation
 presentation"), which is the Leaf panel unless a package registers one. `part` is
 `"thread"` for the card, `"reply"` for the reply editor, or `"message"` with
-`message: message.key` for one message. `travel: false` keeps the page where it is, and
+`message: message.key` for one message; with none it lands as opening a thread does, in
+the reply after a press and on the thread after a key. `travel: false` keeps the page where it is, and
 `focus: false` leaves focus alone. It resolves to the element it landed on, or `null` if
 the Thread is gone or the user has done something else. To act on that element
 afterwards, such as selecting the reply text, check it still has focus:
@@ -175,12 +176,14 @@ with its frame extending slightly beyond the message's edges, so a scroller hold
 parts keeps about 12px of padding beside them (the worked example's `.reader`).
 
 A widget that draws the conversation's head itself, as Leaf's floating panel does,
-passes `parts.thread` a third argument, `{head, reply, quote, landing, drawn}`, each
-part optional:
+passes `parts.thread` a third argument, `{head, reply, quote, scroller, landing,
+drawn}`, each part optional:
 
-- `head: {news, controls}` names two places on the widget's head line. The notice of
-  news the thread holds back stands in `news`, and Resolve, or Reopen, in `controls`.
-  Without it, both stand beside the first message's head.
+- `head: {news, controls, unread}` names places on the widget's head line. The notice
+  of news the thread holds back stands in `news`, and Resolve, or Reopen, in `controls`;
+  without them, both stand beside the first message's head. Next unread, offered where
+  the thread's opening leaves a reply unread, stands in `unread`, and without that place
+  nowhere.
 - `reply: {outlet, options}` names where the reply box stands, at the thread's end
   without `outlet`, with the options `parts.reply` takes, except that `hint` is called
   with `{resolved, attention}`: the thread as it is drawn, held news included, so the
@@ -188,17 +191,18 @@ part optional:
   on, with the `word` Threads says it in, or null where it waits on nothing, as once
   it is resolved.
 - `quote: true` quotes the words the thread is about over its messages.
+- `scroller: (transcript) => box` names the box that scrolls the thread's messages,
+  which may be the thread's own `transcript`. An answer the user waits for that arrives
+  past its foot then says New reply there.
 - `landing(resolved)` is called as the user presses Resolve or Reopen, with whether
   the thread stood resolved before the press. It returns a step Leaf runs once the
   settlement shows, which returns whether it moved the user, or `null` to leave the
   user to the thread: Reopen then puts the caret in the reply box, wherever it stands.
   With a landing, taking the settlement back opens the thread in this widget again.
-- `drawn(answer)` runs once the thread's DOM is placed, before asynchronous widget
+- `drawn()` runs once the thread's DOM is placed, before asynchronous widget
   preparation finishes, so layout and scroll can follow the words before the next
-  frame. `answer` is null except when this draw answers the user's last turn; then it
-  is the read-only `{turn, reply}` message keys, with `reply: null` while only work
-  under way has arrived. A render abandoned before drawing calls nothing. The handle's
-  `update()` still waits for the widgets' preparation.
+  frame. A render abandoned before drawing calls nothing. The handle's `update()` still
+  waits for the widgets' preparation.
 
 Each place, as an outlet, stands inside the widget, and may stand in its shadow tree.
 A whole thread, as a reply part does, takes the reply being written in it that no
@@ -246,8 +250,7 @@ threadOutlets(targets, { onCommit }) {
 ```
 
 Return `null` for data that is filtered out, collapsed or not loaded, and its thread
-stays in the margin. A thread the agent starts on a visible datum also waits in the
-margin until the user opens it. Call `threadSurface(this).update()` after a change that
+stays in the margin. Call `threadSurface(this).update()` after a change that
 only shows or hides data.
 
 The widget creates, lays out and removes its outlets, and Leaf fills them. An outlet you

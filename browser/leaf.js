@@ -71,6 +71,7 @@ import {
   resolveAnchor,
   setAnchoringReady,
 } from "./runtime/anchor-resolution.js";
+import { refuseBareText } from "./runtime/passages.js";
 import { createPageGeometry } from "./runtime/page-geometry.js";
 import {
   aimLayer,
@@ -486,7 +487,7 @@ async function boot() {
     arrive: anchorTravel.arrive,
     announce,
   });
-  const changeWalk = createChangeWalk();
+  createChangeWalk();
   const commandHints = createCommandHints({
     presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
   });
@@ -498,8 +499,6 @@ async function boot() {
   floatingPanel = createFloatingPanel({
     wireInput: inputs.wireInput,
     observeFeedback: app.read.observeFeedback,
-    firstUnread: app.read.firstUnread,
-    afterReadingPass: app.read.afterPass,
     threadActions: app.threadActions,
     registerChromeThreadPresentation: app.registerChromeThreadPresentation,
     obligations: { choicesOf: items.choicesOf },
@@ -696,6 +695,7 @@ async function boot() {
     paintCommandHints: commandHints.paint,
     paintCoreControls,
     publishInputHint: inputs.publishInputHint,
+    restFab: responseSurface.restFab,
   };
 
   if (!offlineInteractive) {
@@ -737,8 +737,6 @@ async function boot() {
     pageGeometry.mount();
     pageMapDialog.mount(chromeForeground);
     items.mount();
-    queueWalk.mount();
-    changeWalk.mount();
     commandHints.mount();
     app.mountAnnotations();
     app.overlay?.mount();
@@ -927,6 +925,7 @@ async function boot() {
       setAnchoringReady(false);
       throw error;
     }
+    refuseBareText();
     markPageUpgraded();
     // Restoring an editor requires a visible destination. Its placement certifies
     // drawn content, so it cannot be a prerequisite for revealing the page itself.

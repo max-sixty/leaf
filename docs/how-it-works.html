@@ -833,7 +833,8 @@ flowchart TD
                   <th scope="row">Hook notices</th>
                   <td>
                     An owed update not yet answered, input not yet picked up, a page
-                    holding input with nothing watching it, or a claim to reconnect.
+                    holding input with nothing watching it, or a page whose server did
+                    not start again.
                   </td>
                   <td>
                     When the agent ends a turn (<a href="#turn-end">Stop hook checks</a
@@ -1178,8 +1179,10 @@ flowchart TD
                 each ask it gives a thread title, a message of a few sentences that the
                 user can answer without the chat, and the words of the passage it
                 concerns, if one does. A step the user is to take is asked the same way:
-                the message says what to do and asks the user to reply once it is done.
-                Leaf skips an ask whose title a question the agent asked already has.
+                the message says what to do, and asks for a reply only for what the user
+                alone can report, such as what a build showed them, or where the agent's
+                next step waits on it, since the reply tells the agent to go on. Leaf
+                skips an ask whose title a question the agent asked already has.
               </p>
               <p id="fork-writes">
                 Leaf opens each remaining ask as a thread, its message written as the
@@ -1225,8 +1228,10 @@ flowchart TD
               <p id="host-codex-start">
                 <code>leaf server start</code> connects the page to the current Codex
                 task. <code>leaf page claim ./review</code> connects delivery when
-                claiming a page without serving it. The desktop app uses the queue
-                route, even though it runs an App Server internally.
+                claiming a page without serving it. The desktop app runs an App Server
+                Leaf can't reach, so a chat a window has opened takes each update as a
+                turn the app starts, with no message in the user’s name. Any other chat
+                uses the queue route.
               </p>
               <p id="host-codex-launch">
                 <code>leaf codex launch</code> starts a terminal client with a private
@@ -2475,10 +2480,20 @@ flowchart TD
               <li id="updates-written-question">
                 <strong><code>leaf thread reply … --obligation</code></strong>
                 Opens a question on On me and makes the thread read
-                <em>Your turn</em>. A reply or settling reaction answers it. A step the
-                user is to take, such as trying a build, is asked the same way. The
-                agent can end it with <code>leaf task end</code> as answered elsewhere
-                or withdrawn.
+                <em>Your turn</em>. A reply or settling reaction answers it at once, so
+                On me clears without waiting for the agent. A step the user is to take,
+                such as trying a build, is asked the same way. The agent can end it with
+                <code>leaf task end</code> as answered elsewhere or withdrawn.
+              </li>
+              <li id="updates-written-reopen">
+                <strong
+                  ><code
+                    >leaf thread reply … --obligation message:&lt;id&gt;</code
+                  ></strong
+                >
+                Puts a question the user's reply left standing back on On me, such as
+                when they asked something back. It keeps its id and words, so a plan
+                step naming it reads open again, and stands on this message.
               </li>
               <li id="updates-written-comment">
                 <strong

@@ -1,6 +1,6 @@
-"""Time the server's paths on the pages `leaf-dev scaling` generates, in this process.
+"""Time the server's paths on the pages `leaf-dev bench` generates, in this process.
 
-`build` makes one collection's page (`scaling.COLLECTIONS`) at each size in a scratch
+`build` makes one collection's page (`bench.COLLECTIONS`) at each size in a scratch
 directory, with its versions activated in turn and then its log, and `measure` reads
 the CPU each of the server's `PATHS` takes on each page, least of `RUNS`:
 
@@ -42,28 +42,34 @@ from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from leaf_dev.commands.scaling import (
-    INPUT_CEILING,
+from leaf_dev.commands.bench import (
+    BUDGET_MS,
     REFERENCE,
-    SUPERLINEAR,
     Collection,
-    exponent,
+    interleaved,
+    lowest,
 )
 
 PATHS = ("state", "append", "delivery", "agent", "thread", "activate")
-# A click's paths: admitting its event and the reading the server answers with. Root
-# `AGENTS.md`, "Responsiveness", puts that reading on screen within `BUDGET_MS`, and
-# holds the agent's paths only to growing no faster than the page.
+# A click's paths: admitting its event and computing the reading the server answers
+# with. Root `AGENTS.md`, "Responsiveness", puts that reading on screen within
+# `BUDGET_MS`, so the two together take no more at `REFERENCE` (`over_budget`); it
+# holds the agent's paths only to growing no faster than the page. Admission reads
+# the page as a reading does, so on the `events` page both may grow with the log.
 CLICK = ("append", "state")
-# Admitting the click's event: the input's own work, which doesn't grow with how long
-# the session has run. The reading it answers with may grow as a reading of the page
-# does, the events among what the page holds.
-INPUT = "append"
 RUNS = 3
-BUDGET_MS = 100
 # How many of the largest sizes an exponent is fitted over: 256 to 1,600, a ratio of
 # 6.25. Over three, a ratio of 3.1, a host at load 50 fitted linear costs past 1.5.
 FITTED = 4
+
+
+def floors(rows: list[dict]) -> dict[str, float]:
+    """Each path's noise floor (`bench.exponent`) in `rows`, one run's readings by
+    size from BASE: the path's own reading on the BASE page, a reading of the same run,
+    as the browser's floors are shares of its load (`bench.floor`). A path's own
+    fixed cost sets the floor, so a cheap path's growth isn't judged against a dearer
+    one's fixed work."""
+    return {path: rows[0][path] for path in PATHS if path in rows[0]}
 
 
 @contextmanager
@@ -283,33 +289,36 @@ def function_times(call: Callable[[], object]) -> dict[str, float]:
 
 
 def measure(
-    collection: Collection, sizes: list[int], directory: Path, profile: bool = False
+    collection: Collection,
+    sizes: list[int],
+    directory: Path,
+    profile: bool = False,
+    rounds: int = RUNS,
 ) -> tuple[list[dict], dict[str, tuple[dict, dict]]]:
-    """Each path's least CPU over `RUNS` on `collection`'s page at each of `sizes`,
+    """Each path's least CPU over `rounds` on `collection`'s page at each of `sizes`,
     built under `directory`, in ms, beside the events its log holds; with
     `profile`, the function times of one more run of each path on the smallest
     page and the largest, in the order the rounds take them.
 
-    Each round runs every page once, so a burst of load on the host lands on one
-    reading of each size rather than on every reading of one. In each round a page
+    The rounds are interleaved (`bench.interleaved`, `bench.lowest`). In each a page
     appends first, as a click does before its reading, and its versions come after
-    every round, since a new one leaves the appended events on an earlier revision."""
+    every round, since a new one leaves the appended events on an earlier
+    revision."""
     from leaf.event_log import read_events
 
     with scratch_state(directory / "state"):
         pages = build(collection, sizes, directory)
         held = {n: len(read_events(pages[n])) for n in sizes}
         calls = {n: server_paths(pages[n], collection.log(n)) for n in sizes}
-        readings: dict[int, dict[str, list[float]]] = {n: {} for n in sizes}
         order = (("append", "state", "delivery", "agent", "thread"), ("activate",))
-        for paths in order:
-            for _ in range(RUNS):
-                for n in sizes:
-                    for path in paths:
-                        if path in calls[n]:
-                            readings[n].setdefault(path, []).append(
-                                cpu_ms(calls[n][path])
-                            )
+
+        def timed(paths: tuple[str, ...], n: int) -> dict[str, float]:
+            return {path: cpu_ms(calls[n][path]) for path in paths if path in calls[n]}
+
+        appended, activated = (
+            lowest((n, timed(paths, n)) for _, n in interleaved(rounds, sizes))
+            for paths in order
+        )
         profiled: dict[str, list[dict]] = {}
         if profile:
             for n in (sizes[0], sizes[-1]):
@@ -319,37 +328,29 @@ def measure(
                             profiled.setdefault(path, []).append(
                                 function_times(calls[n][path])
                             )
-        rows = [
-            {
-                "n": n,
-                "events": held[n],
-                **{path: min(readings[n][path]) for path in PATHS if path in calls[n]},
-            }
-            for n in sizes
-        ]
+        rows = []
+        for n in sizes:
+            readings = {**appended[n], **activated[n]}
+            rows.append(
+                {
+                    "n": n,
+                    "events": held[n],
+                    **{path: readings[path] for path in PATHS if path in readings},
+                }
+            )
     return rows, {path: (before, after) for path, (before, after) in profiled.items()}
 
 
-def failures(collection: Collection, rows: list[dict]) -> dict[str, dict]:
-    """Each path of `collection`'s `rows` that breaks root `AGENTS.md`,
-    "Responsiveness", with its readings and why: growth above the smallest page
-    fitting an exponent past `SUPERLINEAR`; a click's path taking more than
-    `BUDGET_MS` at `REFERENCE`; or, on the session's page, where only the session
-    grows, the input's own work growing past `INPUT_CEILING`."""
-    sizes = [row["n"] for row in rows]
-    failed = {}
-    for path in PATHS:
-        if path not in rows[0]:
-            continue
-        readings = [row[path] for row in rows]
-        slope = exponent(path, sizes, readings, FITTED)
-        at = dict(zip(sizes, readings, strict=True))
-        ceiling = INPUT_CEILING if collection.session and path == INPUT else SUPERLINEAR
-        why = []
-        if slope is not None and slope > ceiling:
-            why.append(f"growth fits exponent {slope:.2f}, past {ceiling}")
-        if path in CLICK and at.get(REFERENCE, 0) > BUDGET_MS:
-            why.append(f"{at[REFERENCE]:.0f} ms at {REFERENCE}, over {BUDGET_MS} ms")
-        if why:
-            failed[path] = {"by size": at, "exponent": slope, "why": "; ".join(why)}
-    return failed
+def over_budget(rows: list[dict]) -> str | None:
+    """Why a click's paths together take more than `BUDGET_MS` at `REFERENCE` in
+    `rows`, or None: on a page with no log, or where `rows` has no `REFERENCE`, there
+    is no click to time."""
+    at = next((row for row in rows if row["n"] == REFERENCE), None)
+    if at is None or not all(path in at for path in CLICK):
+        return None
+    click = sum(at[path] for path in CLICK)
+    if click <= BUDGET_MS:
+        return None
+    return (
+        f"{' + '.join(CLICK)} take {click:.0f} ms at {REFERENCE}, over {BUDGET_MS} ms"
+    )

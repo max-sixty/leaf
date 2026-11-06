@@ -46,7 +46,6 @@ import {
   nothing,
   keyed,
   render,
-  relabel,
   inChrome,
   nameAction,
   keeps,
@@ -86,7 +85,8 @@ import {
   readDiffCoordinate,
 } from "./diff-coordinates.js";
 import { overflowFor } from "./overflow.js";
-import "/vendor/webawesome.esm.js";
+// The search field's `wa-input`, which a plain page has no chrome to define.
+import "/vendor/webawesome-chrome.js";
 import { pierre, markSyntax } from "/widgets/pierre.js";
 // Only a diff that is actually rendering has any use for Pierre's renderer —
 // an authored <lf-diff> bound to data
@@ -240,15 +240,27 @@ function lineNumber(line, canComment) {
     number.setAttribute("aria-label", `Comment on ${lineLabel(line)}`);
     number.setAttribute(LINE_KEY, diffDatumKey(line));
   }
-  relabel(number, String(line.side === "old" ? line.oldLine : line.newLine), {
-    says: "echo",
-  });
+  // Two cells, the old file's number and the new file's, as a unified diff reads: one
+  // column holding whichever number a row has would mix the two files' counts, which
+  // drift apart once a hunk adds or removes lines.
+  generatedElement(number, { says: "echo" });
+  number.replaceChildren(
+    ...[
+      line.side === "new" ? "" : line.oldLine,
+      line.side === "old" ? "" : line.newLine,
+    ].map((value) => {
+      const cell = document.createElement("span");
+      cell.textContent = String(value);
+      return cell;
+    }),
+  );
   return number;
 }
 
 // Pierre owns parsing, highlighting and word differences. Leaf gives each source
-// line one native row: its number offers Comment while a surface is registered, and a conversation can
-// follow that row without a second gutter column to reconcile or measure.
+// line one native row: its numbers offer Comment while a surface is registered, and a
+// conversation can follow that row without a separate gutter element to reconcile or
+// measure.
 /** @param {NativeFile} file @param {DocumentFragment} content */
 function renderedLines(file, content) {
   const records = sourceLines(file);
@@ -636,7 +648,7 @@ function diffTools(host) {
   const search = searchField("lf-diff-tools lf-diff-search", {
     name: "diff-search",
     label: "Filter diff files",
-    placeholder: "Filter files",
+    placeholder: "Filter files…",
   });
   search.addEventListener("input", () => host.filterFiles(search.value));
   const progress = document.createElement("span");
@@ -820,10 +832,12 @@ async function renderFile(file, overflow) {
   const rows = document.createElement("div");
   rows.className = "lf-diff-rows";
   const largest = lines.reduce(
-    (max, line) => Math.max(max, line.newLine ?? line.oldLine),
+    (max, line) => Math.max(max, line.oldLine ?? 0, line.newLine ?? 0),
     0,
   );
-  rows.style.setProperty("--lf-diff-gutter", `${String(largest).length + 3}ch`);
+  const digits = String(largest).length;
+  rows.style.setProperty("--lf-diff-digits", `${digits}ch`);
+  rows.style.setProperty("--lf-diff-gutter", `${2 * digits + 4}ch`);
   rows.append(content);
   viewport.append(rows);
   pre.append(viewport);

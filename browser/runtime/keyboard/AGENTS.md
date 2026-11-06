@@ -28,11 +28,11 @@ A press goes to scopes from the focused element outward, ending at the page and 
 the browser. A scope owns every binding it declares while the user is in it, so when its
 command is unavailable the press reaches no other Leaf command. A text field keeps
 characters, composition, caret movement and deletion, and a native control keeps its
-activation press, ahead of any widget or page scope around it (`dispatch.js`). While
-the user has scrolled the focused control out of sight, a key other than typing or
-Escape skips the scopes focus puts them in and reaches only the page's own, so no Leaf
-command acts on what they can't see; the browser still activates a native control
-(`dispatch.js`). A key
+activation press, ahead of any widget or page scope around it (`dispatch.js`). A key
+other than typing or Escape, pressed while the user has scrolled the focused control
+out of sight, lets go of it first, without closing what stands beside it, and then
+acts from what they see, so no Leaf command, listener on the control or browser
+default acts on what they can't see (`controller.js`). A key
 typed into one of Leaf's fields, a `leaf-text` or a search box, stops at the field once
 the field and the dispatcher have read it there (`field-keys.js`), so the page never
 hears it bubble, and any other Leaf listener that needs keys typed into a field listens
@@ -79,7 +79,11 @@ reopens it.
 Page scope holds commands about the page; a surface's scope holds commands about its
 contents. A page-level letter must be useful on every page; any other control is
 reachable by Tab, native activation, obligation digits or Go-to hints. A lowercase
-letter steps a walk forward and Shift steps it back, wrapping at either end. A walk, a
+letter steps a walk forward and Shift steps it back, wrapping at either end. A page
+walk with nothing to step through says so in the panel (`notice`, such as “No open
+threads”) rather than doing nothing, so its letter is live on every page. A walk over
+a list the server's reading brings says instead that the list can't be had while the
+server is offline. A walk, a
 scroll, Go-to and any other command that takes the user somewhere declares `travels`
 on its row; every other command leaves the control it was pressed on where it stood on
 screen (`bindings.js`). A surface
@@ -104,6 +108,12 @@ refuses a page command without `touch` and a scope row whose `run` is neither `e
 nor `touch: false`.
 `false` means the result is directly accessible by scrolling and tapping or through
 the row's own control beside the content it changes.
+
+Words owe a finger the same reach. A `title` shows only to a pointer resting on its
+element, so it can't be the only place a state's reason or the rest of a cut word is
+said. A state says its word on the surface that holds it (`quoteReading`), a panel
+row's cut words stand whole where no pointer can hover (`floating-panel.css`), and a
+control that shows part of its word gives the rest to a held press (`held-word.js`).
 
 The comment field has one primary action, Dictate while empty and Send once it has
 words. Suggest and reactions share an anchored Other responses picker, reached by the

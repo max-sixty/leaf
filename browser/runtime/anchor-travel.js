@@ -53,12 +53,17 @@ import {
 } from "./anchor-resolution.js";
 import { placeHolder, showsContents } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
-import { renderedParent } from "./shadow-tree.js";
+import { renderedParent, under } from "./shadow-tree.js";
 import { nextFrame } from "./rendering.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
 import { prepareEntry, replaceEntry } from "./history.js";
 import { pageScroller, stopScroll } from "./scrolling.js";
-import { alreadyShown, landedBox, scrollIntoView } from "./landing-scroll.js";
+import {
+  alreadyShown,
+  fitsWhole,
+  landedBox,
+  scrollIntoView,
+} from "./landing-scroll.js";
 import { reveal } from "./widget-elements.js";
 import { threadNamed } from "./thread/state.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
@@ -254,7 +259,9 @@ export function createAnchorTravel({
                 {
                   at: current.where,
                   behavior: "instant",
-                  when: () => !alreadyShown(current.where) || !alreadyShown(input),
+                  when: () =>
+                    !alreadyShown(current.where, { block: "center" }) ||
+                    !alreadyShown(input),
                 },
                 // The subject and editor can occupy different parts of a tall
                 // page. Finish on the box the user asked to write in.
@@ -291,12 +298,16 @@ export function createAnchorTravel({
   // arrival region), built on the reading it is handed.
   /** @param {URL} [url] @returns {NavigationStep} */
   function prepareNavigationStep(url) {
+    // Travel lands a destination at its start or centre, alike for one taller than its
+    // room, so it is already there where that landing would move nothing.
+    /** @param {Destination} where */
+    const travelShown = (where) => alreadyShown(where, { block: "start" });
     const write = prepareEntry();
     /** @type {boolean | undefined} */
     let moving;
     return {
       plan(where, { there } = {}) {
-        moving = !(where && (there ? there(alreadyShown) : alreadyShown(where)));
+        moving = !(where && (there ? there(travelShown) : travelShown(where)));
         return moving;
       },
       commit() {
@@ -417,7 +428,13 @@ export function createAnchorTravel({
           where && {
             where,
             focus: focus ? where : null,
-            scroll: [{ at: where, block: "start", when: () => !alreadyShown(where) }],
+            scroll: [
+              {
+                at: where,
+                block: "start",
+                when: () => !alreadyShown(where, { block: "start" }),
+              },
+            ],
           }
         );
       },
@@ -581,7 +598,16 @@ export function createAnchorTravel({
         /** @type {ScrollPlacement[]} */
         const scroll = [];
         if (target) scroll.push({ at: target, block: "nearest" });
-        scroll.push({ at: where, when: () => !alreadyShown(where) });
+        // Then the place lands unless it already shows. A part inside a place taller
+        // than its room, as a seat's thread can be inside its element, skips that
+        // landing, since landing the place would scroll the part back out of view.
+        const inside =
+          target !== where && where instanceof Element && under(target, where);
+        scroll.push({
+          at: where,
+          when: () =>
+            !alreadyShown(where, { block: "center" }) && !(inside && !fitsWhole(where)),
+        });
         return { where, focus: target, scroll };
       },
       {

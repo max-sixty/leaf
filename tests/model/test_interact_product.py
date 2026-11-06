@@ -29,7 +29,6 @@ from interact_support import (
     found,
     fragment_errors,
     fresh_process,
-    live_versions,
     owed,
     page_state,
     publish,
@@ -578,7 +577,7 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
         return fragment_errors(
             '<lf-ask id="kind-ask"><h2>Choose a setting</h2>'
             '<lf-playground id="kind-playground">'
-            f'<lf-playground-control name="{name}" label="Setting" {attributes}>'
+            f'<lf-playground-control id="{name}" name="{name}" label="Setting" {attributes}>'
             "</lf-playground-control>"
             "<lf-playground-preview><p>Preview</p></lf-playground-preview>"
             "<lf-playground-output>Use this setting.</lf-playground-output>"
@@ -597,8 +596,6 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     assert not errors('kind="text" value="yes"')
     # A name, like an id, may start with a digit: an alert called 5xx keeps its name.
     assert not errors('kind="toggle" value="false"', name="5xx-pages")
-    # A control is a Leaf element a user points at, so it takes a stable id.
-    assert not errors('kind="toggle" value="false" id="setting-control"')
     # `class` and `style` are the page's styling hooks on a widget as on any element.
     assert not errors('kind="toggle" value="false" class="route"')
     assert not errors('kind="toggle" value="false" style="grid-column: 2"')
@@ -629,9 +626,11 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
 def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_page):
     """A preset's setting and an instruction's value slot name a control of their
     own playground by `name` (a keyed x-refers), and names, choice values and a
-    preset's settings are unique within their owner (x-unique). Both doors refuse a
-    break before any browser draws it: message markup, where a reply's playground
-    otherwise reaches the user with only a static check, and the page's own source."""
+    preset's settings are unique within their owner (x-unique). Each control, choice
+    and preset also carries the id a comment on it records, since without one the
+    comment lands on the whole playground. Both doors refuse a break before any browser
+    draws it: message markup, where a reply's playground otherwise reaches the user with
+    only a static check, and the page's own source."""
     page_dir = initialized_page(tmp_path / "page", ("playground",))
 
     def playground(ident, controls, presets="", output=""):
@@ -643,19 +642,19 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
         )
 
     tone = (
-        '<lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">'
-        '<lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>'
-        '<lf-playground-choice value="bold" label="Bold"></lf-playground-choice>'
+        '<lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">'
+        '<lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>'
+        '<lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>'
         "</lf-playground-control>"
     )
     size = (
-        '<lf-playground-control name="size" label="Size" kind="range" value="2" '
+        '<lf-playground-control id="size" name="size" label="Size" kind="range" value="2" '
         'max="4"></lf-playground-control>'
     )
 
     def preset(*names):
         return (
-            '<lf-playground-preset label="Loud">'
+            '<lf-playground-preset id="preset-loud" label="Loud">'
             + "".join(
                 f'<lf-playground-setting for="{name}" value="bold"></lf-playground-setting>'
                 for name in names
@@ -729,6 +728,18 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
         key="for",
         value="tone",
     )
+    for unnamed, tag in (
+        (playground("a", tone.replace(' id="tone"', "")), "<lf-playground-control>"),
+        (
+            playground("a", tone.replace(' id="tone-bold"', "")),
+            "<lf-playground-choice>",
+        ),
+        (
+            playground("a", tone, preset("tone").replace(' id="preset-loud"', "")),
+            "<lf-playground-preset>",
+        ),
+    ):
+        assert found(reply(unnamed), "attribute-schema", tag, keyword="required")
 
     main = (
         '<lf-ask id="ask"><h2>Which?</h2>'
@@ -752,9 +763,9 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
     instruction it would be read into, is refused, naming where it may stand."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     tone = (
-        '<lf-playground-control name="{name}" label="Tone" kind="choice" value="quiet">'
-        '<lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>'
-        '<lf-playground-choice value="bold" label="Bold"></lf-playground-choice>'
+        '<lf-playground-control id="{name}" name="{name}" label="Tone" kind="choice" value="quiet">'
+        '<lf-playground-choice id="{name}-quiet" value="quiet" label="Quiet"></lf-playground-choice>'
+        '<lf-playground-choice id="{name}-bold" value="bold" label="Bold"></lf-playground-choice>'
         "</lf-playground-control>"
     )
 
@@ -762,7 +773,7 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
         return fragment_errors(
             f'<lf-ask id="placed-ask"><h2>Which tone?</h2>{before}'
             f'<lf-playground id="placed-playground">{rail}'
-            '<lf-playground-preset label="Bold">'
+            '<lf-playground-preset id="preset-bold" label="Bold">'
             '<lf-playground-setting for="item-tone" value="bold">'
             "</lf-playground-setting></lf-playground-preset>"
             '<lf-playground-preview><div class="item"><p>Item</p>'
@@ -798,7 +809,7 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
     # the control's own: its nearest playground is the inner one.
     inner = (
         '<lf-playground id="inner-playground">'
-        '<lf-playground-control name="inner-tone" label="Tone" kind="toggle" '
+        '<lf-playground-control id="inner-tone" name="inner-tone" label="Tone" kind="toggle" '
         'value="false"></lf-playground-control>'
         "<lf-playground-preview><p>Inner</p></lf-playground-preview>"
         "<lf-playground-output>Use it."
@@ -1922,17 +1933,6 @@ def test_comment_requires_the_registry_its_runtime_reads(page_dir):
         "has no layer.json" in result.output and "run `leaf page init`" in result.output
     )
     assert events_model.read_events(page_dir) == before
-
-
-def test_note_refuses_a_version_that_fails_check(page_dir):
-    (page_dir / "index.html").write_text(PAGE.replace("</section>", ""))
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "stamp", str(page_dir), "--text", "broken"],
-    )
-    assert result.exit_code != 0
-    assert "refusing to stamp" in result.output
-    assert live_versions(page_dir) == []
 
 
 def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):

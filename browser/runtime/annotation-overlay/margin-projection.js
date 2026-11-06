@@ -133,14 +133,14 @@ import { readingRegionFor } from "../reading-regions.js";
 
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageRung, pageScope } from "../keyboard/register.js";
-import { nativeLayerHolding } from "../shadow-tree.js";
+import { nativeLayerHolding, skipped } from "../shadow-tree.js";
 
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { repaint } from "../repaint.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { arrivalOf, declareSide } from "../current-target.js";
 import { closestAcross, inChrome } from "../passages.js";
-import { drawnThreadId, drawnThreadsWithId } from "../thread/selectors.js";
+import { drawnThreadId } from "../thread/selectors.js";
 import { visualAt } from "../anchor-resolution.js";
 import { paintTrace } from "../target-paint.js";
 import { outlineChange } from "../margin-bars.js";
@@ -148,15 +148,16 @@ import { outlineChange } from "../margin-bars.js";
 import { threadNamed } from "../thread/state.js";
 import { carryingThreadPlace, currentLocationThreadId } from "../thread/focus.js";
 
-import { claimed, revealHeld } from "../thread/surfaces.js";
+import { claimed } from "../thread/surfaces.js";
+import { pageSeatThread } from "../thread/inline.js";
 import { releaseReplies } from "../thread/replies.js";
 
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { seenRect, shownWindow, watchRoom } from "../geometry.js";
-import { skipped } from "../shown-box.js";
 
 import { renderedOrder, renderedUnder, under } from "../shadow.js";
+import { agentName } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
 
 /** @typedef {import("../annotation-inventory.js").InventoryEntry} Entry
@@ -252,20 +253,28 @@ export function createMarginProjection({
   let optionsOrdinal = 0;
   /** @type {readonly Entry[]} */
   let pageInventory = [];
-  // How far down the page each entry's target stands, in whole percent, as its marker's
-  // name last said. A target in skipped content (a tab not chosen) stands nowhere down
-  // the page, and asking would force that content's style and layout (`skipped`).
-  /** @type {(number | null)[]} */
-  let spokenPositions = [];
-  // The column's size the positions were measured against.
+  // The column's size the markers' names were last measured against.
   /** @type {{width: number, height: number} | null} */
   let spokenBasis = null;
+  // What each cluster was last drawn from: its entry, the same object while nothing in
+  // it changes (annotation-inventory.js, `keptEntry`), and what else its projection and
+  // its controls' words read. A cluster is drawn again only where one of them changed.
+  /** @type {WeakMap<Host, {entry: Entry, expanded: string | boolean, forced: boolean, folded: boolean, agent: string}>} */
+  const drawnFrom = new WeakMap();
+  // What each marker was last named from. An entry the marker was already painted from
+  // needs only the name; `renderNow` drops the record when it draws the cluster, whose
+  // new face the marker paints in turn.
+  /** @type {WeakMap<Host, {entry: Entry, index: number, of: number, position: number | null | undefined}>} */
+  const namedFrom = new WeakMap();
+  // Whether a row has changed since a render last asked: drawn, taken away, moved by a
+  // layout pass, or shown or hidden with the annotation layer. What reads the rows as a
+  // whole reads them again only then (`renderNow`).
+  let rowsChanged = true;
   // Geometry is one read-only batch after every row has reconciled. Reading a target
   // between two marker writes forced one full document layout per Page Map entry —
   // including on the two-second heartbeat. Every name is then written together.
   /** @param {(number | null)[]} positions */
   function nameMarkers(positions) {
-    spokenPositions = positions;
     // Each entry's place in the inventory, read once rather than searched for per host.
     const places = new Map(pageInventory.map((entry, place) => [entry, place]));
     const placeOf = (/** @type {Entry} */ entry) => places.get(entry) ?? -1;
@@ -275,7 +284,22 @@ export function createMarginProjection({
     walked.forEach((host, index) => {
       const entry = host.lfEntry;
       const position = positions[placeOf(entry)];
+      const named = namedFrom.get(host);
+      const painted = named?.entry === entry;
+      if (
+        painted &&
+        named.index === index &&
+        named.of === walked.length &&
+        named.position === position
+      )
+        return;
+      namedFrom.set(host, { entry, index, of: walked.length, position });
       const name = markerName(entry, index, walked.length, position);
+      if (painted) {
+        keeps(host.marker, "aria-label", name);
+        return;
+      }
+      rowsChanged = true;
       paintMarker(host.marker, entry, Boolean(host.primary), {
         suppressed: Boolean(
           focusedOfferOf(entry, expandedOptionsKey, expandedOptionsOwner),
@@ -284,7 +308,10 @@ export function createMarginProjection({
       });
     });
   }
-  // The column is its prose box, as the margin's layout pass reads it and hands it to
+  // How far down the column each entry's target stands, in whole percent, which its
+  // marker's name says. A target in skipped content (a tab not chosen) stands nowhere down
+  // the page, and asking would force that content's style and layout (`skipped`). The
+  // column is its prose box, as the margin's layout pass reads it and hands it to
   // `lf-margin-layout`: names read against another box would change back and forth
   // between a render and the layout pass after it.
   /** @param {readonly Entry[]} inventory @param {import("../content-layout.js").ProseBox} [mainRect] @param {number} [mainHeight] */
@@ -719,7 +746,15 @@ export function createMarginProjection({
     rove(markerRows(), stop);
   }
 
+  // The row focus stands on, which the stop stays on while it does (`syncRoving`).
+  const focusedRow = () => {
+    const at = focused();
+    return at?.matches(".lf-margin-marker") ? at : null;
+  };
+  /** @type {Element | null} */
+  let rovedRow = null;
   function syncRoving() {
+    rovedRow = focusedRow();
     const available = availableRows();
     const visible = visibleRows();
     if (!available.length) {
@@ -784,6 +819,7 @@ export function createMarginProjection({
     revealed?.removeAttribute("data-lf-revealed");
     revealed = shows;
     revealed?.setAttribute("data-lf-revealed", "");
+    rowsChanged = true;
   }
   // The row a node stands in, or the row of the innermost target holding it.
   /** @param {Element | null} node */
@@ -884,6 +920,7 @@ export function createMarginProjection({
       expandedOptionsOwner = null;
     }
     revealHost(null);
+    rowsChanged = true;
     renderAnnotations.refresh();
     repaint();
   });
@@ -1111,6 +1148,7 @@ export function createMarginProjection({
   function renderNow(inventory) {
     // A layout read, so before this render's writes (browser/AGENTS.md).
     const room = windowHoldsRail();
+    const agent = agentName();
     const selected = card.selection();
     const forcedKey = selected?.forced ? selected.entry.key : null;
     const threadOwnerHeld = transferThreadFocus || focused() === selected?.control;
@@ -1143,6 +1181,7 @@ export function createMarginProjection({
         host.clear();
         host.remove();
         hosts.delete(key);
+        rowsChanged = true;
       }
     // The host each new one is put before: the next later one already in the toolbar,
     // read in one walk back over the inventory the first time this render needs it. A
@@ -1223,6 +1262,22 @@ export function createMarginProjection({
       host.lfEntry = entry;
       host.lfTarget = targetFor(entry);
       marker.lfEntry = entry;
+      const expanded =
+        expandedOptionsKey === entry.key && (expandedOptionsOwner ?? true);
+      const forced = forcedKey === entry.key;
+      const isFolded = folded(entry);
+      const drawn = drawnFrom.get(host);
+      if (
+        drawn?.entry === entry &&
+        drawn.expanded === expanded &&
+        drawn.forced === forced &&
+        drawn.folded === isFolded &&
+        drawn.agent === agent
+      )
+        return;
+      drawnFrom.set(host, { entry, expanded, forced, folded: isFolded, agent });
+      namedFrom.delete(host);
+      rowsChanged = true;
       const focus = {
         focusedPrimary: Boolean(host.primary && currentLocationIn(host.primary)),
         focusedOption: Boolean(host.options && currentLocationIn(host.options)),
@@ -1235,7 +1290,7 @@ export function createMarginProjection({
         expandedKey: expandedOptionsKey,
         expandedOwner: expandedOptionsOwner,
         forcedInlineKey: forcedKey,
-        folded: folded(entry),
+        folded: isFolded,
       });
       if (!projection.hasOptions && expandedOptionsKey === entry.key) {
         expandedOptionsKey = null;
@@ -1285,12 +1340,17 @@ export function createMarginProjection({
     if (room && railRoom === false) queueMicrotask(() => void returnToPage());
     railRoom = room;
     refreshHighlight();
-    tick(drawnMargin);
     // The layout runs a pass where this render changed what a seat reads: a row registered
     // for another target, or a face drawn at another size (margin-layout.js,
-    // `registerMarginRow`, `faces`).
-    scheduleRoving();
-    scheduleMarginEntryLabels();
+    // `registerMarginRow`, `faces`). The rail's tab stop reads every row, so a render
+    // that changed none, with focus still on the same row, leaves it where it stands; the
+    // room moving reads it again by itself (`watchRoom`).
+    if (rowsChanged || focusedRow() !== rovedRow) {
+      rowsChanged = false;
+      tick(drawnMargin);
+      scheduleRoving();
+      scheduleMarginEntryLabels();
+    }
     // The margin's keys have the map's existence as their capability; each row already
     // asks the narrower question of whether its press works from the current focus.
     // Repeating live geometry in the scope's `when` forced a layout per location when
@@ -1426,12 +1486,16 @@ export function createMarginProjection({
       },
     });
     previewChanged();
+    // The card's messages were drawn from this gesture, outside any paint that follows
+    // their ages; drawing the margin again reads them where it follows them.
+    renderAnnotations.refresh();
     return positioned;
   }
 
   // A press on a marker opens its card, or puts away the card it already shows. Where
   // no card stands, as on a window with no room for the rail (header), the thread opens
-  // where every other route opens it (thread/destination.js): the floating panel.
+  // where every other route opens it (thread/destination.js): the floating panel. Either
+  // way the user lands where every opening puts them (thread/focus.js, `openingPart`).
   /** @param {Entry} entry @param {ThreadChoice} choice @param {Element} button */
   function togglePinned(entry, choice, button) {
     const selected = card.selection();
@@ -1441,7 +1505,7 @@ export function createMarginProjection({
     }
     const positioned = showPreview(entry, choice, button);
     if (positioned) card.focusThread(positioned);
-    else void openPageThread(threadIdOf(choice), { part: "thread", travel: false });
+    else void openPageThread(threadIdOf(choice), { travel: false });
   }
 
   // Closing the card hands a user who was in it on (focus.js, `closeLayer`). A close
@@ -1664,22 +1728,6 @@ export function createMarginProjection({
     if (!choice) return;
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
       setOptionsOpen(entry, false);
-    // A thread a widget holds out of its flow, so as to move nothing the user reads,
-    // has this marker for its notice: pressing it shows the thread where the widget
-    // draws it, and lands the user there (thread/held-news.js).
-    const intent = retainUserIntent();
-    const held = revealHeld(choice.items.map((item) => item.thread.id));
-    if (held) {
-      intent.handoff(closePreview);
-      void held.presented.then(() =>
-        openPageThread(held.id, {
-          part: "thread",
-          travel: false,
-          intent,
-        }),
-      );
-      return;
-    }
     togglePinned(entry, choice, button);
   }
 
@@ -1801,11 +1849,7 @@ export function createMarginProjection({
   // page position. The same card DOM drawn in the margin or by a primary reader leaves
   // that position and its margin preview available.
   /** @param {string} id */
-  const seatedOnPage = (id) =>
-    claimed(id) ||
-    [...drawnThreadsWithId(document, id)].some((seat) =>
-      closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"),
-    );
+  const seatedOnPage = (id) => claimed(id) || pageSeatThread(id) !== null;
   // The innermost target holding the node whose threads the card would show. A thread is
   // about exactly its anchor's target (header), reached from anywhere
   // inside it and never from outside: after `m` the user is on the obligation element, so
@@ -2086,6 +2130,7 @@ export function createMarginProjection({
     mountMarginLayer(toolbar, nav);
     card.mount(() => closePreview(landOnEntry));
     document.addEventListener("lf-margin-layout", ({ detail: { column, height } }) => {
+      rowsChanged = true;
       accompanyShownRow();
       card.place();
       scheduleMarginEntryLabels();
@@ -2093,9 +2138,7 @@ export function createMarginProjection({
       // markers' names say; whatever else moves a target renders the margin, which names
       // them anew. Measured against the column this pass read.
       if (column.width === spokenBasis?.width && height === spokenBasis?.height) return;
-      const moved = readSpokenPositions(pageInventory, column, height);
-      if (moved.some((position, index) => position !== spokenPositions[index]))
-        nameMarkers(moved);
+      nameMarkers(readSpokenPositions(pageInventory, column, height));
     });
     document.addEventListener("pointerover", scheduleMarginEntryLabels, {
       capture: true,

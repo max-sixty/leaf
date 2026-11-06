@@ -22,6 +22,9 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   dataVersion: "data-lf-data-version",
   source: "data-lf-source",
   sourceRevision: "data-lf-source-revision",
+  // A data widget that has reported a draw (projection/data.js, `projectMarked`), so
+  // its source stamps say which revision it shows (anchor-resolution.js).
+  drawReported: "data-lf-draw-reported",
   userOverride: "data-lf-user-override",
   presented: "data-lf-presented",
   reported: "data-lf-reported",
@@ -51,6 +54,13 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   traced: "data-lf-traced",
   proxied: "data-lf-proxied",
   location: "data-lf-projected-location",
+  // The cursor's paint, which the margin likewise does not hear: the hand over a
+  // thread's mark, on the element under the pointer (annotation-overlay/anchor-paint.js,
+  // annotation-chrome.css), the armed aim on `body` (composing/aim.js), and the aim's
+  // hand on the element under the pointer where it has an item (page-geometry.js).
+  overMark: "data-lf-over-mark",
+  aiming: "data-lf-aiming",
+  overItem: "data-lf-over-item",
   // The anchor name a heading holds while its link shows (heading-links.js, marks.css),
   // which the margin likewise does not hear.
   headingLink: "data-lf-heading-link",

@@ -93,29 +93,31 @@ lf-text-document .lf-text-document-run > *::before {
 }
 /* Syntax colour on a listing's text (lf-text-document.js, `tokenHighlight`): one
    highlight for each colour of the token theme (build/entries/syntax/entry.mjs,
-   `leafTheme`), named by its variable. A test holds this list to the theme's. */
-::highlight(lf-token-syn-comment) {
+   `leafTheme`), named by its variable. A test holds this list to the theme's. Each
+   rule names the rows, whose text is all these ranges paint (browser/AGENTS.md,
+   "Runtime ownership"). */
+lf-text-document .lf-text-document-run > *::highlight(lf-token-syn-comment) {
   color: var(--syn-comment);
 }
-::highlight(lf-token-syn-keyword) {
+lf-text-document .lf-text-document-run > *::highlight(lf-token-syn-keyword) {
   color: var(--syn-keyword);
 }
-::highlight(lf-token-syn-string) {
+lf-text-document .lf-text-document-run > *::highlight(lf-token-syn-string) {
   color: var(--syn-string);
 }
-::highlight(lf-token-syn-number) {
+lf-text-document .lf-text-document-run > *::highlight(lf-token-syn-number) {
   color: var(--syn-number);
 }
-::highlight(lf-token-syn-name) {
+lf-text-document .lf-text-document-run > *::highlight(lf-token-syn-name) {
   color: var(--syn-name);
 }
-::highlight(lf-token-syn-type) {
+lf-text-document .lf-text-document-run > *::highlight(lf-token-syn-type) {
   color: var(--syn-type);
 }
-::highlight(lf-token-ok-ink) {
+lf-text-document .lf-text-document-run > *::highlight(lf-token-ok-ink) {
   color: var(--ok-ink);
 }
-::highlight(lf-token-danger-ink) {
+lf-text-document .lf-text-document-run > *::highlight(lf-token-danger-ink) {
   color: var(--danger-ink);
 }
 /* A folded panel's rows (`hidden="until-found"`, as a closed tab's) count no numbers
@@ -163,11 +165,20 @@ lf-text-document .lf-text-document-run:only-child {
     overflow: visible;
     --lf-top: inherit;
   }
+  /* The listing restarts the sticky-header slot from the first paint with every value
+     the runtime's mark on a box that scrolls sets (state.css, `[data-lf-scrolls]`), so
+     the mark changes nothing its rows inherit. Firefox styles the rows of runs it
+     skips too (notes/browser-support.md, "Styling content Firefox skips"), and a mark
+     that changed three of the values took a 270 to 570 ms frame on a listing of 97,000
+     rows. */
   lf-text-document:not([preview])[data-lf-bound] pre {
     block-size: var(--lf-bound, 28rem);
     overflow: auto;
     --lf-holds-height: 1;
-    --lf-top: 0px;
+    --lf-top: var(--lf-top-start);
+    --lf-top-covered: var(--lf-top-start);
+    --lf-landing-room: var(--lf-landing-room-start);
+    --lf-track-scroll-behavior: flow;
   }
   lf-text-document:not([preview])[data-lf-bound] {
     --lf-bound-box: .lf-text-document-listing > pre;

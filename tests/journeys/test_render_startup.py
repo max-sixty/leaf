@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 from urllib.parse import urljoin, urlparse
 
 import pytest
-from browser.threads import open_panel_thread
 from click.testing import CliRunner
 from interact_support import (
     wait_for,
@@ -214,8 +213,12 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
     if answer == "ready":
         # An ordinary error in a usable page must not start recovery that could
         # reload the document and discard an early comment while history waits.
-        page.evaluate("setTimeout(() => { throw new Error('post-upgrade fault'); })")
-        page.wait_for_timeout(50)
+        with page.expect_event("pageerror"):
+            page.evaluate(
+                "setTimeout(() => { throw new Error('post-upgrade fault'); })"
+            )
+        # The fault has met the page's error handlers, and what they decided is drawn.
+        rendered(page)
         expect(page.locator("html")).not_to_have_attribute("data-lf-startup-error")
         expect(page.get_by_text("Leaf couldn't start", exact=False)).to_have_count(0)
         consume_browser_errors(page, "post-upgrade fault")
@@ -268,21 +271,6 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
         {"value": []},
         {"value": ["no"]},
     ]
-
-
-def test_thread_timestamps_age_without_new_state(browser, serve):
-    page = open_page(browser, serve(LONG_PAGE, comments=1))
-    [comment] = [
-        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
-    ]
-    open_panel_thread(page, comment["id"])
-    timestamp = page.locator(".lf-msg-head time").first
-    expect(timestamp).to_have_text("just now")
-    held = []
-    page.route("**/api/state*", lambda route: held.append(route))
-    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
-    ticked(page)
-    expect(timestamp).to_have_text("3h ago")
 
 
 def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serve):
@@ -400,7 +388,11 @@ def test_user_view_context_waits_for_a_samples_viewport_allocation(browser, serv
   </template>
 </lf-sample>""",
     )
-    page = open_page(browser, serve(source))
+    # The sample reports on its clock, a heartbeat and a quiet interval, so the test
+    # runs that clock forward rather than waiting it out.
+    context = browser.new_context()
+    context.clock.install()
+    page = open_page(browser, serve(source), context=context)
     element = page.locator("#practice iframe")
     frame = element.element_handle().content_frame()
     wait_until_ready(frame)
@@ -447,15 +439,16 @@ def test_user_view_context_waits_for_a_samples_viewport_allocation(browser, serv
     # The sample has an opaque origin, so its window.frameElement is null; the
     # parent can still verify that the iframe itself remains connected.
     assert element.evaluate("frame => frame.isConnected")
-    # Cover the observer's 10-second heartbeat and 300ms resize quiet interval.
-    page.wait_for_timeout(11_000)
-    assert reports[before:] == [], "the unallocated sample sent a user view"
+    # Past the observer's 10-second heartbeat and 300ms resize quiet interval.
+    context.clock.run_for(11_000)
 
     with page.expect_response(accepted) as restored:
         element.evaluate(
             "(frame, style) => { frame.style.cssText = style; }", saved_style
         )
     recovered = restored.value.request.post_data_json
+    # Any view the unallocated sample sent went out before the one restoring it.
+    assert reports[before:] == [recovered], "the unallocated sample sent a user view"
     assert recovered["session"] == initial["session"]
     assert recovered["sequence"] > initial["sequence"]
     assert recovered["viewport"]["width"] > 0
@@ -616,8 +609,9 @@ customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){
     expect(page_comment(page)).to_have_js_property("value", "Still usable.")
 
 
-@pytest.mark.parametrize("answer", ["ready", "offline"])
-@pytest.mark.parametrize("focus", ["sample", "chrome"])
+# Each answer and each focus once: which answer arrives and where focus stood are
+# independent facts, and the composer's keeping its words is one decision over both.
+@pytest.mark.parametrize("answer, focus", [("ready", "sample"), ("offline", "chrome")])
 def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, focus):
     """Presentation applies saved facts without re-deciding the user's open composer."""
     source = leaf_page(

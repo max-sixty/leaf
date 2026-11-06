@@ -10,17 +10,6 @@
    row runs and stops the scope walk but leaves that default intact. Undeclared keys
    continue outward through ancestor scopes to the page.
 
-   Focus stays on a control the user has scrolled out of sight (user-place.js,
-   `focusScrolledAway`), but Leaf's keys don't act there, since a user reading something
-   else would settle, choose or toggle what they can't see. While it is away, `stack`
-   leaves out the focused control's element scopes and every page scope rooted at it (a
-   page scope about the focused control declares `root: focused`), so only the page's
-   own keys answer; a page command still reads where it starts from focus
-   (current-target.js). A text field keeps its keys, since typing brings its box back
-   (off-flow.js), and Escape keeps every scope, so letting go lands the user where they
-   are reading. The control's native claims stay: the browser still activates a native
-   control on its own press, and no outer row may add to that press.
-
    Leaf must not block standard platform or browser shortcuts. A handler prevents a
    default only after a Leaf command owns the complete modified press; secondary clicks
    and the native context menu remain the browser's too.
@@ -59,8 +48,11 @@
    A scope does not need a private `keydown` listener or hand-written `preventDefault` to
    protect that contract.
 
-   Auto popovers and modal dialogs are the platform's modes, and the layer stack holds
-   them in the order they opened. The dispatcher tiers the scopes over that stack from the
+   Auto popovers and modal dialogs are the platform's modes, as is a manual popover
+   while focus is inside it, and the layer stack holds them in the order they opened
+   (`nativeModes`). A manual popover the user is not in, such as a hover card, is no
+   mode: the browser never closes it on Escape, so tiering under it would leave Escape
+   nothing to take. The dispatcher tiers the scopes over that stack from the
    top down: each layer takes the scopes rooted inside it, the topmost layer also takes
    the focused element's scopes and explicitly inner modes, and a boundary follows each
    layer. A modal is a floor, so every scope below the newest one is dropped and the inert
@@ -114,9 +106,8 @@ import {
 } from "./register.js";
 import { EVERYTHING, nativeActivationAt, nativeClaimAt } from "./text-entry.js";
 import { takesLetters, focused, recoveredLabelFocus } from "../focus.js";
-import { focusScrolledAway } from "../user-place.js";
 import { runLanding, scopesAt, scopesFor, scopeIdentity } from "./scopes.js";
-import { nativeLayers } from "./layer-stack.js";
+import { nativeModes } from "./layer-stack.js";
 import { composedParentNode, renderedUnder, excludedByInert } from "../shadow.js";
 
 /** @typedef {import("./bindings.js").Command} Command
@@ -253,12 +244,8 @@ export function stack(binding = null) {
           activation,
         }
       : null;
-  // Focus the user scrolled away from puts them on the page, apart from typing and
-  // Escape.
-  const unseen = !typing && binding !== "Escape" && focusScrolledAway();
   const expanded = pageScopes().flatMap((scope) => {
     if (scope === ELEMENTS) {
-      if (unseen) return controlScope ? [controlScope] : [];
       if (!typing && !controlScope) return elementStack;
       const own = elementStack.filter(
         ({ el, contextual }) => el === active && !contextual,
@@ -273,7 +260,6 @@ export function stack(binding = null) {
       ];
     }
     if (typing && TYPING.includes(scope)) return [];
-    if (unseen && scopeRoot(scope) === active) return [];
     return scope;
   });
   /** @param {Scope[]} scopes */
@@ -283,7 +269,7 @@ export function stack(binding = null) {
   };
   // One tier per layer the browser holds, newest first. Everything below the newest modal
   // is inert, so those layers are the only ones a scope can still be active in.
-  const layers = nativeLayers();
+  const layers = nativeModes();
   const modal = layers.findLast((layer) => layer.kind === "modal");
   const visible = modal ? layers.slice(layers.indexOf(modal)) : layers;
   // The newest native modal is the one boundary the browser makes inert behind it.

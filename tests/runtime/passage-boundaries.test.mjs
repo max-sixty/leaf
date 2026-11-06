@@ -25,6 +25,7 @@ import {
   closestAcross,
   contextAround,
   elementReading,
+  fencedAt,
   fencePassageParts,
   findQuote,
   inChrome,
@@ -34,10 +35,11 @@ import {
   pageWords,
   pointAt,
   quoteFrom,
+  refuseBareText,
   says,
   segmentsIn,
 } from "/runtime/passages.js";
-import { upFrom } from "/runtime/shadow.js";
+import { declaredRoot, upFrom } from "/runtime/shadow.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
 
 test("no node means no passage location, rather than a runtime error", () => {
@@ -261,6 +263,60 @@ test("a declared shadow tree's words are read, and its changes are seen", () => 
   assert.match(pageText().raw, /Alpha.*Gamma/s);
 });
 
+// Startup refuses a module's bare text before anything reads the page, so it has to
+// reach every root the reading would cross into, a stage inside another stage included.
+test("startup refuses bare text staged inside another widget's root", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "passage-nested-bare" },
+  });
+  document.body.innerHTML = "<main><lf-staged id=outer></lf-staged></main>";
+  const inner = Object.assign(document.createElement("lf-staged"), { id: "inner" });
+  const outer = shadowStage(document.getElementById("outer"), [inner]);
+  shadowStage(inner, [document.createTextNode("Loose words")]);
+  /** @type {string[]} */
+  const reasons = [];
+  /** @param {Event} event */
+  const failed = (event) => reasons.push(event.detail.reason);
+  window.addEventListener("lf-startup-failed", failed);
+  try {
+    refuseBareText();
+  } finally {
+    window.removeEventListener("lf-startup-failed", failed);
+  }
+  assert.equal(reasons.length, 1, String(reasons));
+  assert.match(reasons[0], /<lf-staged id="inner"> staged bare text/);
+  assert.equal(declaredRoot(outer.host), outer, "the outer stage holds an element");
+  assert.equal(declaredRoot(inner), null, "the inner stage is refused for good");
+});
+
+// The sweep runs before every page upgrades, so it asks each stage once rather than
+// filtering every stage for each root it admits, which grew with the square of a page of
+// sibling widgets.
+test("startup's refusal sweep asks each of many sibling stages once", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "passage-flat-sweep" },
+  });
+  const count = 200;
+  document.body.innerHTML = `<main>${"<lf-staged></lf-staged>".repeat(count)}</main>`;
+  for (const host of document.querySelectorAll("lf-staged"))
+    shadowStage(host, [document.createElement("p")]);
+  const { contains } = Node.prototype;
+  let checks = 0;
+  /** @param {Node | null} other */
+  Node.prototype.contains = function (other) {
+    checks += 1;
+    return contains.call(this, other);
+  };
+  try {
+    refuseBareText();
+  } finally {
+    Node.prototype.contains = contains;
+  }
+  assert.ok(checks <= count, `${checks} containment checks for ${count} stages`);
+});
+
 // A page script's own custom element attaches a root no declaration vouches for. The
 // file reading can't know a script will, so the page reading leaves the root's words out
 // and reads the host by its light children, slotted or not, exactly as the file does.
@@ -371,6 +427,149 @@ test("a selection in nested slots keeps exactly the rendered words it covers", (
   );
   range.selectNodeContents(innerRoot.querySelector("p"));
   assert.equal(quoteFrom(segmentsIn(range)), "Inner");
+  // Ends at the far edge of one text node and the near edge of another cover neither.
+  range.setStart(document.querySelector("#before").firstChild, "Before".length);
+  range.setEnd(document.querySelector("#after").firstChild, 0);
+  assert.equal(
+    quoteFrom(segmentsIn(range)),
+    "Outer Inner Selected words Inner tail Outer tail",
+  );
+  // Select-all beside a declared tree composes a range over <html>.
+  range.selectNodeContents(document.documentElement);
+  assert.equal(
+    quoteFrom(segmentsIn(range)),
+    "Before Outer Inner Selected words Inner tail Outer tail After",
+  );
+});
+
+// A page script's own element whose slots show its children out of light order, with
+// words only its shadow root shows. The reading and a native Range both take its children
+// in light order, so a selection is compared in that order rather than the one on screen.
+test("a selection in an undeclared host that reorders its children keeps its words", () => {
+  Object.assign(registry, { $layer: { generation: "passage-undeclared-order" } });
+  document.body.innerHTML =
+    '<main><p id="before">Before</p><u-card><p slot="body" id="body">Body</p>' +
+    '<p slot="title" id="title">Title</p></u-card><p id="after">After</p></main>';
+  const root = document.querySelector("u-card").attachShadow({ mode: "open" });
+  root.innerHTML =
+    '<h3 id="own">Own</h3><div id="holder"><slot name="title"></slot></div>' +
+    '<slot name="body"></slot>';
+  assert.equal(quoteFrom(pageText().segments), "Before Body Title After");
+  const range = document.createRange();
+  const text = (id) => document.querySelector(`#${id}`).firstChild;
+  for (const id of ["before", "body", "title", "after"]) {
+    range.selectNodeContents(text(id));
+    assert.equal(quoteFrom(segmentsIn(range)), text(id).data, `text of ${id}`);
+    range.selectNodeContents(document.querySelector(`#${id}`));
+    assert.equal(quoteFrom(segmentsIn(range)), text(id).data, `contents of ${id}`);
+  }
+  range.setStart(text("body"), 0);
+  range.setEnd(text("title"), 5);
+  assert.equal(quoteFrom(segmentsIn(range)), "Body Title");
+  range.setStart(text("title"), 0);
+  range.setEnd(text("after"), 5);
+  assert.equal(quoteFrom(segmentsIn(range)), "Title After");
+  const reading = pageText();
+  const title = reading.raw.indexOf("Title");
+  const fences = fencedAt(reading, document.querySelector("#title")).fences;
+  assert.ok(fences.includes(title) && fences.includes(title + 5), `fences ${fences}`);
+  // Firefox keeps both ends of a selection of the root's own words inside the root, even
+  // around a slot, and comments can't quote those words.
+  range.selectNodeContents(root.querySelector("#own"));
+  assert.deepEqual(segmentsIn(range), []);
+  range.selectNodeContents(root.querySelector("#holder"));
+  assert.deepEqual(segmentsIn(range), []);
+  assert.equal(fencedAt(reading, root.querySelector("#holder")), reading);
+});
+
+// `segmentsIn` searches the reading, so every way the walk reaches a word has to agree
+// with the comparison the search asks: a declared root's slots, nested and out of light
+// order, an undeclared root's reordering slots, and a declared host's child no slot takes.
+// A range from any word to any later one covers exactly the reading's words between them.
+test("the reading's words stand in the order a selection is compared in", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "passage-reading-order" },
+  });
+  const nodes = (html) => {
+    const template = document.createElement("template");
+    template.innerHTML = html;
+    return [...template.content.childNodes];
+  };
+  document.body.innerHTML =
+    "<main><p>Lead</p><lf-staged id=outer></lf-staged><lf-staged id=named></lf-staged>" +
+    "<u-card><p slot=body>Card body</p><p slot=title>Card title</p></u-card>" +
+    "<p>Last</p></main>";
+  const outer = document.querySelector("#outer");
+  shadowStage(outer, nodes("<p>Outer</p><slot></slot><p>Outer tail</p>"));
+  const inner = document.createElement("lf-staged");
+  outer.append(inner);
+  shadowStage(inner, nodes("<p>Inner</p><div><slot></slot></div><p>Inner tail</p>"));
+  inner.innerHTML = "<p>Deep <b>bold</b> words</p>";
+  const named = document.querySelector("#named");
+  shadowStage(
+    named,
+    nodes('<slot name="b"></slot><p>Named middle</p><slot name="a"></slot>'),
+  );
+  named.innerHTML = '<p slot="a">Slot a</p><p>Unslotted</p><p slot="b">Slot b</p>';
+  document.querySelector("u-card").attachShadow({ mode: "open" }).innerHTML =
+    '<slot name="title"></slot><slot name="body"></slot>';
+  const { segments } = pageText();
+  assert.equal(
+    quoteFrom(segments),
+    "Lead Outer Inner Deep bold words Inner tail Outer tail Slot b Named middle Slot a " +
+      "Card body Card title Last",
+  );
+  segments.forEach(({ node: from }, start) => {
+    for (let stop = start; stop < segments.length; stop++) {
+      const to = segments[stop].node;
+      // A live Range collapses when its ends are in two trees, and a StaticRange doesn't.
+      const range = {
+        startContainer: from,
+        startOffset: 0,
+        endContainer: to,
+        endOffset: to.data.length,
+      };
+      assert.equal(
+        quoteFrom(segmentsIn(range)),
+        quoteFrom(segments.slice(start, stop + 1)),
+        `from "${from.data}" to "${to.data}"`,
+      );
+    }
+  });
+});
+
+// A selection covers one run of the page reading's segments, as do the words one element
+// holds, so each is found by searching for where its two ends fall rather than by testing
+// every segment. Every comparison starts by asking a text node for its slot, so counting
+// those asks counts the comparisons.
+test("a selection's words are found from its ends, not by asking every word", () => {
+  document.body.innerHTML = `<main>${Array.from(
+    { length: 4096 },
+    (_, i) => `<p id="row${i}">Row ${i}</p>`,
+  ).join("")}</main>`;
+  const reading = pageText();
+  const row = document.querySelector("#row2000");
+  const range = document.createRange();
+  range.selectNodeContents(row);
+  const slot = Object.getOwnPropertyDescriptor(Text.prototype, "assignedSlot");
+  let asked = 0;
+  Object.defineProperty(Text.prototype, "assignedSlot", {
+    configurable: true,
+    get() {
+      asked += 1;
+      return slot.get.call(this);
+    },
+  });
+  try {
+    assert.equal(quoteFrom(segmentsIn(range)), "Row 2000");
+    const at = reading.raw.indexOf("Row 2000");
+    const fences = fencedAt(reading, row).fences;
+    assert.ok(fences.includes(at) && fences.includes(at + "Row 2000".length));
+  } finally {
+    Object.defineProperty(Text.prototype, "assignedSlot", slot);
+  }
+  assert.ok(asked < 200, `${asked} text nodes asked where they render`);
 });
 
 test("a declared label inside chrome is read down to its last word", () => {

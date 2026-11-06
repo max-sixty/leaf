@@ -180,11 +180,11 @@ CONTROL_STABILITY_PAGE = leaf_page(
 
 <lf-ask id="stable-playground-decision"><h2>How should the release card look?</h2>
 <lf-playground id="stable-playground" submit-label="Use these settings">
-  <lf-playground-control name="radius" label="Corner radius" kind="range"
+  <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range"
     value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
-  <lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">
-    <lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>
-    <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
+  <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
+    <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
+    <lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>
   </lf-playground-control>
   <lf-playground-preview id="stable-playground-preview">
     <article id="stable-playground-card"><strong>Release card</strong><p>The ceiling doubles per approval.</p></article>
@@ -244,12 +244,12 @@ CONTROL_ARCHETYPES = (
     {
         # Switching views must not move the buttons under the pointer.
         "name": "shot-view",
-        "target": "#stable-shot .lf-shot-views button:nth-child(2)",
+        "target": "#stable-shot .lf-shot-views wa-radio:nth-child(2)",
     },
     {
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case:not([hidden]) .lf-shot-views button:nth-child(2)",
+        "target": ".lf-vr-case:not([hidden]) .lf-shot-views wa-radio:nth-child(2)",
     },
     {
         "name": "visual-review-approval",
@@ -320,7 +320,7 @@ RING_CASES = (
                     'lf-shot .lf-shotcomparison [part~="handle"]',
                     "wa-comparison::part(",
                 ),
-                (".lf-shot-views button", FLOOR_RING),
+                (".lf-shot-views wa-radio", FLOOR_RING),
             ),
             "wt-merge": (
                 (
@@ -651,7 +651,6 @@ AIM_SURFACES = (
     ".lf-react-strip .lf-react",
     ".lf-fp-compare",
     ".lf-command-reference-command",
-    ".lf-quote",
     ".lf-tab-btn",
     ".lf-grip",
 )
@@ -1417,7 +1416,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             expect(page.locator('#merge-steps-pane > [tabindex="0"]')).to_have_count(1)
         if name == "release-notes":
             page.locator("lf-shot").get_by_role(
-                "button", name="Slider", exact=True
+                "radio", name="Slider", exact=True
             ).click()
             # Ordinary element marks need a focusable sample for their conditional ring.
             page.locator("main p").first.evaluate(

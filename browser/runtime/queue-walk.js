@@ -40,6 +40,12 @@
    (`ON_CARD`), on a thread stop when they are in its thread (`threadIn`), and on an
    action handed back when they are in its widget.
 
+   With nothing waiting on the user, a press of `m` or Shift+`m` says so in the panel's
+   seat (notifications.js, `notice`), as every walk with nothing to step through does
+   (keyboard/AGENTS.md, "Page grammar"); the reading that empties the list says it
+   unasked (semantic-news.js). The user asked for both on 5 November 2026, taking the
+   words over a flash of the panel's colour for now.
+
    The walk opens what answers each item it reaches: a thread opens, and a widget's
    controls stand at its place. Everything on the user's list is answered there, by
    the widget's own controls or a reply in the thread, so the walk adds no control of
@@ -60,9 +66,9 @@
    one on the tally's own control above it, counts from the obligation the user last went to, if
    it is in the region: Tab and Shift+Tab pass over what they cross on the way to the
    control, so they keep it, while any other move the user makes ends it. Without one it
-   counts from the first of the region's obligations they see, as a place they are at without
-   being on it, and with none in sight it enters at the region's edge, Next at the
-   first and Previous at the last. That obligation, kept by identity
+   counts from the block they read in the region (reading-place.js, `readingBlock`), as a
+   place they are at without being on it, and with none in sight it counts from where
+   they are. That obligation, kept by identity
    so a revision replacing its node keeps it, is the one place this walk keeps, and only
    this case reads it: anywhere else the user's own place decides.
 
@@ -72,7 +78,6 @@
 import { alreadyShown } from "./landing-scroll.js";
 import { cycledRow, savedReadingSettled } from "./keyboard/bindings.js";
 import { pageCommand } from "./keyboard/register.js";
-import { paintKeys } from "./keyboard/scopes.js";
 import { onCurrentLocation } from "./focus.js";
 import {
   obligationHolding,
@@ -81,7 +86,8 @@ import {
   stepFrom,
   walkOrigin,
 } from "./current-target.js";
-import { seenRect } from "./geometry.js";
+import { readingBlock } from "./reading-place.js";
+import { readingRegionFor } from "./reading-regions.js";
 import { closestAcross, inChrome } from "./passages.js";
 import { byRenderedOrder, under } from "./shadow.js";
 import { hasObligationSource } from "./obligations/source.js";
@@ -90,16 +96,16 @@ import { obligationWord } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationsIn, obligationPlace, subjectPlace } from "./obligations/place.js";
 import { readPlan, readQueues, queueItemKey } from "./queue-api.js";
-import { carriesObligation, itemNoun } from "./queues.js";
+import { carriesObligation, emptyOnList, itemNoun } from "./queues.js";
 import { threadIn } from "./thread/focus.js";
 import { drawnThreadId } from "./thread/selectors.js";
 import { partOver } from "./thread/placement.js";
 import { addressableLabel } from "./addressable-names.js";
 import { userChoice } from "./storage.js";
 import { agentName } from "./semantic-state.js";
-import { effect, untracked } from "/runtime/framework.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
+import { notice } from "./notifications.js";
 
 /** @typedef {import("./queue-api.js").CurrentQueueItem} QueueItem
  * @typedef {import("./obligations/answer.js").AnswerableObligation} Obligation
@@ -479,7 +485,7 @@ export function createQueueWalk({
           at && {
             where: at,
             focus: at,
-            scroll: [{ at, when: () => !alreadyShown(at) }],
+            scroll: [{ at, when: () => !alreadyShown(at, { block: "center" }) }],
           }
         );
       },
@@ -540,20 +546,6 @@ export function createQueueWalk({
     return ready;
   }
 
-  const offered = () => readQueues().on_user.length > 0;
-  let wasOffered = false;
-  /** @type {(() => void) | null} */
-  let watching = null;
-  // The m/M row stands on On me, so the surfaces reading it are repainted where the
-  // list empties or fills.
-  function mount() {
-    watching ??= effect(() => {
-      if (offered() === wasOffered) return;
-      wasOffered = offered();
-      untracked(paintKeys);
-    });
-  }
-
   pageCommand({
     id: "queue.walk",
     ready: savedReadingSettled,
@@ -573,14 +565,18 @@ export function createQueueWalk({
       },
     ],
     title: "On me",
-    when: offered,
     repeat: true,
     travels: true,
     // The same shape as the thread walk: it moves the user from item to item rather than
     // down a level, so the current scope lets go of whichever one they end on. An item
     // reached through the panel leaves the panel a level of its own on the way out,
     // whether this walk opened it or the user already had it.
-    runKey: (binding) => walk(binding === "m" ? 1 : -1),
+    runKey: (binding) => {
+      const reading = readQueues();
+      return reading.on_user.length
+        ? walk(binding === "m" ? 1 : -1)
+        : notice(emptyOnList(reading.phase, "me"));
+    },
   });
 
   // An On me row arrives where the walk would, whichever list its obligation is on.
@@ -626,16 +622,14 @@ export function createQueueWalk({
         place: obligationPlace(kept).source,
         kind: "current-location",
       });
-    // What the user reads in the region: the first of its obligations any of which they see,
-    // where they are without being on it, so a waiting one is the next and an
-    // answered one leads to the next after it.
-    const clips = new Map();
-    const shown = items
-      .map((item) => obligationPlace(item).node)
-      .find((node) => node && seenRect(node, clips));
-    return shown
-      ? walk(toward, within, { node: shown, place: shown, kind: "at" })
-      : walk(toward, within, here);
+    // What the user reads in the region, where they are without being on any of its
+    // obligations, so the one holding it or the next waiting one is the next.
+    const reading = readingBlock(readingRegionFor(within) ?? null, within);
+    return walk(
+      toward,
+      within,
+      reading ? { node: reading, place: reading, kind: "at" } : here,
+    );
   }
 
   // On me's list as the panel draws it: its groups, the grouping they stand in and the
@@ -658,5 +652,5 @@ export function createQueueWalk({
       ),
   });
 
-  return { mount, arriveAtItem, arrivesAt, onMe, nextWithin };
+  return { arriveAtItem, arrivesAt, onMe, nextWithin };
 }

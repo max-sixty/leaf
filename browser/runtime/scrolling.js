@@ -17,10 +17,12 @@
    layout's, and the reader's input aimed at the box, which continuity records itself
    (version.js, `inputSince`), settles those. The browser's travel into hidden content,
    as find-in-page opening a fold onto its match, fires `beforematch` first, so its end
-   is a choice whatever the opening did to the layout. An end that leaves the box where
+   is a choice whatever the opening did to the layout. Opening a closed `<details>`
+   fires none, so a disclosure that opens without its summary's click marks the same
+   travel, for its own box and those inside it. An end that leaves the box where
    its last one did, as Firefox sends after a layout move, chose nothing. A place
    keeper's write returns the reader to a place they already had (reading-place.js,
-   `restorePlace`; user-place.js, `placeKeeper`; continuity's move of the page with its
+   `restorePlace`; user-place.js, `holdPlace`; continuity's move of the page with its
    band), so it says where it left each box (`placeKept`), and a sequence ending there
    is the keeper's. An explicit landing counts from its start (`startScroll`), even
    when instant, since layout it caused can be announced before its sequence ends.
@@ -39,7 +41,7 @@ import {
 } from "./arrivals.js";
 import { inputs } from "./inputs.js";
 import { reducedMotion } from "./motion.js";
-import { skipped } from "./shown-box.js";
+import { skipped } from "./shadow-tree.js";
 
 // The browser's document scrollport. Keeping the platform's root as the one page
 // scroller lets fragment links, history restoration, wheel/touch input, and browser UI
@@ -227,6 +229,44 @@ document.addEventListener(
   },
   { capture: true },
 );
+// Opening a closed `<details>` onto its match fires no `beforematch`, and its `toggle`
+// follows in a task of its own. A disclosure the reader opens activates its summary,
+// which dispatches a click first; one that opens without that, as find-in-page opens
+// one, travels into it, until the sequence the travel starts has ended. That travel
+// counts only for the disclosure and the boxes inside it, since Leaf itself opens
+// disclosures too, carrying one open across a revision (carry.js) while layout moves
+// the page around it.
+/** @type {Element | null} */
+let activated = null;
+/** @type {Element | null} */
+let opened = null;
+document.addEventListener(
+  "click",
+  ({ target }) => {
+    const summary = target instanceof Element ? target.closest("summary") : null;
+    const disclosure = summary?.parentElement;
+    if (disclosure instanceof HTMLDetailsElement && !disclosure.open)
+      activated = disclosure;
+  },
+  { capture: true },
+);
+document.addEventListener(
+  "toggle",
+  ({ target }) => {
+    if (!(target instanceof HTMLDetailsElement) || !target.open) return;
+    if (activated === target) {
+      activated = null;
+      return;
+    }
+    opened = target;
+    nextFrame(() =>
+      nextFrame(() => {
+        if (opened === target) opened = null;
+      }),
+    );
+  },
+  { capture: true },
+);
 /** @param {EventTarget | null} target */
 const eventScroller = (target) =>
   target === document ? pageScroller : target instanceof Element ? target : null;
@@ -266,6 +306,7 @@ watchScrollEnds((box) => {
     leafStarted ||
     repeated ||
     travel !== null ||
+    opened?.contains(box) ||
     (ended.get(box) !== box.scrollTop &&
       !layoutMoved.has(box) &&
       !changedExtent(extents.get(box), extent));
@@ -544,10 +585,10 @@ export function glideTo(box, top) {
 // tab or a resized window. The exception is the clamp a growth makes at the box's end,
 // whose scroll can arrive before the reading that answers the growth. `atEnd` keeps the
 // foot only while it is the box's end: a card read back keeps its reader's offset
-// (thread-preview.js, `measureThreadCard`). `kept` hears each move the keeper makes.
-/** @param {HTMLElement} box @param {{atEnd?: boolean, kept?: () => void}} [options]
+// (thread-preview.js, `measureThreadCard`).
+/** @param {HTMLElement} box @param {{atEnd?: boolean}} [options]
  * @returns {() => void} */
-export function keepFoot(box, { atEnd = false, kept } = {}) {
+export function keepFoot(box, { atEnd = false } = {}) {
   /** @type {{room: number, top: number, end: boolean} | null} */
   let foot = null;
   const observer = sizeObserver((entries) => {
@@ -559,7 +600,6 @@ export function keepFoot(box, { atEnd = false, kept } = {}) {
       entries.every(({ target }) => target === box)
     ) {
       moveScrollerBy(box, foot.top + foot.room - room - box.scrollTop);
-      kept?.();
     }
     foot = { room, top: box.scrollTop, end: atScrollEnd(box) };
   });

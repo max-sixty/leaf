@@ -54,6 +54,7 @@ import { watchArrivals } from "./arrivals.js";
 import { highlightBlocks } from "./syntax.js";
 import { keeps } from "./keeps.js";
 import { move } from "./dom-move.js";
+import { chromeRoot } from "./chrome.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { marks } from "./kernel-facts.js";
 import { generatedElement } from "./widget-elements.js";
@@ -158,7 +159,9 @@ function externalDescription(link) {
     description.textContent = "opens in a new tab";
     externalDescriptions.set(root, description);
   }
-  const holder = root instanceof Document ? root.body : root;
+  // In the document it waits in the chrome, since `body`'s children are the page's
+  // own (passages.js, pageDocument).
+  const holder = root instanceof Document ? chromeRoot : root;
   if (description.parentNode !== holder) move(holder, description);
   return description.id;
 }
@@ -462,12 +465,17 @@ function quietFacts(el) {
 
 /** @param {Scope} root @param {Iterable<Element>} [also] */
 export function renderQuiet(root, also = []) {
-  const painting = [
-    `[${PAGE_PAINT_ATTRIBUTE.restated}]`,
-    `[${PAGE_PAINT_ATTRIBUTE.userOverride}]`,
-    `[${PAGE_PAINT_ATTRIBUTE.reported}]`,
-  ].join(", ");
-  const targets = new Set(elementsIn(root, painting));
+  // One query a mark: a single attribute's query is answered far faster than one for the
+  // three as a selector list, which tests every element of the page against each, on
+  // every repaint of a page holding long text documents.
+  /** @type {Set<Element>} */
+  const targets = new Set();
+  for (const mark of [
+    PAGE_PAINT_ATTRIBUTE.restated,
+    PAGE_PAINT_ATTRIBUTE.userOverride,
+    PAGE_PAINT_ATTRIBUTE.reported,
+  ])
+    for (const el of elementsIn(root, `[${mark}]`)) targets.add(el);
   for (const el of also) if (el === root || root.contains(el)) targets.add(el);
   for (const el of targets) quietWord(el, quietFacts(el));
 }

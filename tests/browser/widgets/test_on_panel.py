@@ -160,9 +160,9 @@ Adds --dry-run to every mutating command.
 </lf-options></lf-ask>
 <lf-ask id="tone-ask"><h2>Which notification?</h2>
 <lf-playground id="tone">
-  <lf-playground-control name="format" label="Format" kind="choice" value="banner">
-    <lf-playground-choice value="banner" label="Banner"></lf-playground-choice>
-    <lf-playground-choice value="strip" label="Strip"></lf-playground-choice>
+  <lf-playground-control id="format" name="format" label="Format" kind="choice" value="banner">
+    <lf-playground-choice id="format-banner" value="banner" label="Banner"></lf-playground-choice>
+    <lf-playground-choice id="format-strip" value="strip" label="Strip"></lf-playground-choice>
   </lf-playground-control>
   <lf-playground-preview><p id="tone-preview">The notification.</p></lf-playground-preview>
   <lf-playground-output>Build the <lf-playground-value for="format"></lf-playground-value>
@@ -222,9 +222,12 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
 ):
     """A keyed card keeps its node and focus however the page's DOM moves, and stands
     where the `m` walk reaches its item: an item whose element leaves the page goes
-    after those still on it, as the walk takes it last."""
+    after those still on it, as the walk takes it last. That item leaves its place's
+    group for the whole page's, so its card is drawn afresh in that group's box and
+    keeps focus; every other card keeps its node."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     open_on_me(page)
+    show_done(page)
     cards = page.locator(f"{ON_ME} .lf-fp-on-item")
     expect(cards).to_have_count(len(ALL_OBLIGATIONS_IN_ORDER))
     order = [
@@ -260,7 +263,7 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
 
     # Removing a presentation node does not rewrite the application inventory: the
     # keyed card stays, focus with it, and takes the walk's place for an item with no
-    # place on the page, after the rest of the list.
+    # place on the page, after the rest of the list, under the whole page's band.
     page.evaluate(
         """async () => {
           document.querySelector('#sug-refill').remove();
@@ -276,8 +279,14 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
         order[4],
     ]
     expect(sug_refill).to_be_focused()
+    expect(
+        sug_refill.locator(
+            "xpath=ancestor::section[contains(@class, 'lf-rows-group')]"
+        ).locator(":scope > .lf-rows-head .lf-row-main")
+    ).to_have_text("The whole page")
     assert cards.evaluate_all(
-        "items => items.every(item => window.__lfObligationCards.get(item.dataset.lfKey) === item)"
+        """items => items.every(item => item.dataset.lfKey === '["widget","widget:sug-refill"]'
+          || window.__lfObligationCards.get(item.dataset.lfKey) === item)"""
     )
 
 
@@ -541,12 +550,15 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
     url = serve(GROUPED_PAGE)
     ask_in_thread(serve.page_dir, "reap", FORK_QUESTION)
     page = open_page(browser, url)
-    resized(page, 1440, 900)
+    # Tall enough that each stop stands above the open On me view, which covers the
+    # window's foot: a key at a stop the view hides lets go of it, so `m` would go on
+    # from what the user reads rather than from the stop.
+    resized(page, 1440, 1400)
     view = open_on_me(page)
     chooser = page.get_by_role("combobox", name="Group On me")
     expect(chooser).to_have_value("place")
     # Every group has its band, the card alone in its group included.
-    groups = view.locator(".lf-fp-on-group > .lf-rows-head")
+    groups = view.locator(".lf-fp-on-list > .lf-rows-group > .lf-rows-head")
     expect(groups).to_have_text(
         [
             re.compile(r"^\s*Implementation\s*2\s*$"),
@@ -620,14 +632,15 @@ TABBED_PAGE = leaf_page(
 
 
 def test_on_me_places_an_item_by_its_tab_s_title_or_label(browser, serve):
-    """By place names the part of the page an item stands in from where it stands on:
-    in a tab whose page keeps its title in a header, that title heads its untitled
-    last section too, rather than the title of the page holding the tabs; and in a tab
-    with no heading over the item, selected or not, the tab's own label names it."""
+    """By place, each group's band names the part of the page its items stand in from
+    where they stand: in a tab whose page keeps its title in a header, that title heads
+    its untitled last section too, rather than the title of the page holding the tabs;
+    and in a tab with no heading over the item, selected or not, the tab's own label
+    names it."""
     page = open_page(browser, serve(TABBED_PAGE))
     resized(page, 1440, 900)
     view = open_on_me(page)
-    expect(view.locator(".lf-fp-on-place")).to_have_text(
+    expect(view.locator(".lf-rows-group > .lf-rows-head .lf-row-main")).to_have_text(
         ["Move the runs into one sandbox", "Second plan"]
     )
 
@@ -643,14 +656,17 @@ def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
     url = serve(GROUPED_PAGE)
     ask_in_thread(serve.page_dir, "reap", FORK_QUESTION)
     page = open_page(browser, url)
-    resized(page, 1440, 900)
+    # Tall enough that each stop stands above the open On me view, which covers the
+    # window's foot: a key at a stop the view hides lets go of it, so `m` would go on
+    # from what the user reads rather than from the stop.
+    resized(page, 1440, 1400)
     view = open_on_me(page)
     page.get_by_role("combobox", name="Group On me").select_option("kind")
     exit_code = on_card(page, "widget:exit")
     exit_code.get_by_role("button", name="75").click()
     round_trip(page)
     expect(exit_code.locator(".lf-fp-said")).to_contain_text("Answered: 75")
-    groups = view.locator(".lf-fp-on-group > .lf-rows-head")
+    groups = view.locator(".lf-fp-on-list > .lf-rows-group > .lf-rows-head")
     expect(groups).to_have_text(
         [re.compile(r"^\s*Options\s*1\s*$"), re.compile(r"^\s*Reply\s*1\s*$")]
     )

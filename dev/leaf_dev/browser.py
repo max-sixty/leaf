@@ -196,9 +196,8 @@ def tab(
 ):
     """A fresh blank tab in `window` and `scheme`, with reduced motion so a still
     never catches a transition midway (pass motion="no-preference" for a journey),
-    drawing `scale` device pixels to a CSS pixel. Each of its frames keeps where a
-    mouse last moved over it (`POINTER`), for `settle`. A caller listens on it before
-    it `load`s."""
+    drawing `scale` device pixels to a CSS pixel. It keeps where a mouse last moved over
+    it (`POINTER`), for `settle`. A caller listens on it before it `load`s."""
     width, height = window.size
     context = browser.new_context(
         viewport={"width": width, "height": height},
@@ -307,6 +306,24 @@ def screenshot(page) -> bytes:
     return page.screenshot()
 
 
+@contextmanager
+def chromium_metrics(page: Page, *, ticks: bool = False):
+    """Read Chromium's counts of `page`'s renderer work for the life of the block:
+    yield what returns them by name when called, from CDP's `Performance.getMetrics`,
+    such as `LayoutCount`, `RecalcStyleCount`, `Nodes` and `TaskDuration`, the
+    main thread's time in its tasks in seconds. With `ticks` its times are thread
+    ticks, the CPU the thread spent, rather than wall time."""
+    session = page.context.new_cdp_session(page)
+    session.send("Performance.enable", {"timeDomain": "threadTicks"} if ticks else {})
+    try:
+        yield lambda: {
+            metric["name"]: metric["value"]
+            for metric in session.send("Performance.getMetrics")["metrics"]
+        }
+    finally:
+        session.detach()
+
+
 def slow_cpu(page: Page, rate: float) -> None:
     """Run Chromium's CPU for `page` `rate` times slower, through CDP, as on a slower
     machine than this one. Set before the page navigates, the throttle holds through
@@ -332,30 +349,32 @@ def settle(page: Page) -> None:
         settle(page)
 
 
-# Where a mouse was last over a frame, in the frame's own viewport, which of its
-# buttons it held, and when: each frame of a `tab` keeps this. A native drag sends no
-# `pointerup`; it ends in `dragend` where it drops, with no button held. On 2026-11-04
-# its `pointercancel` read (0, 0) in Chromium and the button still held in Firefox,
-# and WebKit sent none.
+# Where a mouse was last over a `tab`'s document, in its viewport, and which of its
+# buttons it held. A native drag sends no `pointerup`; it ends in `dragend` where it
+# drops, with no button held. On 2026-11-04 its `pointercancel` read (0, 0) in Chromium
+# and the button still held in Firefox, and WebKit sent none.
 POINTER = """for (const type of ["pointermove", "pointerdown", "pointerup", "dragend"])
   addEventListener(type, (event) => {
     if ((event.pointerType ?? "mouse") === "mouse")
       globalThis.__lfPointer = {
-        x: event.clientX, y: event.clientY, buttons: event.buttons, at: Date.now(),
+        x: event.clientX, y: event.clientY, buttons: event.buttons,
       };
   }, {capture: true, passive: true});"""
 
-# Whether the hover ends at the deepest element under a resting mouse, through open
-# shadow roots, or no mouse rests here. A held button keeps the hover where the press
-# began.
+# Whether the document's hover ends at the element under a resting mouse, or no mouse
+# rests here. Both are read in the document's own tree, where a shadow host stands for
+# everything its shadow root draws. Read inside a shadow root they can disagree: on
+# 2026-11-04 Firefox hovered a radio button's host but not the slot under the pointer.
+# A held button keeps the hover where the press began, and a mouse over a child frame
+# moves where this document can't follow it.
 HOVER_CAUGHT_UP = """() => {
   const at = globalThis.__lfPointer;
   if (!at || at.buttons) return true;
-  let under = document.elementFromPoint(at.x, at.y);
-  for (let inner; (inner = under?.shadowRoot?.elementFromPoint(at.x, at.y)) &&
-    inner !== under; ) under = inner;
-  return !under || (under.matches(":hover") &&
-    ![under, under.shadowRoot].some((root) => root?.querySelector(":hover")));
+  const hovered = [...document.querySelectorAll(":hover")].at(-1);
+  if (hovered instanceof HTMLIFrameElement) return true;
+  const under = document.elementFromPoint(at.x, at.y);
+  // A hovered label also hovers the control it labels, which is no hover still to move.
+  return !under || under === hovered || under.control === hovered;
 }"""
 
 
@@ -376,15 +395,8 @@ def catch_up_hover(page: Page) -> bool:
     hand: the merge film closes the details its Inspect button opened. WebKit also
     dispatches `pointermove` itself, about 100 ms after the scroll, which this wait
     doesn't cover; a state whose driver presses and then scrolls can see a WebKit
-    capture change with it.
-
-    The top document can't tell where a pointer in a child frame rests, so a pointer
-    that last moved in one is left to the engine."""
+    capture change with it."""
     if page.evaluate(HOVER_CAUGHT_UP):
-        return False
-    heard = "() => globalThis.__lfPointer?.at ?? 0"
-    own = page.evaluate(heard)
-    if any(frame.evaluate(heard) > own for frame in page.frames):
         return False
     try:
         page.wait_for_function(HOVER_CAUGHT_UP)
@@ -532,7 +544,7 @@ def show_done(page: Page | FrameLocator):
     if heading.get_attribute("aria-expanded") != "true":
         heading.click()
     return view.locator(
-        ".lf-fp-on-group:has(> .lf-rows-head > .lf-fp-settled) > .lf-fp-on-item"
+        ".lf-rows-group:has(> .lf-rows-head > .lf-fp-settled) > .lf-fp-on-item"
     )
 
 
@@ -540,7 +552,7 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     """Open the floating panel's Threads view by Go to Threads (`g` then `T`), in
     `frame`'s page where given, a live sample's. The pointer's route to Threads has
     changed between runtimes, so a driver one checkout runs against another's runtime,
-    as `stills`, `bench-latency`, thread snapshots and `verify-site` do, takes this
+    as `stills`, `bench`, thread snapshots and `verify-site` do, takes this
     route, which both share."""
     within = frame or page
     # Completing `g T` again closes the view (keyboard/go-to-sequence.js).

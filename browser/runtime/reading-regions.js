@@ -56,11 +56,11 @@ import { scrollersOf, installScrollerLookup } from "./scroll-containers.js";
 export { scrollersOf } from "./scroll-containers.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { landingBand, shownRect, userScrollport } from "./geometry.js";
-import { skipped } from "./shown-box.js";
+import { skipped } from "./shadow-tree.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, renderedUnder, renderedParent } from "./shadow.js";
-import { inPage, layoutBox } from "./passages.js";
+import { focusInPage, inPage, layoutBox } from "./passages.js";
 import { deepFocus, onCurrentLocation, pressing } from "./focus.js";
 
 /** @typedef {{id: string, host: Element & Partial<Pick<HTMLElement, "offsetWidth">>, body: Element, subject: string | null | undefined}} ReadingRegion
@@ -314,13 +314,13 @@ export const recentReadingRegion = () => readingRegion(recentRegionId);
 const shown = (region) => (region?.host.checkVisibility() ? region : undefined);
 export const pageReadingRegion = () => {
   const at = deepFocus();
-  if (inPage(at)) return readingRegionFor(at);
+  if (focusInPage(at)) return readingRegionFor(at);
   return shown(readingRegion(pageRegionId));
 };
 export const userReadingRegion = () => {
   const at = deepFocus();
   const region = readingRegionFor(at);
-  if (region || inPage(at)) return region;
+  if (region || focusInPage(at)) return region;
   return shown(recentReadingRegion()) ?? pageReadingRegion();
 };
 

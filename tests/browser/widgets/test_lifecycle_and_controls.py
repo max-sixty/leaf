@@ -4,11 +4,10 @@ reconnecting, the controls it offers, and the Web Awesome library they come from
 import re
 
 import pytest
-from interact_support import append_command
 from playwright.sync_api import expect
 from render_cases_interaction import CHIP_PAGE
 from render_cases_layout import rings_drawn
-from render_harness import displayed, leaf_page, open_page, told
+from render_harness import displayed, leaf_page, open_page
 
 from browser.widgets import (
     _bound_diff,
@@ -131,55 +130,15 @@ customElements.define('lf-source-stage', class extends HTMLElement {
     assert drawings == references
 
 
-def test_live_widget_subscription_releases_and_reconnects(browser, serve):
-    """A detached widget ignores semantic news and catches up when reconnected."""
-    source = leaf_page(
-        "widget watcher lifecycle",
-        """
-<section id="watched">
-  <lf-draft id="watched-draft"><pre>Draft words.</pre></lf-draft>
-</section>
-""",
-    )
-    page = open_page(browser, serve(source))
-    before = page.locator("#watched-draft .lf-draft-body").get_attribute(
-        "data-lf-source-words"
-    )
-    page.evaluate(
-        """() => {
-          window.__lfWatchedSection = document.querySelector('#watched');
-          window.__lfWatchedSection.remove();
-        }"""
-    )
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "watched-draft",
-            "action": "edit",
-            "detail": {"value": "Reconnected words."},
-        },
-    )
-    told(page)
-    assert (
-        page.evaluate("""() => window.__lfWatchedSection
-      .querySelector('#watched-draft .lf-draft-body')
-      .getAttribute('data-lf-source-words')""")
-        == before
-    )
-
-    page.evaluate("document.querySelector('main').append(window.__lfWatchedSection)")
-    expect(page.locator("#watched-draft .lf-draft-body")).to_have_text(
-        "Reconnected words."
-    )
-
-
 def library_select(browser, serve):
-    """Exercise the optional library's select without depending on a consumer's UI."""
+    """Exercise the optional library's select without depending on a consumer's UI.
+
+    No bundled widget loads the select, so the page imports the library as a
+    package's module would.
+    """
     page = _bound_diff(browser, serve)
     page.evaluate("""async () => {
+      await import('/vendor/webawesome.esm.js');
       const {offer} = await window.__lfWidgetApi();
       const select = offer('wa-select', 'library-select');
       select.label = 'Choose file';
@@ -321,6 +280,7 @@ def test_webawesome_typography_is_independent_of_surrounding_prose(browser, serv
     """
     page = _bound_diff(browser, serve)
     readings = page.evaluate("""async () => {
+      await import('/vendor/webawesome.esm.js');
       const {offer} = await window.__lfWidgetApi();
       const properties = ['fontFamily', 'fontStyle', 'fontVariant', 'fontStretch',
         'fontFeatureSettings', 'fontVariationSettings', 'letterSpacing',

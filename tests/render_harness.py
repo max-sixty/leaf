@@ -39,6 +39,7 @@ import re
 import shutil
 import subprocess
 import time
+import weakref
 from collections.abc import Iterable
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -84,6 +85,7 @@ from leaf_dev import browser as dev_browser
 from leaf_dev.browser import (
     ON_ME_MARK,
     PANEL,
+    chromium_metrics,
     panel_view,
     scroll_settled,
     slow_cpu,
@@ -149,11 +151,12 @@ def document_port_binding_source():
 
 @cache
 def shift_watch_source():
-    """Bind the sensor to the runtime's control, clipping, and scroll-space readings."""
+    """Bind the sensor to the runtime's control, clipping, scroll-space and
+    skipped-content readings."""
     source = (
         'import { clippingAxes } from "./browser/runtime/rect.js";\n'
         'import { elementAxes, scrollAxes } from "./browser/runtime/element-axes.js";\n'
-        'import { renderedParent } from "./browser/runtime/shadow-tree.js";\n'
+        'import { renderedParent, skipped } from "./browser/runtime/shadow-tree.js";\n'
         + WATCH_PLATFORM_SOURCE.read_text()
         + "\nconst nativePerformance = window.lfWatchPlatform.performance;\n"
         + "const nativeFrame = callback => window.lfWatchPlatform.frame(callback);\n"
@@ -1131,15 +1134,17 @@ def refuse(route):
 
 # A tab names the reading it holds in `Leaf-Held-Basis`, and the server answers it
 # with a `Tail`, a patch against that reading (`served_state/tail.py`). A test that
-# rewrites the reading itself drops the header, so the server answers whole.
-def fetch_whole_state(route):
-    """Fetch this state read as a whole reading; return the response and its body."""
+# reads or rewrites the reading itself drops the header, so the server answers whole.
+def fetch_whole_state(route, **fetch):
+    """Fetch this state read, or this event with the state its answer carries, as a
+    whole reading; return the response and its body. `fetch` overrides the request
+    as `Route.fetch` takes it."""
     headers = {
         name: value
         for name, value in route.request.headers.items()
         if name != "leaf-held-basis"
     }
-    response = route.fetch(headers=headers)
+    response = route.fetch(headers=headers, **fetch)
     return response, response.json()
 
 
@@ -1793,6 +1798,13 @@ def panel_settled(page, open=True, view=None):
     )
 
 
+# Chromium counts a tap that lands near the page's previous one within about 400 ms
+# as the next in a run of taps (a click's `detail` above 1). This bound clears it.
+TAP_RUN_S = 0.5
+# When each page's latest tap ended, on the host's monotonic clock.
+_last_tap = weakref.WeakKeyDictionary()
+
+
 def press_visible(page, control, *, touch=False):
     """Press a control already in view without Playwright moving the page for it.
 
@@ -1800,13 +1812,23 @@ def press_visible(page, control, *, touch=False):
     visible fixed control. Coordinates exercise the user's visible route directly.
     A frame's bounding box is already in its owning page's coordinates; input
     goes through that page while the control stays scoped to its document.
+
+    Each press is a fresh one, as a person's reading between presses makes it. A
+    mouse click states its own count; a tap takes Chromium's, so a tap waits out the
+    run the page's previous tap began. Otherwise a control a tap's view brought under
+    the finger would take the next tap as the run's second, which the floating panel
+    presses nothing for (floating-panel.js, `runOfClicks`).
     """
     expect(control).to_be_in_viewport()
     box = control.bounding_box()
     x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
     page = page.page if isinstance(page, Frame) else page
     if touch:
+        remaining = _last_tap.get(page, -TAP_RUN_S) + TAP_RUN_S - time.monotonic()
+        if remaining > 0:
+            time.sleep(remaining)
         page.touchscreen.tap(x, y)
+        _last_tap[page] = time.monotonic()
     else:
         page.mouse.click(x, y)
 
@@ -2357,7 +2379,7 @@ BrowserContext.route = _arming_context
 Page.unroute_all = _disarming
 
 # A browser wait bounds a hang; it does not time the work it waits for (tests/AGENTS.md,
-# "Functional results do not depend on execution speed"). One that names no deadline
+# "Results do not depend on execution speed"). One that names no deadline
 # takes `SERVED_TIMEOUT_MS`, the bound on one probe or request: an `expect` assertion,
 # whose own default is five seconds, and every page action, wait and expectation on a
 # page `readable` prepares. A wait that spans a page handover names
@@ -2796,6 +2818,23 @@ def compositor_trace(page, categories=()):
     )
 
 
+def restyle_counts(page, act) -> list[int]:
+    """The elements each style recalc restyled while `act` ran, as Chromium's trace
+    counts them (`UpdateLayoutTree`), so a test bounds a change's restyle by its reach
+    rather than its time."""
+    browser = page.context.browser
+    browser.start_tracing(page=page, categories=["devtools.timeline"])
+    try:
+        act()
+    finally:
+        trace = json.loads(browser.stop_tracing())
+    return [
+        event["args"].get("elementCount", 0)
+        for event in trace["traceEvents"]
+        if event["name"] == "UpdateLayoutTree"
+    ]
+
+
 def rgb_pixel(image: Image.Image, point) -> tuple[int, int, int]:
     """Read one RGB pixel; Pillow's mode-dependent return type cannot express RGB."""
     assert image.mode == "RGB"
@@ -3128,7 +3167,7 @@ def reader_state(page):
     focused = page.locator(":focus")
     native = page.evaluate(_BROWSER_STATE)
     return [
-        *page.locator("body").aria_snapshot(boxes=True).splitlines(),
+        *page.locator(":root").aria_snapshot(boxes=True).splitlines(),
         "focus: "
         + (focused.last.aria_snapshot(boxes=True) if focused.count() else "none"),
         *("field: " + json.dumps(field) for field in native["fields"]),
@@ -3150,15 +3189,10 @@ def live_counts(page):
     nodes, those in its documents, comments included, and every detached node something
     still retains, and its event listeners. A count that climbs across repetitions of one
     gesture is a leak whether what it counts piles up in the page or behind it."""
-    session = page.context.new_cdp_session(page)
-    try:
-        session.send("HeapProfiler.collectGarbage")
-        session.send("Performance.enable")
-        metrics = session.send("Performance.getMetrics")["metrics"]
-    finally:
-        session.detach()
-    counted = {"Nodes": "nodes", "JSEventListeners": "event listeners"}
-    return {counted[m["name"]]: m["value"] for m in metrics if m["name"] in counted}
+    with chromium_metrics(page) as metrics:
+        page.request_gc()
+        counts = metrics()
+    return {"nodes": counts["Nodes"], "event listeners": counts["JSEventListeners"]}
 
 
 def still_page(browser, url, width=1200):

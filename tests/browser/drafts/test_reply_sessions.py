@@ -6,7 +6,7 @@ import re
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import panel_comment
+from render_cases_interaction import OBLIGATION_PAGE, panel_comment
 from render_cases_navigation import source_revision
 from render_harness import (
     LONG_PAGE,
@@ -313,6 +313,84 @@ def test_reply_admission_finishes_or_restores_its_native_session(
     rendered(page)
     expect(field).to_be_hidden()
     assert stored_draft_text(page, "reply:" + root) == next_words
+
+
+def opened_by_a_click(browser, serve, threads):
+    """A passage of `threads` comments, its margin card opened by a click, which leaves
+    the caret in the first thread's empty box; return the page, the card, the box and
+    the threads' roots in their order at the passage."""
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "anchor": {"section": "bracket"},
+    }
+    said = ("First words.", "Second words.", "Third words.")[:threads]
+    page = open_page(
+        browser,
+        serve(OBLIGATION_PAGE, events=[{**comment, "text": text} for text in said]),
+    )
+    page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+    card = page.locator(".lf-margin-preview")
+    box = card.locator("leaf-text")
+    expect(box).to_be_focused()
+    rendered(page)
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    return page, card, box, roots
+
+
+@pytest.mark.parametrize("threads", [3, 1], ids=["three-threads", "solo"])
+def test_the_caret_an_opening_places_begins_no_reply(browser, serve, threads):
+    """The caret a click's opening leaves in an empty box is no reply being written, so
+    an agent's Resolve does what it does to a reader's card: at a passage of three the
+    card moves on to the next thread, and at a solo passage it closes. It used to stand
+    on the resolved thread over its empty box (replies.js)."""
+    page, card, _box, roots = opened_by_a_click(browser, serve, threads)
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": roots[0]},
+    )
+    told(page)
+    if threads == 1:
+        expect(card).to_be_hidden()
+        return
+    expect(card.locator(".lf-margin-preview-position")).to_have_text("1/2")
+    expect(card.locator(".lf-page-thread")).to_have_attribute(
+        "data-lf-thread", roots[1]
+    )
+
+
+@pytest.mark.parametrize("how", ["press", "type", "c", "tab"])
+def test_the_user_s_own_act_in_an_opened_box_begins_their_reply(browser, serve, how):
+    """A press in the box, words typed, `c` or a Tab into it begin the reply, so the
+    agent's Resolve retains the card and its box, as for any reply being written."""
+    page, card, box, roots = opened_by_a_click(browser, serve, 1)
+    thread = card.locator(".lf-page-thread")
+    if how == "press":
+        box.click()
+    elif how == "type":
+        page.keyboard.type("Words")
+    else:
+        page.keyboard.press("Escape")
+        expect(thread).to_be_focused()
+        if how == "c":
+            page.keyboard.press("c")
+        else:
+            while not box.evaluate("box => box.matches(':focus')"):
+                page.keyboard.press("Tab")
+    expect(box).to_be_focused()
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": roots[0]},
+    )
+    told(page)
+    rendered(page)
+    expect(thread).to_have_attribute("data-lf-resolved", "true")
+    expect(box).to_be_focused()
 
 
 def test_typing_in_the_box_a_send_left_keeps_its_reply_through_settlement(

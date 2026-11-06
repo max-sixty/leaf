@@ -116,10 +116,12 @@ A key goes first to the scope on the focused control, then to the widgets around
 then to the page. A scope takes only keys whose rows make a press, by a `run` or by
 naming a `control` Leaf clicks, so other keys pass outward. A row keeps its key while unavailable, so the key never falls through to a
 different meaning further out; an unavailable Escape, though, passes on to the next
-Escape. Text fields keep their editing keys ahead of every widget scope. While the user
-has scrolled the focused control out of sight, its widgets' scopes don't answer: a key
-other than typing or Escape goes to the page, so a widget's command never acts on what
-the user can't see. A native control keeps the browser's own Enter and Space.
+Escape. Text fields keep their editing keys ahead of every widget scope. A key other
+than typing or Escape, pressed while the user has scrolled the focused control out of
+sight, lets go of the control first and goes to the page, so neither a widget's command
+nor the browser's own Enter and Space acts on what the user can't see. That key stops at
+the document, so a listener on the control or the widget doesn't hear it, and a script's
+own listener on the document or window hears it only in capture.
 
 A menu or other scope that covers the page gives `allButCommandReference` as its
 declaration's `claims`, so the page's keys wait while the user is in it and only the

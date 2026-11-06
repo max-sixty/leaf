@@ -26,6 +26,8 @@
 
 import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 import { scrollIntoView } from "./landing-scroll.js";
+import { registerReadingRegion } from "./reading-regions.js";
+import { holdUserPlace } from "./user-place.js";
 import { nextRender } from "./rendering.js";
 import { blockAt, says } from "./passages.js";
 import {
@@ -44,7 +46,6 @@ import { coarsePointer, pressIsKeyboardActivation } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";
 import { closeControl, el, offeredAction, searchField } from "./widget-elements.js";
 import { keepsHidden, keepsText } from "./keeps.js";
-import { placeKeeper } from "./user-place.js";
 import { retainUserIntent } from "./user-intent.js";
 import {
   PAGE_CONTROL_RANK,
@@ -87,22 +88,25 @@ const dialogClose = closeControl({
 dialogHead.append(dialogClose);
 const dialogSearch = searchField("lf-page-map-search", {
   name: "page-map-search",
-  label: "Find an action, status, or location in Page Map",
-  placeholder: "Find an action, status, or location",
+  label: "Find an action, status or location in Page Map",
+  placeholder: "Find an action, status or location…",
 });
 const dialogList = el("div", "lf-page-map-list");
 dialogList.toggleAttribute("data-lf-scroll", true);
-// A state update or a search re-renders the open sheet; the row the user was on holds
-// their place in it (user-place.js), under the map key each row is rendered with.
-const place = placeKeeper(dialogList, {
-  items: ".lf-page-map-action",
-  identity: (row) => row.getAttribute("data-lf-map-key"),
-  active: () => dialog.open,
+// While the map stands its list scrolls on its own, so it is a reading region then, as
+// the command reference's list is: the list is what scrolls a row, and what keeps the
+// row the user is on where it stood as the sheet re-renders (user-place.js,
+// `holdUserPlace`).
+/** @type {(() => void) | null} */
+let stopListReading = null;
+dialog.addEventListener("close", () => {
+  stopListReading?.();
+  stopListReading = null;
 });
 const dialogEmpty = el(
   "p",
   "lf-rows-empty",
-  "No matching actions, statuses, or locations.",
+  "No matching actions, statuses or locations.",
 );
 dialogEmpty.hidden = true;
 dialogEmpty.setAttribute("role", "status");
@@ -304,30 +308,36 @@ export function createPageMapDialog({
     </button>`;
   };
 
+  // A group's band cuts its location's name where the band ends (controls.css,
+  // `.lf-rows-group`), in a part with no space around it, so the heading reads as the
+  // name alone.
   /** @param {Group} group @param {string} query */
-  const sheetGroupTemplate = (group, query) => html`
-    <section
-      class="lf-page-map-group lf-rows-group"
-      data-lf-map-group=${group.key}
-      ?hidden=${Boolean(query) && !group.search.includes(query)}
-    >
-      <h3 class="lf-rows-head">${group.entry.title}</h3>
-      <div class="lf-page-map-actions lf-rows">
-        ${repeat(
-          group.actions,
-          ({ key }) => key,
-          (action) =>
-            action.kind === "item"
-              ? sheetItemTemplate(action)
-              : sheetControlTemplate(action, group.actions),
-        )}
-      </div>
-    </section>
-  `;
+  const sheetGroupTemplate = (group, query) => {
+    const name = html`<span class="lf-row-main">${group.entry.title}</span>`;
+    return html`
+      <section
+        class="lf-page-map-group lf-rows-group"
+        data-lf-map-group=${group.key}
+        ?hidden=${Boolean(query) && !group.search.includes(query)}
+      >
+        <h3 class="lf-rows-head">${name}</h3>
+        <div class="lf-page-map-actions lf-rows">
+          ${repeat(
+            group.actions,
+            ({ key }) => key,
+            (action) =>
+              action.kind === "item"
+                ? sheetItemTemplate(action)
+                : sheetControlTemplate(action, group.actions),
+          )}
+        </div>
+      </section>
+    `;
+  };
 
   function renderSheet() {
     const restoreFocus = holdFocus(dialog);
-    place.around(() => presentSheet());
+    presentSheet();
     // A control the filter hid or the render removed hands the user to the search.
     restoreFocus?.(dialogSearch);
     // Search bindings read the rendered rows, including those the query hid.
@@ -376,8 +386,8 @@ export function createPageMapDialog({
     keepsText(
       dialogEmpty,
       query
-        ? "No matching actions, statuses, or locations."
-        : "No margin controls, status indicators, or locations yet.",
+        ? "No matching actions, statuses or locations."
+        : "No margin controls, status indicators or locations yet.",
     );
     keepsHidden(dialogEmpty, shown !== 0);
   }
@@ -386,7 +396,13 @@ export function createPageMapDialog({
   function renderPageMapDialog(nextEntries) {
     if (nextEntries.length !== entries.length) pageControlsChanged();
     entries = nextEntries;
-    if (dialog.open) renderSheet();
+    if (!dialog.open) return;
+    // What the map lists can change with no reading behind it, as a widget's own
+    // contribution does once its work finishes, so the map keeps the row the user is on
+    // across that as a reading does (user-place.js, `holdUserPlace`).
+    const keep = holdUserPlace();
+    renderSheet();
+    keep();
   }
 
   /** @param {Entry | null} [entry] @param {{invoker?: Element | null, focusSpill?: boolean}} [options] */
@@ -396,6 +412,11 @@ export function createPageMapDialog({
     if (!dialog.open) {
       openLayer(dialog, openedFrom);
       dialogSearch.value = "";
+      stopListReading ??= registerReadingRegion({
+        id: "lf-region:page-map",
+        host: dialog,
+        body: dialogList,
+      });
     }
     renderSheet();
     if (!dialog.open) showNativeLayer(dialog);

@@ -101,16 +101,16 @@ export function threadNames(threads) {
   return byName;
 }
 
-// Where in `threads` the threads about each element stand, by the id of the element
-// their anchor names (`section`). A thread with no anchor is about the page as a whole
-// and stands under no id.
-/** @param {readonly {anchor: {section?: string | null} | null}[]} threads */
+// Where in `threads` the open conversations about each element stand, by the id of the
+// element their anchor names (`section`): a resolved thread and a bare reaction stand
+// under none, and nor does a thread with no anchor, which is about the page as a whole.
+/** @param {readonly {anchor: {section?: string | null} | null, resolved?: unknown, bare_reaction: boolean}[]} threads */
 export function threadsBySection(threads) {
   /** @type {Map<string, number[]>} */
   const bySection = new Map();
   threads.forEach((thread, at) => {
     const section = thread.anchor?.section;
-    if (!section) return;
+    if (!section || thread.resolved || !discussed(thread)) return;
     const about = bySection.get(section);
     if (about) about.push(at);
     else bySection.set(section, [at]);

@@ -587,6 +587,19 @@ test("telling a quote's copies apart reads only around them", () => {
 
 // `says` and `wrote` are two answers for one element, and a kept reading must not hand
 // back the other one's.
+test("a message's markup reads as its own document, and its rendered text as the runtime's", () => {
+  // The panel draws a reply in generated chrome; the markup its author sent stands in
+  // its body beside the text the runtime renders from its words.
+  document.body.innerHTML = `<main><div class="lf-msg lf-ui" data-lf-gen="1">
+    <div class="lf-msg-body"><div class="lf-msg-text"><p id="text">Rendered words.</p></div>
+    <section id="markup"><h2>Sent heading</h2><p>Sent words.</p></section>
+    </div></div></main>`;
+  const markup = document.getElementById("markup");
+  assert.equal(elementReading(markup, "wrote"), "Sent heading Sent words.");
+  assert.equal(elementReading(markup), "Sent heading Sent words.");
+  assert.equal(elementReading(document.getElementById("text"), "wrote"), "");
+});
+
 test("one element's two readings are kept apart", () => {
   document.body.innerHTML =
     '<main><p id="line">Words <span data-lf-gen="">generated</span></p></main>';

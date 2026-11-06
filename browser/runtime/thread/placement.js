@@ -137,15 +137,48 @@ export function partOver(node) {
 /** @param {readonly Element[] | undefined} headings @param {Element} node */
 function lastBefore(headings, node) {
   if (!headings) return null;
+  return headings[reachedBefore(headings, node) - 1] ?? null;
+}
+// How many of `headings`, in rendered order, the reader reaches before `node`, or by the
+// time they reach it where `through` counts `node` itself, found by halving.
+/** @param {readonly Element[]} headings @param {Node} node @param {boolean} [through] */
+function reachedBefore(headings, node, through = false) {
   let low = 0;
   let high = headings.length;
   while (low < high) {
     const middle = (low + high) >> 1;
-    const heading = /** @type {Element} */ (headings[middle]);
-    if (renderedOrder(heading, node) < 0) low = middle + 1;
+    const order = renderedOrder(/** @type {Element} */ (headings[middle]), node);
+    if (order < 0 || (through && order === 0)) low = middle + 1;
     else high = middle;
   }
-  return headings[low - 1] ?? null;
+  return low;
+}
+
+// The part of the page a heading heads, by the rule `partOver` reads: the blocks after
+// it in its container, the `header` or `hgroup` holding it passed, up to the one holding
+// the container's next heading. A block of the part is one `partOver` answers this
+// heading for, or a block holding a part of its own under it, as a nested section does.
+/** @param {Element} heading @returns {Element[]} */
+export function headedPart(heading) {
+  const container = headed(heading);
+  const headings = readOutline().heads.get(container) ?? [];
+  const next = headings[reachedBefore(headings, heading, true)] ?? null;
+  /** @param {Element} node */
+  const blockOf = (node) => {
+    let at = node;
+    for (let up = upFrom(at); up && up !== container; up = upFrom(up)) at = up;
+    return at;
+  };
+  const until = next && blockOf(next);
+  /** @type {Element[]} */
+  const part = [];
+  for (
+    let at = blockOf(heading).nextElementSibling;
+    at && at !== until;
+    at = at.nextElementSibling
+  )
+    part.push(at);
+  return part;
 }
 
 /** @param {Element} target */

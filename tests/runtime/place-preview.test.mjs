@@ -47,14 +47,24 @@ test("a section previews its heading and first lines, past what stands above the
   );
 });
 
-test("a heading previews the section it opens, up to the next of its rank", () => {
+test("a heading previews the part of the page it heads, as the page's outline reads it", () => {
+  // Up to its container's next heading, which heads a part of its own.
   assert.deepEqual(
     previewed(`<h2 id="it">Support</h2><p>It covers the spinner.</p>
-      <h3>Detail</h3><h2>Next</h2><p>Not this.</p>`).parts,
+      <p>And queued edits.</p><h3>Detail</h3><p>Not this.</p>`).parts,
     [
       ["name", "Support"],
       ["text", "It covers the spinner."],
-      ["heading", "Detail"],
+      ["text", "And queued edits."],
+    ],
+  );
+  // A heading in a header heads what holds the header.
+  assert.deepEqual(
+    previewed(`<section><header><h2 id="it">Risk</h2></header>
+      <p>First lines.</p></section>`).parts,
+    [
+      ["name", "Risk"],
+      ["text", "First lines."],
     ],
   );
 });
@@ -84,16 +94,47 @@ test("a table shows its caption over its first rows, cell by cell", () => {
   ]);
 });
 
-test("code shows its first lines, and a closed disclosure only its summary", () => {
+test("a closed disclosure shows only its summary, linked to or held", () => {
   assert.deepEqual(
-    previewed(`<pre id="it"><code>a()\nb()\nc()\nd()\ne()</code></pre>`).parts,
-    [["code", "a() b() c() d()"]],
+    previewed(`<details id="it"><summary>The method</summary>
+      <p>Hidden while closed.</p></details>`).parts,
+    [["name", "The method"]],
+  );
+  assert.deepEqual(
+    previewed(`<details id="it" open><summary>The method</summary>
+      <p>Shown while open.</p></details>`).parts,
+    [
+      ["name", "The method"],
+      ["text", "Shown while open."],
+    ],
   );
   assert.deepEqual(
     previewed(
       `<div id="it"><details><summary>The method</summary><p>Hidden.</p></details></div>`,
     ).parts,
     [["text", "The method"]],
+  );
+});
+
+test("a native block in a message's markup previews its words", () => {
+  // As the floating panel draws a reply: generated chrome around the body that holds
+  // the markup the agent sent.
+  assert.deepEqual(
+    previewed(`<div class="lf-msg lf-ui" data-lf-gen="1"><div class="lf-msg-body">
+      <div class="lf-msg-text"><p>The reply's words.</p></div>
+      <section id="it"><h2>Message heading</h2><p>Message first lines.</p></section>
+      </div></div>`).parts,
+    [
+      ["name", "Message heading"],
+      ["text", "Message first lines."],
+    ],
+  );
+});
+
+test("code shows its first lines", () => {
+  assert.deepEqual(
+    previewed(`<pre id="it"><code>a()\nb()\nc()\nd()\ne()</code></pre>`).parts,
+    [["code", "a() b() c() d()"]],
   );
 });
 

@@ -158,7 +158,8 @@ LINKS_PAGE = leaf_page(
 <p id="lede">The patch decision is <a id="to-decision" href="#decision">below</a>,
 after <a id="to-stall" href="#stall">the reconnect stall</a>; the vendor's notes are
 <a id="to-site" href="https://example.com/notes">on their site</a>; the group meets
-at <a id="to-meeting" href="#meeting">the settled meeting point</a>.</p>
+at <a id="to-meeting" href="#meeting">the settled meeting point</a>, and support
+has <a id="to-support" href="#support">its own heading</a>.</p>
 <section id="stall"><p class="eyebrow">offline editing</p><h2>iOS reconnect stall</h2>
 <p id="stall-detail">One reconnect in about 40 stalls until the app is backgrounded.</p>
 </section>
@@ -172,6 +173,8 @@ at <a id="to-meeting" href="#meeting">the settled meeting point</a>.</p>
   <lf-option id="meeting-door">At the door</lf-option>
   <lf-option id="meeting-desk" chosen>At reception</lf-option>
 </lf-options></lf-ask>
+<h2 id="support">Support</h2>
+<p id="support-playbook">The playbook covers the spinner.</p>
 """
     + "<p>More of the page.</p>" * 30,
 )
@@ -182,7 +185,7 @@ def test_a_link_into_the_page_previews_where_it_points(engine, request, serve):
     """A link into the page previews the place it names: its heading and first lines
     as the page reads them, a question's answer from the reading the page holds, the
     pick of a question authored settled, and the conversations about it or anything in
-    it, with whose turn one is. It holds only words, so no id or control of the place is
+    it, with whose turn one is: for a heading, about the part of the page it heads. It holds only words, so no id or control of the place is
     repeated. A resting pointer and the keyboard's focus read it, a press still follows
     the link, and a finger held on the link reads it and follows it on release: by touch
     in Chromium, and in Firefox, which takes no held touch from a test, by the pointer
@@ -199,6 +202,9 @@ def test_a_link_into_the_page_previews_where_it_points(engine, request, serve):
         serve.page_dir,
         "Does backgrounding always clear it?",
         {"section": "stall-detail"},
+    )
+    panel_comment(
+        serve.page_dir, "Does it cover queued edits?", {"section": "support-playbook"}
     )
     browser = request.getfixturevalue(engine)
     page = open_page(browser, url)
@@ -222,6 +228,13 @@ def test_a_link_into_the_page_previews_where_it_points(engine, request, serve):
     expect(preview.locator(".lf-place-state")).to_have_text(
         "Answered: Ship with the resend."
     )
+    page.locator("#to-support").hover()
+    expect(name).to_have_text("Support")
+    expect(preview.locator(".lf-place-text").first).to_have_text(
+        "The playbook covers the spinner."
+    )
+    expect(preview.locator(".lf-place-foot")).to_have_text("1 thread")
+
     page.locator("#to-meeting").hover()
     expect(name).to_have_text("Where should the group meet?")
     expect(preview.locator(".lf-place-item[data-lf-chosen]")).to_have_text(

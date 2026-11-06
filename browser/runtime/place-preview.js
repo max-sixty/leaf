@@ -18,10 +18,11 @@
      paragraphs;
    - its first few parts, in the page's order, each as the page reads it: a heading, a
      paragraph cut to three lines, a list's first items, a table's first rows, a
-     figure's picture and caption, a code block's first lines, and a closed disclosure's
-     summary alone. A heading's parts are those of the section it opens. Anything drawn
-     before the name, such as an eyebrow, and anything Leaf draws inside the place are
-     left out;
+     figure's picture and caption, and a code block's first lines. A heading's parts are
+     those of the part of the page it heads, as the page's outline reads it
+     (thread/placement.js). Anything drawn before the name, such as an eyebrow,
+     anything Leaf draws inside the place, and what the place keeps hidden, a closed
+     disclosure's body or a tab not chosen, are left out;
    - a widget's current state, from the reading the page already holds: where it asks
      the user something, its obligation's answer in the words a Done row says it in, or
      that it waits on the user, and an answered question shows its answer in place of
@@ -49,7 +50,7 @@ import { html, nothing } from "/runtime/framework.js";
 import { fragmentTarget } from "./anchor-resolution.js";
 import {
   addressableWord,
-  holderName,
+  declaredName,
   leadingTitle,
   ownName,
 } from "./addressable-names.js";
@@ -69,8 +70,8 @@ import {
 import { declarationFor, registry } from "./registry.js";
 import { agentName, readPart } from "./semantic-state.js";
 import { declaredRoot, overIn } from "./shadow.js";
-import { threadsOnSection } from "./thread/state.js";
-import { discussed } from "./thread/model.js";
+import { openThreadsOn } from "./thread/state.js";
+import { headedPart, partOver } from "./thread/placement.js";
 import { threadAttention } from "./thread/workflow.js";
 import { leafSays, voiced } from "./voice.js";
 import { capitalized, counted, excerptWords, labelWords } from "./words.js";
@@ -94,10 +95,14 @@ const ROWS = 3;
 const COLUMNS = 4;
 const LINES = 4;
 
-// What a preview leaves out of a place: what Leaf draws in it, what the page never
-// draws, and what it hides until the reader opens it, except a closed tab's panel,
-// which the browser shows once a find reaches it.
-const UNSHOWN = `${GENERATED}, ${LEAF_SURFACE}, script, style, template, noscript, [aria-hidden="true"], [hidden]:not([hidden="until-found"])`;
+// What is no part of the place the page drew: what Leaf draws in it and what the page
+// never draws.
+const NOT_DRAWN = `${GENERATED}, ${LEAF_SURFACE}, script, style, template, noscript`;
+// What a preview leaves out of a place: that, and what the place keeps hidden until the
+// reader opens it, a closed disclosure's body or a tab not chosen. Following the link
+// opens what holds the place and nothing inside it (anchor-travel.js), so the place
+// shows what it shows once the reader lands on it.
+const UNSHOWN = `${NOT_DRAWN}, [aria-hidden="true"], [hidden], details:not([open]) > :not(summary)`;
 const LIST = "ul, ol, menu, dl";
 
 /** The place a link into the page names, or null for any other link.
@@ -125,13 +130,16 @@ export function placePreview(place) {
   const heading = place.matches(HEADING);
   const title = heading ? null : leadingTitle(place);
   const name = heading ? words(place) : placeName(place);
+  // A heading's place is the part of the page it heads, as the page's outline reads it
+  // (`headedPart`): its excerpt and its conversations both read that one region.
+  const region = heading ? headedPart(place) : [place];
   // A caption or a lone heading that names the place says nothing again below it.
-  const parts = (heading ? sectionParts(place) : partsOf(place, title))
+  const parts = (heading ? sectionParts(region) : partsOf(place, title))
     .filter((part) => !("words" in part) || part.words !== name)
     .map((part) =>
       part.kind === "figure" && part.caption === name ? { ...part, caption: "" } : part,
     );
-  const foot = conversations(place);
+  const foot = conversations(heading ? [place, ...region] : region);
   if (!name && !parts.length && !foot) return null;
   return {
     name: name ? excerptWords(name, NAME) : null,
@@ -143,37 +151,31 @@ export function placePreview(place) {
   };
 }
 
-// A place with no name of its own takes the name of what holds it, as a question's
-// options or a paragraph of a section do, whose parts then say its words; a widget held
-// by nothing named takes its word.
+// A place with no name of its own takes the name of the part of the page it stands in
+// (`partOver`, read off the page's outline), as a question's options and a section's
+// paragraph do, whose parts then say its words; a widget in no named part takes its
+// word.
 /** @param {Element} place */
 function placeName(place) {
-  return (
-    ownName(place) ||
-    holderName(place) ||
-    (registry[place.localName] ? capitalized(addressableWord(place)) : "")
-  );
+  const own = ownName(place);
+  if (own) return own;
+  const part = partOver(place);
+  const held = part ? (part.matches(HEADING) ? words(part) : declaredName(part)) : "";
+  return held || (registry[place.localName] ? capitalized(addressableWord(place)) : "");
 }
 
 /** The authored words an element holds, as the page reads them.
  * @param {Element} element */
 const words = (element) => labelWords(elementReading(element, "wrote"));
 
-// The parts of the section a heading opens: the blocks after it, up to the next heading
-// of its rank or above, or a block such a heading opens.
-/** @param {Element} heading */
-function sectionParts(heading) {
-  const rank = Number(heading.localName.slice(1));
+// The parts of the blocks a heading heads.
+/** @param {readonly Element[]} blocks */
+function sectionParts(blocks) {
   /** @type {Part[]} */
   const parts = [];
-  for (
-    let next = heading.nextElementSibling;
-    next && parts.length < PARTS;
-    next = next.nextElementSibling
-  ) {
-    const opens = next.matches(HEADING) ? next : leadingTitle(next);
-    if (opens?.matches(HEADING) && Number(opens.localName.slice(1)) <= rank) break;
-    if (!next.matches(UNSHOWN)) read(next, parts, null);
+  for (const block of blocks) {
+    if (parts.length >= PARTS) break;
+    if (!block.matches(UNSHOWN)) read(block, parts, null);
   }
   return parts;
 }
@@ -221,9 +223,6 @@ function drawn(element, parts) {
   else if (element.localName === "pre") {
     const lines = element.textContent?.split("\n").slice(0, LINES).join("\n") ?? "";
     if (lines.trim()) parts.push({ kind: "code", lines });
-  } else if (element.localName === "details" && !element.hasAttribute("open")) {
-    const summary = element.querySelector(":scope > summary");
-    if (summary) said(parts, "text", words(summary));
   } else if (element.matches(TEXT_BLOCK) || holdsText(element)) {
     said(parts, "text", words(element));
   } else if (!membersPart(element, parts)) readChildren(element, parts, null);
@@ -269,8 +268,9 @@ function listPart(list, parts) {
 // picks, marked as picked.
 /** @param {Element} element @param {Part[]} parts */
 function membersPart(element, parts) {
+  // Each member is named, as a set of tabs names each of its panels, shown or not.
   const members = [...(declaredRoot(element) ?? element).children].filter(
-    (member) => !member.matches(UNSHOWN),
+    (member) => !member.matches(NOT_DRAWN),
   );
   const [first] = members;
   if (
@@ -397,21 +397,23 @@ function question(element) {
     : null;
 }
 
-// The open conversations about the place and the elements it holds, from the threads
-// the publisher indexed by the element each is about as they arrived
-// (`threadsOnSection`): a lookup for each id the place holds, so the work is the place's.
-/** @param {Element} place */
-function threadsAbout(place) {
-  return [place, ...place.querySelectorAll("[id]")]
-    .flatMap((element) => threadsOnSection(element.id))
-    .filter((thread) => !thread.resolved && discussed(thread));
+// The open conversations about the place's blocks and the elements they hold, from the
+// threads the publisher indexed by the element each is about as they arrived
+// (`openThreadsOn`): a lookup for each id the place holds, so the work is the place's.
+/** @param {readonly Element[]} blocks */
+function threadsAbout(blocks) {
+  return blocks.flatMap((block) =>
+    [block, ...block.querySelectorAll("[id]")].flatMap((element) =>
+      openThreadsOn(element.id),
+    ),
+  );
 }
 
 // How many conversations stand open about the place, and the user's turn where one is
 // theirs (`threadAttention`).
-/** @param {Element} place */
-function conversations(place) {
-  const threads = threadsAbout(place);
+/** @param {readonly Element[]} blocks */
+function conversations(blocks) {
+  const threads = threadsAbout(blocks);
   if (!threads.length) return null;
   const agent = agentName();
   const turn = threads

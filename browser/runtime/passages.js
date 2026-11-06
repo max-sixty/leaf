@@ -288,6 +288,10 @@ export function settledAway(el) {
   );
 }
 export const GENERATED = ".lf-ui, [data-lf-gen]";
+// A message's body, which holds the markup its author sent, and the text the runtime
+// renders from its words beside that markup.
+const MESSAGE_BODY = ".lf-msg-body";
+const MESSAGE_TEXT = ".lf-msg-text";
 // Every heading, which names the part of the page under it.
 export const HEADING = "h1, h2, h3, h4, h5, h6";
 export const DATUM = "[data-lf-projection][data-lf-datum]";
@@ -408,10 +412,20 @@ function refusesBareText(root) {
 // on the page, inside the group they belong to — so bounded at the block, each of them
 // stopped being generated, and the authored reading took the user's own comments for
 // words the author wrote.
+//
+// A message's authored markup is a document of its own (`authoredScope`), standing in
+// the message's body inside the chrome that draws the message, so the body frames a
+// reading there as a widget does. The message's text beside that markup, which the
+// runtime renders from its words (`MESSAGE_TEXT`), keeps the frame over the message:
+// a thread box's messages are that text.
 /** @param {Node | null} node */
 const frameOf = (node) => {
-  for (let a = isElement(node) ? node : upFrom(node); a; a = upFrom(a))
+  let text = false;
+  for (let a = isElement(node) ? node : upFrom(node); a; a = upFrom(a)) {
     if (a.localName?.startsWith("lf-")) return a;
+    if (a.matches(MESSAGE_TEXT)) text = true;
+    else if (!text && a.matches(MESSAGE_BODY)) return a;
+  }
   return null;
 };
 // What a reading carries down to the text under an element. Every question the walk
@@ -834,7 +848,7 @@ export const layoutParts = () => {
 
 /** @param {Node} node */
 export const authoredScope = (node) =>
-  closestAcross(node, ".lf-msg-body") ?? pageDocument(node?.ownerDocument ?? document);
+  closestAcross(node, MESSAGE_BODY) ?? pageDocument(node?.ownerDocument ?? document);
 
 // elementFromPoint retargets to the host for a point over a shadow tree, so it names the
 // widget rather than the thing in it, and each root answers for its own. Mark hit testing

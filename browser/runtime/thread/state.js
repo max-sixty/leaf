@@ -15,10 +15,10 @@ export function threadNamed(name) {
   const at = named.get(name);
   return at === undefined ? null : (all[at] ?? null);
 }
-// The threads whose anchors name the element with id `id`, as the publisher indexed
-// them when they arrived (`threadsBySection`), resolved ones and reactions included.
+// The open conversations whose anchors name the element with id `id`, as the publisher
+// indexed them when they arrived (`threadsBySection`).
 /** @param {string} id */
-export function threadsOnSection(id) {
+export function openThreadsOn(id) {
   const { all, bySection } = threadState();
   return (bySection.get(id) ?? []).flatMap((at) => all[at] ?? []);
 }

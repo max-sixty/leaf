@@ -630,6 +630,33 @@ let leaving;
 let quiet = null;
 /** @type {Hold | null} */
 let hold = null;
+// A preview focus or a finger aimed at that no place could hold as it was aimed at, as
+// a target out of view, until it stands or the aim moves on. The platform says when its
+// element comes into view, whatever brings it there, a scroll in any tree or a layout
+// that moves it (`coming`), and the scheduler decides again then.
+/** @type {{from: Target, route: Route, read: Read | null, at: {x: number, y: number} | undefined} | null} */
+let waiting = null;
+const coming = new IntersectionObserver((entries) => {
+  if (waiting && entries.some((entry) => entry.isIntersecting)) decide(false);
+});
+/** @type {Element | null} */
+let awaited = null;
+/** @param {typeof waiting} next */
+function wait(next) {
+  waiting = next;
+  const from = next?.from;
+  const el = !from
+    ? null
+    : isElement(from)
+      ? from
+      : isElement(from.commonAncestorContainer)
+        ? from.commonAncestorContainer
+        : from.commonAncestorContainer.parentElement;
+  if (el === awaited) return;
+  if (awaited) coming.unobserve(awaited);
+  awaited = el;
+  if (el) coming.observe(el);
+}
 // Whether the release just heard ended a hold that read, whose touch's end it cancels.
 let spent = false;
 // Where the pointer last stood, which tells a target the user moved onto from one
@@ -673,6 +700,7 @@ function show(from, route, read = null, at, again = false, fresh = false) {
   const standing = again && shown?.from === from ? shown : null;
   if (!found) {
     if (standing) hide();
+    if (waiting?.from === from) wait(null);
     return false;
   }
   // Ending the standing record's watch can run its disconnect, which hides whatever
@@ -707,8 +735,12 @@ function show(from, route, read = null, at, again = false, fresh = false) {
   if (route === "hold") keeps(holder, "data-lf-held", "");
   if (!stand(record, reading, Boolean(standing), Boolean(standing) && !fresh)) {
     hide();
+    // What focus or a finger reached out of view waits until it comes into view, as a
+    // scroll that lands it decides again (`decide`); a pointer reaches only what shows.
+    wait(route === "pointer" ? null : { from, route, read, at });
     return false;
   }
+  wait(null);
   if (standing) {
     record.described = standing.described;
     return true;
@@ -930,7 +962,7 @@ let deciding = 0;
 let rereading = false;
 /** @param {boolean} reread */
 function decide(reread) {
-  if (!shown) return;
+  if (!shown && !waiting) return;
   rereading ||= reread;
   if (deciding) return;
   // The request stands until the decision has run, so what the decision itself sets
@@ -940,7 +972,7 @@ function decide(reread) {
     if (shown) {
       if (read) refresh();
       else if (!stand(shown, shown.reading, true, true)) hide();
-    }
+    } else if (waiting) show(waiting.from, waiting.route, waiting.read, waiting.at);
     deciding = 0;
     rereading = false;
   });
@@ -999,6 +1031,8 @@ function stand(record, reading, standing, again) {
       : y === "above"
         ? box.top - gap - room.top
         : room.bottom - box.top;
+  // Centred, it stands as near the window's middle as it can while it still stands across
+  // its target, so it never reads as standing for something else far off.
   /** @param {Placement["x"]} x */
   const leftOf = (x) =>
     x === "left"
@@ -1009,7 +1043,10 @@ function stand(record, reading, standing, again) {
           ? box.right + gap
           : x === "before"
             ? box.left - gap - width
-            : room.left + (room.width - width) / 2;
+            : Math.min(
+                Math.max(room.left + (room.width - width) / 2, box.left - width + 1),
+                box.right - 1,
+              );
   // A place on a side, from the edge it grows from: the top where it stands below or
   // level with the box, which its words grow down from, and the bottom above it, which
   // they grow up from; its box is as much of the preview as the window holds there.
@@ -1198,6 +1235,7 @@ function stand(record, reading, standing, again) {
 /** @param {Placement} at @param {number} reach @param {Element} holder */
 function clearRoom(at, reach, holder) {
   const own = holder.getBoundingClientRect();
+  const around = new Set(climb(holder));
   const down = at.y !== "above";
   const across = steps(at.box.left, at.box.right);
   const count = Math.max(1, Math.ceil((reach - 2) / REACH));
@@ -1207,7 +1245,7 @@ function clearRoom(at, reach, holder) {
     let edge = Infinity;
     for (const x of across) {
       if (holds(own, x, y)) continue;
-      const found = targetAt(x, y, holder);
+      const found = targetAt(x, y, holder, around);
       if (!found) continue;
       const hit = found.getBoundingClientRect();
       edge = Math.min(edge, down ? hit.top - at.from : at.from - hit.bottom);
@@ -1225,12 +1263,29 @@ function steps(from, to) {
     (_, n) => from + 1 + ((to - from - 2) * n) / count,
   );
 }
-// The control other than `holder`, or around or in it, at a point of the page beneath
-// the preview, through every shadow tree there: what the user can work there, as a
-// field, a link or anything focusable (control-selectors.js, `WORKS`), or point at to
-// read, as whatever previews (`mayPreview`), the nearest around what the point finds.
-/** @param {number} x @param {number} y @param {Element} holder */
-function targetAt(x, y, holder) {
+// What a preview must leave reachable where it can: everything whose access the user
+// must keep, whichever owner routes a gesture there, so the question is what the user
+// reaches, not what Leaf's gestures take. That is what the page works
+// (control-selectors.js, `WORKS`); anything focusable, as a stop Leaf lends code that
+// overflows or a tab panel, which `WORKS` leaves to its own gestures; anything that
+// scrolls; anything embedding a document, whose controls no hit test out here finds;
+// and whatever previews, which a pointer reads.
+const EMBEDS = "iframe, embed, object";
+/** @param {Element} el */
+function keepsAccess(el) {
+  if (el.matches(WORKS) || el.matches(EMBEDS) || mayPreview(el)) return true;
+  if ("tabIndex" in el && /** @type {HTMLElement} */ (el).tabIndex >= 0) return true;
+  if (el.scrollHeight <= el.clientHeight && el.scrollWidth <= el.clientWidth)
+    return false;
+  const { overflowX, overflowY } = getComputedStyle(el);
+  return /auto|scroll/.test(`${overflowX} ${overflowY}`);
+}
+// The control other than `holder` that must stay reachable at a point of the page beneath
+// the preview, through every shadow tree there, the nearest around what the point finds
+// below what holds `holder` (`around`), since what holds it stands under the preview
+// wherever it stands.
+/** @param {number} x @param {number} y @param {Element} holder @param {Set<Element>} around */
+function targetAt(x, y, holder, around) {
   let hit = document.elementsFromPoint(x, y).find((el) => !tip.contains(el)) ?? null;
   for (
     let inner = hit?.shadowRoot?.elementFromPoint(x, y);
@@ -1238,15 +1293,11 @@ function targetAt(x, y, holder) {
     inner = hit.shadowRoot?.elementFromPoint(x, y)
   )
     hit = inner;
-  let found = null;
-  for (const at of hit ? climb(hit) : [])
-    if (at.matches(WORKS) || mayPreview(at)) {
-      found = at;
-      break;
-    }
-  return found && !renderedUnder(found, holder) && !renderedUnder(holder, found)
-    ? found
-    : null;
+  for (const at of hit ? climb(hit) : []) {
+    if (around.has(at)) return null;
+    if (keepsAccess(at)) return renderedUnder(at, holder) ? null : at;
+  }
+  return null;
 }
 
 function hide() {
@@ -1510,6 +1561,7 @@ export function mountPreviews(chrome) {
   // surface placing them as it opens (focus.js, `openedThisInput`).
   onCurrentLocation((node, cause) => {
     quiet = null;
+    if (waiting && waiting.from !== node) wait(null);
     if (shown?.route === "focus" && shown.from !== node) hide();
     if (node && (cause === "step" || (cause === "move" && !openedThisInput(node))))
       showFocus(node);
@@ -1544,6 +1596,7 @@ export function mountPreviews(chrome) {
     (event) => {
       endHold();
       spent = false;
+      wait(null);
       if (shown?.route === "hold") hide();
       if (event.pointerType !== "touch") return quieten();
       if (!event.isPrimary || !plainPress(event)) return;
@@ -1614,6 +1667,7 @@ export function mountPreviews(chrome) {
       point(null);
       quieten();
       endHold();
+      wait(null);
     }
   });
   document.addEventListener(

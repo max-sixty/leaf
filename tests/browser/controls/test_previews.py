@@ -1638,3 +1638,101 @@ def test_a_standing_preview_redrawn_over_a_control_that_arrived_moves_clear(
     arrived = page.locator("#next").bounding_box()
     page.mouse.click(arrived["x"] + 50, arrived["y"] + 15)
     assert page.evaluate("window.pressed") == 1
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_focus_preview_out_of_view_stands_once_its_target_comes_into_view(
+    engine, request, serve
+):
+    """Focus the user moved onto a target out of view reads its preview as soon as the
+    target comes into view, as a scroll that lands it brings it, though no place
+    could hold the preview as focus arrived."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Out of view",
+                '<div style="height: 300px"></div>'
+                '<p><button id="late">Late</button></p><div style="height: 2400px"></div>',
+            )
+        ),
+    )
+    page.evaluate(
+        """async () => {
+          window.lfApi = await window.__lfWidgetApi();
+          document.getElementById('late').lfPreview = () => ({name: 'Late says'});
+          // The target stands above the window as focus reaches it.
+          scrollTo(0, 1200);
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.keyboard.press("Shift")
+    page.evaluate(
+        "() => window.lfApi.focusDestination(document.getElementById('late'), 'move')"
+    )
+    expect(page.locator("#late")).to_be_focused()
+    page.evaluate(
+        "() => document.getElementById('late').scrollIntoView({block: 'center'})"
+    )
+    expect(tip).to_be_visible()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Late says")
+
+
+# A region a preview's target stands just above, each of which the user must keep
+# reaching: code Leaf lends a tab stop to as it overflows, a tab panel that takes focus,
+# and a frame with a field in it.
+REACHED = {
+    "code": (
+        '<pre id="region" class="scroll" style="width: 400px; height: 120px;'
+        ' overflow: auto; margin: 4px 0 0"><code>'
+        + "total = sum(item.price * item.quantity for item in all_items_with_a_long"
+        "_collection_name_that_runs_past_the_box)\n" * 8 + "</code></pre>"
+    ),
+    "panel": (
+        '<div id="region" role="tabpanel" tabindex="0" style="width: 400px;'
+        ' height: 120px; margin-top: 4px; border: 1px solid">A tab panel'
+        " the user can step into.</div>"
+    ),
+    "frame": (
+        '<iframe id="region" style="width: 400px; height: 120px; margin-top: 4px"'
+        ' srcdoc="<input id=inner aria-label=Inside>"></iframe>'
+    ),
+}
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("region", sorted(REACHED))
+def test_a_preview_leaves_a_region_the_user_works_in_reachable(
+    engine, region, request, serve
+):
+    """A preview stands clear of a region the user must keep reaching, though nothing
+    in it previews and the gestures Leaf routes leave it alone: code that scrolls, a
+    tab panel that takes focus, a frame. A press there reaches it."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Reached",
+                '<p style="margin-top: 200px"><button id="explain" style="width:'
+                ' 160px">Explain calculation</button></p>' + REACHED[region],
+            )
+        ),
+    )
+    page.set_viewport_size({"width": 1200, "height": 700})
+    page.evaluate(
+        """() => { document.getElementById('explain').lfPreview = () => ({name:
+          'Explain calculation', detail: ['Each line is price times quantity',
+          'The total adds every line']}); }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(2, 2)
+    page.locator("#explain").hover()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Explain calculation")
+    rendered(page)
+    assert page.evaluate(COVERS, ["region"]) == []
+    box = page.locator("#region").bounding_box()
+    page.mouse.click(box["x"] + 40, box["y"] + 20)
+    if region == "frame":
+        expect(page.frame_locator("#region").locator("#inner")).to_be_focused()
+    else:
+        expect(page.locator("#region")).to_be_focused()

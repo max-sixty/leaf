@@ -1574,9 +1574,9 @@ def task_end(page_dir: Path, task_id: str, outcome: str, detail: str | None) -> 
 
     For a message obligation (`message:<id>`) or a question widget answered in
     words (`widget:<id>`), done records that the user answered elsewhere, or that
-    you saw a step's effect, --text saying where; dropped withdraws the question.
-    These outcomes record no answer from the user. A widget answered through its
-    controls ends through its state or an authored withdrawal.
+    you saw a step's effect, --text saying where or what you saw; dropped withdraws
+    the question. These outcomes record no answer from the user. A widget answered
+    through its controls ends through its state or an authored withdrawal.
     """
     from leaf.todos import cmd_end
 

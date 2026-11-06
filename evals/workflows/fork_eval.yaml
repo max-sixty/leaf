@@ -32,8 +32,8 @@ rubrics:
       answer's edits. Pass only if all of these hold. A question's title names its
       subject and its text asks what the conversation leaves to the user, correctly,
       in a way the user can answer from the card alone; for a step the user takes,
-      it says what to do, and asks for a reply only for what the user alone can report, not for an effect the agent
-      could check itself. A finding's summary says correctly what the conversation
+      it says what to do, and asks for a reply only for what the user alone can report or the agent's next step waits
+      on, not for an effect the agent could check itself and nothing waits on. A finding's summary says correctly what the conversation
       shows. Each change makes the page say what the conversation shows now, in the
       page's own register. Each item not labelled is one the question asks for and
       the conversation clearly shows: an ask the agent left to the user that no On me

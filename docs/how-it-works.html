@@ -1180,8 +1180,9 @@ flowchart TD
                 user can answer without the chat, and the words of the passage it
                 concerns, if one does. A step the user is to take is asked the same way:
                 the message says what to do, and asks for a reply only for what the user
-                alone can report, such as what a build showed them. Leaf skips an ask
-                whose title a question the agent asked already has.
+                alone can report, such as what a build showed them, or where the agent's
+                next step waits on it, since the reply tells the agent to go on. Leaf
+                skips an ask whose title a question the agent asked already has.
               </p>
               <p id="fork-writes">
                 Leaf opens each remaining ask as a thread, its message written as the

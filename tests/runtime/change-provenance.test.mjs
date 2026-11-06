@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { savedAfter, waitedWords } from "/runtime/change-provenance.js";
+import {
+  savedAfter,
+  versionProvenance,
+  waitedWords,
+} from "/runtime/change-provenance.js";
+import { runtime } from "/runtime/context.js";
 import { loadMarkdown } from "/runtime/markdown.js";
 import { wordsText } from "/runtime/voice.js";
 
@@ -51,26 +56,64 @@ test("a version says which of the user's messages waited while it was saved", ()
 
 test("a waiting message is quoted as its thread shows the words that stood", async () => {
   await loadMarkdown();
-  const logged = new Map(
-    [
-      { id: "fence", text: "```first words\nsecond words\n```" },
-      { id: "opening", text: "```first words\n```" },
-      { id: "stars", text: "**literal stars**", suggestion: true },
-      { id: "blue", text: "Make it **blue**" },
-      { id: "red", kind: "edit", message: "blue", text: "Make it _red_" },
-      { id: "drawn", drawing: { strokes: [] } },
-    ].map((event) => [event.id, event]),
-  );
-  const quote = (message, said = message) => waitedWords(logged, { message, said });
+  // Messages as their thread holds them (thread/model.js): each with its body, and the
+  // thread's rewrites with the words each replaced.
+  const prose = (id, text, more = {}) => ({
+    id,
+    text,
+    body: { kind: more.suggestion ? "suggestion" : "prose", text },
+    ...more,
+  });
+  const thread = {
+    id: "fence",
+    msgs: [
+      prose("fence", "```first words\nsecond words\n```"),
+      prose("opening", "```first words\n```"),
+      prose("stars", "**literal stars**", { suggestion: true }),
+      prose("blue", "Make it _red_", { edited: { id: "red" } }),
+      { ...prose("drawn", ""), drawing: { strokes: [] } },
+      {
+        id: "picked",
+        text: "Choose:",
+        markup: "<lf-options></lf-options>",
+        body: { kind: "authored", text: "Choose:\nKeep this result\nDrop this result" },
+      },
+    ],
+    revisions: [
+      { id: "red", message: "blue", text: "Make it _red_", was: "Make it **blue**" },
+    ],
+  };
+  const quote = (message, said = message) => waitedWords(thread, { message, said });
   // A fence's opening line shows its words, as the thread's Markdown draws it.
   assert.match(quote("fence"), /first words/);
   assert.match(quote("fence"), /second words/);
   assert.equal(quote("opening"), "first words");
   // A suggestion reads literally, its stars included.
   assert.equal(quote("stars"), "**literal stars**");
-  // A message reads as the event the server names: itself, or the rewrite then
-  // standing, under the message's own kind.
+  // A message reads as the event the server names: itself as it was sent, or the
+  // rewrite then standing, under the message's own kind.
   assert.equal(quote("blue"), "Make it blue");
   assert.equal(quote("blue", "red"), "Make it red");
   assert.equal(quote("drawn"), "Drawing");
+  // A message holding a widget reads with the widget's words: the thread's reading of
+  // the whole message.
+  assert.equal(quote("picked"), "Choose: Keep this result Drop this result");
+});
+
+test("with no comparison showing, the line reads nothing of the page's log", () => {
+  const read = [];
+  const own = Object.getOwnPropertyDescriptor(runtime, "events");
+  Object.defineProperty(runtime, "events", {
+    configurable: true,
+    get() {
+      read.push("events");
+      return [];
+    },
+  });
+  try {
+    assert.equal(versionProvenance(), null);
+  } finally {
+    Object.defineProperty(runtime, "events", /** @type {PropertyDescriptor} */ (own));
+  }
+  assert.deepEqual(read, []);
 });

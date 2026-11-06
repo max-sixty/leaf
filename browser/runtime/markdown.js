@@ -56,6 +56,8 @@ let ready;
 export const renderMarkdown = (text, message = true) => render(text, message);
 // The words a user sees in rendered Markdown, for a surface that shows them as plain
 // text: an excerpt, a label, a passage. Until the parser lands they are the source.
+// With `imageAlt`, an image counts as the words its control is named by, its alt text,
+// else Image.
 /** @param {string} html @param {boolean} [imageAlt] */
 export function renderedWords(html, imageAlt = false) {
   const parsed = document.createElement("template");
@@ -71,7 +73,7 @@ function fragmentWords(fragment, imageAlt = false) {
     br.replaceWith(document.createTextNode("\n"));
   if (imageAlt)
     for (const image of fragment.querySelectorAll("img"))
-      image.replaceWith(document.createTextNode(image.alt));
+      image.replaceWith(document.createTextNode(image.alt || "Image"));
   return fragment.textContent;
 }
 /** @param {string} text @param {boolean} [message] the reading (`renderMarkdown`) */

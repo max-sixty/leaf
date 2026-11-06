@@ -9,6 +9,7 @@ the tests of what the user saw set both through the platform's own readings
 (`visibility`, `attention`)."""
 
 import re
+import shutil
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -19,6 +20,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     compare_with,
+    example_media,
     open_page,
     preview_parts,
     stamp_page,
@@ -644,8 +646,9 @@ def test_a_change_with_no_card_still_says_what_its_version_was_saved_after(
 
 
 def test_a_version_quotes_each_waiting_message_as_its_thread_shows_it(browser, serve):
-    """The line quotes a message as its thread draws it: a code block opening with
-    words shows both its lines, and a suggestion its words literally."""
+    """The line quotes a message as its thread reads it: a code block opening with
+    words shows both its lines, a suggestion its words literally, and a picture with
+    no words the name its thread gives it."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     _comment_on(d, "t", "Plan", text="```first words\nsecond words\n```")
@@ -660,16 +663,26 @@ def test_a_version_quotes_each_waiting_message_as_its_thread_shows_it(browser, s
             "anchor": {"section": "a", "quote": "Alpha stays as it was."},
         },
     )
+    # A picture the user pasted alone, as an upload leaves it.
+    (d / "media").mkdir(exist_ok=True)
+    shutil.copy(example_media() / "051bee487bfb5d13.png", d / "media")
+    _comment_on(
+        d,
+        "c",
+        "Gamma stays as it was.",
+        text="![Attached image](/media/051bee487bfb5d13.png)",
+    )
     revise(d, ('<h1 id="t">Plan</h1>', '<h1 id="t">Plan for spring</h1>'))
     page = open_page(browser, url)
     wait_for_revision(page, 2)
     entries = page.locator('[data-lf-kinds~="change"]')
     page.keyboard.press("v")
     expect(entries).to_have_count(1)
-    assert preview_parts(entries.first)[-3:] == [
-        "Draft saved while your 2 comments waited:",
+    assert preview_parts(entries.first)[-4:] == [
+        "Draft saved while your 3 comments waited:",
         "“first words second words”",
         "“**literal stars**”",
+        "“Attached image”",
     ]
 
 

@@ -885,37 +885,76 @@ class _Latest:
 
 
 class _Family:
-    """The actions at one coordinate resting on the same elements: those they always
-    rest on, and those they name for their owner to hold (`_always_rests`, `_holds`).
+    """The actions at one coordinate resting on the same restated elements: those
+    they always rest on, and those a version has restated of the ones they name for
+    their owner to hold (`_always_rests`, `_holds`).
 
     A version restating an element the family rests on retracts each of its actions
     made on an earlier version, so whether one stands turns on one threshold, the
     latest such version: it stands where it was made on that version or a later
     one. A note or a change of containment moves the threshold, and so judges every
-    action in the family at once."""
+    action in the family at once. What its actions name that no version has
+    restated yet decides nothing, so actions naming different such elements share a
+    family until a version restates one (`InForce._regroup`)."""
 
     __slots__ = (
         "always",
         "coordinate",
+        "count",
         "current",
         "floors",
         "ids",
+        "node",
         "owner",
         "revisions",
     )
 
-    def __init__(self, coordinate: tuple, always: frozenset):
+    def __init__(self, coordinate: tuple, always: frozenset, node: "_Node"):
         self.coordinate = coordinate
         self.owner = coordinate[0]
         self.always = always
+        # The restated elements it names (`_Node`).
+        self.node = node
         # (-floor, element) for each restated element it has rested on, the highest
         # still in force its threshold (`InForce._threshold`).
         self.floors: list[tuple[int, str]] = []
+        # Its actions at their places, in log order, None where one has left, and how
+        # many have not.
         self.ids: list[str | None] = []
+        self.count = 0
         # Each action's revision at its place in `ids`.
         self.revisions = _Latest()
         # Its latest action in force, which competes for the coordinate.
         self.current: str | None = None
+
+
+class _Node:
+    """A set of restated elements an action at one coordinate names for its owner to
+    hold, reached from the empty set through those elements in the order versions
+    first restated them, and the family naming exactly that set, if any. A version
+    restating an element for the first time ranks it after every other, so a family
+    gaining it moves to a child of its own node, and a set is one node however its
+    actions reached it."""
+
+    __slots__ = ("children", "element", "family", "parent")
+
+    def __init__(self, parent: "_Node | None", element: str):
+        self.parent = parent
+        self.element = element
+        self.children: dict[str, _Node] = {}
+        self.family: _Family | None = None
+
+    def child(self, element: str) -> "_Node":
+        if (node := self.children.get(element)) is None:
+            node = self.children[element] = _Node(self, element)
+        return node
+
+    def elements(self) -> Iterable[str]:
+        """The restated elements this node's set holds."""
+        node = self
+        while node.parent is not None:
+            yield node.element
+            node = node.parent
 
 
 class InForce:
@@ -945,11 +984,14 @@ class InForce:
 
     Each step costs what it touches, judging families rather than actions: a note
     moves the threshold of each family resting on what it restates, and a
-    containment compares what owners hold of the restated elements families name
-    that it moved, and moves the threshold of each family whose owner gained or lost
-    one. Each move costs the logarithm of the family, and a coordinate's winner is
-    the latest of its families' current actions, so however many actions one family
-    or coordinate collects, a walk costs the log times its logarithm."""
+    containment compares, for the restated elements it moved, what the owners of
+    families naming each hold, and moves the threshold of each such family whose
+    owner gained or lost one. Each move costs the logarithm of the family, and a
+    coordinate's winner is the latest of its families' current actions. A version
+    restating an element for the first time moves the actions naming it to families
+    of their own, the fewer of each family's two parts moving, so however many
+    actions one family or coordinate collects, a walk costs about the log times its
+    logarithm."""
 
     def __init__(self, within: dict, floors: dict | None = None, withdrawn=frozenset()):
         self._within = within
@@ -964,15 +1006,21 @@ class InForce:
         self._place: dict[str, int] = {}
         self._order: dict[str, int] = {}
         self._admitted = 0
-        self._families: dict[tuple, _Family] = {}
-        # element → the families resting on it, whether or not their owner holds it.
+        # Each kept action's elements it names for its owner to hold, and element →
+        # the kept actions naming it so, in log order.
+        self._named: dict[str, tuple[str, ...]] = {}
+        self._naming: dict[str, dict[str, None]] = {}
+        # Each restated element some action names, by when a version first restated
+        # it (`_Node`), and (coordinate, what its actions always rest on) → the node
+        # of the empty set.
+        self._rank: dict[str, int] = {}
+        self._roots: dict[tuple, _Node] = {}
+        self._families: list[_Family] = []
+        # element → the families resting on it, whether or not their owner holds it,
+        # and element → owner → those naming it for that owner to hold: the restated
+        # elements a containment can judge otherwise.
         self._resting: dict[str, dict[_Family, None]] = {}
-        # (owner, element) → the families naming it for that owner to hold.
-        self._watching: dict[tuple[str, str], dict[_Family, None]] = {}
-        # The elements some family names for its owner to hold, and of those, the
-        # ones a version has restated: all a containment can judge otherwise.
-        self._held_names: set[str] = set()
-        self._contested: dict[str, None] = {}
+        self._watching: dict[str, dict[str, dict[_Family, None]]] = {}
         # coordinate → its families' current actions as (-order, id), the latest
         # still current its winner.
         self._leaders: dict[tuple, list[tuple[int, str]]] = {}
@@ -1006,7 +1054,7 @@ class InForce:
         """Every action in force."""
         return frozenset(
             identity
-            for family in self._families.values()
+            for family in self._families
             for threshold in [self._threshold(family)]
             for identity in family.ids
             if identity is not None and self._actions[identity]["revision"] >= threshold
@@ -1022,25 +1070,29 @@ class InForce:
         coordinate = event_coordinate(action)
         before = self.winner(coordinate)
         always = frozenset(_always_rests(action))
-        named = frozenset(action["meaning"]["depends"]) - always
-        family = self._families.get((coordinate, always, named))
-        if family is None:
-            family = _Family(coordinate, always)
-            self._families[coordinate, always, named] = family
-            for element in always | named:
-                self._resting.setdefault(element, {})[family] = None
-                self._raise(family, element)
-            for element in named:
-                self._watching.setdefault((family.owner, element), {})[family] = None
-                self._held_names.add(element)
-                if self.floors.get(element):
-                    self._contested[element] = None
+        named = self._named[identity] = tuple(
+            dict.fromkeys(
+                element
+                for element in action["meaning"]["depends"]
+                if element not in always
+            )
+        )
+        for element in named:
+            self._naming.setdefault(element, {})[identity] = None
+        restated = [element for element in named if self.floors.get(element)]
+        for element in restated:
+            self._rank.setdefault(element, len(self._rank))
+        restated.sort(key=self._rank.__getitem__)
+        node = self._roots.get((coordinate, always))
+        if node is None:
+            node = self._roots[coordinate, always] = _Node(None, "")
+        for element in restated:
+            node = node.child(element)
+        family = node.family or self._found(node, coordinate, always)
         self._actions[identity] = action
-        self._family[identity] = family
         self._order[identity] = self._admitted
         self._admitted += 1
-        self._place[identity] = family.revisions.append(action["revision"])
-        family.ids.append(identity)
+        self._join(family, [identity])
         self._refresh(family)
         after = self.winner(coordinate)
         return Change(coordinate, before, after) if after is not before else None
@@ -1051,11 +1103,10 @@ class InForce:
             return None
         family = self._family[identity]
         before = self.winner(family.coordinate)
-        del self._family[identity]
-        place = self._place.pop(identity)
-        family.revisions.set(place, -1)
-        family.ids[place] = None
-        del self._actions[identity], self._order[identity]
+        self._leave(family, [identity])
+        del self._family[identity], self._actions[identity], self._order[identity]
+        for element in self._named.pop(identity):
+            del self._naming[element][identity]
         self._refresh(family)
         after = self.winner(family.coordinate)
         return Change(family.coordinate, before, after) if after is not before else None
@@ -1066,14 +1117,16 @@ class InForce:
         before: dict[tuple, dict | None] = {}
         moved: dict[_Family, None] = {}
         for element in note.get("restated", []):
-            if note["revision"] <= self.floors.get(element, 0):
+            floor = self.floors.get(element, 0)
+            if note["revision"] <= floor:
                 continue
             self.floors[element] = note["revision"]
-            if element in self._held_names:
-                self._contested[element] = None
+            if not floor and element in self._naming:
+                self._rank.setdefault(element, len(self._rank))
+                self._regroup(element, before, moved)
             for family in self._resting.get(element, {}):
                 if self._rests(family, element):
-                    before.setdefault(family.coordinate, self.winner(family.coordinate))
+                    self._before(family, before)
                     self._raise(family, element)
                     moved[family] = None
         for family in moved:
@@ -1092,40 +1145,48 @@ class InForce:
 
         `moved` reads the elements whose holders the containment moved since the one
         handed over before it (`passages.moved_ids`), and only those are compared;
-        without it, every such element is. `within` and `moved` are read only where
-        some step asks what an owner holds: at once where an action stands or falls
-        on a restated element its owner holds, and otherwise at the next step that
-        asks, if no later containment took hold first. Either way, the containment
-        compared against is the one handed over before, since nothing asks until
-        some action names a restated element, and from then on each is read where it
-        takes hold."""
-        if not self._contested:
+        without it, every such element is. Each is compared once, for the owners
+        that gained or lost it, of which only those families watch move anything.
+        `within` and `moved` are read only where some step asks what an owner holds:
+        at once where an action stands or falls on a restated element its owner
+        holds, and otherwise at the next step that asks, if no later containment took
+        hold first. Either way, the containment compared against is the one handed
+        over before, since nothing asks until some action names a restated element,
+        and from then on each is read where it takes hold."""
+        watched = self._watching
+        if not watched:
             self._reading = within
             return []
         was, now = self.within, within()
         if now is was:
             return []
-        contested = self._contested
+        compared: Iterable[str] = watched
         if moved is not None:
             changed = moved()
-            contested = (
-                [element for element in changed if element in contested]
-                if len(changed) < len(contested)
-                else [element for element in contested if element in changed]
+            compared = (
+                [element for element in changed if element in watched]
+                if len(changed) < len(watched)
+                else [element for element in watched if element in changed]
             )
         # Each family whose owner gained or lost an element it names, with those
         # it gained.
         shifted: dict[_Family, list[str]] = {}
-        for element in contested:
-            held, holds = was.get(element, ()), now.get(element, ())
-            if held == holds:
+        for element in compared:
+            chained, chain = was.get(element, ()), now.get(element, ())
+            if chained == chain:
                 continue
-            for owner in dict.fromkeys([*held, *holds]):
-                if (owner in held) != (owner in holds):
-                    for family in self._watching.get((owner, element), {}):
-                        gained = shifted.setdefault(family, [])
-                        if owner in holds:
-                            gained.append(element)
+            # The owners that gained or lost the element, found once from its two
+            # chains of holders (`_holds`), and of those, the ones families watch.
+            held, holds = set(chained), set(chain)
+            owners = watched[element]
+            for owner in dict.fromkeys([*chained, *chain]):
+                gained = owner in holds
+                if gained == (owner in held) or owner not in owners:
+                    continue
+                for family in owners[owner]:
+                    shifting = shifted.setdefault(family, [])
+                    if gained:
+                        shifting.append(element)
         before = {
             family.coordinate: self.winner(family.coordinate) for family in shifted
         }
@@ -1135,6 +1196,84 @@ class InForce:
                 self._raise(family, element)
             self._refresh(family)
         return self._changes(before)
+
+    def _regroup(self, element: str, before: dict, moved: dict) -> None:
+        """Move each action naming `element`, which a version restates for the first
+        time, from its family to the family that also names it. Of each family's two
+        parts the fewer actions move, the rest keeping the family as it was, so an
+        action moves less often the more actions share its family."""
+        moving: dict[_Family, list[str]] = {}
+        for identity in self._naming[element]:
+            moving.setdefault(self._family[identity], []).append(identity)
+        for family, gaining in moving.items():
+            self._before(family, before)
+            node, child = family.node, family.node.child(element)
+            if 2 * len(gaining) >= family.count:
+                gains = set(gaining)
+                staying = (
+                    [
+                        identity
+                        for identity in family.ids
+                        if identity is not None and identity not in gains
+                    ]
+                    if len(gaining) < family.count
+                    else []
+                )
+                node.family, child.family, family.node = None, family, child
+                self._register(family, element)
+                if staying:
+                    rest = self._found(node, family.coordinate, family.always)
+                    self._leave(family, staying)
+                    self._join(rest, staying)
+                    moved[rest] = None
+            else:
+                gained = self._found(child, family.coordinate, family.always)
+                self._leave(family, gaining)
+                self._join(gained, gaining)
+                moved[gained] = None
+            moved[family] = None
+
+    def _before(self, family: _Family, before: dict) -> None:
+        """Keep the winner of the family's coordinate as it stood before a step that
+        is about to move it, once."""
+        if family.coordinate not in before:
+            before[family.coordinate] = self.winner(family.coordinate)
+
+    def _found(self, node: _Node, coordinate: tuple, always: frozenset) -> _Family:
+        """A new family at `node`, resting on what it always rests on and on the
+        restated elements `node` names."""
+        family = node.family = _Family(coordinate, always, node)
+        self._families.append(family)
+        for element in always:
+            self._resting.setdefault(element, {})[family] = None
+            self._raise(family, element)
+        for element in node.elements():
+            self._register(family, element)
+            self._raise(family, element)
+        return family
+
+    def _register(self, family: _Family, element: str) -> None:
+        self._resting.setdefault(element, {})[family] = None
+        self._watching.setdefault(element, {}).setdefault(family.owner, {})[family] = (
+            None
+        )
+
+    def _join(self, family: _Family, identities: list[str]) -> None:
+        """Place each action, in log order, after every other in the family."""
+        for identity in identities:
+            self._family[identity] = family
+            self._place[identity] = family.revisions.append(
+                self._actions[identity]["revision"]
+            )
+            family.ids.append(identity)
+        family.count += len(identities)
+
+    def _leave(self, family: _Family, identities: list[str]) -> None:
+        for identity in identities:
+            place = self._place.pop(identity)
+            family.revisions.set(place, -1)
+            family.ids[place] = None
+        family.count -= len(identities)
 
     def _rests(self, family: _Family, element: str) -> bool:
         return element in family.always or _holds(family.owner, element, self.within)

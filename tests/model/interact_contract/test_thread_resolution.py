@@ -792,3 +792,97 @@ def test_a_walk_reads_each_coordinate_as_the_retraction_rule_does_at_every_step(
             assert walk.ids() == {
                 action["id"] for action in kept if not retracted(action, floors, within)
             }, (seed, step)
+
+
+def test_moving_a_restated_element_judges_once_however_many_choices_share_it(
+    monkeypatch,
+):
+    """Choices that each name a restated element and an option of their own stand or
+    fall on that element together while no version has restated their own options, so
+    moving it between owners judges as often whether ten choices share it or a
+    hundred. A version restating one choice's own option later retracts that choice
+    alone."""
+    judged = []
+    holds = event_folds_model._holds
+
+    def counted(*args):
+        judged.append(args)
+        return holds(*args)
+
+    monkeypatch.setattr(event_folds_model, "_holds", counted)
+    coordinate = ("g", "g", "choose")
+
+    def judgments(choices):
+        held = {"x": ("g",), **{f"o{index}": ("g",) for index in range(choices)}}
+        walk = event_folds_model.InForce(held)
+        for index in range(choices):
+            walk.admit(
+                {
+                    "id": f"a{index}",
+                    "widget": "g",
+                    "action": "choose",
+                    "revision": 1,
+                    "meaning": {"unit": "g", "depends": ["x", f"o{index}"]},
+                }
+            )
+        walk.restate({"revision": 2, "restated": ["x"]})
+        assert walk.winner(coordinate) is None
+        judged.clear()
+        for step in range(20):
+            within = held if step % 2 else {**held, "x": ("h",)}
+            walk.contain(lambda within=within: within, lambda: frozenset({"x"}))
+            assert (walk.winner(coordinate) or {}).get("id") == (
+                None if step % 2 else f"a{choices - 1}"
+            ), step
+        count = len(judged)
+        walk.restate({"revision": 3, "restated": [f"o{choices - 1}"]})
+        assert walk.winner(coordinate) is None
+        walk.contain(lambda: {**held, "x": ("h",)}, lambda: frozenset({"x"}))
+        assert (walk.winner(coordinate) or {}).get("id") == f"a{choices - 2}"
+        return count
+
+    assert judgments(10) == judgments(100)
+
+
+def test_a_containment_reads_each_moved_element_once_however_deep_it_sits():
+    """Wrapping every restated option in one more element moves no owner that holds
+    one, and comparing each option's holders costs what its chain of holders holds,
+    not that times itself."""
+
+    class Chain(tuple):
+        """A chain of holders that counts the holders each read of it passes."""
+
+        read = 0
+
+        def __iter__(self):
+            Chain.read += len(self)
+            return super().__iter__()
+
+        def __contains__(self, holder):
+            Chain.read += len(self)
+            return super().__contains__(holder)
+
+    def reads(depth):
+        options = [f"o{index}" for index in range(40)]
+        wrappers = tuple(f"w{level}" for level in range(depth))
+        walk = event_folds_model.InForce(
+            {option: Chain((*wrappers, "g", option)) for option in options}
+        )
+        walk.admit(
+            {
+                "id": "a",
+                "widget": "g",
+                "action": "choose",
+                "revision": 1,
+                "meaning": {"unit": "g", "depends": options},
+            }
+        )
+        walk.restate({"revision": 2, "restated": options})
+        wrapped = {
+            option: Chain(("outer", *wrappers, "g", option)) for option in options
+        }
+        Chain.read = 0
+        walk.contain(lambda: wrapped, lambda: frozenset(options))
+        return Chain.read
+
+    assert reads(80) <= 5 * reads(20)

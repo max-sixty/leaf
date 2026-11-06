@@ -645,6 +645,9 @@ export function threadRecordReader() {
         title: thread.title,
         root,
         msgs: published,
+        // The user's rewrites, each with the words it replaced: a message's words where
+        // an earlier version was saved (change-provenance.js).
+        revisions: thread.revisions,
         unread: Object.freeze(unread),
         anchor: thread.anchor,
         detached_from: thread.detached_from,

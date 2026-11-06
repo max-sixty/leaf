@@ -22,15 +22,19 @@
    entry's label (annotation-inventory.js), reading it once for every change. Its
    `lines` are the words a surface shows, each in its speaker's face: the heading in
    Leaf's voice ("v4 saved while your comment waited:"), then each quoted message as
-   its thread shows the words it had where it waited (`waitedWords`), in quotes, the
-   user's own words: the server names the event whose words stood, and this reads them
-   as a thread reads a message, so no second reading of a message's text exists. */
+   its thread reads the whole message, with the words it had where it waited
+   (`waitedWords`), in quotes, the user's own words: the server names the event whose
+   words stood, and this reads the message from its thread (thread/messages.js,
+   `messageWords`), so no second reading of a message's words exists. While no
+   comparison stands it reads nothing else, and while one does, only the threads of
+   the messages it quotes. */
 import { runtime } from "./context.js";
 import { markdownReady } from "./markdown.js";
-import { messageText } from "./thread/messages.js";
+import { messageWords } from "./thread/messages.js";
+import { allThreads, threadNamed } from "./thread/state.js";
 import { comparisonSavedAfter } from "./version.js";
 import { leafSays } from "./voice.js";
-import { counted, labelWords, quotedWords } from "./words.js";
+import { counted, quotedWords } from "./words.js";
 
 /** One of the user's messages a version was saved after, as the server names it.
  * @typedef {NonNullable<import("../types/contract.js").ServedViewAnswer["saved_after"]>[number]} WaitedMessage */
@@ -90,24 +94,24 @@ export function savedAfter(version, messages, wordsOf) {
   });
 }
 
-/** The words a message had where it waited, as its thread shows a message
- * (thread/messages.js, `messageText`): those of the event the server names as then
- * standing, the message itself or a rewrite of it, read as the message's kind reads,
- * or Drawing for a drawing with none.
- * @param {ReadonlyMap<string, import("../types/contract.js").ServedEvent>} logged
+/** A thread as the page holds it (thread/model.js).
+ * @typedef {ReturnType<typeof allThreads>[number]} ThreadRecord */
+
+/** The words a message had where it waited, as its thread reads the whole message
+ * (thread/messages.js, `messageWords`): the thread's own reading where the words that
+ * then stood are those it shows, else the message read with the words the server names,
+ * those it was sent with or a rewrite's from the thread's rewrites.
+ * @param {Pick<ThreadRecord, "msgs" | "revisions"> | null} thread
  * @param {WaitedMessage} waited */
-export function waitedWords(logged, { message, said }) {
-  const sent = /** @type {Record<string, any>} */ (logged.get(message) ?? {});
-  const then = /** @type {Record<string, any>} */ (logged.get(said) ?? sent);
-  const words = labelWords(
-    messageText({
-      id: `${message}@${said}`,
-      text: then.text,
-      token: sent.token,
-      suggestion: sent.suggestion,
-    }),
-  );
-  return words || (sent.drawing ? "Drawing" : "");
+export function waitedWords(thread, { message, said }) {
+  const record = thread?.msgs.find(({ id }) => id === message);
+  if (!record) return "";
+  if (record.body.kind === "authored" || said === (record.edited?.id ?? message))
+    return messageWords(record);
+  const rewrites = thread?.revisions.filter((edit) => edit.message === message) ?? [];
+  const text =
+    said === message ? rewrites[0]?.was : rewrites.find(({ id }) => id === said)?.text;
+  return messageWords({ ...record, id: `${message}@${said}`, text, edited: null });
 }
 
 // The last reading `versionProvenance` made, and what it was made from.
@@ -115,21 +119,21 @@ export function waitedWords(logged, { message, said }) {
 let held = null;
 
 /** What the version the comparison shows was saved after, or null where the server
- * says nothing of it. */
+ * says nothing of it. Nothing else is read while no comparison stands, and the words
+ * quoted are read from the threads of the messages quoted. */
 export function versionProvenance() {
   const messages = comparisonSavedAfter();
+  if (!messages) return null;
   const shown = runtime.currentRevision;
-  const { versions, events } = runtime;
+  const { versions } = runtime;
+  const threads = messages.length ? allThreads() : null;
   // A message's words read otherwise once the Markdown renderer has arrived.
-  const inputs = [messages, shown, versions, events, markdownReady()];
+  const inputs = [messages, shown, versions, threads, markdownReady()];
   if (held && held.inputs.every((input, at) => input === inputs[at])) return held.value;
   const stamp = versions.find(({ revision }) => revision === shown);
-  const logged = new Map(events.map((event) => [event.id, event]));
-  const value =
-    messages &&
-    savedAfter(stamp ? `v${stamp.version}` : "Draft", messages, (message) =>
-      waitedWords(logged, message),
-    );
+  const value = savedAfter(stamp ? `v${stamp.version}` : "Draft", messages, (waited) =>
+    waitedWords(threadNamed(waited.thread), waited),
+  );
   held = { inputs, value };
   return value;
 }

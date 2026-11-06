@@ -373,14 +373,20 @@ LEAD_IN_PAGE = leaf_page(
     """
 <h2>Outer</h2>
 <p><a id="to-folded" href="#folded">folded words</a>,
-<a id="to-kept" href="#kept">words after a kept newline</a> and
-<a id="to-drawn" href="#drawn">words after a drawn title</a></p>
+<a id="to-kept" href="#kept">words after a kept newline</a>,
+<a id="to-drawn" href="#drawn">words after a drawn title</a>,
+<a id="to-slotted" href="#slotted">words after a slotted title</a> and
+<a id="to-tallied" href="#tallied">words after a tally</a></p>
 <details id="fold"><summary>Disclosure</summary><div><strong>Group</strong>
 <span hidden>words</span><p id="folded">Folded words.</p></div></details>
 <div style="white-space: pre-line"><strong>Kept</strong>
 <span id="kept">Kept words.</span></div>
 <p><strong><span id="drawn-title">Group</span></strong> runs on
 <span id="drawn">Drawn words.</span></p>
+<p><span id="slot-words"><strong>Slotted</strong> continues
+<span id="slotted">Slotted words.</span></span></p>
+<p><strong>Tallied</strong><lf-tally id="lead-tally" for="fold"></lf-tally> after
+<span id="tallied">Tallied words.</span></p>
 <p id="elsewhere">Words elsewhere.</p>
 """,
 )
@@ -392,8 +398,9 @@ def test_a_bold_lead_in_runs_on_by_its_markup_whatever_draws_it(engine, request,
     the markup, so the name a card gives what follows it stands while the page draws it
     differently: with the disclosure around it closed or open and after an edit
     elsewhere, a title followed by words the page hides runs into them; a newline the
-    whitespace keeps is no break; and a title whose words a widget's declared tree draws
-    runs into the words after it."""
+    whitespace keeps is no break; a title whose words a widget's declared tree draws
+    runs into the words after it, as one a declared tree's slot draws does; and a widget
+    set among the words, whose tree holds Leaf's own apparatus, is no break either."""
     page = open_page(request.getfixturevalue(engine), serve(LEAD_IN_PAGE))
     page.evaluate(
         """async () => {
@@ -405,6 +412,15 @@ def test_a_bold_lead_in_runs_on_by_its_markup_whatever_draws_it(engine, request,
           const host = document.createElement('lf-staged-title');
           words.replaceWith(host);
           shadowStage(host, [words]);
+          // A title and its words assigned to a slot inside a declared tree's span.
+          registry['lf-slot-host'] = {'x-shadow': true};
+          const held = document.getElementById('slot-words');
+          const slotHost = document.createElement('lf-slot-host');
+          held.replaceWith(slotHost);
+          const line = document.createElement('span');
+          line.append(document.createElement('slot'));
+          shadowStage(slotHost, [line]);
+          slotHost.append(...held.childNodes);
         }"""
     )
     preview = page.locator(PREVIEW)
@@ -425,6 +441,8 @@ def test_a_bold_lead_in_runs_on_by_its_markup_whatever_draws_it(engine, request,
     named("#to-folded", "Disclosure")
     named("#to-kept", "Outer")
     named("#to-drawn", "Outer")
+    named("#to-slotted", "Outer")
+    named("#to-tallied", "Outer")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

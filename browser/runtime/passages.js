@@ -614,9 +614,13 @@ export const authored = (root) => {
 //
 // `readingParent`, below, climbs the tree this walk comes down, so a root or a slot this
 // walk treats differently changes there too.
+//
+// `skip` answering true leaves an element out. It is handed the context the element
+// opens as a function, so a reader that leaves an element out by what the reading
+// counts there asks the walk's own answer, and one that never asks costs nothing.
 /** @param {Node} root
  * @param {(node: Text, ctx: ReadingContext) => void} onText
- * @param {((element: Element) => boolean) | null} [skip]
+ * @param {((element: Element, context: () => ReadingContext) => boolean) | null} [skip]
  * @param {((ctx: ReadingContext, br: Element) => void) | null} [onBreak]
  * @param {((element: Element, ctx: ReadingContext, entering: boolean) => void) | null} [onElement] */
 function walk(root, onText, skip = null, onBreak = null, onElement = null) {
@@ -630,7 +634,10 @@ function walk(root, onText, skip = null, onBreak = null, onElement = null) {
   };
   /** @param {Element} child @param {ReadingContext} ctx */
   const visitElement = (child, ctx) => {
-    if (!skip?.(child)) enterElement(child, enter(ctx, child));
+    /** @type {ReadingContext | undefined} */
+    let inner;
+    const opens = () => (inner ??= enter(ctx, child));
+    if (!skip?.(child, opens)) enterElement(child, opens());
   };
   // An element entered with the context it opens. A root handed in is entered exactly
   // as a descendant is, so a slot reads what is assigned to it, not its fallback, and a
@@ -1116,34 +1123,45 @@ export const says = (el, options = {}) => {
 const phrasing = (element) =>
   element.matches(PHRASING) || Boolean(registry[element.localName]?.["x-inline"]);
 /** Whether authored words follow `title` on its line inside `container`, by the markup
- * alone: words its author wrote after it, through the tree the walk reads (a widget's
- * declared tree, a slot's assignment), before a `<br>`, an element outside phrasing
- * content (`phrasing`), or the end of what holds the title. No style is read, so a line
- * is the same whatever the reader opens, hides or resizes.
+ * alone: words its author wrote after it, before a `<br>`, an element outside phrasing
+ * content (`phrasing`), or the end of a block holding the title. It is the walk's
+ * reading throughout: its tree (a widget's declared tree, a slot's assignment, climbed
+ * by `readingParent`), and what its `wrote` reading counts, so Leaf's own apparatus in a
+ * widget's tree neither runs on nor ends the line. No style is read, so a line is the
+ * same whatever the reader opens, hides or resizes.
  * @param {Element} title @param {Element} container */
 export function runsIntoLine(title, container) {
+  const counts = READINGS.wrote;
   let past = false;
   let ended = false;
   let follows = false;
   walk(
     container,
     (node, ctx) => {
-      if (past && !ended && READINGS.wrote(ctx) && node.data.trim())
-        follows = ended = true;
+      if (past && !ended && counts(ctx) && node.data.trim()) follows = ended = true;
     },
-    (child) => {
+    (child, opens) => {
       if (ended) return true;
       if (!past) {
-        // The title's own words are no part of its line's.
-        if (child === title) return (past = true);
-        return !child.contains(title);
+        // What comes before the title holds none of its line, and its own words are no
+        // part of it.
+        if (child !== title) return !readingUnder(title, child);
+        past = true;
+        return true;
       }
-      if (isHTML(child, "br") || !phrasing(child)) ended = true;
+      if (counts(opens()) && (isHTML(child, "br") || !phrasing(child))) ended = true;
       return ended;
     },
     null,
-    (element, _ctx, entering) => {
-      if (!entering && past && element !== container && element.contains(title))
+    (element, ctx, entering) => {
+      if (
+        !entering &&
+        past &&
+        element !== container &&
+        counts(ctx) &&
+        !phrasing(element) &&
+        readingUnder(title, element)
+      )
         ended = true;
     },
   );

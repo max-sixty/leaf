@@ -493,8 +493,9 @@ def test_a_preview_put_away_stays_away_until_the_user_aims_again(
     """Escape puts a focus preview away, and an element declaring its preview again,
     as a chart redrawing with the same point does, brings nothing back; nor does a
     grip whose words come back once its card is put down. The element hears that its
-    preview ended (`PREVIEW_ENDED`). Focus a script moves while a key is down shows
-    nothing, and the user stepping back with the keyboard shows it again."""
+    preview ended (`PREVIEW_ENDED`). A widget placing focus as a move after a
+    microtask shows it, since the cause is the placement's, and the user stepping
+    back with the keyboard shows it again."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
@@ -542,11 +543,19 @@ def test_a_preview_put_away_stays_away_until_the_user_aims_again(
     page.wait_for_timeout(300)
     expect(tip).to_be_hidden()
 
-    page.keyboard.down("Shift")
-    page.evaluate("() => document.getElementById('chart').focus()")
-    page.keyboard.up("Shift")
-    page.wait_for_timeout(300)
+    page.keyboard.press("Shift+Tab")
+    expect(tip).to_have_text("Point 2")
+    page.keyboard.press("Escape")
     expect(tip).to_be_hidden()
+    page.evaluate(
+        """async () => {
+          const {focusDestination} = await import('/runtime/focus.js');
+          document.getElementById('before').focus();
+          queueMicrotask(() =>
+            focusDestination(document.getElementById('chart'), 'move'));
+        }"""
+    )
+    expect(tip).to_have_text("Point 2")
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     expect(tip).to_have_text("Point 2")

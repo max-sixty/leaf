@@ -54,11 +54,11 @@ same step, through its row's `keep` where `run` would throw away unsent words
 - A preview standing over the page is the first step, by pointer or by focus: Escape
   puts it away and does nothing else, and the next Escape takes the step it stood in
   front of (`preview.js`). Any other key puts a pointer's preview away and does its own
-  work. A focus preview stands only where the user moved focus themselves, by Tab, a
-  placement standing in for one (`step`), a walk (`beginWalk`) or a command's own run
-  (`commandRunning`, not Escape's), so focus a surface places as it opens, or Escape
-  leaves as it backs out, costs no Escape, and one put away stays away until the user
-  aims again, whatever a widget declares meanwhile.
+  work. A focus preview stands only where focus was moved by Tab, a placement standing
+  in for one (`step`) or a move to a place (`move`), the cause its mover gives
+  `focusDestination`, so focus a surface places as it opens, or hands back as it closes
+  or as Escape backs the user out (`return`), costs no Escape, and one put away stays
+  away until the user aims again, whatever a widget declares meanwhile.
 - Draw and Design are page modes; surfaces opened inside them close first.
 - A surface's own state, such as Threads' search, clears before the surface closes.
   Page-side selections, targets, margin clusters and the page composer coexist beside a view the

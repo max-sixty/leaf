@@ -105,14 +105,13 @@
      preview away.
    - Keyboard focus the browser shows (`:focus-visible`) shows its target's preview at
      once, with no fade, where the user moved it there, as whoever moved it says: a Tab
-     or Shift+Tab, or a placement standing in for one (focus.js, `step`), a keyboard
-     walk's landing (walk-declaration.js, `beginWalk`), as the `m` walk onto a margin
-     card's message, and a move a command the user invoked makes as it runs
-     (dispatch.js, `commandRunning`). Leaving the target hides it. Focus a surface places
-     as it opens, as the Page Map's first row, focus it hands back as it closes, focus
-     Escape's step leaves them on as they back out, and focus an authored script moves
-     show nothing: the user is opening or backing out, and a preview there would take
-     their next Escape. A declaration
+     or Shift+Tab, or a placement standing in for one (`step`), and a move to a place
+     (`move`), as a walk lands, the `m` walk onto a margin card's message among them: the
+     cause its mover gives (focus.js, `focusDestination`). Leaving the target hides it.
+     Focus a surface places as it opens, as the Page Map's first row, and focus handed
+     back as a surface closes or as Escape backs the user out (`return`) show nothing:
+     the user is opening or backing out, and a preview there would take their next
+     Escape. A declaration
      that stops being true, as a grip's once its card is grabbed, says so
      (`previewChanged`), which redraws a preview standing on focus and opens none.
    - A screen reader hears every preview shown on focus, whatever supplied it, as the
@@ -201,14 +200,12 @@ import {
   renderedUnder,
   under,
 } from "./shadow-tree.js";
-import { commandRunning } from "./keyboard/dispatch.js";
 import { PREVIEW, PREVIEW_ENDED } from "./widget-upgrade.js";
 import { keeps, layoutPx } from "./keeps.js";
 import { sizeObserver } from "./rendering.js";
 import { watchOwner } from "./arrivals.js";
 import { actionClass } from "./control-faces.js";
 import { shownParts } from "./geometry.js";
-import { WALK } from "./walk-declaration.js";
 
 /** @typedef {string | Node | import("/vendor/lit.js").TemplateResult} Word
  * @typedef {Word | readonly Word[]} Words
@@ -1024,24 +1021,15 @@ export function mountPreviews(chrome) {
     { capture: true, passive: true },
   );
   // Focus arriving is a new reading, whatever put the target's last one away, and
-  // focus leaving takes its preview along. It shows where the user moved it themselves,
-  // as whoever moved it says: a Tab, Shift+Tab or a placement standing in for one
-  // (`step`), and a keyboard walk as it lands (`beginWalk`), which declares itself once
-  // its owner has moved focus.
+  // focus leaving takes its preview along. It shows where the user moved it, as whoever
+  // moved it says (focus.js, `focusDestination`): a Tab, Shift+Tab or a placement
+  // standing in for one (`step`), and a move to a place, as a walk lands (`move`), but
+  // not one that enters a surface as it opens.
   onCurrentLocation((node, cause, left) => {
     quiet = null;
     if (shown?.route === "focus" && shown.from !== node) hide();
-    if (
-      node &&
-      (cause === "step" ||
-        (cause === "move" && commandRunning() && !entersSurface(node, left)))
-    )
+    if (node && (cause === "step" || (cause === "move" && !entersSurface(node, left))))
       showFocus(node);
-  });
-  window.addEventListener(WALK, () => {
-    const node = focused();
-    quiet = null;
-    if (node) showFocus(node);
   });
   // Escape is the preview's own step while one stands, ahead of every other, which
   // does nothing else; any other key puts a pointer's away and goes on to its work.

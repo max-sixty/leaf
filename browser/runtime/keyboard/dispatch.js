@@ -452,7 +452,7 @@ function invokeCommand(command) {
   const invocation = invocationFor(command.row, command.binding, command.entry);
   if (!invocation) return false;
   announceInvocation(invocation);
-  userRuns(invocation);
+  invocation.run();
   return true;
 }
 
@@ -536,26 +536,8 @@ export function dispatchKey(ev) {
   if (!matched.native) ev.preventDefault();
   if (ev.repeat && !matched.row.repeat) return true;
   announceInvocation(matched);
-  userRuns(matched);
+  matched.run();
   return true;
-}
-
-// Whether a command the user invoked, by its key or from the reference, is running now:
-// where its own run moves focus, the user asked to go there (preview.js). Escape's step
-// backs them out, as from a reply box to its thread, and where it leaves them is no
-// aim of theirs. What a command does later, once a promise it made settles, is its own
-// to say, as a walk says it has landed (walk-declaration.js, `beginWalk`).
-let running = 0;
-export const commandRunning = () => running > 0;
-/** @param {{run: () => unknown, binding: string | undefined}} invocation */
-function userRuns({ run, binding }) {
-  const aims = binding !== "Escape";
-  if (aims) running += 1;
-  try {
-    run();
-  } finally {
-    if (aims) running -= 1;
-  }
 }
 
 // An action chosen from the reference has no keydown to match, but it still belongs to
@@ -665,7 +647,7 @@ export function invokePress({ id, row, binding }) {
   const invocation = invocationFor(row, binding, { id });
   if (!invocation) return false;
   announceInvocation(invocation);
-  userRuns(invocation);
+  invocation.run();
   return true;
 }
 /** @param {string} id */

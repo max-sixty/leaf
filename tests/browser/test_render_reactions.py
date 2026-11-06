@@ -37,6 +37,7 @@ from render_harness import (
     expect_on_me,
     expect_open_threads,
     expect_panel_says,
+    expect_preview_words,
     held_frames,
     holding,
     leaf_page,
@@ -2460,7 +2461,7 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
     told(page)
     news = page.locator(".lf-fp-head .lf-thread-news")
     expect(news).to_have_text("1 new")
-    expect(news).to_have_attribute("title", "Resolved")
+    expect_preview_words(news, "Resolved")
     expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     count = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("1")

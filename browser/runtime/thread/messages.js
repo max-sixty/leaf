@@ -593,7 +593,10 @@ export class MessageView {
     const copy =
       model.markdown && !editor ? this.#copyControl(model.markdown) : nothing;
     const receipt = model.workflowWord
-      ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
+      ? html`<span
+          class="lf-msg-sending"
+          .lfPreview=${() =>
+            model.workflowTitle ? { name: model.workflowTitle } : null}
           >${voiced(model.workflowWord)}</span
         >`
       : nothing;
@@ -630,7 +633,11 @@ export class MessageView {
           }
           ${
             model.edited && model.body.kind !== "deleted"
-              ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
+              ? html`<span
+                  class="lf-edited"
+                  .lfPreview=${() => ({ name: model.edited })}
+                  >edited</span
+                >`
               : nothing
           }
           ${

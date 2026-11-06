@@ -205,6 +205,7 @@ import {
 import { PREVIEW, PREVIEW_ENDED } from "./widget-upgrade.js";
 import { keeps, layoutPx } from "./keeps.js";
 import { sizeObserver } from "./rendering.js";
+import { atClock, clockNow } from "./presence.js";
 import { watchOwner } from "./arrivals.js";
 import { actionClass } from "./control-faces.js";
 import { shownParts } from "./geometry.js";
@@ -221,7 +222,7 @@ import { shownParts } from "./geometry.js";
  * @typedef {{name: Words | null, keys: Presses, detail: Words[], list: List | null, at: Element | import("./rect.js").Box | null, excerpt: boolean, restates: boolean}} Reading
  * @typedef {import("./rect.js").Box} Box
  * @typedef {Element | Range} Target
- * @typedef {{from: Target, target: Target, holder: Element, route: Route, read: Read | null, at: {x: number, y: number} | undefined, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
+ * @typedef {{from: Target, target: Target, holder: Element, route: Route, read: Read | null, at: {x: number, y: number} | undefined, clock: number, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
  * @typedef {{pointerId: number, parent: Element | null, target: Element | null, armed: boolean, timer: ReturnType<typeof setTimeout>}} Hold */
 
 const DWELL = 200;
@@ -560,6 +561,7 @@ function show(from, route, read = null, at, again = false) {
     route,
     read,
     at,
+    clock: clockNow(),
     stop: () => {},
     described: null,
   };
@@ -1028,12 +1030,16 @@ const showFocus = (node) =>
 
 // A new presentation of the document reads the standing preview again, as the place a
 // link opens or a thread's turn changes under it: what it says now is drawn where it
-// stands, with no fade, and words that came back the same leave it as it is. A
-// preview whose target now says nothing goes.
+// stands, with no fade, and words that came back the same leave it as it is. It is read
+// at the moment it first showed (presence.js, `atClock`), so a presentation whose only
+// change is the clock, as a later state read's, ages nothing it says. A preview whose
+// target now says nothing goes.
 function refresh() {
   const record = shown;
   if (!record) return;
-  const found = readFrom(record.from, record.route, record.read);
+  const found = atClock(record.clock, () =>
+    readFrom(record.from, record.route, record.read),
+  );
   if (!found) return hide();
   if (found.target !== record.target)
     return void show(record.from, record.route, record.read, record.at, true);

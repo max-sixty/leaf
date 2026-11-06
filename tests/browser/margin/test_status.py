@@ -21,6 +21,7 @@ from render_harness import (
     BOARD_PAGE,
     PREVIEW,
     RELEASE_FOCUS,
+    expect_preview_words,
     leaf_page,
     margins_laid_out,
     open_page,
@@ -441,7 +442,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     working_thread = open_panel_thread(page, roots[0]["id"])
     workflow = working_thread.locator(".lf-msg-sending", has_text="On it")
     expect(workflow).to_have_text("On it")
-    expect(workflow).to_have_attribute("title", f"On it · {detail}")
+    expect_preview_words(workflow, f"On it · {detail}")
 
 
 @pytest.mark.parametrize("annotations", ["margin", "page"])

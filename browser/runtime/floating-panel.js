@@ -531,7 +531,9 @@ export function createFloatingPanel({
       )}
       ?data-lf-due=${!exit && onUser > 0}
       ?disabled=${Boolean(exit?.disabled)}
-      @mousedown=${exit ? (/** @type {MouseEvent} */ event) => event.preventDefault() : nothing}
+      @mousedown=${
+        exit ? (/** @type {MouseEvent} */ event) => event.preventDefault() : nothing
+      }
       @click=${exit ? () => exit.press() : pressMark}
     >
       ${
@@ -558,9 +560,9 @@ export function createFloatingPanel({
               data-lf-thread=${thread ?? nothing}
               ?data-lf-thread-view=${thread !== null}
             >
-              ${top ? headTemplate(top, closeAtFoot ? nothing : viewClose) : nothing}${
-                initial ? nothing : joinedTemplate()
-              }
+              ${
+                top ? headTemplate(top, closeAtFoot ? nothing : viewClose) : nothing
+              }${initial ? nothing : joinedTemplate()}
             </div>
             <div class="lf-fp-stage">
               ${
@@ -1319,7 +1321,9 @@ export function createFloatingPanel({
       : threadAttention(thread, agentName())?.word;
     const since = thread.resolved ? shortAgo(thread.resolved.ts) : "";
     const draft = draftHasContent(replyContext(thread.key)) && "Draft";
-    return html`${word ? voiced(word) : nothing}${since ? html` <span class="lf-fp-age">${since}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
+    return html`${word ? voiced(word) : nothing}${
+      since ? html` <span class="lf-fp-age">${since}</span>` : nothing
+    }${word && draft ? " · " : ""}${draft || nothing}`;
   };
   const rows = () => pageControls();
 
@@ -2462,7 +2466,9 @@ export function createFloatingPanel({
               ${menuItem(
                 html`${entry.name}${
                   entry.note
-                    ? html` <span class="lf-fp-note" title=${entry.note}
+                    ? html` <span
+                        class="lf-fp-note"
+                        .lfPreview=${() => ({ name: entry.note })}
                         >${entry.note}</span
                       >`
                     : nothing
@@ -2758,7 +2764,9 @@ export function createFloatingPanel({
         data-lf-key=${thread.key}
         ?data-lf-unread=${isNews(thread)}
         ?data-lf-resolved=${thread.resolved}
-        data-lf-turn=${threadAttention(thread, agentName())?.kind === "needs_user" ? "user" : nothing}
+        data-lf-turn=${
+          threadAttention(thread, agentName())?.kind === "needs_user" ? "user" : nothing
+        }
         @click=${() => open({ view: "thread", thread: thread.key })}
       >
         <span class="lf-row-lead"
@@ -2795,7 +2803,11 @@ export function createFloatingPanel({
         listed.length || !inventoried()
           ? nothing
           : html`<p class="lf-rows-empty">
-              ${searched ? "Nothing matches." : "No open threads. Comment below to start one."}
+              ${
+                searched
+                  ? "Nothing matches."
+                  : "No open threads. Comment below to start one."
+              }
             </p>`
       }
       ${bandedGroups(groups, (thread) => thread.key, row)}
@@ -3163,7 +3175,9 @@ export function createFloatingPanel({
   /** @template {string} T @param {{label: string, values: readonly T[], name: (value: T) => string,
    * current: T, choose: (value: T) => unknown}} options */
   const chooser = ({ label, values, name, current, choose }) =>
-    html`<span class="lf-fp-chooser" title=${`${label}: ${name(current)}`}
+    html`<span
+      class="lf-fp-chooser"
+      .lfPreview=${() => ({ name: `${label}: ${name(current)}` })}
       >${actionTemplate("arrange", "lf-action-icon")}<select
         aria-label=${label}
         .value=${live(current)}
@@ -3563,7 +3577,9 @@ export function createFloatingPanel({
                       : nothing
                   }${
                     choice.description
-                      ? html`<span class="lf-fp-choice-says" title=${choice.description}
+                      ? html`<span
+                          class="lf-fp-choice-says"
+                          .lfPreview=${() => ({ name: choice.description })}
                           >${choice.description}</span
                         >`
                       : nothing
@@ -3607,7 +3623,11 @@ export function createFloatingPanel({
         data-lf-key=${key}
         data-lf-obligation-id=${record?.id ?? nothing}
         ?data-lf-walked=${walked}
-        style=${opening.seatHeights.has(key) ? `min-height: ${opening.seatHeights.get(key)}px` : ""}
+        style=${
+          opening.seatHeights.has(key)
+            ? `min-height: ${opening.seatHeights.get(key)}px`
+            : ""
+        }
       >
         ${cardHead(
           [
@@ -3944,7 +3964,10 @@ export function createFloatingPanel({
     const [last] = done;
     return html`<div class="lf-fp-work-summary">
       <p>
-        ${voiced([leafSays(first), ...(now ? [leafSays(" Now: "), now, leafSays(".")] : [])])}
+        ${voiced([
+          leafSays(first),
+          ...(now ? [leafSays(" Now: "), now, leafSays(".")] : []),
+        ])}
       </p>
       ${
         progress
@@ -3994,14 +4017,19 @@ export function createFloatingPanel({
                 : nothing
             }`;
           return row.self
-            ? html`<div class="lf-fp-page" title=${row.account}>${face}</div>`
+            ? html`<div
+                class="lf-fp-page"
+                .lfPreview=${() => (row.account ? { name: row.account } : null)}
+              >
+                ${face}
+              </div>`
             : html`<a
                 ${offeredAction("row", "lf-fp-page")}
                 data-lf-key=${row.key}
                 href=${row.href}
                 target="_blank"
                 rel="noopener"
-                title=${row.account}
+                .lfPreview=${() => (row.account ? { detail: [row.account] } : null)}
                 >${face}</a
               >`;
         },
@@ -4504,7 +4532,9 @@ export function createFloatingPanel({
               >
                 ${press.label}${
                   press.keys?.length && advertisesKeys()
-                    ? html` ${keySequenceTemplate(keySequenceModel(neutralSteps(press.keys)))}`
+                    ? html` ${keySequenceTemplate(
+                        keySequenceModel(neutralSteps(press.keys)),
+                      )}`
                     : nothing
                 }
               </button>`

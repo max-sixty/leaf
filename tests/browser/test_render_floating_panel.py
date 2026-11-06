@@ -34,6 +34,7 @@ from render_harness import (
     PREVIEW,
     close_panel_menu,
     consume_browser_errors,
+    expect_preview_words,
     holding,
     http_error_console,
     open_page,
@@ -958,7 +959,7 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     expect(words).to_have_text("Reply…")
     agent({"kind": "resolve", "parent": root})
     notice = page.locator(".lf-fp-news-outlet .lf-thread-news")
-    expect(notice).to_have_attribute("title", "Resolved")
+    expect_preview_words(notice, "Resolved")
     expect(page.locator(".lf-fp-head .lf-resolve")).to_be_visible()
     expect(words).to_have_text("Reply…")
     # Off the field, it says the thread's word before Reply, which isn't Resolved yet.
@@ -1527,7 +1528,7 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     panel_comment(serve.page_dir, "Who watches the weekend?")
     told(page)
     joined = page.locator(".lf-fp-joined .lf-thread-news")
-    expect(joined).to_have_attribute("title", "1 new thread")
+    expect_preview_words(joined, "1 new thread")
     settled(page)
     # The line starts on the words' edge, as the rows' marks do.
     assert page.locator(".lf-fp-joined").evaluate(
@@ -1604,7 +1605,7 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
     )
     panel_comment(serve.page_dir, "Should the close name the rollout?", author="agent")
     told(page)
-    expect(notice).to_have_attribute("title", "1 new thread · 1 thread reopened")
+    expect_preview_words(notice, "1 new thread · 1 thread reopened")
     settled(page)
     assert rows.evaluate_all(tops) == before
 
@@ -1620,7 +1621,7 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
         {"kind": "resolve", "author": "agent", "agent": "Claude", "parent": root},
     )
     told(page)
-    expect(notice).to_have_attribute("title", "1 thread resolved")
+    expect_preview_words(notice, "1 thread resolved")
     expect(rows.first).to_have_text(re.compile("Is the opening right?"))
     panel_tab(page, "Threads").click()
     expect(notice).to_have_count(0)
@@ -1647,7 +1648,7 @@ def test_resolved_news_unfolds_resolved_to_land_on_its_row(browser, serve):
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": settling}
     )
     told(page)
-    expect(notice).to_have_attribute("title", "1 thread resolved")
+    expect_preview_words(notice, "1 thread resolved")
     expect(row).to_be_visible()
     expect(view.locator(".lf-rows-group > .lf-rows-head")).to_have_text(
         [re.compile(r"^\s*Open\s*2\s*$")]
@@ -4120,7 +4121,7 @@ def test_versions_travel_opens_in_the_panel(browser, serve):
     # Each version says the note its stamp gave it after its name, whole on hover, and a
     # listener hears the name and the note as two words, the note once.
     expect(view.locator(".lf-fp-note")).to_have_text(["two", "t"])
-    expect(view.locator(".lf-fp-note").first).to_have_attribute("title", "two")
+    expect_preview_words(view.locator(".lf-fp-note").first, "two")
     first = view.locator(".lf-fp-version .lf-fp-item").first
     expect(first).to_have_accessible_name("v2 (latest version) two")
     expect(first).to_have_accessible_description("")

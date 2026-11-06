@@ -56,6 +56,7 @@ from render_harness import (
     TOKEN,
     consume_browser_errors,
     expect_open_threads,
+    expect_preview_words,
     fetch_whole_state,
     held_frames,
     http_error_console,
@@ -519,7 +520,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     # draft is in view. The user can reveal it without losing their reply.
     notice = thread.locator(".lf-thread-news")
     expect(notice).to_have_text("1 new")
-    expect(notice).to_have_attribute("title", "Resolved")
+    expect_preview_words(notice, "Resolved")
     expect(thread).to_have_attribute("data-lf-resolved", "false")
     notice.click()
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
@@ -581,7 +582,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     # notice the user opens.
     news = page.locator(".lf-fp-head .lf-thread-news")
     expect(news).to_have_text("1 new")
-    expect(news).to_have_attribute("title", "Resolved")
+    expect_preview_words(news, "Resolved")
     expect(draft).to_have_js_property("value", "keep this unfinished reply")
     news.click()
     expect(view).to_be_visible()

@@ -2771,6 +2771,23 @@ def tab_onto(target):
     expect(target).to_be_focused()
 
 
+def expect_preview_words(target, words):
+    """Wait until `target`'s own preview declaration (`lfPreview`, runtime/preview.js)
+    says `words` as its name or a line of its detail, the whole line for a string or a
+    match for a pattern: the words a pointer, the keyboard or a finger read there, read
+    without showing them."""
+    pattern = words.pattern if isinstance(words, re.Pattern) else None
+    target.page.wait_for_function(
+        """([el, words, pattern]) => {
+          const said = el.lfPreview?.('pointer');
+          const lines = said ? [said.name, ...(said.detail ?? [])] : [];
+          return lines.some((line) => typeof line === 'string'
+            && (pattern === null ? line === words : new RegExp(pattern).test(line)));
+        }""",
+        arg=[target.element_handle(), None if pattern else words, pattern],
+    )
+
+
 def preview_parts(target, route="pointer"):
     """What `target`'s preview shows a pointer resting on it (runtime/preview.js), or
     with `route="focus"` the keyboard stepping onto it: its name, then each line of

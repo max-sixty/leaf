@@ -18,14 +18,8 @@ import {
   targetSegments,
   targetSurface,
 } from "../resolved-target.js";
-import {
-  elementFromPointAcross,
-  hearPageChanges,
-  pageReadingVersion,
-  pageWords,
-  rangeOf,
-  rangePieces,
-} from "../passages.js";
+import { elementFromPointAcross, pageWords, rangeOf } from "../passages.js";
+import { presentDocument } from "../semantic-state.js";
 import { bareReaction } from "../thread/model.js";
 import { threadNamed } from "../thread/state.js";
 import { threadPreview } from "../thread/messages.js";
@@ -103,7 +97,9 @@ function piecesAt(tree, at) {
  * currentLocationThreadId: () => string | null,
  * currentLocationObligation: () => Element | null,
  * rowThread: (under: Element | null) => string | null, threadRow: (id: string) => Element | null,
- * marginThread: () => string | null}} capabilities */
+ * marginThread: () => string | null,
+ * placedAt: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["placedAt"],
+ * settle: () => void}} capabilities */
 export function createAnchorPaint({
   targetPaint,
   pointer,
@@ -112,34 +108,37 @@ export function createAnchorPaint({
   rowThread,
   threadRow,
   marginThread,
+  placedAt,
+  settle,
 }) {
   /** @type {Map<string, Mark[]>} */
   const marked = new Map();
+  // Each marked thread's place in the page's reading order, as the last paint put them.
+  /** @type {Map<string, number>} */
+  const orderOf = new Map();
   // Where the hit test finds each mark (`markHit`), with its thread's place in reading
-  // order: for each text node a passage's ranges intersect, the pieces they cover there
+  // order: for each text node a passage's segments stand in, the pieces they cover there
   // and, read as the hit test first asks, their tree (`piecesAt`); an element's mark by
   // the element; and the shadow trees holding a passage's text, which the caret lookup
-  // looks into. It is read from the marks' live ranges, the ones the highlight paints,
-  // which move with their words as the page's text changes under them, by a revision,
-  // a widget or any script, so the ranges are the one record of where a mark is. Each
-  // change the page's words watcher hears names the text nodes it touched
-  // (passages.js, `hearPageChanges`); the next hit reads again only the ranges indexed
-  // in those nodes, and builds again only those nodes' trees (`reindex`), so a change
-  // elsewhere on the page, as a counter a widget redraws each frame, reads nothing.
+  // looks into. It is read from anchor placement's segments, the one record of where a
+  // passage stands, which placement reads again for the anchors a change to the page's
+  // words touches (anchor-placement.js, `settle`); the index then reads again only those
+  // threads' pieces, in the text nodes they left and the ones they stand in (`replace`).
   /** @typedef {{id: string, where: Mark, order: number}} Findable */
   /** @typedef {Findable & Span & {where: Range}} Piece */
   /** @type {Map<Node, {pieces: Piece[], tree: PieceTree<Piece> | null}>} */
   const inText = new Map();
-  /** @type {Map<Range, {found: Findable, nodes: Node[]}>} */
-  const indexedRanges = new Map();
-  /** @type {Set<Node>} */
-  const touched = new Set();
+  // Each passage painted, by its thread: its place in reading order, and the segments
+  // and ranges placement gave it.
+  /** @typedef {{order: number, segments: readonly import("../passages.js").Segment[], ranges: readonly Range[]}} Painted */
+  /** @type {Map<string, Painted>} */
+  const passages = new Map();
+  /** @type {Map<string, readonly Range[]>} */
+  const reacted = new Map();
   /** @type {Map<Element, Findable[]>} */
   const onElement = new Map();
   /** @type {Set<ShadowRoot>} */
   const markedRoots = new Set();
-  /** @type {(() => void) | null} */
-  let unhear = null;
   /** @type {Map<Element, Element>} */
   const visualTargets = new Map();
   /** @type {Element[]} */
@@ -328,9 +327,8 @@ export function createAnchorPaint({
    * @returns {{id: string, where: Mark, alike: readonly Findable[]} | null} */
   function markHit(x, y, under = elementFromPointAcross(x, y)) {
     if (annotationsHidden() || !under || !pageWords(under)) return null;
-    // The watcher's changes not yet delivered arrive now, ahead of the reading.
-    pageReadingVersion();
-    reindex();
+    // Changes to the page's words not yet placed are placed now, ahead of the reading.
+    settle();
     /** @type {Findable[]} */
     let words = [];
     const caret = inText.size
@@ -381,97 +379,95 @@ export function createAnchorPaint({
   // Index the marks where the hit test finds them (`inText`, `onElement`).
   function index() {
     inText.clear();
-    indexedRanges.clear();
-    touched.clear();
     onElement.clear();
     markedRoots.clear();
-    let order = 0;
     for (const [id, marks] of marked) {
-      for (const where of marks) {
-        if (where instanceof Range) indexRange({ id, where, order });
-        else {
+      const order = orderOf.get(id) ?? 0;
+      const passage = passages.get(id);
+      if (passage) indexPassage(id, passage);
+      else
+        for (const where of marks) {
+          if (where instanceof Range) continue;
           const standing = onElement.get(where) ?? [];
           standing.push({ id, where, order });
           onElement.set(where, standing);
         }
-      }
-      order++;
     }
   }
-  // A range's pieces in each text node it intersects, as it stands now: one, as a
-  // segment's range is made, or several once a split has carried its end into the next
-  // node; and the shadow trees holding them, every level of them, which the caret
-  // lookup must look into to land inside them.
-  /** @param {Findable} found */
-  function indexRange(found) {
-    const where = /** @type {Range} */ (found.where);
-    /** @type {Node[]} */
-    const nodes = [];
-    for (const { node, start, end } of rangePieces(where)) {
-      const text = inText.get(node) ?? { pieces: [], tree: null };
-      text.pieces.push({ ...found, where, start, end });
+  // A passage's pieces, one in the text node each of its segments stands in, and the
+  // shadow trees holding them, every level of them, which the caret lookup must look
+  // into to land inside them.
+  /** @param {string} id @param {Painted} passage */
+  function indexPassage(id, { order, segments, ranges }) {
+    segments.forEach((segment, at) => {
+      const where = ranges[at];
+      if (!where || segment.end <= segment.start) return;
+      const text = inText.get(segment.node) ?? { pieces: [], tree: null };
+      text.pieces.push({ id, where, order, start: segment.start, end: segment.end });
       text.tree = null;
-      inText.set(node, text);
-      nodes.push(node);
-      for (let root = node.getRootNode(); root instanceof ShadowRoot;) {
+      inText.set(segment.node, text);
+      for (let root = segment.node.getRootNode(); root instanceof ShadowRoot;) {
         markedRoots.add(root);
         root = shadowHost(root)?.getRootNode() ?? document;
       }
-    }
-    indexedRanges.set(where, { found, nodes });
+    });
   }
-  // The text nodes a change the watcher heard touched, as far as any mark stands in
-  // them: those it wrote, those it moved in or out, and, for a node it moved in, the
-  // text just before it, which a range spanning the new node also holds.
-  /** @param {readonly MutationRecord[]} records */
-  function heard(records) {
-    /** @param {Node} node */
-    const touch = (node) => {
-      if (inText.has(node)) touched.add(node);
-    };
-    /** @param {Node} node */
-    const touchAll = (node) => {
-      if (node.nodeType === Node.TEXT_NODE) return touch(node);
-      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-      for (let text = walker.nextNode(); text; text = walker.nextNode()) touch(text);
-    };
-    if (!inText.size) return;
-    for (const record of records) {
-      if (record.type === "characterData") touch(record.target);
-      if (record.type !== "childList") continue;
-      record.removedNodes.forEach(touchAll);
-      record.addedNodes.forEach((node) => {
-        touchAll(node);
-        const before = document.createTreeWalker(
-          node.getRootNode(),
-          NodeFilter.SHOW_TEXT,
-        );
-        before.currentNode = node;
-        const text = before.previousNode();
-        if (text) touch(text);
-      });
-    }
-  }
-  // Read again the ranges indexed in the nodes changes touched.
-  function reindex() {
-    if (!touched.size) return;
-    /** @type {Set<Range>} */
-    const ranges = new Set();
-    for (const node of touched)
-      for (const piece of inText.get(node)?.pieces ?? []) ranges.add(piece.where);
-    touched.clear();
-    for (const where of ranges) {
-      const indexed = indexedRanges.get(where);
-      if (!indexed) continue;
-      for (const node of indexed.nodes) {
-        const text = inText.get(node);
-        if (!text) continue;
-        text.pieces = text.pieces.filter((piece) => piece.where !== where);
-        text.tree = null;
-        if (!text.pieces.length) inText.delete(node);
+  // Placement read again the threads `ids` a change to the page's words touched
+  // (anchor-placement.js, `settle`): their passages' marks are its new ranges, painted
+  // in place of the old ones, and the index reads again only the text nodes they left
+  // and stand in, each once, however many of their pieces it holds. A thread whose
+  // anchor now stands on an element, or on nothing it marks, is painted again whole.
+  /** @param {readonly string[]} ids */
+  function replace(ids) {
+    const affected = new Set(ids.filter((id) => passages.has(id) || reacted.has(id)));
+    if (!affected.size) return;
+    const mark = CSS.highlights.get(MARK);
+    const react = CSS.highlights.get(REACT);
+    /** @type {Set<Node>} */
+    const nodes = new Set();
+    let whole = false;
+    for (const id of affected) {
+      const found = placedAt(id);
+      const segments = targetSegments(found);
+      const ranges =
+        found?.kind === "passage" && found.status !== "outdated" ? found.ranges : null;
+      const was = reacted.get(id);
+      if (was) {
+        for (const range of was) react?.delete(range);
+        reacted.set(id, ranges ?? []);
+        for (const range of ranges ?? []) react?.add(range);
+        continue;
       }
-      indexRange(indexed.found);
+      const old = /** @type {Painted} */ (passages.get(id));
+      for (const segment of old.segments) nodes.add(segment.node);
+      for (const range of old.ranges) mark?.delete(range);
+      if (!found || !ranges) {
+        passages.delete(id);
+        marked.delete(id);
+        whole ||= Boolean(found && targetElement(found));
+        continue;
+      }
+      passages.set(id, { order: old.order, segments, ranges });
+      marked.set(id, [...ranges]);
+      for (const range of ranges) mark?.add(range);
+      for (const segment of segments) nodes.add(segment.node);
     }
+    if (whole) return void presentDocument();
+    for (const node of nodes) {
+      const text = inText.get(node);
+      if (!text) continue;
+      text.pieces = text.pieces.filter((piece) => !affected.has(piece.id));
+      text.tree = null;
+      if (!text.pieces.length) inText.delete(node);
+    }
+    for (const id of affected) {
+      const passage = passages.get(id);
+      if (passage) indexPassage(id, passage);
+    }
+    if (hovering && affected.has(hovering)) paintHover(hovering, hoverFromRow, false);
+    paintCurrentLocation(false);
+    paintVisualStates();
+    refreshHover();
   }
 
   // A thread's mark previews the thread, as its margin entry does (`threadPreview`),
@@ -583,6 +579,9 @@ export function createAnchorPaint({
     const before = outlined();
     const last = new Map(marked);
     marked.clear();
+    passages.clear();
+    reacted.clear();
+    orderOf.clear();
     pendingOutline = [];
     actionOutline = [];
     visualTargets.clear();
@@ -601,19 +600,29 @@ export function createAnchorPaint({
 
       const ranges = found.kind === "passage" ? (found.ranges ?? []) : [];
       if (bareReaction(thread)) {
+        reacted.set(thread.id, ranges);
         reactions.push(...ranges);
         continue;
       }
 
       const kept = last.get(thread.id);
+      orderOf.set(thread.id, orderOf.size);
       if (targetElement(found)) {
         rememberVisual(found);
         if (!thread.root.drawing) {
           const parts = targetParts(found);
           marked.set(thread.id, kept && sameParts(kept, parts) ? kept : parts);
         }
-      } else if (!thread.root.drawing) {
-        marked.set(thread.id, ranges);
+      } else if (!thread.root.drawing && found.kind === "passage") {
+        const order = orderOf.get(thread.id) ?? 0;
+        passages.set(thread.id, { order, segments: targetSegments(found), ranges });
+        marked.set(
+          thread.id,
+          kept?.length === ranges.length &&
+            kept.every((mark, at) => mark === ranges[at])
+            ? kept
+            : [...ranges],
+        );
         posted.push(...ranges);
       }
     }
@@ -660,7 +669,6 @@ export function createAnchorPaint({
     mounted = true;
     document.addEventListener("pointermove", pointerAimed);
     document.addEventListener("pointerdown", pointerAimed);
-    unhear = hearPageChanges(heard);
   }
 
   function destroy() {
@@ -668,8 +676,7 @@ export function createAnchorPaint({
       document.removeEventListener("pointermove", pointerAimed);
       document.removeEventListener("pointerdown", pointerAimed);
     }
-    unhear?.();
-    unhear = null;
+
     mounted = false;
     if (pointed) pointRange(null);
     pointed = false;
@@ -679,6 +686,8 @@ export function createAnchorPaint({
     hoverFrame = 0;
     const before = outlined();
     marked.clear();
+    passages.clear();
+    reacted.clear();
     index();
     pendingOutline = [];
     actionOutline = [];
@@ -700,6 +709,7 @@ export function createAnchorPaint({
     mount,
     destroy,
     paint,
+    replace,
     paintCurrentLocation,
     refreshHover,
     markAt,

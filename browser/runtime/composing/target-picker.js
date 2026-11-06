@@ -15,6 +15,7 @@ import {
   pageText,
   quoteFrom,
   rangeOf,
+  passageStart,
   segmentPieces,
   segmentsBox,
 } from "../passages.js";
@@ -488,7 +489,7 @@ export function createTargetPicker({
   // `scrollToPassage`).
   function showMatch() {
     const segments = matches.value[active];
-    if (!segments || matchRect(segments)) return;
+    if (!segments || matchRect(passageStart(segments))) return;
     scrollToPassage(segments, "instant");
   }
 

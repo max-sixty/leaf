@@ -12,11 +12,11 @@
 
 import { shownParts } from "./geometry.js";
 import { renderedOrder } from "./shadow.js";
-import { rangeOf, rangePieces, segmentLines, segmentsBox } from "./passages.js";
+import { rangeOf, segmentLines, segmentsBox } from "./passages.js";
 
 /** @typedef {{exact: boolean, status: "exact" | "fallback" | "outdated", datumElement: Element | null}} Resolution
  * @typedef {Resolution & {kind: "element", element: Element, place: Element, surface: Element | null}} ElementTarget
- * @typedef {Resolution & {kind: "passage", place: Element | null, segments: import("./passages.js").Segment[], ranges?: Range[]}} PassageTarget
+ * @typedef {Resolution & {kind: "passage", place: Element | null, segments: import("./passages.js").Segment[], ranges?: readonly Range[]}} PassageTarget
  * @typedef {Resolution & {kind: "message", message: string, place: null}} MessageTarget
  * @typedef {ElementTarget | PassageTarget | MessageTarget} ResolvedTarget */
 
@@ -80,23 +80,9 @@ export function readingOrder(left, right) {
   return left.start - right.start;
 }
 
-// A passage's segments as its words stand now. Anchor placement keeps a live range of
-// each segment it resolved (anchor-placement.js), which moves with its words as a
-// revision, a widget or a script changes the page before the next reading, and which
-// the anchor paint paints and finds the pointer in; so every reader of a placed
-// passage, the margin, the card standing by it and travel to it, reads that one record
-// of where it is. A passage resolved for one reading has only its segments.
-/** @param {ResolvedTarget | null | undefined} resolved
- * @returns {import("./passages.js").Segment[]} */
-export const targetSegments = (resolved) => {
-  if (resolved?.kind !== "passage") return [];
-  const { segments, ranges } = resolved;
-  if (!ranges) return segments;
-  return ranges.flatMap((range, at) => {
-    const segment = segments[at];
-    return segment ? rangePieces(range).map((piece) => ({ ...segment, ...piece })) : [];
-  });
-};
+/** @param {ResolvedTarget | null | undefined} resolved */
+export const targetSegments = (resolved) =>
+  resolved?.kind === "passage" ? resolved.segments : [];
 
 /** @param {ResolvedTarget | null | undefined} resolved */
 export const targetPlace = (resolved) => resolved?.place ?? null;

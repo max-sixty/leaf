@@ -5793,6 +5793,225 @@ def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request,
     assert 0 <= start["top"] and start["bottom"] <= 600, start
 
 
+# A paragraph whose marked phrase follows other words in its text node, after an
+# element of its own words, so a change can leave the phrase's text node standing
+# after another text node in the paragraph.
+CHANGED = (
+    '<p id="changed"><em>Lead words</em> Prefix words before the marked phrase '
+    "and after it.</p>" + "<p>More.</p>" * 4
+)
+# The phrase's place: the box of its first three characters, wherever its text node is.
+PHRASE_AT = """(words) => {
+  const p = document.getElementById('changed');
+  const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+  for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+    const at = text.data.indexOf(words);
+    if (at < 0) continue;
+    const range = document.createRange();
+    range.setStart(text, at);
+    range.setEnd(text, at + 3);
+    return range.getBoundingClientRect().toJSON();
+  }
+  return null;
+}"""
+
+
+def _changed_page(request, engine, serve):
+    url = serve(leaf_page("Changed", CHANGED))
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About the phrase?",
+            "anchor": {"section": "changed", "quote": "marked phrase"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 1")
+    return page
+
+
+def _rest_on(page, box):
+    """Rest the pointer on a box, from away, and read the hand once: a later
+    presentation would find the marks again and hide a fault."""
+    page.mouse.move(2, 2)
+    page.wait_for_timeout(200)
+    page.mouse.move(box["left"] - 20, box["top"] - 20)
+    page.mouse.move(box["left"] + 4, box["top"] + box["height"] / 2, steps=2)
+    page.wait_for_timeout(300)
+    return page.evaluate("() => document.body.hasAttribute('data-lf-over-mark')")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_mark_whose_text_node_lost_the_words_before_it_is_still_found(
+    engine, request, serve
+):
+    """A script that splits a marked phrase's text node just before the phrase and then
+    removes the words before it leaves the phrase standing in a text node of its own
+    after the paragraph's first words: the pointer finds its mark there, by the hand
+    and the preview, and a press opens its thread."""
+    page = _changed_page(request, engine, serve)
+    page.evaluate(
+        """() => {
+          const p = document.getElementById('changed');
+          const text = p.childNodes[1];
+          text.splitText(text.data.indexOf('marked'));
+          text.remove();
+        }"""
+    )
+    box = page.evaluate(PHRASE_AT, "marked")
+    assert _rest_on(page, box)
+    expect(page.locator("#lf-preview .lf-preview-word")).to_have_text(
+        "About the phrase?"
+    )
+    page.mouse.click(box["left"] + 4, box["top"] + box["height"] / 2)
+    expect(page.locator(".lf-margin-preview:not([hidden])")).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_mark_whose_text_node_a_script_replaced_is_found_in_the_new_one(
+    engine, request, serve
+):
+    """A script that replaces a marked phrase's text node with a new one holding the same
+    phrase takes the phrase's mark to the new node, where the pointer finds it, by the
+    hand and the preview, and a press opens its thread."""
+    page = _changed_page(request, engine, serve)
+    page.evaluate(
+        """() => {
+          const p = document.getElementById('changed');
+          const text = p.childNodes[1];
+          p.replaceChild(document.createTextNode(text.data + ' Then more.'), text);
+        }"""
+    )
+    page.wait_for_function(
+        "() => [...(CSS.highlights.get('lf-mark') ?? [])].map(String).join()"
+        " === 'marked phrase'",
+        timeout=2000,
+    )
+    box = page.evaluate(PHRASE_AT, "marked")
+    assert _rest_on(page, box)
+    expect(page.locator("#lf-preview .lf-preview-word")).to_have_text(
+        "About the phrase?"
+    )
+    page.mouse.click(box["left"] + 4, box["top"] + box["height"] / 2)
+    expect(page.locator(".lf-margin-preview:not([hidden])")).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_mark_whose_words_a_script_broke_up_is_marked_no_more(engine, request, serve):
+    """A script that writes other words into a marked phrase leaves no passage the
+    thread's quote names, so the phrase's words are marked no more, the hand stands
+    nowhere on them, and a press there opens nothing, as reading the page again finds."""
+    page = _changed_page(request, engine, serve)
+    page.evaluate(
+        """() => {
+          const text = document.getElementById('changed').childNodes[1];
+          text.insertData(text.data.indexOf('phrase'), 'unrelated ');
+        }"""
+    )
+    page.wait_for_function(
+        "() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 0", timeout=2000
+    )
+    box = page.evaluate(PHRASE_AT, "marked")
+    assert not _rest_on(page, box)
+    page.mouse.click(box["left"] + 4, box["top"] + box["height"] / 2)
+    page.wait_for_timeout(300)
+    expect(page.locator(".lf-margin-preview:not([hidden])")).to_have_count(0)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_search_match_whose_end_shows_is_brought_to_its_start(engine, request, serve):
+    """A page search's match whose end stands in the window while its start stands
+    above it, as one running from the page's words into a declared shadow stage far
+    below them, is brought into sight by where its words start."""
+    url = serve(
+        leaf_page(
+            "Across",
+            "<p>Before.</p>"
+            * 40
+            + '<div id="both"><p id="first">The match starts here</p>'
+            '<lf-late-stage id="late" style="display: block; margin-block-start: 760px">'
+            '<p id="second">and ends inside the stage.</p></lf-late-stage></div>'
+            + "<p>After.</p>"
+            * 40,
+        ),
+        layer_registry={"lf-late-stage": VERBATIM_STAGE},
+        layer_widgets={"lf-late-stage.js": STAGED_ON_CONNECT},
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.set_viewport_size({"width": 900, "height": 600})
+    page.evaluate(
+        """() => {
+          const late = document.getElementById('late').shadowRoot.getElementById('second');
+          scrollBy(0, late.getBoundingClientRect().top - 280);
+        }"""
+    )
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill(
+        "match starts here and ends inside"
+    )
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+    page.wait_for_timeout(300)
+    start = page.evaluate(
+        """() => {
+          const text = document.getElementById('first').firstChild;
+          const range = document.createRange();
+          range.setStart(text, 4);
+          range.setEnd(text, 9);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    assert 0 <= start["top"] and start["bottom"] <= 600, start
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_travel_to_a_thread_on_a_tall_passage_shows_where_it_starts(
+    engine, request, serve
+):
+    """The thread walk to a thread whose passage is taller than the window, from a place
+    where only the passage's middle shows, brings its start into sight."""
+    words = " ".join(f"Sentence {n} of the long passage runs on." for n in range(400))
+    url = serve(
+        leaf_page(
+            "Tall",
+            "<p>Before.</p>" * 10 + f'<p id="tall">{words}</p>' + "<p>After.</p>" * 10,
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About all of it?",
+            "anchor": {"section": "tall", "quote": words},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.set_viewport_size({"width": 1200, "height": 500})
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 1")
+    page.evaluate(
+        """() => {
+          const tall = document.getElementById('tall').getBoundingClientRect();
+          scrollBy(0, tall.top + tall.height / 2 - 250);
+        }"""
+    )
+    page.keyboard.press("t")
+    page.wait_for_timeout(600)
+    start = page.evaluate(
+        """() => {
+          const text = document.getElementById('tall').firstChild;
+          const range = document.createRange();
+          range.setStart(text, 0);
+          range.setEnd(text, 8);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    assert 0 <= start["top"] and start["bottom"] <= 500, start
+
+
 # A widget whose words read as the page's prose (`x-verbatim`), staged in a declared
 # shadow tree as it connects.
 VERBATIM_STAGE = {**LATE_STAGE, "x-verbatim": True}

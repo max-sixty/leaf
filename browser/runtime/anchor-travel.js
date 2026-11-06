@@ -519,7 +519,7 @@ export function createAnchorTravel({
   /** @param {readonly import("./passages.js").Segment[]} segments @param {ScrollBehavior} [behavior] */
   function scrollToPassage(segments, behavior = scrollBehavior()) {
     const start = passageStart(segments);
-    if (start) scrollToRange(start, behavior);
+    if (start.length) scrollToRange(rangeOf(start), behavior);
   }
 
   // Hydration may outlive its gesture. After it settles, validate the retained intent
@@ -533,10 +533,10 @@ export function createAnchorTravel({
   /** @param {string} id */
   const threadDestination = (id) => {
     const placement = anchors.placedAt(id);
-    const where =
-      passageStart(targetSegments(placement)) ??
-      targetElement(placement) ??
-      targetPlace(placement);
+    const start = passageStart(targetSegments(placement));
+    const where = start.length
+      ? rangeOf(start)
+      : (targetElement(placement) ?? targetPlace(placement));
     return (
       livePoint(targetElement(placement) ?? targetPlace(placement), placement?.point) ??
       where

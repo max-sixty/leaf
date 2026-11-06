@@ -110,6 +110,7 @@ import {
   inChrome,
   pageWords,
   passageStart,
+  rangeOf,
 } from "../passages.js";
 import {
   leftThePage,
@@ -592,9 +593,12 @@ export function createResponseSurface({
     return lightSeat(targetPlace(found));
   };
   /** @param {Anchor | null} anchor */
-  const anchorTravelAt = (anchor) =>
-    (anchor?.quote && passageStart(targetSegments(resolveAnchor(anchor)))) ||
-    anchorTargetAt(anchor);
+  const anchorTravelAt = (anchor) => {
+    const start = anchor?.quote
+      ? passageStart(targetSegments(resolveAnchor(anchor)))
+      : [];
+    return start.length ? rangeOf(start) : anchorTargetAt(anchor);
+  };
   const fabTargetAt = () => anchorTargetAt(fabAnchor.value);
   const fabReturnPlaces = () => returnPlaces(fabAnchor.value);
 

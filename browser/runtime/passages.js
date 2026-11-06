@@ -1111,46 +1111,28 @@ export const segmentPieces = (segments) =>
     block: segmentBlock(segment),
     lines: [...rangeOf([segment]).getClientRects()],
   }));
-// The text a live range covers now, piece by piece: in each text node it intersects,
-// from where it starts there to where it ends, in order. One, as a segment's range is
-// made, or several once a split has carried its end into the next node; none once it
-// has collapsed, as moving its words does.
-/** @param {Range} range @returns {{node: Text, start: number, end: number}[]} */
-export function rangePieces(range) {
-  const { startContainer: first, endContainer: last } = range;
-  if (range.collapsed) return [];
-  /** @param {Text} node */
-  const piece = (node) => ({
-    node,
-    start: node === first ? range.startOffset : 0,
-    end: node === last ? range.endOffset : node.length,
-  });
-  if (first === last) return isText(first) ? [piece(first)] : [];
-  const walker = document.createTreeWalker(
-    range.commonAncestorContainer,
-    NodeFilter.SHOW_TEXT,
-  );
-  walker.currentNode = first;
-  /** @type {{node: Text, start: number, end: number}[]} */
-  const pieces = [];
-  for (
-    let node = isText(first) ? first : walker.nextNode();
-    node;
-    node = walker.nextNode()
-  ) {
-    if (!range.intersectsNode(node) || !isText(node)) break;
-    const covered = piece(node);
-    if (covered.end > covered.start) pieces.push(covered);
-    if (node === last) break;
+// Where a passage starts: the line its first piece starts on, which a passage is
+// travelled to and asked whether it shows by, so a passage taller than the window, or
+// one whose end alone shows, as one running into a shadow stage far below its start, is
+// brought to where it is read from, and the whole of that line, a panel covering part
+// of it included. Search, thread travel and the comment box all go there. The line's
+// end is found by halving the piece, a character's box at a time.
+/** @param {readonly Segment[]} segments @returns {Segment[]} */
+export function passageStart(segments) {
+  const [first] = segments;
+  if (!first) return [];
+  /** @param {number} at */
+  const character = (at) =>
+    rangeOf([{ ...first, start: at, end: at + 1 }]).getBoundingClientRect();
+  const line = character(first.start);
+  let low = first.start + 1;
+  for (let high = first.end; low < high;) {
+    const mid = (low + high) >> 1;
+    if (character(mid).top < line.bottom) low = mid + 1;
+    else high = mid;
   }
-  return pieces;
+  return [{ ...first, end: low }];
 }
-// Where a passage is travelled to: a range over its first piece, where its words
-// start, as one range across its pieces collapses onto its end where it runs into a
-// shadow tree (`rangeOf`). Search, thread travel and the comment box all go there.
-/** @param {readonly Segment[]} segments */
-export const passageStart = (segments) =>
-  segments[0] ? rangeOf(segments.slice(0, 1)) : null;
 // The lines a passage's words are drawn in, all its pieces' in order.
 /** @param {readonly Segment[]} segments */
 export const segmentLines = (segments) =>
@@ -1516,18 +1498,39 @@ function watchReading() {
   watcher.observe(document, WATCH_READING);
   return watcher;
 }
-// What else keeps a reading of the page's words that moves with them, as the anchor
-// paint's index of its marks' live ranges does, hears each change the watcher hears, as
-// it happens, so it reads again only what the change touched (`hearPageChanges`).
-/** @type {Set<(records: readonly MutationRecord[]) => void>} */
+// What keeps a reading of where things stand in the page's words, as anchor placement
+// keeps where each anchor stands (anchor-placement.js), hears which of the page's text
+// each change the watcher hears touched, as it happens (`hearPageWords`): the text
+// nodes it wrote or took away, and those it put in.
+/** @typedef {{written: ReadonlySet<Node>, added: readonly Node[]}} WordsChange */
+/** @type {Set<(change: WordsChange) => void>} */
 const hearers = new Set();
 /** @param {MutationRecord[]} records */
 function heardChanges(records) {
-  if (records.some(changesTheReading)) forgetReading();
-  for (const hear of hearers) hear(records);
+  const changing = records.filter(changesTheReading);
+  if (!changing.length) return;
+  forgetReading();
+  if (!hearers.size) return;
+  /** @type {Set<Node>} */
+  const written = new Set();
+  /** @type {Node[]} */
+  const added = [];
+  /** @param {Node} node @param {(text: Node) => void} take */
+  const texts = (node, take) => {
+    if (isText(node)) return take(node);
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    for (let text = walker.nextNode(); text; text = walker.nextNode()) take(text);
+  };
+  for (const record of changing) {
+    if (record.type === "characterData") written.add(record.target);
+    if (record.type !== "childList") continue;
+    record.removedNodes.forEach((node) => texts(node, (text) => written.add(text)));
+    record.addedNodes.forEach((node) => texts(node, (text) => added.push(text)));
+  }
+  for (const hear of hearers) hear({ written, added });
 }
-/** @param {(records: readonly MutationRecord[]) => void} hear */
-export function hearPageChanges(hear) {
+/** @param {(change: WordsChange) => void} hear */
+export function hearPageWords(hear) {
   watchReading();
   hearers.add(hear);
   return () => void hearers.delete(hear);

@@ -275,7 +275,11 @@ async function boot() {
       rowThread: (under) => floatingPanel?.hoveredThread(under) ?? null,
       threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
       marginThread: () => app?.overlay?.pointedThread() ?? null,
+      placedAt: (id) => anchorPlacement.placedAt(id),
+      settle: () => anchorPlacement.settle(),
     });
+    const painting = anchorPaint;
+    anchorPlacement.hearPlaced((ids) => painting.replace(ids));
   }
   const drawingPaint = createDrawingInk({
     drawings: () => [

@@ -315,13 +315,16 @@ const face = ({ name, keys, detail, list }) => [
 // ends in keeps the lines the browser wraps it to that fit there, its last ending in an
 // ellipsis (`data-lf-clamp`, a line clamp), and the blocks after it stay laid out, unseen
 // and unheard (`visibility: hidden`), so what it shows changes nothing about its size.
-// Where the room ends between two blocks, the one before ends in an ellipsis
-// (`data-lf-cut`). A list's items go whole, and its count, at the foot in their place,
-// says how many more there are in the words its declaration gives. No preview scrolls:
-// what pressing its target opens says the rest. The room alone decides it, measured from
-// the face's top, never from where a past fit left the face's foot, and each place is
-// written once, with its final value, so the lines a past fit clamped are read as they
-// lay out whole.
+// Where the room ends between two blocks, the one before keeps every line it has, clamped
+// to them, and ends in the clamp's ellipsis too, which a line of no height after its
+// words gives it reason to draw (`data-lf-cut`, chrome.css): an ellipsis written after
+// the words would wrap a line that nearly fills the face onto one the room doesn't hold,
+// and would change the lines the next fit reads. A list's items go whole, and its
+// count, at the foot in their place, says how many more there are in the words its
+// declaration gives. No preview scrolls: what pressing its target opens says the rest.
+// The room alone decides it, measured from the face's top, never from where a past fit
+// left the face's foot, and each place is written once, with its final value, so the
+// lines a past fit clamped are read as they lay out whole.
 /** @param {Reading} reading @param {number} room */
 function fit(reading, room) {
   const { blocks, counted } = faceLines(reading);
@@ -345,6 +348,10 @@ function fit(reading, room) {
       clamp = { el: block.el, lines: Math.max(1, fits) };
   }
   const kept = over < 0 ? blocks.length : clamp ? over + 1 : Math.max(1, over);
+  // The room ends between two blocks: the last kept says there is more.
+  const last = blocks[kept - 1];
+  const cut = !list && !clamp && kept < blocks.length && last ? last.el : null;
+  if (cut && last) clamp = { el: cut, lines: last.lines };
   if (was && was !== clamp?.el) {
     keeps(was, "data-lf-clamp", null);
     was.style.removeProperty("--lf-preview-lines");
@@ -353,13 +360,9 @@ function fit(reading, room) {
     keeps(clamp.el, "data-lf-clamp", "");
     clamp.el.style.setProperty("--lf-preview-lines", String(clamp.lines));
   }
-  blocks.forEach(({ block: line }, at) => {
+  blocks.forEach(({ block: line, el }, at) => {
     line.style.visibility = at < kept ? "" : "hidden";
-    keeps(
-      line,
-      "data-lf-cut",
-      !list && !clamp && at === kept - 1 && kept < blocks.length ? "" : null,
-    );
+    keeps(el, "data-lf-cut", el === cut ? "" : null);
   });
   if (!list || !more) return;
   const hidden = blocks.length - kept;

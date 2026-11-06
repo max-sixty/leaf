@@ -59,7 +59,7 @@ import {
   comparisonChanges,
   toggleChangeCard,
 } from "./version.js";
-import { changeProvenance } from "./change-provenance.js";
+import { versionProvenance } from "./change-provenance.js";
 
 // Where each published workflow still in progress stands in the published order, by
 // its id.
@@ -91,9 +91,9 @@ const inProgress = readPart(
  */
 
 // What the inventory reads from the semantic root: the Questions, the workflows its
-// entries report, the shown revision, the agent's to-dos, what each revision came after
-// (change-provenance.js), and the projection whose reported and overridden marks it
-// lists once the projection's chrome has painted them.
+// entries report, the shown revision, the agent's to-dos, how long the user's messages
+// waited (change-provenance.js), and the projection whose reported and overridden marks
+// it lists once the projection's chrome has painted them.
 // What the thread pass decides about a thread reaches it as readings its paint follows:
 // where the thread is placed (`placedAt`) and whether a widget seats it (`claimed`), so
 // a pass that moves one repaints the margin, and one that moves none leaves it.
@@ -555,15 +555,16 @@ export function createAnnotationInventory({
     // One entry per change (version.js, `changeRuns`), beside the block the change starts
     // with, or the block beside its gap where it only took blocks out, so a section
     // rewritten whole gets one entry rather than one per paragraph. It says what the
-    // change did in blocks (`changeAccount`): "2 paragraphs replaced by 3".
+    // change did in blocks (`changeAccount`): "2 paragraphs replaced by 3". Under it
+    // stands what the version the comparison shows was saved after, the same for
+    // every change, a line each (change-provenance.js).
+    const savedAfter = versionProvenance()?.lines ?? [];
     comparisonChanges().forEach((change, index) => {
       const target = change.at;
       const did = changeAccount(change);
       const account = changeSince(change);
       const card = changeCard(change);
       const mapAccount = card ? did : account;
-      // Under what it did, what it came after, a line each (change-provenance.js).
-      const cameAfter = changeProvenance(change)?.lines ?? [];
       add(groups, target, {
         kind: "change",
         id: `change:${targetPath(target)}:${index}`,
@@ -583,7 +584,7 @@ export function createAnnotationInventory({
         // the entry (`keptEntry`).
         ...(card
           ? {
-              context: [account, ...cameAfter.flatMap((line) => ["\n", ...line])],
+              context: [account, ...savedAfter.flatMap((line) => ["\n", ...line])],
               mapContext: card.offer,
               cardOpen: card.open,
             }

@@ -12,7 +12,7 @@ from collections.abc import Mapping
 from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 from types import MappingProxyType
-from typing import Protocol, cast
+from typing import Protocol
 
 from .. import presence as presence_model
 from ..data import read_data, read_source
@@ -25,15 +25,8 @@ from ..files import (
     stamped_version,
 )
 from ..passages import SourceReading
-from ..provenance import revision_changes
 from ..registry.storage import require_registry
-from ..revision_artifact import (
-    Resource,
-    RevisionArtifact,
-    RevisionReading,
-    read_artifact,
-    read_revision,
-)
+from ..revision_artifact import Resource, RevisionArtifact, read_artifact, read_revision
 from ..revisioning import Activation, activate_source, held_activation
 from ..service import PageTransaction
 from . import browser as served_browser
@@ -263,9 +256,6 @@ class PageStateService:
         return row, reading, live
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
-        """The `/api/view` answer: the revision's browser reading at the log boundary,
-        and what each later revision changed, which a comparison with it attributes
-        its changes by (`provenance.revision_changes`)."""
         with self.source.state_read() as (context, _reading, _source_error):
             if context.active is None:
                 raise ValueError(missing_revision(self.page_dir))
@@ -277,12 +267,4 @@ class PageStateService:
             if projected is None:
                 raise ValueError("page registry cannot be projected")
             view, _reading = projected
-            changed = revision_changes(
-                context.revision,
-                context.revisions,
-                view_revision,
-                lambda revision: (
-                    cast(RevisionReading, context.revision(revision)).activated_after
-                ),
-            )
-        return {"browser": view, "changed": changed}
+        return view

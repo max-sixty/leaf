@@ -18,10 +18,7 @@
  * which blocks changed; a change is a hunk of the block diff as the page shows it, its
  * run of changed blocks and the base blocks it took out (`changeRuns`), which a reader
  * counts and visits; `changeCard` / `toggleChangeCard` open what one replaced on
- * request. Each change carries the revisions that made it (`madeBy`), from what the
- * base's view answer says each later revision changed, and change-provenance.js says
- * from them what it came after. A base is a stamped version, the one a Compare or `v`
- * names.
+ * request. A base is a stamped version, the one a Compare or `v` names.
  * `changesSince` counts a comparison's changes without marking them.
  * `comparisonBase` names the current base.
  * `comparisonChanges(owner)` selects the changes inside `owner` from the same comparison
@@ -609,12 +606,8 @@ const diffMarked = new Set();
 /** A change: one hunk of the block diff as the page shows it. `blocks` are its changed
  * blocks in page order, none where it only took blocks out; `removed` the base blocks it
  * took out; `at` where it stands, its first block, or for one that only took blocks out,
- * the element its gap stands before, after or in, as `gap` says (`changedSince`);
- * `revisions` the revisions after the base, through the one shown, that changed the
- * words of a unit it stands in, oldest first, each with where in the log it went live,
- * `after` (`madeBy`), which say what it came after (change-provenance.js).
- * @typedef {Readonly<{revision: number, after: number | null}>} MadeBy
- * @typedef {Readonly<{blocks: readonly Element[], removed: readonly Removed[], at: Element, gap: "before" | "after" | "in" | null, revisions: readonly MadeBy[]}>} Change */
+ * the element its gap stands before, after or in, as `gap` says (`changedSince`).
+ * @typedef {Readonly<{blocks: readonly Element[], removed: readonly Removed[], at: Element, gap: "before" | "after" | "in" | null}>} Change */
 /** @type {readonly Change[]} */
 let diffChanges = [];
 // Where each block a change took out stood among the base version's blocks, so its card
@@ -727,10 +720,9 @@ function diffBlocks(root) {
     a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
   );
 }
-/** One revision's browser reading at a log boundary, and what each later revision
- * changed, as `/api/view` answers them.
+/** One revision's browser reading at a log boundary, as `/api/view` answers it.
  * @param {number} baseRevision @param {number} throughSeq
- * @returns {Promise<import("../types/contract.js").ServedViewAnswer>} */
+ * @returns {Promise<import("../types/contract.js").ServedViewAnswer["browser"]>} */
 async function baseReading(baseRevision, throughSeq) {
   const params = new URLSearchParams({
     revision: String(baseRevision),
@@ -740,45 +732,7 @@ async function baseReading(baseRevision, throughSeq) {
   // The reading is another revision's, so only its server is held to this document's.
   if (!admitReading(res)) throw new LayerRefused("Leaf changed while comparing");
   if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
-  return await res.json();
-}
-// The revisions that made a change: each revision after the base, through the one
-// shown, that changed the words of a unit the change stands in (provenance.py,
-// `revision_changes`). A unit is an element with an id, its words those directly in it,
-// and "" the words in none, so a block stands in its nearest element with an id and in
-// each one inside it, and a block taken out in its own id, or, with none, in the element
-// its gap stands in. A change of state alone, such as a pick, changes no unit. Blocks
-// with no id of their own share their element's unit, so a change can name a revision
-// that wrote only a block beside it; provenance.py's header says how often that shows.
-/** @param {Omit<Change, "revisions">} change @param {Document} doc the shown source
- * @param {ReadonlyMap<number, {units: ReadonlySet<string>, after: number | null}>} changed */
-function madeBy(change, doc, changed) {
-  const authoredId = (/** @type {Element} */ node) =>
-    node.id && doc.getElementById(node.id) ? node.id : null;
-  const unitOf = (/** @type {Element} */ node) => {
-    for (let at = /** @type {Element | null} */ (node); at; at = at.parentElement) {
-      const id = authoredId(at);
-      if (id) return id;
-    }
-    return "";
-  };
-  /** @type {Set<string>} */
-  const units = new Set();
-  for (const block of change.blocks) {
-    units.add(unitOf(block));
-    for (const inner of block.querySelectorAll("[id]")) {
-      const id = authoredId(inner);
-      if (id) units.add(id);
-    }
-  }
-  for (const { id } of change.removed) if (id) units.add(id);
-  if (!change.blocks.length || change.removed.some(({ id }) => !id))
-    units.add(unitOf(gapHolder(change)));
-  return Object.freeze(
-    [...changed]
-      .filter(([, made]) => [...units].some((unit) => made.units.has(unit)))
-      .map(([revision, { after }]) => Object.freeze({ revision, after })),
-  );
+  return (await res.json()).browser;
 }
 // The longest run of `after` that keeps the order `before` gave the same units:
 // the units that did not move.
@@ -1202,17 +1156,11 @@ export function servedElements() {
 }
 // What changed since a base, read from its document and the server's reading of it
 // (`loadBase`) without touching the page: the blocks a comparison marks, the earlier
-// readings its cards show, and its changes, each with the revisions that made it
-// (`commitDiff` puts them on the page). A count of the changes reads the same answer
-// and marks nothing (`changesSince`).
+// readings its cards show, and its changes (`commitDiff` puts them on the page). A
+// count of the changes reads the same answer and marks nothing (`changesSince`).
 /** @param {Document} doc @param {Parameters<typeof foldWidgetStates>[0]} baseAuthored
- * @param {ComparisonBase} baseRevision @param {import("../types/contract.js").ServedViewAnswer} answer */
-function diffWith(
-  doc,
-  baseAuthored,
-  baseRevision,
-  { browser: baseReading, changed: revisionChanges },
-) {
+ * @param {ComparisonBase} baseRevision @param {import("../types/contract.js").ServedViewAnswer["browser"]} baseReading */
+function diffWith(doc, baseAuthored, baseRevision, baseReading) {
   const baseView = baseReading.views[String(baseRevision.revision)];
   if (!baseView)
     throw new Error("The comparison answer omitted its requested revision");
@@ -1348,29 +1296,11 @@ function diffWith(
     new Map(
       [...gaps].map(([block, { at, gone }]) => [block, { at, gone: takenOut(gone) }]),
     );
-  // What each revision through the one shown changed, and where it went live in the
-  // log, oldest first.
-  const shown = runtime.currentRevision ?? Infinity;
-  const revisionsChanged = new Map(
-    Object.entries(revisionChanges)
-      .map(
-        ([revision, { units, after }]) =>
-          /** @type {const} */ ([Number(revision), { units: new Set(units), after }]),
-      )
-      .filter(([revision]) => revision <= shown)
-      .sort(([a], [b]) => a - b),
-  );
-  /** @type {readonly Change[]} */
   const changes = changeRuns(marked, kept, {
     gapBefore: read(gapBefore),
     gapAfter: read(gapAfter),
     gapIn: read(gapIn),
-  }).map((change) =>
-    Object.freeze({
-      ...change,
-      revisions: madeBy(change, current.doc, revisionsChanged),
-    }),
-  );
+  });
   return { marked, paired, words, changes };
 }
 // Put a comparison's reading on the page, which `setDiff(false)` cleared before it.
@@ -1603,8 +1533,7 @@ export async function showComparison(base) {
   );
 }
 // A base's document and the server's reading of it at the log this tab has applied,
-// with what each later revision changed, which `diffWith` reads. Null once `wanted`
-// says a later press made it moot.
+// which `diffWith` reads. Null once `wanted` says a later press made it moot.
 /** @param {ComparisonBase} base @param {() => boolean} wanted */
 async function loadBase(base, wanted) {
   const documentRequest = authoredDocument(base.url);

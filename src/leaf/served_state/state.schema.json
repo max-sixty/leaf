@@ -962,30 +962,31 @@
           "additionalProperties": { "type": "string" }
         },
         "message_waits": {
-          "description": "Each message the user sent, in the order they sent them, and how long it waited for the agent, as places in the log: a revision that went live at or after `from` and, where `until` is set, before it was written while the message waited (`provenance.message_waits`).",
+          "description": "Each wait of each message the user sent, in log order, as places in the log: a revision whose `activation` event's seq is after `from` and, where `until` is set, before it was saved while the message waited (`provenance.message_waits`).",
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
               "id": {
-                "description": "The turn's own id; a rewrite's is its edit's.",
+                "description": "The turn's id and the place the wait began, so a message reopened after its thread closed has one wait for each.",
                 "type": "string"
               },
               "thread": { "type": "string" },
               "message": {
-                "description": "The message the turn shows as.",
+                "description": "The message the turn shows as; a rewrite's is the message it rewrote.",
                 "type": "string"
               },
-              "from": {
-                "description": "The message's own seq.",
-                "type": "integer"
+              "words": {
+                "description": "The opening line the message had for this wait, as its Markdown shows it (`provenance.opening_words`).",
+                "type": "string"
               },
+              "from": { "description": "Where the wait began.", "type": "integer" },
               "until": {
-                "description": "The seq of the agent's answer to it or of the user's resolution of its thread, whichever came first; null while it waits.",
+                "description": "Where the agent answered it or its thread closed, whichever came first; null while it waits.",
                 "type": ["integer", "null"]
               }
             },
-            "required": ["id", "thread", "message", "from", "until"],
+            "required": ["id", "thread", "message", "words", "from", "until"],
             "additionalProperties": false
           }
         }
@@ -1695,23 +1696,8 @@
     "ViewAnswer": {
       "description": "The answer `GET /api/view` gives (`served_state.service.PageStateService.page_browser_view`): one revision's browser reading at an exact log boundary, which version comparison folds.",
       "type": "object",
-      "properties": {
-        "browser": { "$ref": "#/$defs/Browser" },
-        "changed": {
-          "description": "By revision, for each revision after the one viewed: `units`, the ids of the elements whose own words it changed from the revision before it, `\"\"` naming the words in no element with an id, and `after`, the seq of the last event before it went live (`provenance.revision_changes`, `revision_artifact.ACTIVATION`), null where it has no activation record.",
-          "type": "object",
-          "additionalProperties": {
-            "type": "object",
-            "properties": {
-              "units": { "type": "array", "items": { "type": "string" } },
-              "after": { "type": ["integer", "null"] }
-            },
-            "required": ["units", "after"],
-            "additionalProperties": false
-          }
-        }
-      },
-      "required": ["browser", "changed"],
+      "properties": { "browser": { "$ref": "#/$defs/Browser" } },
+      "required": ["browser"],
       "additionalProperties": false
     },
     "Tail": {

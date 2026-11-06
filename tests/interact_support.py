@@ -176,9 +176,7 @@ def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
     """Write revision `revision` of `data` under the page's current registry.
 
     A shortcut past `page stamp` for a test that stages history directly: it
-    runs no gate and no activation, refuses a revision number already taken, and
-    records the revision as going live after the log's last event."""
-    from leaf.event_log import read_events
+    runs no gate and no activation, and refuses a revision number already taken."""
     from leaf.passages import SourceReading
     from leaf.revision_artifact import capture_artifact, write_artifact
     from leaf.structure import SourceDocument
@@ -192,10 +190,7 @@ def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
         declaration_sources=candidate.declaration_sources,
         widget_sources=candidate.widget_sources,
     )
-    events = read_events(page_dir)
-    return write_artifact(
-        page_dir, revision, artifact, reading, events[-1]["seq"] if events else 0
-    )
+    return write_artifact(page_dir, revision, artifact, reading)
 
 
 @cache

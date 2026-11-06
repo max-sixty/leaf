@@ -748,35 +748,6 @@ class SourceReading:
         vocabulary anything (`enclosing_ids`)."""
         return self.passages.enclosing
 
-    @cached_property
-    def own_words(self) -> dict:
-        """id → the words directly in it, the words of each element with an id inside
-        it left out, and `""` → the words in no element with an id: where this
-        version's words stand, unit by unit, so two versions differ in exactly the
-        units whose own words differ (`provenance.changed_units`). An element that
-        says nothing maps to the empty string, so one that comes or goes is a
-        difference too."""
-        p = self.passages
-        inside: dict[str, list[tuple[int, int]]] = {}
-        for wid, chain in p.enclosing.items():
-            if wid in p.spans:
-                inside.setdefault(chain[-2] if len(chain) > 1 else "", []).append(
-                    p.spans[wid]
-                )
-
-        def own(unit: str, lo: int, hi: int) -> str:
-            parts, at = [], lo
-            for start, end in sorted(inside.get(unit, ())):
-                parts.append(p.text[at:start])
-                at = end
-            parts.append(p.text[at:hi])
-            return collapse(" ".join(parts))
-
-        words = {"": own("", 0, len(p.text))}
-        for wid in p.enclosing:
-            words[wid] = own(wid, *p.spans[wid]) if wid in p.spans else ""
-        return words
-
     def decided_passages(
         self, decided: dict, rewrites: dict | None = None, additions: dict | None = None
     ) -> Passages:

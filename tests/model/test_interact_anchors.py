@@ -930,7 +930,7 @@ def test_an_interrupted_activation_finishes_all_anchor_transitions(
 
     def interrupted(page, event, **kwargs):
         append(page, event, **kwargs)
-        raise RuntimeError("interrupted after one anchor append")
+        raise RuntimeError("interrupted after the first append")
 
     with monkeypatch.context() as fault:
         fault.setattr(revisioning, "append_admitted", interrupted)
@@ -939,10 +939,11 @@ def test_an_interrupted_activation_finishes_all_anchor_transitions(
         with pytest.raises(RuntimeError, match="interrupted after"):
             revisioning.activate_source(page_dir)
     assert files_model.latest_revision(page_dir) == 1
-    assert (
-        len([e for e in events_model.read_events(page_dir) if e["kind"] == "reanchor"])
-        == 1
-    )
+    # The activation naming the bundle is the publication's prerequisite; neither
+    # anchor has moved yet.
+    pending = events_model.read_events(page_dir)
+    assert pending[-1]["kind"] == "activation" and pending[-1]["revision"] == 2
+    assert not any(e["kind"] == "reanchor" for e in pending)
     recovered = revisioning.activate_source(page_dir)
     assert recovered.error is None and recovered.revision == 2 and not recovered.created
     threads = {t["id"]: t for t in state_json(page_dir)["threads"]}

@@ -16,6 +16,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 | <a id="kind-read"></a>`read`                 | user            | `POST /api/event`                                                               | `messages: [{message, version}]`                                                                                                                                       | records the agent-content versions the user has read; bookkeeping ("Read state")                                                                                                              |
 | <a id="kind-seen"></a>`seen`                 | user            | `POST /api/event`                                                               | `revision`                                                                                                                                                             | records the newest live revision a tab showed the user, as they leave; bookkeeping ("Read state")                                                                                             |
 | <a id="kind-thread_title"></a>`thread_title` | agent           | `leaf thread edit --title`, or Leaf's own title request (`thread_titles.py`)    | `thread`, `title`                                                                                                                                                      | names a thread; the latest title wins                                                                                                                                                         |
+| <a id="kind-activation"></a>`activation`     | page            | revision activation                                                             | `revision`, `publication`                                                                                                                                              | a revision a read activated went live here, before the reanchors it caused                                                                                                                    |
 | <a id="kind-reanchor"></a>`reanchor`         | page            | revision activation                                                             | `thread`, `revision`, `anchor: {section} or null`                                                                                                                      | moves an open thread whose passage or visual part no longer resolves to its surviving section, or detaches it, adding no message ("Anchors")                                                  |
 | <a id="kind-summary"></a>`summary`           | agent           | `leaf thread summarize`                                                         | `thread`, `from`, `through`, `text`; optional `label`                                                                                                                  | folds a contiguous range of a thread under optional Markdown; the originals stay revealable                                                                                                   |
 | <a id="kind-resolve"></a>`resolve`           | user or agent   | `POST /api/event`, `leaf thread resolve`                                        | `parent`                                                                                                                                                               | closes a thread                                                                                                                                                                               |
@@ -84,10 +85,11 @@ drawing without an anchor or `box`, and does not re-read it. `$events.handling.c
 tells the agent how to read a drawing, and `leaf page picture` redraws one as the user
 saw it (`render_gate/picture.py`).
 
-A note, a reply that publishes the saved source, or the first automatic `reanchor` may
-carry `publication`, the exact immutable bundle name (`r<revision>-<digest>`). Only the
-checked source publisher supplies it; `revisioning.py`'s header says how a publication
-and the anchor moves that depend on it land together.
+A note, a reply that publishes the saved source, or an `activation` carries
+`publication`, the exact immutable bundle name (`r<revision>-<digest>`). It is the
+first event of the revision's publication, and its seq is the revision's place in the
+log. Only the checked source publisher supplies it; `revisioning.py`'s header says how
+a publication and the anchor moves that depend on it land together.
 
 ## Undo
 

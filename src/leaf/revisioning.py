@@ -33,10 +33,12 @@ stages the revision's files, appends the event naming the staged bundle in
 `PageTransaction` finishes it (`finish_publications`) before anyone else reads or
 writes the page.
 
-Every activation records, before the marker, where in the log the revision went live
-(`revision_artifact.ACTIVATION`): after the last event the log held when the
-transaction began, so the events of its own publication, such as the reply that
-published it, come with it, after that place.
+A revision a read activates has no reply or note to name it, so its activation
+appends an `activation` event naming the bundle, before the reanchors it causes.
+Either way the first event of a publication names its bundle: that is the
+publication's prerequisite, which `finish_publications` completes, and its seq is the
+revision's place in the log (`provenance.py`). A refused reply or note appends
+nothing, its revision included.
 """
 
 from contextlib import nullcontext
@@ -146,7 +148,7 @@ def planned_activation(page_dir: Path, checked: SourceCheck) -> Activation:
     return Activation(checked.revision.candidate, None, not checked.revision.unchanged)
 
 
-def _append_reanchors(page, revision, moves, *, view=None, publication=None):
+def _append_reanchors(page, revision, moves, *, view=None):
     for thread, anchor in moves.items():
         append_admitted(
             page,
@@ -156,11 +158,9 @@ def _append_reanchors(page, revision, moves, *, view=None, publication=None):
                 "revision": revision,
                 "thread": thread,
                 "anchor": anchor,
-                **({"publication": publication} if publication else {}),
             },
             view=view,
         )
-        publication = None
 
 
 def finish_publications(page: PageTransaction, publications: list[dict]) -> None:
@@ -197,16 +197,13 @@ def finish_publications(page: PageTransaction, publications: list[dict]) -> None
                 page.page_dir, revision, reading, event["publication"]
             ),
         )
-        # The prerequisite is the first event of the publication.
-        publish_artifact(page.page_dir, event["publication"], reading, event["seq"] - 1)
+        publish_artifact(page.page_dir, event["publication"], reading)
 
 
 def _publish_checked_source(page, checked, event=None):
     activation = planned_activation(page.page_dir, checked)
     if activation.error:
         return activation, None
-    # Where in the log the revision goes live: before the events of its publication.
-    after = page.events[-1]["seq"] if page.events else 0
     revision = activation.revision
     assert revision is not None
     moves = checked.reanchors or {}
@@ -246,15 +243,20 @@ def _publish_checked_source(page, checked, event=None):
             predecessor,
             candidate_revision=revision,
         )
-    _append_reanchors(
-        page,
-        revision,
-        moves,
-        view=view,
-        publication=publication if event is None else None,
-    )
+    elif publication:
+        append_admitted(
+            page,
+            {
+                "kind": "activation",
+                "author": "page",
+                "revision": revision,
+                "publication": publication,
+            },
+            view=view,
+        )
+    _append_reanchors(page, revision, moves, view=view)
     if publication:
-        publish_artifact(page.page_dir, publication, checked.reading, after)
+        publish_artifact(page.page_dir, publication, checked.reading)
     return activation, accepted
 
 

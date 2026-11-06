@@ -1320,8 +1320,8 @@ wa-copy-button.lf-icon-action {
   color: color-mix(in srgb, var(--paper) 72%, transparent);
   font: var(--font-fine);
 }
-/* A context of several lines breaks where its words say, as a change's says what it
-   came after under what it did (change-provenance.js). */
+/* A context of several lines breaks where its words say, as a change's says what its
+   version was saved after under what it did (change-provenance.js). */
 .lf-margin-entry-context {
   white-space: pre-line;
 }

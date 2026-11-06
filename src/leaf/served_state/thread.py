@@ -128,8 +128,13 @@ def browser_thread(
         ]
         rendered_threads.append(
             {
-                # A thread's turn history is the server's to read (`unanswered_turns`).
-                **{key: value for key, value in thread.items() if key != "turns"},
+                # A thread's turn and closure histories are the server's to read
+                # (`unanswered_turns`, `provenance.message_waits`).
+                **{
+                    key: value
+                    for key, value in thread.items()
+                    if key not in ("turns", "closures")
+                },
                 "msgs": messages,
                 "root": next(
                     message

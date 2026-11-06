@@ -24,10 +24,6 @@ record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if
   reuse a revision, and a bundle hard-links the resources whose bytes the previous
   revision captured, so no file is written in place (`revision_artifact.py`).
 
-- `revisions/rN-H.json` — where in the log revision N went live, the seq of the last
-  event before it, written before its marker (`revision_artifact.ACTIVATION`). It is
-  the only record that orders a revision against the log's events.
-
 - `/versions/v1.html…` — virtual addresses. Each `note` event maps a version to its
   immutable revision, which the server renders at the version's URL, so a pinned
   version never moves as later saves go live. A static-site build may write these

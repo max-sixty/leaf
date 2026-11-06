@@ -545,13 +545,12 @@ def test_a_change_s_card_reads_it_in_order(browser, serve):
     ), "the long redline doesn't scroll inside a card that fits the window"
 
 
-def test_a_change_says_which_comment_it_came_after(browser, serve):
-    """Under what a change did, its ⇄ entry says in which version it landed and which
-    of the user's comments the revision that made it came after, before the agent
-    answered it, with the comment's opening line, wherever on the page the comment
-    stands, and whether or not the answer has come; a change made once every comment
-    was answered came with none waiting. The change walk says the same to a listener
-    (change-provenance.js, provenance.py)."""
+def test_a_version_says_which_comments_it_was_saved_after(browser, serve):
+    """Comparing a version with the one before it, each change's ⇄ entry says under
+    what it did which of the user's comments waited while that version was saved,
+    with the words each then had: not one the agent had answered before, wherever on
+    the page it stands. A comparison across several versions says nothing of it, since
+    nothing knows which version made which change (change-provenance.js)."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     asked = _comment_on(
@@ -570,32 +569,23 @@ def test_a_change_says_which_comment_it_came_after(browser, serve):
         ],
     )
     assert replied.exit_code == 0, replied.output
-    stamp_page(d, revised(PAGE, BETA, DELTA), "rewrote Delta")
-    _comment_on(d, "t", "Plan", revision=3, text="Is the title right?")
+    _comment_on(d, "t", "Plan", revision=2, text="Is the title right?")
     revise(d, ('<h1 id="t">Plan</h1>', '<h1 id="t">Plan for spring</h1>'))
     page = open_page(browser, url)
-    wait_for_revision(page, 4)
+    wait_for_revision(page, 3)
+    labels = page.locator('[data-lf-kinds~="change"] .lf-margin-entry-label')
+    page.keyboard.press("v")
+    expect(labels).to_have_count(1)
+    expect(labels).to_contain_text(
+        "Draft saved while your comment waited: “Is the title right?”"
+    )
+    expect(labels).not_to_contain_text("Beta first?")
+    page.keyboard.press("v")
     compare_with(page, 1)
     page.keyboard.press("Escape")
-
-    def label(section):
-        return page.locator(
-            f'[data-lf-margin-for="{section}"] [data-lf-kinds~="change"]'
-            " .lf-margin-entry-label"
-        )
-
-    expect(label("b")).to_contain_text(
-        "1 paragraph edited since v1 In v2, after your comment: “Beta first?”"
-    )
-    expect(label("d")).to_contain_text("In v3, with none of your comments waiting")
-    expect(label("t")).to_contain_text(
-        "In Draft, after your comment: “Is the title right?”"
-    )
-    page.keyboard.press("h")
-    expect(page.locator("#t")).to_be_focused()
-    expect(page.locator(".lf-live")).to_contain_text(
-        "In Draft, after your comment: “Is the title right?”"
-    )
+    expect(labels).to_have_count(2)
+    for at in range(2):
+        expect(labels.nth(at)).not_to_contain_text("saved")
 
 
 def _comment_on(d, section, words, revision=1, text="Say which way?"):

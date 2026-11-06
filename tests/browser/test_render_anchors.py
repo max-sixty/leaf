@@ -5562,9 +5562,10 @@ def test_words_a_script_writes_ahead_of_a_mark_move_where_it_is_found(
 ):
     """A script that writes words ahead of a marked phrase in its text node, with no
     revision and nothing presented after it, moves the phrase's mark with its words, and
-    the pointer finds the mark where it is now drawn, by the hand and the preview, and
-    nothing at the words that now stand where the phrase stood, which a press there
-    opens nothing for."""
+    the pointer finds the mark where it is now drawn, by the hand and the preview, and a
+    press there opens the thread's card at once and keeps it open, as every reader of the
+    passage reads where its words now stand; nothing answers at the words that now stand
+    where the phrase stood."""
     url = serve(
         leaf_page(
             "Script",
@@ -5622,6 +5623,12 @@ def test_words_a_script_writes_ahead_of_a_mark_move_where_it_is_found(
     expect(page.locator("#lf-preview .lf-preview-word")).to_have_text(
         "About the phrase?"
     )
+    page.mouse.click(now["left"] + 4, now["top"] + now["height"] / 2)
+    card = page.locator(".lf-margin-preview:not([hidden])")
+    expect(card).to_be_visible()
+    page.wait_for_timeout(500)
+    expect(card).to_be_visible()
+    expect(card.locator(".lf-page-thread")).to_contain_text("About the phrase?")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -5714,6 +5721,65 @@ def test_a_search_match_running_into_a_shadow_stage_shows_its_start(
         "match starts here and ends inside"
     )
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+    page.wait_for_timeout(300)
+    start = page.evaluate(
+        """() => {
+          const text = document.getElementById('first').firstChild;
+          const range = document.createRange();
+          range.setStart(text, 4);
+          range.setEnd(text, 9);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    assert 0 <= start["top"] and start["bottom"] <= 600, start
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request, serve):
+    """The comment box of a draft on a passage that runs from the page's words into a
+    declared shadow stage standing most of a window below them comes back, from a page
+    scrolled away, to where the passage's words start, as a search's match and a thread
+    are travelled to, rather than to where they end."""
+    url = serve(
+        leaf_page(
+            "Across",
+            "<p>Before.</p>"
+            * 40
+            + '<div id="both"><p id="first">The match starts here</p>'
+            '<lf-late-stage id="late" style="display: block; margin-block-start: 420px">'
+            '<p id="second">and ends inside the stage.</p></lf-late-stage></div>'
+            + "<p>After.</p>"
+            * 40,
+        ),
+        layer_registry={"lf-late-stage": VERBATIM_STAGE},
+        layer_widgets={"lf-late-stage.js": STAGED_ON_CONNECT},
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.set_viewport_size({"width": 900, "height": 600})
+    # A draft written on the passage, which the page opens again as it loads.
+    page.evaluate(
+        """async () => {
+          const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+          const load = (path) => import(new URL(path, new URL(boot, location.href)).href);
+          const {saveDraft} = await load('runtime/drafts.js');
+          const {DRAFT_FORMAT} = await load('runtime/kernel-facts.js');
+          const {anchorKey} = await load('runtime/anchor-coordinate.js');
+          const anchor = {section: 'both', quote: 'match starts here and ends inside'};
+          saveDraft('composer:' + anchorKey(anchor), 'My draft words', {
+            format: DRAFT_FORMAT, anchor, revision: 1, suggest: false, about: null,
+            drawing: null, touched: Date.now(),
+          });
+        }"""
+    )
+    page.reload()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    page.evaluate("() => scrollTo(0, 0)")
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfCheckApi();
+          api.bringBackSurfaceOf(document.querySelector('.lf-fab-bar'), 'instant');
+        }"""
+    )
     page.wait_for_timeout(300)
     start = page.evaluate(
         """() => {

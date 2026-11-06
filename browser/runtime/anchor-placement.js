@@ -15,7 +15,7 @@
    status without changing its thread. */
 import { anchoringIsReady, resolveAnchor } from "./anchor-resolution.js";
 import { resolvedInMessage, targetElement } from "./resolved-target.js";
-import { inChrome } from "./passages.js";
+import { inChrome, rangeOf } from "./passages.js";
 import { placePoints } from "./pointed-place.js";
 import { threadKey, threadNames } from "./thread/model.js";
 import { messageHolding } from "./thread/messages.js";
@@ -57,6 +57,28 @@ function heldIn(anchor, threads) {
     : null;
 }
 
+// A live range of each of a passage's segments, which moves with its words between
+// readings (resolved-target.js, `targetSegments`): the last reading's own where they
+// still stand where this reading resolved the passage, so a reading that moves nothing
+// keeps the ranges the anchor paint painted and indexed.
+/** @param {Placement | undefined} was @param {readonly import("./passages.js").Segment[]} segments */
+function liveRanges(was, segments) {
+  const ranges = was?.kind === "passage" ? was.ranges : undefined;
+  const stand =
+    ranges?.length === segments.length &&
+    ranges.every((range, at) => {
+      const segment = segments[at];
+      return (
+        segment !== undefined &&
+        range.startContainer === segment.node &&
+        range.startOffset === segment.start &&
+        range.endContainer === segment.node &&
+        range.endOffset === segment.end
+      );
+    });
+  return stand && ranges ? ranges : segments.map((segment) => rangeOf([segment]));
+}
+
 export function createAnchorPlacement() {
   /** @type {Map<string, Placement>} */
   const placed = new Map();
@@ -87,6 +109,8 @@ export function createAnchorPlacement() {
           ? Object.assign(found, { message: held.message })
           : resolvedInMessage(held);
       if (!resolved) continue;
+      if (resolved.kind === "passage")
+        resolved.ranges = liveRanges(before.get(thread.id), resolved.segments);
       const target = targetElement(resolved) ?? resolved.place;
       const placement = Object.assign(resolved, {
         messageTarget: held,

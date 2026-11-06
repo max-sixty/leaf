@@ -24,6 +24,7 @@ import {
   pageReadingVersion,
   pageWords,
   rangeOf,
+  rangePieces,
 } from "../passages.js";
 import { bareReaction } from "../thread/model.js";
 import { threadNamed } from "../thread/state.js";
@@ -406,11 +407,7 @@ export function createAnchorPaint({
     const where = /** @type {Range} */ (found.where);
     /** @type {Node[]} */
     const nodes = [];
-    for (const node of textNodesOf(where)) {
-      const start = node === where.startContainer ? where.startOffset : 0;
-      const end =
-        node === where.endContainer ? where.endOffset : (node.textContent?.length ?? 0);
-      if (end <= start) continue;
+    for (const { node, start, end } of rangePieces(where)) {
       const text = inText.get(node) ?? { pieces: [], tree: null };
       text.pieces.push({ ...found, where, start, end });
       text.tree = null;
@@ -422,29 +419,6 @@ export function createAnchorPaint({
       }
     }
     indexedRanges.set(where, { found, nodes });
-  }
-  /** @param {Range} where */
-  function textNodesOf(where) {
-    const { startContainer: first, endContainer: last } = where;
-    if (where.collapsed) return [];
-    if (first === last) return first.nodeType === Node.TEXT_NODE ? [first] : [];
-    const walker = document.createTreeWalker(
-      where.commonAncestorContainer,
-      NodeFilter.SHOW_TEXT,
-    );
-    /** @type {Node[]} */
-    const nodes = [];
-    walker.currentNode = first;
-    for (
-      let node = first.nodeType === Node.TEXT_NODE ? first : walker.nextNode();
-      node;
-      node = walker.nextNode()
-    ) {
-      if (!where.intersectsNode(node)) break;
-      nodes.push(node);
-      if (node === last) break;
-    }
-    return nodes;
   }
   // The text nodes a change the watcher heard touched, as far as any mark stands in
   // them: those it wrote, those it moved in or out, and, for a node it moved in, the
@@ -592,28 +566,18 @@ export function createAnchorPaint({
     });
   }
 
-  // Whether a thread's marks, by where their live ranges stand now, mark what this
-  // pass's would: the same words piece by piece, or the same elements.
-  /** @param {readonly Mark[]} marks
-   * @param {readonly (Element | import("../passages.js").Segment)[]} now */
-  const markAlike = (marks, now) =>
-    marks.length === now.length &&
-    marks.every((mark, at) => {
-      const part = now[at];
-      if (mark instanceof Element || part instanceof Element) return mark === part;
-      return (
-        part !== undefined &&
-        mark.startContainer === part.node &&
-        mark.startOffset === part.start &&
-        mark.endContainer === part.node &&
-        mark.endOffset === part.end
-      );
-    });
+  // Whether a thread's element marks are the elements this pass would mark.
+  /** @param {readonly Mark[]} marks @param {readonly Element[]} parts */
+  const sameParts = (marks, parts) =>
+    marks.length === parts.length && marks.every((mark, at) => mark === parts[at]);
 
-  // A pass keeps the marks of each thread whose marks it would make again, so a
-  // presentation that changes no mark keeps its ranges, the index of them (`index`) and
-  // the highlight painting them as they stand, and the hover stays bound to them; only a
-  // pass that changes a mark, or the order of the threads marked, builds them again.
+  // A passage's marks are the live ranges anchor placement keeps of it, the one record
+  // of where it is (resolved-target.js, `targetSegments`), which a reading that moves
+  // nothing keeps; an element's are its parts, kept while they are the same elements.
+  // So a presentation that changes no mark keeps its ranges, the index of them (`index`)
+  // and the highlight painting them as they stand, and the hover stays bound to them;
+  // only a pass that changes a mark, or the order of the threads marked, builds them
+  // again.
   /** @param {NonNullable<ReturnType<ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["read"]>>} reading */
   function paint({ readings, draft, action }) {
     const before = outlined();
@@ -635,13 +599,9 @@ export function createAnchorPaint({
     for (const { thread, placement: found } of inOrder) {
       if (found.status === "outdated" || thread.resolved) continue;
 
+      const ranges = found.kind === "passage" ? (found.ranges ?? []) : [];
       if (bareReaction(thread)) {
-        reactions.push(
-          ...targetSegments(found).map(
-            /** @param {Parameters<typeof rangeOf>[0][number]} segment */ (segment) =>
-              rangeOf([segment]),
-          ),
-        );
+        reactions.push(...ranges);
         continue;
       }
 
@@ -650,18 +610,9 @@ export function createAnchorPaint({
         rememberVisual(found);
         if (!thread.root.drawing) {
           const parts = targetParts(found);
-          marked.set(thread.id, kept && markAlike(kept, parts) ? kept : parts);
+          marked.set(thread.id, kept && sameParts(kept, parts) ? kept : parts);
         }
       } else if (!thread.root.drawing) {
-        const segments = targetSegments(found);
-        const ranges =
-          kept && markAlike(kept, segments)
-            ? /** @type {Range[]} */ (kept)
-            : segments.map(
-                /** @param {Parameters<typeof rangeOf>[0][number]} segment */ (
-                  segment,
-                ) => rangeOf([segment]),
-              );
         marked.set(thread.id, ranges);
         posted.push(...ranges);
       }

@@ -1111,6 +1111,46 @@ export const segmentPieces = (segments) =>
     block: segmentBlock(segment),
     lines: [...rangeOf([segment]).getClientRects()],
   }));
+// The text a live range covers now, piece by piece: in each text node it intersects,
+// from where it starts there to where it ends, in order. One, as a segment's range is
+// made, or several once a split has carried its end into the next node; none once it
+// has collapsed, as moving its words does.
+/** @param {Range} range @returns {{node: Text, start: number, end: number}[]} */
+export function rangePieces(range) {
+  const { startContainer: first, endContainer: last } = range;
+  if (range.collapsed) return [];
+  /** @param {Text} node */
+  const piece = (node) => ({
+    node,
+    start: node === first ? range.startOffset : 0,
+    end: node === last ? range.endOffset : node.length,
+  });
+  if (first === last) return isText(first) ? [piece(first)] : [];
+  const walker = document.createTreeWalker(
+    range.commonAncestorContainer,
+    NodeFilter.SHOW_TEXT,
+  );
+  walker.currentNode = first;
+  /** @type {{node: Text, start: number, end: number}[]} */
+  const pieces = [];
+  for (
+    let node = isText(first) ? first : walker.nextNode();
+    node;
+    node = walker.nextNode()
+  ) {
+    if (!range.intersectsNode(node) || !isText(node)) break;
+    const covered = piece(node);
+    if (covered.end > covered.start) pieces.push(covered);
+    if (node === last) break;
+  }
+  return pieces;
+}
+// Where a passage is travelled to: a range over its first piece, where its words
+// start, as one range across its pieces collapses onto its end where it runs into a
+// shadow tree (`rangeOf`). Search, thread travel and the comment box all go there.
+/** @param {readonly Segment[]} segments */
+export const passageStart = (segments) =>
+  segments[0] ? rangeOf(segments.slice(0, 1)) : null;
 // The lines a passage's words are drawn in, all its pieces' in order.
 /** @param {readonly Segment[]} segments */
 export const segmentLines = (segments) =>

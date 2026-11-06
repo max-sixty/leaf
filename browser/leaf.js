@@ -526,6 +526,7 @@ async function boot() {
     currentTarget,
     markAt: anchorPaint?.markAt,
     scrollToElement: anchorTravel.scrollToElement,
+    scrollToPassage: anchorTravel.scrollToPassage,
     scrollToRange: anchorTravel.scrollToRange,
     visualActionAnchor: anchorControls.visualActionAnchor,
     designModeActive: designMode.active,
@@ -567,7 +568,7 @@ async function boot() {
     currentTarget,
   });
   targets = createTargetPicker({
-    scrollToRange: anchorTravel.scrollToRange,
+    scrollToPassage: anchorTravel.scrollToPassage,
     hintChrome,
     commentOnTarget: responseSurface.commentOnTarget,
     updateFab: responseSurface.updateFab,

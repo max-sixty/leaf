@@ -129,7 +129,7 @@ const searchCount = (position, total) => `${position} of ${total}`;
  * @typedef {ReturnType<typeof keyBadgePlacement>["visibleBounds"] extends (...args: never[]) => infer T ? NonNullable<T> : never} VisibleBox
  * @typedef {import("../anchor-resolution.js").AimTarget} PickerTarget
  * @typedef {Object} TargetPickerOptions
- * @property {ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToRange"]} scrollToRange
+ * @property {ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToPassage"]} scrollToPassage
  * @property {{barriers: () => import("../rect.js").Box[]}} hintChrome
  * @property {(target: PickerTarget) => unknown} commentOnTarget
  * @property {() => unknown} updateFab
@@ -141,7 +141,7 @@ const searchCount = (position, total) => `${position} of ${total}`;
  */
 /** @param {TargetPickerOptions} options */
 export function createTargetPicker({
-  scrollToRange,
+  scrollToPassage,
   hintChrome,
   commentOnTarget,
   updateFab,
@@ -484,13 +484,12 @@ export function createTargetPicker({
     repaint();
   }
 
-  // A match out of sight is travelled to by its first piece, where its words start, as
-  // a thread is (anchor-travel.js, `threadDestination`): one range across its pieces
-  // collapses onto its end where it runs into a shadow tree (passages.js, `rangeOf`).
+  // A match out of sight is brought into it where its words start (anchor-travel.js,
+  // `scrollToPassage`).
   function showMatch() {
     const segments = matches.value[active];
     if (!segments || matchRect(segments)) return;
-    scrollToRange(rangeOf(segments.slice(0, 1)), "instant");
+    scrollToPassage(segments, "instant");
   }
 
   /** @param {import("../keyboard/bindings.js").Step} direction */

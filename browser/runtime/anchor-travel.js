@@ -68,7 +68,7 @@ import { reveal } from "./widget-elements.js";
 import { threadNamed } from "./thread/state.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
-import { rangeOf } from "./passages.js";
+import { passageStart, rangeOf } from "./passages.js";
 import { livePoint } from "./pointed-place.js";
 import { notice } from "./notifications.js";
 
@@ -513,6 +513,14 @@ export function createAnchorTravel({
     const { replacedView } = reveal(holder, retainUserIntent());
     placeScroll({ at: where, behavior }, replacedView);
   }
+  // A passage is scrolled to where its words start (passages.js, `passageStart`), as a
+  // thread is travelled to (`threadDestination`): a search's match, the comment box
+  // brought back to its passage.
+  /** @param {readonly import("./passages.js").Segment[]} segments @param {ScrollBehavior} [behavior] */
+  function scrollToPassage(segments, behavior = scrollBehavior()) {
+    const start = passageStart(segments);
+    if (start) scrollToRange(start, behavior);
+  }
 
   // Hydration may outlive its gesture. After it settles, validate the retained intent
   // and synchronously repaint before reading placement. The second refresh after reveal
@@ -525,10 +533,10 @@ export function createAnchorTravel({
   /** @param {string} id */
   const threadDestination = (id) => {
     const placement = anchors.placedAt(id);
-    const segment = targetSegments(placement)[0];
-    const where = segment
-      ? rangeOf([segment])
-      : (targetElement(placement) ?? targetPlace(placement));
+    const where =
+      passageStart(targetSegments(placement)) ??
+      targetElement(placement) ??
+      targetPlace(placement);
     return (
       livePoint(targetElement(placement) ?? targetPlace(placement), placement?.point) ??
       where
@@ -617,6 +625,7 @@ export function createAnchorTravel({
     returnToFragment,
     navigateToDatum,
     scrollToElement,
+    scrollToPassage,
     scrollToRange,
     scrollToThread,
     threadDestination,

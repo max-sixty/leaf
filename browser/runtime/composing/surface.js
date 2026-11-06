@@ -86,12 +86,7 @@ import { bringBackSurfaceOf } from "../off-flow.js";
 import { covered, placeBox, seenRect } from "../geometry.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { cancelRender, nextRender } from "../rendering.js";
-import {
-  targetElement,
-  targetPlace,
-  targetSegments,
-  targetRange,
-} from "../resolved-target.js";
+import { targetElement, targetPlace, targetSegments } from "../resolved-target.js";
 import {
   composerOpen,
   createSelectionComposer,
@@ -109,7 +104,13 @@ import { advertisesKeys } from "../keyboard/bindings.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 
-import { elementById, closestAcross, inChrome, pageWords } from "../passages.js";
+import {
+  elementById,
+  closestAcross,
+  inChrome,
+  pageWords,
+  passageStart,
+} from "../passages.js";
 import {
   leftThePage,
   pageSelection,
@@ -175,6 +176,7 @@ import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
  * currentTarget: ReturnType<typeof import("./current-target.js").createCurrentTarget>,
  * markAt?: ((x: number, y: number) => string | null) | undefined,
  * scrollToElement: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToElement"],
+ * scrollToPassage: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToPassage"],
  * scrollToRange: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToRange"],
  * visualActionAnchor: ReturnType<typeof import("../anchor-controls.js").createAnchorControls>["visualActionAnchor"],
  * designTarget: ReturnType<typeof import("../design.js").createDesignMode>["target"], openOnDesign: ReturnType<typeof import("../design.js").createDesignMode>["open"],
@@ -195,6 +197,7 @@ export function createResponseSurface({
   currentTarget,
   markAt,
   scrollToElement,
+  scrollToPassage,
   scrollToRange,
   visualActionAnchor,
   designModeActive,
@@ -428,6 +431,7 @@ export function createResponseSurface({
       positioned: answerFabPosition,
       dismiss: () => letGoOfFab(),
       scrollToElement,
+      scrollToPassage,
       scrollToRange,
     }) ?? null;
   // An element response exits to its subject, or the declared proxy representing it
@@ -589,7 +593,8 @@ export function createResponseSurface({
   };
   /** @param {Anchor | null} anchor */
   const anchorTravelAt = (anchor) =>
-    (anchor?.quote && targetRange(resolveAnchor(anchor))) || anchorTargetAt(anchor);
+    (anchor?.quote && passageStart(targetSegments(resolveAnchor(anchor)))) ||
+    anchorTargetAt(anchor);
   const fabTargetAt = () => anchorTargetAt(fabAnchor.value);
   const fabReturnPlaces = () => returnPlaces(fabAnchor.value);
 

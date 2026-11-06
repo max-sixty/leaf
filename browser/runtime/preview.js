@@ -241,6 +241,7 @@ import { atClock, clockNow } from "./presence.js";
 import { watchOwner } from "./arrivals.js";
 import { actionClass } from "./control-faces.js";
 import { WORKS } from "./control-selectors.js";
+import { aimableAt } from "./widget-elements.js";
 import { shownParts, shownWindow, visualViewport } from "./geometry.js";
 import { linkPreview } from "./place-preview.js";
 
@@ -257,7 +258,7 @@ import { linkPreview } from "./place-preview.js";
  * @typedef {import("./rect.js").Box} Box
  * @typedef {Element | Range} Target
  * @typedef {{from: Target, target: Target, holder: Element, route: Route, read: Read | null, at: {x: number, y: number} | undefined, line?: number, within?: Box | null, reading: Reading, clock: number, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
- * @typedef {{pointerId: number, parent: Element | null, target: Target | null, says: Read | null, at: {x: number, y: number}, armed: boolean, read: boolean, timer: ReturnType<typeof setTimeout> | undefined}} Hold */
+ * @typedef {{pointerId: number, node: Node | null, parent: Element | null, element: Element | null, range: Range | null, says: Read | null, at: {x: number, y: number}, armed: boolean, read: boolean, timer: ReturnType<typeof setTimeout> | undefined}} Hold */
 
 const DWELL = 200;
 const HOLD = 500;
@@ -624,14 +625,11 @@ let shown = null;
 let cooled = -Infinity;
 // What a hovering pointer rests on, in two layers, each kept until whoever said it says
 // otherwise: the element `pointerover` found that previews itself (`over`), and the
-// range a range's owner says it rests on, with what pointing at it reads, where the
-// pointer was and the passage it is a piece of (`ranged`, `pointRange`). The target is
-// the element unless it holds the whole passage, so a link inside the passage or
-// overlapping part of it previews as the link, and a passage inside a widget that
-// previews itself as the passage; the range where no element is found; and the
-// element where no range is said (`aimed`). The pointer leaving a link for the
-// passage's words around it is on the passage again with nothing told anew.
-/** @typedef {{range: Range, read: Read | null, at: {x: number, y: number} | undefined, passage: readonly (Range | Element)[]}} Ranged */
+// range a range's owner says it rests on, with what pointing at it reads and where the
+// pointer was (`ranged`, `pointRange`). Which of them the pointer reads is the one rule
+// every route that reads a point follows (`readingAt`), so the pointer leaving a link
+// for the passage's words around it is on the passage again with nothing told anew.
+/** @typedef {{range: Range, read: Read | null, at: {x: number, y: number} | undefined}} Ranged */
 /** @type {Element | null} */
 let over = null;
 /** @type {Ranged | null} */
@@ -1415,17 +1413,21 @@ const sameTarget = (a, b) => a === b || (a instanceof Range && sameRange(a, b));
 // The pointer's target, from what each layer says it rests on (`over`, `ranged`).
 /** @returns {Target | null} */
 function aimed() {
-  if (!ranged) return over;
-  if (!over) return ranged.range;
-  const element = over;
-  const holds = ranged.passage.every((piece) =>
-    renderedUnder(
-      piece instanceof Range ? piece.commonAncestorContainer : piece,
-      element,
-    ),
-  );
-  return holds ? ranged.range : element;
+  return readingAt(beneath, over, ranged?.range ?? null);
 }
+// What a pointer or a held finger at `node` reads: the range a range's owner says is
+// there, as a thread's words, only where nothing else at that point takes the pointer
+// (widget-elements.js, `aimableAt`), and otherwise the element that previews itself
+// there, or nothing. So a link or a gloss holding a thread's words previews itself, a
+// titled button shows only its title, and a thread's words in code or an option preview
+// nothing, their thread reached by its margin entry, `t` and its Threads row. Focus
+// rests on an element and reads it, never a range.
+/** @param {Node | null} node @param {Element | null} element @param {Range | null} range
+ * @returns {Target | null} */
+const readingAt = (node, element, range) =>
+  range && !aimableAt(node) ? range : element;
+/** @param {Hold} held */
+const heldTarget = (held) => readingAt(held.node, held.element, held.range);
 function aim() {
   const target = aimed();
   if (target instanceof Range) point(target, ranged?.read ?? null, ranged?.at);
@@ -1436,18 +1438,15 @@ function aim() {
  * pointing at it reads, and where the pointer is, which picks the line it stands by. A
  * range with the same boundaries as the one pointed at is the same range, however many
  * times its owner makes it, and its latest read is the one a standing preview says. The
- * range is the piece the preview stands by; `passage` is every piece of what the
- * pointer rests on, the range alone where its owner names no more. The range stands
- * until its owner says none (`ranged`): an element under the pointer that doesn't hold
- * the whole passage, as a link in a thread's passage, is the innermost and wins, as it
- * does for the keyboard and a finger, and the range is the target again once the
- * pointer leaves that element for the passage's words (`aimed`). A pointer on the
+ * range stands until its owner says none (`ranged`): where something else under the
+ * pointer takes it, as a link in a thread's passage, that is what pointing reads, as
+ * for a finger, and the range is the target again once the pointer leaves it for the
+ * range's words (`readingAt`). A pointer on the
  * range's preview keeps the range, as one on an element's preview keeps the element
  * (WCAG 1.4.13, "Hoverable"). A finger holding a press holds the range it rests on
  * (`holdRange`); one that only moved reads none.
- * @param {Range | null} range @param {Read} [read] @param {{x: number, y: number}} [at]
- * @param {readonly (Range | Element)[]} [passage] */
-export function pointRange(range, read, at, passage = range ? [range] : []) {
+ * @param {Range | null} range @param {Read} [read] @param {{x: number, y: number}} [at] */
+export function pointRange(range, read, at) {
   if (hold) holdRange(hold, range, read, at);
   else if (finger) return;
   else if (!range) {
@@ -1458,7 +1457,6 @@ export function pointRange(range, read, at, passage = range ? [range] : []) {
     // The same range again may say other words: its declaration is the latest, and a
     // preview standing for it reads it now.
     ranged.read = read ?? null;
-    ranged.passage = passage;
     if (!sameTarget(pointing, ranged.range)) aim();
     else {
       pointingRead = ranged.read;
@@ -1468,26 +1466,31 @@ export function pointRange(range, read, at, passage = range ? [range] : []) {
       }
     }
   } else {
-    ranged = { range, read: read ?? null, at, passage };
+    ranged = { range, read: read ?? null, at };
     aim();
   }
 }
 
-// A finger's hold rests on a range or on none, unless it holds an element, which
-// previews itself; once the hold is armed, it shows the range's preview. The same range
-// again keeps its place and takes its owner's latest words.
+// A finger's hold rests on a range or on none, beside the element it found, and reads
+// whichever the pointer's rule takes (`readingAt`); once the hold is armed, it shows
+// that. The same range again keeps its place and takes its owner's latest words.
 /** @param {Hold} held @param {Range | null} range @param {Read | undefined} read @param {{x: number, y: number}} [at] */
 function holdRange(held, range, read, at) {
-  if (isElement(held.target)) return;
-  if (range ? sameRange(range, held.target) : !held.target) {
+  if (range ? sameRange(range, held.range) : !held.range) {
     if (range && read) held.says = read;
     return;
   }
-  held.target = range;
+  held.range = range;
   held.says = (range && read) || null;
   if (at) held.at = at;
-  if (!held.armed) return;
-  if (range && show(range, "hold", held.says, held.at)) held.read = true;
+  if (held.armed) showHeld(held);
+}
+// The hold's reading, shown where it says something, put away where it says nothing.
+/** @param {Hold} held */
+function showHeld(held) {
+  const target = heldTarget(held);
+  const says = target instanceof Range ? held.says : null;
+  if (target && show(target, "hold", says, held.at)) held.read = true;
   else hide();
 }
 
@@ -1512,10 +1515,11 @@ function changed(node, aim) {
   }
   const on = focused();
   if (hold?.armed) {
-    if (within(hold.target)) show(/** @type {Element} */ (hold.target), "hold");
-    else if (!hold.target && hold.parent === node.parentElement) {
-      hold.target = node;
-      show(node, "hold");
+    const target = heldTarget(hold);
+    if (isElement(target) && within(target)) show(target, "hold");
+    else if (!target && hold.parent === node.parentElement) {
+      hold.element = node;
+      showHeld(hold);
     }
   } else if (aim && on && within(on)) showFocus(on);
   else if (beneath && under(beneath, node) && !within(quiet)) {
@@ -1701,8 +1705,10 @@ export function mountPreviews(chrome) {
       /** @type {Hold} */
       const held = {
         pointerId: event.pointerId,
+        node: origin instanceof Node ? origin : null,
         parent: found?.parentElement ?? null,
-        target: found,
+        element: found,
+        range: null,
         says: null,
         at: { x: event.clientX, y: event.clientY },
         armed: false,
@@ -1716,14 +1722,15 @@ export function mountPreviews(chrome) {
   document.addEventListener(
     "pointermove",
     (event) => {
-      if (hold?.pointerId !== event.pointerId || hold.target instanceof Range) return;
-      const found = candidate(event.composedPath());
+      if (hold?.pointerId !== event.pointerId || heldTarget(hold) instanceof Range)
+        return;
+      const path = event.composedPath();
+      const found = candidate(path);
       const neighbour = found?.parentElement === hold.parent ? found : null;
-      if (neighbour === hold.target) return;
-      hold.target = neighbour;
-      if (!hold.armed) return;
-      if (neighbour && show(neighbour, "hold")) hold.read = true;
-      else hide();
+      if (neighbour === hold.element) return;
+      hold.element = neighbour;
+      hold.node = path[0] instanceof Node ? path[0] : null;
+      if (hold.armed) showHeld(hold);
     },
     { capture: true, passive: true },
   );
@@ -1785,7 +1792,9 @@ function arm(held) {
   if (hold !== held || held.armed) return;
   clearTimeout(held.timer);
   held.armed = true;
-  if (held.target && show(held.target, "hold", held.says, held.at)) held.read = true;
+  const target = heldTarget(held);
+  const says = target instanceof Range ? held.says : null;
+  if (target && show(target, "hold", says, held.at)) held.read = true;
 }
 
 // The hold ends with its release, and what it read stands until the next press.

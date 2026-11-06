@@ -1519,10 +1519,10 @@ def test_a_passage_entered_by_bold_words_lets_the_link_and_gloss_in_it_preview(
     engine, request, serve
 ):
     """A thread's passage that starts in bold words previews as the thread there, and the
-    link and the gloss further on in it preview as themselves: they stand inside the
-    passage, whichever of its pieces the pointer came onto it by. A link that only
+    link and the gloss further on in it preview as themselves, since they take the
+    pointer, whichever of its pieces the pointer came onto it by. A link that only
     partly overlaps a passage previews as the link on the words they share, however the
-    pointer reached them, since it doesn't hold the whole passage."""
+    pointer reached them, and the passage's other words as the thread."""
     url = serve(
         leaf_page(
             "Rollout",
@@ -1585,6 +1585,182 @@ def test_a_passage_entered_by_bold_words_lets_the_link_and_gloss_in_it_preview(
     expect(word).to_have_text("Check the first group only.")
     onto("#partial-link", "first")
     expect(word).to_have_text("Destination details")
+
+
+def _comment_on(page_dir, anchors):
+    """A thread on each of `anchors`, each named for the section it is in."""
+    for anchor in anchors:
+        append_carried_log_record(
+            page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "text": f"On {anchor['section']}",
+                "anchor": anchor,
+            },
+        )
+
+
+def _reads(page, selector, words):
+    """What the preview names once a resting pointer has come onto `words` in the element
+    `selector` names and the dwell has passed, or None where it shows nothing."""
+    tip = page.locator(PREVIEW)
+    at = page.evaluate(WORDS_AT, [selector, words])
+    page.mouse.move(2, 2)
+    page.wait_for_timeout(400)
+    page.mouse.move(at["x"], at["y"], steps=3)
+    page.wait_for_timeout(600)
+    return tip.locator(".lf-preview-word").inner_text() if tip.is_visible() else None
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_thread_s_words_where_something_else_takes_the_pointer_preview_that(
+    engine, request, serve
+):
+    """A thread's words preview the thread only where nothing else there takes the
+    pointer (widget-elements.js, `aimableAt`). Words inside a link, or all of a link's,
+    preview the link; in a titled button, only the title the browser shows; a gloss's
+    words, its explanation; and words in a card that says what it holds, the card.
+    Words in plain prose preview their thread."""
+    url = serve(
+        leaf_page(
+            "Takers",
+            '<p id="inside">Read <a id="holder" href="#destination">the plan for the '
+            "small cohort today</a> first.</p>"
+            '<p id="equal">Then <a id="whole" href="#destination">the whole link</a>'
+            " again.</p>"
+            '<p id="titled-block"><button id="titled" type="button" '
+            'title="Inspect the rollout">Inspect the small group</button></p>'
+            '<p id="glossed">Roll out behind <lf-gloss id="gloss" '
+            'tip="Check every gate before expanding.">a gate</lf-gloss> today.</p>'
+            '<div id="info" tabindex="0"><p id="info-words">Informational marked '
+            "words with facts.</p></div>"
+            '<p id="prose">Plain prose with marked words in it.</p>'
+            + "<p>More words.</p>"
+            * 6
+            + '<section id="destination"><h2>Destination details</h2>'
+            "<p>The second stage starts once the cohort remains healthy.</p></section>",
+        )
+    )
+    _comment_on(
+        serve.page_dir,
+        [
+            {"section": "inside", "quote": "small cohort"},
+            {"section": "equal", "quote": "the whole link"},
+            {"section": "titled-block", "quote": "small group"},
+            {"section": "glossed", "quote": "a gate"},
+            {"section": "info-words", "quote": "marked words"},
+            {"section": "prose", "quote": "marked words"},
+        ],
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.locator("#info").evaluate(
+        "el => { el.lfPreview = () => ({name: 'Facts about the card'}); }"
+    )
+    rendered(page)
+    readings = {
+        "inside": _reads(page, "#holder", "cohort"),
+        "equal": _reads(page, "#whole", "whole"),
+        "titled": _reads(page, "#titled", "small"),
+        "gloss": _reads(page, "#gloss", "gate"),
+    }
+    explained = page.locator(PREVIEW).locator(".lf-preview-detail").all_inner_texts()
+    readings["card"] = _reads(page, "#info-words", "marked")
+    readings["prose"] = _reads(page, "#prose", "marked")
+    assert readings == {
+        "inside": "Destination details",
+        "equal": "Destination details",
+        "titled": None,
+        "gloss": "a gate",
+        "card": "Facts about the card",
+        "prose": "On prose",
+    }
+    assert explained == ["Check every gate before expanding."]
+
+
+# A thread on words in code and on an option's chip, widgets whose content is their own.
+OWN_CONTENT = (
+    '<lf-code id="code" language="python"><pre>marked_code = 1</pre></lf-code>'
+    '<lf-options id="opts" choose><lf-option id="o1"><small class="tag">small cohort'
+    "</small> <strong>Start small</strong> Then widen.</lf-option>"
+    '<lf-option id="o2"><strong>Start wide</strong> Then trim.</lf-option>'
+    "</lf-options>" + "<p>More words.</p>" * 4
+)
+OWN_CONTENT_THREADS = [
+    {"section": "code", "quote": "marked_code"},
+    {"section": "o1", "quote": "small cohort"},
+]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_thread_s_words_in_code_or_an_option_preview_nothing_and_its_entry_does(
+    engine, request, serve
+):
+    """A thread's words in a widget whose content is its own, as code or an option's
+    chip, preview nothing to a resting pointer, since the widget takes the pointer
+    there; the thread's margin entry previews it."""
+    url = serve(leaf_page("Own content", OWN_CONTENT))
+    _comment_on(serve.page_dir, OWN_CONTENT_THREADS)
+    page = open_page(request.getfixturevalue(engine), url)
+    tip = page.locator(PREVIEW)
+    rendered(page)
+    assert [_reads(page, "#code", "marked_code"), _reads(page, "#o1", "cohort")] == [
+        None,
+        None,
+    ]
+    # Code's entry stands for the line its words are on, which has no id.
+    for section, entry in (
+        ("code", '[data-lf-margin-for*="/lf-code:"]'),
+        ("o1", '[data-lf-margin-for="o1"]'),
+    ):
+        page.mouse.move(2, 2)
+        page.locator(f"{entry} > .lf-margin-marker").hover()
+        expect(tip.locator(".lf-preview-word")).to_have_text(f"On {section}")
+
+
+def test_a_finger_holding_a_thread_s_words_reads_what_takes_the_pointer_there(
+    browser, serve
+):
+    """A finger held on a thread's words reads by the pointer's rule: in code, which
+    takes the pointer there, nothing; in plain prose, the thread."""
+    url = serve(
+        leaf_page(
+            "Own content",
+            '<p id="prose">Plain prose with marked words in it.</p>' + OWN_CONTENT,
+        )
+    )
+    _comment_on(
+        serve.page_dir,
+        [{"section": "prose", "quote": "marked words"}, OWN_CONTENT_THREADS[0]],
+    )
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, has_touch=True
+    )
+    page = open_page(browser, url, context=context)
+    cdp = context.new_cdp_session(page)
+    tip = page.locator(PREVIEW)
+    rendered(page)
+
+    def holds(selector, words):
+        """What the preview names once a finger has held `words` past the long press."""
+        point = page.evaluate(WORDS_AT, [selector, words])
+        cdp.send(
+            "Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [point]}
+        )
+        rendered(page)
+        long_press(page, point)
+        page.wait_for_timeout(300)
+        said = (
+            tip.locator(".lf-preview-word").inner_text() if tip.is_visible() else None
+        )
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchCancel", "touchPoints": []})
+        expect(tip).to_be_hidden()
+        return said
+
+    assert [holds("#code", "marked_code"), holds("#prose", "marked")] == [
+        None,
+        "On prose",
+    ]
 
 
 def test_a_standing_preview_says_what_a_new_revision_changed(browser, serve):

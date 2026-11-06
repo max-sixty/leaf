@@ -960,11 +960,13 @@ summary {
   align-items: baseline;
   gap: 8px;
 }
+/* The label opens a block of its own among the messages, so it takes the face that
+   names a message's sender, in the muted ink that keeps it from reading as one. */
 .lf-summary-label {
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--muted);
-  font: var(--font-status);
+  font: var(--font-name);
 }
 .lf-summary-text {
   color: var(--ink-2);

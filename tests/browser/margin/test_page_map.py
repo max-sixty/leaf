@@ -30,6 +30,7 @@ from render_harness import (
     panel_settled,
     panel_view,
     press_visible,
+    preview_parts,
     regions_side_by_side,
     resized,
     scroll_settled,
@@ -980,12 +981,18 @@ def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, ser
         browser, serve(source, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION])
     )
     resized(page, 1440, 900)
-    buttons = page.evaluate(
-        """() => [...document.querySelectorAll('.lf-margin-entry')].map(control => ({
-          name: control.getAttribute('aria-label'),
-          word: control.querySelector(':scope > .lf-margin-entry-label').textContent,
-        }))"""
-    )
+    entries = page.locator(".lf-margin-entry")
+    # What each entry the margin shows says when pointed at; one folded into another's
+    # overflow shows nothing to point at.
+    buttons = [
+        {
+            "name": entries.nth(index).get_attribute("aria-label"),
+            "word": " ".join(preview_parts(entries.nth(index)))
+            if entries.nth(index).is_visible()
+            else "",
+        }
+        for index in range(entries.count())
+    ]
     placed = [button for button in buttons if re.search(r"\d+ of \d+", button["name"])]
     assert placed, "no margin entry announced where it stands in the walk"
     for button in placed:

@@ -11,8 +11,10 @@ from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url
 from render_cases_layout import token_colour
 from render_harness import (
+    PREVIEW,
     draft_control,
     leaf_page,
+    long_press,
     margins_laid_out,
     open_page,
     open_threads,
@@ -57,9 +59,9 @@ def _refreshes_restate_no_margin_name(page, population):
     population is: a run where rows stood somewhere the watch does not reach would
     otherwise return the same clean `[]` it returns when nothing is wrong.
 
-    Half of `render` runs in a frame callback — `scheduleMarginLayout`,
-    `scheduleRoving` and `scheduleMarginEntryLabels` are its whole tail — and five
-    refreshes in one synchronous task never reach it. Each refresh is therefore
+    Half of `render` runs in a frame callback — `scheduleMarginLayout` and
+    `scheduleRoving` are its whole tail — and five refreshes in one synchronous task
+    never reach it. Each refresh is therefore
     read across a settled frame, which both pages now allow. The layout pass
     places every row from what it writes, so a refresh that restated a posture, an
     offset or a push shows up here as a restatement.
@@ -152,10 +154,12 @@ def _refreshes_restate_no_margin_name(page, population):
 def test_an_inline_contribution_name_needs_no_physical_margin(
     browser, serve, annotations
 ):
-    """The shared control's native name remains readable when a page owns annotations."""
-    source = leaf_page("Inline names", '<button id="inline">Read</button>').replace(
-        "<body>", f'<body data-annotations="{annotations}">'
-    )
+    """The shared control says its name as its preview wherever a page seats it, and the
+    keyboard reads it at once."""
+    source = leaf_page(
+        "Inline names",
+        '<button id="before">Before</button> <button id="inline">Read</button>',
+    ).replace("<body>", f'<body data-annotations="{annotations}">')
     page = open_page(browser, serve(source))
     page.evaluate(
         """async () => {
@@ -166,16 +170,20 @@ def test_an_inline_contribution_name_needs_no_physical_margin(
         }"""
     )
     control = page.get_by_role("button", name="Read inline name", exact=True)
-    control.focus()
-    expect(control.locator(".lf-margin-entry-label")).to_be_visible()
+    preview = page.locator(PREVIEW)
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(control).to_be_focused()
+    expect(preview).to_have_text("Read inline name")
     page.mouse.move(0, 0)
     page.keyboard.press("Tab")
-    expect(control.locator(".lf-margin-entry-label")).to_be_hidden()
+    expect(control).not_to_be_focused()
+    expect(preview).not_to_have_text("Read inline name")
 
 
 def test_a_margin_entry_label_starts_at_its_settled_place(browser, serve):
-    """A name has one visible position from its first reveal, whatever its border
-    or whether its control stands in the rail or as a pin."""
+    """A name's preview has one visible position from its first frame, whatever its
+    border or whether its control stands in the rail or as a pin."""
     page = open_page(
         browser,
         serve(leaf_page("Steady margin names", '<p id="target">Read this target.</p>')),
@@ -198,27 +206,43 @@ def test_a_margin_entry_label_starts_at_its_settled_place(browser, serve):
             page.wait_for_function(
                 "Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean)"
             )
-            reading = control.evaluate(
-                """async control => {
-                  const label = control.querySelector('.lf-margin-entry-label');
+            # The keyboard steps focus there, the user's own move, and the label's
+            # place is read from that focus on, frame by frame.
+            control.focus()
+            page.keyboard.press("Shift+Tab")
+            control.evaluate(
+                """control => {
+                  const label = document.getElementById('lf-preview');
+                  window.lfFrames = null;
                   const frames = [];
+                  // Its own preview, not the one the step back left standing.
+                  const name = control.getAttribute('aria-label');
                   const read = () => {
                     const style = getComputedStyle(label);
-                    if (style.visibility !== 'visible' || Number(style.opacity) === 0)
+                    if (!label.matches(':popover-open') || style.visibility !== 'visible'
+                        || Number(style.opacity) === 0 || !label.innerText.includes(name))
                       return;
                     const box = label.getBoundingClientRect();
                     frames.push({x: box.x, y: box.y});
                   };
-                  control.focus();
-                  read();
-                  for (let n = 0; n < 8; n++) {
-                    await new Promise(requestAnimationFrame);
+                  control.addEventListener('focus', async () => {
                     read();
-                  }
+                    for (let n = 0; n < 8; n++) {
+                      await new Promise(requestAnimationFrame);
+                      read();
+                    }
+                    window.lfFrames = frames;
+                  }, {once: true});
+                }"""
+            )
+            page.keyboard.press("Tab")
+            page.wait_for_function("window.lfFrames !== null")
+            reading = control.evaluate(
+                """async control => {
                   const posture = control.closest('.lf-margin-cluster').dataset.lfPlace;
                   control.blur();
                   await new Promise(requestAnimationFrame);
-                  return {frames, posture};
+                  return {frames: window.lfFrames, posture};
                 }"""
             )
             assert len(reading["frames"]) >= 2, reading
@@ -228,74 +252,12 @@ def test_a_margin_entry_label_starts_at_its_settled_place(browser, serve):
             assert reading["posture"] == ("rail" if width == 1440 else "pin")
 
 
-def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, serve):
-    """A tooltip moves rather than covering a neighboring margin entry."""
-    fixture = leaf_page(
-        "Close margin labels",
-        '<p id="first">First target</p><p id="second">Second target</p>',
-    )
-    page = open_page(browser, serve(fixture))
-    resized(page, 1440, 900)
-    page.evaluate(
-        """async () => {
-          const {contributionEntry, registerContribution} =
-            await window.__lfWidgetApi();
-          for (const id of ['first', 'second']) {
-            registerContribution({key: id, target: document.getElementById(id),
-              read: () => ({entries: [contributionEntry({
-                key: 'act', icon: 'dot', label: `Act on ${id}`
-              })]}), activate: () => {}});
-          }
-        }"""
-    )
-    first = page.locator('[data-lf-margin-for="first"]')
-    second = page.locator('[data-lf-margin-for="second"]')
-    button = first.get_by_role("button", name="Act on first", exact=True)
-    button.hover()
-    expect(button).to_have_attribute("data-lf-label-side", re.compile(".+"))
-    label = button.locator(".lf-margin-entry-label")
-    expect(label).to_be_visible()
-    button_box, label_box, second_box = [
-        locator.bounding_box() for locator in (button, label, second)
-    ]
-    default_label_box = {
-        "x": button_box["x"] + button_box["width"] - label_box["width"],
-        "y": button_box["y"] + button_box["height"] + 6,
-        "width": label_box["width"],
-        "height": label_box["height"],
-    }
-
-    def overlaps(left, right):
-        return (
-            left["x"] < right["x"] + right["width"]
-            and left["x"] + left["width"] > right["x"]
-            and left["y"] < right["y"] + right["height"]
-            and left["y"] + left["height"] > right["y"]
-        )
-
-    assert overlaps(default_label_box, second_box), (
-        "the fixture no longer exercises overlapping margin rows"
-    )
-    assert not overlaps(label_box, second_box)
-    page.mouse.move(0, 0)
-    button.focus()
-    page.keyboard.press("Tab")
-    page.keyboard.press("Shift+Tab")
-    expect(button).to_be_focused()
-    assert label.evaluate("node => node.getAnimations().length") == 0, (
-        "a keyboard destination delayed its label behind paint-only motion"
-    )
-
-
 def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve):
-    """A margin entry's label and status show to a resting pointer and the keyboard,
-    and a finger holds the entry to read them, with whatever else its title says. The
-    label stands clear of the finger, above the entry or else beside it, while the
-    press lasts, and a row arriving meanwhile doesn't move it. An
-    action's release presses it once, and the browser's own click after it reaches
-    nothing the press put under the finger. A phone keeps the entry a finger last
-    pressed hovered and focused until the next tap elsewhere, so neither reveals its
-    label there: a tap leaves none behind, and the label goes with the hold."""
+    """A margin entry's label and status are its preview, which a resting pointer and the
+    keyboard read, and a finger holds the entry to read them, with whatever else its
+    title says. The preview stands clear of the finger, above the entry, while the press
+    lasts, and a row arriving meanwhile doesn't move it. The release presses nothing and
+    leaves the preview standing until the next touch; a tap presses and shows none."""
     lead = "<p>Text before the target, so the label has room above it.</p>" * 4
     url = serve(
         leaf_page(
@@ -318,45 +280,36 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
                 label: 'Sent', context: '2m ago'}),
               contributionEntry({key: 'act', icon: 'dot', label: 'Act on it',
                 title: 'Acts at once'}),
-            ]}), activate: (key) => {
-              window.pressed.push(key);
-              // What the press opens lands under the finger.
-              const beneath = document.createElement('button');
-              beneath.style = 'position: fixed; inset: 0; z-index: 2147483647';
-              beneath.onclick = () => window.pressed.push('beneath');
-              document.body.append(beneath);
-            }});
+            ]}), activate: (key) => window.pressed.push(key)});
         }"""
     )
     cdp = context.new_cdp_session(page)
-    tapped = page.locator(".lf-margin-entry").filter(has_text="Sent")
+    preview = page.locator(PREVIEW)
+
+    def entry_keyed(key):
+        return page.locator(f'.lf-margin-entry[data-lf-margin-entry-key="{key}"]')
+
+    tapped = entry_keyed("sent")
     tapped.tap()
     expect(tapped).to_be_focused()
-    expect(tapped.locator(":scope > .lf-margin-entry-label")).to_be_hidden()
-    for name, words in (("Sent", "Sent2m ago"), ("Act on it", "Act on itActs at once")):
-        entry = page.locator(".lf-margin-entry").filter(has_text=name)
+    expect(preview).to_be_hidden()
+    for key, words in (("sent", "Sent2m ago"), ("act", "Act on itActs at once")):
+        entry = entry_keyed(key)
         expect(entry).to_be_visible()
-        label = entry.locator(":scope > .lf-margin-entry-label")
-        expect(label).to_be_hidden()
         box = entry.bounding_box()
         point = {"x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2}
         cdp.send(
             "Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [point]}
         )
-        expect(label).to_be_visible()
-        expect(label).to_have_text(words)
-        expect(entry).to_have_attribute(
-            "data-lf-label-side",
-            "above" if name == "Sent" else re.compile("above|before"),
-        )
-        held = label.bounding_box()
-        # Clear of the finger: wholly above the entry, or wholly left of it.
-        assert (
-            held["y"] + held["height"] <= box["y"]
-            or held["x"] + held["width"] <= box["x"]
-        ), (held, box)
-        if name == "Sent":
-            # A row arriving beside the held one leaves the label where it is.
+        long_press(page, point)
+        expect(preview).to_be_visible()
+        expect(preview).to_have_text(words)
+        expect(entry).to_have_attribute("data-lf-held", "")
+        held = preview.bounding_box()
+        # Clear of the finger: wholly above the entry.
+        assert held["y"] + held["height"] <= box["y"], (held, box)
+        if key == "sent":
+            # A row arriving beside the held one leaves the preview where it is.
             page.evaluate(
                 """async () => {
                   const {contributionEntry, registerContribution} =
@@ -367,17 +320,19 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
                       icon: 'dot', label: 'Arrived'})]}), activate: () => {}});
                 }"""
             )
-            expect(
-                page.locator(".lf-margin-entry").filter(has_text="Arrived")
-            ).to_be_visible()
+            expect(entry_keyed("note")).to_be_visible()
             rendered(page)
-            expect(entry).to_have_attribute("data-lf-label-side", "above")
-            assert label.bounding_box() == held
+            assert preview.bounding_box() == held
         cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
-        expect(entry).not_to_have_attribute("data-lf-held-word", "")
-        expect(label).to_be_hidden()
+        rendered(page)
+        expect(preview).to_have_text(words)
+        expect(entry).to_have_attribute("data-lf-held", "")
+    assert page.evaluate("window.pressed") == []
+    entry_keyed("act").tap()
     rendered(page)
     assert page.evaluate("window.pressed") == ["act"]
+    expect(preview).to_be_hidden()
+    expect(entry_keyed("act")).not_to_have_attribute("data-lf-held", "")
 
 
 OBLIGATION_MARKERS_PAGE = leaf_page(
@@ -404,8 +359,9 @@ def test_an_obligation_marker_names_its_question_once_the_user_points_at_it(
     browser, serve
 ):
     """Arriving at an obligation with `m` paints its On me marker selected, and only its
-    marker. Its label appears only when the user points at the marker: the ask's heading
-    already says the question, and a label nobody pointed at covers the ask's controls.
+    marker. Its preview appears only when the user points at the marker: the ask's
+    heading already says the question, and a preview nobody pointed at covers the ask's
+    controls.
 
     Hovering an obligation's marker shows the obligation's question, where it used to show only
     "Ask…", which the marker's glyph already says. Its accessible name identifies
@@ -418,59 +374,54 @@ def test_an_obligation_marker_names_its_question_once_the_user_points_at_it(
             f'[data-lf-margin-for="{item}"] .lf-margin-marker[data-lf-kinds~="on-me"]'
         )
 
-    shown = "label => label.checkVisibility({opacityProperty: true, visibilityProperty: true})"
     page.keyboard.press("m")
     expect(on_me_marker("short-ask")).to_have_attribute("data-lf-target-selected", "")
     expect(on_me_marker("long-ask")).not_to_have_attribute(
         "data-lf-target-selected", re.compile(".*")
     )
     rendered(page)
-    assert (
-        not on_me_marker("short-ask").locator(".lf-margin-entry-label").evaluate(shown)
-    )
+    preview = page.locator(PREVIEW)
+    expect(preview).to_be_hidden()
 
+    # Whether the face cuts its words, measured on the face's box, whose overflow is
+    # what a reader would lose.
     read = """(marker) => {
-        const word = marker.querySelector('.lf-margin-entry-label-word');
+        const tip = document.getElementById('lf-preview');
+        const word = tip.querySelector('.lf-preview-word');
         return {text: word.textContent, name: marker.getAttribute('aria-label'),
-                cut: word.scrollWidth > word.clientWidth};
+                cut: tip.scrollWidth > tip.clientWidth
+                  || tip.scrollHeight > tip.clientHeight};
     }"""
     seen = {}
     for item in ("short-ask", "long-ask"):
         marker = on_me_marker(item)
         marker.scroll_into_view_if_needed()
         marker.hover()
-        expect(marker.locator(".lf-margin-entry-label")).to_be_visible()
+        expect(preview).to_be_visible()
         seen[item] = marker.evaluate(read)
+        page.mouse.move(0, 0)
+        expect(preview).to_be_hidden()
     question = page.locator("#long-ask h2").evaluate(
         "h => h.textContent.replace(/\\s+/g, ' ').trim()"
     )
     assert seen["short-ask"]["text"] == "Where should sessions live?", seen
     assert not seen["short-ask"]["cut"], seen
     assert seen["long-ask"]["text"] == question, seen
+    assert not seen["long-ask"]["cut"], seen
     # The accessible route includes the question's distinguishing alternative.
     assert "roll every tenant" in seen["long-ask"]["name"], seen
 
 
-LABEL_CLEARANCE = """control => {
-  const label = control.querySelector('.lf-margin-entry-label');
-  const box = label.getBoundingClientRect();
-  const overlap = (left, right) => left.left < right.right &&
-    left.right > right.left && left.top < right.bottom &&
-    left.bottom > right.top;
-  const neighbors = [...document.querySelectorAll('.lf-margin-entry')]
-    .filter(candidate => candidate !== control && candidate.checkVisibility())
-    .map(candidate => candidate.getBoundingClientRect());
-  return {inside: box.left >= 4 && box.right <= innerWidth - 4 &&
-    box.top >= 4 && box.bottom <= innerHeight - 4,
-    overlaps: neighbors.filter(neighbor => overlap(box, neighbor)).length};
+PREVIEW_INSIDE = """() => {
+  const box = document.getElementById('lf-preview').getBoundingClientRect();
+  return box.left >= 4 && box.right <= innerWidth - 4 &&
+    box.top >= 4 && box.bottom <= innerHeight - 4;
 }"""
 
 
-def test_dense_suggestion_labels_cover_no_neighboring_margin_entry(
-    browser, serve, subtests
-):
-    """Every label in a tightly stacked real cluster finds a clear side, at a desktop
-    width and then a phone's on one page."""
+def test_dense_suggestion_labels_stand_inside_the_window(browser, serve, subtests):
+    """Every entry's preview in a tightly stacked real cluster stands whole inside the
+    window, at a desktop width and then a phone's on one page."""
     page = open_page(browser, serve(DENSE_SUGGESTIONS_PAGE))
     for width in (1440, 390):
         with subtests.test(width=width):
@@ -483,11 +434,8 @@ def test_dense_suggestion_labels_cover_no_neighboring_margin_entry(
                 for index in range(buttons.count()):
                     button = buttons.nth(index)
                     button.hover()
-                    expect(button).to_have_attribute(
-                        "data-lf-label-side", re.compile(".+")
-                    )
-                    reading = button.evaluate(LABEL_CLEARANCE)
-                    assert reading == {"inside": True, "overlaps": 0}
+                    expect(page.locator(PREVIEW)).to_be_visible()
+                    assert page.evaluate(PREVIEW_INSIDE)
 
 
 def test_an_unchanged_repaint_cannot_cancel_a_margin_entry_press(browser, serve):
@@ -1042,7 +990,6 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
             width: getComputedStyle(controls).width,
             minHeight: getComputedStyle(controls).minHeight,
             radius: getComputedStyle(controls).borderRadius,
-            visibleWord: controls.querySelector('.lf-margin-entry-label')?.textContent,
           }});
           const testTargets = new Set(records.map(({target}) => target));
           const itemOrder = [...document.querySelectorAll(
@@ -1063,7 +1010,6 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "width": "32px",
                 "minHeight": "32px",
                 "radius": "6px",
-                "visibleWord": "first controls",
             },
             {
                 "ownsTarget": True,
@@ -1073,7 +1019,6 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "width": "32px",
                 "minHeight": "32px",
                 "radius": "6px",
-                "visibleWord": "nested controls",
             },
             {
                 "ownsTarget": True,
@@ -1083,7 +1028,6 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "width": "32px",
                 "minHeight": "32px",
                 "radius": "6px",
-                "visibleWord": "second controls",
             },
             {
                 "ownsTarget": True,
@@ -1093,7 +1037,6 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "width": "32px",
                 "minHeight": "32px",
                 "radius": "6px",
-                "visibleWord": "slot a controls",
             },
             {
                 "ownsTarget": True,
@@ -1103,7 +1046,6 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
                 "width": "32px",
                 "minHeight": "32px",
                 "radius": "6px",
-                "visibleWord": "slot b controls",
             },
         ],
         "itemOrder": [

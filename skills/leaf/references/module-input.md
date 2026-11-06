@@ -284,6 +284,77 @@ the navigation then opens or closes a surface that moves focus, wrap that change
 returns false if the change had already moved focus. `threadActions.open` handles this
 itself (`module-annotations.md`, "Reading and opening Threads from a widget").
 
+### Previews
+
+Pointing reads; pressing acts (`interface-goals.md`). Leaf previews an element when a
+pointer rests on it, when the keyboard focuses it or something inside it, and when a
+finger holds it, beside the element over the page, in one face: a name with key chips,
+then lines of detail. The preview holds no control, so a control the user presses stays
+on the widget; a pointer may cross onto it to read it, and a finger's long press reads
+it and presses nothing, so a widget's click answers a tap alone.
+
+A control needs no declaration. It previews its accessible name where its face shows a
+symbol or doesn't say that name, and every key the register binds to it as chips. A
+control whose face says its name and that no key reaches previews nothing. Its
+`aria-description` stays a screen reader's; a line the eye should read too goes in
+`detail`.
+
+A widget adds to that, or previews an element that isn't a control, by declaring the
+element's `lfPreview(route)`, with no import, as it declares `lfCommands`. Leaf calls it
+once each time the preview shows, with the route that asked: `"pointer"`, `"focus"` or
+`"hold"`, and again for each new presentation of the document while the preview
+stands, so what it says follows the page without tracking its own inputs; words that
+come back the same leave the preview as it is. It returns:
+
+- `{name, keys, detail, list, at, about, excerpt}`, every field optional. `name`
+  replaces the control's accessible name in the preview, or names an element that has
+  none. `keys`
+  lists presses the register can't see, each as the steps its chips draw, as a control's
+  own activation keys a drag grip names. `detail` is lines under the name, each words or
+  an `html` template; a falsy line is left out. `at` is where the preview stands, the
+  declaring element by default: another element, as a message's age stands its preview
+  by its `<time>`, or a box in client coordinates (`{left, top, right, bottom}`, such as
+  a `DOMRect`) inside the element, as a chart's value stands over its point, which the
+  preview stands above. `about` is the element the preview is about, which Leaf leaves
+  in view as it places the preview, as a margin entry's passage or a time's message;
+  the box it stands by is always left in view. `excerpt: true` gives a preview that
+  quotes a block of the page the face's wider room. A preview taller than the room beside its element shows the
+  lines that fit and ends the last in an ellipsis; no preview scrolls, so what pressing
+  the element opens says the rest. `list: {items, more}` is items under the lines, each
+  words or a template, as the threads standing at one place: Leaf shows as many as the
+  room holds, through every resize, and under them `more(count)`'s words for the rest,
+  such as "and 26 more threads", so the items need no measuring of their own; the rest
+  are hidden from sight and from a screen reader alike.
+- `null` where the element adds nothing now: a control keeps its own preview, and the
+  search goes on to what holds the element.
+- `false` where nothing should preview here or around it, as a pinned card already
+  shows what its phrase would.
+
+What it throws is reported, and nothing shows. Where what an element previews changes
+while the user's aim stays on it, as a chart's pointer, key or finger reaches another
+point, or a grip's words stop being true once its card is grabbed, the widget calls
+`previewChanged(element)`, from `portable-api.js` (`widget-api.js` re-exports it): Leaf
+calls `lfPreview` again and redraws a standing preview where it stands, or shows the
+new one to a pointer resting on the element or a finger holding it, and off Leaf the
+call does nothing. It never brings back a preview the user put away, nor opens one on
+focus: only the user aiming again does. Where the user aimed at something new inside the
+element, as a chart's pointer or arrow key reaching another point, the widget says so,
+`previewChanged(element, {aim: true})`, and the new target shows its preview whatever
+put the last one away, to the pointer, the keyboard's focus or a finger. A mark the widget draws for what its preview
+reads, as a chart's ring on the point it names, comes off when Leaf dispatches
+`PREVIEW_ENDED` (`"lf-preview-ended"`, from the same module) at the element, a
+`CustomEvent` whose `detail.route` names the route that read it, as the preview goes
+for any reason: the pointer or focus leaving, the pointer leaving the window from the
+preview, the next touch after a finger's hold, Escape, or another target's preview
+taking its place. A redraw with new words is no ending.
+
+A `title` stays the browser's: a pointer over an element with one, or inside one, gets
+the browser's tooltip and no preview, and focus and a finger, which the browser's
+tooltip never reaches, read its words in the preview. Leaf neither writes nor removes
+it. A widget that wants Leaf's face for the pointer too, its key chips included,
+declares the words in `lfPreview` and writes no `title`. Off Leaf nothing reads
+`lfPreview`.
+
 ### Pointer presses
 
 A handler that takes over a click, such as a link that opens a source line, acts only on
@@ -296,10 +367,6 @@ click made with Enter or Space through, checking `pressIsKeyboardActivation(even
 first. A container that takes a click anywhere on it, as an option card does, asks
 `worksInside(event.target, container)` for the control inside that the click was aimed
 at.
-
-A control that shows only part of its word, with the whole in `title`, carries the class
-`HOLDS_WORD`; a held finger reads the word, and the package's CSS shows it whole under
-`data-lf-held-word`.
 
 Call `dragging(this, true)` when the user starts dragging the widget and
 `dragging(this, false)` when the drag ends, is cancelled or the widget disconnects;

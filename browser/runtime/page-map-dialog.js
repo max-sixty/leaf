@@ -81,10 +81,7 @@ dialog.setAttribute("aria-label", "Page Map");
 dialog.setAttribute("aria-modal", "true");
 const dialogHead = el("div", "lf-dialog-head");
 dialogHead.append(el("strong", "lf-dialog-title", "Page Map"));
-const dialogClose = closeControl({
-  name: "Close Page Map",
-  title: "Close Page Map (Esc)",
-});
+const dialogClose = closeControl({ name: "Close Page Map" });
 dialogHead.append(dialogClose);
 const dialogSearch = searchField("lf-page-map-search", {
   name: "page-map-search",

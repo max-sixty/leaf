@@ -860,6 +860,19 @@ def sending(page, what):
 # route that lands after the send's paint would wait out the whole deadline. The browser's
 # own record already shows the send was made, so this repeats a driver call — the thing
 # that dispatches the route here — until the list has it.
+def long_press(page, point):
+    """Send what a touch engine sends as a press it holds becomes a long press, a
+    `contextmenu` at the finger, which a held finger reads at (preview.js) and which
+    Chromium's injected touch never sends. Says whether the page let the platform's menu
+    open."""
+    return page.evaluate(
+        """([x, y]) => document.elementFromPoint(x, y).dispatchEvent(new PointerEvent(
+          'contextmenu', {bubbles: true, cancelable: true, composed: true,
+            pointerType: 'touch', clientX: x, clientY: y}))""",
+        [point["x"], point["y"]],
+    )
+
+
 def holding(page, held, count, what):
     """Wait until `held` has collected `count` requests the route put there."""
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
@@ -2779,6 +2792,68 @@ def fills_the_window(page, block, fills):
 # An async page expression for the top of the page scroller's landing band, below the
 # chrome covering its top edge: where a reading place is measured from.
 LANDING_TOP = "(await window.__lfCheckApi()).landingBand(document.scrollingElement).top"
+
+
+# The one preview standing over the page (runtime/preview.js).
+PREVIEW = "#lf-preview"
+
+
+def tab_onto(target):
+    """Step onto `target` with the keyboard, as the user does: Shift+Tab off it and Tab
+    back, a move the user made themselves, which a focus preview reads (preview.js),
+    where a script's focus reads nothing."""
+    target.focus()
+    target.page.keyboard.press("Shift+Tab")
+    target.page.keyboard.press("Tab")
+    expect(target).to_be_focused()
+
+
+def expect_preview_words(target, words):
+    """Wait until `target`'s own preview declaration (`lfPreview`, runtime/preview.js)
+    says `words` as its name or a line of its detail, the whole line for a string or a
+    match for a pattern: the words a pointer, the keyboard or a finger read there, read
+    without showing them."""
+    pattern = words.pattern if isinstance(words, re.Pattern) else None
+    target.page.wait_for_function(
+        """([el, words, pattern]) => {
+          const said = el.lfPreview?.('pointer');
+          const lines = said ? [said.name, ...(said.detail ?? [])] : [];
+          return lines.some((line) => typeof line === 'string'
+            && (pattern === null ? line === words : new RegExp(pattern).test(line)));
+        }""",
+        arg=[target.element_handle(), None if pattern else words, pattern],
+    )
+
+
+def preview_parts(target, route="pointer"):
+    """What `target`'s preview shows a pointer resting on it (runtime/preview.js), or
+    with `route="focus"` the keyboard stepping onto it: its name, then each line of
+    detail, as the face draws them, key chips left out. The pointer leaves it again
+    after, so the next reading is a new one."""
+    page = target.page
+    tip = page.locator("#lf-preview")
+    if route == "focus":
+        tab_onto(target)
+    else:
+        # From somewhere else: a pointer already resting where the target now stands
+        # reads nothing there until it moves (preview.js).
+        page.mouse.move(2, 2)
+        target.hover()
+    expect(tip).to_be_visible()
+    expect(tip).to_have_attribute("data-lf-route", route)
+    parts = tip.evaluate(
+        """(tip) => [...tip.querySelectorAll('.lf-preview-word, .lf-preview-detail')]
+          .map((part) => part.textContent)"""
+    )
+    if route == "pointer":
+        page.mouse.move(0, 0)
+    return parts
+
+
+def preview_text(target):
+    """The words `target`'s preview shows a resting pointer, as its face's
+    `textContent` reads them where no key chip stands beside its name."""
+    return "".join(preview_parts(target))
 
 
 def resized(page, width, height):

@@ -19,7 +19,12 @@
    widget says it set or changed with `lf-commands` (`commandsChanged`): Leaf reads them
    then and binds them (keyboard/scopes.js), and a plain page, reading nothing, binds no
    key and advertises none. Words for a listener are `lf-announce` (`announce`), which a
-   Leaf page says in its live region (notifications.js) and a plain page leaves unsaid. */
+   Leaf page says in its live region (notifications.js) and a plain page leaves unsaid.
+   What pointing at an element reads is data on it too, `lfPreview`, and the widget says
+   when that changes with `lf-preview` (`previewChanged`), as the user's aim moves from
+   one of a chart's points to the next, or a grip's words stop being true once its card
+   is grabbed: Leaf reads it again (preview.js). Leaf says at the element when that
+   preview has gone (`lf-preview-ended`), so a mark the widget drew for it comes off. */
 import { describeFailure, exceptionError } from "./exception.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
@@ -83,6 +88,22 @@ export const layoutChanged = (el) => {
 // window, so its event is dispatched there directly, carrying the element, as a failure's
 // is (`reportFailure`). A declaration Leaf refuses throws here, where the widget made
 // it, since a listener's exception never reaches the dispatcher.
+// That what pointing at an element reads, its `lfPreview`, changed.
+export const PREVIEW = "lf-preview";
+/** @param {Element} el */
+// `aim: true` says the user aimed at something new inside the element, as a chart's
+// pointer or key reaching another point: a new target, which shows its preview whatever
+// put the last one away, where a redraw of the same reading shows nothing new.
+/** @param {Element} el @param {{aim?: boolean}} [options] */
+export const previewChanged = (el, { aim = false } = {}) => {
+  el.dispatchEvent(
+    new CustomEvent(PREVIEW, { bubbles: true, composed: true, detail: { aim } }),
+  );
+};
+// That the preview Leaf showed of an element has gone, a `CustomEvent` dispatched at
+// that element alone whose `detail.route` is the route that read it (preview.js): a mark
+// the widget drew for what it read, as a chart's ring on its point, comes off then.
+export const PREVIEW_ENDED = "lf-preview-ended";
 export const COMMANDS = "lf-commands";
 const CHANGED = Symbol("element whose commands changed");
 const REFUSED = Symbol("why Leaf refused the declaration");

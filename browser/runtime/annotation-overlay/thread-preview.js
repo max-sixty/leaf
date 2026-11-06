@@ -116,6 +116,7 @@ import {
   holdFocus,
   inputCount,
   onCurrentLocation,
+  openLayer,
   focused,
   tabStops,
   typesText,
@@ -222,7 +223,6 @@ export function createThreadPreview({
   const previewOpen = () => previewSession !== null;
   const previewClose = closeControl({
     name: "Dismiss thread view",
-    title: "Dismiss thread view (Esc)",
     className: "lf-margin-preview-close",
   });
   const previewNav = el("span", "lf-margin-preview-nav");
@@ -1228,6 +1228,7 @@ export function createThreadPreview({
     }
     keepsHidden(preview, false);
     keeps(preview, "inert", null);
+    openLayer(preview);
     buildThreadCard(entry, choice, session, selected.id);
     const positioned = placedThreadPreview(session);
     paintKeysWithin(preview);

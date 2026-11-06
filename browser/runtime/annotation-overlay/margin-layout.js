@@ -98,10 +98,9 @@ import {
 import { clamp, clippingAxes, overlaps, shifted, union } from "../rect.js";
 import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js";
 import { proseMeasure, proseRect, railStands } from "../content-layout.js";
-import { keeps, layoutPx, inlineStyle } from "../keeps.js";
+import { layoutPx, inlineStyle } from "../keeps.js";
 import { move } from "../dom-move.js";
 import { offerActionElement } from "../widget-elements.js";
-import { coarsePointer, hoveringPointer } from "../pointer.js";
 import { LAYOUT } from "../widget-upgrade.js";
 import { inChrome } from "../passages.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
@@ -215,7 +214,7 @@ const onSurface = (node) => Boolean(closestAcross(node, SURFACES));
 // The id of the thread card a margin row opens (thread-preview.js).
 export const THREAD_CARD = "lf-margin-preview";
 // A row the user holds, which packing seats before every other (`packRow`): one under
-// the pointer, with focus in it, with an entry a finger holds to read (held-word.js),
+// the pointer, with focus in it, with an entry a finger holds to read (preview.js),
 // with its options open, or whose entry has the thread
 // card open, as that entry's disclosure relation says (margin-projection.js,
 // `syncReadingRelation`). Opening options can move focus before the next layout pass;
@@ -223,7 +222,7 @@ export const THREAD_CARD = "lf-margin-preview";
 // row (thread-preview.js), so a seated row whose target moves into it would
 // otherwise push the row down and the card the user is reading with it.
 // `optionsOpen` includes ordinary inline peers; only a requested expansion holds a seat.
-const HELD = `:hover, :focus-within, :has([data-lf-held-word]), [data-lf-options-expanded], :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
+const HELD = `:hover, :focus-within, :has([data-lf-held]), [data-lf-options-expanded], :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
 let pending = 0;
 /** @type {Layer | null} */
 let layer = null;
@@ -606,129 +605,6 @@ export function syncMarginContentLayout(changed) {
   if (changed) scheduleMarginLayout();
 }
 
-/** @param {string} name @param {number} left @param {number} top @param {{width: number, height: number}} label */
-const labelRect = (name, left, top, label) => ({
-  name,
-  rect: {
-    left,
-    right: left + label.width,
-    top,
-    bottom: top + label.height,
-  },
-});
-
-/** @param {HTMLElement} control */
-function placeMarginEntryLabel(control) {
-  /** @type {HTMLElement | null} */
-  const label = control.querySelector(":scope > .lf-margin-entry-label");
-  if (!label || !control.checkVisibility()) {
-    keeps(control, "data-lf-label-side", null);
-    return;
-  }
-  const marginEntryBox = control.getBoundingClientRect();
-  const labelBox = label.getBoundingClientRect();
-  // The window the page shows, over the floating panel's room (geometry.js).
-  const room = shownWindow({ gap: 4 });
-  const edgeAligned = Math.max(
-    room.left,
-    Math.min(marginEntryBox.right - labelBox.width, room.right - labelBox.width),
-  );
-  const cluster = control.closest(".lf-margin-cluster") ?? control.parentElement;
-  const clusterMarginEntries = [
-    ...(cluster?.querySelectorAll(".lf-margin-entry") ?? []),
-  ]
-    .filter((candidate) => candidate.checkVisibility())
-    .map((candidate) => candidate.getBoundingClientRect());
-  const clusterLeft = Math.min(...clusterMarginEntries.map((box) => box.left));
-  const clusterRight = Math.max(...clusterMarginEntries.map((box) => box.right));
-  const centered = (marginEntryBox.top + marginEntryBox.bottom - labelBox.height) / 2;
-  const below = labelRect("below", edgeAligned, marginEntryBox.bottom + 6, labelBox);
-  const above = labelRect(
-    "above",
-    edgeAligned,
-    marginEntryBox.top - 6 - labelBox.height,
-    labelBox,
-  );
-  const after = labelRect("after", clusterRight + 6, centered, labelBox);
-  const before = labelRect(
-    "before",
-    clusterLeft - 6 - labelBox.width,
-    centered,
-    labelBox,
-  );
-  // A finger holding the entry to read its label covers what lies below it.
-  const candidates = coarsePointer.matches
-    ? [above, before, after, below]
-    : [below, above, after, before];
-  const blockers = [
-    ...document.querySelectorAll(".lf-margin-projection .lf-margin-entry"),
-  ]
-    .filter((candidate) => candidate !== control && candidate.checkVisibility())
-    .map((candidate) => candidate.getBoundingClientRect());
-  /** @param {ReturnType<typeof labelRect>} candidate */
-  const fits = ({ rect }) =>
-    rect.left >= room.left &&
-    rect.right <= room.right &&
-    rect.top >= room.top &&
-    rect.bottom <= room.bottom;
-  const choice =
-    candidates.find(
-      (candidate) =>
-        fits(candidate) &&
-        !blockers.some((blocker) => overlaps(candidate.rect, blocker)),
-    ) ??
-    candidates.find(fits) ??
-    (coarsePointer.matches ? above : below);
-  setStyle(
-    label,
-    "--lf-label-x",
-    layoutPx(choice.rect.left - marginEntryBox.left - control.clientLeft),
-  );
-  setStyle(
-    label,
-    "--lf-label-y",
-    layoutPx(choice.rect.top - marginEntryBox.top - control.clientTop),
-  );
-  keeps(control, "data-lf-label-side", choice.name);
-}
-
-// What reveals a margin entry's label, as the theme's rules for it say: a press held on
-// it (held-word.js), and focus or hover where the pointer really hovers. Elsewhere a
-// tap leaves the entry hovered and focused, so only the keyboard's focus reveals it.
-// Arriving at the entry's target, as `m` does, leaves the label hidden, since an
-// ask's heading already says its question.
-const revealsLabel = () =>
-  hoveringPointer.matches
-    ? ':is(:hover, [data-lf-focus]):not([aria-expanded="true"]), [data-lf-held-word]'
-    : '[data-lf-focus]:focus-visible:not([aria-expanded="true"]), [data-lf-held-word]';
-// Only a label this owner has placed and its control currently reveals paints a
-// footprint. Placement consumers read that same native geometry when the user holds
-// the control, so an arriving row does not make its existing label change sides.
-/** @param {HTMLElement} row */
-function heldLabelBoxes(row) {
-  return [...row.querySelectorAll(".lf-margin-entry[data-lf-label-side]")]
-    .filter((control) => control.matches(revealsLabel()))
-    .flatMap((control) => {
-      const label = control.querySelector(":scope > .lf-margin-entry-label");
-      return label ? [label.getBoundingClientRect()] : [];
-    });
-}
-let labelPlacementFrame = 0;
-export function scheduleMarginEntryLabels() {
-  if (labelPlacementFrame) return;
-  labelPlacementFrame = nextRender(() => {
-    labelPlacementFrame = 0;
-    /** @type {NodeListOf<HTMLElement>} */
-    const controls = document.querySelectorAll(
-      `.lf-margin-projection .lf-margin-entry:is(${revealsLabel()}, [data-lf-label-side])`,
-    );
-    for (const control of controls) {
-      if (control.matches(revealsLabel())) placeMarginEntryLabel(control);
-      else keeps(control, "data-lf-label-side", null);
-    }
-  });
-}
-
 // The layer's root lane, where rows whose targets scroll with the document stand, and one
 // lane per bounded reading region, keyed by the box that scrolls it. A scroll anywhere
 // but the document's may take a target out of view or bring it back, so it is heard once,
@@ -763,10 +639,8 @@ function placeCarriedRows(box) {
 // A row's face redrawn. The projection draws a row whenever what it shows changes, and a
 // seat reads a face only through its size and the controls it holds, so controls put in or
 // taken out bring a pass, and a changed attribute or text brings one only where the face
-// no longer measures the size the last pass seated it at (`seatedFaces`). A control's
-// label stands over the row, placed by its own pass (`placeMarginEntryLabel`), so what is
-// written in it is no part of the face. The pass's own writes to its rows are taken back
-// at its end, so they bring no pass of their own.
+// no longer measures the size the last pass seated it at (`seatedFaces`). The pass's own
+// writes to its rows are taken back at its end, so they bring no pass of their own.
 /** @type {WeakMap<Element, {width: number, height: number}>} */
 const seatedFaces = new WeakMap();
 /** @type {Set<HTMLElement>} */
@@ -777,9 +651,6 @@ const faces = new MutationObserver((records) => {
     let row = /** @type {Node | null} */ (record.target);
     while (row && !(row instanceof HTMLElement && rows.has(row))) row = row.parentNode;
     if (!(row instanceof HTMLElement)) continue;
-    const at =
-      record.target instanceof Element ? record.target : record.target.parentElement;
-    if (at?.closest(".lf-margin-entry-label")) continue;
     const controls = [...record.addedNodes, ...record.removedNodes].some(
       (node) => node instanceof Element,
     );
@@ -1938,7 +1809,6 @@ function layoutMountedRows(layer) {
       packed.set(entry.key, 0);
       occupied.push(entry.rect);
     }
-    if (entry.held) occupied.push(...heldLabelBoxes(entry.read.row));
   }
   for (const read of reads) {
     if (!read.target) continue;

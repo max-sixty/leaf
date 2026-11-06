@@ -73,6 +73,7 @@ from render_harness import (
     panel_menu,
     panel_settled,
     post_event,
+    preview_parts,
     reported_browser_errors,
     resized,
     restyle_counts,
@@ -3554,9 +3555,7 @@ def test_a_change_opens_what_it_replaced_in_a_card_over_it(browser, serve):
     expect(rewritten).to_have_attribute("aria-expanded", "false")
     expect(rewritten).to_have_attribute("aria-controls", "lf-change-card")
     # A disclosure says what it holds: what the change did, in blocks.
-    expect(rewritten.locator(".lf-margin-entry-context")).to_have_text(
-        "1 paragraph edited, 1 added since v1"
-    )
+    assert preview_parts(rewritten)[1:2] == ["1 paragraph edited, 1 added since v1"]
 
     # Page Map carries the same account on each change's row, with the versions its
     # card compares, and both remain searchable away from the passage.

@@ -45,7 +45,6 @@ import { registry } from "./registry.js";
 import { composerOpen, fabBar, fabOptions } from "./composing/selection.js";
 import { pageSelection } from "./composing/capture.js";
 import { el, offerAction, responseAction } from "./widget-elements.js";
-import { HOLDS_WORD } from "./held-word.js";
 import { keeps } from "./keeps.js";
 
 import { elementById } from "./passages.js";
@@ -114,12 +113,11 @@ const anchorChoices = (anchor) =>
 // shape of every chip.
 /** @param {{name: string, glyph: string, label: string}} choice @param {(name: string) => unknown} pressed */
 function reactionChip({ name, glyph, label }, pressed) {
-  const chip = offerAction("response", `lf-react ${HOLDS_WORD}`);
+  const chip = offerAction("response", "lf-react");
   // A toggle from the start, before the bar paints which reactions stand
   // (`paintBarReactions`), so it wears a reaction's face (controls.css).
   chip.setAttribute("aria-pressed", "false");
   chip.dataset.lfToken = name;
-  chip.title = label;
   chip.setAttribute("aria-label", label);
   responseAction(chip, { glyph, label: name, collapse: true });
   keys(chip, "On a reaction", [

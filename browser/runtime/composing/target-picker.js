@@ -377,7 +377,7 @@ export function createTargetPicker({
         ? `Match ${active + 1} of ${matches.value.length}`
         : noMatches;
     keeps(pageSearchStatus, "aria-label", label);
-    keeps(pageSearchStatus, "title", label);
+    pageSearchStatus.lfPreview = () => (label ? { name: label } : null);
     render(html`${status}`, pageSearchWords);
   }
 

@@ -125,7 +125,6 @@ const commandReferenceClose = closeControl({
   className: "lf-command-reference-close",
 });
 
-commandReferenceClose.dataset.lfKeyTitle = "Close the command reference";
 commandReferenceClose.setAttribute("aria-label", "Close the command reference");
 // Retained controls connect with their closed dialog at boot, so their native editor
 // and command wiring are ready before the first opening. Local renders only seat them.
@@ -763,11 +762,13 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
     aria-selected=${String(selected)}
     aria-labelledby=${titleId}
     aria-describedby=${describedBy}
-    title=${
-      [entry.description, entry.available ? "" : entry.unavailableMessage]
-        .filter(Boolean)
-        .join("\n") || nothing
-    }
+    .lfPreview=${() => {
+      const detail = [
+        entry.description,
+        entry.available ? "" : entry.unavailableMessage,
+      ].filter(Boolean);
+      return detail.length ? { detail } : null;
+    }}
     ?hidden=${!shown}
     @click=${() => activateCommandEntry(entry)}
   >

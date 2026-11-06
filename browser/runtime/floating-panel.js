@@ -230,7 +230,12 @@ import {
 import { pageControls } from "./page-controls.js";
 import { findCommands } from "./keyboard/command-reference.js";
 import { readPlace } from "./history.js";
-import { readThreads, threadNamed } from "./thread/state.js";
+import {
+  NO_OPEN_THREADS,
+  THREADS_OFFLINE,
+  readThreads,
+  threadNamed,
+} from "./thread/state.js";
 import { discussed, isNews, threadCounts } from "./thread/model.js";
 import { LeafElement } from "./leaf-element.js";
 import {
@@ -272,7 +277,7 @@ import { holdPlace } from "./user-place.js";
 import { onUserCount, queueItemKey, readPlan, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
 import { groupingLabel, ON_ME_GROUPINGS, queueStop } from "./queue-walk.js";
-import { carriesObligation, itemNoun, itemOutcome } from "./queues.js";
+import { carriesObligation, emptyOnList, itemNoun, itemOutcome } from "./queues.js";
 import { ago, shortAgo } from "./presence.js";
 import { userChoice } from "./storage.js";
 import { obligationEnding } from "./obligations/answer.js";
@@ -2818,7 +2823,7 @@ export function createFloatingPanel({
         listed.length || !inventoried()
           ? nothing
           : html`<p class="lf-rows-empty">
-              ${searched ? "Nothing matches." : "No open threads. Comment below to start one."}
+              ${searched ? "Nothing matches." : `${NO_OPEN_THREADS}. Comment below to start one.`}
             </p>`
       }
       ${bandedGroups(groups, (thread) => thread.key, row)}
@@ -2830,7 +2835,7 @@ export function createFloatingPanel({
           : html`<p class="lf-rows-empty">
               ${
                 readThreads().phase === "offline"
-                  ? "Current threads are unavailable while the server is offline."
+                  ? `${THREADS_OFFLINE}.`
                   : "Loading current threads…"
               }
             </p>`
@@ -3128,6 +3133,13 @@ export function createFloatingPanel({
       open({ view: "threads" });
     } else openOnMe();
   }
+  // An On list's empty text (queues.js, `emptyOnList`), a sentence but for the
+  // ellipsis of one still loading.
+  /** @param {string} name */
+  const emptyListText = (name) => {
+    const words = emptyOnList(readQueues().phase, name);
+    return words.endsWith("…") ? words : `${words}.`;
+  };
   // Each list as served: On me's grouped where it is drawn (`onMe.groups`), On
   // <agent>'s strongest workflow first, and Done newest first.
   const queueLists = () => {
@@ -3883,7 +3895,7 @@ export function createFloatingPanel({
     // Another grouping draws the list afresh: every card moves, and moving each keyed
     // node in turn would stand some back where they were.
     return html`${
-      items.length ? nothing : html`<p class="lf-rows-empty">Nothing waiting on me.</p>`
+      items.length ? nothing : html`<p class="lf-rows-empty">${emptyListText("me")}</p>`
     }${keyedBy(
       grouping,
       groupedItems(
@@ -3928,7 +3940,7 @@ export function createFloatingPanel({
         : html`${
             inHand.length || queued.length
               ? nothing
-              : html`<p class="lf-rows-empty">Nothing waiting on ${agentName()}.</p>`
+              : html`<p class="lf-rows-empty">${emptyListText(agentName())}</p>`
           }${groupedItems(groups, (item, group) =>
             onItemCard(item, group.folds ? "done" : "agent"),
           )}`

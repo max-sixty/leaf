@@ -1943,14 +1943,16 @@ flowchart TD
                 user: open obligations and updates to send again. The walk reveals
                 closed tabs or disclosures and can leave a filtered panel list. A
                 single-choice obligation ends when answered; a multi-select choice waits
-                for Done. Later presses walk the remaining work, and once none is left a
-                press says “Nothing waiting on me” in the panel.
+                for Done. Later presses walk the remaining work. The answer that leaves
+                none makes the panel say “Nothing waiting on me”, and so does each press
+                after it.
               </p>
               <p id="navigation-tab-rule">
                 Page walks through open threads (<kbd>t</kbd>), On me (<kbd>m</kbd>) and
                 accepted page-text matches (<kbd>n</kbd>) wrap at either end; the count
-                flashes on wrapping. Tab-strip arrows also wrap, and Tab leaves the
-                strip. Arrow-key navigation through menu rows, panel lists and
+                flashes on wrapping. With nothing to walk, a press says so in the panel,
+                such as “No open threads”. Tab-strip arrows also wrap, and Tab leaves
+                the strip. Arrow-key navigation through menu rows, panel lists and
                 thread-search results stops at the ends; Home / End reach the first /
                 last row.
               </p>

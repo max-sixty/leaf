@@ -40,11 +40,11 @@
    (`ON_CARD`), on a thread stop when they are in its thread (`threadIn`), and on an
    action handed back when they are in its widget.
 
-   With nothing waiting on the user, as once they have answered the last item, a press
-   of `m` or Shift+`m` says so in the panel's seat (notifications.js, `notice`) rather
-   than doing nothing, so the walk is live on every page, as On me is. The user asked
-   for this on 5 November 2026, taking the words over a flash of the panel's colour for
-   now.
+   With nothing waiting on the user, a press of `m` or Shift+`m` says so in the panel's
+   seat (notifications.js, `notice`), as every walk with nothing to step through does
+   (keyboard/AGENTS.md, "Page grammar"); the reading that empties the list says it
+   unasked (semantic-news.js). The user asked for both on 5 November 2026, taking the
+   words over a flash of the panel's colour for now.
 
    The walk opens what answers each item it reaches: a thread opens, and a widget's
    controls stand at its place. Everything on the user's list is answered there, by
@@ -96,7 +96,7 @@ import { obligationWord } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationsIn, obligationPlace, subjectPlace } from "./obligations/place.js";
 import { readPlan, readQueues, queueItemKey } from "./queue-api.js";
-import { carriesObligation, itemNoun } from "./queues.js";
+import { carriesObligation, emptyOnList, itemNoun } from "./queues.js";
 import { threadIn } from "./thread/focus.js";
 import { drawnThreadId } from "./thread/selectors.js";
 import { partOver } from "./thread/placement.js";
@@ -123,7 +123,6 @@ import { notice } from "./notifications.js";
 
 const QUALIFIER = "waiting on me";
 const WITHIN = "waiting on me here";
-const NOTHING = "Nothing waiting on me";
 const NOUNS = Object.freeze({
   thread: "Thread",
   subject: "Update",
@@ -572,8 +571,12 @@ export function createQueueWalk({
     // down a level, so the current scope lets go of whichever one they end on. An item
     // reached through the panel leaves the panel a level of its own on the way out,
     // whether this walk opened it or the user already had it.
-    runKey: (binding) =>
-      readQueues().on_user.length ? walk(binding === "m" ? 1 : -1) : notice(NOTHING),
+    runKey: (binding) => {
+      const reading = readQueues();
+      return reading.on_user.length
+        ? walk(binding === "m" ? 1 : -1)
+        : notice(emptyOnList(reading.phase, "me"));
+    },
   });
 
   // An On me row arrives where the walk would, whichever list its obligation is on.

@@ -595,8 +595,8 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
 @pytest.mark.parametrize("width", [1200, 390])
 def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, width):
     """An answered obligation stays in On me under Done, which closes and reopens through
-    its routes, and finishing the page preserves the route back through the answer. With
-    nothing left on the user, `m` says so in the panel rather than doing nothing."""
+    its routes, and finishing the page preserves the route back through the answer. The
+    answer that leaves nothing on the user has the panel say so, unasked."""
     page = open_page(
         browser,
         serve(
@@ -640,7 +640,6 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
         route.continue_()
     round_trip(page)
     expect_on_me(page, 0)
-    page.keyboard.press("m")
     expect_panel_says(page, "Nothing waiting on me")
 
     page.keyboard.press("g")

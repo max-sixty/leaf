@@ -79,7 +79,11 @@ reopens it.
 Page scope holds commands about the page; a surface's scope holds commands about its
 contents. A page-level letter must be useful on every page; any other control is
 reachable by Tab, native activation, obligation digits or Go-to hints. A lowercase
-letter steps a walk forward and Shift steps it back, wrapping at either end. A walk, a
+letter steps a walk forward and Shift steps it back, wrapping at either end. A page
+walk with nothing to step through says so in the panel (`notice`, such as “No open
+threads”) rather than doing nothing, so its letter is live on every page. A walk over
+a list the server's reading brings says instead that the list can't be had while the
+server is offline. A walk, a
 scroll, Go-to and any other command that takes the user somewhere declares `travels`
 on its row; every other command leaves the control it was pressed on where it stood on
 screen (`bindings.js`). A surface

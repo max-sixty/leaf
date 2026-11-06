@@ -88,8 +88,9 @@ def test_a_seated_reply_draws_its_widget_in_place(browser, serve, resolved):
 
 def test_a_seated_reply_lends_its_widget_to_the_panel_and_takes_it_back(browser, serve):
     """A reply's widget stands in one drawing at a time: the panel's view of the thread
-    takes it from the seat while it shows the thread, the seat keeps the reply's words
-    with nothing in the widget's place, and going back gives the widget to the seat."""
+    takes it from the seat while it shows the thread, the seat's body keeps the reply's
+    words with nothing in the widget's place, and going back gives the widget to the
+    seat. The body is read alone, since the seat's message also draws its reactions."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
@@ -109,7 +110,9 @@ def test_a_seated_reply_lends_its_widget_to_the_panel_and_takes_it_back(browser,
     expect(seated.locator("#first-job")).to_be_visible()
     view = open_panel_thread(page, root)
     expect(view.locator("#first-job")).to_be_visible()
-    expect(seated).to_have_text(re.compile(r"Choose the first job\.\s*$"))
+    expect(seated.locator(":scope > .lf-msg-body")).to_have_text(
+        re.compile(r"^\s*Choose the first job\.\s*$")
+    )
     page.locator(".lf-fp-back").click()
     expect(seated.locator("#first-job")).to_be_visible()
 

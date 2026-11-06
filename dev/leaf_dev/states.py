@@ -651,24 +651,6 @@ def age_preview(page: Page) -> None:
     settle(page)
 
 
-def change_preview(page: Page) -> None:
-    """With the comparison on (`v`), the first change's ⇄ entry under a resting pointer,
-    which previews what the change did and which of the user's comments it came after
-    (change-provenance.js)."""
-    page.keyboard.press("v")
-    change = page.locator('.lf-margin-marker[data-lf-kinds~="change"]').first
-    expect(change).to_be_attached()
-    change.evaluate(
-        "m => { const box = m.getBoundingClientRect();"
-        " if (box.top < 0 || box.bottom > innerHeight)"
-        " scrollBy(0, box.top - innerHeight / 3); }"
-    )
-    scroll_settled(page)
-    change.hover()
-    page.wait_for_timeout(PREVIEW_DWELL_MS)
-    settle(page)
-
-
 def open_card(page: Page, marker: Locator) -> None:
     """The margin card `marker` opens, by a click on it. The margin is fixed to the
     window and anchored to the page, so Playwright's scroll into view leaves a marker
@@ -2972,7 +2954,6 @@ STATES = (
     State("control-preview", "review-a-plan", control_preview),
     State("thread-preview", "review-a-plan", thread_preview),
     State("age-preview", "review-a-plan", age_preview),
-    State("change-preview", "review-a-plan", change_preview),
     State("reaction-palette", "ship-review", reaction_palette),
     State("reaction-pressed", "ship-review", reaction_pressed),
     State(

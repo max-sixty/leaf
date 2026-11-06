@@ -60,7 +60,6 @@ import {
   comparisonChanges,
   toggleChangeCard,
 } from "./version.js";
-import { changeProvenance } from "./change-provenance.js";
 
 // Where each published workflow still in progress stands in the published order, by
 // its id.
@@ -93,9 +92,8 @@ const inProgress = readPart(
  */
 
 // What the inventory reads from the semantic root: the Questions, the workflows its
-// entries report, the shown revision, the agent's to-dos, what each revision came after
-// (change-provenance.js), and the projection whose reported and overridden marks it
-// lists once the projection's chrome has painted them.
+// entries report, the shown revision and the agent's to-dos, and the projection whose
+// reported and overridden marks it lists once the projection's chrome has painted them.
 // What the thread pass decides about a thread reaches it as readings its paint follows:
 // where the thread is placed (`placedAt`) and whether a widget seats it (`claimed`), so
 // a pass that moves one repaints the margin, and one that moves none leaves it.
@@ -106,7 +104,6 @@ export const annotationSelection = (root) => ({
   workflows: root.effective.workflows,
   revision: root.document.revision,
   todos: root.authoritative?.browser.todos ?? null,
-  waits: root.authoritative?.browser.message_waits ?? null,
 });
 
 /** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./obligations/view.js").createObligationView>["goToObligation"], scrollToElement: ScrollToElement}} dependencies */
@@ -602,8 +599,6 @@ export function createAnnotationInventory({
       const account = changeSince(change);
       const card = changeCard(change);
       const mapAccount = card ? did : account;
-      // Under what it did, what it came after, a line each (change-provenance.js).
-      const cameAfter = changeProvenance(change)?.lines ?? [];
       add(groups, target, {
         kind: "change",
         id: `change:${targetPath(target)}:${index}`,
@@ -622,11 +617,7 @@ export function createAnnotationInventory({
         // The entry's relation says whether the card stands open, so opening it changes
         // the entry (`keptEntry`).
         ...(card
-          ? {
-              context: [account, ...cameAfter.flatMap((line) => ["\n", ...line])],
-              mapContext: card.offer,
-              cardOpen: card.open,
-            }
+          ? { context: account, mapContext: card.offer, cardOpen: card.open }
           : {}),
         // What a Change reading holds, where the comparison kept the words the change
         // replaced or edited: pressing it opens the change's card over the change, so

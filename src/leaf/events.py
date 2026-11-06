@@ -526,28 +526,15 @@ def unanswered_turns(thread: dict) -> list[dict]:
     ]
 
 
-class Settlement(NamedTuple):
-    """One of the agent's turns that settled turns of the user's (`settlements`)."""
-
-    answer: dict
-    # The user's turns it settled that no earlier answer had, oldest first.
-    turns: list
-    # Whether it settled the whole batch standing when it was written.
-    batch: bool
-
-
-def settlements(thread: dict) -> list[Settlement]:
-    """Each of the agent's turns that settled turns of the user's, in log order. An
-    answer whose `responds` names the newest turn of the batch standing when it was
-    written settles that whole batch; one naming an older turn of it settles that
-    turn alone, and the batch stands. The walk replays the thread's history
+def settled_through(thread: dict) -> int:
+    """The seq of the agent's answer that settled the thread's latest batch of the
+    user's turns, else 0: the answer whose `responds` names the newest turn of the
+    batch standing when it was written. The walk replays the thread's history
     (`build_threads`, ``turns``), so a turn taken back before the answer, with its
     rewrites, is no part of its batch, and one taken back after it leaves the batch
-    settled. A failure receipt names its input as an answer does, so it settles here
-    too; `is_answer` tells the two apart."""
-    settled = []
+    settled."""
+    floor = 0
     batch = []
-    taken = set()
     for turn in thread["turns"]:
         if "undoes" in turn:
             gone = turn["undoes"]
@@ -556,27 +543,9 @@ def settlements(thread: dict) -> list[Settlement]:
             ]
         elif turn["author"] != "agent":
             batch.append(turn)
-        elif batch and (responds := turn.get("responds")) is not None:
-            whole = responds == batch[-1]["id"]
-            named = [
-                each
-                for each in batch
-                if (whole or each["id"] == responds) and each["id"] not in taken
-            ]
-            taken.update(each["id"] for each in named)
-            if whole or named:
-                settled.append(Settlement(turn, named, whole))
-            if whole:
-                batch = []
-    return settled
-
-
-def settled_through(thread: dict) -> int:
-    """The seq of the agent's answer that settled the thread's latest batch of the
-    user's turns, else 0 (`settlements`)."""
-    return max(
-        (each.answer["seq"] for each in settlements(thread) if each.batch), default=0
-    )
+        elif batch and turn.get("responds") == batch[-1]["id"]:
+            floor, batch = turn["seq"], []
+    return floor
 
 
 def unanswered_agent_turn(thread: dict) -> dict | None:

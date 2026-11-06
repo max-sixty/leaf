@@ -12,21 +12,12 @@ import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from click.testing import CliRunner
-from interact_support import append_command, response_reference, wait_for
+from interact_support import append_command, wait_for
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import (
-    PREVIEW,
-    compare_with,
-    open_page,
-    stamp_page,
-    told,
-    wait_for_revision,
-)
+from render_harness import compare_with, open_page, stamp_page, told, wait_for_revision
 
-from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import revisioning as revisioning_model
 from leaf.render_checks import rendered
@@ -552,122 +543,14 @@ def test_a_change_s_card_reads_it_in_order(browser, serve):
     ), "the long redline doesn't scroll inside a card that fits the window"
 
 
-def test_a_change_says_which_comment_it_came_after(browser, serve):
-    """Under what a change did, its ⇄ entry's preview says in which version it landed
-    and which of the user's comments the revision that made it came after, before the
-    agent answered it, with the comment's opening line, each on a line of its own,
-    wherever on the page the comment stands, and whether or not the answer has come; a
-    change made once every comment was answered came with none waiting. The change
-    walk says the same to a listener (change-provenance.js, provenance.py)."""
-    url = live_url(serve(PAGE))
-    d = serve.page_dir
-    asked = _comment_on(
-        d, "c", "Gamma stays as it was.", text="Beta first?\nIt reads one way."
-    )
-    stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
-    replied = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            "--done",
-            response_reference(d, asked),
-            "--text",
-            "Beta reads another way now.",
-        ],
-    )
-    assert replied.exit_code == 0, replied.output
-    stamp_page(d, revised(PAGE, BETA, DELTA), "rewrote Delta")
-    _comment_on(d, "t", "Plan", revision=3, text="Is the title right?")
-    revise(d, ('<h1 id="t">Plan</h1>', '<h1 id="t">Plan for spring</h1>'))
-    page = open_page(browser, url)
-    wait_for_revision(page, 4)
-    compare_with(page, 1)
-    page.keyboard.press("Escape")
-
-    preview = page.locator(PREVIEW)
-
-    def pointed(section):
-        page.mouse.move(0, 0)
-        expect(preview).to_be_hidden()
-        page.locator(
-            f'[data-lf-margin-for="{section}"] .lf-margin-marker[data-lf-kinds~="change"]'
-        ).hover()
-        expect(preview).to_be_visible()
-        return preview.locator(".lf-preview-detail")
-
-    expect(pointed("b")).to_have_text(
-        [
-            "1 paragraph edited since v1",
-            "In v2, after your comment:",
-            "“Beta first?”",
-        ]
-    )
-    expect(pointed("d")).to_contain_text(["In v3, with none of your comments waiting"])
-    expect(pointed("t")).to_contain_text(
-        ["In Draft, after your comment:", "“Is the title right?”"]
-    )
-    page.mouse.move(0, 0)
-    page.keyboard.press("h")
-    expect(page.locator("#t")).to_be_focused()
-    expect(page.locator(".lf-live")).to_contain_text(
-        "In Draft, after your comment: “Is the title right?”"
-    )
-
-
-def test_a_change_names_only_the_revisions_that_wrote_its_own_blocks(browser, serve):
-    """Paragraphs with no ids of their own share their section's id, so a revision
-    that edited one of them changed the same unit as one that edited another; each
-    change still names only the revision that wrote its own words, and the comments
-    waiting when that revision was written (version.js, `madeBy`)."""
-    alpha = ("Alpha reads one way.", "Alpha reads another way.")
-    beta = ("Beta reads one way.", "Beta reads another way.")
-    page_html = leaf_page(
-        "Anonymous",
-        f'<section id="s"><h2 id="s-head">Plan</h2><p>{alpha[0]}</p>'
-        f"<p>Gamma stays as it was.</p><p>{beta[0]}</p></section>",
-    )
-    url = live_url(serve(page_html))
-    d = serve.page_dir
-    _comment_on(d, "s", alpha[0], text="Is Alpha right?")
-    stamp_page(d, revised(page_html, alpha), "rewrote Alpha")
-    _comment_on(d, "s", beta[0], revision=2, text="Is Beta right?")
-    revise(d, beta)
-    page = open_page(browser, url)
-    wait_for_revision(page, 3)
-    compare_with(page, 1)
-    page.keyboard.press("Escape")
-    changes = page.locator('.lf-margin-entry[data-lf-kinds~="change"]')
-    expect(changes).to_have_count(2)
-    preview = page.locator(PREVIEW)
-
-    # What the change's preview says, the lines its room beside the entry leaves out
-    # included: the two entries stand a line apart, and the preview keeps clear of the
-    # other (preview.js, `fit`).
-    def says(entry):
-        page.mouse.move(0, 0)
-        expect(preview).to_be_hidden()
-        entry.hover()
-        expect(preview).to_be_visible()
-        return " ".join(preview.locator(".lf-preview-detail").all_text_contents())
-
-    first = says(changes.nth(0))
-    assert "In v2, after your comment: “Is Alpha right?”" in first, first
-    assert "Beta" not in first, first
-    second = says(changes.nth(1))
-    assert (
-        "In Draft, after your 2 comments: “Is Alpha right?” “Is Beta right?”" in second
-    ), second
-
-
-def _comment_on(d, section, words, revision=1, text="Say which way?"):
+def _comment_on(d, section, words, revision=1):
     return append_command(
         d,
         {
             "kind": "comment",
             "author": "user",
             "revision": revision,
-            "text": text,
+            "text": "Say which way?",
             "anchor": {"section": section, "quote": words},
         },
     )

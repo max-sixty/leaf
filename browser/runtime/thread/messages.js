@@ -208,10 +208,10 @@ export const threadSummary = (thread) => ({
   latest: lastMovedAt(thread),
 });
 
-// A message's opening line, as a quote or a preview reads it: its first line of words,
-// else Drawing for one drawn without words.
+// A message's opening line, as a preview reads it: its first line of words, else
+// Drawing for one drawn without words.
 /** @param {Parameters<typeof messageText>[0] & {readonly drawing?: unknown}} message */
-export const openingLine = (message) =>
+const openingLine = (message) =>
   messageText(message).split("\n").map(labelWords).find(Boolean) ??
   (message.drawing ? "Drawing" : "");
 

@@ -15,8 +15,9 @@ delivery's own.
 - `says` and `names`: the elements a gesture names, in the words and names of the
   document it was made in (`GestureWords`).
 - `was`, with `suggestion` where it applies: on the user's rewrite of their own
-  message, the words it replaced. A message read as it now reads keeps its latest
-  rewrite's in `edited` instead.
+  message, the words it replaced, as the message read when the user made it
+  (`message_at`). A message read as it now reads keeps its latest rewrite's in
+  `edited` instead.
 - `unsent`: on the user's message or rewrite about a widget, the work they hadn't
   sent there when they wrote (`thread_context.unsent_at_messages`). A message read
   as it now reads takes it from its latest rewrite.
@@ -38,7 +39,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any
 
-from .events import build_threads, message_reading, rewritten
+from .events import message_reading, rewritten
 from .gesture_words import GestureWords, revisions_on_disk
 from .read_state import content_version
 from .registry.kernel import verb_writers
@@ -102,14 +103,6 @@ class EventFacts:
             thread_widgets(thread_structure(self.events), names),
             self.within,
         )
-
-    @cached_property
-    def _revisions(self) -> dict[str, dict]:
-        return {
-            revision["id"]: revision
-            for thread in build_threads(self.events, self.within).values()
-            for revision in thread["revisions"]
-        }
 
     @cached_property
     def _rewrites(self) -> dict[str, list[dict]]:
@@ -181,14 +174,17 @@ class EventFacts:
                 facts["names"] = {
                     identity: words.name(event, identity) for identity in says
                 }
-            # Only a rewrite replaces words, so only a rewrite folds the threads for them.
-            if event["kind"] == "edit" and (
-                revision := self._revisions.get(event["id"])
+            # The agent answering a rewrite needs to see what it replaced, the words
+            # its message had as the user made it, and whether those words are a
+            # suggestion's exact replacement text.
+            if (
+                event["kind"] == "edit"
+                and event["author"] != "agent"
+                and "withdrawn"
+                not in (replaced := self.message_at(event["message"], event["seq"]))
             ):
-                # The agent answering a rewrite needs to see what it replaced, and
-                # whether those words are a suggestion's exact replacement text.
-                facts["was"] = revision["was"]
-                if self.by_id[revision["message"]].get("suggestion"):
+                facts["was"] = replaced["text"]
+                if replaced.get("suggestion"):
                     facts["suggestion"] = True
             if work := unsent.get(content_version(event)):
                 facts["unsent"] = work

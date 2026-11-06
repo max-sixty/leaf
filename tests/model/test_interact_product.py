@@ -1697,6 +1697,35 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
     assert events_model.read_events(page_dir) == before
 
 
+def test_a_rewrite_is_delivered_with_the_words_it_replaced_then(page_dir):
+    """A rewrite replaced the words its message had when the user made it, and
+    taking back an earlier rewrite later changes nothing it replaced."""
+    from leaf import delivery as delivery_model
+
+    publish(page_dir)
+    asked = append_command(
+        page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "A."}
+    )
+
+    def rewrite(text):
+        return append_command(
+            page_dir,
+            {"kind": "edit", "author": "user", "message": asked["id"], "text": text},
+        )
+
+    second = rewrite("B.")
+    third = rewrite("C.")
+    append_command(page_dir, {"kind": "undo", "author": "user", "undoes": second["id"]})
+    with service_model.PageTransaction(page_dir) as page:
+        stored = next(event for event in page.events if event["id"] == third["id"])
+        delivered = delivery_model.freeze_delivery(
+            [delivery_model.batch_data(page_dir, page, [stored])]
+        )
+    [batch] = delivered["batches"]
+    [event] = batch["events"]
+    assert (event["text"], event["was"]) == ("C.", "B.")
+
+
 def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkeypatch):
     """The newest exchange stays verbatim when the user rewrites its words.
 

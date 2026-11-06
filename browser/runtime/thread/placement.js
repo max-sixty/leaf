@@ -1,5 +1,12 @@
 /* Placement for threads: the page's order, which every reading of the threads
-   shares. */
+   shares, and the part of the page a thing stands in (`partOver`).
+
+   On me groups every item under the part its subject stands in (`partOver` of the
+   element it is about): questions, conversations and to-dos alike. A link's preview
+   names a place by its own name, else by the part it stands in. So for a thread on a
+   whole section, the preview names the section and On me says where that section
+   stands: the preview says what a place is, On me where it is, and they agree wherever
+   a place has no name of its own. */
 import { addressableLabel, addressableWord, ownNaming } from "../addressable-names.js";
 import { sectionOf } from "../anchor-resolution.js";
 import {
@@ -106,10 +113,9 @@ export function headingAfter(heading) {
 
 // What names the part of the page, or of a message's markup, a node stands in: the
 // heading over it, else the nearest element holding it that the authoring contract
-// names (addressable-names.js, `ownNaming`), or null where none does. It is one rule for
-// every reader of a place's name: a link's preview names a place with no name of its own
-// by it, and On me's place for an item, which its "By place" bands group by, and an
-// obligation's arrival (obligations/view.js, `arrivalRegion`) ask it.
+// names (addressable-names.js, `ownNaming`), or null where none does. On me's bands
+// and a link's preview read it as the header says, and an obligation's arrival
+// (obligations/view.js, `arrivalRegion`) lands on it.
 //
 // From the node's innermost container out, the nearest part wins: in each, the last
 // heading the reading met before the node that heads that container (passages.js,

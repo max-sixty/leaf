@@ -455,6 +455,44 @@ def test_a_message_s_parts_follow_its_accepted_edit(browser, serve):
     assert page.evaluate(part) == "Changed heading"
 
 
+SECTION_PAGE = leaf_page(
+    "A thread on a section",
+    """
+<h2>Link previews</h2>
+<p><a id="to-stall" href="#stall">the reconnect stall</a></p>
+<section id="stall"><h3>iOS reconnect stall</h3>
+<p>One reconnect in about 40 stalls until the app is backgrounded.</p></section>
+"""
+    + "<p>More of the page.</p>" * 20,
+)
+
+
+def test_a_thread_on_a_whole_section_stands_where_the_section_stands(browser, serve):
+    """A link to a section previews it by its own name, and On me groups a thread on
+    the whole section under the part the section stands in: the preview says what a
+    place is, On me where it is."""
+    url = serve(SECTION_PAGE)
+    panel_comment(
+        serve.page_dir,
+        "Should this wait for the vendor's release?",
+        {"section": "stall"},
+        author="agent",
+        obligation=True,
+    )
+    page = open_page(browser, url)
+    page.locator("#to-stall").hover()
+    expect(page.locator(PREVIEW).locator(".lf-preview-name")).to_have_text(
+        "iOS reconnect stall"
+    )
+    page.mouse.move(1, 1)
+    page.evaluate("() => window.lfStorage.userStore.set('lf-on-me-grouping', 'place')")
+    page.locator(".lf-fp-on-user").click()
+    band = page.locator(".lf-rows-group").filter(
+        has_text="Should this wait for the vendor's release?"
+    )
+    expect(band.locator(".lf-row-main")).to_have_text("Link previews")
+
+
 def test_a_message_s_parts_follow_an_edit_the_card_held_as_news(browser, serve):
     """An edit arriving while a card holds the message back as news outlines the
     message once the card shows it, not before: the old words stand under their old

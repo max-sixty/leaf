@@ -9,20 +9,24 @@ import test from "node:test";
 import { render } from "/runtime/framework.js";
 import { linkedPlace, placePreview } from "/runtime/place-preview.js";
 
-// The preview's parts, each as [its class without the prefix, its words].
+// The preview's name and parts, each as [its class without the prefix, its words].
 /** @param {string} markup */
 function previewed(markup) {
   document.body.innerHTML = `<main>${markup}</main>`;
   const preview = placePreview(document.getElementById("it"));
   if (!preview) return null;
+  assert.equal(preview.excerpt, true);
   const tip = document.createElement("div");
-  render(preview.popover, tip);
+  render(preview.detail, tip);
   const place = tip.querySelector(".lf-place");
   return {
-    parts: [...place.children].map((part) => [
-      part.className.replace("lf-place-", ""),
-      part.textContent.replace(/\s+/g, " ").trim(),
-    ]),
+    parts: [
+      ...(preview.name ? [["name", preview.name]] : []),
+      ...[...(place?.children ?? [])].map((part) => [
+        part.className.replace("lf-place-", ""),
+        part.textContent.replace(/\s+/g, " ").trim(),
+      ]),
+    ],
     copied: tip.querySelectorAll("[id], a, button, input, [tabindex]").length,
   };
 }

@@ -158,15 +158,8 @@ export function addressableLabel(element) {
   const own = ownName(element);
   if (own) return own;
   if (saysItself(element)) return excerptWords(addressableSays(element), LABEL_WORDS);
-  const scope = authoredScope(element);
-  // The page's column is `main`, beside the body's other content; its leading heading
-  // titles the page, not each unnamed element in it.
-  const column = (/** @type {Element} */ at) =>
-    at.localName === "main" && at.parentElement === scope;
-  for (let at = upFrom(element); at && at !== scope && !column(at); at = upFrom(at)) {
-    const name = ownName(at);
-    if (name) return name;
-  }
+  const held = holderName(element);
+  if (held) return held;
   // A registered widget has a word of its own, which says more than its members' words
   // run together. Plain markup has none worth saying (a `div`), so its words, or the
   // name of the picture it holds, are the last resort.
@@ -176,6 +169,23 @@ export function addressableLabel(element) {
       element.querySelector("[aria-label]")?.getAttribute("aria-label"),
     LABEL_WORDS,
   );
+}
+
+// The name of the nearest element holding `element` that has one, short of the document
+// it stands in (the page's column, or a message's body), or "": a question's options are
+// named by the question, a chart by its section. The page's column is `main`, beside the
+// body's other content; its leading heading titles the page, not each unnamed element in
+// it.
+/** @param {Element} element */
+export function holderName(element) {
+  const scope = authoredScope(element);
+  const column = (/** @type {Element} */ at) =>
+    at.localName === "main" && at.parentElement === scope;
+  for (let at = upFrom(element); at && at !== scope && !column(at); at = upFrom(at)) {
+    const name = ownName(at);
+    if (name) return name;
+  }
+  return "";
 }
 
 // A thread's § coordinate and the visual-action picker both show it.

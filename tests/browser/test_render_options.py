@@ -1425,7 +1425,7 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     assert ref.get_attribute("title") is None
     ref.hover()
     preview = page.locator("#lf-preview")
-    expect(preview.locator(".lf-place-name")).to_have_text("The mounts")
+    expect(preview.locator(".lf-preview-name")).to_have_text("The mounts")
     expect(preview.locator(".lf-place-text")).to_have_text(
         "Plastic, and one came down in January."
     )

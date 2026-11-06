@@ -415,29 +415,26 @@ svg[data-lf-icon] {
   margin-block-start: 2px;
   color: color-mix(in srgb, var(--tip-ink) 76%, transparent);
 }
-/* A place's preview (runtime/place-preview.js), what a link into the page opens: the
-   place's name, cut to two lines, over its first parts as the page reads them, a
+/* A place's preview (runtime/place-preview.js), what a link into the page opens, in
+   the excerpt room: under the place's name, its first parts as the page reads them, a
    paragraph cut to three lines and a list's items, a table's cells and a code block's
-   lines to one, then the conversations about it under a rule. */
+   lines to one, then the conversations about it under a rule. The tooltip's ground is
+   the page's ink, so its marks mix the tooltip's own ink rather than the paper's
+   colours. */
 .lf-place {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
-.lf-place-name,
 .lf-place-heading,
 .lf-place-cell[data-lf-head] {
   font-weight: 600;
 }
-.lf-place-name,
 .lf-place-text {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
   overflow: hidden;
-}
-.lf-place-name {
-  -webkit-line-clamp: 2;
 }
 .lf-place-list {
   display: flex;
@@ -453,7 +450,7 @@ svg[data-lf-icon] {
 .lf-place-item::before {
   content: "•";
   margin-inline-end: 6px;
-  color: var(--muted);
+  color: color-mix(in srgb, currentColor 72%, transparent);
 }
 /* A member the widget's answer picks, checked as paper marks a chosen option
    (options.css). */
@@ -462,21 +459,19 @@ svg[data-lf-icon] {
 }
 .lf-place-item[data-lf-chosen]::before {
   content: "✓";
-  color: var(--ok-ink);
+  color: inherit;
 }
 .lf-place-table {
   display: grid;
   grid-template-columns: repeat(var(--lf-columns), minmax(0, auto));
   gap: 2px 12px;
-  font: var(--font-small);
 }
 .lf-place-row {
   display: contents;
 }
 .lf-place-more {
   grid-column: 1 / -1;
-  font: var(--font-small);
-  color: var(--muted);
+  color: color-mix(in srgb, currentColor 72%, transparent);
 }
 .lf-place-code {
   white-space: pre;
@@ -499,10 +494,8 @@ svg[data-lf-icon] {
   flex-wrap: wrap;
   gap: 2px 10px;
   margin-block-start: 2px;
-  padding-block-start: 6px;
-  border-block-start: 1px solid var(--rule);
-  font: var(--font-small);
-  color: var(--muted);
+  padding-block-start: 4px;
+  border-block-start: 1px solid color-mix(in srgb, currentColor 28%, transparent);
 }
 @media (prefers-reduced-motion: reduce) {
   .lf-preview {
@@ -1509,10 +1502,13 @@ wa-copy-button.lf-icon-action {
   color: var(--turn-ink);
 }
 /* A row that says the thread's word at its end, in Threads and the Page Map, says the
-   user's turn in the same green, as a place's preview does under its conversations. */
-:is(.lf-page-map-action, .lf-fp-thread)[data-lf-turn="user"] > .lf-row-end,
-.lf-place-turn {
+   user's turn in the same green, as a place's preview does under its conversations, on
+   the tooltip's ground in the green that reads there. */
+:is(.lf-page-map-action, .lf-fp-thread)[data-lf-turn="user"] > .lf-row-end {
   color: var(--turn-ink);
+}
+.lf-place-turn {
+  color: var(--tip-turn-ink);
 }
 .lf-margin-face[data-lf-turn="user"] {
   --lf-entry-tint: var(--turn-wash);

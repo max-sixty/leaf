@@ -9,12 +9,13 @@
    only it knows whether its words already say what the place holds; a contents row
    does. A link to another document keeps only the browser's status bar.
 
-   The preview is a short rendering of the place, in the popover face:
+   The preview is a short rendering of the place, in the face's excerpt room:
 
    - its name, the way the chrome names an element away from the page
      (addressable-names.js): a heading's words, a section's leading heading, a tab's
-     label, a table's or figure's caption, and for a widget with no name of its own, the
-     name of what holds it, as a question names its options;
+     label, a table's or figure's caption, and for a place with no name of its own, the
+     name of what holds it, as a question names its options and a section its
+     paragraphs;
    - its first few parts, in the page's order, each as the page reads it: a heading, a
      paragraph cut to three lines, a list's first items, a table's first rows, a
      figure's picture and caption, a code block's first lines, and a closed disclosure's
@@ -47,8 +48,8 @@
 import { html, nothing } from "/runtime/framework.js";
 import { fragmentTarget } from "./anchor-resolution.js";
 import {
-  addressableLabel,
   addressableWord,
+  holderName,
   leadingTitle,
   ownName,
 } from "./addressable-names.js";
@@ -82,9 +83,10 @@ import { capitalized, counted, excerptWords, labelWords } from "./words.js";
  *   | {kind: "code", lines: string}
  *   | {kind: "state", words: Words}} Part */
 
-// How much of a place a preview shows: parts after its name, a paragraph's words (CSS
-// cuts it to its lines), a list's items, a table's rows and columns, a code block's
-// lines.
+// How much of a place a preview shows: its name's words, parts after its name, a
+// paragraph's words (CSS cuts it to its lines), a list's items, a table's rows and
+// columns, a code block's lines.
+const NAME = 120;
 const PARTS = 2;
 const WORDS = 280;
 const ITEMS = 3;
@@ -115,7 +117,9 @@ export function linkPreview(link) {
   return place ? placePreview(place) : null;
 }
 
-/** A place on the page as a preview shows it, in the popover face.
+/** A place on the page as a preview shows it (preview.js, `Preview`): its name, then its
+ * parts and the conversations about it as two lines of detail, in the face's excerpt
+ * room.
  * @param {Element} place */
 export function placePreview(place) {
   const heading = place.matches(HEADING);
@@ -130,21 +134,25 @@ export function placePreview(place) {
   const foot = conversations(place);
   if (!name && !parts.length && !foot) return null;
   return {
-    popover: html`<span class="lf-place"
-      >${name ? html`<span class="lf-place-name">${name}</span>` : nothing}${parts.map(
-        partView,
-      )}${foot}</span
-    >`,
+    name: name ? excerptWords(name, NAME) : null,
+    detail: [
+      parts.length ? html`<span class="lf-place">${parts.map(partView)}</span>` : null,
+      foot,
+    ],
+    excerpt: true,
   };
 }
 
-// A widget with no name of its own takes the name of what holds it, as a question's
-// options do, and then its word; plain markup with no name shows its words alone.
+// A place with no name of its own takes the name of what holds it, as a question's
+// options or a paragraph of a section do, whose parts then say its words; a widget held
+// by nothing named takes its word.
 /** @param {Element} place */
 function placeName(place) {
-  const own = ownName(place);
-  if (own || !registry[place.localName]) return own;
-  return addressableLabel(place) || capitalized(addressableWord(place));
+  return (
+    ownName(place) ||
+    holderName(place) ||
+    (registry[place.localName] ? capitalized(addressableWord(place)) : "")
+  );
 }
 
 /** The authored words an element holds, as the page reads them.

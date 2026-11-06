@@ -385,6 +385,10 @@
      ladder, so it is declared with the other derived tokens (below). */
   --tip-bg: var(--ink);
   --tip-ink: var(--paper);
+  /* The user's turn on a tooltip, whose ground is the page's ink: the turn's green
+     drawn halfway to the tooltip's ink, which holds it clear of that ground in
+     either scheme, where the paper's green would sink into it. */
+  --tip-turn-ink: color-mix(in oklab, var(--turn-ink), var(--tip-ink));
   --tip-pad: 4px 7px;
   --tip-r: var(--r-s);
   /* Inline code's ground is measured against the paper it sits on, not the white code

@@ -493,7 +493,7 @@ export function createQueueWalk({
   /** @param {Stop} stop */
   function arriveAt(stop) {
     if (stop.kind === "obligation") {
-      const record = readObligations().all.find((item) => item.id === stop.id);
+      const record = readObligations().byId.get(stop.id);
       if (!record || hasObligationSource(record, "update"))
         return Promise.resolve(false);
       return arriveAtRecord(record);

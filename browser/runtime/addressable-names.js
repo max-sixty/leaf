@@ -107,7 +107,7 @@ function readLeadingTitle(container) {
 // The title an element's attribute holds, as its declaration names (`x-name`), such
 // as a tab's label.
 /** @param {Element} element */
-export function declaredName(element) {
+function declaredName(element) {
   const attribute = registry[element.localName]?.["x-name"];
   return (attribute && element.getAttribute(attribute)?.trim()) || "";
 }
@@ -207,11 +207,13 @@ export function addressableLabel(element) {
 
 // The name of the nearest element holding `element` that has one, short of the document
 // it stands in (the page's column, or a message's body), or "": a question's options are
-// named by the question, a chart by its section. The page's column is `main`, beside the
+// named by the question, a chart by its section. The chrome's label for an element
+// reads it (`addressableLabel`); a place's name, which follows headings inside the
+// holder too, is thread/placement.js's `partOver`. The page's column is `main`, beside the
 // body's other content; its leading heading titles the page, not each unnamed element in
 // it.
 /** @param {Element} element @returns {Naming | null} */
-export function holderNaming(element) {
+function holderNaming(element) {
   const scope = authoredScope(element);
   const column = (/** @type {Element} */ at) =>
     at.localName === "main" && at.parentElement === scope;

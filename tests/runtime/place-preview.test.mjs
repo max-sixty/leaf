@@ -230,35 +230,58 @@ test("a heading's section is walked through declared shadow trees and their slot
   assert.equal(body.textContent.replace(/\s+/g, " ").trim(), "Assigned body.");
 });
 
-test("a place with no name of its own takes the nearest name holding it", () => {
-  assert.deepEqual(
-    previewed(`<section aria-label="Deployment"><p id="it">It may fail.</p></section>`)
-      .parts,
-    [
-      ["name", "Deployment"],
-      ["text", "It may fail."],
-    ],
+test("a place with no name of its own is named by the part it stands in, as On me groups it", () => {
+  // The name of each place below is the card's, and the part `partOver` gives, which On
+  // me's "By place" bands are titled by, is the element that name comes from.
+  /** @param {string} markup @param {string} name @param {string} part */
+  const named = (markup, name, part) => {
+    assert.equal(previewed(markup).parts[0]?.join(":"), `name:${name}`);
+    const over = partOver(document.getElementById("it"));
+    assert.equal(
+      over?.matches("h1, h2, h3, h4, h5, h6") ? "heading" : over?.localName,
+      part,
+    );
+  };
+  // A region its author labelled.
+  named(
+    `<section aria-label="Deployment"><p id="it">It may fail.</p></section>`,
+    "Deployment",
+    "section",
   );
-  // A section the author wrote is named by its heading, words before the heading
-  // included, on the card and in On me alike (`partOver`).
-  assert.deepEqual(
-    previewed(`<h2>Earlier</h2><section><p id="it">Context first.</p><h2>Later</h2>
-      <p>After.</p></section>`).parts,
-    [
-      ["name", "Later"],
-      ["text", "Context first."],
-    ],
+  // A section the author wrote names what stands in it before its heading.
+  named(
+    `<h2>Earlier</h2><section><p id="it">Context first.</p><h2>Later</h2>
+    <p>After.</p></section>`,
+    "Later",
+    "heading",
   );
-  assert.equal(partOver(document.getElementById("it"))?.textContent, "Later");
-  // Else the part it stands in, as On me names it (`partOver`): an aside's heading
-  // heads the aside alone.
-  assert.deepEqual(
-    previewed(`<h2>Deployment</h2><aside><h3>Optional note</h3><p>Aside words.</p>
-      </aside><p id="it">It ships on Monday.</p>`).parts,
-    [
-      ["name", "Deployment"],
-      ["text", "It ships on Monday."],
-    ],
+  // A sub-heading inside a titled section heads what follows it.
+  named(
+    `<section><h2>Section title</h2><p>Intro.</p><h3>Sub-heading</h3>
+    <p id="it">Words under the sub-heading.</p></section>`,
+    "Sub-heading",
+    "heading",
+  );
+  // A figure's caption names what it holds.
+  named(
+    `<figure><figcaption>Stalls by week</figcaption><div><p id="it">A note on
+    the chart.</p></div></figure>`,
+    "Stalls by week",
+    "figure",
+  );
+  // An aside's heading heads the aside alone.
+  named(
+    `<h2>Deployment</h2><aside><h3>Optional note</h3><p>Aside words.</p>
+    </aside><p id="it">It ships on Monday.</p>`,
+    "Deployment",
+    "heading",
+  );
+  // What Leaf generates in the page names nothing, whatever it is labelled.
+  named(
+    `<h2>Real part</h2><div data-lf-gen="1" aria-label="Leaf's own"><p id="it">Words
+    in it.</p></div>`,
+    "Real part",
+    "heading",
   );
 });
 

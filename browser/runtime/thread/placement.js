@@ -1,15 +1,11 @@
 /* Placement for threads: the page's order, which every reading of the threads
    shares. */
-import {
-  addressableLabel,
-  addressableWord,
-  declaredName,
-  leadingTitle,
-} from "../addressable-names.js";
+import { addressableLabel, addressableWord, ownNaming } from "../addressable-names.js";
 import { sectionOf } from "../anchor-resolution.js";
 import {
   authoredScope,
   elementById,
+  GENERATED,
   HEADING,
   leafSurface,
   outlineReading,
@@ -19,7 +15,7 @@ import {
 } from "../passages.js";
 import { agentName } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
-import { byRenderedOrder, upFrom } from "../shadow.js";
+import { byRenderedOrder, overIn, upFrom } from "../shadow.js";
 import { threadNamed, threadState } from "./state.js";
 import { threadAttention } from "./workflow.js";
 // ---------- where the panel puts a thread ----------
@@ -115,28 +111,38 @@ export function headingAfter(heading) {
 }
 
 // What names the part of the page, or of a message's markup, a node stands in: the
-// heading over it, else the nearest region holding it whose declaration titles it
-// (`declaredName`), such as a tab by its label, or null where neither does. A run-in
-// title, a paragraph's leading <strong>, names its paragraph and no part. On me's place
-// for an item and an obligation's arrival (obligations/view.js, `arrivalRegion`) both
-// ask it, as a link's preview does for a place with no name of its own.
+// heading over it, else the nearest element holding it that the authoring contract
+// names (addressable-names.js, `ownNaming`), or null where none does. It is one rule for
+// every reader of a place's name: a link's preview names a place with no name of its own
+// by it, and On me's place for an item, which its "By place" bands group by, and an
+// obligation's arrival (obligations/view.js, `arrivalRegion`) ask it.
 //
 // From the node's innermost container out, the nearest part wins: in each, the last
 // heading the reading met before the node that heads that container (passages.js,
-// `headed`), else the container's own name by the authoring contract, its declared
-// name or its leading title (addressable-names.js, `leadingTitle`), which Python reads
-// by the same rule (`tests/name_cases.json`). So the <section> the author wrote decides
-// for what stands in it before its heading, as an eyebrow or a lead paragraph does:
-// that heading names it, as it names the section, where the heading before the section
-// once did. A heading in a `header` or `hgroup` heads what holds that, so a page's title
-// in its header heads the page's sections. The container is what "the heading over
-// this" means: a question's own heading stands inside the question, so it heads neither
-// the question, which it follows, nor the next question, which its container does not
-// hold. A heading the reader cannot see, as in a tab not selected, still heads its part,
-// so a part's name does not change as the page shows or hides it; an arrival measures
-// what it lands on and passes one that shows nothing. On the corpus page, whose pages
-// stand in tabs with their titles in headers and their last sections untitled, the
-// container alone sent every item to the corpus's own title.
+// `headed`), else the container's own name by the contract: its declared name, its
+// leading title (a heading, a disclosure's summary, a titled member's <strong>), its
+// caption, or the `aria-label` or <label> its author gave it. So a <section> the author
+// wrote names what stands in it before its heading, a sub-heading inside it heads what
+// follows the sub-heading, a captioned figure or table names what it holds, and a region
+// the author labelled is a part. The contract stops short of the document the node
+// stands in and the page's column, whose leading heading titles the page, and passes a
+// slot, whose own children are the fallback its assignment replaces, and what Leaf
+// generates in the document, whose labels are Leaf's. A heading in a `header` or
+// `hgroup` heads what holds that, so a page's title in its header heads the page's
+// sections. The container is what "the heading over this" means: a question's own
+// heading stands inside the question, so it heads neither the question, which it
+// follows, nor the next question, which its container does not hold. A heading the
+// reader cannot see, as in a tab not selected, still heads its part, so a part's name
+// does not change as the page shows or hides it; an arrival measures what it lands on
+// and passes one that shows nothing. On the corpus page, whose pages stand in tabs with
+// their titles in headers and their last sections untitled, the container alone sent
+// every item to the corpus's own title.
+//
+// Replaced: a run-in title, a paragraph's leading <strong>, named its paragraph and no
+// part, and only a declared name or a leading heading named a container, while the
+// preview named a place by its nearest named holder first (`holderNaming`). The two
+// rules disagreed under a sub-heading inside a titled section, the preview saying the
+// section and On me the sub-heading; one rule now says the sub-heading for both.
 //
 // The reading records what stood over each element as its walk reached it, so a call
 // costs the node's depth: On me asks it of every item it lists. A node the reading never
@@ -153,22 +159,25 @@ export function partOver(node) {
   for (let at = state ?? null; at; at = at.up) {
     if (at.heading) return at.heading;
     const { container } = at;
-    if (declaredName(container)) return container;
-    if (!titled(container, scope)) continue;
-    const title = leadingTitle(container);
-    if (title && title !== node && title.matches(HEADING)) return title;
+    if (!namesWhatItHolds(container, scope)) continue;
+    const naming = ownNaming(container);
+    if (!naming) continue;
+    // A heading that titles its container heads what the container holds; any other
+    // name makes the container the part.
+    if (!("by" in naming)) return container;
+    if (naming.by === node) continue;
+    return naming.by.matches(HEADING) ? naming.by : container;
   }
   return null;
 }
-// Whether a container's leading title names what it holds, as the authoring contract
-// names a holder's members (addressable-names.js, `holderNaming`): short of the document
-// it stands in and the page's column, whose leading heading titles the page, and never a
-// slot, whose own children are the fallback its assignment replaces.
+// Whether the contract's name for `container` names what it holds: short of the document
+// it stands in and the page's column, never a slot, and never what Leaf generated there.
 /** @param {Element} container @param {Element} scope */
-const titled = (container, scope) =>
+const namesWhatItHolds = (container, scope) =>
   container !== scope &&
   container.localName !== "slot" &&
-  !(container.localName === "main" && container.parentElement === scope);
+  !(container.localName === "main" && container.parentElement === scope) &&
+  !overIn(container, GENERATED, scope);
 
 // ---------- where the open conversations stand ----------
 // Gathered once for each reading of the threads and the page, so asking about a place

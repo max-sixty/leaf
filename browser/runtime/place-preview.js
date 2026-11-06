@@ -11,12 +11,12 @@
 
    The preview is a short rendering of the place, in the face's excerpt room:
 
-   - its name, the way the chrome names an element away from the page
-     (addressable-names.js): a heading's words, a section's leading heading, a tab's
-     label, a table's or figure's caption, and for a place with no name of its own, or
-     one the page draws nothing of, the name of the nearest element holding it that has
-     one, as a question names its options, else the heading over it as On me names an
-     item's part (thread/placement.js, `partOver`);
+   - its name, the way the authoring contract names an element (addressable-names.js,
+     `ownNaming`): a heading's words, a section's leading heading, a tab's label, a
+     table's or figure's caption, an `aria-label`; and for a place with no name of its
+     own, or one the page draws nothing of, the name of the part it stands in, by the
+     rule On me groups its items by (thread/placement.js, `partOver`): the heading over
+     it, or the nearest element holding it that the contract names;
    - its first few parts, in the page's order, each as the page draws it now: a
      heading, a paragraph cut to three lines, a list's first items, a table's first
      rows, a figure's picture and caption, and a code block's first lines. A heading's
@@ -62,12 +62,7 @@
    upgrades every widget in it. */
 import { html, nothing } from "/runtime/framework.js";
 import { fragmentTarget } from "./anchor-resolution.js";
-import {
-  addressableWord,
-  holderNaming,
-  leadingTitle,
-  ownNaming,
-} from "./addressable-names.js";
+import { addressableWord, leadingTitle, ownNaming } from "./addressable-names.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { obligationEnding } from "./obligations/answer.js";
 import { readObligations } from "./obligations/model.js";
@@ -185,17 +180,16 @@ export function placePreview(place) {
   };
 }
 
-// A place with no name of its own takes the name of the nearest element holding it that
-// has one (`holderNaming`), as a question's options and a section's paragraphs do, else
-// that of the part it stands in (`partOver`), as a paragraph after a heading in a flow
-// of headings does; its parts then say its words. A widget in no named part takes its
+// A place with no name of its own takes the name of the part it stands in (`partOver`):
+// the heading over it, or the nearest element holding it that the contract names, as
+// a question's options take the question's and a paragraph under a sub-heading the
+// sub-heading's. Its parts then say its words. A widget in no named part takes its
 // word. A name an element gives is read as the page draws it, as the parts are, so a
 // name the page draws nothing of, as a title hidden away, gives way to the next.
 /** @param {Element} place */
 function placeName(place) {
   return (
     namedBy(ownNaming(place)) ||
-    namedBy(holderNaming(place)) ||
     partName(partOver(place)) ||
     (registry[place.localName] ? capitalized(addressableWord(place)) : "")
   );

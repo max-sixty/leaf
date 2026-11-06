@@ -34,7 +34,10 @@
      thread's held news or a quote's Full quote, drawn as words in the accent at the
      line's size with no frame. One that announces news waiting says so with
      `data-lf-news` and keeps the accent the unread dot wears, and one whose words say
-     a warning with `data-lf-tone="warn"` takes the warning's ink.
+     a warning with `data-lf-tone="warn"` takes the warning's ink. One standing among
+     a box's empty words (`data-lf-hint`), as a passing notice's Undo does at the
+     floating panel field's end, wears those words' dim face, as the word and key that
+     enter the box do (composing/input.js, `pressAtRest`).
    - `row`: one row of a list or menu, whose words are what the reader scans, so they
      stand in the ink; the row under the pointer or the keys is washed, and the row
      the list stands on (`aria-current`) wears the accent's stripe and tint. A step

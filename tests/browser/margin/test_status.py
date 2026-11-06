@@ -21,6 +21,7 @@ from render_harness import (
     BOARD_PAGE,
     PREVIEW,
     RELEASE_FOCUS,
+    expect_preview_words,
     leaf_page,
     margins_laid_out,
     open_page,
@@ -441,7 +442,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     working_thread = open_panel_thread(page, roots[0]["id"])
     workflow = working_thread.locator(".lf-msg-sending", has_text="On it")
     expect(workflow).to_have_text("On it")
-    expect(workflow).to_have_attribute("title", f"On it · {detail}")
+    expect_preview_words(workflow, f"On it · {detail}")
 
 
 @pytest.mark.parametrize("annotations", ["margin", "page"])
@@ -1060,7 +1061,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         style, so a fade that has started is in the list on the first read and a preview
         that never moves reports empty at once."""
         page.wait_for_function(
-            "() => document.getElementById('lf-preview').getAnimations().length === 0"
+            "() => document.getElementById('lf-preview')"
+            ".getAnimations({subtree: true}).length === 0"
         )
 
     def assert_status(phase, context, control=marker):
@@ -1106,14 +1108,16 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         label = page.locator(PREVIEW)
         expect(label).to_be_visible()
         words_still()
-        expect(label).to_have_css("opacity", "1")
+        # The face is what fades and is drawn (preview.js).
+        drawn = label.locator(".lf-preview-face")
+        expect(drawn).to_have_css("opacity", "1")
         hovered = face(control)
         assert {
             key: hovered[key]
             for key in ("background", "border", "ink", "iconInk", "opacity")
         } == resting_surface
-        expect(label).to_have_css("background-color", expected_label_background)
-        expect(label).to_have_css("color", expected_label_ink)
+        expect(drawn).to_have_css("background-color", expected_label_background)
+        expect(drawn).to_have_css("color", expected_label_ink)
         expect(label).to_have_text(f"{phase}{context}")
         # A rectangular trace uses the same outside stroke as target focus, on the
         # region's perimeter, in the trace's quiet ink, cut to brackets.

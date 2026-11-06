@@ -37,14 +37,16 @@ from leaf_dev.page_fixtures import example_media
 def said_by_marks(scope):
     """Write what each mark under `scope` says when pointed at (its `lfPreview()`,
     preview.js) into its `data-test-tip`, its name and each line of detail on a line of
-    its own, so a locator can find a mark by its words."""
+    its own, so a locator can find a mark by its words. An element whose declaration
+    adds nothing now (null), as a caption with no words, is no mark."""
     scope.evaluate(
         """async (scope) => {
           const {render} = await window.__lfWidgetApi();
           for (const mark of scope.querySelectorAll('*')) {
             if (typeof mark.lfPreview !== 'function') continue;
             const said = mark.lfPreview();
-            mark.dataset.testTip = [said.name, ...(said.detail ?? [])]
+            if (!said) continue;
+            const tip = [said.name, ...(said.detail ?? [])]
               .filter(Boolean)
               .map((words) => {
                 const box = document.createElement('div');
@@ -52,6 +54,8 @@ def said_by_marks(scope):
                 return box.textContent;
               })
               .join('\\n');
+            // Written only where it changed, as the page's write watch asks.
+            if (mark.dataset.testTip !== tip) mark.dataset.testTip = tip;
           }
         }"""
     )
@@ -1780,14 +1784,16 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
         tips = "\n".join(
             pins.evaluate_all("nodes => nodes.map(node => node.dataset.testTip)")
         )
-        assert re.findall(r"^Moment (\d+) · ", tips, re.MULTILINE) == ["1", "2", "3"]
-        third = widget.locator('.lf-trace-moment-pin[data-test-tip*="Moment 3 ·"]')
+        # Each moment is said once across the flags, on a line of its own: a flag's
+        # own under its label, a shared flag's after each label it holds.
+        assert re.findall(r"Moment (\d+) · ", tips) == ["1", "2", "3"]
+        # The flag of the third moment alone, which its number names.
+        third = pins.filter(has_text=re.compile(r"^\s*3\s*$"))
         for _ in range(8):
             if third.count():
                 break
             zoom_in.click()
             rendered(user)
-            said_by_marks(widget)
         third.click()
         expect_moment(widget, 3)
 
@@ -2082,12 +2088,20 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
         user.emulate_media(color_scheme=color_scheme)
         shared.hover()
         expect(tip).to_be_visible()
-        expect(tip).to_have_text(
-            f"2 moments\n{labels[0]} · Moment 1 · {docs_time:.3f} s\n"
-            f"{labels[1]} · Moment 2 · {docs_time:.3f} s",
-            use_inner_text=True,
+        # The flag names its count and each moment's words on a line of its own. The
+        # lanes around it leave room above for its first line, so the rest is cut
+        # there, as any preview held to a room is (preview.js, `fit`), and says
+        # itself whole where the room allows.
+        expect(tip.locator(".lf-preview-word")).to_be_visible()
+        expect(tip.locator(".lf-preview-word, .lf-preview-detail")).to_have_text(
+            [
+                "2 moments",
+                f"{labels[0]} · Moment 1 · {docs_time:.3f} s",
+                f"{labels[1]} · Moment 2 · {docs_time:.3f} s",
+            ]
         )
-        reading = tip.evaluate(
+        # Its face is what is drawn, ink on its ground (preview.js).
+        reading = tip.locator(".lf-preview-face").evaluate(
             """node => {
               const canvas = document.createElement('canvas');
               canvas.width = canvas.height = 1;

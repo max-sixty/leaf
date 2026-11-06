@@ -48,14 +48,42 @@ export function geometryReading(open) {
   };
 }
 
-// Advice about a declared space a holder keeps in: a block breaks out only from the
-// column or a flow in it. Existing containment may be deliberate, so this reading never
-// refuses a page.
+// Whether a box that broke out takes words off the column: a text block starts at its
+// holder's edge (base.css), so in a box reaching before the prose it starts there too. A
+// widget arranges its own contents, and a caption belongs to its figure.
+/** @param {Element} el */
+function takesItsWords(el) {
+  const holder = el.parentElement;
+  if (!holder || el.localName.includes("-")) return false;
+  const box = holder.getBoundingClientRect();
+  const style = getComputedStyle(holder);
+  const rtl = style.direction === "rtl";
+  const prose = rtl
+    ? box.right - parseFloat(style.paddingRight)
+    : box.left + parseFloat(style.paddingLeft);
+  return [...el.children].some((child) => {
+    if (
+      child.matches("figcaption") ||
+      !child.checkVisibility() ||
+      getComputedStyle(child).maxInlineSize === "none"
+    )
+      return false;
+    const words = child.getBoundingClientRect();
+    return (rtl ? words.right - prose : prose - words.left) > 1;
+  });
+}
+
+// Advice about a declared space that doesn't do what it asks. A block breaks out only
+// from the column or a flow in it, so a holder can keep it in, and one that does break
+// out can take the words it holds off the column. Either may be deliberate, so this
+// reading never refuses a page.
 function containedSpace() {
   const page = pageDocument();
   if (!page) return [];
   return [...page.querySelectorAll("[data-lf-space]")].filter(inPage).flatMap((el) => {
     if (skipped(el) || !el.checkVisibility()) return [];
+    if (breaksOut(el) && takesItsWords(el))
+      return [{ code: "words-off-column", at: at(el), place: place(el) }];
     const holders = [];
     for (let holder = el.parentElement; holder; holder = holder.parentElement) {
       if (holder.matches(".layout-column"))
@@ -75,7 +103,7 @@ function containedSpace() {
         breaksOut(holder)
       )
         return [];
-      if (!holder.matches(".layout-flow")) holders.push(at(holder));
+      if (!holder.matches(".layout-flow, [data-lf-flow]")) holders.push(at(holder));
     }
     return [];
   });
@@ -482,11 +510,23 @@ export function misplacedBoxes() {
     }
     if (past > 1) over.set(el, [past, wide, frame, host]);
   }
+  // A flex or grid item is by default no narrower than its content's minimum
+  // (`min-width: auto`), so a table or a box that scrolls sideways widens the item, and
+  // the page, as far as its content asks. The finding names the kind of item whose
+  // minimum is still `auto`, so its words can offer `min-width: 0` first. Where that
+  // isn't what holds the item out, as in a fixed track or beside a sibling that pushed
+  // it, the next check reports it again and the other remedies still stand.
+  /** @param {Element} el @returns {{item?: string}} */
+  const asItem = (el) => {
+    const display = el.parentElement ? getComputedStyle(el.parentElement).display : "";
+    const item = ["flex", "grid"].find((kind) => display.includes(kind));
+    return item && getComputedStyle(el).minInlineSize === "auto" ? { item } : {};
+  };
   // Each finding is a record (findings.py) carrying its element's place
   // (locate.js) beside its code, so a reader that takes this pass at several widths
   // (the gate's sweep) can tell one fault met again from a new one by those two,
   // whatever pixel count the width gives it.
-  /** @typedef {{past: number, host?: string, frame?: string, container?: string} | {marginContent: string} | {across: number, down: number}} Misplacement */
+  /** @typedef {{past: number, item?: string, host?: string, frame?: string, container?: string} | {marginContent: string} | {across: number, down: number}} Misplacement */
   /** @type {(Misplacement & {code: string, at: string, place: ReturnType<typeof place>})[]} */
   const found = [];
   /** @param {Element} el @param {string} code @param {Misplacement} values */
@@ -495,7 +535,7 @@ export function misplacedBoxes() {
   for (const [el, [past, wide, frame, host]] of over) {
     if ([...over.keys()].some((other) => other !== el && other.contains(el))) continue;
     if (host) report(el, "outside-part", { past, host: at(host) });
-    else if (!wide) report(el, "past-column", { past });
+    else if (!wide) report(el, "past-column", { past, ...asItem(el) });
     else if (frame) report(el, "outside-frame", { past, frame: at(frame) });
     else report(el, "past-room", { past });
   }

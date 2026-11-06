@@ -318,158 +318,6 @@ svg[data-lf-icon] {
   color: var(--ink);
   box-shadow: var(--raise-2);
 }
-/* A preview (runtime/preview.js): what pointing at a mark, control or value reads,
-   standing beside it over the page, in one face whatever it previews: the tooltip's
-   ground and ink (`--tip-*`, tokens.css), its name on the first line at the face's
-   weight with the key chips that press it, then each line of detail in the same type,
-   a step dimmer. The browser stands it by its source, the box it previews, which is
-   its implicit anchor (`showPopover({source})`): on the side the owner picks
-   (`data-lf-side`, below by default), by the gap that clears that box's ring
-   (`--lf-preview-gap`) and an edge's room from the window (`--lf-preview-edge`), in
-   logical terms, so it starts at a right-to-left target's right edge. Where the window
-   has no room there, it flips to the other end of the line, then the other side, then
-   centres across the window; taller than the room on either side, it is held to the
-   room below or above and its face scrolls. It goes with its source out of view. A
-   pointer's preview takes the pointer, so the pointer can cross onto it and read it
-   there (WCAG 1.4.13, "Hoverable"), unless it covers another target
-   (`data-lf-covers`); a focus's or a finger's takes none. It fades in for a pointer or
-   a finger, as a word that rose into place would move under nobody's input; under the
-   keyboard's focus it is there at once. A preview that quotes a block of the page,
-   such as the place a link opens, takes the excerpt room: the same face, wider. Five
-   fallbacks at most, since Chromium 156 tries no sixth (notes/browser-support.md). */
-.lf-preview {
-  position: fixed;
-  inset: auto;
-  margin: 0;
-  position-anchor: auto;
-  position-area: self-block-end span-self-inline-end;
-  margin-block: var(--lf-preview-gap) var(--lf-preview-edge);
-  margin-inline: 0 var(--lf-preview-edge);
-  position-try-fallbacks:
-    flip-inline,
-    flip-block,
-    flip-block flip-inline,
-    --lf-preview-under,
-    --lf-preview-over;
-  position-visibility: anchors-visible;
-  box-sizing: border-box;
-  width: max-content;
-  max-width: min(320px, calc(100vw - 16px));
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding: var(--tip-pad);
-  border: 0;
-  border-radius: var(--tip-r);
-  background: var(--tip-bg);
-  color: var(--tip-ink);
-  box-shadow: var(--raise-1);
-  font: var(--font-tip);
-  text-align: start;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  pointer-events: none;
-  opacity: 1;
-  transition: opacity 90ms ease;
-  @starting-style {
-    opacity: 0;
-  }
-}
-.lf-preview[data-lf-side="above"] {
-  position-area: self-block-start span-self-inline-end;
-  margin-block: var(--lf-preview-edge) var(--lf-preview-gap);
-}
-.lf-preview:is([data-lf-side="end"], [data-lf-side="start"]) {
-  margin-block: 0 var(--lf-preview-edge);
-}
-.lf-preview[data-lf-side="end"] {
-  position-area: self-inline-end span-self-block-end;
-  margin-inline: var(--lf-preview-gap) var(--lf-preview-edge);
-}
-.lf-preview[data-lf-side="start"] {
-  position-area: self-inline-start span-self-block-end;
-  margin-inline: var(--lf-preview-edge) var(--lf-preview-gap);
-}
-/* Centred across the window, as where the line is too narrow for either end, and held
-   to the room on its side where the preview is taller than it, at least a few lines,
-   its face scrolling. */
-@position-try --lf-preview-under {
-  position-area: self-block-end span-all;
-  margin-block: var(--lf-preview-gap) var(--lf-preview-edge);
-  margin-inline: var(--lf-preview-edge);
-  max-block-size: max(8em, calc(100% - var(--lf-preview-gap) - var(--lf-preview-edge)));
-}
-@position-try --lf-preview-over {
-  position-area: self-block-start span-all;
-  margin-block: var(--lf-preview-edge) var(--lf-preview-gap);
-  margin-inline: var(--lf-preview-edge);
-  max-block-size: max(8em, calc(100% - var(--lf-preview-gap) - var(--lf-preview-edge)));
-}
-.lf-preview[data-lf-route="pointer"]:not([data-lf-covers]) {
-  pointer-events: auto;
-}
-.lf-preview[data-lf-route="focus"] {
-  transition: none;
-}
-/* What stands for a target with no HTML box of its own, as a range's line, while its
-   preview shows: a box over it that nothing sees or hits, scrolling with the page. */
-.lf-preview-place {
-  position: absolute;
-  margin: 0;
-  pointer-events: none;
-}
-/* A list the owner fits to the room its face is held to (`fitList`, preview.js) clips
-   rather than scrolls, its count of the rest standing at the face's foot. */
-.lf-preview[data-lf-list] {
-  overflow: clip;
-}
-.lf-preview-more {
-  position: absolute;
-  inset-inline: 0;
-  inset-block-end: 0;
-  padding: var(--tip-pad);
-  padding-block-start: 0;
-  background: var(--tip-bg);
-  color: color-mix(in srgb, var(--tip-ink) 76%, transparent);
-}
-.lf-preview[data-lf-face="excerpt"] {
-  max-width: min(26rem, calc(100vw - 16px));
-}
-.lf-preview-name {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px 8px;
-  font-weight: 600;
-}
-.lf-preview-keys {
-  display: inline-flex;
-  gap: 2px;
-}
-/* Its key chips are the keys' own face, drawn in the tooltip's ink. */
-.lf-preview .lf-key-badge {
-  background: transparent;
-  border-color: color-mix(in srgb, currentColor 45%, transparent);
-  color: inherit;
-  font-weight: 400;
-}
-.lf-preview-detail {
-  display: block;
-  margin-block-start: 2px;
-  color: color-mix(in srgb, var(--tip-ink) 76%, transparent);
-}
-@media (prefers-reduced-motion: reduce) {
-  .lf-preview {
-    transition: none;
-  }
-}
-@media (forced-colors: active) {
-  .lf-preview {
-    border: 1px solid CanvasText;
-  }
-  .lf-preview-detail {
-    color: inherit;
-  }
-}
 /* The list is an auto popover, in the top layer: open, it stands over everything in
    the thread, the sticky title and reply row included, so its message is never raised
    among the rows to carry it, and closing it hands focus back to where the user opened
@@ -1810,9 +1658,20 @@ textarea.field {
 :where(button).lf-inline-action[data-lf-tone="warn"] {
   color: var(--warn-ink);
 }
+/* One standing among a box's empty words (`data-lf-hint`), as a passing notice's Undo
+   does at the floating panel field's end, wears their face, as the word and key that
+   enter the box do, and says by its pointer alone that it takes a press: the user chose
+   on 5 November 2026 that the right side of a box holds its shortcut in one format. */
+.lf-inline-action[data-lf-hint] {
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
 /* It declines the wash every generated press takes under the pointer (surfaces.css),
-   which a finger's tap leaves behind too. */
-:where(button).lf-inline-action:hover {
+   which a finger's tap leaves behind too, and so does one among a box's empty words,
+   which the user chose to read as those words do (5 November 2026). */
+:where(button).lf-inline-action:hover,
+.lf-inline-action[data-lf-hint]:hover {
   box-shadow: none;
 }
 @media (hover: hover) {

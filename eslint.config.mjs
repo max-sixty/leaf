@@ -1515,7 +1515,7 @@ export default [
   {
     files: [
       "dev/leaf_dev/startup.js",
-      "dev/leaf_dev/commands/bench_latency.js",
+      "dev/leaf_dev/painted.js",
       "dev/leaf_dev/commands/stills_baselines.js",
     ],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
@@ -1523,10 +1523,7 @@ export default [
   {
     // Browser diagnostics resolve published runtime entries from the page under
     // test. Those scoped URLs are data rather than static dependency edges.
-    files: [
-      "dev/leaf_dev/commands/verify_site_browser.js",
-      "dev/leaf_dev/commands/bench_latency.js",
-    ],
+    files: ["dev/leaf_dev/commands/verify_site_browser.js", "dev/leaf_dev/painted.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: {
       "no-restricted-syntax": [

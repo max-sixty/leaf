@@ -197,16 +197,22 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
         label = target.evaluate(NAMED)
         before = page.evaluate(PAGE_MARKUP)
         page.mouse.move(*point)
+        resting = page.evaluate(AIM_CURSOR, point)["cursor"]
         page.keyboard.down("Alt")
         promised = page.evaluate(AIMED)
         # The cursor is the other half of the same promise, and it is derived from the
         # same value the outline is: the hand where a press takes something, the arrow
-        # where it takes nothing. Read off body, which is where the aim declares it —
-        # a widget's own control still states its resting cursor, and does so whether or
-        # not the key is down.
-        assert page.evaluate(AIM_CURSOR) == ("pointer" if promised else "default"), (
+        # where it takes nothing. A control keeps its own cursor whether or not the key
+        # is down, or shows the armed arrow where it states none.
+        armed = page.evaluate(AIM_CURSOR, point)
+        expected = (
+            {resting, "default"}
+            if armed["control"]
+            else {"pointer" if promised else "default"}
+        )
+        assert armed["cursor"] in expected, (
             f"holding ⌥ over {label} in {case_name} promised {promised} and pointed "
-            f"a {page.evaluate(AIM_CURSOR)} cursor at it"
+            f"a {armed['cursor']} cursor at it, expecting one of {expected}"
         )
         # An element an existing thread already marks, read before the press marks it
         # as the draft's too.

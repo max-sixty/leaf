@@ -22,7 +22,7 @@ import { leavesBox } from "../thread/landing.js";
 import { claimsEsc } from "./scopes.js";
 import { MAC, nativePress } from "./bindings.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosureAt } from "./disclosure.js";
-import { nativeLayers } from "./layer-stack.js";
+import { nativeModes } from "./layer-stack.js";
 import { LINK } from "./text-entry.js";
 import { pageCommand, pageRung, pageScope } from "./register.js";
 
@@ -144,7 +144,7 @@ let currentLocationFloor = () => null;
 export function declareCurrentLocation({ pageState }) {
   currentLocationFloor = () => {
     if (!holding()) return null;
-    if (nativeLayers().length) return null;
+    if (nativeModes().length) return null;
     if (leavesBox()) return null;
     if (claimsEsc(focused())) return null;
     if (inChrome(focused(document))) return null;
@@ -175,12 +175,12 @@ export function declareCurrentLocation({ pageState }) {
 // contributed by its owner, so the ladder is read off `RUNG_LADDER` rather than written
 // out anywhere. This step leaves the chrome, after every surface has had its turn, and
 // stands down while the let-go above answers, so the reference names one press rather
-// than two spellings of it. It stands down under a native layer too: a popover or a
-// modal is the browser's own mode, its own scope is the way out of it, and the page
+// than two spellings of it. It stands down under a native mode too (`nativeModes`): a
+// popover or a modal is the browser's own mode, its own scope is the way out of it, and the page
 // beneath is not somewhere a press can reach from inside it.
 // keyboard/AGENTS.md's "Escape" holds the rest.
 pageRung("page", () => {
-  if (nativeLayers().length) return null;
+  if (nativeModes().length) return null;
   if (holding())
     return currentLocationFloor()
       ? null

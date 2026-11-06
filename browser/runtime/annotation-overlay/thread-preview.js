@@ -116,6 +116,7 @@ import {
   holdFocus,
   inputCount,
   onCurrentLocation,
+  openLayer,
   focused,
   tabStops,
   typesText,
@@ -1227,6 +1228,7 @@ export function createThreadPreview({
     }
     keepsHidden(preview, false);
     keeps(preview, "inert", null);
+    openLayer(preview);
     buildThreadCard(entry, choice, session, selected.id);
     const positioned = placedThreadPreview(session);
     paintKeysWithin(preview);

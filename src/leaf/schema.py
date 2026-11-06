@@ -392,22 +392,6 @@ EXTENSION_SCHEMA = {
         "x-encloses": {"const": True},
         "x-language": _ATTRIBUTE_NAME,
         "x-prepaint": _ATTRIBUTE_NAME,
-        # `true`, or the parts of the element that take its press (`region`, a CSS
-        # selector) and the state it takes one in (`when`, its attributes).
-        "x-press": {
-            "oneOf": [
-                {"const": True},
-                {
-                    "type": "object",
-                    "properties": {
-                        "region": {"type": "string", "pattern": r"\S"},
-                        "when": AWAITING_CONDITION,
-                    },
-                    "minProperties": 1,
-                    "additionalProperties": False,
-                },
-            ]
-        },
         "x-reading-role": {"enum": ["pane"]},
         "x-measured": MEASURED_SCHEMA,
         "x-patch": {"enum": ["members"]},

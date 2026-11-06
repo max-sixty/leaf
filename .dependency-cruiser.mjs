@@ -35,7 +35,7 @@ const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 // caller would acquire that owner's initialization graph.
 const exactClosures = {
   "queued-work.js": [],
-  "control-selectors.js": ["inputs.js", "document-inputs.js"],
+  "control-selectors.js": ["inputs.js", "document-inputs.js", "shadow-tree.js"],
   "shadow-tree.js": [],
   "contribution-model.js": ["icon-paths.js", "words.js", "kernel-facts.js"],
   "margin-model.js": [

@@ -56,22 +56,14 @@ export {
 import { pageRange, selectionBackward } from "./native-selection.js";
 import { move } from "./dom-move.js";
 
-import { PRESSES, TAKES_PRESS, WORKS } from "./control-selectors.js";
-import { matchesWhen, perVocabulary, registry, tagsDeclaring } from "./registry.js";
+import { PRESSES, WORKS } from "./control-selectors.js";
+import { tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { actionTemplate } from "./icons.js";
 import { renderedParent } from "./shadow.js";
-import {
-  closestAcross,
-  isElement,
-  isNativeLayer,
-  renderedUnder,
-  SAID,
-  under,
-  upFrom,
-} from "./shadow-tree.js";
+import { isNativeLayer, renderedUnder } from "./shadow-tree.js";
 
 import { keeps } from "./keeps.js";
 import { html, render, signal } from "/runtime/framework.js";
@@ -224,73 +216,6 @@ export function worksInside(node, container) {
   );
   return inner && inner !== container && container.contains(inner) ? inner : null;
 }
-
-/** What a press at `node` acts on, at any point on the page, marked words or not: the
- * nearest element around it that takes the press as its own, or null where the press
- * acts on the page's words. One takes it where it is
- * - a press control (`PRESSES`), as a link or a titled button, whose own click keeps
- *   its meaning;
- * - a region whose gesture is the press, an editing surface, a drag source or a
- *   composite widget (`WORKS`' other regions);
- * - a part of a widget whose entry declares it takes its own press (`x-press`), which
- *   its module answers: a gloss's phrase, a shot's comparison, a draft's text, an option
- *   of a group that takes a choice, a timeline's event. The answer is that part, the
- *   widget itself where it declares `true`. A control inside it keeps its own press,
- *   and the words it says (`x-says`), as a gloss's pinned explanation, aren't its own.
- * Anything else takes no press of its own: a plain tab stop, a scrolling or focusable
- * box, or a card that only says what it holds (`lfPreview`), so words in one reach
- * nothing. Where the press reaches nothing it acts on the words, and on a thread's mark
- * there opens the thread (composing/surface.js); a pointer resting there reads what the
- * press would act on (preview.js, `aimed`), and the hand over a mark stands only where
- * the press reaches the words (anchor-paint.js).
- * @param {Node | null} node @returns {Element | null} */
-export function pressedControl(node) {
-  const declared = declaredPresses();
-  const owners = [TAKES_PRESS, ...declared.keys()].join(",");
-  for (
-    let at = closestAcross(node, owners);
-    at;
-    at = closestAcross(upFrom(at), owners)
-  ) {
-    const press = declared.get(at.localName);
-    if (!press || at.matches(TAKES_PRESS)) return at;
-    const part = pressedPart(at, press, node);
-    if (part) return part;
-  }
-  return null;
-}
-/** What else the user could aim at, at `node`, beside a thread's mark there: what a
- * press there acts on (`pressedControl`), or else the innermost element around it that
- * declares its own preview (`lfPreview`), as a card that says what it holds, whose
- * words a pointer reads though a press there takes nothing.
- * @param {Node | null} node @returns {Element | null} */
-export function aimedAt(node) {
-  const pressed = pressedControl(node);
-  if (pressed) return pressed;
-  for (let at = isElement(node) ? node : upFrom(node); at; at = upFrom(at))
-    if (typeof Reflect.get(at, "lfPreview") === "function") return at;
-  return null;
-}
-// The part of `widget` that takes a press at `node` by its entry's declaration, or null.
-/** @param {Element} widget @param {true | {region?: string, when?: Record<string, readonly (string | boolean)[]>}} press @param {Node | null} node */
-function pressedPart(widget, press, node) {
-  if (press !== true && !matchesWhen(widget, press.when)) return null;
-  const said = closestAcross(node, SAID);
-  if (said && under(said, widget)) return null;
-  if (press === true || !press.region) return widget;
-  const part = closestAcross(node, press.region);
-  return part && under(part, widget) ? part : null;
-}
-// Each tag whose entry declares it takes its own press, with that declaration.
-const declaredPresses = perVocabulary(
-  () =>
-    new Map(
-      tagsDeclaring((entry) => Boolean(entry["x-press"])).map((tag) => [
-        tag,
-        registry[tag]["x-press"],
-      ]),
-    ),
-);
 
 // The chrome a widget injects: a control, or the box that holds controls. Three
 // markers, one per question asked of it — `lf-ui` for apparatus identity, which

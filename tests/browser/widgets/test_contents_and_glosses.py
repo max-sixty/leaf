@@ -1439,49 +1439,6 @@ def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
     expect(bubble).to_be_hidden()
 
 
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_gloss_s_commented_words_preview_and_pin_its_explanation(
-    engine, request, serve
-):
-    """A gloss's phrase takes its own press (`x-press`), so its words read as the gloss
-    though a thread is about them: a resting pointer previews the explanation, and a
-    press pins the explanation alone, opening no thread."""
-    tip = "A thin, end-to-end path through the real system."
-    source = leaf_page(
-        "gloss thread",
-        f"""
-<h1>Rollout</h1>
-<p>Start with a <lf-gloss id="gloss-path" tip="{tip}">walking skeleton</lf-gloss>
-before parallelizing.</p>
-"""
-        + "<p>More words.</p>" * 6,
-    )
-    page = open_page(
-        request.getfixturevalue(engine),
-        serve(source, anchored=[("gloss-path", "walking skeleton")]),
-    )
-    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    rendered(page)
-    words = page.locator("#gloss-path").evaluate(
-        """el => {
-          const range = document.createRange();
-          range.selectNodeContents(el.childNodes[0]);
-          const box = range.getClientRects()[0];
-          return {x: box.left + box.width / 2, y: box.top + box.height / 2};
-        }"""
-    )
-    preview = page.locator("#lf-preview")
-    page.mouse.move(2, 2)
-    page.mouse.move(words["x"], words["y"], steps=3)
-    page.wait_for_timeout(600)
-    previewed = preview.inner_text() if preview.is_visible() else None
-    page.mouse.click(words["x"], words["y"])
-    page.wait_for_timeout(600)
-    pinned = page.locator("#lf-gloss-tip-1").is_visible()
-    cards = page.locator(".lf-margin-preview:not([hidden])").count()
-    assert (previewed, pinned, cards) == (f"walking skeleton\n{tip}", True, 0)
-
-
 def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
     """The tip is x-says page text, so a comment can rest on it like a tab's rendered
     label. Following that comment from its thread (Show on page) must reveal the

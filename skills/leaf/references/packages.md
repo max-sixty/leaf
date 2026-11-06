@@ -255,7 +255,6 @@ role on the page:
 | `x-height`         | `lf-chart`                                                     |
 | `x-history`        | `lf-activity`                                                  |
 | `x-patch`          | `lf-tabs`                                                      |
-| `x-press`          | `lf-gloss` (`true`), `lf-options` (`region`, `when`)           |
 | `x-views`          | `lf-tabs`                                                      |
 | `x-thread-surface` | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
 

@@ -3,7 +3,6 @@ acts on it, to a resting pointer, to the keyboard and to a held finger
 (runtime/preview.js). The margin entry's preview, its label, is held in
 `browser/margin/test_entries.py`."""
 
-import hashlib
 import re
 from datetime import UTC, datetime, timedelta
 
@@ -11,7 +10,6 @@ import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url, panel_comment
-from render_cases_layout import solid_png
 from render_cases_navigation import _publish
 from render_harness import (
     leaf_page,
@@ -1646,130 +1644,6 @@ def test_a_passage_a_control_holds_previews_what_a_press_there_acts_on(
         reads("#whole", "whole"),
         reads("#titled", "small"),
     ] == ["Destination details", "Destination details", None]
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_widget_s_marked_words_read_and_press_as_the_widget_takes_them(
-    engine, request, serve
-):
-    """Words a thread is about, in a widget that takes a press on them, read and press
-    as the widget does (`x-press`): a press on a shot's comparison only flips it, a
-    draft's text only opens its editor, an option's chip only picks the option and a
-    timeline's event only takes the playhead there, and none of them previews the
-    thread. A focusable card that only says what it holds takes no press, so the words
-    in it preview their thread and a press there opens it."""
-    shots = {
-        "before": solid_png(600, 300, (210, 220, 235)),
-        "after": solid_png(600, 300, (235, 215, 205)),
-    }
-    media = {
-        f"/media/{hashlib.sha256(data).hexdigest()[:16]}.png": data
-        for data in shots.values()
-    }
-    before, after = media
-    url = serve(
-        leaf_page(
-            "Owners",
-            '<div id="info" tabindex="0"><p id="info-words">Informational marked '
-            "words with facts.</p></div>"
-            '<lf-draft id="draft"><pre>Draft marked words for review.</pre></lf-draft>'
-            '<lf-options id="opts" choose><lf-option id="o1"><small class="tag">'
-            "small cohort</small> <strong>Start small</strong> Then widen.</lf-option>"
-            '<lf-option id="o2"><strong>Start wide</strong> Then trim.</lf-option>'
-            "</lf-options>"
-            '<lf-timeline id="timeline" aria-label="Sequence"><lf-lane label="Actor">'
-            '<lf-event id="first" at="0" label="First event"></lf-event>'
-            '<lf-event id="last" at="1000" label="Last event"></lf-event>'
-            "</lf-lane></lf-timeline>"
-            f'<lf-shot id="shot" alt="Run list" before="{before}" after="{after}">'
-            "</lf-shot>" + "<p>More words.</p>" * 4,
-        ),
-        media=media,
-        packages=("timeline",),
-    )
-    for anchor in (
-        {"section": "info-words", "quote": "marked words"},
-        {"section": "draft", "quote": "marked words"},
-        {"section": "o1", "quote": "small cohort"},
-        {"section": "timeline", "visual": "event:last"},
-        {"section": "shot"},
-    ):
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "comment",
-                "author": "user",
-                "text": f"On {anchor['section']}",
-                "anchor": anchor,
-            },
-        )
-    page = open_page(request.getfixturevalue(engine), url)
-    page.locator("#info").evaluate(
-        "el => { el.lfPreview = () => ({name: 'Facts about the card'}); }"
-    )
-    tip = page.locator(PREVIEW)
-    cards = page.locator(".lf-margin-preview:not([hidden])")
-    rendered(page)
-
-    def at_words(selector, words):
-        return page.evaluate(WORDS_AT, [selector, words])
-
-    def at_box(selector, across=0.5):
-        box = page.locator(selector).first.bounding_box()
-        return {
-            "x": box["x"] + box["width"] * across,
-            "y": box["y"] + box["height"] / 2,
-        }
-
-    def reads_and_presses(place, effect):
-        """What the preview says once the pointer rests where `place` says, what a press
-        there did (`effect`), and how many thread cards it opened."""
-        page.keyboard.press("Escape")
-        page.mouse.move(2, 2)
-        page.wait_for_timeout(300)
-        at = place()
-        page.mouse.move(at["x"], at["y"], steps=3)
-        page.wait_for_timeout(600)
-        said = (
-            tip.locator(".lf-preview-word").inner_text() if tip.is_visible() else None
-        )
-        page.mouse.click(at["x"], at["y"])
-        page.wait_for_timeout(500)
-        return said, page.evaluate(effect), cards.count()
-
-    page.locator("#shot").scroll_into_view_if_needed()
-    rendered(page)
-    readings = {
-        "shot": reads_and_presses(
-            lambda: at_box("#shot wa-comparison", 0.25),
-            "() => document.querySelector('#shot wa-comparison').position",
-        ),
-    }
-    page.locator("#info").scroll_into_view_if_needed()
-    rendered(page)
-    readings["option"] = reads_and_presses(
-        lambda: at_words("#o1", "cohort"),
-        "() => document.querySelector('#o1 .lf-pick').getAttribute('aria-checked')",
-    )
-    readings["timeline"] = reads_and_presses(
-        lambda: at_box('#timeline [data-lf-event="last"] .lf-timeline-label'),
-        "() => document.querySelector('#timeline .lf-timeline-position').textContent.trim()",
-    )
-    readings["card"] = reads_and_presses(
-        lambda: at_words("#info", "marked"), "() => null"
-    )
-    # Last, since its editor stays open and moves the page below it.
-    readings["draft"] = reads_and_presses(
-        lambda: at_words("#draft", "marked"),
-        "() => !document.querySelector('#draft [data-lf-draft-action=save]').hidden",
-    )
-    assert readings == {
-        "shot": (None, 100, 0),
-        "draft": (None, True, 0),
-        "option": (None, "true", 0),
-        "timeline": (None, "Step 2 of 2 · 1 s", 0),
-        "card": ("On info-words", None, 1),
-    }
 
 
 def test_a_standing_preview_says_what_a_new_revision_changed(browser, serve):

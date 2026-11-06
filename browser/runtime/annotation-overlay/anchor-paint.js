@@ -20,7 +20,7 @@ import {
 } from "../resolved-target.js";
 import { elementFromPointAcross, pageWords, rangeOf } from "../passages.js";
 import { presentDocument } from "../semantic-state.js";
-import { pressedControl } from "../widget-elements.js";
+import { pressedControl } from "../control-selectors.js";
 import { bareReaction } from "../thread/model.js";
 import { threadNamed } from "../thread/state.js";
 import { threadPreview } from "../thread/messages.js";

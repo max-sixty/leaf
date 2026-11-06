@@ -8,7 +8,7 @@ name: ci
 # - a push to main adds `browser`;
 # - the daily schedule and a manual dispatch run every product test, and their summary lists
 #   the tests over their directory's budget; `test-macos` runs them on macOS too.
-#   The daily schedule also runs the benchmark (`scaling`), whose readings gate
+#   The daily schedule also runs the benchmark (`bench`), whose readings gate
 #   nothing.
 # Developer-tool tests live in dev/tests and are opt-in, outside every CI selection.
 # Relevant pushes to main run the website gate in publish-site before deploy.
@@ -207,23 +207,25 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
-  # The daily benchmark: `leaf-dev scaling` on its generated pages, in the browser and
+  # The daily benchmark: `leaf-dev bench` on its generated pages, in the browser and
   # on the server, on a runner of its own so the suite's tests don't share its cores.
   # No reading passes or fails anything (tests/AGENTS.md, "Results do not depend on
-  # execution speed"); the job fails only when the command does. Its report, each cost
-  # by size with the exponent of its growth, goes to the job's summary, its log and the
-  # `scaling-report` artifact, where an agent reads it, since GitHub serves no job
-  # summary to its API.
+  # execution speed"); the job fails only when the command does. Its report, each
+  # reading by size with the exponent of its growth, goes to the job's summary, its log
+  # and the `bench-report` artifact, where an agent reads it, since GitHub serves no
+  # job summary to its API.
   #
-  # The browser readings at 64 sections, the size of the largest real pages, are
-  # charted on the `gh-pages` branch's `dev/bench` page, and each run's comparison with
-  # the one before goes in the job summary. A reading 50% above the run before comments
-  # on the commit. CI's runners vary from run to run, so tighten the threshold once the
-  # chart shows their spread. The action compares with the last reading of another
+  # The load's and each input's main-thread CPU and each gesture's `shown` at 64
+  # sections, the size of the largest real pages, are charted on the `gh-pages`
+  # branch's `dev/bench` page, and each run's comparison with the one before goes in
+  # the job summary; the other readings, such as request counts and single paints,
+  # vary too much from run to run for an alert. A reading 50% above the run before
+  # comments on the commit. CI's runners vary from run to run, so tighten the threshold
+  # once the chart shows their spread. The action compares with the last reading of another
   # commit, so a day with no merge compares with the day before it. GitHub Pages
   # doesn't serve the branch, so the chart is read from it directly. The action
   # switches the checkout to `gh-pages`, so it comes last.
-  scaling:
+  bench:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-24.04
     permissions:
@@ -235,49 +237,47 @@ jobs:
 
       # A step that overruns fails, where the six-hour job deadline would cancel the
       # run and never summon tend; `bash` adds `pipefail`, so the command's status
-      # survives `tee`. The run directory the browser's results land in is the only
-      # one under `.tmp/scaling/` until the server's run makes another.
+      # survives `tee`. Each run's `results.json` keeps each reading's lowest by page,
+      # size and arm (`lowest`), which the server's run leaves empty.
       - name: Measure the pages in the browser
         timeout-minutes: 120
         shell: bash
         run: |
-          mkdir -p .tmp/scaling-report
-          uv run leaf-dev scaling --sizes 64,128,256 --rounds 2 \
-            | tee .tmp/scaling-report/browser.txt
-          { echo '```'; cat .tmp/scaling-report/browser.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          jq '[to_entries[] | .key as $axis | .value.head[] | select(.n == 64)
-            | del(.n, .engine, .elements) | to_entries[]
-            | {name: "\($axis): \(.key)", unit: (if .key == "event_kb" then "KB" else "ms" end),
-               value: (.value * 100 | round / 100)}]' \
-            .tmp/scaling/run-*/results.json > .tmp/scaling.json
+          mkdir -p .tmp/bench-report
+          uv run leaf-dev bench --sizes 64,128,256 --rounds 2 | tee .tmp/bench-report/browser.txt
+          { echo '```'; cat .tmp/bench-report/browser.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          jq -s '[.[].lowest[] | select(.size == 64) | .page as $page | .readings
+            | to_entries[] | select(.key | endswith(" cpu") or endswith(" shown"))
+            | {name: "\($page): \(.key)", unit: "ms", value: (.value * 100 | round / 100)}]' \
+            .tmp/bench/run-*/results.json > .tmp/bench.json
 
-      - name: Measure the pages on the server
+      - name: Measure the server's paths
         if: success() || failure()
         timeout-minutes: 60
         shell: bash
         run: |
-          mkdir -p .tmp/scaling-report
-          uv run leaf-dev scaling --server | tee .tmp/scaling-report/server.txt
-          { echo '```'; cat .tmp/scaling-report/server.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p .tmp/bench-report
+          uv run leaf-dev bench --read server | tee .tmp/bench-report/server.txt
+          { echo '```'; cat .tmp/bench-report/server.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the report
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: scaling-report-${{ github.run_id }}-${{ github.run_attempt }}
+          name: bench-report-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            .tmp/scaling-report/
-            .tmp/scaling/*/results.json
+            .tmp/bench-report/
+            .tmp/bench/*/results.json
           if-no-files-found: ignore
           retention-days: 30
 
       - name: Chart the browser readings
-        if: ${{ !cancelled() && hashFiles('.tmp/scaling.json') != '' }}
+        if: ${{ !cancelled() && hashFiles('.tmp/bench.json') != '' }}
         uses: benchmark-action/github-action-benchmark@v1
         with:
-          name: Scaling at 64 sections
+          name: Bench at 64 sections
           tool: customSmallerIsBetter
-          output-file-path: .tmp/scaling.json
+          output-file-path: .tmp/bench.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.sha }}
           auto-push: true

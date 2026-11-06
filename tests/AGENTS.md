@@ -344,7 +344,7 @@ Every test, fixtures and watches included, gives the same result and still exerc
 its situation on a machine ten times slower than the one it was written on, since CI's
 runner and a host running other sessions' suites are both slower than an idle
 development machine. So no test asserts a duration, and no test passes or fails on a
-benchmark's reading: a benchmark reports its readings (`leaf-dev scaling`, charted
+benchmark's reading: a benchmark reports its readings (`leaf-dev bench`, charted
 daily), and a reader judges them. Check a test against the rule with
 `--cpu-throttle 10` ("Races"). It slows only Chromium's renderer, not the server, Python
 or the driver, and doesn't reach a page from `browser.unwatched`.

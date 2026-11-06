@@ -363,7 +363,7 @@ A `:has()` rule can turn a local write into a restyle of the whole page or chrom
 unkeyed rightmost compound widens what it invalidates, and a condition on the chrome
 root, `body` or `html` is re-evaluated on writes below it. Prefer a class that names the
 targets, or a condition its owner sets on the styled element, and measure with
-`leaf-dev bench-latency --profile`.
+`leaf-dev bench --read paint --profile`.
 
 A `:has()` on a compound that a combinator follows, as in
 `table:has(…) > * > tr > :first-child`, is asked again for every element the rule

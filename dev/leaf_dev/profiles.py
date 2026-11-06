@@ -1,5 +1,5 @@
 """V8 CPU profiles of a page, recorded and read the same way by every command that
-says where a page's time went: `bench-latency --profile` and `scaling --profile`.
+says where a page's time went: `leaf-dev bench --profile`.
 
 `cpu_profile` records one into a `.cpuprofile` file, which DevTools and Perfetto
 read too, and `Profile` reads one back as samples, each with its time and the chain of
@@ -32,7 +32,7 @@ OPAQUE = (
 def cpu_profile(page: Page, path: Path):
     """Record a V8 CPU profile of `page`'s renderer for the life of the block, and
     write it to `path` as the block ends. Chromium only: Firefox has no V8, and
-    `leaf_dev.commands.scaling`'s header says how to profile it."""
+    `leaf_dev.commands.bench`'s header says how to profile it."""
     cdp = page.context.new_cdp_session(page)
     cdp.send("Profiler.enable")
     cdp.send("Profiler.setSamplingInterval", {"interval": INTERVAL_US})

@@ -1724,7 +1724,7 @@ def test_an_untyped_has_leads_only_to_a_typed_subject():
     Chromium tests the root's `:has()` on every element of that type, and adding or
     removing a node inside any of them restyled the page: with `@scope (div:has(>
     lf-toc))`, a heading's link moving into the chrome restyled 20,255 of the 28,335
-    elements of the 512-section asks page of `leaf-dev scaling`, against 58 with
+    elements of the 512-section asks page of `leaf-dev bench`, against 58 with
     toc.css's rule for the block after the map, which asks no `:has()` at all."""
     found = []
 

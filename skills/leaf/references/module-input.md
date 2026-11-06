@@ -319,8 +319,8 @@ come back the same leave the preview as it is. It returns:
   that room and its face scrolls. `list: {items, more}` is items under the lines, each
   words or a template, as the threads standing at one place: Leaf shows as many as the
   room holds, through every resize, and under them `more(count)`'s words for the rest,
-  such as `` (n) => `and ${n} more threads` ``, so the items need no measuring of their
-  own; the rest are hidden from sight and from a screen reader alike.
+  such as "and 26 more threads", so the items need no measuring of their own; the rest
+  are hidden from sight and from a screen reader alike.
 - `null` where the element adds nothing now: a control keeps its own preview, and the
   search goes on to what holds the element.
 - `false` where nothing should preview here or around it, as a pinned card already

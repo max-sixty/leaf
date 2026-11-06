@@ -7,7 +7,26 @@ import { tick } from "./version-signal.js";
 let clockSkew = 0;
 // A native dependency for the shared clock's temporal readings.
 const pulse = signal(0);
-const serverNow = () => Date.now() + clockSkew;
+// The moment a reading answers for while one made at a moment already past is read
+// again (`atClock`), else none.
+/** @type {number | null} */
+let pinned = null;
+const serverNow = () => pinned ?? Date.now() + clockSkew;
+// The calibrated server time now, as a reading made now answers for it.
+export const clockNow = () => serverNow();
+// `read` again at the moment `at`, as a standing preview reads its target again with the
+// clock it first read (preview.js), so a presentation whose only change is the clock
+// changes nothing it says: every clock reading inside answers for `at`.
+/** @template T @param {number} at @param {() => T} read @returns {T} */
+export function atClock(at, read) {
+  const was = pinned;
+  pinned = at;
+  try {
+    return read();
+  } finally {
+    pinned = was;
+  }
+}
 // When a gesture was made, on the clock every other reading of a message uses. A
 // message this page paints before the log names it still has to say when it was said,
 // and the browser's own clock is the one reading that can disagree with the rest.

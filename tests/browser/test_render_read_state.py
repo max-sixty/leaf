@@ -227,7 +227,9 @@ def test_modal_blocks_exposure_until_user_returns_to_threads(browser, serve):
         view.locator(f'.lf-msg[data-lf-message="{root}"] .lf-msg-body')
     ).to_be_visible()
     page.evaluate("window.dispatchEvent(new Event('resize'))")
-    page.wait_for_timeout(100)
+    # The pass the resize set off has run, and whatever it sent has come back.
+    rendered(page)
+    round_trip(page)
     assert _read_events(serve.page_dir) == []
     with sending(page, "the read once the modal closes"):
         page.keyboard.press("Escape")
@@ -385,7 +387,9 @@ def test_oversized_message_needs_contiguous_traversal(browser, serve):
     body = view.locator(f'.lf-msg[data-lf-message="{root}"] .lf-msg-body')
     assert body.bounding_box()["height"] > view.bounding_box()["height"]
     view.evaluate("element => element.scrollTop = element.scrollHeight")
-    page.wait_for_timeout(100)
+    # The pass the scroll set off has run, and whatever it sent has come back.
+    rendered(page)
+    round_trip(page)
     assert _read_events(serve.page_dir) == []
 
     view.evaluate("element => element.scrollTop = 0")
@@ -765,8 +769,9 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
         f"{panel_top}, so it does not test what it names"
     )
     if under_panel:
-        # Long enough for an observation pass to have sent a receipt had it counted.
-        page.wait_for_timeout(1500)
+        # The pass the scroll set off has run, and whatever it sent has come back.
+        rendered(page)
+        round_trip(page)
         assert not receipt(), "a message partly under the open panel was marked read"
         page.locator(".lf-fp-close").click()
         panel_settled(page, open=False)

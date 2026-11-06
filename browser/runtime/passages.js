@@ -105,6 +105,7 @@
    passes. */
 
 import { isNode, closestAcross } from "./shadow-tree.js";
+import { liveStages } from "./arrivals.js";
 export { closestAcross, inChrome } from "./shadow-tree.js";
 import {
   SAID,
@@ -390,6 +391,38 @@ function refusesBareText(root) {
       }),
     );
   return true;
+}
+// Startup asks every declared root the page reading would cross into before the page
+// upgrades, so a page whose module staged bare text never presents even when nothing
+// has read the page's words yet: a reading is taken only when something needs one, and
+// a page with no comment to find again presents without one. Like the walk, it crosses
+// into a root only once every root over it is admitted, outer first; a refused root's
+// host reads by its light children, so the stages inside that root are never asked.
+// One pass over the stages, each root's answer kept, so startup stays linear in them.
+export function refuseBareText() {
+  /** @type {Map<Node, boolean>} */
+  const admitted = new Map();
+  /** @param {Element} host */
+  const reached = (host) => {
+    const over = host.getRootNode();
+    return over === document ? document.body.contains(host) : admits(over);
+  };
+  /** @param {Node} tree @returns {boolean} */
+  const admits = (tree) => {
+    let answer = admitted.get(tree);
+    if (answer === undefined) {
+      const host = shadowHost(tree);
+      answer =
+        host !== null &&
+        declaredRoot(host) === tree &&
+        reached(host) &&
+        !leafSurface(host) &&
+        !refusesBareText(/** @type {ShadowRoot} */ (tree));
+      admitted.set(tree, answer);
+    }
+    return answer;
+  };
+  for (const stage of liveStages()) admits(stage);
 }
 // The widget a reading belongs to. `.lf-ui` says the runtime built this rather than the
 // author, and a reading rooted at the document takes that straight: everything the layer

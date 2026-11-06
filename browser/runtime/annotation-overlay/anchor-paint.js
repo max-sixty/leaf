@@ -18,15 +18,21 @@ import {
   targetSegments,
   targetSurface,
 } from "../resolved-target.js";
-import { elementFromPointAcross, pageWords, rangeOf } from "../passages.js";
+import {
+  closestAcross,
+  elementFromPointAcross,
+  pageWords,
+  rangeOf,
+} from "../passages.js";
 import { presentDocument } from "../semantic-state.js";
+import { WORKS } from "../control-selectors.js";
 import { bareReaction } from "../thread/model.js";
 import { threadNamed } from "../thread/state.js";
 import { threadPreview } from "../thread/messages.js";
 import { pointRange } from "../preview.js";
 import { renderedParent, shadowHost } from "../shadow.js";
 import { annotationsHidden } from "./annotation-layer.js";
-import { keeps } from "../keeps.js";
+import { keepsOnOne } from "../keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
 
 const MARK = "lf-mark";
@@ -580,6 +586,14 @@ export function createAnchorPaint({
     refreshHover();
   }
 
+  // The hand over a mark is a paint on the document's element under the pointer (a
+  // shadow tree's host, whose cursor its tree inherits), which the margin's page
+  // observer does not hear (page-paint.js) and whose cursor reaches only what it holds.
+  // A class on `body` ran a margin pass at each change and restyled the whole body. It
+  // stands only where a press opens the thread: a control or editing region keeps its
+  // own press there (composing/surface.js, the page's click), and so its own cursor.
+  const paintHand = keepsOnOne(RUNTIME_PAINT_ATTRIBUTE.overMark);
+
   // Hover reads the pointer, and the rows and margin entries it is on, inside the
   // scheduled frame. Capturing a node at event time would leave reconciliation able to
   // replace it before paint. The frame asks first where the marks stand, so a change to
@@ -598,7 +612,8 @@ export function createAnchorPaint({
       const onMark = hit?.id ?? null;
       if (aimed) pointMark(hit, at);
       aimed = false;
-      keeps(document.body, RUNTIME_PAINT_ATTRIBUTE.overMark, onMark ? "" : null);
+      const presses = onMark && !closestAcross(under, WORKS);
+      paintHand(presses ? document.elementFromPoint(at.x, at.y) : null);
       const row = rowThread(under);
       const id = row ?? onMark;
       if (id !== hovering || Boolean(row) !== hoverFromRow)
@@ -715,6 +730,7 @@ export function createAnchorPaint({
     told = null;
     if (hoverFrame) cancelRender(hoverFrame);
     hoverFrame = 0;
+    paintHand(null);
     const before = outlined();
     marked.clear();
     passages.clear();

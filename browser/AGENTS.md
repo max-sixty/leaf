@@ -244,7 +244,10 @@ playable").
 - **Every route reads it.** A resting pointer reads it after a short dwell, keyboard
   focus the user moved there themselves at once, by Tab or a keyboard walk, as whoever
   moved focus says, but not focus a surface places as it opens or hands back as it
-  closes, and a finger by holding the press, whose release still presses; where
+  closes, and a finger by a long press, the touch form of pointing, whose release
+  presses nothing and leaves the preview standing until the next press, while a tap
+  still presses (until 5 November 2026 the release pressed, so a finger couldn't read
+  without acting short of sliding off, which on touch often scrolls instead); where
   a surface can't take a hold, it says the words at rest, as a panel row's cut words
   stand whole. So no fact is said to hover alone. A preview the user put away stays
   away until they aim again, whatever the element declares meanwhile. A `title` is its
@@ -254,12 +257,15 @@ playable").
 - **One owner shows every preview.** An element adds to what pointing at it reads
   (`lfPreview`, `../skills/leaf/references/module-input.md`, "Previews"), a control's
   word and keys come from its name and the register, and a range's owner says where
-  the pointer rests on it. `runtime/preview.js` shows one at a time on every route,
-  puts it away on leave, blur or a press, and gives a screen reader the words it shows
-  on focus as the focused element's description.
+  the pointer or a holding finger rests on it, as a thread's passage marks do
+  (`anchor-paint.js`). `runtime/preview.js` shows one at a time on every route, puts it
+  away on leave, blur or a press, and gives a screen reader the words it shows on focus
+  as the focused element's description.
   While one stands it is Escape's first step, which does nothing else, so a preview
   over the surface the user is in never costs them that surface (WCAG 1.4.13). Check:
-  `test_a_control_previews_its_word_and_every_key_that_presses_it`.
+  `test_a_control_previews_its_word_and_every_key_that_presses_it`,
+  `test_a_range_previews_beside_the_line_the_pointer_rests_on` and
+  `test_a_finger_holding_a_thread_s_words_reads_it_above_them`.
 
 ### Visual treatment carries meaning
 
@@ -406,7 +412,19 @@ A `:has()` rule can turn a local write into a restyle of the whole page or chrom
 unkeyed rightmost compound widens what it invalidates, and a condition on the chrome
 root, `body` or `html` is re-evaluated on writes below it. Prefer a class that names the
 targets, or a condition its owner sets on the styled element, and measure with
-`leaf-dev bench-latency --profile`.
+`leaf-dev bench --read paint --profile`.
+
+A `:has()` on a compound that a combinator follows, as in
+`table:has(…) > * > tr > :first-child`, is asked again for every element the rule
+tests, and Chromium answers a `:has(> …)` by reading the children afresh each time,
+so the rule's cost grows with the square of the sibling group. Chromium keeps its
+answer to a `:has()` whose argument starts with a descendant combinator for the
+whole restyle, so put one that most elements fail ahead of the exact question, as
+`table:has(th[scope="row"]:first-child):has(> * > tr > th[scope="row"]:first-child)`
+does, or qualify the compound with a class that rejects most elements. An `@scope`
+rooted on the compound also answers once, but its root needs a class, id or
+attribute (`test_an_untyped_has_leads_only_to_a_typed_subject`), and it reaches
+only the root's subtree, never its later siblings.
 
 A `:has()` naming `:focus` or `:focus-visible` makes every focus move, on every page,
 restyle most of the page twice: once for the blur and once for the focus. Name
@@ -417,7 +435,9 @@ A `::highlight()` rule with no originating element adds to the restyle of every
 element, on every page, whether or not the highlight has a range there. Name the
 elements whose text the ranges paint. The comment marks can land on any text and
 Firefox inherits no highlight style (`notes/browser-support.md`, "Highlight style
-inheritance"), so theirs stay universal.
+inheritance"), so theirs stay universal, and in Chromium a custom property changing
+on `html` or `body` then restyles every element (`root-state.js` says what the root's
+writers set instead).
 
 ### Layouts, styles and controls
 
@@ -614,6 +634,8 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | What an element (its `lfPreview`), control or range says when pointed at, on every route              | `preview.js` `pointRange`                                                          |
 | What a thread says when pointed at, on its passage mark and its margin entry                          | `thread/messages.js` `threadPreview`                                               |
 | The clock time behind an age, and what an age's `<time>` previews                                     | `presence.js` `clockTime`, `agePreview`                                            |
+|                                                                                                       |                                                                                    |     |     |     |     | dcb34decc |
+| What an element (its `lfPreview`), control or range says when pointed at, on every route              | `preview.js` `pointRange`                                                          |
 | The keys that press a control                                                                         | `keyboard/control-keys.js` `controlKeys`                                           |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                              |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |

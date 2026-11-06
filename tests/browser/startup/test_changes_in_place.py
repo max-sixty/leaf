@@ -21,8 +21,8 @@ from render_harness import (
     PREVIEW,
     compare_with,
     open_page,
-    preview_parts,
     stamp_page,
+    told,
     wait_for_revision,
 )
 
@@ -639,10 +639,22 @@ def test_a_change_names_only_the_revisions_that_wrote_its_own_blocks(browser, se
     page.keyboard.press("Escape")
     changes = page.locator('.lf-margin-entry[data-lf-kinds~="change"]')
     expect(changes).to_have_count(2)
-    first = " ".join(preview_parts(changes.nth(0)))
+    preview = page.locator(PREVIEW)
+
+    # What the change's preview says, the lines its room beside the entry leaves out
+    # included: the two entries stand a line apart, and the preview keeps clear of the
+    # other (preview.js, `fit`).
+    def says(entry):
+        page.mouse.move(0, 0)
+        expect(preview).to_be_hidden()
+        entry.hover()
+        expect(preview).to_be_visible()
+        return " ".join(preview.locator(".lf-preview-detail").all_text_contents())
+
+    first = says(changes.nth(0))
     assert "In v2, after your comment: “Is Alpha right?”" in first, first
     assert "Beta" not in first, first
-    second = " ".join(preview_parts(changes.nth(1)))
+    second = says(changes.nth(1))
     assert (
         "In Draft, after your 2 comments: “Is Alpha right?” “Is Beta right?”" in second
     ), second
@@ -732,8 +744,8 @@ def test_a_to_do_running_on_an_element_marks_it(browser, serve):
         },
     )
     bars = page.locator(".lf-at-work-bar")
-    page.wait_for_timeout(300)
-    # Open, but nothing running on it yet.
+    # The page has taken in the to-do, which is open with nothing running on it yet.
+    told(page)
     expect(bars).to_have_count(0)
     _start(d, todo["id"], "Rewriting Gamma")
     expect(bars).to_have_count(1)

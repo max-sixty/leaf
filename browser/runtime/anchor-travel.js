@@ -259,7 +259,9 @@ export function createAnchorTravel({
                 {
                   at: current.where,
                   behavior: "instant",
-                  when: () => !alreadyShown(current.where) || !alreadyShown(input),
+                  when: () =>
+                    !alreadyShown(current.where, { block: "center" }) ||
+                    !alreadyShown(input),
                 },
                 // The subject and editor can occupy different parts of a tall
                 // page. Finish on the box the user asked to write in.
@@ -296,12 +298,16 @@ export function createAnchorTravel({
   // arrival region), built on the reading it is handed.
   /** @param {URL} [url] @returns {NavigationStep} */
   function prepareNavigationStep(url) {
+    // Travel lands a destination at its start or centre, alike for one taller than its
+    // room, so it is already there where that landing would move nothing.
+    /** @param {Destination} where */
+    const travelShown = (where) => alreadyShown(where, { block: "start" });
     const write = prepareEntry();
     /** @type {boolean | undefined} */
     let moving;
     return {
       plan(where, { there } = {}) {
-        moving = !(where && (there ? there(alreadyShown) : alreadyShown(where)));
+        moving = !(where && (there ? there(travelShown) : travelShown(where)));
         return moving;
       },
       commit() {
@@ -422,7 +428,13 @@ export function createAnchorTravel({
           where && {
             where,
             focus: focus ? where : null,
-            scroll: [{ at: where, block: "start", when: () => !alreadyShown(where) }],
+            scroll: [
+              {
+                at: where,
+                block: "start",
+                when: () => !alreadyShown(where, { block: "start" }),
+              },
+            ],
           }
         );
       },
@@ -601,7 +613,8 @@ export function createAnchorTravel({
           target !== where && where instanceof Element && under(target, where);
         scroll.push({
           at: where,
-          when: () => !alreadyShown(where) && !(inside && !fitsWhole(where)),
+          when: () =>
+            !alreadyShown(where, { block: "center" }) && !(inside && !fitsWhole(where)),
         });
         return { where, focus: target, scroll };
       },

@@ -3,8 +3,8 @@
    One ordered list holds every popover and modal dialog standing over the page, oldest at
    the bottom. Each pushes an entry as it opens, so their order against each other is
    recorded when it happens rather than inferred from focus ancestry and open state at
-   every read. `kind` reads each open layer's native mode (`popover` or `modal`); the dispatcher tiers the scopes over them
-   and makes a modal a floor.
+   every read. `kind` reads each open layer's native mode (`popover` or `modal`); the dispatcher tiers the scopes over
+   those that stand as a mode (`nativeModes`) and makes a modal a floor.
 
    A layer may open through a prototype method or through declarative popover activation,
    and a popover need not move focus into itself, so every opener declares its own
@@ -56,6 +56,9 @@
    popovers first (`dismissPopoversOutside`), so the reading finds the user already handed
    back from them.
 
+   Each native layer's opening is recorded against the user's input it came under
+   (focus.js, `layerOpened`), as every layer opened through `openLayer` is.
+
    Whether a node is one of these layers, or stands in one as rendered, is asked of
    `shadow-tree.js` (`nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding`), below this module and the
    modules it imports, so focus and inertness ask it too. Every reader that treats the top
@@ -85,6 +88,7 @@ import {
   focusDestination,
   handBack,
   canPlaceFocus,
+  layerOpened,
 } from "../focus.js";
 import { move } from "../dom-move.js";
 import { renderedUnder } from "../shadow-tree.js";
@@ -173,6 +177,7 @@ function pushNativeLayer(node, source = null) {
       entry.opening = false;
     });
   entries.push(entry);
+  layerOpened(node);
   return entry;
 }
 
@@ -417,6 +422,20 @@ watchLayers(document);
 export function nativeLayers() {
   prune();
   return entries.filter((entry) => entry.active());
+}
+
+// The layers that stand as a mode over the keys beneath them: every modal, every auto
+// and hint popover, and a manual popover while focus is inside it. The platform closes
+// auto and hint popovers on Escape and never a manual one, so a manual popover the user
+// is not in, such as a hover card, holds no step of its own and covers none beneath it.
+export function nativeModes() {
+  const active = focused();
+  return nativeLayers().filter(
+    (entry) =>
+      entry.kind !== "popover" ||
+      entry.root.popover !== "manual" ||
+      (active !== null && renderedUnder(active, entry.root)),
+  );
 }
 
 // Same-origin embedded pages consult the native owner of the document holding their

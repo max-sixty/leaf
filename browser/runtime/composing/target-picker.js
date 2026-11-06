@@ -46,7 +46,7 @@ import {
   keySequenceTemplate,
   progressSteps,
 } from "../keyboard/key-sequence.js";
-import { announce } from "../notifications.js";
+import { announce, notice } from "../notifications.js";
 import { keeps } from "../keeps.js";
 import { beginWalk, walkPosition } from "../walk-position.js";
 
@@ -564,7 +564,7 @@ export function createTargetPicker({
     if (!hasRows(found)) {
       repeatedSearch = null;
       active = -1;
-      announce("The page no longer contains that search.");
+      notice(`No matches left for “${repetition.query}”`);
       return repaint();
     }
     const from = Math.min(repetition.index, found.length - 1);
@@ -708,8 +708,12 @@ export function createTargetPicker({
     title: "search matches",
     repeat: true,
     travels: true,
-    when: () => Boolean(repeatedSearch),
-    runKey: (binding) => repeatSearch(binding === "n" ? 1 : -1),
+    // With no search to repeat, the press says so, as every walk with nothing to step
+    // through does (keyboard/AGENTS.md, "Page grammar").
+    runKey: (binding) =>
+      repeatedSearch
+        ? repeatSearch(binding === "n" ? 1 : -1)
+        : notice("No search to repeat"),
   };
 
   /** @type {import("../keyboard/bindings.js").Command} */

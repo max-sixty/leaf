@@ -346,7 +346,7 @@ export function createCommandHints({ presentedControl }) {
       const exposed = Boolean(
         box &&
         exposedBindingBadge(bindingBadge, control, box, lent) &&
-        placement.reserve(box),
+        placement.reserve(box, control),
       );
       const face = box && !exposed ? bindingBadge.getBoundingClientRect() : null;
       return { ...route, exposed, face };

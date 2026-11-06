@@ -9,6 +9,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
 from render_harness import (
     PANEL,
+    expect_panel_says,
     holding,
     leaf_page,
     open_page,
@@ -594,7 +595,8 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
 @pytest.mark.parametrize("width", [1200, 390])
 def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, width):
     """An answered obligation stays in On me under Done, which closes and reopens through
-    its routes, and finishing the page preserves the route back through the answer."""
+    its routes, and finishing the page preserves the route back through the answer. The
+    answer that leaves nothing on the user has the panel say so, unasked."""
     page = open_page(
         browser,
         serve(
@@ -637,6 +639,8 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
     for route in held:
         route.continue_()
     round_trip(page)
+    expect_on_me(page, 0)
+    expect_panel_says(page, "Nothing waiting on me")
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
@@ -730,7 +734,7 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
 def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):
     """With On me open, `m` lands a suggestion the view would cover above the view,
     since every landing clears the panel's whole box rather than its row alone
-    (base.css, `--lf-panel-reach`). The suggestion ends a paragraph whose start the
+    (floating-panel.js, `followBox`). The suggestion ends a paragraph whose start the
     arrival aligns, as the feature gallery's "A pencil is useful too." does; the asks
     after it fill the list, so the view stands most of the window tall. Opened by a
     key, On me stands on its first row, the suggestion, so `m` steps on to the first

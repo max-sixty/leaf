@@ -10,6 +10,7 @@ from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
     declare_on_page,
+    element_declaration,
     record_claim,
 )
 from PIL import Image, ImageChops, ImageStat
@@ -56,6 +57,7 @@ from render_harness import (
     TOKEN,
     consume_browser_errors,
     expect_open_threads,
+    expect_preview_words,
     fetch_whole_state,
     held_frames,
     http_error_console,
@@ -519,7 +521,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     # draft is in view. The user can reveal it without losing their reply.
     notice = thread.locator(".lf-thread-news")
     expect(notice).to_have_text("1 new")
-    expect(notice).to_have_attribute("title", "Resolved")
+    expect_preview_words(notice, "Resolved")
     expect(thread).to_have_attribute("data-lf-resolved", "false")
     notice.click()
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
@@ -581,7 +583,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     # notice the user opens.
     news = page.locator(".lf-fp-head .lf-thread-news")
     expect(news).to_have_text("1 new")
-    expect(news).to_have_attribute("title", "Resolved")
+    expect_preview_words(news, "Resolved")
     expect(draft).to_have_js_property("value", "keep this unfinished reply")
     news.click()
     expect(view).to_be_visible()
@@ -1405,9 +1407,11 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
 def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     browser, serve
 ):
-    """Framed holders request their own width on column and sidebar pages. Their
-    evidence stays inside that frame; a wide child alone does not widen it. Workspace
-    holders and explicitly bounded cells keep the room their containing region grants."""
+    """A framed holder, a callout, requests its own width on column and sidebar pages:
+    its evidence stays inside that frame, and a wide child alone does not widen it. An
+    obligation frames nothing, so it takes no width of its own: a wide child stands in
+    the page's flow and the obligation's box grows round it. Workspace holders and
+    explicitly bounded cells keep the room their containing region grants."""
     cells = "<td>p95 latency</td>" * 12
     table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
     item = (
@@ -1417,10 +1421,8 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     body = (
         '<p id="prose">Prose.</p>'
         + item.format(id="ask", width="", table="")
-        + item.format(id="granted", width=' data-width="wide"', table="")
-        + item.format(
-            id="holds", width=' data-width="wide"', table=table.format(id="holds")
-        )
+        + item.format(id="stated", width=' data-width="wide"', table="")
+        + item.format(id="holds", width="", table=table.format(id="holds"))
         + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
         + '<aside class="callout" id="granted-c" data-width="wide">'
         + table.format(id="granted-c")
@@ -1433,7 +1435,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         + "</lf-options>"
     )
     measure = """() => Object.fromEntries(
-      ['prose', 'ask', 'granted', 'granted-c', 'contained-c', 'holds', 'holds-t', 'callout', 'list']
+      ['prose', 'ask', 'stated', 'granted-c', 'contained-c', 'holds', 'holds-t', 'callout', 'list']
         .map(id => {
         const box = document.getElementById(id).getBoundingClientRect();
         return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
@@ -1447,24 +1449,24 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     edge = at["prose"]["left"]
     wide = round(wide_width(page))
     # An option list keeps the measure whatever one option holds: only a box's own
-    # blocks widen it.
-    for boxed in ("ask", "callout", "contained-c", "list"):
+    # blocks widen it. A width written on an obligation has no effect.
+    for boxed in ("ask", "stated", "callout", "contained-c", "list"):
         assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
     # A granted callout's padding and border fall inside the wide measure.
-    for granted in ("granted", "granted-c", "holds"):
-        assert at[granted] == {"width": wide, "left": edge}, (granted, at)
-    # The widened obligation frames its table, which stands wider than the measure.
-    assert at["holds-t"]["width"] > 720, at
+    assert at["granted-c"] == {"width": wide, "left": edge}, at
+    # The obligation's box takes in the table it holds, which takes the room it declares.
+    assert at["holds-t"] == {"width": wide, "left": edge}, at
+    assert at["holds"]["left"] == edge and at["holds"]["width"] >= wide, at
 
-    # The obligation spans its block wherever the block breaks out, and an obligation granted the
-    # room itself holds its block in that room. In a list obligation, which stands in from the
-    # column, and where the page arranged the obligation, in a grid track, neither grows.
+    # The obligation spans its block wherever the block breaks out. In a list obligation,
+    # which stands in from the column, and where the page arranged the obligation, in a
+    # grid track, it doesn't grow.
     extras = (
         "<ol><li>"
         + item.format(id="listed", width="", table=table.format(id="listed"))
         + "</li></ol>"
         + item.format(
-            id="both", width=' data-width="wide"', table=table.format(id="both")
+            id="both", width=' data-width="available"', table=table.format(id="both")
         )
         + '<div style="display: grid; grid-template-columns: 350px 1fr">'
         + item.format(id="tracked", width="", table=table.format(id="tracked"))
@@ -1477,7 +1479,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         + '<div id="wrapper" data-width="wide">'
         + item.format(
             id="wrapped",
-            width=' data-width="available"',
+            width="",
             table=f'<table data-width="available"><tr>{cells}</tr></table>',
         )
         + "</div>"
@@ -1554,7 +1556,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     )
     resized(workspace, 1726, 900)
     at = workspace.evaluate(measure.replace("'list']", "'list', 'region', 'board']"))
-    for block in ("prose", "ask", "granted", "granted-c", "holds", "callout", "list"):
+    for block in ("prose", "ask", "stated", "granted-c", "holds", "callout", "list"):
         assert at[block] == at["region"], (block, at)
     assert at["board"] == at["region"], at
 
@@ -1698,8 +1700,7 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
 def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
     request, serve, subtests, direction, engine
 ):
-    """A table granted room sizes its box to its columns, so it is no longer the
-    container its caption reads its width from; the block caption is held to the box.
+    """A table granted room sizes its box to its columns, and its caption fills that box.
     On a phone, where the room is the column and an eight-column table scrolls, a long
     caption stays inside the scrollport at either end of the scroll: in the page's flow,
     and in a list item and a quotation, which hold it to their own width. Each holder's
@@ -1814,6 +1815,13 @@ def test_a_scrolling_table_keeps_its_row_names_in_view(browser, serve, direction
     # one, so the mask lifted and this fade stayed over the columns.
     fade = "name => getComputedStyle(name, '::after').content"
     assert page.locator("#name-0").evaluate(fade) != "none"
+    # It clears away from the names, toward the columns: a right-to-left table's fade
+    # had cleared toward them.
+    toward = "to right" if direction == "ltr" else "to left"
+    ground = "name => getComputedStyle(name, '::after').backgroundImage"
+    assert (
+        page.locator("#name-0").evaluate(ground).startswith(f"linear-gradient({toward}")
+    )
     table.evaluate("""t => {
       const cell = t.querySelector('tbody td:last-child');
       const host = cell.appendChild(document.createElement('div'));
@@ -1987,10 +1995,9 @@ def test_a_row_of_metrics_sets_every_figure_on_one_line(request, serve, engine):
 def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, engine):
     """A table whose cells hold sentences wraps them inside the box it stands in, and
     scrolls nothing: in an obligation, in a panel, and in a figure granted the page's room.
-    Firefox and WebKit have no scroll-state container and dropped the table's
-    `container-type: inline-size scroll-state` whole, so the width its caption reads
-    (100cqi) was the window's: an obligation's two-column table laid its rows out 1728px wide
-    in a 720px column and cut its second column off."""
+    A long caption takes its width from the table's box: where it read the window's
+    instead, in Firefox and WebKit, an obligation's two-column table laid its rows out
+    1728px wide in a 720px column and cut its second column off."""
     sentence = (
         "When a new copy is installed, the update copies each commit and records it. "
     )
@@ -2021,6 +2028,44 @@ def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, e
     for held in at.values():
         assert held["scrolls"] <= 1 and held["past"] <= 1, at
     assert root_overflow(page) == 0
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_box_sized_to_its_content_gives_a_table_its_columns_width(
+    request, serve, subtests, engine
+):
+    """A box that takes its width from what it holds, such as a flex item or a grid's
+    `auto` track, gives a table its columns' width, as it would the browser's own
+    table, so the table scrolls nothing. While the table was an inline-size container it
+    asked such a box for no width: two tables side by side in a flex row and one in an
+    auto track stood 0px wide, and a headed table beside a note 65px with a column out
+    of sight."""
+    table = (
+        '<table id="{}"><thead><tr><th>Region</th><th>Hosts</th></tr></thead>'
+        "<tbody><tr><td>us-east-1</td><td>14</td></tr></tbody></table>"
+    )
+    note = "<p>The compute line is up a fifth since September.</p>"
+    body = (
+        "<h1>Tables in boxes sized to them</h1>"
+        f'<div class="row">{table.format("flexed")}{table.format("flexed-too")}</div>'
+        f'<div class="row"><div><h2>Budget</h2>{table.format("headed")}</div>{note}</div>'
+        f'<div class="tracks">{table.format("tracked")}{note}</div>'
+    )
+    head = (
+        "<style>.row { display: flex; gap: 16px; align-items: start; }"
+        " .tracks { display: grid; grid-template-columns: auto 1fr; gap: 16px; }</style>"
+    )
+    browser = request.getfixturevalue(engine)
+    page = open_page(browser, serve(leaf_page("Sized", body, head=head)))
+    resized(page, 1440, 900)
+    for name in ("flexed", "flexed-too", "headed", "tracked"):
+        with subtests.test(table=name):
+            at = page.locator(f"#{name}").evaluate(
+                """t => ({width: t.getBoundingClientRect().width,
+                          columns: t.querySelector('tr').getBoundingClientRect().width,
+                          scrolls: t.scrollWidth - t.clientWidth})"""
+            )
+            assert at["scrolls"] <= 1 and at["width"] >= at["columns"] - 1, at
 
 
 INDENTED_CELLS = "".join(f"<td>measured value {i}</td>" for i in range(8))
@@ -2971,6 +3016,25 @@ def test_a_sidebar_pages_aside_takes_the_width_the_page_sets(browser, serve):
     assert track_box["width"] == pytest.approx(body_box["width"], abs=0.5)
 
 
+def test_a_wide_table_scrolls_inside_a_sidebar_pages_body_on_a_phone(browser, serve):
+    """A sidebar page's row sets its body's width, not what the body holds, so on a
+    phone a table wider than the window scrolls inside the body and the page scrolls
+    nothing. A body as wide as its widest content stood as wide as the table's columns,
+    past the window."""
+    cells = "".join(f"<td>measured value {i}</td>" for i in range(8))
+    source = leaf_page(
+        "a sidebar page",
+        "<header><h1>Review</h1></header>"
+        f"<section id='body'><p>Body paragraph.</p><table id='wide'><tr>{cells}</tr>"
+        "</table></section><aside id='track'><p>Summary.</p></aside>",
+        layout="sidebar",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 390, 844)
+    assert page.locator("#wide").evaluate("t => t.scrollWidth - t.clientWidth") > 0
+    assert root_overflow(page) == 0
+
+
 def test_a_sidebar_pages_items_trim_their_words_at_both_edges(browser, serve):
     """Each item in a sidebar page's row trims its words' outer margins, through any
     wrapper, as a column does at its edges: beside the body, a track whose heading sits in
@@ -3420,6 +3484,61 @@ def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(
     assert page.locator("#bare").evaluate(face) == leaf
     assert page.locator("#bare-field").evaluate(face) == leaf
     assert page.locator("#dressed").evaluate(face) == ["Georgia", "20px"]
+
+
+def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rules(
+    browser, serve
+):
+    """In a declared shadow tree the default face reaches a bare control, and yields to
+    the rules the widget adopts, those of a library it layers inside `lf-base`
+    included. It outranked them there, which set lf-file-tree's rows, buttons Trees
+    dresses in mono, in the sans."""
+    declaration = element_declaration("lf-own-controls", upgrade=True)
+    declaration["x-shadow"] = True
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Widget controls",
+                """<h1>Widget controls</h1>
+<p><button id="classed" class="button" type="button">Classed</button></p>
+<lf-own-controls id="own"></lf-own-controls>""",
+            ),
+            layer_registry={"lf-own-controls": declaration},
+            layer_widgets={
+                "lf-own-controls.js": """
+import {inBaseLayer, once, shadowStage} from '/runtime/widget-api.js';
+const sheet = new CSSStyleSheet();
+sheet.replaceSync(inBaseLayer(`
+  @layer library { .library { font: 18px Georgia; } }
+  .own { font: 20px Georgia; }
+`));
+customElements.define('lf-own-controls', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const root = this.attachShadow({mode: 'open'});
+    root.adoptedStyleSheets = [sheet];
+    shadowStage(this, ['bare', 'own', 'library'].map((name) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = name;
+      button.textContent = name;
+      return button;
+    }));
+  }
+});
+"""
+            },
+        ),
+    )
+    face = (
+        "el => { const s = getComputedStyle(el); return [s.fontFamily, s.fontSize]; }"
+    )
+    leaf = page.locator("#classed").evaluate(face)
+    own = page.locator("#own")
+    assert own.locator("button.bare").evaluate(face) == leaf
+    assert own.locator("button.own").evaluate(face) == ["Georgia", "20px"]
+    assert own.locator("button.library").evaluate(face) == ["Georgia", "18px"]
 
 
 def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, serve):

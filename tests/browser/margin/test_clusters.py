@@ -680,8 +680,6 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(page.locator(PREVIEW)).to_be_visible()
     page.mouse.move(0, 0)
     expect(page.locator(PREVIEW)).to_be_hidden()
-    accept.evaluate("node => node.focus({focusVisible: true})")
-    expect(page.locator(PREVIEW)).to_be_visible()
     page.mouse.move(0, 0)
     accept.focus()
     page.keyboard.press("e")

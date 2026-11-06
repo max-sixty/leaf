@@ -38,7 +38,7 @@
    A hint popover (`popover="hint"`), as a preview is (preview.js), holds no control and
    takes no key, and the platform closes it as any other popover opens, so it joins no
    stack: the dispatcher tiers no scope over it, its opening changes nothing a modal
-   admits, and its closing hands nobody back.
+   admits and expands no control its `source` names, and its closing hands nobody back.
 
    Every read prunes first, and an entry whose surface no longer stands is removed
    wherever it sits, so a dialog closed by script beneath another layer cannot linger as
@@ -104,6 +104,14 @@ let styleChrome = null;
 /** @param {(root: ShadowRoot) => void} style */
 export function installLayerStyleIntegration(style) {
   styleChrome = style;
+}
+// Chrome carried into `layer`, as a modal into an authored popover or a preview into
+// an authored modal dialog, takes the chrome's styles into the shadow tree `layer`
+// stands in, where it stands in one.
+/** @param {Element} layer */
+export function carryChromeStyles(layer) {
+  const root = layer.getRootNode();
+  if (root instanceof ShadowRoot) styleChrome?.(root);
 }
 
 /** @typedef {{root: HTMLElement, opening: boolean, readonly kind: ReturnType<typeof nativeLayerKind>, active: () => boolean, fromNowhere: boolean, opener: Element | null, source: Element | null}} NativeLayer
@@ -296,8 +304,7 @@ function seatModal(dialog, source) {
         place.scope = document.createElement("div");
         place.scope.className = "lf-chrome";
       }
-      const root = holder.getRootNode();
-      if (root instanceof ShadowRoot) styleChrome?.(root);
+      carryChromeStyles(holder);
       if (place.scope.parentNode !== holder) move(holder, place.scope);
       seat = place.scope;
     }
@@ -379,7 +386,8 @@ export function watchLayers(root) {
     if (
       event.newState !== "open" ||
       !(event.target instanceof HTMLElement) ||
-      !event.target.matches("[popover], dialog")
+      !event.target.matches("[popover], dialog") ||
+      isHint(event.target)
     )
       return;
     const call = scripted?.layer === event.target ? scripted : null;

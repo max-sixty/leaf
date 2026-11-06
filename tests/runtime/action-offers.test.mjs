@@ -8,14 +8,30 @@ import { html, render } from "/runtime/framework.js";
 
 const symbolOf = (control) =>
   [...control.querySelectorAll(":scope > svg")].map((svg) => svg.dataset.lfIcon);
+// What `make` makes in a document the runtime doesn't upgrade, which prepaint marks
+// (`data-lf-interactive`).
+const offLeaf = (make) => {
+  const root = document.documentElement;
+  root.toggleAttribute("data-lf-interactive", false);
+  try {
+    return make();
+  } finally {
+    root.toggleAttribute("data-lf-interactive", true);
+  }
+};
 
 test("a symbol shows its action's symbol and says its name unless its label says more", () => {
   const retry = offerAction("symbol", "", undefined, { action: "retry" });
   assert.deepEqual(symbolOf(retry), ["retry"]);
   assert.equal(retry.getAttribute("aria-label"), "Retry");
-  // Its word is its title too: the browser's tooltip off Leaf, and on Leaf the
-  // preview's words, which holds the title while it is pointed at (preview.js).
-  assert.equal(retry.getAttribute("title"), "Retry");
+  // On Leaf the preview says its word on every route, so it writes no title, which the
+  // browser would show to a pointer instead (preview.js); off Leaf the title is the
+  // only reading a pointer gets.
+  assert.equal(retry.getAttribute("title"), null);
+  const plain = offLeaf(() =>
+    offerAction("symbol", "", undefined, { action: "retry" }),
+  );
+  assert.equal(plain.getAttribute("title"), "Retry");
   const named = offerAction("symbol", "", "Retry loading the file", {
     action: "retry",
   });
@@ -71,6 +87,8 @@ test("a symbol whose action follows its state takes the new action's symbol and 
   nameAction(button, "expand-all", { label: "Expand all files" });
   assert.deepEqual(symbolOf(button), ["unfold"]);
   assert.equal(button.getAttribute("aria-label"), "Expand all files");
-  assert.equal(button.getAttribute("title"), "Expand all files");
+  assert.equal(button.getAttribute("title"), null);
+  offLeaf(() => nameAction(button, "collapse-all"));
+  assert.equal(button.getAttribute("title"), "Collapse all");
   assert.equal(button.className, face);
 });

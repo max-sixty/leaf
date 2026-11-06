@@ -2761,18 +2761,25 @@ LANDING_TOP = "(await window.__lfCheckApi()).landingBand(document.scrollingEleme
 PREVIEW = "#lf-preview"
 
 
+def tab_onto(target):
+    """Step onto `target` with the keyboard, as the user does: Shift+Tab off it and Tab
+    back, a move the user made themselves, which a focus preview reads (preview.js),
+    where a script's focus reads nothing."""
+    target.focus()
+    target.page.keyboard.press("Shift+Tab")
+    target.page.keyboard.press("Tab")
+    expect(target).to_be_focused()
+
+
 def preview_parts(target, route="pointer"):
     """What `target`'s preview shows a pointer resting on it (runtime/preview.js), or
-    with `route="focus"` the keyboard moving onto it: its name, then each line of
+    with `route="focus"` the keyboard stepping onto it: its name, then each line of
     detail, as the face draws them, key chips left out. The pointer leaves it again
     after, so the next reading is a new one."""
     page = target.page
     tip = page.locator("#lf-preview")
     if route == "focus":
-        # A key is down as focus lands, the user's own move (preview.js, `aimed`).
-        page.keyboard.down("Shift")
-        target.focus()
-        page.keyboard.up("Shift")
+        tab_onto(target)
     else:
         # From somewhere else: a pointer already resting where the target now stands
         # reads nothing there until it moves (preview.js).

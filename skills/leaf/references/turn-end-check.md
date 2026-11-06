@@ -26,7 +26,9 @@ the agent takes the user's reply or withdraws the ask. For each, give:
   on the page, perhaps days later and without the chat, so say what is waiting, why
   it arises and what each answer leads to, naming things as the page does, and end
   with the question. For a step the user takes, such as running a command or trying
-  a build, say what to do and ask them to reply once it is done, with what they saw.
+  a build, say what to do. Ask for a reply only for what the user alone can report,
+  such as what the build showed them; the agent checks for itself whatever it can,
+  such as a file deleted or a pull request merged.
   It shows in a narrow card, so keep it to at most four short sentences of Markdown,
   and link a pull request or commit by its URL where the conversation gives one.
 - `passage`: where the ask concerns one passage of the page, a few of its words,

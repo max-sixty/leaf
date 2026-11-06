@@ -282,3 +282,51 @@ def test_a_link_into_the_page_previews_where_it_points(engine, request, serve):
         phone.evaluate(finger, ["pointerup", point["x"], point["y"]])
     expect(held).to_be_hidden()
     phone.wait_for_function("location.hash === '#decision'")
+
+
+DRAWN_PAGE = leaf_page(
+    "What a place draws",
+    """
+<p id="lede"><a id="to-closed" href="#closed">a closed disclosure</a>,
+<a id="to-held" href="#held">a block holding one</a>,
+<a id="to-spans" href="#spans">a paragraph with hidden words</a>,
+<a id="to-titled" href="#titled">a section with a hidden word in its title</a> and
+<a id="to-skipped" href="#skipped">a block skipping its rest</a>.</p>
+<details id="closed"><summary>Method</summary>Secret text<p>Hidden paragraph.</p></details>
+<div id="held">Intro <details><summary>More</summary><p>Hidden words.</p></details></div>
+<p id="spans">Before <span style="display: none">Gone</span> <span hidden>Attr</span>
+After<script type="application/json">{"secret": 1}</script></p>
+<section id="titled"><h2>Public <span hidden>SECRET</span></h2><p>Body words.</p></section>
+<div id="skipped"><p>Shown words.</p>
+<div style="content-visibility: hidden"><p>Skipped words.</p></div></div>
+"""
+    + "<p>More of the page.</p>" * 20,
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve):
+    """A place's preview says what the page draws of it now, by the platform's own
+    reading: a closed disclosure its summary, words `display: none` or `hidden` and a
+    script's text nothing, a title without its hidden word, and a skipped subtree
+    nothing."""
+    page = open_page(request.getfixturevalue(engine), serve(DRAWN_PAGE))
+    preview = page.locator(PREVIEW)
+    parts = preview.locator(".lf-place")
+    for link, name, said in (
+        ("#to-closed", "Method", None),
+        ("#to-held", None, "Intro More"),
+        ("#to-spans", None, "Before After"),
+        ("#to-titled", "Public", "Body words."),
+        ("#to-skipped", None, "Shown words."),
+    ):
+        page.mouse.move(0, 0)
+        expect(preview).to_be_hidden()
+        page.locator(link).hover()
+        expect(preview).to_be_visible()
+        if name:
+            expect(preview.locator(".lf-preview-word")).to_have_text(name)
+        if said:
+            assert " ".join(parts.inner_text().split()) == said, link
+        else:
+            expect(parts).to_have_count(0)

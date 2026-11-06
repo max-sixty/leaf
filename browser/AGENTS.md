@@ -579,7 +579,6 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether the reader or layout chose a box's scroll position                                            | `scrolling.js` `chosenSince`, `placeKept`                                          |
 | The authored body, excluding Leaf's runtime surfaces                                                  | `passages.js` `pageDocument`, `inPage`                                             |
 | Whether focus stands on something in the page, which focus on the body doesn't                        | `passages.js` `focusInPage`                                                        |
-| What a reader landing on an element is kept from seeing in it (the shown reading)                     | `passages.js` `keptHidden`                                                         |
 | The document a node stands in: the view member or `main` holding it                                   | `storage.js` `viewDocument`                                                        |
 | The box the page's Layout arranges, the shell it stands in (its parent), and a page of parts' views   | `passages.js` `layoutBox`, `layoutParts`                                           |
 | Whether a place is already shown, which every nearest landing asks first, and the room a landing has  | `landing-scroll.js` `alreadyShown`, `landingRoom`                                  |
@@ -615,7 +614,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether the user is writing a reply                                                                   | `thread/replies.js` `replyIsEditing`                                               |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
 | Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                             |
-| What names the part of the page a node stands in, and the part a heading heads                        | `thread/placement.js` `partOver`, `headedPart`                                     |
+| What names the part of the page a node stands in: its heading, or a named region                      | `thread/placement.js` `partOver`                                                   |
 
 ### Facts both runtimes know
 

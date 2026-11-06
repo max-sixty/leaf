@@ -11,6 +11,8 @@ import { ringBox, visibleFocus } from "../focus.js";
 import { shownParts } from "../geometry.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import {
+  readingOrder,
+  readingPlace,
   targetElement,
   targetParts,
   targetSegments,
@@ -18,6 +20,7 @@ import {
 } from "../resolved-target.js";
 import {
   elementFromPointAcross,
+  hearPageChanges,
   pageReadingVersion,
   pageWords,
   rangeOf,
@@ -112,22 +115,30 @@ export function createAnchorPaint({
   /** @type {Map<string, Mark[]>} */
   const marked = new Map();
   // Where the hit test finds each mark (`markHit`), with its thread's place in reading
-  // order: for each text node a passage's pieces lie in, the tree of those pieces
-  // (`piecesAt`); an element's mark by the element; and the shadow trees holding a
-  // passage's piece, which the caret lookup looks into. It is read from the marks' live
-  // ranges, the ones the highlight paints, which move with their words as the page's
-  // text changes under them, by a revision or by any script; so it holds for the page
-  // reading it was read in (passages.js, `pageReadingVersion`), and the first hit after
-  // the page's words change reads it again (`markHit`). The ranges are then the one
-  // record of where a mark is, which the highlight and the index both read.
+  // order: for each text node a passage's ranges intersect, the pieces they cover there
+  // and, read as the hit test first asks, their tree (`piecesAt`); an element's mark by
+  // the element; and the shadow trees holding a passage's text, which the caret lookup
+  // looks into. It is read from the marks' live ranges, the ones the highlight paints,
+  // which move with their words as the page's text changes under them, by a revision,
+  // a widget or any script, so the ranges are the one record of where a mark is. Each
+  // change the page's words watcher hears names the text nodes it touched
+  // (passages.js, `hearPageChanges`); the next hit reads again only the ranges indexed
+  // in those nodes, and builds again only those nodes' trees (`reindex`), so a change
+  // elsewhere on the page, as a counter a widget redraws each frame, reads nothing.
   /** @typedef {{id: string, where: Mark, order: number}} Findable */
-  /** @type {Map<Node, PieceTree<Findable & Span> | null>} */
+  /** @typedef {Findable & Span & {where: Range}} Piece */
+  /** @type {Map<Node, {pieces: Piece[], tree: PieceTree<Piece> | null}>} */
   const inText = new Map();
+  /** @type {Map<Range, {found: Findable, nodes: Node[]}>} */
+  const indexedRanges = new Map();
+  /** @type {Set<Node>} */
+  const touched = new Set();
   /** @type {Map<Element, Findable[]>} */
   const onElement = new Map();
-  /** @type {ShadowRoot[]} */
-  let markedRoots = [];
-  let indexedReading = -1;
+  /** @type {Set<ShadowRoot>} */
+  const markedRoots = new Set();
+  /** @type {(() => void) | null} */
+  let unhear = null;
   /** @type {Map<Element, Element>} */
   const visualTargets = new Map();
   /** @type {Element[]} */
@@ -316,19 +327,23 @@ export function createAnchorPaint({
    * @returns {{id: string, where: Mark, alike: readonly Findable[]} | null} */
   function markHit(x, y, under = elementFromPointAcross(x, y)) {
     if (annotationsHidden() || !under || !pageWords(under)) return null;
-    if (indexedReading !== pageReadingVersion()) index();
+    // The watcher's changes not yet delivered arrive now, ahead of the reading.
+    pageReadingVersion();
+    reindex();
     /** @type {Findable[]} */
     let words = [];
     const caret = inText.size
-      ? document.caretPositionFromPoint(x, y, { shadowRoots: markedRoots })
+      ? document.caretPositionFromPoint(x, y, { shadowRoots: [...markedRoots] })
       : null;
-    const tree = caret && inText.get(caret.offsetNode);
-    if (caret && tree)
+    const text = caret && inText.get(caret.offsetNode);
+    if (caret && text) {
+      text.tree ??= treeOf([...text.pieces].sort((a, b) => a.start - b.start));
       for (const at of [caret.offset, caret.offset - 1]) {
         if (at < 0 || !overCharacter(caret.offsetNode, at, x, y)) continue;
-        words = piecesAt(tree, at);
+        words = piecesAt(text.tree, at);
         break;
       }
+    }
     /** @param {readonly Findable[]} marks */
     const first = (marks) =>
       marks.reduce(
@@ -362,36 +377,18 @@ export function createAnchorPaint({
   /** @param {number} x @param {number} y */
   const markAt = (x, y) => markHit(x, y)?.id ?? null;
 
-  // Index the marks where the hit test finds them (`inText`, `onElement`), and gather
-  // the shadow trees a passage's pieces stand in, every level of them, which the caret
-  // lookup must look into to land inside them.
+  // Index the marks where the hit test finds them (`inText`, `onElement`).
   function index() {
     inText.clear();
+    indexedRanges.clear();
+    touched.clear();
     onElement.clear();
-    /** @type {Map<Node, (Findable & {start: number, end: number})[]>} */
-    const byText = new Map();
-    /** @type {Set<ShadowRoot>} */
-    const roots = new Set();
-    indexedReading = pageReadingVersion();
+    markedRoots.clear();
     let order = 0;
     for (const [id, marks] of marked) {
       for (const where of marks) {
-        if (where instanceof Range) {
-          const node = where.startContainer;
-          const start = where.startOffset;
-          const end =
-            where.endContainer === node
-              ? where.endOffset
-              : (node.textContent?.length ?? start);
-          if (end <= start) continue;
-          const pieces = byText.get(node) ?? [];
-          pieces.push({ id, where, order, start, end });
-          byText.set(node, pieces);
-          for (let root = node.getRootNode(); root instanceof ShadowRoot;) {
-            roots.add(root);
-            root = shadowHost(root)?.getRootNode() ?? document;
-          }
-        } else {
+        if (where instanceof Range) indexRange({ id, where, order });
+        else {
           const standing = onElement.get(where) ?? [];
           standing.push({ id, where, order });
           onElement.set(where, standing);
@@ -399,9 +396,108 @@ export function createAnchorPaint({
       }
       order++;
     }
-    for (const [node, pieces] of byText)
-      inText.set(node, treeOf(pieces.sort((a, b) => a.start - b.start)));
-    markedRoots = [...roots];
+  }
+  // A range's pieces in each text node it intersects, as it stands now: one, as a
+  // segment's range is made, or several once a split has carried its end into the next
+  // node; and the shadow trees holding them, every level of them, which the caret
+  // lookup must look into to land inside them.
+  /** @param {Findable} found */
+  function indexRange(found) {
+    const where = /** @type {Range} */ (found.where);
+    /** @type {Node[]} */
+    const nodes = [];
+    for (const node of textNodesOf(where)) {
+      const start = node === where.startContainer ? where.startOffset : 0;
+      const end =
+        node === where.endContainer ? where.endOffset : (node.textContent?.length ?? 0);
+      if (end <= start) continue;
+      const text = inText.get(node) ?? { pieces: [], tree: null };
+      text.pieces.push({ ...found, where, start, end });
+      text.tree = null;
+      inText.set(node, text);
+      nodes.push(node);
+      for (let root = node.getRootNode(); root instanceof ShadowRoot;) {
+        markedRoots.add(root);
+        root = shadowHost(root)?.getRootNode() ?? document;
+      }
+    }
+    indexedRanges.set(where, { found, nodes });
+  }
+  /** @param {Range} where */
+  function textNodesOf(where) {
+    const { startContainer: first, endContainer: last } = where;
+    if (where.collapsed) return [];
+    if (first === last) return first.nodeType === Node.TEXT_NODE ? [first] : [];
+    const walker = document.createTreeWalker(
+      where.commonAncestorContainer,
+      NodeFilter.SHOW_TEXT,
+    );
+    /** @type {Node[]} */
+    const nodes = [];
+    walker.currentNode = first;
+    for (
+      let node = first.nodeType === Node.TEXT_NODE ? first : walker.nextNode();
+      node;
+      node = walker.nextNode()
+    ) {
+      if (!where.intersectsNode(node)) break;
+      nodes.push(node);
+      if (node === last) break;
+    }
+    return nodes;
+  }
+  // The text nodes a change the watcher heard touched, as far as any mark stands in
+  // them: those it wrote, those it moved in or out, and, for a node it moved in, the
+  // text just before it, which a range spanning the new node also holds.
+  /** @param {readonly MutationRecord[]} records */
+  function heard(records) {
+    /** @param {Node} node */
+    const touch = (node) => {
+      if (inText.has(node)) touched.add(node);
+    };
+    /** @param {Node} node */
+    const touchAll = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) return touch(node);
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      for (let text = walker.nextNode(); text; text = walker.nextNode()) touch(text);
+    };
+    if (!inText.size) return;
+    for (const record of records) {
+      if (record.type === "characterData") touch(record.target);
+      if (record.type !== "childList") continue;
+      record.removedNodes.forEach(touchAll);
+      record.addedNodes.forEach((node) => {
+        touchAll(node);
+        const before = document.createTreeWalker(
+          node.getRootNode(),
+          NodeFilter.SHOW_TEXT,
+        );
+        before.currentNode = node;
+        const text = before.previousNode();
+        if (text) touch(text);
+      });
+    }
+  }
+  // Read again the ranges indexed in the nodes changes touched.
+  function reindex() {
+    if (!touched.size) return;
+    /** @type {Set<Range>} */
+    const ranges = new Set();
+    for (const node of touched)
+      for (const piece of inText.get(node)?.pieces ?? []) ranges.add(piece.where);
+    touched.clear();
+    for (const where of ranges) {
+      const indexed = indexedRanges.get(where);
+      if (!indexed) continue;
+      for (const node of indexed.nodes) {
+        const text = inText.get(node);
+        if (!text) continue;
+        text.pieces = text.pieces.filter((piece) => piece.where !== where);
+        text.tree = null;
+        if (!text.pieces.length) inText.delete(node);
+      }
+      indexRange(indexed.found);
+    }
   }
 
   // A thread's mark previews the thread, as its margin entry does (`threadPreview`),
@@ -468,6 +564,9 @@ export function createAnchorPaint({
   function pointerAimed(event) {
     aimed = true;
     resting = event.pointerType === "touch" || !event.buttons;
+    // A press is a new input the owner reads afresh, as a finger's hold after one it
+    // let go of or cancelled, even where it lands on the threads it was last told.
+    if (event.type === "pointerdown") told = null;
     refreshHover();
   }
 
@@ -527,7 +626,13 @@ export function createAnchorPaint({
     const posted = [];
     const reactions = [];
 
-    for (const { thread, placement: found } of readings) {
+    // In the page's reading order, as the margin lists its entries, which names the
+    // thread a press on overlapping passages opens and the order a mark's preview lists
+    // them in (resolved-target.js, `readingOrder`).
+    const inOrder = [...readings].sort((left, right) =>
+      readingOrder(readingPlace(left.placement), readingPlace(right.placement)),
+    );
+    for (const { thread, placement: found } of inOrder) {
       if (found.status === "outdated" || thread.resolved) continue;
 
       if (bareReaction(thread)) {
@@ -604,6 +709,7 @@ export function createAnchorPaint({
     mounted = true;
     document.addEventListener("pointermove", pointerAimed);
     document.addEventListener("pointerdown", pointerAimed);
+    unhear = hearPageChanges(heard);
   }
 
   function destroy() {
@@ -611,6 +717,8 @@ export function createAnchorPaint({
       document.removeEventListener("pointermove", pointerAimed);
       document.removeEventListener("pointerdown", pointerAimed);
     }
+    unhear?.();
+    unhear = null;
     mounted = false;
     if (pointed) pointRange(null);
     pointed = false;

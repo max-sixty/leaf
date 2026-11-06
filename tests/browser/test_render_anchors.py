@@ -5624,6 +5624,109 @@ def test_words_a_script_writes_ahead_of_a_mark_move_where_it_is_found(
     )
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_a_split_carries_into_a_new_text_node_keep_their_mark(
+    engine, request, serve
+):
+    """A script that splits a marked phrase's text node between its words carries the
+    rest of the phrase, and its mark, into a new text node: the pointer finds the mark
+    on the words in either node, by the hand and the preview."""
+    url = serve(
+        leaf_page(
+            "Split",
+            '<p id="split">Words before the marked phrase and after it.</p>'
+            + "<p>More.</p>" * 4,
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About the phrase?",
+            "anchor": {"section": "split", "quote": "marked phrase"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 1")
+    page.evaluate(
+        """() => {
+          const text = document.getElementById('split').firstChild;
+          text.splitText(text.data.indexOf('phrase'));
+        }"""
+    )
+    for word in ("marked", "phrase"):
+        box = page.evaluate(
+            """(word) => {
+              const p = document.getElementById('split');
+              const text = [...p.childNodes].find((node) => node.data.includes(word));
+              const range = document.createRange();
+              range.setStart(text, text.data.indexOf(word) + 1);
+              range.setEnd(text, text.data.indexOf(word) + 3);
+              return range.getBoundingClientRect().toJSON();
+            }""",
+            word,
+        )
+        page.mouse.move(2, 2)
+        page.wait_for_timeout(300)
+        assert not page.evaluate(
+            "() => document.body.hasAttribute('data-lf-over-mark')"
+        )
+        page.mouse.move(box["left"] + 2, box["top"] + box["height"] / 2, steps=2)
+        page.wait_for_timeout(300)
+        # Read once: a later presentation would find the marks again and hide the fault.
+        assert page.evaluate("() => document.body.hasAttribute('data-lf-over-mark')"), (
+            word
+        )
+        expect(page.locator("#lf-preview .lf-preview-word")).to_have_text(
+            "About the phrase?"
+        )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_search_match_running_into_a_shadow_stage_shows_its_start(
+    engine, request, serve
+):
+    """A page search's match that starts in the page's words and runs on into a declared
+    shadow stage standing most of a window below them is brought into sight by where its
+    words start, as a thread is travelled to, rather than by where they end."""
+    url = serve(
+        leaf_page(
+            "Across",
+            "<p>Before.</p>"
+            * 40
+            + '<div id="both"><p id="first">The match starts here</p>'
+            '<lf-late-stage id="late" style="display: block; margin-block-start: 420px">'
+            '<p id="second">and ends inside the stage.</p></lf-late-stage></div>'
+            + "<p>After.</p>"
+            * 40,
+        ),
+        layer_registry={"lf-late-stage": VERBATIM_STAGE},
+        layer_widgets={"lf-late-stage.js": STAGED_ON_CONNECT},
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.set_viewport_size({"width": 900, "height": 600})
+    page.keyboard.press("/")
+    # The whole query at once, as a paste: typed, its first word alone finds the
+    # paragraph's words and brings them into sight before the match crosses the root.
+    page.get_by_role("searchbox", name="Search page text").fill(
+        "match starts here and ends inside"
+    )
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+    page.wait_for_timeout(300)
+    start = page.evaluate(
+        """() => {
+          const text = document.getElementById('first').firstChild;
+          const range = document.createRange();
+          range.setStart(text, 4);
+          range.setEnd(text, 9);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    assert 0 <= start["top"] and start["bottom"] <= 600, start
+
+
 # A widget whose words read as the page's prose (`x-verbatim`), staged in a declared
 # shadow tree as it connects.
 VERBATIM_STAGE = {**LATE_STAGE, "x-verbatim": True}

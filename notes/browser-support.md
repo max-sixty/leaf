@@ -823,20 +823,24 @@ Chromium headless shell 156.0.8078.4, Firefox 157 and WebKit 27.2 all ship it. O
 marks from using it to say which mark the pointer is on
 (`browser/runtime/annotation-overlay/anchor-paint.js`, `markHit`):
 
-- Its cost grows with the ranges a highlight holds. At the last of a paragraph's
-  marks, one call took 20 µs at 32 and 320 µs at 512 in Chromium, and 15 µs and
-  100 µs in Firefox; `caretPositionFromPoint` took about 1 µs and 15 µs at both
-  sizes. A hover's work must not grow with the page (root `AGENTS.md`,
-  "Responsiveness").
+- Its cost grows with the ranges the page's highlights hold, every one of them read
+  on each call. At the last of a paragraph's marks, one call took 20 µs at 32 and
+  320 µs at 512 in Chromium, and 15 µs and 100 µs in Firefox. Read again on
+  2026-11-06 over a mark in the middle of a page of 32 and of 512 paragraphs, one
+  thread each, it took 15 µs and 235 µs in Chromium 156.0.8078.4 and 15 µs and 80 µs
+  in Firefox 157, against 1 µs and 5 µs for `caretPositionFromPoint` at both sizes.
+  A hover's work must not grow with the page (root `AGENTS.md`, "Responsiveness").
 - Firefox and WebKit name a highlight under a box covering its words, as the chrome
   over the page is; Chromium names none there.
 
 So `markHit` takes the caret lookup's text node and offset, reads the one or two
-characters' boxes around the offset, and finds the first mark covering that character
-in an index built as the marks paint. Recheck by timing `highlightsFromPoint` at the
-last of 32 and 512 marks in one paragraph, and at a point under a covering box; once
-its cost holds still and every engine names nothing under a cover, `markHit` can ask
-it instead of keeping its own index.
+characters' boxes around the offset, and finds the marks covering that character in
+an index of the marks' live ranges, the ones the highlight paints. A change to the
+page's words names the text nodes it touched (passages.js, `hearPageChanges`), and the
+next hit reads again only the ranges indexed there. Recheck by timing
+`highlightsFromPoint` over a mark on pages of 32 and 512 marks, and at a point under a
+covering box; once its cost holds still and every engine names nothing under a cover,
+`markHit` can ask it instead of keeping its own index.
 
 ### A popover's last implicit anchor in Firefox
 

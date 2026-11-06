@@ -31,7 +31,7 @@ import {
 import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { threadList } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
-import { targetSegments } from "./resolved-target.js";
+import { readingOrder, readingPlace, targetSegments } from "./resolved-target.js";
 import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
@@ -48,7 +48,7 @@ import {
   workflowWord,
 } from "./thread/workflow.js";
 import { agentSays, leafSays } from "./voice.js";
-import { renderedOrder, shadowHost, under } from "./shadow.js";
+import { shadowHost, under } from "./shadow.js";
 import { placeOf } from "./current-target.js";
 import { obligationPlace } from "./obligations/place.js";
 import { scrollBehavior } from "./motion.js";
@@ -155,21 +155,13 @@ export function createAnnotationInventory({
     return `${prefix}${from}${steps.reverse().join("/")}`;
   }
 
-  // What a group stands by, for its place in the page's order: passages in one text
-  // node by where in it they start.
+  // Where a group stands in the page's reading order (resolved-target.js,
+  // `readingOrder`): the row it points into, else its passage, else its target.
   /** @param {Group} group */
-  const standsBy = (group) =>
-    group.point ?? targetSegments(group.passage)[0]?.node ?? group.target;
-  /** @param {Group} group */
-  const startsAt = (group) => targetSegments(group.passage)[0]?.start ?? -1;
-
-  /** @param {Node | null} left @param {Node | null} right */
-  function comesBefore(left, right) {
-    if (left === right) return 0;
-    if (!left) return 1;
-    if (!right) return -1;
-    return renderedOrder(left, right);
-  }
+  const placeIn = (group) => {
+    const place = readingPlace(group.passage, group.point);
+    return place.node ? place : { ...place, node: group.target };
+  };
 
   // Targets and generated-reading callbacks stay outside the model. Registered
   // contributions already publish their own immutable model readings.
@@ -691,11 +683,7 @@ export function createAnnotationInventory({
     const nextEntries = new Map();
     entries = Object.freeze(
       collected
-        .sort(
-          (left, right) =>
-            comesBefore(standsBy(left), standsBy(right)) ||
-            startsAt(left) - startsAt(right),
-        )
+        .sort((left, right) => readingOrder(placeIn(left), placeIn(right)))
         .map((group) => {
           const subject = outlineSubjectFor(group.target, subjects, outline);
           targets.set(group.key, group.target);

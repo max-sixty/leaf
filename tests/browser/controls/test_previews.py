@@ -293,6 +293,30 @@ def test_a_finger_holding_a_thread_s_words_reads_it_above_them(browser, serve):
     expect(page.locator(CARD)).to_be_visible()
 
 
+def test_a_finger_holding_a_thread_s_words_again_reads_it_again(browser, serve):
+    """A finger that held a thread's words, and whose touch the browser cancelled, reads
+    the thread again when it holds the same words again: each hold is a new reading,
+    whatever threads it lands on."""
+    url = _thread_on_a_passage(serve)
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, has_touch=True
+    )
+    page = open_page(browser, url, context=context)
+    cdp = context.new_cdp_session(page)
+    preview = page.locator(PREVIEW)
+    line = page.evaluate(MARK_LINE, MARKED)
+    rendered(page)
+    point = {"x": line["left"] + 10, "y": line["top"] + line["height"] / 2}
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [point]})
+    expect(preview).to_be_visible()
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchCancel", "touchPoints": []})
+    expect(preview).to_be_hidden()
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [point]})
+    expect(preview).to_be_visible()
+    _says_where_the_thread_stands(preview)
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchCancel", "touchPoints": []})
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, serve):
     """An age says how long ago, and its preview says when, in the reader's own zone:
@@ -451,6 +475,50 @@ def test_a_passage_several_threads_mark_previews_them_all_as_its_entry_does(
     expect(preview).to_be_hidden()
     page.mouse.click(line["left"] + 10, line["top"] + line["height"] / 2)
     expect(page.locator(CARD)).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_overlapping_passages_preview_and_open_in_reading_order(engine, request, serve):
+    """Where two threads' passages overlap, the words they share list them in the page's
+    reading order, the passage that starts first first, as their margin entries stand,
+    whichever thread was started first, and a press opens the first of them."""
+    url = serve(
+        leaf_page(
+            "Overlap",
+            '<p id="passage">A short marked phrase near the end.</p>'
+            + "<p>More.</p>" * 6,
+        )
+    )
+    panel_comment(
+        serve.page_dir,
+        "About the phrase?",
+        {"section": "passage", "quote": "marked phrase"},
+    )
+    panel_comment(
+        serve.page_dir,
+        "About the longer words?",
+        {"section": "passage", "quote": "short marked phrase near"},
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    preview = page.locator(PREVIEW)
+    line = page.evaluate(MARK_LINE, "marked")
+    rendered(page)
+    page.mouse.move(line["left"] - 20, line["top"] - 20)
+    page.mouse.move(line["left"] + 6, line["top"] + line["height"] / 2, steps=3)
+    expect(preview.locator(".lf-preview-word")).to_have_text("2 threads")
+    lines = preview.locator(".lf-preview-item")
+    expect(lines.first).to_contain_text("About the longer words?")
+    expect(lines.nth(1)).to_contain_text("About the phrase?")
+    # The margin stands the entry of the passage that starts first first.
+    entries = page.locator("[data-lf-margin-for] > .lf-margin-marker")
+    label = entries.first.get_attribute("aria-label") or ""
+    assert "short marked phrase near" in label, label
+    page.mouse.move(0, 0)
+    expect(preview).to_be_hidden()
+    page.mouse.click(line["left"] + 6, line["top"] + line["height"] / 2)
+    expect(page.locator(f"{CARD} .lf-page-thread").first).to_contain_text(
+        "About the longer words?"
+    )
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

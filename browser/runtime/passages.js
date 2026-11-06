@@ -1472,11 +1472,25 @@ export function pageReadingVersion() {
 }
 function watchReading() {
   if (watcher) return watcher;
-  watcher = new MutationObserver((records) => {
-    if (records.some(changesTheReading)) forgetReading();
-  });
+  watcher = new MutationObserver(heardChanges);
   watcher.observe(document, WATCH_READING);
   return watcher;
+}
+// What else keeps a reading of the page's words that moves with them, as the anchor
+// paint's index of its marks' live ranges does, hears each change the watcher hears, as
+// it happens, so it reads again only what the change touched (`hearPageChanges`).
+/** @type {Set<(records: readonly MutationRecord[]) => void>} */
+const hearers = new Set();
+/** @param {MutationRecord[]} records */
+function heardChanges(records) {
+  if (records.some(changesTheReading)) forgetReading();
+  for (const hear of hearers) hear(records);
+}
+/** @param {(records: readonly MutationRecord[]) => void} hear */
+export function hearPageChanges(hear) {
+  watchReading();
+  hearers.add(hear);
+  return () => void hearers.delete(hear);
 }
 // A declared shadow stage is part of the page's words — `textNodesUnder` walks into one
 // at its host's place in the string — and no observer crosses the boundary on its own.
@@ -1525,10 +1539,11 @@ export function pageText() {
   return (reading ??= readPage());
 }
 function catchUpReading() {
-  const moved = watchReading().takeRecords().some(changesTheReading);
+  const records = watchReading().takeRecords();
+  if (records.length) heardChanges(records);
   const vocabulary = registry.$layer?.generation;
   settlements();
-  if (moved || vocabulary !== readingVocabulary || settledKey !== readingSettled)
+  if (vocabulary !== readingVocabulary || settledKey !== readingSettled)
     forgetReading();
   readingVocabulary = vocabulary;
   readingSettled = settledKey;

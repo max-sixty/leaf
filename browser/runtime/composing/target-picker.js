@@ -484,10 +484,13 @@ export function createTargetPicker({
     repaint();
   }
 
+  // A match out of sight is travelled to by its first piece, where its words start, as
+  // a thread is (anchor-travel.js, `threadDestination`): one range across its pieces
+  // collapses onto its end where it runs into a shadow tree (passages.js, `rangeOf`).
   function showMatch() {
     const segments = matches.value[active];
     if (!segments || matchRect(segments)) return;
-    scrollToRange(rangeOf(segments), "instant");
+    scrollToRange(rangeOf(segments.slice(0, 1)), "instant");
   }
 
   /** @param {import("../keyboard/bindings.js").Step} direction */

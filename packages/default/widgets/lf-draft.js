@@ -102,7 +102,7 @@ import {
   scrollIntoView,
   focused,
   onPressAway,
-  pressedControl,
+  worksInside,
   commandsChanged,
 } from "/runtime/widget-api.js";
 
@@ -219,20 +219,20 @@ customElements.define(
         { capture: true },
       );
 
-      // A click opens the exact source at its rendered caret where the press is the
-      // draft's, as Leaf says (`x-press`, `lfTakesPress`): a control or link inside the
-      // draft and a completed word selection own their own gestures, and a draft that
-      // can't edit takes none, so a thread on its words opens instead.
+      // A click opens the exact source at its rendered caret. A control or link inside
+      // the draft (`worksInside`) and a completed word selection own their own gestures;
+      // what the draft stands in, such as a reply's thread message, does not.
       this.addEventListener("click", (ev) => {
         // A keyboard activation carries no place, and the keyboard's door is the ✎. The
         // primary button only: a middle- or right-press is not the gesture this is for.
         if (
           pressIsKeyboardActivation(ev) ||
           ev.button !== 0 ||
-          pressedControl(ev.composedPath()[0] ?? null) !== this
+          (ev.target instanceof Element && worksInside(ev.target, this))
         )
           return;
         if (reachedForWords(this)) return;
+        if (!this.#available()) return;
         this.#open(undefined, caretAt(this.#body, ev.clientX, ev.clientY));
       });
 
@@ -399,9 +399,6 @@ customElements.define(
     #available() {
       return Boolean(this.controller.read().actions.edit?.available);
     }
-
-    // A press on the draft's words opens it only while it can edit (`pressedControl`).
-    lfTakesPress = () => this.#available();
 
     // The draft as the rest of the chrome names it, never by its id.
     #named() {

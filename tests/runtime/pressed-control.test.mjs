@@ -7,7 +7,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { aimedAt, pressedControl } from "/runtime/widget-elements.js";
 import { registry } from "/runtime/registry.js";
-import playwright from "../../packages/playwright/registry.json" with { type: "json" };
 
 /** @param {string} markup */
 const page = (markup) => {
@@ -92,25 +91,5 @@ test("a widget takes a press on the parts its entry declares, in the state it na
     delete registry["lf-pressed"];
     delete registry["lf-parted"];
     delete registry["lf-unpressed"];
-  }
-});
-
-test("the trace takes a press on its image tools, whose click it inspects", () => {
-  Object.assign(registry, { "lf-trace": playwright["lf-trace"] });
-  const holder = page(
-    '<lf-trace id="trace"><div class="lf-trace-image-tools">' +
-      '<span class="lf-trace-tools-status" id="status">x</span>' +
-      '<button id="tool">Tool</button></div></lf-trace>',
-  );
-  try {
-    const tools = holder.querySelector(".lf-trace-image-tools");
-    assert.equal(pressedControl(wordsIn(holder, "#status")), tools);
-    assert.equal(
-      pressedControl(wordsIn(holder, "#tool")),
-      holder.querySelector("#tool"),
-    );
-  } finally {
-    holder.remove();
-    delete registry["lf-trace"];
   }
 });

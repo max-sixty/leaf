@@ -687,27 +687,6 @@ def test_a_deciding_verb_without_outcomes_is_reported_by_each_reader(page_dir):
             "awaits-retired",
             {"flag": "settled"},
         ),
-        (
-            "lf-options",
-            "x-press",
-            {"region": "lf-option", "when": {"chooze": [True]}},
-            "predicate-attribute",
-            {"key": "x-press", "attr": "chooze"},
-        ),
-        (
-            "lf-options",
-            "x-press",
-            {"region": "lf-option", "when": {"choose": ["yes"]}},
-            "predicate-schema",
-            {"key": "x-press", "attr": "choose", "value": "yes"},
-        ),
-        (
-            "lf-options",
-            "x-press",
-            {"region": "["},
-            "press-region",
-            {"region": "["},
-        ),
     ],
 )
 def test_check_holds_predicates_to_presence_or_declared_attribute_values(

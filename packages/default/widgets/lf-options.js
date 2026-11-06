@@ -30,8 +30,7 @@
  * second tab converges rather than drifting. A click the whole option takes is one
  * nothing in the option wanted: a drag that ended here is that selection's, and a press
  * on the evidence an option argues from — a shot to flip, a disclosure to open, a link
- * to follow, code to read — belongs to what it landed on, as Leaf says for every press
- * and reading of the point (`x-press`, `pressedControl`).
+ * to follow — belongs to what it landed on (`worksInside`).
  *
  * The last cell of a page choose group is the option the user writes. Submitting it
  * sends an `add` naming the new option and its words, then selects it through the same
@@ -124,7 +123,7 @@ import {
   quoted,
   reachedForWords,
   rowWalk,
-  pressedControl,
+  worksInside,
   wrote,
   focusDestination,
   scrollIntoView,
@@ -331,14 +330,14 @@ customElements.define(
         if (!option || option.parentElement !== this) return;
         if (!pressIsKeyboardActivation(e) && reachedForWords(option)) return;
         // A click something in the option has a use for is not a pick: the user was
-        // working the case — flipping a shot, opening a disclosure, following a link,
-        // reading code — rather than choosing between the options. Leaf answers that
-        // question once, for this press and every reading of the point
-        // (`pressedControl`, from `x-press` and `lfTakesPress`), and what it cannot say
-        // is which control in here this module put there: the mark is the pick's own
-        // control, so a press on it is aimed at this option after all.
-        const taker = pressedControl(e.composedPath()[0] ?? null);
-        if (taker !== option && taker !== this.#controls.get(option)) return;
+        // working the case — flipping a shot, opening a disclosure, following a link —
+        // rather than choosing between the options. `worksInside` is the whole of that
+        // question, and what it cannot answer is which of the controls in here this
+        // module put there: the mark is the pick's own control, and the digit stands in
+        // the column beside it, so a press on either is aimed at this option after all.
+        const inner = worksInside(target, option);
+        if (inner && !inner.matches(".lf-pick, .lf-key-badge")) return;
+        if (!this.#available("choose")) return;
         const was = this.#picked();
         // Toggling is one gesture both ways, so a user who picked by mistake needn't
         // pick something else to get out of it. Without `multiple` the set the toggle
@@ -356,10 +355,6 @@ customElements.define(
         this.#dispatch("choose", this.#addition.detailFor(next), null, said);
       });
     }
-
-    // A press on an option picks it only while the group can take a choice
-    // (`pressedControl`).
-    lfTakesPress = () => this.#available("choose");
 
     /** @param {string} verb */
     #available(verb) {

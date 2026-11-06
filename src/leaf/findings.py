@@ -1266,11 +1266,6 @@ _TEXT = {
         )
     ),
     # Its conditions, read against its own attributes.
-    "press-region": _declared(
-        lambda v: (
-            f"x-press region {v['region']!r} selector cannot be matched: {v['error']}"
-        )
-    ),
     "predicate-attribute": _declared(
         lambda v: f"{v['key']} names undeclared attribute `{v['attr']}`"
     ),

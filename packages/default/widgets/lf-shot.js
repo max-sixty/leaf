@@ -64,7 +64,6 @@ import {
   layoutChanged,
   keeps,
   plainPress,
-  pressedControl,
   scopedMediaUrl,
   widgetController,
   move,
@@ -392,8 +391,6 @@ export class Shot extends HTMLElement {
       });
       comparison.addEventListener("click", (event) => {
         if (dragged || handleOf(event) || !plainPress(event)) return;
-        // The comparison's press, as Leaf says (`x-press`), and not a control in it.
-        if (pressedControl(event.composedPath()[0] ?? null) !== comparison) return;
         comparison.position = comparison.position > 50 ? 0 : 100;
       });
       comparison.lfCommands = {

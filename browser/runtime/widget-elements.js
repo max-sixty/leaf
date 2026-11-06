@@ -56,8 +56,7 @@ export {
 import { pageRange, selectionBackward } from "./native-selection.js";
 import { move } from "./dom-move.js";
 
-import { PRESSES, TAB_STOP_REGION, TAKES_PRESS, WORKS } from "./control-selectors.js";
-import { isElementName } from "./registry-contract.js";
+import { PRESSES, TAKES_PRESS, WORKS } from "./control-selectors.js";
 import { matchesWhen, perVocabulary, registry, tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { showNativeLayer } from "./keyboard/layer-stack.js";
@@ -235,21 +234,17 @@ export function worksInside(node, container) {
  *   composite widget (`WORKS`' other regions);
  * - a part of a widget whose entry declares it takes its own press (`x-press`), which
  *   its module answers: a gloss's phrase, a shot's comparison, a draft's text, an option
- *   of a group that takes a choice, a timeline's event, while the widget can act
- *   (`lfTakesPress`). The answer is that part, the widget itself where it declares
- *   `true`. A control inside it keeps its own press, and so do a tab stop or another
- *   widget inside it, as code in an option; the words it says (`x-says`), as a gloss's
- *   pinned explanation, aren't its own. The widget's own handler asks this too, and
- *   acts only on the answer it is, so the two never disagree.
+ *   of a group that takes a choice, a timeline's event. The answer is that part, the
+ *   widget itself where it declares `true`. A control inside it keeps its own press,
+ *   and the words it says (`x-says`), as a gloss's pinned explanation, aren't its own.
  * Anything else takes no press of its own: a plain tab stop, a scrolling or focusable
  * box, or a card that only says what it holds (`lfPreview`), so words in one reach
  * nothing. Where the press reaches nothing it acts on the words, and on a thread's mark
  * there opens the thread (composing/surface.js); a pointer resting there reads what the
  * press would act on (preview.js, `aimed`), and the hand over a mark stands only where
  * the press reaches the words (anchor-paint.js).
- * @param {EventTarget | null} target @returns {Element | null} */
-export function pressedControl(target) {
-  const node = target instanceof Node ? target : null;
+ * @param {Node | null} node @returns {Element | null} */
+export function pressedControl(node) {
   const declared = declaredPresses();
   const owners = [TAKES_PRESS, ...declared.keys()].join(",");
   for (
@@ -280,40 +275,12 @@ export function aimedAt(node) {
 /** @param {Element} widget @param {true | {region?: string, when?: Record<string, readonly (string | boolean)[]>}} press @param {Node | null} node */
 function pressedPart(widget, press, node) {
   if (press !== true && !matchesWhen(widget, press.when)) return null;
-  const part =
-    press === true || !press.region ? widget : closestAcross(node, press.region);
-  if (!part || !under(part, widget)) return null;
-  // Between the words and the part, what keeps a gesture of its own takes the press
-  // from the part: words the widget says (`x-says`), a tab stop, or another widget, as
-  // code or a shot in an option.
-  for (
-    let at = isElement(node) ? node : upFrom(node);
-    at && at !== part;
-    at = upFrom(at)
-  )
-    if (at.matches(SAID) || at.matches(TAB_STOP_REGION) || heldIn(at, widget, part))
-      return null;
-  // The widget takes it while it can, as it says (`lfTakesPress`).
-  const { lfTakesPress } = /** @type {{lfTakesPress?: (part: Element) => boolean}} */ (
-    widget
-  );
-  return typeof lfTakesPress !== "function" || lfTakesPress.call(widget, part)
-    ? part
-    : null;
+  const said = closestAcross(node, SAID);
+  if (said && under(said, widget)) return null;
+  if (press === true || !press.region) return widget;
+  const part = closestAcross(node, press.region);
+  return part && under(part, widget) ? part : null;
 }
-// Whether `at` is a widget of its own inside `widget`'s `part`, not one of their parts.
-/** @param {Element} at @param {Element} widget @param {Element} part */
-const heldIn = (at, widget, part) => {
-  const entry = registry[at.localName];
-  return (
-    isElementName(at.localName) &&
-    Boolean(entry) &&
-    !(entry["x-owners"] ?? []).some(
-      (/** @type {string} */ owner) =>
-        owner === widget.localName || owner === part.localName,
-    )
-  );
-};
 // Each tag whose entry declares it takes its own press, with that declaration.
 const declaredPresses = perVocabulary(
   () =>

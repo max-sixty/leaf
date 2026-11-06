@@ -55,6 +55,7 @@ import {
   inBaseLayer,
   measure,
   once,
+  nextRender,
   previewChanged,
   sizeObserver,
 } from "/runtime/portable-api.js";
@@ -72,6 +73,7 @@ const SVG = "http://www.w3.org/2000/svg";
 const TOOLTIP = '[role="tooltip"]';
 
 /** @typedef {import("./chart-points.js").Point} Point
+ * @typedef {import("./chart-points.js").PlotBundle} PlotBundle
  * @typedef {import("./chart-points.js").Reading & {svg: SVGSVGElement, ring: SVGGElement}} Reading
  * @typedef {"pointer" | "focus" | "key"} By */
 
@@ -86,7 +88,7 @@ const compile = (source) =>
 
 /* The options one drawing is made from, made afresh for each so that no mark Plot has
  * already rendered is handed to it a second time. */
-/** @param {Function} body @param {typeof import("/vendor/plot.esm.js")} Plot
+/** @param {Function} body @param {PlotBundle["Plot"]} Plot
  * @param {number} width @param {number} height */
 function drawOptions(body, Plot, width, height) {
   /** @type {import("@observablehq/plot").PlotOptions} */
@@ -133,13 +135,16 @@ function offsetsAreNumbers(marks, place = "marks") {
 customElements.define(
   "lf-chart",
   class extends HTMLElement {
-    // The height every drawing takes, read at the first (`paint`), and the height a
-    // legend beside it took at the width it was last laid out at.
+    // What each drawing is drawn from and where a failed one goes (`draw`), the height
+    // every drawing takes, read at the first, and the height a legend beside it took
+    // when last laid out, with the watch on the drawing that holds it (`paint`).
+    /** @type {{bundle: PlotBundle, body: Function, failed: (err: unknown) => void} | null} */
+    #source = null;
     /** @type {number | undefined} */
     #height;
     #legend = 0;
-    /** @type {number | undefined} */
-    #legendWidth;
+    /** @type {ResizeObserver | null} */
+    #legendWatch = null;
     drawing = document.createElement("div");
     /** @type {number | undefined} */
     drawn;
@@ -234,6 +239,7 @@ customElements.define(
       /** @param {unknown} err */
       const failed = (err) => {
         stop();
+        this.#legendWatch?.disconnect();
         this.#read(null);
         failSoft(this, err, source);
       };
@@ -265,7 +271,7 @@ customElements.define(
           watching.observe(this);
           return () => watching.disconnect();
         });
-        const Plot = await loadPlot();
+        this.#source = { bundle: await loadPlot(), body, failed };
         await delivered;
         const { width, height } = /** @type {DOMRectReadOnly} */ (room);
         // The box each drawing goes in. A redraw replaces what is in it and nothing else,
@@ -277,11 +283,11 @@ customElements.define(
         this.drawing.className = "lf-chart-drawing";
         this.drawing.style.blockSize = layoutPx(height);
         this.replaceChildren(this.drawing);
-        await this.paint(Plot, body, Math.round(width));
+        await this.paint(Math.round(width));
         this.classList.add("lf-rendered");
         resized = () => {
           const next = Math.round(room?.width ?? 0);
-          if (next !== this.drawn) this.paint(Plot, body, next).catch(failed);
+          if (next !== this.drawn) this.paint(next).catch(failed);
         };
         resized();
       } catch (err) {
@@ -292,38 +298,47 @@ customElements.define(
     // Drawn to the box's height as well as its width. The height is the first
     // delivery's, while the page still holds the box at it: once drawn the box is the
     // drawing's, and a box a grid or flex row stretches would hand a redraw the row's
-    // height, a taller neighbour's. A legend Plot sets beside the drawing takes its own
-    // height, which only laying it out says, so a chart with one draws, and once the
-    // browser has laid that drawing out at this width, draws again into the room the
-    // legend leaves; a chart with none reads nothing. It settles once the drawing is in,
-    // and fails as the drawing does.
-    /** @param {typeof import("/vendor/plot.esm.js")} Plot @param {Function} body
-     * @param {number} width @returns {Promise<void>} */
-    async paint(Plot, body, width) {
+    // height, a taller neighbour's. A legend Plot sets beside the drawing takes the
+    // height its swatches wrap to in the fonts they are set in, which only laying it out
+    // says. So a drawing with a legend is watched while it shows, and whenever the
+    // legend's height changes, with a new width or a font that arrives late, the chart
+    // draws again into the room the legend leaves; a chart with none reads nothing. The
+    // redraw waits for the next frame: its boxes stand as deep as the one the watch
+    // just measured, and an observer that starts watching them as they arrive, as the
+    // page's own do, is one the browser cannot deliver to in the frame it is
+    // delivering. The drawing settles once its legend has the room it measures, and a
+    // failed redraw fails as the drawing does. A hidden drawing measures nothing.
+    /** @param {number} width @returns {Promise<void>} */
+    async paint(width) {
+      const source = this.#source;
+      if (!source) return;
+      this.#legendWatch?.disconnect();
+      this.#legendWatch = null;
       const room = (this.#height ?? 0) - this.#legend;
-      const drawn = this.plot(Plot, body, width, room);
+      const drawn = this.plot(source.bundle, source.body, width, room);
       this.drawing.replaceChildren(drawn.built);
       this.drawn = width;
       this.#read(drawn.reading);
-      if (!drawn.legend || this.#legendWidth === width) return;
-      return new Promise((done, fail) => {
-        // Delivered deeper than the chart's own box, so in the frame that drew it,
-        // before it paints. A drawing a later one replaced first is that one's to
-        // measure.
-        const watch = sizeObserver(([entry]) => {
-          watch.disconnect();
-          if (this.drawing.firstChild !== drawn.built) return done();
-          this.#legendWidth = width;
-          const legend = Math.max(
-            0,
-            Math.round((entry?.contentRect.height ?? 0) - room),
-          );
-          if (!this.isConnected || legend === this.#legend) return done();
+      if (!drawn.legend) return;
+      /** @type {Promise<void>} */
+      const measured = new Promise((settled) => {
+        const watch = (this.#legendWatch = sizeObserver(([entry]) => {
+          const height = entry?.contentRect.height;
+          const legend = height ? Math.max(0, Math.round(height - room)) : this.#legend;
+          if (legend === this.#legend) return settled();
           this.#legend = legend;
-          this.paint(Plot, body, width).then(done, fail);
-        });
+          nextRender(() => {
+            // A drawing for a new width has replaced this one, and measures its own.
+            if (this.#legendWatch !== watch) return settled();
+            this.paint(width).then(settled, (err) => {
+              source.failed(err);
+              settled();
+            });
+          });
+        }));
         watch.observe(drawn.built);
       });
+      return measured;
     }
 
     // A new drawing's points. The reader stays on the point they were on, drawn again
@@ -439,13 +454,14 @@ customElements.define(
       );
     }
 
-    /** @param {typeof import("/vendor/plot.esm.js")} Plot @param {Function} body
-     * @param {number} width @param {number} height */
-    plot(Plot, body, width, height) {
+    /** @param {PlotBundle} bundle @param {Function} body @param {number} width
+     * @param {number} height */
+    plot(bundle, body, width, height) {
+      const { Plot } = bundle;
       const options = drawOptions(body, Plot, width, Math.max(1, height));
-      const points = readPoints(Plot, options.marks);
+      const points = readPoints(bundle, options.marks);
       /** @type {HTMLElement | SVGSVGElement} */
-      let built = Plot.plot(options);
+      let built = Plot.plot({ ...options, marks: [options.marks, points.marks] });
       // With a legend, Plot returns a <figure> holding it and the drawing. The page gives
       // its own figures margins and reads them as blocks a comment can stand on, and this
       // one is neither: the chart is the comment target and its box is the widget's. So

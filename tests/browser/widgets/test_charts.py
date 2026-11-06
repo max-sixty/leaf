@@ -475,6 +475,48 @@ def test_a_chart_draws_into_the_box_its_data_height_states(browser, serve):
     assert narrowed == 240, narrowed
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_chart_gives_its_legend_the_room_a_late_font_takes(engine, request, serve):
+    """A legend's height comes from its type as well as its width: a font that arrives
+    after the chart has drawn, as the wider spacing set here does, wraps the swatches
+    onto more lines at the same width. The drawing gives the legend that room and still
+    ends at the box's foot. Measured once per width, the legend ran past the box onto
+    the paragraph below."""
+    body = """{
+  ariaLabel: "Merged by team",
+  color: {legend: true},
+  marks: [Plot.barY(Array.from({length: 14}, (_, n) => ({team: `team ${n + 1}`, n})),
+                    {x: "team", y: "n", fill: "team"})],
+}"""
+    source = leaf_page(
+        "legend chart",
+        '<h1 id="t">Merged</h1>\n'
+        + chart_markup("c-legend", body).replace(
+            '<lf-chart id="c-legend">', '<lf-chart id="c-legend" data-height="300">'
+        )
+        + "<p>After the chart.</p>",
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    measured = """() => {
+        const el = document.getElementById('c-legend');
+        const svg = el.querySelector('svg[role=img]').getBoundingClientRect();
+        const legend = el.querySelector('div[class*="-swatches"]').getBoundingClientRect();
+        return {legend: legend.height, overhang: svg.bottom - el.getBoundingClientRect().bottom};
+    }"""
+    before = page.evaluate(measured)
+    assert abs(before["overhang"]) <= 0.5, before
+    page.locator("#c-legend").evaluate("el => el.style.letterSpacing = '0.5em'")
+    page.wait_for_function(
+        f"(before) => ({measured})().legend > before + 4", arg=before["legend"]
+    )
+    page.evaluate(
+        "() => new Promise((done) => requestAnimationFrame(() =>"
+        " requestAnimationFrame(done)))"
+    )
+    after = page.evaluate(measured)
+    assert abs(after["overhang"]) <= 0.5, (before, after)
+
+
 def test_a_chart_keeps_its_stated_height_beside_a_taller_one(browser, serve):
     """A row of tiles stretches each cell to the row's tallest, and once a chart is drawn
     its box is the drawing's, so a short chart's box stands as tall as its neighbour.
@@ -842,6 +884,19 @@ ANCHORED_ROWS = "[1, 2, 4, 7].map((x) => ({id: `n${x}`, x}))"
 BAR_ROWS = "[3, 9, 4, 12, 7].map((v, i) => ({id: `b${i}`, i, v}))"
 TWICE_ROWS = "[1, 4, 6, 9].map((x) => ({id: `t${x}`, x, y: (x * 3) % 10}))"
 PICK_ROWS = '[{id: "left", x: 2, y: 5, pickX: 8}, {id: "right", x: 8, y: 5, pickX: 2}]'
+SHARE_ROWS = (
+    '[{id: "low", x: 0.2, y: 1, pick: 0.8}, {id: "high", x: 0.8, y: 2, pick: 0.2}]'
+)
+# Stacks of different heights, so that no aim below stands near halfway between two
+# segments' middles.
+STACK_ROWS = (
+    '["a", "b", "c"].flatMap((k, n) => [{id: `${k}1`, k, s: "one", v: 2 + 2 * n},'
+    ' {id: `${k}2`, k, s: "two", v: 6 - n}])'
+)
+LINKED_ROWS = (
+    '[{x: 2, y: 3, c: "red", u: "https://a.example/one"},'
+    ' {x: 7, y: 8, c: "blue", u: "https://a.example/two"}]'
+)
 POINTER_CASES = {
     "faceted": (
         f'Plot.dot({FACETED_ROWS}, {{x: "x", y: "y", fy: "k", title: "id", tip: "x"}})',
@@ -886,14 +941,32 @@ POINTER_CASES = {
                 f' Plot.dot({TWICE_ROWS}, {{x: "x", y: "y", title: "id",'
                 " tip: {maxRadius: 75}})"
             ),
-            # Picked by values of its own, wherever each datum stands.
+            # Picked by values of its own, wherever each datum stands, on a scale
+            # that transforms them as it does the data.
             "picked": (
                 f'Plot.dot({PICK_ROWS}, {{x: "x", y: "y", title: "id",'
                 ' tip: {px: "pickX"}})'
             ),
+            "picked-share": (
+                f'Plot.dot({SHARE_ROWS}, {{x: "x", y: "y", title: "id",'
+                ' tip: {px: "pick"}})'
+            ),
+            # Stacked segments, each read at the middle of its extent.
+            "stacked": (
+                f'Plot.barY({STACK_ROWS}, {{x: "k", y: "v", fill: "s", title: "id",'
+                ' tip: "x"})'
+            ),
+            # Words chosen by the tip's format: a colour written as a colour and a
+            # link, which Plot's tip leaves out unless named, and a channel left out.
+            "formatted": (
+                f'Plot.dot({LINKED_ROWS}, {{x: "x", y: "y", fill: "c", href: "u",'
+                ' tip: {format: {fill: true, href: true, y: ".1f", x: false}}})'
+            ),
         }.items()
     },
 }
+# Scale options a case's chart and Plot's beside it are drawn with.
+CASE_SCALES = {"picked-share": "x: {percent: true, domain: [0, 100]}, "}
 # A mark moved by its offsets, which Plot's pointer leaves out: the chart reads the
 # datum Plot draws under the pointer.
 MOVED = (
@@ -909,7 +982,7 @@ POINTER_PAGE = leaf_page(
             f'{{ariaLabel: "{name}", x: {{domain: [0, 10]}}, y: {{domain: [0, 10]}},'
             f" marks: [{marks}]}}"
             if name == "moved"
-            else f'{{ariaLabel: "{name}", marks: [{marks}]}}',
+            else f'{{ariaLabel: "{name}", {CASE_SCALES.get(name, "")}marks: [{marks}]}}',
         ).replace("<lf-chart ", '<lf-chart data-height="200" ')
         for name, marks in [
             *((name, ours) for name, (ours, _) in POINTER_CASES.items()),
@@ -919,7 +992,8 @@ POINTER_PAGE = leaf_page(
 )
 # What a drawing shows picked, in the svg's coordinates: lf-chart's ring and the words
 # its preview says, or each tip Plot's own pointer shows, where it points from and the
-# title it says, less the zero-width space Plot starts a tip's line with.
+# value each of its lines says, the whole value where Plot cuts a line short, less the
+# label Plot sets before it and the zero-width space it starts each line with.
 PICKED = """(svg) => {
     const box = svg.getBoundingClientRect();
     const where = (node) => {
@@ -928,12 +1002,26 @@ PICKED = """(svg) => {
     };
     const ring = svg.querySelector('.lf-chart-at:not([display=none])');
     const chart = svg.closest('lf-chart');
-    if (chart) return ring ? [{at: where(ring), name: chart.lfPreview()?.name ?? null}] : [];
+    if (chart) {
+      const said = chart.lfPreview();
+      return ring ? [{at: where(ring), words: [said?.name ?? '', ...(said?.detail ?? [])]}] : [];
+    }
     return [...svg.querySelectorAll('[aria-label=tip] path')].map((path) => ({
       at: where(path.parentElement),
-      name: path.parentElement.querySelector('text')?.textContent.replaceAll('\\u200b', '') ?? null,
+      words: [...path.parentElement.querySelectorAll('text > tspan')].map((line) =>
+        (line.querySelector('title')?.textContent ??
+          [...line.childNodes].filter((node) => node.nodeType === 3)
+            .map((node) => node.textContent).join(''))
+          .replaceAll('\\u200b', '').trim()),
     }));
 }"""
+
+
+def _words(words):
+    """Each word a reading says: its lines' parts, as the preview joins them."""
+    return {
+        word for line in words for part in line.split(" · ") for word in part.split()
+    }
 
 
 def _picked(page, svg, box, fx, fy):
@@ -952,17 +1040,19 @@ def test_a_chart_picks_the_point_plot_s_own_pointer_picks(engine, request, serve
     each judged in its own frame; on a dot anchored to the frame's foot; along y where
     the author named y; along x on bars, where no tip was named; of two marks, the one
     whose pick stands nearer; of one data drawn twice, by either mark's own rule and
-    reach; and by a tip's own px. A mark its offsets moved is read where Plot draws
-    it, which Plot's own pointer misses."""
+    reach; by a tip's own px, on a scale that transforms it too; and on a stacked
+    segment, at the middle of its extent. It says every value Plot's tip says there,
+    in the words a tip's format gives them. A mark its offsets moved is read where
+    Plot draws it, which Plot's own pointer misses."""
     page = open_page(request.getfixturevalue(engine), serve(POINTER_PAGE))
     steps = [(n / 11, m / 7) for n in range(1, 11) for m in range(1, 7)]
     for name, (_, alone) in POINTER_CASES.items():
         chart = page.locator(f"#{name} svg[role=img]")
         expect(chart).to_be_visible()
         page.evaluate(
-            """async ([name, marks, width, height]) => {
-              const Plot = await import('/vendor/plot.esm.js');
-              const options = new Function('Plot', `return {marks: [${marks}]};`)(Plot);
+            """async ([name, marks, scales, width, height]) => {
+              const {Plot} = await import('/vendor/plot.esm.js');
+              const options = new Function('Plot', `return {${scales}marks: [${marks}]};`)(Plot);
               const figure = Plot.plot({...options, width, height});
               figure.id = `${name}-alone`;
               const chart = document.getElementById(name);
@@ -972,6 +1062,7 @@ def test_a_chart_picks_the_point_plot_s_own_pointer_picks(engine, request, serve
             [
                 name,
                 alone,
+                CASE_SCALES.get(name, ""),
                 float(chart.get_attribute("width")),
                 float(chart.get_attribute("height")),
             ],
@@ -999,7 +1090,7 @@ def test_a_chart_picks_the_point_plot_s_own_pointer_picks(engine, request, serve
                 mine
                 and expected
                 and (
-                    mine["name"] != expected["name"]
+                    not _words(expected["words"]) <= _words(mine["words"])
                     or max(
                         abs(a - b)
                         for a, b in zip(mine["at"], expected["at"], strict=True)

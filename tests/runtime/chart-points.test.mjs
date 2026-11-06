@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import * as Plot from "../../packages/default/vendor/plot.esm.js";
+import * as bundle from "../../packages/default/vendor/plot.esm.js";
 import {
   cross,
   nearest,
@@ -10,11 +10,19 @@ import {
   step,
 } from "../../packages/default/widgets/chart-points.js";
 
+const { Plot } = bundle;
+
+// The points Plot draws for `marks`, as lf-chart reads them, beside the drawing.
+/** @param {any} marks */
+function reading(marks) {
+  const points = readPoints(bundle, marks);
+  return { points, marks: [marks, points.marks] };
+}
 // The points Plot draws for `options`, as lf-chart reads them, and the drawing.
 /** @param {any} options */
 function drawn(options) {
-  const points = readPoints(Plot, options.marks);
-  const svg = Plot.plot({ width: 640, height: 400, ...options });
+  const { points, marks } = reading(options.marks);
+  const svg = Plot.plot({ width: 640, height: 400, ...options, marks });
   return { reading: points.done(), svg };
 }
 /** @param {any} options */
@@ -205,20 +213,20 @@ test("each mark reads along the axis its author's tip names, or its points stand
     Plot.lineY(HOURS, { x: "week", y: "hours", tip: "y" }),
     Plot.dot(HOURS, { x: "hours", y: "hours", tip: { maxRadius: 80 } }),
   ];
-  const points = readPoints(Plot, marks.slice(0, 3));
-  Plot.plot({ marks: marks.slice(0, 3) });
+  const points = reading(marks.slice(0, 3));
+  Plot.plot({ marks: points.marks });
   assert.deepEqual(
-    points.done().frames.map(({ kx, ky, reach }) => [kx, ky, reach]),
+    points.points.done().frames.map(({ kx, ky, reach }) => [kx, ky, reach]),
     [
       [1, 0.01, 1600],
       [0.01, 1, 1600],
       [1, 1, 1600],
     ],
   );
-  const named = readPoints(Plot, marks.slice(3));
-  Plot.plot({ marks: marks.slice(3) });
+  const named = reading(marks.slice(3));
+  Plot.plot({ marks: named.marks });
   assert.deepEqual(
-    named.done().frames.map(({ kx, ky, reach }) => [kx, ky, reach]),
+    named.points.done().frames.map(({ kx, ky, reach }) => [kx, ky, reach]),
     [
       [0.01, 1, 1600],
       [1, 1, 6400],
@@ -270,6 +278,22 @@ test("each mark picks by its own tip, and a pick of a point another stands on is
   assert.ok(left && right);
   assert.equal(said(nearest(picked, left.x, left.y))?.name, "right");
   assert.equal(said(nearest(picked, right.x, right.y))?.name, "left");
+  // A datum with no px is drawn, so the keys still reach it; only the pointer, as
+  // Plot's, passes it by.
+  const unpicked = read({
+    marks: [
+      Plot.dot(
+        [
+          { id: "a", x: 1, y: 1, p: 1 },
+          { id: "b", x: 2, y: 2, p: null },
+        ],
+        { x: "x", y: "y", title: "id", tip: { px: "p" } },
+      ),
+    ],
+  });
+  const b = unpicked.points.find((point) => said(point)?.name === "b");
+  assert.ok(b);
+  assert.notEqual(nearest(unpicked, b.x, b.y), b);
 });
 
 test("a tip's format and a mark's own channels say what Plot's tip would", () => {

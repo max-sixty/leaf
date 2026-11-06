@@ -5384,3 +5384,69 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     ).to_contain_text("v1")
     page.locator(".lf-fp-leaf").click()
     expect(page.locator("#ret-cost-keep")).to_have_count(0)
+
+
+LATE_STAGE = {
+    "description": "A project widget that stages its authored children when asked.",
+    "type": "object",
+    "properties": {"id": {"type": "string"}},
+    "required": ["id"],
+    "additionalProperties": False,
+    "x-content": "markup",
+    "x-upgrade": True,
+    "x-shadow": True,
+    "x-example": '<lf-late-stage id="example"><p>Words.</p></lf-late-stage>',
+}
+LATE_STAGE_MODULE = """
+import {shadowStage} from '/runtime/widget-api.js';
+customElements.define('lf-late-stage', class extends HTMLElement {
+  stage() { shadowStage(this, [...this.childNodes]); }
+});
+"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_passage_staged_into_a_new_shadow_tree_keeps_its_mark(engine, request, serve):
+    """A widget that moves its authored words into a declared shadow tree after the
+    page painted their mark takes the mark along: the move collapses the mark's live
+    range onto the host, so the new tree's words are read again and their mark
+    painted at once, with its hand under the pointer, and no other repaint behind it."""
+    url = serve(
+        leaf_page(
+            "Late stage",
+            '<lf-late-stage id="late"><p id="inside">The words that hold a marked '
+            "passage inside the widget.</p></lf-late-stage><p>After.</p>",
+        ),
+        layer_registry={"lf-late-stage": LATE_STAGE},
+        layer_widgets={"lf-late-stage.js": LATE_STAGE_MODULE},
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "Which passage?",
+            "anchor": {"section": "inside", "quote": "a marked passage"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    marked = "() => [...(CSS.highlights.get('lf-mark') ?? [])].map(String)"
+    page.wait_for_function(f"() => ({marked})().includes('a marked passage')")
+    page.evaluate("() => document.getElementById('late').stage()")
+    page.wait_for_function(
+        f"() => ({marked})().includes('a marked passage')", timeout=2000
+    )
+    box = page.evaluate(
+        """() => {
+          const text = document.getElementById('late').shadowRoot
+            .getElementById('inside').firstChild;
+          const at = text.data.indexOf('a marked passage');
+          const range = document.createRange();
+          range.setStart(text, at);
+          range.setEnd(text, at + 3);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    page.mouse.move(box["left"] - 20, box["top"] - 20)
+    page.mouse.move(box["left"] + 4, box["top"] + box["height"] / 2, steps=3)
+    expect(page.locator("body")).to_have_attribute("data-lf-over-mark", "")

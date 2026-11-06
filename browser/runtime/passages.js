@@ -128,9 +128,9 @@ import {
   renderedParent,
 } from "./shadow-tree.js";
 import { decisionFor, registry } from "./registry.js";
-import { PAGE_PAINT_ATTRIBUTE, pageUpgraded } from "./page-paint.js";
+import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
-import { readPart } from "./semantic-state.js";
+import { presentDocument, readPart } from "./semantic-state.js";
 import { COLLAPSE, TEXT_BLOCK } from "./kernel-facts.js";
 import { textUnits } from "./text-alignment.js";
 import { excerptWords } from "./words.js";
@@ -1451,11 +1451,15 @@ function watchReading() {
 // A declared shadow stage is part of the page's words — `textNodesUnder` walks into one
 // at its host's place in the string — and no observer crosses the boundary on its own.
 // shadow-stage.js, which is the only door an x-shadow root is built through, hands each
-// one here as it fills it.
+// one here as it fills it. The words it fills with may be ones the page already marked,
+// which moving collapses each live range of the marks onto the host, so a page that has
+// presented is presented again once the fill has moved them, and its marks resolve in
+// the stage; before then, its first presentation reads them there.
 /** @param {ShadowRoot} root */
 export function watchPassageRoot(root) {
   watchReading().observe(root, WATCH_READING);
   forgetReading();
+  if (pagePresented()) queueMicrotask(presentDocument);
 }
 // An opaque widget and its original direct children fence the cell walk. Marking them is
 // not a change to the document, so it is a change nothing else would report: a reading

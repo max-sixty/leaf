@@ -47,18 +47,18 @@
  * author gives any mark Plot's `tip` option, exactly those marks, which is how an author
  * takes a tip off a mark or gives one to a rule.
  *
- * What a point says: the channels Plot's tip says (`tipSources`, Plot's
- * `getSourceChannels`), in its axes' words, the place it stands at, then what it
- * measures there. A place is a category or a time on an axis, a facet, a series the
- * marks are drawn in, or any value that isn't a number, and reads as its value alone
- * ("May 11, 2026 · backend"). Where both axes measure, as in a scatter, x is the place
- * and reads after its label ("week 6"). A measure reads before its label ("8,412
- * offline sessions"), and a stacked one is the datum's own share of the stack. A
- * mark's `title` channel says something else: its first line in place of the place,
- * the rest beneath. A channel the tip's `format` words reads as that format, which
- * Plot turns into a function as it does for its own tip; the others read in the words
- * above, a time as a reader says it rather than Plot's ISO date. The words keep their
- * own order, the place first, rather than the order of the format's keys. */
+ * What a point says: the rows Plot's tip says (`tipSources` and `tipRows`, Plot's
+ * `getSourceChannels` and `formatChannels`), a line each, with Plot's label and Plot's
+ * pairing of label and value, each label said once as Plot's tip says it. Where the
+ * point stands comes first, its facets, then the axis it stands along and the series
+ * it is drawn in, each reading after its label ("week 6", "team backend"); then what it
+ * measures, a number on a scale it doesn't stand at, reading before its label ("8,412
+ * offline sessions"), a stacked one the datum's own share of the stack. Where both
+ * axes measure, as in a scatter, x is where it stands. A mark's `title` channel says
+ * something else: its first line as the name, the rest beneath. A channel the tip's
+ * `format` words reads as that format, which Plot turns into a function as it does
+ * for its own tip; the others read as a reader says them, a time as a date rather than
+ * Plot's ISO date. */
 
 // The scales a datum stands at rather than measures on.
 const PLACES = new Set(["band", "point", "ordinal", "utc", "time"]);
@@ -472,20 +472,39 @@ export function sayPoint({ i, drawn }) {
   }
   const across = placed(scales.y) && !placed(scales.x);
   const [first, second] = across ? ["y", "x"] : ["x", "y"];
-  // Its facets, the axis it stands along and the other, then the rest in Plot's order.
-  /** @param {string} key */
-  const rank = (key) =>
-    key === "fx" || key === "fy"
+  // A row measures where it says a number on a scale it doesn't stand at; the axis a
+  // point stands along, its facets and its series name where it stands.
+  /** @param {Row} row */
+  const measures = ({ key }) => {
+    const axis = axisOf(key);
+    const scale = scaleOf(key);
+    if (key === "fx" || key === "fy" || axis === first || placed(scale)) return false;
+    if (axis) return true;
+    const channel = sources[key];
+    const raw = channel === true ? undefined : channel?.value[i];
+    return !(
+      key === "z" ||
+      key === "symbol" ||
+      typeof raw !== "number" ||
+      CATEGORIES.has(scale?.type ?? "")
+    );
+  };
+  // Where it stands first, its facets, the axis it stands along and the rest, then
+  // what it measures, each kind in Plot's order.
+  /** @param {Row} row */
+  const rank = (row) =>
+    (measures(row) ? 4 : 0) +
+    (row.key === "fx" || row.key === "fy"
       ? 0
-      : axisOf(key) === first
+      : axisOf(row.key) === first
         ? 1
-        : axisOf(key) === second
+        : axisOf(row.key) === second
           ? 2
-          : 3;
+          : 3);
   // Plot's tip says each label once, as its drawing does.
   /** @type {Set<string>} */
   const labelled = new Set();
-  const rows = [
+  const lines = [
     ...drawn.rows.call(
       { format: words },
       i,
@@ -496,36 +515,14 @@ export function sayPoint({ i, drawn }) {
     ),
   ]
     .filter(({ label }) => !label || (!labelled.has(label) && labelled.add(label)))
-    .sort((a, b) => rank(a.key) - rank(b.key));
-  /** @type {Set<string>} */
-  const places = new Set();
-  /** @type {Set<string>} */
-  const measures = new Set();
-  /** @param {string} words @param {string} label */
-  const measured = (words, label) => (label ? `${words} ${label}` : words);
-  for (const { key, label = "", value = "" } of rows) {
-    const axis = axisOf(key);
-    const scale = scaleOf(key);
-    const channel = sources[key];
-    const raw = channel === true ? undefined : channel?.value[i];
-    if (key === "fx" || key === "fy" || (axis && placed(scale))) places.add(value);
-    else if (axis === first) places.add(label ? `${label} ${value}` : value);
-    else if (axis) measures.add(measured(value, label));
-    else if (
-      key === "z" ||
-      key === "symbol" ||
-      typeof raw !== "number" ||
-      CATEGORIES.has(scale?.type ?? "")
-    )
-      places.add(value);
-    else measures.add(measured(value, label));
-  }
-  places.delete("");
-  measures.delete("");
-  const place = [...places].join(" · ");
-  const measure = [...measures].join(" · ");
-  if (!place) return { name: measure, detail: [] };
-  return { name: place, detail: measure ? [measure] : [] };
+    .sort((a, b) => rank(a) - rank(b))
+    .map((row) => {
+      const { label = "", value = "" } = row;
+      if (!label) return value;
+      return measures(row) ? `${value} ${label}` : `${label} ${value}`;
+    });
+  const [name = "", ...detail] = lines;
+  return { name, detail };
 }
 
 // A time as a reader says it, at the precision the datum has: the day, and the time of

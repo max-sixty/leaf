@@ -29,6 +29,12 @@ function drawn(options) {
 const read = (options) => drawn(options).reading;
 /** @param {import("../../packages/default/widgets/chart-points.js").Point | null} point */
 const said = (point) => (point ? sayPoint(point) : null);
+// Every line a point says, in the order it says them.
+/** @param {import("../../packages/default/widgets/chart-points.js").Point | null} point */
+const lines = (point) => {
+  const words = said(point);
+  return words ? [words.name, ...words.detail] : null;
+};
 
 const HOURS = [
   { week: "w1", kind: "features", hours: 21 },
@@ -42,17 +48,18 @@ test("a point says where it stands, then its value before its axis label", () =>
     y: { label: "hours" },
     marks: [Plot.barY(HOURS, { x: "week", y: "hours", fill: "kind" })],
   });
-  // A stacked segment measures its own share of the stack.
+  // A line for each row Plot's tip says, where the point stands first and what it
+  // measures after; a stacked segment measures its own share of the stack.
   assert.deepEqual(
     stack.series.map((run) => run.map(said)),
     [
       [
-        { name: "w1 · features", detail: ["21 hours"] },
-        { name: "w2 · features", detail: ["18 hours"] },
+        { name: "week w1", detail: ["kind features", "21 hours"] },
+        { name: "week w2", detail: ["kind features", "18 hours"] },
       ],
       [
-        { name: "w1 · fixes", detail: ["9 hours"] },
-        { name: "w2 · fixes", detail: ["14 hours"] },
+        { name: "week w1", detail: ["kind fixes", "9 hours"] },
+        { name: "week w2", detail: ["kind fixes", "14 hours"] },
       ],
     ],
   );
@@ -75,13 +82,19 @@ test("a point says where it stands, then its value before its axis label", () =>
     line.series.map((run) => run.map(said)),
     [
       [
-        { name: "May 4, 2026 · backend", detail: ["31 hours to first review"] },
-        { name: "May 11, 2026 · backend", detail: ["26 hours to first review"] },
+        {
+          name: "week May 4, 2026",
+          detail: ["team backend", "31 hours to first review"],
+        },
+        {
+          name: "week May 11, 2026",
+          detail: ["team backend", "26 hours to first review"],
+        },
       ],
       [
         {
-          name: "Jun 1, 2026, 2:00 PM UTC · frontend",
-          detail: ["8,412 hours to first review"],
+          name: "week Jun 1, 2026, 2:00 PM UTC",
+          detail: ["team frontend", "8,412 hours to first review"],
         },
       ],
     ],
@@ -103,7 +116,7 @@ test("a point says where it stands, then its value before its axis label", () =>
   });
   assert.equal(rows.axis, "y");
   assert.deepEqual(said(rows.points[0] ?? null), {
-    name: "billing",
+    name: "area billing",
     detail: ["19 open issues"],
   });
 
@@ -326,11 +339,11 @@ test("a tip's format and a mark's own channels say what Plot's tip would", () =>
     ],
   });
   assert.deepEqual(said(formatted.points[0] ?? null), {
-    name: "May 2026 · led by Ada",
-    detail: ["26% share"],
+    name: "when May 2026",
+    detail: ["lead led by Ada", "26% share"],
   });
-  // A channel the author adds is said as Plot's tip says it: a name as a place, a
-  // number before its label.
+  // A channel the author adds is said as Plot's tip says it, a name where the point
+  // stands and a number among what it measures.
   const added = read({
     marks: [
       Plot.dot([{ x: 1, y: 2, lead: "Ada", cost: 3 }], {
@@ -341,8 +354,8 @@ test("a tip's format and a mark's own channels say what Plot's tip would", () =>
     ],
   });
   assert.deepEqual(said(added.points[0] ?? null), {
-    name: "x 1 · Ada",
-    detail: ["2 y · 3 cost"],
+    name: "x 1",
+    detail: ["lead Ada", "2 y", "3 cost"],
   });
   // A format given alone is the title's.
   const titled = read({
@@ -373,15 +386,21 @@ test("a facet's points are a series of their own", () => {
     ],
   });
   assert.deepEqual(
-    reading.series.map((run) => run.map((point) => said(point)?.name)),
+    reading.series.map((run) => run.map(lines)),
     [
-      ["a · x 1", "a · x 2"],
-      ["b · x 1", "b · x 2"],
+      [
+        ["k a", "x 1", "2 y"],
+        ["k a", "x 2", "4 y"],
+      ],
+      [
+        ["k b", "x 1", "3 y"],
+        ["k b", "x 2", "1 y"],
+      ],
     ],
   );
   const first = step(reading, null, "first");
-  assert.equal(said(step(reading, first, 1))?.name, "a · x 2");
-  assert.equal(said(cross(reading, first, 1))?.name, "b · x 1");
+  assert.deepEqual(lines(step(reading, first, 1)), ["k a", "x 2", "4 y"]);
+  assert.deepEqual(lines(cross(reading, first, 1)), ["k b", "x 1", "3 y"]);
   // Side by side, a key crossing to the next facet keeps its place in the facet.
   const beside = read({
     marks: [
@@ -397,8 +416,8 @@ test("a facet's points are a series of their own", () => {
     ],
   });
   const end = step(beside, null, "last");
-  assert.equal(said(end)?.name, "a · x 2");
-  assert.equal(said(cross(beside, end, 1))?.name, "b · x 2");
+  assert.deepEqual(lines(end), ["k a", "x 2", "4 y"]);
+  assert.deepEqual(lines(cross(beside, end, 1)), ["k b", "x 2", "1 y"]);
 });
 
 test("points at one place that say different things are each read", () => {
@@ -465,9 +484,9 @@ test("a time reads to the second or millisecond its datum has", () => {
   assert.deepEqual(
     reading.points.map((point) => said(point)?.name),
     [
-      "Jan 1, 2026, 12:00:01 AM UTC",
-      "Jan 1, 2026, 12:00:02.500 AM UTC",
-      "Jan 1, 2026, 9:30 AM UTC",
+      "t Jan 1, 2026, 12:00:01 AM UTC",
+      "t Jan 1, 2026, 12:00:02.500 AM UTC",
+      "t Jan 1, 2026, 9:30 AM UTC",
     ],
   );
 });
@@ -477,13 +496,21 @@ test("the arrows step along a series and across to the next at the nearest place
     marks: [Plot.barY(HOURS, { x: "week", y: "hours", fill: "kind" })],
   });
   const first = step(reading, null, "first");
-  assert.deepEqual(said(first), { name: "w1 · features", detail: ["21 hours"] });
+  assert.deepEqual(lines(first), ["week w1", "kind features", "21 hours"]);
   const next = step(reading, first, 1);
-  assert.equal(said(next)?.name, "w2 · features");
+  assert.deepEqual(lines(next), ["week w2", "kind features", "18 hours"]);
   assert.equal(step(reading, next, 1), next, "a series' end holds");
   const across = cross(reading, next, 1);
-  assert.equal(said(across)?.name, "w2 · fixes");
+  assert.deepEqual(lines(across), ["week w2", "kind fixes", "14 hours"]);
   assert.equal(cross(reading, across, 1), across, "the last series holds");
-  assert.equal(said(step(reading, across, "first"))?.name, "w1 · fixes");
-  assert.equal(said(cross(reading, across, -1))?.name, "w2 · features");
+  assert.deepEqual(lines(step(reading, across, "first")), [
+    "week w1",
+    "kind fixes",
+    "9 hours",
+  ]);
+  assert.deepEqual(lines(cross(reading, across, -1)), [
+    "week w2",
+    "kind features",
+    "18 hours",
+  ]);
 });

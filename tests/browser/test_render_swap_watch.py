@@ -76,6 +76,41 @@ def test_an_occupant_that_grows_its_place_fails(browser, swap):
     )
 
 
+def test_a_row_drawn_in_one_frame_that_its_next_occupant_grows_fails(browser):
+    """A row the page draws in an animation frame is watched from that frame, at the
+    size it paints there, so an occupant the next frame swaps in that grows it is
+    caught. Watched from the frame after instead, the row's first size was the grown
+    one."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote('<!doctype html><body style="margin:0"><div id="holder"></div>')
+    )
+    page.evaluate(
+        """() => new Promise((done) => requestAnimationFrame(() => {
+          holder.innerHTML = '<div id="row" style="display:flex;width:300px">'
+            + '<button id="first" style="height:24px">First</button></div>';
+          requestAnimationFrame(() => {
+            const second = document.createElement('button');
+            Object.assign(second, {id: 'second', textContent: 'Second'});
+            second.style.height = '40px';
+            first.replaceWith(second);
+            requestAnimationFrame(() => requestAnimationFrame(done));
+          });
+        }))"""
+    )
+    judge_watches()
+    consume_browser_errors(
+        page,
+        {
+            "code": "place-resized",
+            "place": ["div#row"],
+            "left": [["button#first"]],
+            "arrived": [["button#second"]],
+        },
+    )
+
+
 def test_an_occupant_that_grows_a_declarative_shadow_row_fails(browser):
     """A row the parser builds from a declarative shadow template is watched too."""
     page = browser.new_page()

@@ -165,6 +165,30 @@
   let departed = [];
   let written = new Set();
   let source = null;
+  let deliveringSizes = false;
+  // The page's own ResizeObserver deliveries, which this watch can't otherwise tell
+  // apart: one that redraws, as a chart refitting its legend does, makes records that
+  // reach this watch during its callback, through a listener the input watch wraps,
+  // and in the microtasks after it. An observation started then asks for a
+  // notification at a depth the browser may have delivered already, a loop error, so
+  // it waits for the next frame, as one started during this watch's own delivery does.
+  // Any other starts at once, so its first notification reports the size the frame
+  // paints.
+  let pageDeliveries = 0;
+  const NativeResizeObserver = window.ResizeObserver;
+  window.ResizeObserver = class extends NativeResizeObserver {
+    /** @param {ResizeObserverCallback} callback */
+    constructor(callback) {
+      super((entries, observer) => {
+        pageDeliveries++;
+        try {
+          return callback.call(observer, entries, observer);
+        } finally {
+          queueMicrotask(() => pageDeliveries--);
+        }
+      });
+    }
+  };
   const observed = new WeakSet();
   const pending = new WeakSet();
   const flexRows = new WeakSet();
@@ -173,22 +197,18 @@
     const { display, flexDirection } = getComputedStyle(element);
     return display.endsWith("flex") && flexDirection.startsWith("row");
   };
-  // An element is watched from the next frame. An observation started while the
-  // browser delivers sizes asks for a notification at a depth it may have delivered
-  // already, a loop error, and the watch can't tell the page's own deliveries from
-  // the rest: it takes records in this watch's delivery, in the page's, as a chart
-  // redrawn for its legend's height dispatches events to listeners, and in the
-  // microtasks after them. Begun at the next frame, before its layout, the observation
-  // reports at the same frame one begun in a task does.
   const observeOnce = (element) => {
     if (!element || observed.has(element) || pending.has(element)) return;
-    pending.add(element);
-    frame(() => {
-      pending.delete(element);
-      if (!element.isConnected || observed.has(element)) return;
-      observed.add(element);
-      watch(element);
-    });
+    if (deliveringSizes || pageDeliveries) {
+      pending.add(element);
+      frame(() => {
+        pending.delete(element);
+        if (element.isConnected) observeOnce(element);
+      });
+      return;
+    }
+    observed.add(element);
+    watch(element);
   };
   const watchArrival = (element) => {
     // Leaf has not presented its first arrangement yet. Its widgets may still
@@ -382,10 +402,18 @@
       source = null;
     }
   };
-  const resizes = new ResizeObserver((entries) => {
-    take(changes.takeRecords(), window.lfInputWork.current());
-    const now = new Map(entries.map((entry) => [entry.target, box(entry)]));
-    judge(now, (element) => now.get(element) ?? sizes.get(element) ?? measure(element));
+  const resizes = new NativeResizeObserver((entries) => {
+    deliveringSizes = true;
+    try {
+      take(changes.takeRecords(), window.lfInputWork.current());
+      const now = new Map(entries.map((entry) => [entry.target, box(entry)]));
+      judge(
+        now,
+        (element) => now.get(element) ?? sizes.get(element) ?? measure(element),
+      );
+    } finally {
+      deliveringSizes = false;
+    }
   });
   // Judging before the frame reads the layout as the observer would: the border box,
   // and nothing for an inline box, which the observer reports as empty. What changed

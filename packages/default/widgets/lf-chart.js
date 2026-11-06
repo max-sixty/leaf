@@ -47,10 +47,12 @@ import {
   PREVIEW_ENDED,
   PendingTaskEvent,
   announce,
+  beginWalk,
   bodyText,
   commandsChanged,
   keeps,
   layoutPx,
+  listWalkPosition,
   whileConnected,
   failSoft,
   inBaseLayer,
@@ -150,7 +152,8 @@ customElements.define(
     /** @type {number | undefined} */
     drawn;
     // The points the drawing showing says, the one the reader is on and what brought
-    // them there, and whether a pointer or finger is over the drawing.
+    // them there, whether a pointer or finger is over the drawing, and the point the
+    // keys step on from once Escape has put the keyboard's reading away.
     /** @type {Reading | null} */
     #reading = null;
     /** @type {Point | null} */
@@ -158,6 +161,8 @@ customElements.define(
     /** @type {By} */
     #by = "pointer";
     #over = false;
+    /** @type {Point | null} */
+    #place = null;
 
     // What the point the reader is on says, standing above its ring, on every route.
     // Off a point the chart adds nothing, so what holds it may say its own.
@@ -216,16 +221,20 @@ customElements.define(
         // Leaving the chart ends the keyboard's hold on its point.
         this.addEventListener(
           "blur",
-          () => this.#choose(this.#over ? this.#at : null, "pointer"),
+          () => {
+            this.#place = null;
+            this.#choose(this.#over ? this.#at : null, "pointer");
+          },
           { signal },
         );
         // The ring marks the point the page's preview says, so it comes off when the
         // page puts the preview away, whatever puts it away: the pointer leaving the
         // window from it, a finger lifting, Escape. A redraw then has no point to read
-        // again, and the next aim reads from where it lands. It comes off once the task
-        // that put the preview away is done, and only if the route whose preview went
-        // still holds the point: a Tab that puts a resting pointer's preview away lands
-        // focus here in the same task, and the keyboard takes the point on.
+        // again, and the next aim reads from where it lands, the keys stepping on from
+        // the point the keyboard put away. It comes off once the task that put the
+        // preview away is done, and only if the route whose preview went still holds the
+        // point: a Tab that puts a resting pointer's preview away lands focus here in
+        // the same task, and the keyboard takes the point on.
         this.addEventListener(
           PREVIEW_ENDED,
           (event) => {
@@ -234,7 +243,9 @@ customElements.define(
             nextRender(() => {
               const holds =
                 route === "focus" ? this.#by !== "pointer" : this.#by === "pointer";
-              if (holds && this.#at === read) this.#choose(null, "pointer");
+              if (!holds || this.#at !== read) return;
+              if (route === "focus") this.#place = read;
+              this.#choose(null, "pointer");
             });
           },
           { signal },
@@ -362,6 +373,7 @@ customElements.define(
       const at = this.#at;
       this.#reading = reading;
       this.#at = null;
+      this.#place = reading && this.#place ? sameDatum(reading, this.#place) : null;
       const points = reading?.points.length ?? 0;
       keeps(this, "tabindex", points ? "0" : null);
       this.lfCommands = reading && points ? this.#keys(reading) : null;
@@ -405,7 +417,7 @@ customElements.define(
           title,
           keys: [key],
           repeat: key.startsWith("Arrow"),
-          run: () => this.#choose(move(this.#at), "key"),
+          run: () => this.#step(move(this.#at ?? this.#place)),
         })),
       };
     }
@@ -430,10 +442,24 @@ customElements.define(
         }
       }
       previewChanged(this);
-      if (by === "key" && point) {
-        const { name, detail } = sayPoint(point);
-        announce([name, ...detail].join(", "));
-      }
+    }
+
+    // A key's step is a walk along the reading's series, the user aiming anew wherever
+    // it lands, so the page shows its preview again though Escape put it away; a
+    // redraw that keeps the reader on their point is none. It says where it landed:
+    // the point's words, then its place in its series.
+    /** @param {Point | null} point */
+    #step(point) {
+      this.#place = null;
+      this.#choose(point, "key");
+      const reading = this.#reading;
+      if (!point || !reading) return;
+      const series = reading.series[point.series] ?? [];
+      const position = beginWalk("chart", "Point", () =>
+        listWalkPosition(series, this.#at),
+      );
+      const { name, detail } = sayPoint(point);
+      announce([name, ...detail, position].filter(Boolean).join(", "));
     }
 
     // The pointer or finger left the drawing. A point the keyboard reached stays, and so

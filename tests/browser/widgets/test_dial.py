@@ -121,3 +121,27 @@ def test_a_turn_that_glides_keeps_the_place_in_every_engine(request, serve, engi
     depth(page, "Read")
     expect(page.locator("#detail-cause-1")).to_be_visible()
     assert top(page, "#detail-cause-gist") == pytest.approx(gist, abs=1)
+
+
+def test_a_folded_block_that_sets_its_own_height_takes_no_room(browser, serve):
+    """A folded `lf-diagram` kept the 170px its package's `min-block-size` reserved, so
+    Skim left a blank gap where the drawing was. A block Skim folds takes no room
+    whatever height the page or its package gave it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Dial",
+                '<h1>Report</h1><lf-dial id="dial"></lf-dial>'
+                '<section id="flow"><h2>Flow</h2>'
+                '<p class="gist" id="flow-gist">Every order ends in one queue.</p>'
+                '<figure id="drawn">A drawing.</figure></section>'
+                '<section id="next"><h2 id="next-heading">Next</h2>'
+                '<p class="gist">The warehouse picks in order.</p></section>',
+                head="<style>#drawn { block-size: 240px; min-block-size: 170px; }</style>",
+            )
+        ),
+    )
+    depth(page, "Skim")
+    expect(page.locator("#drawn")).to_have_attribute("data-lf-dial-folded", "")
+    expect(page.locator("#drawn")).to_be_hidden()

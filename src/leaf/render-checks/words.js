@@ -1,6 +1,9 @@
 import { canvas2D } from "/runtime/widget-api.js";
 import { says } from "/runtime/widget-api.js";
 import {
+  colourableAs,
+  colouredAs,
+  inPage,
   quoteFrom,
   textNodesUnder,
   upFrom,
@@ -399,6 +402,22 @@ export function unreadSyntax() {
       });
   }
   return [...found.values()];
+}
+
+// The page's own code blocks that declare a language Leaf colours and go uncoloured,
+// since no reading face reaches them (syntax.js), as on a page that takes no theme.
+// Nothing else says so: the block reads as text, and its author learns only from the
+// render, while a reader can take the plain block for a broken one. It is advice,
+// since a page of its own design may leave its code the colour of its ink. A widget's
+// own tree is held out, since its sheet decides how its code reads.
+export function uncolouredCode() {
+  return [...document.querySelectorAll("pre > code[class]")]
+    .filter((code) => inPage(code) && colourableAs(code) && !colouredAs(code))
+    .map((code) => ({
+      code: "uncoloured-code",
+      at: at(code),
+      language: colourableAs(code),
+    }));
 }
 
 // Words a declaration promised and the page never got. Every other reading here works

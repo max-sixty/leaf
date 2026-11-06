@@ -270,6 +270,10 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     found += context.unsettled
     found += (Finding.read(height, severity="advice") for height in drawn)
     if context.light:
+        found += (
+            Finding.read(block, severity="advice")
+            for block in evaluate_probe(page, "uncolouredCode")
+        )
         found += _unreduced_motion(page)
     return found
 

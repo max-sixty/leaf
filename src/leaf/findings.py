@@ -707,6 +707,11 @@ _TEXT = {
         f"{at} keeps moving for a reader who asked for less motion; stop or shorten it"
         " under @media (prefers-reduced-motion: reduce)"
     ),
+    "uncoloured-code": lambda at, v: (
+        f"{at} declares {v['language']}, but no reading face reaches it, so Leaf"
+        " leaves its tokens uncoloured; to colour it, set --lf-reading-face: 1 on a"
+        " box around the <pre>, or take the reading theme"
+    ),
     "contained-space": lambda at, v: (
         f"{at} declares {v['space']} space but stays inside "
         + ", ".join(v["holders"])

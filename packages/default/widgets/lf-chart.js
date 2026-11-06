@@ -22,14 +22,16 @@
  * through `x-visual: whole`. And a chart that cannot draw says why over its own source.
  *
  * A chart says the value under the reader's aim (chart-points.js says which marks and
- * how): a pointer resting near a point, a finger held on one, or, with the chart
- * focused, the arrow keys stepping along a series and across to the next, Home and End
- * to its ends. The point the reader is on wears a ring, with a rule to the axis it
- * stands at, and its words stand beside it in the page's preview (`lfPreview`), which
- * the chart reads again as the aim moves to another point (`previewChanged`). The ring
- * is the chart's own, so it goes when the aim leaves: the pointer and finger by
- * leaving the drawing, the keyboard by leaving the chart. A finger slides across the
- * drawing to read along it, and scrolls the page up and down it.
+ * how): the point Plot's own pointer picks near a resting pointer or under a held
+ * finger, or, with the chart focused, the arrow keys stepping along a series and across
+ * to the next, Home and End to its ends. A redraw keeps the reader on their datum where
+ * the new drawing still holds it. The point the reader is on wears a ring, with a rule
+ * to the axis it stands at, and its words stand beside it in the page's preview
+ * (`lfPreview`), which the chart reads again as the aim moves to another point
+ * (`previewChanged`). The ring is the chart's own, so it goes when the aim leaves: the
+ * pointer and finger by leaving the drawing, the keyboard by leaving the chart. A
+ * finger slides across the drawing to read along it, and scrolls the page up and down
+ * it.
  *
  * The vendored bundle loads once, on the first draw rather than with this module: a chart
  * in a shut panel has no box, so measure holds its draw, and the 384KB bundle waits with
@@ -55,7 +57,7 @@ import {
   previewChanged,
   sizeObserver,
 } from "/runtime/portable-api.js";
-import { cross, nearest, readPoints, sayPoint, step } from "./chart-points.js";
+import { cross, readPoints, sameDatum, sayPoint, step } from "./chart-points.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 
@@ -128,14 +130,15 @@ customElements.define(
     /** @type {number | undefined} */
     drawn;
     // The points the drawing showing says, the one the reader is on and what brought
-    // them there, and whether a pointer or finger is over the drawing.
+    // them there, and where a pointer or finger over the drawing stands in it.
     /** @type {Reading | null} */
     #reading = null;
     /** @type {Point | null} */
     #at = null;
     /** @type {By} */
     #by = "pointer";
-    #over = false;
+    /** @type {DOMPoint | null} */
+    #over = null;
 
     // What the point the reader is on says, standing above its ring, on every route.
     // Off a point the chart adds nothing, so what holds it may say its own.
@@ -148,20 +151,21 @@ customElements.define(
     connectedCallback() {
       if (!once(this)) return;
       whileConnected(this, (signal) => {
-        // The pointer and a finger read the point nearest them on the drawing, and
-        // nothing elsewhere, as over a legend. A mouse carrying a press is dragging.
+        // The pointer and a finger read the point Plot's pointer picks on the drawing,
+        // which its own listeners on the drawing have picked by the time this hears the
+        // move, and nothing elsewhere, as over a legend. A mouse carrying a press is
+        // dragging.
         const aim = (/** @type {PointerEvent} */ event) => {
           const svg = this.#reading?.svg;
           if (event.pointerType === "mouse" && event.buttons) return;
           if (!svg || !(event.target instanceof Node) || !svg.contains(event.target))
             return this.#leave();
           const screen = svg.getScreenCTM();
-          if (!screen || !this.#reading) return;
-          this.#over = true;
-          const at = new DOMPoint(event.clientX, event.clientY).matrixTransform(
+          if (!screen) return;
+          this.#over = new DOMPoint(event.clientX, event.clientY).matrixTransform(
             screen.inverse(),
           );
-          this.#choose(nearest(this.#reading, at.x, at.y), "pointer");
+          this.#pick();
         };
         // A mouse reads where it moves to, so a drawing that arrives under a still one
         // says nothing; a finger, which lands before it moves, reads where it lands.
@@ -174,13 +178,26 @@ customElements.define(
           { signal, passive: true },
         );
         this.addEventListener("pointerleave", () => this.#leave(), { signal });
-        // Focus the browser shows lands the reader on a point, where they last were or at
-        // the first, which the arrows then step from.
+        // A press pins Plot's pointer to its point until the next press, where a press
+        // on Leaf puts a preview away and the reading should go on following the
+        // pointer, so a mouse's press inside the drawing stops short of Plot's
+        // listeners. Leaf's own hear it first, in capture, as Plot stops it when it pins.
+        this.addEventListener(
+          "pointerdown",
+          (event) => {
+            const svg = this.#reading?.svg;
+            if (event.pointerType === "mouse" && event.target instanceof Node)
+              if (svg?.contains(event.target)) event.stopPropagation();
+          },
+          { signal, capture: true },
+        );
+        // Focus the browser shows lands the reader on a point, the one they are on or
+        // the first, which the arrows then step from: the keyboard's from then on.
         this.addEventListener(
           "focus",
           () => {
-            if (this.#reading && !this.#at && this.matches(":focus-visible"))
-              this.#choose(step(this.#reading, null, "first"), "focus");
+            if (this.#reading && this.matches(":focus-visible"))
+              this.#choose(this.#at ?? step(this.#reading, null, "first"), "focus");
           },
           { signal },
         );
@@ -272,13 +289,31 @@ customElements.define(
       const at = this.#at;
       this.#reading = reading;
       this.#at = null;
+      reading?.whenPicked(() => this.#pick());
       const points = reading?.points.length ?? 0;
       keeps(this, "tabindex", points ? "0" : null);
       this.lfCommands = reading && points ? this.#keys(reading) : null;
       commandsChanged(this);
-      if (reading && at)
-        this.#choose(reading.series[at.series]?.[at.n] ?? null, this.#by);
+      if (reading && at) this.#choose(sameDatum(reading, at), this.#by);
       else if (at) previewChanged(this);
+    }
+
+    // The point Plot's pointer picks under the pointer or finger. Where several marks
+    // each pick one, it is the nearest of them to the aim, as Plot weighs its facets'.
+    // A pointer that picks nothing leaves the keyboard's point where it was.
+    #pick() {
+      const aim = this.#over;
+      if (!aim || !this.#reading) return;
+      /** @type {Point | null} */
+      let best = null;
+      let reach = Infinity;
+      for (const point of this.#reading.picks.values()) {
+        const distance = point
+          ? (point.x - aim.x) ** 2 + (point.y - aim.y) ** 2
+          : reach;
+        if (distance < reach) ((best = point), (reach = distance));
+      }
+      if (best || this.#by === "pointer") this.#choose(best, "pointer");
     }
 
     // The arrows step along the series the points stand in, along the axis they stand
@@ -349,7 +384,7 @@ customElements.define(
 
     // The pointer or finger left the drawing. A point the keyboard reached stays.
     #leave() {
-      this.#over = false;
+      this.#over = null;
       if (this.#by === "pointer") this.#choose(null, "pointer");
     }
 
@@ -373,7 +408,9 @@ customElements.define(
         // Plot's pointer reports what it points at by dispatching `input` on its figure,
         // for a notebook's viewof. On a page that is an input the user never gave, and the
         // runtime reads every `input` as the user's own, dropping a delayed move it was
-        // holding. A figure turned into a box above is detached, so only this one speaks.
+        // holding; the chart hears the point from its tip's render instead, with the
+        // facet the datum alone doesn't say (chart-points.js). A figure turned into a box
+        // above is detached, so only this one speaks.
         built.dispatchEvent = () => true;
       }
       // The drawing is the <svg> carrying the author's ariaLabel: a legend Plot puts beside

@@ -322,22 +322,41 @@ svg[data-lf-icon] {
    standing beside it over the page, in one face whatever it previews: the tooltip's
    ground and ink (`--tip-*`, tokens.css), its name on the first line at the face's
    weight with the key chips that press it, then each line of detail in the same type,
-   a step dimmer. Where it stands is the owner's one rule, written as insets
-   (`stand`, preview.js). It goes with its target out of view, holds no control and
-   moves nothing. A pointer's preview takes the pointer, so the pointer can cross onto
-   it and read it there (WCAG 1.4.13, "Hoverable"); a focus's or a finger's takes none.
-   It fades in where it stands for a pointer or a finger, as a word that rose into place
-   would move under nobody's input; under the keyboard's focus it is there at once. A
-   preview that quotes a block of the page, such as the place a link opens, takes the
-   excerpt room: the same face, wider. */
+   a step dimmer. The browser stands it by its source, the box it previews, which is
+   its implicit anchor (`showPopover({source})`): on the side the owner picks
+   (`data-lf-side`, below by default), by the gap that clears that box's ring
+   (`--lf-preview-gap`) and an edge's room from the window (`--lf-preview-edge`), in
+   logical terms, so it starts at a right-to-left target's right edge. Where the window
+   has no room there, it flips to the other end of the line, then the other side, then
+   centres across the window; taller than the room on either side, it is held to the
+   room below or above and its face scrolls. It goes with its source out of view. A
+   pointer's preview takes the pointer, so the pointer can cross onto it and read it
+   there (WCAG 1.4.13, "Hoverable"), unless it covers another target
+   (`data-lf-covers`); a focus's or a finger's takes none. It fades in for a pointer or
+   a finger, as a word that rose into place would move under nobody's input; under the
+   keyboard's focus it is there at once. A preview that quotes a block of the page,
+   such as the place a link opens, takes the excerpt room: the same face, wider. Five
+   fallbacks at most, since Chromium 156 tries no sixth (notes/browser-support.md). */
 .lf-preview {
   position: fixed;
   inset: auto;
   margin: 0;
+  position-anchor: auto;
+  position-area: self-block-end span-self-inline-end;
+  margin-block: var(--lf-preview-gap) var(--lf-preview-edge);
+  margin-inline: 0 var(--lf-preview-edge);
+  position-try-fallbacks:
+    flip-inline,
+    flip-block,
+    flip-block flip-inline,
+    --lf-preview-under,
+    --lf-preview-over;
+  position-visibility: anchors-visible;
   box-sizing: border-box;
   width: max-content;
   max-width: min(320px, calc(100vw - 16px));
-  overflow: visible;
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: var(--tip-pad);
   border: 0;
   border-radius: var(--tip-r);
@@ -355,11 +374,62 @@ svg[data-lf-icon] {
     opacity: 0;
   }
 }
-.lf-preview[data-lf-route="pointer"] {
+.lf-preview[data-lf-side="above"] {
+  position-area: self-block-start span-self-inline-end;
+  margin-block: var(--lf-preview-edge) var(--lf-preview-gap);
+}
+.lf-preview:is([data-lf-side="end"], [data-lf-side="start"]) {
+  margin-block: 0 var(--lf-preview-edge);
+}
+.lf-preview[data-lf-side="end"] {
+  position-area: self-inline-end span-self-block-end;
+  margin-inline: var(--lf-preview-gap) var(--lf-preview-edge);
+}
+.lf-preview[data-lf-side="start"] {
+  position-area: self-inline-start span-self-block-end;
+  margin-inline: var(--lf-preview-edge) var(--lf-preview-gap);
+}
+/* Centred across the window, as where the line is too narrow for either end, and held
+   to the room on its side where the preview is taller than it, at least a few lines,
+   its face scrolling. */
+@position-try --lf-preview-under {
+  position-area: self-block-end span-all;
+  margin-block: var(--lf-preview-gap) var(--lf-preview-edge);
+  margin-inline: var(--lf-preview-edge);
+  max-block-size: max(8em, calc(100% - var(--lf-preview-gap) - var(--lf-preview-edge)));
+}
+@position-try --lf-preview-over {
+  position-area: self-block-start span-all;
+  margin-block: var(--lf-preview-edge) var(--lf-preview-gap);
+  margin-inline: var(--lf-preview-edge);
+  max-block-size: max(8em, calc(100% - var(--lf-preview-gap) - var(--lf-preview-edge)));
+}
+.lf-preview[data-lf-route="pointer"]:not([data-lf-covers]) {
   pointer-events: auto;
 }
 .lf-preview[data-lf-route="focus"] {
   transition: none;
+}
+/* What stands for a target with no HTML box of its own, as a range's line, while its
+   preview shows: a box over it that nothing sees or hits, scrolling with the page. */
+.lf-preview-place {
+  position: absolute;
+  margin: 0;
+  pointer-events: none;
+}
+/* A list the owner fits to the room its face is held to (`fitList`, preview.js) clips
+   rather than scrolls, its count of the rest standing at the face's foot. */
+.lf-preview[data-lf-list] {
+  overflow: clip;
+}
+.lf-preview-more {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  padding: var(--tip-pad);
+  padding-block-start: 0;
+  background: var(--tip-bg);
+  color: color-mix(in srgb, var(--tip-ink) 76%, transparent);
 }
 .lf-preview[data-lf-face="excerpt"] {
   max-width: min(26rem, calc(100vw - 16px));

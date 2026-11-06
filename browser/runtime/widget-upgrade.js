@@ -23,7 +23,8 @@
    What pointing at an element reads is data on it too, `lfPreview`, and the widget says
    when that changes with `lf-preview` (`previewChanged`), as the user's aim moves from
    one of a chart's points to the next, or a grip's words stop being true once its card
-   is grabbed: Leaf reads it again (preview.js). */
+   is grabbed: Leaf reads it again (preview.js). Leaf says at the element when that
+   preview has gone (`lf-preview-ended`), so a mark the widget drew for it comes off. */
 import { describeFailure, exceptionError } from "./exception.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
@@ -93,6 +94,10 @@ export const PREVIEW = "lf-preview";
 export const previewChanged = (el) => {
   el.dispatchEvent(new Event(PREVIEW, { bubbles: true, composed: true }));
 };
+// That the preview Leaf showed of an element has gone, a `CustomEvent` dispatched at
+// that element alone whose `detail.route` is the route that read it (preview.js): a mark
+// the widget drew for what it read, as a chart's ring on its point, comes off then.
+export const PREVIEW_ENDED = "lf-preview-ended";
 export const COMMANDS = "lf-commands";
 const CHANGED = Symbol("element whose commands changed");
 const REFUSED = Symbol("why Leaf refused the declaration");

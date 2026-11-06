@@ -8,28 +8,12 @@ import { actionClass } from "./control-faces.js";
 import { actionOffers } from "./icon-paths.js";
 import "./role-button-press.js";
 
-// The words a `title` gave an element. On Leaf the preview takes the attribute off the
-// first time the pointer reaches the element, so the browser's tooltip never stands
-// beside it (preview.js), and keeps its words here, where every reader of an element's
-// title reads them: the attribute, or what the preview took. A frame's title is its
-// accessible name, not a tooltip, so it stays where it is.
-/** @type {WeakMap<Element, string>} */
-const takenTitles = new WeakMap();
-/** @param {Element} el */
-export const titled = (el) =>
-  el.localName !== "iframe" && (el.hasAttribute("title") || takenTitles.has(el));
-/** @param {Element} el @returns {string | null} */
-export const titleWords = (el) =>
-  el.localName === "iframe"
-    ? null
-    : (el.getAttribute("title") ?? takenTitles.get(el) ?? null);
-/** @param {Element} el */
-export function takeTitle(el) {
-  const title = el.getAttribute("title");
-  if (title === null || el.localName === "iframe") return;
-  takenTitles.set(el, title);
-  el.removeAttribute("title");
-}
+// Whether this document runs without Leaf's runtime, where a symbol's `title` is the only
+// reading of its name a pointer gets: on Leaf the preview reads its accessible name on
+// every route, and the browser shows a title's tooltip in place of it (preview.js), so a
+// writer writes none there (prepaint.js marks a page the runtime upgrades).
+export const titlesName = () =>
+  !document.documentElement.hasAttribute("data-lf-interactive");
 
 // Native controls are the ordinary case. A widget gets their activation, disabled state,
 // focus behavior, and platform accessibility contract without Leaf recreating any of it:
@@ -108,16 +92,16 @@ export function offer(tag, cls, label, inputType, pressable = false) {
 }
 // `label` names the press. A worded role shows it, and `offerAction` writes it as the
 // words; the element writer leaves the words to whoever owns the element's content,
-// such as a template. A symbol or mark says it as the accessible name and the `title`,
-// which off Leaf is the browser's tooltip and on Leaf the preview's words, shown with
-// the keys that press it (preview.js).
+// such as a template. A symbol or mark says it as the accessible name, which the preview
+// shows with the keys that press it on Leaf (preview.js), and off Leaf as the `title`
+// the browser's tooltip shows (`titlesName`).
 /** @template {Element} T @param {T} node @param {LeafActionRole} role
  * @param {string} [cls] @param {string} [label] @returns {T} */
 const roleElement = (node, role, cls, label) => {
   offerElement(node, actionClass(role, cls));
   if (label !== undefined && (role === "symbol" || role === "mark")) {
     keeps(node, "aria-label", label);
-    keeps(node, "title", label);
+    keeps(node, "title", titlesName() ? label : null);
   }
   return node;
 };

@@ -196,15 +196,21 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
               })}
             </button>
             <button
-              ${offeredAction("mark", "lf-composer-drawing-undo", "Undo last stroke", { action: "undo" })}
+              ${offeredAction("mark", "lf-composer-drawing-undo", "Undo last stroke", {
+                action: "undo",
+              })}
               data-lf-corner
-              @mousedown=${/** @param {MouseEvent} event */ (event) => event.preventDefault()}
+              @mousedown=${
+                /** @param {MouseEvent} event */ (event) => event.preventDefault()
+              }
               @click=${drawing.undoStroke}
             ></button>
             <button
               ${offeredAction("mark", "", "Remove drawing", { action: "remove" })}
               data-lf-corner
-              @mousedown=${/** @param {MouseEvent} event */ (event) => event.preventDefault()}
+              @mousedown=${
+                /** @param {MouseEvent} event */ (event) => event.preventDefault()
+              }
               @click=${drawing.removeDrawing}
             ></button>
           </span>
@@ -212,7 +218,12 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
       : null,
     media.map(({ index, url }) => {
       const remove = html`<button
-        ${offeredAction("mark", "lf-composer-media-remove", `Remove attached image ${index + 1}`, { action: "remove" })}
+        ${offeredAction(
+          "mark",
+          "lf-composer-media-remove",
+          `Remove attached image ${index + 1}`,
+          { action: "remove" },
+        )}
         data-lf-corner
         @click=${() => removeMedia(index)}
       ></button>`;
@@ -655,7 +666,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
             data-lf-dictation=${dictationState}
             aria-pressed=${String(live)}
             aria-description=${status || nothing}
-            @mousedown=${/** @param {MouseEvent} event */ (event) => event.preventDefault()}
+            @mousedown=${
+              /** @param {MouseEvent} event */ (event) => event.preventDefault()
+            }
           ></button>`
         : nothing;
       const content = html`
@@ -682,7 +695,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
               type="button"
               ${offeredAction("word", "lf-compose-alt")}
               aria-disabled=${String(!canSend())}
-              title=${altLabel}
               @mousedown=${keepEditing}
               @click=${() => pressed(altSend)}
             >

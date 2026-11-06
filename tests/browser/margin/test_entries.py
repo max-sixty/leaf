@@ -155,9 +155,10 @@ def test_an_inline_contribution_name_needs_no_physical_margin(
 ):
     """The shared control says its name as its preview wherever a page seats it, and the
     keyboard reads it at once."""
-    source = leaf_page("Inline names", '<button id="inline">Read</button>').replace(
-        "<body>", f'<body data-annotations="{annotations}">'
-    )
+    source = leaf_page(
+        "Inline names",
+        '<button id="before">Before</button> <button id="inline">Read</button>',
+    ).replace("<body>", f'<body data-annotations="{annotations}">')
     page = open_page(browser, serve(source))
     page.evaluate(
         """async () => {
@@ -169,12 +170,14 @@ def test_an_inline_contribution_name_needs_no_physical_margin(
     )
     control = page.get_by_role("button", name="Read inline name", exact=True)
     preview = page.locator(PREVIEW)
-    control.evaluate("node => node.focus({focusVisible: true})")
-    expect(preview).to_be_visible()
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(control).to_be_focused()
     expect(preview).to_have_text("Read inline name")
     page.mouse.move(0, 0)
     page.keyboard.press("Tab")
-    expect(preview).to_be_hidden()
+    expect(control).not_to_be_focused()
+    expect(preview).not_to_have_text("Read inline name")
 
 
 def test_a_margin_entry_label_starts_at_its_settled_place(browser, serve):
@@ -202,34 +205,45 @@ def test_a_margin_entry_label_starts_at_its_settled_place(browser, serve):
             page.wait_for_function(
                 "Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean)"
             )
-            # The keyboard moves focus there: a key is down as it lands, which is the
-            # user's own move, not a surface placing them (preview.js, `aimed`).
-            page.keyboard.down("Shift")
-            reading = control.evaluate(
-                """async control => {
+            # The keyboard steps focus there, the user's own move, and the label's
+            # place is read from that focus on, frame by frame.
+            control.focus()
+            page.keyboard.press("Shift+Tab")
+            control.evaluate(
+                """control => {
                   const label = document.getElementById('lf-preview');
+                  window.lfFrames = null;
                   const frames = [];
+                  // Its own preview, not the one the step back left standing.
+                  const name = control.getAttribute('aria-label');
                   const read = () => {
                     const style = getComputedStyle(label);
                     if (!label.matches(':popover-open') || style.visibility !== 'visible'
-                        || Number(style.opacity) === 0)
+                        || Number(style.opacity) === 0 || !label.innerText.includes(name))
                       return;
                     const box = label.getBoundingClientRect();
                     frames.push({x: box.x, y: box.y});
                   };
-                  control.focus({focusVisible: true});
-                  read();
-                  for (let n = 0; n < 8; n++) {
-                    await new Promise(requestAnimationFrame);
+                  control.addEventListener('focus', async () => {
                     read();
-                  }
+                    for (let n = 0; n < 8; n++) {
+                      await new Promise(requestAnimationFrame);
+                      read();
+                    }
+                    window.lfFrames = frames;
+                  }, {once: true});
+                }"""
+            )
+            page.keyboard.press("Tab")
+            page.wait_for_function("window.lfFrames !== null")
+            reading = control.evaluate(
+                """async control => {
                   const posture = control.closest('.lf-margin-cluster').dataset.lfPlace;
                   control.blur();
                   await new Promise(requestAnimationFrame);
-                  return {frames, posture};
+                  return {frames: window.lfFrames, posture};
                 }"""
             )
-            page.keyboard.up("Shift")
             assert len(reading["frames"]) >= 2, reading
             assert all(frame == reading["frames"][0] for frame in reading["frames"]), (
                 reading

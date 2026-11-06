@@ -11,16 +11,16 @@ import { addressableLabel, addressableWord, ownNaming } from "../addressable-nam
 import { sectionOf } from "../anchor-resolution.js";
 import {
   authoredScope,
-  blockLevel,
-  documentReadingVersion,
+  documentOutline,
   elementById,
-  elementReading,
   GENERATED,
   HEADING,
+  inPage,
+  keptAnswer,
   leafSurface,
-  outlineReading,
   pageDocument,
-  pageOutlineReading,
+  pageReadingVersion,
+  wordsFollowOnLine,
 } from "../passages.js";
 import { agentName } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
@@ -81,28 +81,14 @@ export const inPageOrder = (threads, placedAt) =>
 // as nested sections. It is recorded by the walk that reads the document's words
 // (passages.js, `outlineFold`), so it holds what that reading holds, in its order:
 // declared shadow trees as they draw, a slot's assignment and not its fallback, and none
-// of Leaf's chrome. The page's stands as long as the page's reading does, and a
-// message's as long as no document's words have moved (`documentReadingVersion`):
-// whatever changes the words a message draws, its view drawing an edit it has shown or
-// a widget in it redrawing its own tree, moves that.
-/** @type {WeakMap<Element, {version: number, reading: import("../passages.js").OutlineReading}>} */
-const messageOutlines = new WeakMap();
+// of Leaf's chrome. Each stands as long as its document's reading does
+// (`documentOutline`).
+/** @param {Node} node */
+const outlineOf = (node) => documentOutline(authoredScope(node));
 /** @param {readonly unknown[] | undefined} kept @param {readonly unknown[]} key */
 const current = (kept, key) =>
   kept?.every((part, index) => part === key[index]) ?? false;
-// The outline of the document `node` stands in (passages.js, `authoredScope`).
-/** @param {Node} node */
-function outlineOf(node) {
-  const scope = authoredScope(node);
-  if (scope === pageDocument(scope.ownerDocument)) return pageOutlineReading();
-  const version = documentReadingVersion();
-  const kept = messageOutlines.get(scope);
-  if (kept?.version === version) return kept.reading;
-  const reading = outlineReading(scope);
-  messageOutlines.set(scope, { version, reading });
-  return reading;
-}
-export const pageOutline = () => pageOutlineReading().outline;
+export const pageOutline = () => documentOutline(pageDocument()).outline;
 /** The heading after `heading` in its document's outline, or null.
  * @param {Element} heading */
 export function headingAfter(heading) {
@@ -169,27 +155,24 @@ export function partOver(node) {
     // A heading that titles its container heads what the container holds; any other
     // name makes the container the part.
     if (!("by" in naming)) return container;
-    if (naming.by === node || (naming.by.localName === "strong" && runsIn(naming.by)))
+    if (
+      naming.by === node ||
+      (naming.by.localName === "strong" && runsIn(naming.by, container))
+    )
       continue;
     return naming.by.matches(HEADING) ? naming.by : container;
   }
   return null;
 }
-// Whether a title runs into words on its own line: words the page says after it before
-// anything drawn as a block, whatever inline element carries them, as a paragraph's bold
-// lead-in runs into its sentence. A title over blocks heads them instead.
-/** @param {Element} title */
-function runsIn(title) {
-  for (let node = title.nextSibling; node; node = node.nextSibling) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      if (node.textContent?.trim()) return true;
-    } else if (node instanceof Element) {
-      if (blockLevel(node)) return false;
-      if (elementReading(node).trim()) return true;
-    }
-  }
-  return false;
-}
+// Whether a title runs into words on its own line, as a paragraph's bold lead-in runs
+// into its sentence: words the page draws follow it before the line breaks
+// (`wordsFollowOnLine`), whatever inline element carries them. A title alone on its line
+// heads what follows it. Kept as long as its document's reading stands, so a change to
+// styles alone, such as a `hidden` toggled after the title, shows at the next change to
+// the document's words.
+/** @param {Element} title @param {Element} container */
+const runsIn = (title, container) =>
+  keptAnswer(title, "runs into its line", () => wordsFollowOnLine(title, container));
 // Whether the contract's name for `container` names what it holds: short of the document
 // it stands in and the page's column, never a slot, and never what Leaf generated there.
 /** @param {Element} container @param {Element} scope */
@@ -208,8 +191,8 @@ const namesWhatItHolds = (container, scope) =>
 // itself, so a conversation about a heading is its part's, not the part before it.
 // Kept against exactly what it reads: the threads as the thread reading publishes them,
 // a new value whenever any thread's contents change, its turns included; the agent's
-// name the turns are said in; and the reading of every document, the page's and the
-// messages' a conversation may stand in.
+// name the turns are said in; and the page's reading, since an anchor names an element
+// of the page.
 /** @typedef {{threads: number, turn: NonNullable<ReturnType<typeof threadAttention>> | null}} Conversations
  * @typedef {{key: readonly unknown[], inside: Map<Element, Conversations>, headed: Map<Element, Conversations>}} Gathered */
 /** @type {Gathered | null} */
@@ -218,7 +201,7 @@ let gathered = null;
 function gatherConversations() {
   const { all, bySection } = threadState();
   const agent = agentName();
-  const key = [all, agent, documentReadingVersion()];
+  const key = [all, agent, pageReadingVersion()];
   if (gathered && current(gathered.key, key)) return gathered;
   /** @type {Map<Element, Conversations>} */
   const inside = new Map();
@@ -238,7 +221,7 @@ function gatherConversations() {
   };
   for (const [id, positions] of bySection) {
     const element = elementById(id);
-    if (!element) continue;
+    if (!element || !inPage(element)) continue;
     const threads = positions.flatMap((at) => all[at] ?? []);
     const these = {
       threads: threads.length,

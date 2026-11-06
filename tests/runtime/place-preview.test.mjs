@@ -207,6 +207,18 @@ test("a heading's section is walked through declared shadow trees and their slot
   renamed.textContent = "Renamed section";
   staged.replaceWith(renamed);
   assert.equal(placePreview(words).name, "Renamed section");
+  // A label the widget declares in its own apparatus heads what follows it there.
+  const apparatus = document.createElement("div");
+  apparatus.className = "lf-ui";
+  apparatus.innerHTML = `<p id="apparatus-words">Apparatus words.</p>`;
+  words.after(apparatus);
+  const inApparatus = apparatus.firstElementChild;
+  assert.equal(placePreview(inApparatus).name, "Renamed section");
+  const said = document.createElement("h2");
+  said.setAttribute("data-lf-said", "");
+  said.textContent = "Declared heading";
+  inApparatus.before(said);
+  assert.equal(placePreview(inApparatus).name, "Declared heading");
   // Slots order what they take as the tree draws them, whatever the light order.
   document.body.innerHTML = `<main><h2 id="it">Lead</h2><lf-staged id="slotted">
     </lf-staged><h2>Next</h2></main>`;
@@ -320,6 +332,19 @@ test("a place with no name of its own is named by the part it stands in, as On m
       "Outer",
       "heading",
     );
+  // A title alone on its drawn line heads what follows it: a break ends the line, as
+  // a block does through a wrapper that draws no box.
+  named(
+    `<h2>Outer</h2><p><strong>Group</strong><br><span id="it">Target</span></p>`,
+    "Group",
+    "p",
+  );
+  named(
+    `<h2>Outer</h2><p><strong>Group</strong><span style="display: contents"><span
+    style="display: block" id="it">Target</span></span></p>`,
+    "Group",
+    "p",
+  );
   // A title over a nested list heads the list: no words share its line.
   named(
     `<h2>Outer</h2><ul><li><strong>Group</strong>

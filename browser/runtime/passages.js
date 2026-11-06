@@ -37,10 +37,9 @@
    input with no door is a reading that goes stale silently — the mark lands on the
    words the page used to say. The reverse holds too: a change lands where the walk
    reads or it is no change to the reading, by the walk's own rules (`contextAt`), so
-   the runtime repainting its chrome does not cost the page a walk. A change inside a
-   message's body is read by the same rules against that message, a document of its
-   own (`authoredScope`), and moves `documentReadingVersion`, which a reading kept from
-   a message keys on.
+   the runtime repainting its chrome does not cost the page a walk. A message's body is a
+   document of its own (`authoredScope`) with a reading of its own, and a change, a
+   fence or a stage registered there forgets that reading and leaves the page's.
 
    Native editing hosts and readonly islands inside them are passage cells. Context
    outside a field never borrows its mutable value; an actual native selection inside
@@ -446,8 +445,8 @@ const frameOf = (node) => {
 // cells. A declared root therefore starts its tree-local facts over (`crossed`).
 //
 // The same rules asked of one element are `contextAt`: the element's ancestors folded
-// through `enter` from the top. A walk starts from it at its root, and the page reading's
-// watcher asks it where a change landed (`pageReads`), so what the reading skips and what
+// through `enter` from the top. A walk starts from it at its root, and the reading
+// watcher asks it where a change landed (`readsIn`), so what the reading skips and what
 // it ignores changing are one rule, run in two directions.
 /** @type {ReadingContext} */
 const NO_CONTEXT = Object.freeze({
@@ -701,12 +700,6 @@ export const readingChildren = (element) =>
     ? /** @type {HTMLSlotElement} */ (element).assignedElements({ flatten: true })
     : [...(declaredRoot(element) ?? element).children];
 const { order: readingOrder, under: readingUnder } = alongClimb(readingParent);
-// A box drawn as a block, which starts a line of its own: the `lines` reading breaks at
-// one, and no title runs into words past one (thread/placement.js, `partOver`).
-const BLOCK_LEVEL = /^(block|flow-root|list-item|flex|grid|table|-webkit-box)/;
-/** @param {Element} element */
-export const blockLevel = (element) =>
-  BLOCK_LEVEL.test(getComputedStyle(element).display);
 // One named reading's segments under `root`, carrying their reading block (`blockAt`),
 // typographic text block and generated element (`gen`, the nearest `[data-lf-gen]`
 // in their tree).
@@ -716,11 +709,13 @@ export const blockLevel = (element) =>
 // whitespace; ordinary passage readings never ask the browser for these styles.
 // `drawn` keeps only the words the page draws now (`drawsWithin`), asked of each word and
 // break as the walk meets it, so a break before a word left out still stands before the
-// next; `until` ends the reading where that element starts.
+// next; `until` ends the reading where that element starts, and `last` answering true
+// ends it after the segment it was handed.
 /** @param {Node} root @param {Reading} [reading]
  * @param {((element: Element, count: number) => boolean) | null} [boundary]
  * @param {"prose" | "lines"} [format]
- * @param {{drawn?: boolean, until?: Element | null}} [only] @returns {Segment[]} */
+ * @param {{drawn?: boolean, until?: Element | null, last?: (segment: Segment) => boolean}} [only]
+ * @returns {Segment[]} */
 export function textNodesUnder(
   root,
   reading = "says",
@@ -746,7 +741,7 @@ export function textNodesUnder(
     root,
     (node, ctx) => {
       if (!ended && keeps(ctx) && (!draws || draws(node))) {
-        segments.push({
+        const segment = {
           ...segmentIn(node, ctx),
           breakBefore,
           ...(format === "lines" && {
@@ -754,9 +749,11 @@ export function textNodesUnder(
             whiteSpace: style(node.assignedSlot ?? elementOver(node))
               .whiteSpaceCollapse,
           }),
-        });
+        };
+        segments.push(segment);
         breakBefore = false;
         lineBefore = "";
+        ended = only.last?.(segment) ?? false;
       }
     },
     (child) =>
@@ -776,7 +773,9 @@ export function textNodesUnder(
           const display = style(element).display;
           if (display === "table-cell") {
             if (!entering && lineBefore !== "\n") lineBefore = "\t";
-          } else if (BLOCK_LEVEL.test(display)) {
+          } else if (
+            /^(block|flow-root|list-item|flex|grid|table|-webkit-box)/.test(display)
+          ) {
             lineBefore = "\n";
           }
         }
@@ -1114,6 +1113,31 @@ export const says = (el, options = {}) => {
   const segments = textNodesUnder(el, "says", null, options.format, options);
   return options.format === "lines" ? linesFrom(segments) : quoteFrom(segments);
 };
+/** Whether words the page draws follow `element` on the line it is drawn on inside
+ * `root`, as the `lines` reading of what it draws has them (`says`): from the element's
+ * last word to the next break, so a `<br>` and a block end the line, one inside a
+ * wrapper that draws no box too, and words the page hides are not on it. Where the page
+ * draws none of the element, as an unchosen tab's panel holds it, the line reads whole,
+ * as a preview reads such a place (place-preview.js). The reading ends where the answer
+ * does.
+ * @param {Element} element @param {Element} root */
+export function wordsFollowOnLine(element, root) {
+  let past = false;
+  let follow = false;
+  textNodesUnder(root, "says", null, "lines", {
+    drawn: drawsWithin(element, false),
+    last: (segment) => {
+      if (element.contains(segment.node)) past = true;
+      else if (past) {
+        if (segment.lineBefore === "\n") return true;
+        follow = segment.node.data.slice(segment.start, segment.end).trim() !== "";
+        return follow;
+      }
+      return false;
+    },
+  });
+  return follow;
+}
 // What the page draws now, by what the browser computes for the element each word is
 // drawn in (its slot, its parent, or a shadow root's host), and for each break, the
 // `<br>` itself, which `hidden` or `display: none` takes off the line while its parent
@@ -1470,40 +1494,42 @@ const WATCH_READING = {
   attributeOldValue: true,
   attributeFilter: READING_MARKERS,
 };
-/** @type {PageReading | null} */
-let reading = null;
-/** @type {WeakMap<Element, Partial<Record<Reading, string>>>} */
-let elementReadings = new WeakMap();
-/** @type {WeakMap<Element, Map<string, unknown>>} */
-let elementAnswers = new WeakMap();
 /** @type {string | undefined} */
 let readingVocabulary;
 /** @type {string | undefined} */
 let readingSettled;
 /** @type {MutationObserver | null} */
 let watcher = null;
-// Whether text standing directly under `over` is in the page's reading. The page's
-// reading is rooted at the body, which is no widget's frame. Anything but an element — a
+// The document whose reading a node stands in: a message's body, which is a document of
+// its own (`authoredScope`), or the page's. A node in a Leaf surface outside any message
+// is in none, since no document reads its words.
+const DOCUMENTS = `${MESSAGE_BODY}, ${LEAF_SURFACE}`;
+/** @param {Node} node @returns {Element | null} */
+const readingDocument = (node) => {
+  const at = closestAcross(node, DOCUMENTS);
+  return !at ? pageDocument() : at.matches(MESSAGE_BODY) ? at : null;
+};
+// Whether text standing directly under `over` is in the reading of the document `scope`,
+// with chrome counted from where that document's own walk frames it (`frameOf`): from
+// the top for the page, from the body for a message. Anything but an element — a
 // declared shadow root, the document, a node since detached — is answered yes, since
 // over-forgetting costs a walk and under-forgetting costs a mark on words the page no
 // longer says.
-/** @param {Node | null} over */
-const pageReads = (over) =>
-  !isElement(over) || (!leafSurface(over) && READINGS.says(contextAt(over, null)));
-// The same question asked of a message's body, a document of its own (`authoredScope`):
-// its chrome counts from the body down, as its own walk counts it (`outlineReading`).
-/** @param {Element} body @returns {(over: Node | null) => boolean} */
-const messageReads = (body) => (over) =>
-  !isElement(over) || READINGS.says(contextAt(over, body));
-// A declared label belongs to the page even inside generated widget apparatus.
-// Runtime surfaces remain separate documents, including the messages they hold.
+/** @param {Element} scope @returns {(over: Node | null) => boolean} */
+const readsIn = (scope) => {
+  const frame = frameOf(scope);
+  return (over) => !isElement(over) || READINGS.says(contextAt(over, frame));
+};
+// A declared label is its document's words even inside generated widget apparatus. A
+// node a record hands in stands in the document the record landed in, unless it starts
+// a Leaf surface of its own, whose words no document reads.
 /** @param {Node} node */
 const holdsSaid = (node) =>
   isElement(node) &&
-  !leafSurface(node) &&
+  !node.matches(LEAF_SURFACE) &&
   (node.matches(SAID) || node.querySelector(SAID) !== null);
-// Whether a node can put words in the reading, standing where `read` says the page reads
-// (`pageReads` of its parent). A node that starts chrome (`chromeMark`) and holds no
+// Whether a node can put words in the reading, standing where `read` says its document
+// reads (`readsIn` of its parent). A node that starts chrome (`chromeMark`) and holds no
 // label is silent wherever it goes, which is what the panel's re-rendered rows are.
 /** @param {Node} node @param {boolean} read */
 const speaks = (node, read) =>
@@ -1511,7 +1537,7 @@ const speaks = (node, read) =>
 // Records are read when the queue drains rather than when they were written, so a place
 // is asked about as it stands now. That is still exact: a node that moved between the
 // page and the chrome left a childList record at its page end, which speaks either way.
-// `reads` is where the document the record landed in reads (`pageReads`, `messageReads`).
+// `reads` is where the document the record landed in reads (`readsIn`).
 /** @param {MutationRecord} record @param {(over: Node | null) => boolean} reads */
 const changesTheReading = (record, reads) => {
   const { target } = record;
@@ -1531,46 +1557,42 @@ const changesTheReading = (record, reads) => {
   const wasSaid = record.attributeName === "data-lf-said" && record.oldValue !== null;
   return wasSaid || holdsSaid(target) || reads(target.parentNode);
 };
-// Which reading stands. The page's advances each time it is forgotten, so a reading
-// derived from the page's own nodes, as the visual responses are, keeps what it derived
-// while this stands. Every document's advances with it and also when the words of a
-// message's body change: a message is a document of its own (`authoredScope`), read by
-// its own walk where it is asked about (`outlineReading`) and kept by whoever asked, so
-// what it needs from here is when to read it again.
-let readingVersion = 0;
-let documentsVersion = 0;
-const forgetReading = () => {
-  reading = null;
-  elementReadings = new WeakMap();
-  elementAnswers = new WeakMap();
-  readingVersion += 1;
-  documentsVersion += 1;
+// Each document's reading, kept until something it is built out of moves: the page's
+// whole reading (`pageText`), which holds its outline, or a message's outline
+// (`documentOutline`). A record is replaced, never changed, so the record a reader took
+// is which reading it read. A change forgets the reading of the document it lands in and
+// that one alone (`forget`); a change no one document owns, the vocabulary or a
+// settlement, forgets them all.
+/** @typedef {{page: PageReading | null, outline: OutlineReading | null}} DocumentReading */
+/** @type {WeakMap<Element, DocumentReading>} */
+let documents = new WeakMap();
+/** @param {Element} scope */
+function documentReading(scope) {
+  let kept = documents.get(scope);
+  if (!kept) documents.set(scope, (kept = { page: null, outline: null }));
+  return kept;
+}
+/** @param {Element | null} scope */
+const forget = (scope) => {
+  if (scope) documents.delete(scope);
 };
+/** Which reading of the page stands: a new value each time the page's is forgotten, so a
+ * reading derived from the page's own nodes, as the visual responses are, keeps what it
+ * derived while this stands. */
 export function pageReadingVersion() {
   catchUpReading();
-  return readingVersion;
+  return documentReading(pageDocument());
 }
-/** Which reading of every document stands: the page's and each message body's. */
-export function documentReadingVersion() {
-  catchUpReading();
-  return documentsVersion;
-}
-// Each record is read against the document it landed in: the page, or the message body
-// over it. One standing in a Leaf surface outside any message body is in no document.
-const DOCUMENTS = `${MESSAGE_BODY}, ${LEAF_SURFACE}`;
 /** @param {readonly MutationRecord[]} records */
 function hear(records) {
-  let page = false;
-  let message = false;
+  /** @type {Set<Element>} */
+  const moved = new Set();
   for (const record of records) {
-    const at = closestAcross(record.target, DOCUMENTS);
-    if (!at) page ||= changesTheReading(record, pageReads);
-    else if (at.matches(MESSAGE_BODY))
-      message ||= changesTheReading(record, messageReads(at));
-    if (page) break;
+    const scope = readingDocument(record.target);
+    if (scope && !moved.has(scope) && changesTheReading(record, readsIn(scope)))
+      moved.add(scope);
   }
-  if (page) forgetReading();
-  else if (message) documentsVersion += 1;
+  for (const scope of moved) forget(scope);
 }
 function watchReading() {
   if (watcher) return watcher;
@@ -1578,14 +1600,20 @@ function watchReading() {
   watcher.observe(document, WATCH_READING);
   return watcher;
 }
-// A declared shadow stage is part of the page's words — `textNodesUnder` walks into one
-// at its host's place in the string — and no observer crosses the boundary on its own.
-// shadow-stage.js, which is the only door an x-shadow root is built through, hands each
-// one here as it fills it.
+// A declared shadow stage is part of its document's words — `textNodesUnder` walks into
+// one at its host's place in the string — and no observer crosses the boundary on its
+// own. shadow-stage.js, which is the only door an x-shadow root is built through, hands
+// each one here as it fills it, and again each time it adopts it. The first time forgets
+// the reading of the document the root stands in, which was read without it; from then
+// on the watcher reports the root's changes itself.
+/** @type {WeakSet<ShadowRoot>} */
+const watchedRoots = new WeakSet();
 /** @param {ShadowRoot} root */
 export function watchPassageRoot(root) {
+  if (watchedRoots.has(root)) return;
+  watchedRoots.add(root);
   watchReading().observe(root, WATCH_READING);
-  forgetReading();
+  forget(readingDocument(root));
 }
 // An opaque widget and its original direct children fence the cell walk. Marking them is
 // not a change to the document, so it is a change nothing else would report: a reading
@@ -1596,7 +1624,7 @@ export function watchPassageRoot(root) {
 export function fencePassageParts(root, children = root.children) {
   passageFences.add(root);
   for (const child of children) passageFences.add(child);
-  forgetReading();
+  forget(readingDocument(root));
 }
 // What the page says, once, as one string with a way back to the nodes it came from. Built
 // per document state rather than per caller: every anchor a pass places is asking about the
@@ -1618,58 +1646,72 @@ export function fencePassageParts(root, children = root.children) {
 // the observer what it has seen instead of waiting to be told.
 export function pageText() {
   catchUpReading();
-  return (reading ??= readPage());
+  const kept = documentReading(pageDocument());
+  return (kept.page ??= readPage());
 }
 function catchUpReading() {
   hear(watchReading().takeRecords());
   const vocabulary = registry.$layer?.generation;
   settlements();
   if (vocabulary !== readingVocabulary || settledKey !== readingSettled)
-    forgetReading();
+    documents = new WeakMap();
   readingVocabulary = vocabulary;
   readingSettled = settledKey;
 }
-// A reading of one page element's words, kept exactly as long as the page reading: the
-// watcher above is what says either has moved. Margin rows, the Page Map and every
-// label ask the same elements for their words on every pass, and each walk asks every
-// text node under the element where it stands, which on a long page costs more than
-// the pass it serves. An element whose words the page does not read — chrome, a node
-// since detached, a node of a parsed revision — is outside what the watcher answers
-// for, and is read afresh.
+// A reading of one element's words, kept exactly as long as the reading of its document
+// (`readingDocument`): the watcher above is what says either has moved. Margin rows, the
+// Page Map and every label ask the same elements for their words on every pass, and each
+// walk asks every text node under the element where it stands, which on a long page
+// costs more than the pass it serves. An element no document reads — chrome, a node
+// since detached, a node of a parsed revision — is outside what the watcher answers for,
+// and is read afresh.
 //
 // A kept reading is answered before asking where the element stands: it was kept only
-// while the page read the element, and anything that moves the element out of that —
-// its removal, chrome arriving over it — is a change the watcher forgets every kept
-// reading for.
+// while its document read the element, and anything that moves the element out of that
+// — its removal, chrome arriving over it — is a change that forgets that document's
+// reading, which the kept reading names.
+/** @typedef {{scope: Element, of: DocumentReading, words: Partial<Record<Reading, string>>, answers: Map<string, unknown>}} Kept */
+/** @type {WeakMap<Element, Kept>} */
+const keptAbout = new WeakMap();
+/** @param {Element} element */
+function kept(element) {
+  catchUpReading();
+  const about = keptAbout.get(element);
+  return about && documents.get(about.scope) === about.of ? about : null;
+}
+// Where to keep what an element answers: under the reading of its document, where that
+// document reads the element.
+/** @param {Element} element */
+function keeping(element) {
+  const about = kept(element);
+  if (about) return about;
+  if (!element.isConnected || element.ownerDocument !== document) return null;
+  const scope = readingDocument(element);
+  if (!scope || !readsIn(scope)(element)) return null;
+  /** @type {Kept} */
+  const fresh = { scope, of: documentReading(scope), words: {}, answers: new Map() };
+  keptAbout.set(element, fresh);
+  return fresh;
+}
 /** @param {Element} element @param {Reading} [reading] */
 export function elementReading(element, reading = "says") {
-  catchUpReading();
-  let kept = elementReadings.get(element);
-  if (kept?.[reading] !== undefined) return kept[reading];
+  const known = kept(element)?.words[reading];
+  if (known !== undefined) return known;
   const value = quoteFrom(textNodesUnder(element, reading));
-  if (keepable(element)) {
-    if (!kept) elementReadings.set(element, (kept = {}));
-    kept[reading] = value;
-  }
+  const about = keeping(element);
+  if (about) about.words[reading] = value;
   return value;
 }
-/** @param {Element} element */
-const keepable = (element) =>
-  element.isConnected && element.ownerDocument === document && pageReads(element);
 /** An answer about an element's own children and words, such as which of them titles
- * it, kept as long as the page reading stands, as its words are (`elementReading`),
- * and asked afresh of an element the page does not read.
+ * it, kept as long as its document's reading stands, as its words are
+ * (`elementReading`), and asked afresh of an element no document reads.
  * @template T @param {Element} element @param {string} question @param {() => T} answer
  * @returns {T} */
 export function keptAnswer(element, question, answer) {
-  catchUpReading();
-  const kept = elementAnswers.get(element);
-  if (kept?.has(question)) return /** @type {T} */ (kept.get(question));
+  const known = kept(element)?.answers;
+  if (known?.has(question)) return /** @type {T} */ (known.get(question));
   const value = answer();
-  if (keepable(element)) {
-    if (kept) kept.set(question, value);
-    else elementAnswers.set(element, new Map([[question, value]]));
-  }
+  keeping(element)?.answers.set(question, value);
   return value;
 }
 // The walk itself.
@@ -1786,11 +1828,19 @@ const outlineFold = () => {
     read: () => ({ outline: Object.freeze(outline), at, over }),
   };
 };
-/** The page's outline, as its reading's walk recorded it (`readPage`). */
-export const pageOutlineReading = () => pageText().outline;
-/** The outline of a document handed in, as a message's markup, walked as the page's is.
- * @param {Element} root @returns {OutlineReading} */
-export function outlineReading(root) {
+/** The outline of the document `scope` (`authoredScope`): the page's, as its reading's
+ * walk recorded it (`readPage`), or a message's, walked as the page's is; each kept as
+ * long as its document's reading stands.
+ * @param {Element} scope @returns {OutlineReading} */
+export function documentOutline(scope) {
+  if (scope === pageDocument(scope.ownerDocument)) return pageText().outline;
+  if (!scope.isConnected) return outlineReading(scope);
+  catchUpReading();
+  const kept = documentReading(scope);
+  return (kept.outline ??= outlineReading(scope));
+}
+/** @param {Element} root @returns {OutlineReading} */
+function outlineReading(root) {
   const outline = outlineFold();
   walk(root, () => {}, null, null, outline.enter);
   return outline.read();

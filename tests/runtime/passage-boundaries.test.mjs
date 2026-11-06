@@ -24,6 +24,7 @@ import {
   blockAt,
   closestAcross,
   contextAround,
+  documentOutline,
   elementReading,
   fencedAt,
   fencePassageParts,
@@ -39,7 +40,7 @@ import {
   segmentsIn,
 } from "/runtime/passages.js";
 import { upFrom } from "/runtime/shadow.js";
-import { shadowStage } from "/runtime/shadow-stage.js";
+import { adoptShadowStage, shadowStage } from "/runtime/shadow-stage.js";
 
 test("no node means no passage location, rather than a runtime error", () => {
   assert.equal(closestAcross(null, "main"), null);
@@ -268,6 +269,41 @@ test("a declared shadow tree's words are read, and its changes are seen", () => 
   // And the door leaves the tree watched, rather than forgetting the reading once.
   root.querySelector("p").textContent = "Gamma";
   assert.match(pageText().raw, /Alpha.*Gamma/s);
+});
+
+test("each document's reading is forgotten alone: the page's and a reply's", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "passage-documents" },
+  });
+  document.body.innerHTML = "<main><p>Alpha</p></main>";
+  const chrome = document.createElement("div");
+  chrome.className = "lf-chrome";
+  chrome.innerHTML = `<div class="lf-msg lf-ui" data-lf-gen="1"><div class="lf-msg-body">
+    <lf-staged></lf-staged></div></div>`;
+  document.documentElement.append(chrome);
+  try {
+    const root = shadowStage(chrome.querySelector("lf-staged"), [
+      Object.assign(document.createElement("p"), { textContent: "Reply words." }),
+    ]);
+    const page = pageText();
+    // A reply is a document of its own, so its widget redrawing is no change to the page.
+    root.querySelector("p").textContent = "Reply changed.";
+    assert.equal(pageText(), page);
+    // A root the watcher already sees reports its own changes, as a reply's diff is
+    // adopted again when its module loads.
+    adoptShadowStage(root);
+    assert.equal(pageText(), page);
+    // And the page changing is no change to the reply, whose own change is.
+    const body = chrome.querySelector(".lf-msg-body");
+    const outline = documentOutline(body);
+    document.querySelector("main p").textContent = "Beta";
+    assert.equal(documentOutline(body), outline);
+    root.querySelector("p").textContent = "Reply changed again.";
+    assert.notEqual(documentOutline(body), outline);
+  } finally {
+    chrome.remove();
+  }
 });
 
 // A page script's own custom element attaches a root no declaration vouches for. The

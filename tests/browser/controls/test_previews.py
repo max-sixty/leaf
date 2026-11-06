@@ -334,7 +334,9 @@ DRAWN_PAGE = leaf_page(
 <a id="to-broken" href="#broken">a line broken before hidden words</a>,
 <a id="to-skipping" href="#skipping">a block skipping its own words</a>,
 <a id="to-folded" href="#folded">a folded panel</a>,
-<a id="to-far" href="#far">words out of view</a> and
+<a id="to-far" href="#far">words out of view</a>,
+<a id="to-alone" href="#alone">a title over hidden words</a>,
+<a id="to-folded-run" href="#folded-run">a folded lead-in</a> and
 <a id="to-joined" href="#joined">code joined over a hidden break</a>.</p>
 <details id="closed"><summary>Method</summary>Secret text<p>Hidden paragraph.</p></details>
 <div id="held">Intro <details><summary>More</summary><p>Hidden words.</p></details></div>
@@ -360,6 +362,9 @@ CV</div><div hidden="until-found">SECRET FOUND</div></div>
 <section id="folded" hidden="until-found"><h3>Folded title</h3><p>Folded body.</p>
 </section>
 <pre id="joined"><code>con<br hidden>st value = 1;</code></pre>
+<div><strong>Group</strong><span hidden>HIDDEN</span><p id="alone">Target words.</p></div>
+<section hidden="until-found"><h3>Folded part</h3><p><strong>Lead.</strong> Words
+<em id="folded-run">run on</em>.</p></section>
 """
     + "<p>More of the page.</p>" * 40
     + """<div style="content-visibility: auto; contain-intrinsic-size: auto 40px">
@@ -379,8 +384,10 @@ def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve)
     break before hidden words still a break, words a block's `content-visibility` skips
     nothing, a folded panel, which draws none of what it holds, all of it, and words a
     `content-visibility: auto` box skips out of view as they will draw: without what
-    their own styles hide. Code cut short ends in an ellipsis, as cut prose does, and a
-    hidden break joins the line it would have split."""
+    their own styles hide. Code cut short ends in an ellipsis, as cut prose does, a
+    hidden break joins the line it would have split, and a bold title followed by
+    words the page hides stands alone on its line, so it names what follows it, while
+    one a folded panel holds runs into its words as they will draw."""
     page = open_page(request.getfixturevalue(engine), serve(DRAWN_PAGE))
     # Words Leaf writes into a block, as the paint pass writes a comment's count.
     page.evaluate(
@@ -408,6 +415,8 @@ def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve)
         ("#to-folded", "Folded title", "Folded body."),
         ("#to-far", None, "Far words."),
         ("#to-joined", None, "const value = 1;"),
+        ("#to-alone", "Group", "Target words."),
+        ("#to-folded-run", "Folded part", "run on"),
     ):
         page.mouse.move(0, 0)
         expect(preview).to_be_hidden()

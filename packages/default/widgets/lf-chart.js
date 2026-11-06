@@ -261,21 +261,24 @@ customElements.define(
         // then has no point to read again, and the next aim reads from where it lands,
         // the keys stepping on from the point put away while the chart has focus, and a
         // pointer still over the drawing reading nothing until it reaches another point.
-        // It comes off once the task that put the preview away is done, and only if the
-        // reading that ended is still the chart's last, its point still the reader's and
-        // no finger has pressed since: a Tab that puts a resting pointer's preview away
-        // lands focus here in the same task, whose preview reads the point again, and
-        // the keyboard takes it on, and the press that starts a second hold on a point
-        // puts the first hold's preview away as the finger presses that point again.
+        // The reading that ended no longer stands, at once. Its ring comes off once the
+        // task that put the preview away is done, and only if no reading stands again by
+        // then, its point is still the reader's and no finger has pressed since: a Tab
+        // that puts a resting pointer's preview away lands focus here in the same task,
+        // whose preview reads the point again, and the keyboard takes it on; the press
+        // that starts a second hold on a point puts the first hold's preview away as the
+        // finger presses that point again. A press is an aim, not a reading: a tap that
+        // ends without a hold leaves the ring to go with the finger (`#leave`).
         this.addEventListener(
           PREVIEW_ENDED,
           (event) => {
             const { declared } = /** @type {CustomEvent} */ (event).detail;
+            if (!declared || declared !== this.#declared) return;
+            this.#declared = null;
             const [read, presses] = [this.#at, this.#presses];
             nextRender(() => {
-              if (!declared || declared !== this.#declared) return;
-              if (this.#at !== read || this.#presses !== presses) return;
-              this.#declared = null;
+              if (this.#declared || this.#at !== read || this.#presses !== presses)
+                return;
               if (this.matches(":focus")) this.#place = read;
               if (this.#over) this.#away = read;
               this.#choose(null, "pointer");

@@ -1261,6 +1261,73 @@ def test_a_reading_stays_while_the_pointer_crosses_onto_it_past_the_chart(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_titled_link_beneath_a_reading_takes_the_pointer_from_it(
+    engine, request, serve
+):
+    """A high point's six lines stand above the chart, over a narrow titled link that
+    falls between the places the preview's room is tested at, a target that previews
+    nothing of Leaf's. The pointer crossing from the point onto the link under the
+    words reaches the link, and the reading and its ring go."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "tall",
+                f'<h1 id="t">Tasks</h1>{TALL}<p style="height: 1200px">After.</p>',
+            )
+        ),
+    )
+    chart = page.locator("#tall")
+    preview = page.locator(PREVIEW)
+    ring = chart.locator(".lf-chart-at circle")
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+
+    def aim(n):
+        box = dots.nth(n).bounding_box()
+        at = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        page.mouse.move(at[0] - 3, at[1])
+        page.mouse.move(*at)
+        return at
+
+    aim(1)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
+    tip = preview.bounding_box()
+    corner = (tip["x"] + 5, tip["y"] + 10)
+    page.evaluate(
+        """([x, y]) => {
+          const link = Object.assign(document.createElement('a'),
+            {id: 'titled', href: '#t', title: 'Information', textContent: 'i'});
+          link.style.cssText = `position: fixed; left: ${x}px; top: ${y}px; width: 10px;`
+            + ' height: 18px; padding: 0; margin: 0; z-index: 2; font-size: 12px';
+          document.querySelector('main').append(link);
+        }""",
+        list(corner),
+    )
+    page.mouse.move(2, 2)
+    expect(preview).to_be_hidden()
+    aim(0)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Low")
+    high = aim(1)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
+    tip = preview.bounding_box()
+    on = (corner[0] + 5, corner[1] + 9)
+    assert tip["x"] < on[0] < tip["x"] + tip["width"], (tip, on)
+    assert tip["y"] < on[1] < tip["y"] + tip["height"], (tip, on)
+    for step in range(1, 16):
+        page.mouse.move(
+            high[0] + (on[0] - high[0]) * step / 15,
+            high[1] + (on[1] - high[1]) * step / 15,
+        )
+    assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", on) == (
+        "titled"
+    )
+    expect(preview).to_be_hidden(timeout=3000)
+    expect(ring).to_be_hidden(timeout=3000)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_after_a_click_on_the_chart_the_next_point_shows_its_preview(
     engine, request, serve
 ):
@@ -1316,6 +1383,36 @@ def test_a_held_reading_kept_in_a_gap_stays_as_the_window_resizes(browser, serve
     assert said(page) == ["week w2", "kind fixes", "hours 14"]
     expect(ring).to_be_visible()
     touch("touchEnd")
+
+
+def test_a_tap_after_a_hold_takes_the_reading_and_its_ring_away(browser, serve):
+    """A finger holds a point and lifts, leaving its preview; a short tap on the same
+    point puts the preview away, and its ring goes with it. Chromium alone: Playwright
+    holds no finger in Firefox."""
+    context = browser.new_context(has_touch=True)
+    page = open_page(browser, serve(VALUES_PAGE), context=context)
+    preview = page.locator(PREVIEW)
+    ring = page.locator("#hours .lf-chart-at circle")
+    expect(page.locator("#hours svg[role=img]")).to_be_visible()
+    cdp = context.new_cdp_session(page)
+
+    def touch(kind, at=None):
+        points = [{"x": at[0], "y": at[1]}] if at else []
+        cdp.send("Input.dispatchTouchEvent", {"type": kind, "touchPoints": points})
+
+    start = column(page, "hours", "w2")
+    touch("touchStart", start)
+    page.wait_for_timeout(600)
+    long_press(page, {"x": start[0], "y": start[1]})
+    expect(preview).to_be_visible()
+    touch("touchEnd")
+    render_checks_model.rendered(page)
+    expect(preview).to_be_visible()
+    touch("touchStart", start)
+    touch("touchEnd")
+    expect(preview).to_be_hidden(timeout=3000)
+    expect(ring).to_be_hidden(timeout=3000)
+    assert page.evaluate("document.getElementById('hours').lfPreview()") is None
 
 
 def test_a_second_hold_on_the_same_point_reads_it_again(browser, serve):

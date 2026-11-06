@@ -112,9 +112,9 @@
    reading the element beneath it: what it covers there, as the chart's next point, is
    that element's own, which no side's room is tested against, since only other
    controls and what the preview is about are. A pointer over the box of a preview that
-   lets it through, and over no other target, still keeps the preview, as one on a
-   preview that takes it does, so a pointer crossing from a point to its words keeps
-   them past the element's edge. Each length is compared at the precision layout keeps,
+   lets it through, and over nothing there the user aims at, previewing or not, still
+   keeps the preview, as one on a preview that takes it does (`onPreview`), so a pointer
+   crossing from a point to its words keeps them past the element's edge. Each length is compared at the precision layout keeps,
    so a room and the line it is asked to hold, read off two boxes at one edge, are one
    length. A target thinner than the grid's step can stand under it unseen, and some of
    Leaf's own are thinner, as the trace timeline's marks are, which declare their lane
@@ -1353,15 +1353,28 @@ function point(target) {
     }, DWELL);
 }
 
-// A preview that lets the pointer through (`data-lf-covers`) holds it as one that takes
-// it does while the pointer is over its box and over no other target: it rides the
-// preview, its target's still, until it leaves the box (WCAG 1.4.13, "Hoverable"). So a
-// pointer crossing from a chart's point to the words above it, past the chart's edge,
-// keeps them.
-const overTip = () =>
-  shown?.route === "pointer" &&
-  tip.hasAttribute("data-lf-covers") &&
-  holds(tip.getBoundingClientRect(), rest.x, rest.y);
+// Whether the pointer is on the pointer's preview, the one answer for whatever asks: the
+// event's path holds the preview, or the preview lets the pointer through
+// (`data-lf-covers`) and the pointer is over its box and over nothing there the user
+// aims at (`keepsAccess`), whether or not that previews, as a field, a titled link or a
+// focusable region doesn't. On it, the pointer rides the preview, its target's still,
+// until it leaves the box (WCAG 1.4.13, "Hoverable"): a pointer crossing from a chart's
+// point to the words above it, past the chart's edge, keeps them, and one that reaches a
+// field beneath them takes the field.
+const inTip = () => holds(tip.getBoundingClientRect(), rest.x, rest.y);
+/** @param {readonly EventTarget[]} path */
+function onPreview(path) {
+  if (shown?.route !== "pointer") return false;
+  if (path.includes(tip)) return true;
+  if (!tip.hasAttribute("data-lf-covers") || !inTip()) return false;
+  return !path.some(
+    (node) =>
+      isElement(node) &&
+      node !== document.documentElement &&
+      node !== document.body &&
+      keepsAccess(node),
+  );
+}
 function ride() {
   clearTimeout(leaving);
   pointing = /** @type {Shown} */ (shown).from;
@@ -1482,25 +1495,20 @@ export function mountPreviews(chrome) {
       if (event.pointerType === "touch") return;
       const path = event.composedPath();
       beneath = isElement(path[0]) ? path[0] : null;
+      const still = event.clientX === rest.x && event.clientY === rest.y;
+      rest = { x: event.clientX, y: event.clientY };
       // The pointer on a preview keeps it, as on its target (WCAG 1.4.13, "Hoverable").
-      if (path.includes(tip)) {
-        clearTimeout(leaving);
-        if (shown?.route === "pointer") pointing = shown.from;
-        return;
-      }
+      if (onPreview(path)) return ride();
       // Something that arrives under a pointer the user hasn't moved takes it, but
       // shows nothing: the user pointed at what was there before. A pointer carrying a
       // press, as a drag does, is acting, not reading. Where the browser shows a title's
       // tooltip, the pointer reads nothing more.
-      const still = event.clientX === rest.x && event.clientY === rest.y;
-      rest = { x: event.clientX, y: event.clientY };
       const found = tooltipped(path) ? null : candidate(path);
       if (still || event.buttons) {
         pointing = found;
         clearTimeout(dwell);
         if (shown?.route === "pointer" && shown.from !== pointing) hide();
-      } else if (!found && overTip()) ride();
-      else point(found);
+      } else point(found);
     },
     { capture: true, passive: true },
   );
@@ -1508,7 +1516,7 @@ export function mountPreviews(chrome) {
     "pointermove",
     (event) => {
       rest = { x: event.clientX, y: event.clientY };
-      if (riding && !overTip()) point(null);
+      if (riding && !inTip()) point(null);
     },
     { capture: true, passive: true },
   );

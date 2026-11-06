@@ -875,7 +875,6 @@
         :has(> [data-lf-reading-role="pane"])
       ) {
       padding-block-end: var(--lf-end-room);
-      scroll-padding-block-end: var(--lf-end-room);
     }
   }
   /* Where the workspace flows no pane body scrolls, so a box of panes ends the page

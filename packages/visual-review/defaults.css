@@ -4,10 +4,9 @@
    The remaining workspace has a floor. A desk that fills the window gives its shot's
    track at least room for the toolbar and a frame to read, and each track between the
    dashboard and the capture takes its content's minimum (`minmax(min-content, 1fr)`),
-   and the dashboard keeps that intrinsic minimum in its own box. A short window then
-   scrolls the desk and its reserved foot room together, rather than letting the grid
-   overflow across that room or squeezing the screenshots away: at 720px tall a stacked
-   case list left the shots 5px. The shot is size-contained there, so that minimum is the floor
+   so a window too short for that floor grows the desk past the workspace body, which
+   scrolls, rather than squeezing the screenshots away: at 720px tall a stacked case list
+   left the shots 5px. The shot is size-contained there, so that minimum is the floor
    and not the screenshots' natural height, which the shot fits to its room. */
 lf-visual-review {
   /* The review it draws wears markup's reading face (`reading.css`) whatever theme the
@@ -323,7 +322,7 @@ lf-visual-review {
 @container style(--lf-full-height:1) {
   .lf-vr-dashboard {
     block-size: 100%;
-    min-block-size: min-content;
+    min-block-size: 0;
   }
 }
 @media print {

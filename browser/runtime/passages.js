@@ -1859,7 +1859,9 @@ function readPage() {
 // to it is none; and, for each element the walk enters, what stood over it as the walk
 // reached it (`Over`): for each container out from it, the last heading met so far that
 // heads that container (`headed`). Each container's record is replaced, never changed,
-// when a heading arrives in it, so what an element was given stays as it was. And for
+// when a heading arrives in it, and so is the record of each container still open inside
+// it, as a header is around the title that heads what holds the header, so what an
+// element was given stays as it was and what comes after stands under the heading. And for
 // each heading, the nearest heading of a higher rank before it in the same container
 // (`above`), as a reader takes a flow of h2s to stand under the h1 over them.
 // thread/placement.js reads names and parts from it (`partOver`, `partTrail`).
@@ -1890,8 +1892,14 @@ const outlineFold = () => {
         at.set(element, outline.length);
         outline.push(element);
         const container = headed(element);
-        const holder = open.findLast((frame) => frame.element === container);
-        if (holder) holder.state = { ...holder.state, heading: element };
+        const holder = open.findLastIndex((frame) => frame.element === container);
+        for (let depth = holder; depth >= 0 && depth < open.length; depth++) {
+          const frame = /** @type {{element: Element, state: Over}} */ (open[depth]);
+          frame.state =
+            depth === holder
+              ? { ...frame.state, heading: element }
+              : { ...frame.state, up: open[depth - 1]?.state ?? null };
+        }
         const higher = ranks.get(container) ?? [];
         while (
           higher.length &&

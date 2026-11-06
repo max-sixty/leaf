@@ -11,7 +11,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { render } from "/runtime/framework.js";
 import { linkedPlace, placePreview } from "/runtime/place-preview.js";
-import { partOver } from "/runtime/thread/placement.js";
+import { partOver, partTrail } from "/runtime/thread/placement.js";
+import { addressableLabel } from "/runtime/addressable-names.js";
 import { registry } from "/runtime/registry.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
 
@@ -276,6 +277,38 @@ test("a heading's section is walked through declared shadow trees and their slot
   const body = document.createElement("div");
   render(first.detail, body);
   assert.equal(body.textContent.replace(/\s+/g, " ").trim(), "Assigned body.");
+});
+
+test("a node's trail names every part over it, outermost first", () => {
+  // The headings a thread's head names over its words (thread-card.js), as it labels them.
+  /** @param {string} markup */
+  const trail = (markup) => {
+    document.querySelector(".lf-chrome")?.remove();
+    document.body.innerHTML = `<main>${markup}</main>`;
+    return partTrail(document.getElementById("it")).map(addressableLabel);
+  };
+  // A title in a header heads what holds the header, the header's own words included.
+  assert.deepEqual(
+    trail(`<header>Intro<h1>Title</h1><p id="it">Standfirst</p></header>`),
+    ["Title"],
+  );
+  // Nested sections, each heading under the one of a higher rank over it.
+  assert.deepEqual(
+    trail(`<h1>Doc</h1><section><h2>Part</h2><section><h3>Sub</h3>
+      <p id="it">Words.</p></section></section>`),
+    ["Doc", "Part", "Sub"],
+  );
+  // A heading that arrives after the trail was read is in the next one.
+  assert.deepEqual(trail(`<section><h2>First</h2><p id="it">Words.</p></section>`), [
+    "First",
+  ]);
+  const later = document.createElement("h3");
+  later.textContent = "Later";
+  document.getElementById("it").before(later);
+  assert.deepEqual(partTrail(document.getElementById("it")).map(addressableLabel), [
+    "First",
+    "Later",
+  ]);
 });
 
 test("a place with no name of its own is named by the part it stands in, as On me groups it", () => {

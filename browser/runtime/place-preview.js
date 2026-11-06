@@ -17,9 +17,10 @@
      own, or one the page draws nothing of, the name of the part it stands in, by the
      rule On me groups its items by (thread/placement.js, `partOver`): the heading over
      it, or the nearest element holding it that the contract names;
-   - its first few parts, in the page's order, each as the page draws it now: a
-     heading, a paragraph cut to three lines, a list's first items, a table's first
-     rows, a figure's picture and caption, and a code block's first lines. A heading's
+   - its first few parts, in the page's order, each as the page draws it now and each a
+     line of detail the face fits to its room (preview.js, `fit`): a heading, a
+     paragraph's words, a list's first items, a table's first rows, a figure's picture
+     and caption, and a code block's first lines. A heading's
      parts are those of the part it heads itself: what follows it in its container, up to
      the next heading of its document's outline, however deep in a block that stands.
      Anything drawn before the name, such as an eyebrow, anything Leaf draws inside the

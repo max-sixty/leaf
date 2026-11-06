@@ -1,8 +1,9 @@
 /* What a place on the page previews (place-preview.js): its name over its first parts,
    each read from the place's words rather than copied from its nodes, a heading's
    section as the page's reading walks it, and which links preview one at all. What the
-   platform draws, the state a question's obligation and the conversations about a place
-   add are the browser's to show, and the browser test that hovers a link holds them
+   platform draws, a code block's lines as its whitespace draws them, the state a
+   question's obligation and the conversations about a place add are the browser's to
+   show, and the browser test that hovers a link holds them
    (`tests/browser/controls/test_previews.py`). */
 
 import assert from "node:assert/strict";
@@ -205,13 +206,62 @@ test("a place with no name of its own takes the nearest name holding it", () => 
       ["text", "It may fail."],
     ],
   );
+  // Else the part it stands in, as On me names it (`partOver`): an aside's heading
+  // heads the aside alone.
+  assert.deepEqual(
+    previewed(`<h2>Deployment</h2><aside><h3>Optional note</h3><p>Aside words.</p>
+      </aside><p id="it">It ships on Monday.</p>`).parts,
+    [
+      ["name", "Deployment"],
+      ["text", "It ships on Monday."],
+    ],
+  );
 });
 
-test("code shows its first lines", () => {
-  assert.deepEqual(
-    previewed(`<pre id="it"><code>a()\nb()\nc()\nd()\ne()</code></pre>`).parts,
-    [["code", "a() b() c() d()"]],
+test("a slotted section reads its slot's run once, and only as far as its preview shows", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "place-preview-run" },
+  });
+  document.querySelector(".lf-chrome")?.remove();
+  document.body.innerHTML = `<main><lf-staged id="host"></lf-staged></main>`;
+  const slot = document.createElement("template");
+  slot.innerHTML = "<div><slot></slot></div>";
+  const host = document.getElementById("host");
+  shadowStage(host, [...slot.content.childNodes]);
+  host.innerHTML = `<h2 id="it">Long</h2>${Array.from(
+    { length: 400 },
+    (_, at) => `<p>Paragraph ${at}.</p>`,
+  ).join("")}`;
+  const counted = { assignedElements: 0, checkVisibility: 0 };
+  const originals = Object.keys(counted).map((name) => {
+    const owner =
+      name === "assignedElements"
+        ? document.createElement("slot").constructor
+        : Element;
+    const original = owner.prototype[name];
+    owner.prototype[name] = function (...args) {
+      counted[name] += 1;
+      return original.apply(this, args);
+    };
+    return () => (owner.prototype[name] = original);
+  });
+  try {
+    const read = placePreview(document.getElementById("it"));
+    const tip = document.createElement("div");
+    render(read.detail, tip);
+    assert.deepEqual(
+      [...tip.querySelectorAll(".lf-place-text")].map((part) => part.textContent),
+      ["Paragraph 0.", "Paragraph 1."],
+    );
+  } finally {
+    for (const restore of originals) restore();
+  }
+  assert.ok(
+    counted.assignedElements <= 1,
+    `slot read ${counted.assignedElements} times`,
   );
+  assert.ok(counted.checkVisibility < 10, `${counted.checkVisibility} elements asked`);
 });
 
 test("a figure shows its picture under its caption, and a drawing its title", () => {

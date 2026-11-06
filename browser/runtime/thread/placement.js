@@ -6,7 +6,15 @@ import {
   declaredName,
 } from "../addressable-names.js";
 import { sectionOf } from "../anchor-resolution.js";
-import { HEADING, leafSurface, pageParts, pageReadingVersion } from "../passages.js";
+import {
+  authoredScope,
+  HEADING,
+  leafSurface,
+  pageDocument,
+  pageParts,
+  pageReadingVersion,
+  readingChildren,
+} from "../passages.js";
 import { documentChanged } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
 import { byRenderedOrder, renderedOrder, upFrom } from "../shadow.js";
@@ -67,7 +75,8 @@ export const inPageOrder = (threads, placedAt) =>
 // It is a reading of the page's own nodes, so it stands until the page reading moves
 // (passages.js, `pageReadingVersion`) or a caller says the document changed
 // (`presentDocument`): a thread pass over an unchanged page reads the outline it read.
-/** @typedef {{key: readonly [ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>], outline: readonly Element[], heads: Map<Element | null, Element[]>}} Outlined */
+/** @typedef {{outline: readonly Element[], heads: Map<Element | null, Element[]>}} Outline
+ * @typedef {Outline & {key: readonly [ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>]}} Outlined */
 /** @type {Outlined | null} */
 let outlined = null;
 /** @returns {Outlined} */
@@ -75,27 +84,51 @@ function readOutline() {
   /** @type {[ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>]} */
   const key = [pageReadingVersion(), documentChanged()];
   if (outlined?.key.every((part, index) => part === key[index])) return outlined;
-  const outline = Object.freeze(
-    byRenderedOrder(
-      pageParts(HEADING),
-      /** @param {Element} heading */ (heading) => heading,
+  outlined = {
+    key,
+    ...outlineFrom(
+      byRenderedOrder(
+        pageParts(HEADING),
+        /** @param {Element} heading */ (heading) => heading,
+      ),
     ),
-  );
-  // Each container's headings, in the outline's order, for `partOver`.
+  };
+  return outlined;
+}
+export const pageOutline = () => readOutline().outline;
+// An outline's headings, and each container's, in the outline's order, for `partOver`.
+/** @param {Element[]} headings @returns {Outline} */
+function outlineFrom(headings) {
   /** @type {Map<Element | null, Element[]>} */
   const heads = new Map();
-  for (const heading of outline) {
+  for (const heading of headings) {
     const container = headed(heading);
     const held = heads.get(container);
     if (held) held.push(heading);
     else heads.set(container, [heading]);
   }
-  outlined = { key, outline, heads };
-  return outlined;
+  return { outline: Object.freeze(headings), heads };
 }
-export const pageOutline = () => readOutline().outline;
+// The outline of the document `node` stands in: the page's, or a message's, which its
+// markup is outlined by as the page is by its own. A message's is read afresh from its
+// markup, in the order the page's reading walks it (declared shadow trees and slots as
+// they draw), since a reply is drawn once and small, so nothing need keep it current.
+/** @param {Node} node */
+const outlineOf = (node) => {
+  const scope = authoredScope(node);
+  return scope === pageDocument(node.ownerDocument ?? document)
+    ? readOutline()
+    : outlineFrom(headingsUnder(scope));
+};
+/** @param {Element} root @returns {Element[]} */
+const headingsUnder = (root) =>
+  readingChildren(root).flatMap((child) => [
+    ...(child.matches(HEADING) ? [child] : []),
+    ...headingsUnder(child),
+  ]);
 
-// What names the part of the page a node stands in: the heading over it, else the
+// What names the part of the page, or of a message's markup, a node stands in: the
+// heading over it, else the
 // nearest region holding it whose declaration titles it (`declaredName`), such as a tab
 // by its label, or null where neither does. A run-in title, a paragraph's leading
 // <strong>, names its paragraph and no part. On me's place for an item and an obligation's arrival
@@ -114,8 +147,9 @@ export const pageOutline = () => readOutline().outline;
 // corpus page, whose pages stand in tabs with their titles in headers and their last
 // sections untitled, the container alone sent every item to the corpus's own title.
 const HEADERS = "header, hgroup";
-/** @param {Element} heading */
-const headed = (heading) => {
+/** The container `heading` heads, from where it stands on.
+ * @param {Element} heading */
+export const headed = (heading) => {
   const at = upFrom(heading);
   return at?.matches(HEADERS) ? upFrom(at) : at;
 };
@@ -125,7 +159,7 @@ const headed = (heading) => {
 // outline rather than the whole outline: On me asks it of every item it lists.
 /** @param {Element} node */
 export function partOver(node) {
-  const { heads } = readOutline();
+  const { heads } = outlineOf(node);
   for (let at = upFrom(node); at; at = upFrom(at)) {
     const heading = lastBefore(heads.get(at), node);
     if (heading) return heading;

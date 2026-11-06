@@ -1089,11 +1089,56 @@ function linesFrom(segments) {
 // it. A suggestion labelled that way offered to accept “Retry three times. 1 comment”.
 // The lines format takes block boundaries and preserved whitespace from computed
 // styles while the same composed walk determines which words belong to the page.
-/** @param {Node} el @param {{format?: "prose" | "lines"}} [options] */
+// `drawn` keeps only the words the page draws now (`drawsText`), for a reader that
+// shows them somewhere else, as a link's preview does.
+/** @param {Node} el @param {{format?: "prose" | "lines", drawn?: boolean}} [options] */
 export const says = (el, options = {}) => {
-  const segments = textNodesUnder(el, "says", null, options.format);
+  const read = textNodesUnder(el, "says", null, options.format);
+  const segments = options.drawn ? read.filter(drawsText()) : read;
   return options.format === "lines" ? linesFrom(segments) : quoteFrom(segments);
 };
+// What the page draws now, by what the browser computes for each text node rather than
+// by pruning the elements over it, since a child can be drawn where its parent is not:
+// the visibility the text inherits from the element it is drawn in (its slot, else its
+// parent), and whether that element renders (`rendersBox`). A closed disclosure's own
+// words beside its summary are drawn in a tree the page can't see, which draws only the
+// summary, so the disclosure answers for them. No primitive gives this reading:
+// `innerText` keeps Leaf's own controls and reads a host's light children rather than
+// its declared tree, and a Range's text keeps everything. Each holder is asked once.
+const drawsText = () => {
+  /** @type {Map<Element, boolean>} */
+  const asked = new Map();
+  /** @param {Segment} segment */
+  return ({ node }) => {
+    const holder = flatParent(node);
+    if (!holder) return false;
+    let drawn = asked.get(holder);
+    if (drawn === undefined)
+      asked.set(
+        holder,
+        (drawn =
+          !(isHTML(holder, "details") && !holder.open) &&
+          !/^(hidden|collapse)$/.test(getComputedStyle(holder).visibility) &&
+          rendersBox(holder)),
+      );
+    return drawn;
+  };
+};
+// The element a node is drawn in: its slot, its parent, or a shadow root's host.
+/** @param {Element | Text} node @returns {Element | null} */
+const flatParent = (node) =>
+  node.assignedSlot ?? node.parentElement ?? shadowHost(node.getRootNode());
+/** Whether the page renders `element` now (`checkVisibility`): it is not under
+ * `display: none` or `hidden`, nor in a skipped `content-visibility` subtree, as a closed
+ * disclosure's body is. An element that makes no box (`display: contents`, as a slot)
+ * renders where the nearest element holding it that makes one does.
+ * @param {Element} element */
+export function rendersBox(element) {
+  /** @type {Element | null} */
+  let box = element;
+  while (box && getComputedStyle(box).display === "contents") box = flatParent(box);
+  return box?.checkVisibility() ?? false;
+}
 // The other question, and a different answer: what the *author* wrote here, with
 // everything an upgrade generated left out. A version comparison keys sources by it and
 // paints a source's words onto the live block that reads the same; a widget asks it to name

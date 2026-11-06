@@ -298,8 +298,12 @@ DRAWN_PAGE = leaf_page(
 <p id="lede"><a id="to-closed" href="#closed">a closed disclosure</a>,
 <a id="to-held" href="#held">a block holding one</a>,
 <a id="to-spans" href="#spans">a paragraph with hidden words</a>,
-<a id="to-titled" href="#titled">a section with a hidden word in its title</a> and
-<a id="to-skipped" href="#skipped">a block skipping its rest</a>.</p>
+<a id="to-titled" href="#titled">a section with a hidden word in its title</a>,
+<a id="to-skipped" href="#skipped">a block skipping its rest</a>,
+<a id="to-shown" href="#shown">words shown inside hidden ones</a>,
+<a id="to-contents" href="#contents">a block that makes no box</a>,
+<a id="to-untitled" href="#untitled">a section whose title is hidden</a> and
+<a id="to-code" href="#code">code with hidden words and a control</a>.</p>
 <details id="closed"><summary>Method</summary>Secret text<p>Hidden paragraph.</p></details>
 <div id="held">Intro <details><summary>More</summary><p>Hidden words.</p></details></div>
 <p id="spans">Before <span style="display: none">Gone</span> <span hidden>Attr</span>
@@ -307,6 +311,17 @@ After<script type="application/json">{"secret": 1}</script></p>
 <section id="titled"><h2>Public <span hidden>SECRET</span></h2><p>Body words.</p></section>
 <div id="skipped"><p>Shown words.</p>
 <div style="content-visibility: hidden"><p>Skipped words.</p></div></div>
+<p id="shown">Plain <span style="visibility: hidden">masked
+<b style="visibility: visible">Shown</b> masked</span> words.</p>
+<div id="contents" style="display: contents"><p>Boxed <span style="display: none">Gone</span>
+words.</p></div>
+<section id="untitled"><h2 style="display: none">SECRET TITLE</h2><p>Visible body.</p>
+</section>
+<pre id="code">one <span style="display: none">HIDDEN</span>
+two
+three
+four
+five</pre>
 """
     + "<p>More of the page.</p>" * 20,
 )
@@ -314,11 +329,23 @@ After<script type="application/json">{"secret": 1}</script></p>
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve):
-    """A place's preview says what the page draws of it now, by the platform's own
-    reading: a closed disclosure its summary, words `display: none` or `hidden` and a
-    script's text nothing, a title without its hidden word, and a skipped subtree
-    nothing."""
+    """A place's preview says what the page draws of it now, word by word as the
+    browser computes it, in its name, its parts and its code alike: a closed disclosure
+    its summary, words `display: none` or `hidden` and a script's text nothing, a title
+    without its hidden word, a skipped subtree nothing, a word drawn inside a hidden
+    one, a block with no box what it holds draws, a section whose title is hidden its
+    body and not the title, and code its lines without a hidden word or Leaf's
+    control."""
     page = open_page(request.getfixturevalue(engine), serve(DRAWN_PAGE))
+    # Words Leaf writes into a block, as the paint pass writes a comment's count.
+    page.evaluate(
+        """() => {
+          const words = document.createElement('span');
+          words.className = 'lf-ui';
+          words.textContent = 'COPY CONTROL';
+          document.querySelector('#code > span').after(words);
+        }"""
+    )
     preview = page.locator(PREVIEW)
     parts = preview.locator(".lf-place")
     for link, name, said in (
@@ -327,6 +354,10 @@ def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve)
         ("#to-spans", None, "Before After"),
         ("#to-titled", "Public", "Body words."),
         ("#to-skipped", None, "Shown words."),
+        ("#to-shown", None, "Plain Shown words."),
+        ("#to-contents", None, "Boxed words."),
+        ("#to-untitled", None, "Visible body."),
+        ("#to-code", None, "one two three four"),
     ):
         page.mouse.move(0, 0)
         expect(preview).to_be_hidden()
@@ -338,6 +369,7 @@ def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve)
             assert " ".join(parts.inner_text().split()) == said, link
         else:
             expect(parts).to_have_count(0)
+        assert not {"SECRET", "HIDDEN", "CONTROL"} & set(preview.inner_text().split())
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

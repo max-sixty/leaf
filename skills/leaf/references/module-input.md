@@ -345,8 +345,8 @@ reads, as a chart's ring on the point it names, comes off when Leaf dispatches
 `PREVIEW_ENDED` (`"lf-preview-ended"`, from the same module) at the element, a
 `CustomEvent` whose `detail.route` names the route that read it, as the preview goes
 for any reason: the pointer or focus leaving, the pointer leaving the window from the
-preview, a finger lifting, Escape, or another target's preview taking its place. A
-redraw with new words is no ending.
+preview, the next touch after a finger's hold, Escape, or another target's preview
+taking its place. A redraw with new words is no ending.
 
 A `title` stays the browser's: a pointer over an element with one, or inside one, gets
 the browser's tooltip and no preview, and focus and a finger, which the browser's

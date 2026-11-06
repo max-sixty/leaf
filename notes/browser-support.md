@@ -917,7 +917,8 @@ recognizer's to give, which WebKit sets no duration on.
 
 So a held finger reads a preview (`browser/runtime/preview.js`, the hold) at
 `contextmenu` where the engine sends it, and after 500 ms, UIKit's default for a long
-press, where `GestureEvent` says the engine is WebKit's touch one; the touch's end is
+press, where `GestureEvent` says the engine is WebKit, which exposes it in desktop
+Safari too, where only a touch starts a hold and no touch comes; the touch's end is
 cancelled there as everywhere, which stops WebKit's own click. The cost: on iOS a press
 held past 500 ms reads rather than presses whatever the user set in Touch
 Accommodations, which no page can read. To recheck, hold a finger on an element with a

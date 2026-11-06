@@ -447,12 +447,15 @@ GRID = """<div id="grid" style="display: grid; grid-template-columns: repeat(2, 
 <dialog id="dialog"><p>In the dialog.</p>
   <button id="in-dialog" aria-label="A control in the dialog">⚙</button></dialog>"""
 # Where the preview stands, and which of `ids` it covers.
+# Two boxes at one edge can report a hair apart (Firefox reports layout's sixtieths of a
+# pixel through float32), so an overlap thinner than half a layout unit is none.
 COVERS = """(ids) => {
   const tip = document.getElementById('lf-preview').getBoundingClientRect();
+  const over = (a, b) => b - a > 1 / 128;
   return ids.filter((id) => {
     const box = document.getElementById(id).getBoundingClientRect();
-    return box.left < tip.right && tip.left < box.right && box.top < tip.bottom
-      && tip.top < box.bottom;
+    return over(box.left, tip.right) && over(tip.left, box.right)
+      && over(box.top, tip.bottom) && over(tip.top, box.bottom);
   });
 }"""
 
@@ -739,7 +742,7 @@ def test_a_list_preview_shows_what_its_room_holds_and_counts_the_rest(
         more: counted ? more.textContent : null, inside: box.bottom <= innerHeight};
     }"""
     size = page.viewport_size
-    page.set_viewport_size({"width": size["width"], "height": 260})
+    page.set_viewport_size({"width": size["width"], "height": 400})
     page.locator("#before").focus()
     page.keyboard.press("Tab")
     expect(tip.locator(".lf-preview-word")).to_have_text("30 threads")
@@ -1313,17 +1316,21 @@ def test_an_aim_at_what_says_nothing_leaves_the_standing_preview(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_window_resize_decides_once_where_a_preview_stands(engine, request, serve):
+@pytest.mark.parametrize("width", ["auto", "50vw"])
+def test_a_window_resize_decides_once_where_a_preview_stands(
+    engine, width, request, serve
+):
     """A resize of the window changes the window, the visible viewport and maybe the
     target's size at once, and the standing preview decides where it stands once for
-    all of them."""
+    all of them, a target as wide as half the window included."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
             leaf_page(
                 "Resized",
                 '<p><button id="before">Before</button></p>'
-                '<p><span id="aim" tabindex="0">A value</span></p>',
+                f'<p><span id="aim" tabindex="0" style="display: inline-block;'
+                f' width: {width}">A value</span></p>',
             )
         ),
     )
@@ -1353,3 +1360,198 @@ def test_a_window_resize_decides_once_where_a_preview_stands(engine, request, se
     rendered(page)
     page.wait_for_timeout(200)
     assert page.evaluate("window.lfDecisions") == 1
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_that_grow_keep_a_place_that_held_exactly_one_line(
+    engine, request, serve
+):
+    """A preview standing in a room that holds exactly its one line, a neighbour just
+    under it, keeps that place as its words grow, fitted to the line with an ellipsis,
+    whatever fraction of a pixel the engine lays the line out at, rather than moving
+    onto the neighbours."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(leaf_page("One line", "<p>Words.</p>")),
+    )
+    page.set_viewport_size({"width": 1200, "height": 700})
+    page.evaluate(
+        """() => {
+          const aim = document.createElement('button');
+          aim.id = 'aim';
+          aim.textContent = 'A';
+          aim.style = 'position: fixed; left: 300px; top: 200px; width: 80px;'
+            + ' height: 40px; padding: 0';
+          window.lfLong = false;
+          aim.lfPreview = () => ({name: window.lfLong
+            ? 'A growing label that runs on past one line, and past a second, before'
+              + ' it says its only useful word, FAILURE' : 'Initial words'});
+          document.body.append(aim);
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(2, 2)
+    page.locator("#aim").hover()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Initial words")
+    rendered(page)
+    first = tip.bounding_box()
+    page.mouse.move(2, 2)
+    expect(tip).to_be_hidden()
+    # A neighbour right under the one line the preview stood on.
+    page.evaluate(
+        """([left, top]) => {
+          const next = document.createElement('button');
+          next.id = 'next';
+          next.textContent = 'Neighbour';
+          next.style = `position: fixed; left: ${left}px; top: ${top}px; width: 600px;`
+            + ' height: 30px; padding: 0';
+          document.body.append(next);
+        }""",
+        [first["x"], first["y"] + first["height"]],
+    )
+    page.locator("#aim").hover()
+    expect(tip).to_be_visible()
+    rendered(page)
+    before = tip.bounding_box()
+    assert (before["x"], before["y"]) == (first["x"], first["y"]), (first, before)
+    page.evaluate(
+        """async () => {
+          const {previewChanged} = await window.__lfWidgetApi();
+          window.lfLong = true;
+          previewChanged(document.getElementById('aim'));
+        }"""
+    )
+    expect(tip.locator(".lf-preview-word")).to_contain_text("growing")
+    rendered(page)
+    after = tip.bounding_box()
+    assert (after["x"], after["y"]) == (before["x"], before["y"]), (before, after)
+    assert page.evaluate(COVERS, ["next"]) == []
+    assert tip.locator("[data-lf-clamp]").count() == 1
+
+
+# Controls fencing a target, rows above and below it and controls beside it, each as
+# tall as WCAG's least target, so no side holds a long preview whole and clear: the one
+# below holds two lines, above one.
+FENCED = """<div style="height: 700px"></div>
+<button id="over" style="position: fixed; left: 0; right: 0; top: 226px; height: 24px">
+  Over</button>
+<button id="under" style="position: fixed; left: 0; right: 0; top: 400px; height: 24px">
+  Under</button>
+<button id="left" style="position: fixed; left: 0; width: 290px; top: 300px;
+  height: 40px">Left</button>
+<button id="right" style="position: fixed; left: 390px; right: 0; top: 300px;
+  height: 40px">Right</button>
+<button id="fenced" style="position: fixed; left: 300px; top: 300px; width: 80px;
+  height: 40px; padding: 0">F</button>"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_no_side_holds_whole_takes_the_side_that_holds_most_lines_clear(
+    engine, request, serve
+):
+    """Where no side holds a preview whole and clear of every other control, it stands
+    on the side whose clear room holds the most whole lines, fitted there with an
+    ellipsis, covering nothing, so it takes the pointer as any preview does."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(leaf_page("Fenced", FENCED))
+    )
+    page.set_viewport_size({"width": 1200, "height": 700})
+    page.evaluate(
+        """() => { document.getElementById('fenced').lfPreview = () => ({name:
+          'Fenced in', detail: Array.from({length: 6}, (_, n) => `Detail line ${n}`)}); }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(2, 2)
+    page.locator("#fenced").hover()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Fenced in")
+    rendered(page)
+    assert tip.get_attribute("data-lf-y") == "below"
+    assert tip.get_attribute("data-lf-covers") is None
+    assert page.evaluate(COVERS, ["over", "under", "left", "right"]) == []
+    assert tip.locator("[data-lf-clamp], [data-lf-cut]").count() == 1
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_target_filling_a_short_window_previews_a_whole_line(engine, request, serve):
+    """A target that leaves no side room for even one line of its preview has it stand
+    over it, showing at least a whole line, rather than a sliver of clipped text."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Filling",
+                '<button id="before" style="position: fixed; left: 0; top: 0;'
+                ' width: 10px; height: 10px; padding: 0">B</button>'
+                '<button id="filling" style="position: fixed; left: 20px; top: 20px;'
+                ' width: 350px; height: 140px">Filling</button>',
+            )
+        ),
+    )
+    page.set_viewport_size({"width": 390, "height": 180})
+    page.evaluate(
+        """() => { document.getElementById('filling').lfPreview = () => ({name:
+          'What the target does', detail: ['A second line', 'A third line']}); }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(tip).to_be_visible()
+    rendered(page)
+    held = page.evaluate(
+        """() => {
+          const face = document.querySelector('#lf-preview .lf-preview-face');
+          const word = face.querySelector('.lf-preview-word').getBoundingClientRect();
+          const box = face.getBoundingClientRect();
+          return {face: box.height, wordBottom: word.bottom, faceBottom: box.bottom,
+            line: parseFloat(getComputedStyle(face.querySelector('.lf-preview-word'))
+              .lineHeight)};
+        }"""
+    )
+    assert held["face"] >= held["line"], held
+    assert held["wordBottom"] <= held["faceBottom"] + 0.5, held
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_count_on_a_control_s_face_names_nothing(engine, request, serve):
+    """A control whose face shows a mark and a count, as the folded On me does, says
+    nothing of what it is by that count, so it previews its name to the keyboard and to
+    a held finger, whose release then presses nothing."""
+    url = serve(
+        leaf_page(
+            "Counted",
+            '<p><button id="before">Before</button></p>'
+            '<p><button id="count" aria-label="1 question waiting on you">'
+            '<span aria-hidden="true">●</span>1</button></p>',
+        )
+    )
+    browser = request.getfixturevalue(engine)
+    page = open_page(browser, url)
+    page.evaluate(
+        "() => { window.lfPressed = 0; document.getElementById('count')"
+        ".addEventListener('click', () => { window.lfPressed += 1; }); }"
+    )
+    tip = page.locator(PREVIEW)
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(tip.locator(".lf-preview-word")).to_have_text("1 question waiting on you")
+    if engine != "browser":
+        return
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    phone = open_page(browser, url, context=context)
+    phone.evaluate(
+        "() => { window.lfPressed = 0; document.getElementById('count')"
+        ".addEventListener('click', () => { window.lfPressed += 1; }); }"
+    )
+    box = phone.locator("#count").bounding_box()
+    point = {"x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2}
+    cdp = context.new_cdp_session(phone)
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [point]})
+    long_press(phone, point)
+    held = phone.locator(PREVIEW)
+    expect(held).to_be_visible()
+    expect(held.locator(".lf-preview-word")).to_have_text("1 question waiting on you")
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    rendered(phone)
+    assert phone.evaluate("window.lfPressed") == 0

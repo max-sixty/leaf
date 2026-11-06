@@ -878,11 +878,13 @@ def test_a_finger_held_on_a_chart_reads_the_point_under_it(browser, serve):
     assert said(page) == ["week w2", "kind fixes", "hours 14"]
     assert preview.bounding_box()["y"] < start[1]
     # The slide crosses the gap between the columns, where no point is near enough to
-    # read, so the preview goes and comes back on the next column.
+    # read, which keeps the reading until the next column takes its place.
     end = column(page, "hours", "w1")
     for step in range(1, 7):
         touch("touchMove", (start[0] + (end[0] - start[0]) * step / 6, start[1]))
-    expect(preview).to_be_visible()
+        if step == 3:
+            expect(preview).to_be_visible()
+    expect(preview.locator(".lf-preview-word")).to_have_text("week w1")
     assert said(page) == ["week w1", "kind fixes", "hours 9"]
     touch("touchEnd")
     render_checks_model.rendered(page)
@@ -991,6 +993,51 @@ def test_a_longer_reading_at_the_next_point_grows_away_from_it(engine, request, 
     ), "the longer reading was cut short"
     tip, point = preview.bounding_box(), ring.bounding_box()
     assert tip["y"] + tip["height"] <= point["y"] + 0.5, (tip, point)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_reading_stays_as_the_pointer_crosses_empty_drawing_toward_it(
+    engine, request, serve
+):
+    """The pointer leaves a point for its reading's far corner across drawing where no
+    point is within reach: the reading and its ring stay, to be read. The next point
+    the pointer reaches takes their place."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(leaf_page("titled", f'<h1 id="t">Tasks</h1>{TITLED}')),
+    )
+    chart = page.locator("#titled")
+    preview = page.locator(PREVIEW)
+    ring = chart.locator(".lf-chart-at circle")
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+
+    def at(n):
+        box = dots.nth(n).bounding_box()
+        return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+
+    second = at(1)
+    page.mouse.move(second[0] - 4, second[1])
+    page.mouse.move(*second)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Second")
+    tip = preview.bounding_box()
+    drawing = chart.locator("svg[role=img]").bounding_box()
+    corner = (
+        max(tip["x"] + 2, drawing["x"] + 2),
+        max(tip["y"] + 2, drawing["y"] + 2),
+    )
+    for step in range(1, 9):
+        page.mouse.move(
+            second[0] + (corner[0] - second[0]) * step / 8,
+            second[1] + (corner[1] - second[1]) * step / 8,
+        )
+    page.wait_for_timeout(300)
+    assert said(page) == ["Second", "20 hours", "3 tasks"]
+    expect(ring).to_be_visible()
+    page.mouse.move(*at(0))
+    expect(preview.locator(".lf-preview-word")).to_have_text("First")
+    assert said(page) == ["First"]
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -1232,7 +1279,11 @@ def test_a_chart_s_author_picks_which_marks_say_their_values_and_their_words(
     page.mouse.move(dot["x"] + dot["width"] / 2, dot["y"] + dot["height"] / 2)
     expect(preview).to_be_visible()
     assert said(page) == ["Release w3", "shipped on time"]
+    # The line's points say nothing, so over w1 the dot's reading stays.
     page.mouse.move(*column(page, "picked", "w1", 0.25))
+    page.wait_for_timeout(300)
+    assert said(page) == ["Release w3", "shipped on time"]
+    page.mouse.move(2, 2)
     expect(preview).to_be_hidden()
     expect(page.locator("#picked .lf-chart-at")).to_be_hidden()
 

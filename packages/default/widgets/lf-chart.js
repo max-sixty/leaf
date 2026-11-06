@@ -31,9 +31,16 @@
  * new aim (`previewChanged` with `aim`), so a point the pointer or a key reaches after
  * Escape put the preview away shows its own. The ring goes when the aim leaves, the
  * pointer by leaving the drawing and the keyboard by leaving the chart, and when the
- * page puts the preview away (`PREVIEW_ENDED`), as Escape does and as the next touch
- * does after a held finger lifts. A finger slides across the drawing to read along it,
- * and scrolls the page up and down it.
+ * page puts the preview away (`PREVIEW_ENDED`), as Escape and a press do and as the
+ * next touch does after a held finger lifts. A finger slides across the drawing to read
+ * along it, and scrolls the page up and down it.
+ *
+ * Crossing the drawing where no point is within reach keeps the reading and its ring,
+ * and the next point within reach takes its place. Plot's own tip clears in empty
+ * space; this one stays because it can be read: the preview takes no pointer and
+ * stands over the drawing (preview.js), so a pointer moving toward it to read it
+ * crosses the drawing's empty space, and clearing there would take the reading away
+ * from under the reader's eye.
  *
  * The vendored bundle loads once, on the first draw rather than with this module: a chart
  * in a shut panel has no box, so measure holds its draw, and the 384KB bundle waits with
@@ -201,8 +208,8 @@ customElements.define(
         // The pointer and a finger read the point nearest them on the drawing, by
         // Plot's pointer's rule, and nothing elsewhere, as over a legend: one reading
         // for each move, each point reached a new aim. A mouse carrying a press is
-        // dragging. A pointer that picks nothing leaves the keyboard's point where it
-        // was, and one still on the point whose reading the page put away reads nothing.
+        // dragging. A pointer that picks nothing keeps the reading it had, and one
+        // still on the point whose reading the page put away reads nothing.
         const aim = (/** @type {PointerEvent} */ event) => {
           const reading = this.#reading;
           if (event.pointerType === "mouse" && event.buttons) return;
@@ -213,9 +220,9 @@ customElements.define(
           if (event.pointerType === "touch")
             this.#finger = [event.clientX, event.clientY];
           const point = this.#pointAt(event.clientX, event.clientY);
-          if (point && point === this.#away) return;
+          if (!point || point === this.#away) return;
           this.#away = null;
-          if (point || this.#by === "pointer") this.#choose(point, "pointer", true);
+          this.#choose(point, "pointer", true);
         };
         // A mouse reads where it moves to, so a drawing that arrives under a still one
         // says nothing; a finger, which lands before it moves, reads where it lands.

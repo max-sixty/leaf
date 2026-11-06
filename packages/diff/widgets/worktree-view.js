@@ -26,8 +26,8 @@ export function render(host) {
       data-lf-said
     >
       <span class="lf-worktree-identity"
-        ><strong class="lf-worktree-label">${host.getAttribute("label")}</strong
-        ><span class="lf-worktree-ref">${identity}</span></span
+        ><strong class="lf-worktree-label">${host.getAttribute("label")}</strong>
+        <span class="lf-worktree-ref">${identity}</span></span
       >
       ${word ? html`<span class="lf-worktree-status">${word}</span>` : nothing}
       <span class="lf-worktree-stats"

@@ -558,8 +558,13 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
                 path.write_text(module)
         example = source if isinstance(source, Path) else None
         fixture = read_fixture(example) if example else None
+        # An example selects a package of the checkout's by its path from the checkout
+        # (the docs' `./docs/package`), which this directory reaches from elsewhere.
         selected_packages = (
-            fixture.packages
+            tuple(
+                ROOT / item if item.startswith("./") else item
+                for item in fixture.packages
+            )
             if fixture is not None and packages is None
             else (
                 *EXAMPLE_PACKAGES,

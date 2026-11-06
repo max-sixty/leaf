@@ -3,6 +3,7 @@ import test from "node:test";
 import * as Plot from "../../packages/default/vendor/plot.esm.js";
 import {
   cross,
+  nearest,
   readPoints,
   sameDatum,
   sayPoint,
@@ -225,6 +226,112 @@ test("each mark reads along the axis its author's tip names, or its points stand
   );
   // Plot draws no tip of its own for them.
   assert.ok(marks.every((mark) => !mark.tip));
+});
+
+test("each mark picks by its own tip, and a pick of a point another stands on is the first's", () => {
+  const rows = [
+    { id: "a", x: 1, y: 1 },
+    { id: "b", x: 9, y: 9 },
+  ];
+  /** @param {unknown} first @param {unknown} second */
+  const twice = (first, second) =>
+    read({
+      marks: [
+        Plot.dot(rows, { x: "x", y: "y", title: "id", tip: first }),
+        Plot.dot(rows, { x: "x", y: "y", title: "id", tip: second }),
+      ],
+    });
+  // The second mark reads along x only, so it picks far above the point, beyond the
+  // first's reach.
+  const along = twice(true, "x");
+  const a = along.points[0];
+  assert.ok(a);
+  assert.equal(along.points.length, 2);
+  assert.equal(nearest(along, a.x, a.y - 110), a);
+  // Its reach is its own.
+  const reach = twice({ maxRadius: 1 }, { maxRadius: 80 });
+  const first = reach.points[0];
+  assert.ok(first);
+  assert.equal(nearest(reach, first.x + 20, first.y), first);
+
+  // A tip's px picks each datum by its own value, wherever the datum stands.
+  const picked = read({
+    marks: [
+      Plot.dot(
+        [
+          { id: "left", x: 2, y: 5, pickX: 8 },
+          { id: "right", x: 8, y: 5, pickX: 2 },
+        ],
+        { x: "x", y: "y", title: "id", tip: { px: "pickX" } },
+      ),
+    ],
+  });
+  const [left, right] = picked.points;
+  assert.ok(left && right);
+  assert.equal(said(nearest(picked, left.x, left.y))?.name, "right");
+  assert.equal(said(nearest(picked, right.x, right.y))?.name, "left");
+});
+
+test("a tip's format and a mark's own channels say what Plot's tip would", () => {
+  const formatted = read({
+    marks: [
+      Plot.dot(
+        [
+          {
+            when: new Date("2026-05-04T00:00Z"),
+            share: 0.256,
+            team: "backend",
+            lead: "Ada",
+          },
+        ],
+        {
+          x: "when",
+          y: "share",
+          fill: "team",
+          channels: { lead: "lead" },
+          tip: {
+            format: {
+              x: "%b %Y",
+              y: ".0%",
+              fill: false,
+              lead: (/** @type {string} */ name) => `led by ${name}`,
+            },
+          },
+        },
+      ),
+    ],
+  });
+  assert.deepEqual(said(formatted.points[0] ?? null), {
+    name: "May 2026 · led by Ada",
+    detail: ["26% share"],
+  });
+  // A channel the author adds is said as Plot's tip says it: a name as a place, a
+  // number before its label.
+  const added = read({
+    marks: [
+      Plot.dot([{ x: 1, y: 2, lead: "Ada", cost: 3 }], {
+        x: "x",
+        y: "y",
+        channels: { lead: "lead", cost: "cost" },
+      }),
+    ],
+  });
+  assert.deepEqual(said(added.points[0] ?? null), {
+    name: "x 1 · Ada",
+    detail: ["2 y · 3 cost"],
+  });
+  // A format given alone is the title's.
+  const titled = read({
+    marks: [
+      Plot.dot([{ x: 1, y: 2, id: "w3" }], {
+        x: "x",
+        y: "y",
+        title: "id",
+        tip: { format: (/** @type {string} */ id) => `release ${id}` },
+      }),
+    ],
+  });
+  assert.equal(said(titled.points[0] ?? null)?.name, "release w3");
 });
 
 test("a facet's points are a series of their own", () => {

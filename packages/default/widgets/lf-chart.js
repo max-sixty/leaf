@@ -49,6 +49,7 @@ import {
   bodyText,
   commandsChanged,
   keeps,
+  layoutPx,
   whileConnected,
   failSoft,
   inBaseLayer,
@@ -85,7 +86,7 @@ const compile = (source) =>
 
 /* The options one drawing is made from, made afresh for each so that no mark Plot has
  * already rendered is handed to it a second time. */
-/** @param {Function} body @param {typeof import("@observablehq/plot")} Plot
+/** @param {Function} body @param {typeof import("/vendor/plot.esm.js")} Plot
  * @param {number} width @param {number} height */
 function drawOptions(body, Plot, width, height) {
   /** @type {import("@observablehq/plot").PlotOptions} */
@@ -132,9 +133,13 @@ function offsetsAreNumbers(marks, place = "marks") {
 customElements.define(
   "lf-chart",
   class extends HTMLElement {
-    // The height every drawing takes, read at the first (`paint`).
+    // The height every drawing takes, read at the first (`paint`), and the height a
+    // legend beside it took at the width it was last laid out at.
     /** @type {number | undefined} */
     #height;
+    #legend = 0;
+    /** @type {number | undefined} */
+    #legendWidth;
     drawing = document.createElement("div");
     /** @type {number | undefined} */
     drawn;
@@ -223,65 +228,102 @@ customElements.define(
       // doors require, and an authored document hand-edited past them threw out of here
       // instead of failing soft, leaving the user the body's raw text and no error at all.
       let source = "";
+      let stop = () => {};
+      // A failed drawing ends the watch: the failure replaced the drawing, and a chart
+      // that returns to the page keeps showing it rather than drawing again.
+      /** @param {unknown} err */
+      const failed = (err) => {
+        stop();
+        this.#read(null);
+        failSoft(this, err, source);
+      };
       try {
         source = bodyText(this);
         const body = compile(source);
-        const Plot = await loadPlot();
-        // The box each drawing goes in. A redraw replaces what is in it and nothing else,
-        // because by then the runtime may have hung its own words on the widget — the
-        // line saying a comment stands on this chart is a child of the element.
-        this.drawing.className = "lf-chart-drawing";
-        this.replaceChildren(this.drawing);
-        this.paint(Plot, body);
-        this.classList.add("lf-rendered");
-        // Only the width is watched, and only when it lands on a new whole pixel; the
-        // height is the first drawing's and stays. Draw during resize delivery so
-        // labels fit the new width in the same paint. The fixed drawing height
-        // keeps this redraw from resizing the host it watches.
-        // A failed redraw ends the watch: the failure replaced the drawing, and a
-        // chart that returns to the page keeps showing it rather than drawing again.
-        /** @type {() => void} */
-        let stop;
-        const paint = () => {
-          if (!this.clientWidth || Math.round(this.clientWidth) === this.drawn) return;
-          try {
-            this.paint(Plot, body);
-          } catch (err) {
-            stop();
-            this.#read(null);
-            failSoft(this, err, source);
-          }
-        };
+        // The room it is drawn for, as the browser lays it out: the width the observer
+        // last delivered, and the height it delivered before the first drawing, read
+        // off its entries rather than off the box, so a page of charts resized together
+        // is laid out once rather than once for each chart's read after another's
+        // drawing. Only the width is watched, and only when it lands on a new whole
+        // pixel; the height is the first drawing's and stays. A redraw is drawn during
+        // the delivery, so labels fit the new width in the same paint, and a width
+        // delivered while the first drawing was under way is drawn once it is in.
+        /** @type {DOMRectReadOnly | undefined} */
+        let room;
+        /** @type {(value?: unknown) => void} */
+        let arrived = () => {};
+        const delivered = new Promise((resolve) => (arrived = resolve));
+        let resized = () => {};
         stop = whileConnected(this, () => {
-          const watching = sizeObserver(paint);
+          const watching = sizeObserver((entries) => {
+            const rect = entries.at(-1)?.contentRect;
+            if (!rect?.width) return;
+            room = rect;
+            arrived();
+            resized();
+          });
           watching.observe(this);
           return () => watching.disconnect();
         });
+        const Plot = await loadPlot();
+        await delivered;
+        const { width, height } = /** @type {DOMRectReadOnly} */ (room);
+        // The box each drawing goes in. A redraw replaces what is in it and nothing else,
+        // because by then the runtime may have hung its own words on the widget — the
+        // line saying a comment stands on this chart is a child of the element. It holds
+        // the height the page held the chart at, so the chart's box keeps it whatever a
+        // drawing measures, and only its width moves the observer.
+        this.#height = height;
+        this.drawing.className = "lf-chart-drawing";
+        this.drawing.style.blockSize = layoutPx(height);
+        this.replaceChildren(this.drawing);
+        await this.paint(Plot, body, Math.round(width));
+        this.classList.add("lf-rendered");
+        resized = () => {
+          const next = Math.round(room?.width ?? 0);
+          if (next !== this.drawn) this.paint(Plot, body, next).catch(failed);
+        };
+        resized();
       } catch (err) {
-        this.#read(null);
-        failSoft(this, err, source);
+        failed(err);
       }
     }
 
-    // Drawn to the box's height as well as its width. The height is read once, at the
-    // first drawing, while the page still holds the box at it: once drawn the box is
-    // the drawing's, and a box a grid or flex row stretches would hand a redraw the
-    // row's height, a taller neighbour's.
-    /** @param {typeof import("@observablehq/plot")} Plot @param {Function} body */
-    paint(Plot, body) {
-      const width = Math.round(this.clientWidth);
-      const box = (this.#height ??= this.clientHeight);
-      let drawn = this.plot(Plot, body, width, box);
+    // Drawn to the box's height as well as its width. The height is the first
+    // delivery's, while the page still holds the box at it: once drawn the box is the
+    // drawing's, and a box a grid or flex row stretches would hand a redraw the row's
+    // height, a taller neighbour's. A legend Plot sets beside the drawing takes its own
+    // height, which only laying it out says, so a chart with one draws, and once the
+    // browser has laid that drawing out at this width, draws again into the room the
+    // legend leaves; a chart with none reads nothing. It settles once the drawing is in,
+    // and fails as the drawing does.
+    /** @param {typeof import("/vendor/plot.esm.js")} Plot @param {Function} body
+     * @param {number} width @returns {Promise<void>} */
+    async paint(Plot, body, width) {
+      const room = (this.#height ?? 0) - this.#legend;
+      const drawn = this.plot(Plot, body, width, room);
       this.drawing.replaceChildren(drawn.built);
-      // A legend Plot sets beside the drawing takes its own height, which only laying it
-      // out says, so a chart with one is drawn again into the room the legend leaves.
-      const legend = this.drawing.offsetHeight - box;
-      if (legend > 0) {
-        drawn = this.plot(Plot, body, width, box - legend);
-        this.drawing.replaceChildren(drawn.built);
-      }
       this.drawn = width;
       this.#read(drawn.reading);
+      if (!drawn.legend || this.#legendWidth === width) return;
+      return new Promise((done, fail) => {
+        // Delivered deeper than the chart's own box, so in the frame that drew it,
+        // before it paints. A drawing a later one replaced first is that one's to
+        // measure.
+        const watch = sizeObserver(([entry]) => {
+          watch.disconnect();
+          if (this.drawing.firstChild !== drawn.built) return done();
+          this.#legendWidth = width;
+          const legend = Math.max(
+            0,
+            Math.round((entry?.contentRect.height ?? 0) - room),
+          );
+          if (!this.isConnected || legend === this.#legend) return done();
+          this.#legend = legend;
+          this.paint(Plot, body, width).then(done, fail);
+        });
+        watch.observe(drawn.built);
+      });
     }
 
     // A new drawing's points. The reader stays on the point they were on, drawn again
@@ -397,7 +439,7 @@ customElements.define(
       );
     }
 
-    /** @param {typeof import("@observablehq/plot")} Plot @param {Function} body
+    /** @param {typeof import("/vendor/plot.esm.js")} Plot @param {Function} body
      * @param {number} width @param {number} height */
     plot(Plot, body, width, height) {
       const options = drawOptions(body, Plot, width, Math.max(1, height));
@@ -457,6 +499,7 @@ customElements.define(
       drawing.append(ring);
       return {
         built,
+        legend: built !== drawing,
         reading: {
           ...points.done(),
           svg: /** @type {SVGSVGElement} */ (drawing),

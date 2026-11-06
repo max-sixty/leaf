@@ -840,6 +840,8 @@ LINE_ROWS = "[0, 1, 2, 3, 4, 5].map((x) => ({id: `l${x}`, x, y: (x * 7) % 5}))"
 DOT_ROWS = "[0.5, 2.5, 4.5].map((x) => ({id: `d${x}`, x, y: x}))"
 ANCHORED_ROWS = "[1, 2, 4, 7].map((x) => ({id: `n${x}`, x}))"
 BAR_ROWS = "[3, 9, 4, 12, 7].map((v, i) => ({id: `b${i}`, i, v}))"
+TWICE_ROWS = "[1, 4, 6, 9].map((x) => ({id: `t${x}`, x, y: (x * 3) % 10}))"
+PICK_ROWS = '[{id: "left", x: 2, y: 5, pickX: 8}, {id: "right", x: 8, y: 5, pickX: 2}]'
 POINTER_CASES = {
     "faceted": (
         f'Plot.dot({FACETED_ROWS}, {{x: "x", y: "y", fy: "k", title: "id", tip: "x"}})',
@@ -867,6 +869,30 @@ POINTER_CASES = {
         f'Plot.lineY({LINE_ROWS}, {{x: "x", y: "y", title: "id", tip: "x"}}),'
         f' Plot.dot({DOT_ROWS}, {{x: "x", y: "y", title: "id", tip: "xy"}})',
     ),
+    # One data drawn twice, each mark picking by its own tip: along x where the first
+    # reads both axes, and within a reach the first's doesn't have, one no aim below
+    # comes within 3px of, since the two drawings stand at different fractions of a
+    # pixel.
+    **{
+        name: (marks, marks)
+        for name, marks in {
+            "twice-along": (
+                f'Plot.dot({TWICE_ROWS}, {{x: "x", y: "y", title: "id", tip: true}}),'
+                f' Plot.dot({TWICE_ROWS}, {{x: "x", y: "y", title: "id", tip: "x"}})'
+            ),
+            "twice-reach": (
+                f'Plot.dot({TWICE_ROWS}, {{x: "x", y: "y", title: "id",'
+                " tip: {maxRadius: 1}}),"
+                f' Plot.dot({TWICE_ROWS}, {{x: "x", y: "y", title: "id",'
+                " tip: {maxRadius: 75}})"
+            ),
+            # Picked by values of its own, wherever each datum stands.
+            "picked": (
+                f'Plot.dot({PICK_ROWS}, {{x: "x", y: "y", title: "id",'
+                ' tip: {px: "pickX"}})'
+            ),
+        }.items()
+    },
 }
 # A mark moved by its offsets, which Plot's pointer leaves out: the chart reads the
 # datum Plot draws under the pointer.
@@ -891,9 +917,9 @@ POINTER_PAGE = leaf_page(
         ]
     ),
 )
-# What a drawing shows picked, in the svg's coordinates: lf-chart's ring and the datum
-# its reading names, or each anchor Plot's own tips point from and the datum its last
-# `input` named.
+# What a drawing shows picked, in the svg's coordinates: lf-chart's ring and the words
+# its preview says, or each tip Plot's own pointer shows, where it points from and the
+# title it says, less the zero-width space Plot starts a tip's line with.
 PICKED = """(svg) => {
     const box = svg.getBoundingClientRect();
     const where = (node) => {
@@ -901,10 +927,12 @@ PICKED = """(svg) => {
       return [at.e - box.left, at.f - box.top];
     };
     const ring = svg.querySelector('.lf-chart-at:not([display=none])');
-    if (svg.closest('lf-chart'))
-      return {at: ring ? [where(ring)] : [], name: svg.closest('lf-chart').lfPreview()?.name ?? null};
-    return {at: [...svg.querySelectorAll('[aria-label=tip] path')].map((path) => where(path.parentElement)),
-            name: svg.value?.id ?? null};
+    const chart = svg.closest('lf-chart');
+    if (chart) return ring ? [{at: where(ring), name: chart.lfPreview()?.name ?? null}] : [];
+    return [...svg.querySelectorAll('[aria-label=tip] path')].map((path) => ({
+      at: where(path.parentElement),
+      name: path.parentElement.querySelector('text')?.textContent.replaceAll('\\u200b', '') ?? null,
+    }));
 }"""
 
 
@@ -922,8 +950,9 @@ def test_a_chart_picks_the_point_plot_s_own_pointer_picks(engine, request, serve
     """At every place over a chart, the chart reads the datum Plot's own pointer picks
     for the same chart, and stands its ring where Plot's tip points: across facets,
     each judged in its own frame; on a dot anchored to the frame's foot; along y where
-    the author named y; along x on bars, where no tip was named; and of two marks, the
-    one whose pick stands nearer. A mark its offsets moved is read where Plot draws
+    the author named y; along x on bars, where no tip was named; of two marks, the one
+    whose pick stands nearer; of one data drawn twice, by either mark's own rule and
+    reach; and by a tip's own px. A mark its offsets moved is read where Plot draws
     it, which Plot's own pointer misses."""
     page = open_page(request.getfixturevalue(engine), serve(POINTER_PAGE))
     steps = [(n / 11, m / 7) for n in range(1, 11) for m in range(1, 7)]
@@ -953,28 +982,32 @@ def test_a_chart_picks_the_point_plot_s_own_pointer_picks(engine, request, serve
         )
         differ = []
         for fx, fy in steps:
-            mine = _picked(page, f"#{name} svg[role=img]", ours, fx, fy)
-            plot = _picked(page, f"#{name}-alone", plots, fx, fy)
+            [mine] = _picked(page, f"#{name} svg[role=img]", ours, fx, fy) or [None]
+            tips = _picked(page, f"#{name}-alone", plots, fx, fy)
             aim = [plots["width"] * fx, plots["height"] * fy]
             # Of the tips Plot shows, the one standing nearest the pointer.
             expected = min(
-                plot["at"],
-                key=lambda at: (at[0] - aim[0]) ** 2 + (at[1] - aim[1]) ** 2,
+                tips,
+                key=lambda tip: (
+                    (tip["at"][0] - aim[0]) ** 2 + (tip["at"][1] - aim[1]) ** 2
+                ),
                 default=None,
             )
-            ring = mine["at"][0] if mine["at"] else None
             # Plot rounds its tip's anchor to a whole pixel and shifts it half of one
             # for crisp edges.
-            if (ring is None) != (expected is None) or (
-                ring
+            if (mine is None) != (expected is None) or (
+                mine
                 and expected
-                and max(abs(a - b) for a, b in zip(ring, expected, strict=True)) > 1.5
-            ):
-                differ.append(("ring", round(fx, 2), round(fy, 2), ring, expected))
-            if len(plot["at"]) < 2 and mine["name"] != plot["name"]:
-                differ.append(
-                    ("datum", round(fx, 2), round(fy, 2), mine["name"], plot["name"])
+                and (
+                    mine["name"] != expected["name"]
+                    or max(
+                        abs(a - b)
+                        for a, b in zip(mine["at"], expected["at"], strict=True)
+                    )
+                    > 1.5
                 )
+            ):
+                differ.append((round(fx, 2), round(fy, 2), mine, expected))
         assert not differ, f"{name}: {differ}"
         page.mouse.move(2, 2)
 

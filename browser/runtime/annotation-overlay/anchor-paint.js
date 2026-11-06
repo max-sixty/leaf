@@ -605,13 +605,16 @@ export function createAnchorPaint({
     hoverFrame = nextRender(() => {
       hoverFrame = 0;
       settle();
+      // The user's aim is this frame's alone, whether or not anything is marked to read
+      // it: a mark that comes under the pointer later is under a still pointer.
+      const userAimed = aimed;
+      aimed = false;
       if (!marked.size && !hovering && !hoveredRow && !pointed) return;
       const at = pointer();
       const under = elementFromPointAcross(at.x, at.y);
       const hit = markHit(at.x, at.y, under);
       const onMark = hit?.id ?? null;
-      if (aimed) pointMark(hit, at);
-      aimed = false;
+      if (userAimed) pointMark(hit, at);
       const presses = onMark && !closestAcross(under, WORKS);
       paintHand(presses ? document.elementFromPoint(at.x, at.y) : null);
       const row = rowThread(under);

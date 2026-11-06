@@ -622,6 +622,17 @@ function readOutward(node, route) {
 let shown = null;
 // When the last preview went, for the warm switch.
 let cooled = -Infinity;
+// What a hovering pointer rests on, in two layers, each kept until whoever said it says
+// otherwise: the element `pointerover` found that previews itself (`over`), and the
+// range a range's owner says it rests on, with what pointing at it reads and where the
+// pointer was (`ranged`, `pointRange`). The target is the element where it stands
+// inside the range's words, as a link in a thread's passage does, and otherwise the
+// range, or the element where no range is said (`aimed`), so the pointer leaving a link
+// for the passage's words around it is on the passage again with nothing told anew.
+/** @type {Element | null} */
+let over = null;
+/** @type {{range: Range, read: Read | null, at: {x: number, y: number} | undefined} | null} */
+let ranged = null;
 // The target under a hovering pointer, the read its range's owner gave, and the dwell
 // before its preview.
 /** @type {Target | null} */
@@ -1355,7 +1366,7 @@ function ended(record) {
 // one that reaches another target shows that one at once.
 /** @param {Target | null} target @param {Read | null} [read] @param {{x: number, y: number}} [at] */
 function point(target, read = null, at) {
-  if (target === pointing) return;
+  if (sameTarget(target, pointing)) return;
   clearTimeout(leaving);
   // The pointer reaching another target, or leaving one, is an aim of its own.
   quiet = null;
@@ -1368,8 +1379,11 @@ function point(target, read = null, at) {
     leaving = setTimeout(() => {
       if (shown === record && !pointing) hide();
     }, DWELL);
-  } else if (shown && shown.route !== "focus" && shown.from !== target) hide();
+  } else if (shown && shown.route !== "focus" && !sameTarget(shown.from, target))
+    hide();
   if (!target) return;
+  // Back on the target whose preview stands, as from a link onto the words around it.
+  if (shown?.route === "pointer" && sameTarget(shown.from, target)) return;
   if (performance.now() - cooled < WARM) show(target, "pointer", read, at);
   else
     dwell = setTimeout(() => {
@@ -1392,38 +1406,59 @@ const sameRange = (a, b) =>
   a.startOffset === b.startOffset &&
   a.endContainer === b.endContainer &&
   a.endOffset === b.endOffset;
+/** @param {Target | null} a @param {Target | null} b */
+const sameTarget = (a, b) => a === b || (a instanceof Range && sameRange(a, b));
+
+// The pointer's target, from what each layer says it rests on (`over`, `ranged`).
+/** @returns {Target | null} */
+function aimed() {
+  if (!ranged) return over;
+  if (!over) return ranged.range;
+  const { commonAncestorContainer: around } = ranged.range;
+  const holder = isElement(around) ? around : around.parentElement;
+  return holder && renderedUnder(over, holder) ? over : ranged.range;
+}
+function aim() {
+  const target = aimed();
+  if (target instanceof Range) point(target, ranged?.read ?? null, ranged?.at);
+  else point(target);
+}
 
 /** A range's owner says the pointer rests on one of its ranges, or on none of them: what
  * pointing at it reads, and where the pointer is, which picks the line it stands by. A
  * range with the same boundaries as the one pointed at is the same range, however many
- * times its owner makes it, and its latest read is the one a standing preview says. A
- * target inside the range under the pointer, as a link in a thread's passage, is the
- * innermost and wins, as it does for the keyboard and a finger. A finger holding a
- * press holds the range it rests on (`holdRange`); one that only moved reads none. A
- * pointer that left the range for its preview is on neither the range nor any other, and
- * keeps the preview as one on an element's does (WCAG 1.4.13, "Hoverable").
+ * times its owner makes it, and its latest read is the one a standing preview says. The
+ * range stands until its owner says none (`ranged`): a target inside it under the
+ * pointer, as a link in a thread's passage, is the innermost and wins, as it does for
+ * the keyboard and a finger, and the range is the target again once the pointer leaves
+ * that target for the range's words (`aimed`). A pointer on the range's preview keeps
+ * the range, as one on an element's preview keeps the element (WCAG 1.4.13,
+ * "Hoverable"). A finger holding a press holds the range it rests on (`holdRange`); one
+ * that only moved reads none.
  * @param {Range | null} range @param {Read} [read] @param {{x: number, y: number}} [at] */
 export function pointRange(range, read, at) {
   if (hold) holdRange(hold, range, read, at);
   else if (finger) return;
-  else if (range) {
+  else if (!range) {
+    if (!ranged || under(beneath, tip)) return;
+    ranged = null;
+    aim();
+  } else if (ranged && sameRange(range, ranged.range)) {
     // The same range again may say other words: its declaration is the latest, and a
     // preview standing for it reads it now.
-    if (sameRange(range, pointing)) {
-      pointingRead = read ?? null;
+    ranged.read = read ?? null;
+    if (!sameTarget(pointing, ranged.range)) aim();
+    else {
+      pointingRead = ranged.read;
       if (shown?.from === pointing && read) {
         shown.read = read;
         refresh();
       }
-      return;
     }
-    const holder = isElement(range.commonAncestorContainer)
-      ? range.commonAncestorContainer
-      : range.commonAncestorContainer.parentElement;
-    if (pointing && isElement(pointing) && holder && renderedUnder(pointing, holder))
-      return;
-    point(range, read, at);
-  } else if (pointing instanceof Range && !under(beneath, tip)) point(null);
+  } else {
+    ranged = { range, read: read ?? null, at };
+    aim();
+  }
 }
 
 // A finger's hold rests on a range or on none, unless it holds an element, which
@@ -1472,6 +1507,7 @@ function changed(node, aim) {
     }
   } else if (aim && on && within(on)) showFocus(on);
   else if (beneath && under(beneath, node) && !within(quiet)) {
+    over = node;
     pointing = null;
     point(node);
   }
@@ -1564,16 +1600,16 @@ export function mountPreviews(chrome) {
       // tooltip, the pointer reads nothing more.
       const still = event.clientX === rest.x && event.clientY === rest.y;
       rest = { x: event.clientX, y: event.clientY };
-      const found = tooltipped(path) ? null : candidate(path);
+      over = tooltipped(path) ? null : candidate(path);
       if (still || event.buttons) {
-        if (found !== pointing) {
-          pointing = found;
-          pointingRead = null;
+        const target = aimed();
+        if (!sameTarget(target, pointing)) {
+          pointing = target;
+          pointingRead = target instanceof Range ? (ranged?.read ?? null) : null;
         }
         clearTimeout(dwell);
-        if (shown?.route === "pointer" && shown.from !== pointing) hide();
-      } else if (found) point(found);
-      else if (!(pointing instanceof Range)) point(null);
+        if (shown?.route === "pointer" && !sameTarget(shown.from, pointing)) hide();
+      } else aim();
     },
     { capture: true, passive: true },
   );
@@ -1590,6 +1626,7 @@ export function mountPreviews(chrome) {
     (event) => {
       if (event.pointerType === "touch" || event.relatedTarget !== null) return;
       beneath = null;
+      over = ranged = null;
       point(null);
     },
     { capture: true, passive: true },

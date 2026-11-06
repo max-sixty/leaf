@@ -2329,7 +2329,7 @@ const gapKinds = new Uint8Array(0x10000);
 function gapAt(raw, i) {
   const code = raw.charCodeAt(i);
   if (!gapKinds[code])
-    gapKinds[code] = raw[i] === EDGE || /\s/.test(raw.charAt(i)) ? 1 : 2;
+    gapKinds[code] = raw[i] === EDGE || COLLAPSIBLE.test(raw.charAt(i)) ? 1 : 2;
   return gapKinds[code] === 1;
 }
 // An automaton over a set of strings (Aho–Corasick): a trie of their code units, each
@@ -2439,7 +2439,7 @@ export function findEach(text, strings) {
 // A quote's spelling, and which of its letters a space stands before.
 /** @param {string} quote @returns {QuoteEntry | null} */
 function quoteEntry(quote) {
-  const words = quote.trim().split(/\s+/).filter(Boolean);
+  const words = quote.split(COLLAPSE).filter(Boolean);
   if (!words.length) return null;
   const spelling = words.join("");
   const spaced = new Uint8Array(spelling.length);
@@ -2806,10 +2806,12 @@ function searchableWords() {
 // kind of segments capture and resolution use.
 /** @param {PageReading} text @param {string} query */
 export function findText(text, query) {
-  const words = query.trim().split(/\s+/u).filter(Boolean);
+  const words = query.split(COLLAPSE).filter(Boolean);
   if (!words.length) return [];
   const pattern = new RegExp(
-    words.map((w) => [...w].map(escape).join(`${EDGE}*`)).join(`[\\s${EDGE}]+`),
+    words
+      .map((w) => [...w].map(escape).join(`${EDGE}*`))
+      .join(`(?:${COLLAPSE.source}|${EDGE})+`),
     "giu",
   );
   const out = [];

@@ -278,6 +278,42 @@ def test_a_thread_previews_where_it_stands_from_its_words_and_its_entry(
     expect(preview).to_be_hidden()
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_thread_that_lands_under_a_still_pointer_previews_nothing(
+    engine, request, serve
+):
+    """A thread whose mark comes to stand under a pointer the user stopped, on a page
+    that marked nothing before, previews nothing: the user pointed at plain words. Their
+    next move over the mark reads it."""
+    url = serve(
+        leaf_page(
+            "Passages", f'<p id="passage">{PASSAGE}</p>' + "<p>More words.</p>" * 12
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    preview = page.locator(PREVIEW)
+    line = page.evaluate(MARK_LINE, MARKED)
+    rendered(page)
+    page.mouse.move(line["left"] - 20, line["top"] - 20)
+    page.mouse.move(line["left"] + 10, line["top"] + line["height"] / 2, steps=3)
+    page.wait_for_timeout(300)
+    post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "comment",
+            "revision": 1,
+            "text": "Why ship with that?",
+            "anchor": {"section": "passage", "quote": MARKED},
+        },
+    )
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    page.wait_for_timeout(500)
+    assert not preview.is_visible(), "a mark under a still pointer previewed"
+    page.mouse.move(line["left"] + 30, line["top"] + line["height"] / 2, steps=3)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Why ship with that?")
+
+
 def test_a_finger_holding_a_thread_s_words_reads_it_above_them(browser, serve):
     """A finger held on a thread's words reads, at the platform's long press, the
     preview a pointer would, above the line, which the finger doesn't cover. Its
@@ -1416,6 +1452,50 @@ def test_the_innermost_target_previews_on_every_route(engine, request, serve):
     page.mouse.move(link["x"] + 4, link["y"] + link["height"] / 2, steps=4)
     page.mouse.move(link["x"] + 8, link["y"] + link["height"] / 2, steps=2)
     expect(word).to_have_text("The link")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_passage_previews_again_once_the_pointer_leaves_a_link_inside_it(
+    engine, request, serve
+):
+    """A thread's passage holding a link previews as the thread, the link as the link,
+    and the passage's words as the thread again once the pointer comes back off the
+    link onto them, though the threads under the pointer never changed."""
+    url = serve(
+        leaf_page(
+            "Innermost",
+            '<p id="passage">The words a thread is about, with '
+            '<a id="go" href="#more">a link</a> among them, and more words after '
+            "the link so the passage runs on.</p>"
+            + '<p id="more">More.</p>'
+            + "<p>More words.</p>" * 3,
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "Is the link right?",
+            "anchor": {"section": "passage", "quote": "a thread is about, with a link"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.evaluate(
+        "() => { document.getElementById('go').lfPreview = () => ({name: 'The link'}); }"
+    )
+    word = page.locator(PREVIEW).locator(".lf-preview-word")
+    about = page.evaluate(MARK_LINE, "about")
+    rendered(page)
+    page.mouse.move(about["left"] - 20, about["top"] - 20)
+    at = {"x": about["left"] + 8, "y": about["top"] + about["height"] / 2}
+    page.mouse.move(at["x"], at["y"], steps=3)
+    expect(word).to_have_text("Is the link right?")
+    link = page.locator("#go").bounding_box()
+    page.mouse.move(link["x"] + 8, link["y"] + link["height"] / 2, steps=3)
+    expect(word).to_have_text("The link")
+    page.mouse.move(at["x"], at["y"], steps=3)
+    expect(word).to_have_text("Is the link right?")
 
 
 def test_a_standing_preview_says_what_a_new_revision_changed(browser, serve):

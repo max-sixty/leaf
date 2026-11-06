@@ -357,6 +357,15 @@
         "suffix": "one MARK two"
       },
       "before": 0
+    },
+    {
+      "id": "a character only Python calls whitespace is a letter of the word",
+      "markup": "<p id=\"s\">x A\u001eB y</p>",
+      "anchor": {
+        "section": "s",
+        "quote": "A B"
+      },
+      "before": null
     }
   ]
 }

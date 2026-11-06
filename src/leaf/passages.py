@@ -211,24 +211,14 @@ class _OwnedWords:
 
     def __init__(self, owner: tuple[str, str | None, int]):
         self.owner = owner
-        self.chars = []  # appended to, since `str +=` on an attribute copies it whole
-        self.block = None
-        self.space = False
+        self.runs = []  # appended to, since `str +=` on an attribute copies it whole
         self.boundaries = 0
         self.parts = []
 
-    def write(self, data: str, block: int) -> None:
-        if self.chars and block != self.block:
-            self.space = True
-        self.block = block
-        for ch in data:
-            if ch in COLLAPSE_CHARS:
-                self.space = bool(self.chars)
-                continue
-            if self.space:
-                self.chars.append(" ")
-                self.space = False
-            self.chars.append(ch)
+    def write(self, run: str) -> None:
+        """Words as the page's reading wrote them (`_PassageParser._write`), each space
+        where that reading put one, so the two read every gap alike."""
+        self.runs.append(run)
 
     def boundary(self, tag: str, element_id: str | None) -> None:
         self.flush()
@@ -245,11 +235,9 @@ class _OwnedWords:
         self.boundaries += 1
 
     def flush(self) -> None:
-        if words := "".join(self.chars).strip(" "):
+        if words := "".join(self.runs).strip(" "):
             self.parts.append({"text": words})
-        self.chars = []
-        self.block = None
-        self.space = False
+        self.runs = []
 
     def reading(self) -> list:
         self.flush()
@@ -388,12 +376,12 @@ class _PassageParser:
         if (end := len(self.chars)) > start:
             for wid in ids:
                 self.spans.setdefault(wid, [start, end])[1] = end
-        for frame in reversed(self.stack):
-            if frame["verbatim"]:
-                self.verbatim[frame["verbatim"]].write(data, block)
-                break
-            if frame["upgrade"]:
-                break
+            for frame in reversed(self.stack):
+                if frame["verbatim"]:
+                    self.verbatim[frame["verbatim"]].write("".join(self.chars[start:]))
+                    break
+                if frame["upgrade"]:
+                    break
 
     def _fence(self) -> None:
         """Words may stand here that this reading knows nothing about. Recorded as a

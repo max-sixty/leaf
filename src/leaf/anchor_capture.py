@@ -5,7 +5,7 @@ import functools
 import itertools
 from typing import NamedTuple
 
-from .passages import collapse, page_passages
+from .passages import COLLAPSE_CHARS, collapse, page_passages
 from .registry.contract import visual_parts
 from .registry.kernel import kernel_passages
 from .structure import SourceDocument
@@ -41,7 +41,7 @@ class _Letters(NamedTuple):
 def _letters(text: str, edges: frozenset, soft: frozenset) -> _Letters:
     letters, places, parted = [], [], bytearray()
     for i, ch in enumerate(text):
-        if ch.isspace():
+        if ch in COLLAPSE_CHARS:
             continue
         if not places:
             kind = 0
@@ -66,7 +66,7 @@ def occurrences(passages, quote: str, lo: int, hi: int) -> list[tuple[int, int]]
     no copy, since the page has words there this text doesn't, but it takes its place
     in order: the next copy starts past it. An empty quote names no passage, as in the
     browser's `findQuote`."""
-    words = quote.split()
+    words = [word for word in collapse(quote).split(" ") if word]
     if not words:
         return []
     letters = "".join(words)

@@ -466,7 +466,7 @@ use it:
 | Where a box sits relative to another box or its scroller                   | the containing block, sticky positioning, anchor positioning, scroll timelines                                                    |
 | Which of Leaf's surfaces paints over which, with the page beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, inside the chrome's root after `body` at the largest z-index |
 | Whether a box is rendered at all                                           | `checkVisibility`                                                                                                                 |
-| Whether a word in a box is drawn                                           | the computed `visibility` of the element it is drawn in, and that box's `checkVisibility` (`passages.js` `says`, `drawn`)         |
+| Whether a word in a box is drawn                                           | `checkVisibility` of the nearest box, its `content-visibility`, and the word's `visibility` (`passages.js` `drawsWithin`)         |
 | Where the reader's place stays as content above it changes height          | scroll anchoring, over renders that keep the nodes they don't change                                                              |
 | Which rules reach an element                                               | cascade layers, `@scope`, and a shadow root as the boundary                                                                       |
 
@@ -612,13 +612,13 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                              |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
 | The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |
-| The open conversations about the elements a reader asks after                                         | `thread/state.js` `openThreadsAbout`                                               |
+| The open conversations about an element or the part a heading heads, and whose turn                   | `thread/placement.js` `conversationsAbout`                                         |
 | The thread id a drawn thread carries, and the page threads drawn with an id                           | `thread/selectors.js` `drawnThreadId`, `drawnThreadsWithId`                        |
 | Where opening a thread puts the user: its reply, or the thread                                        | `thread/focus.js` `openingPart`                                                    |
 | Whether the user is writing a reply                                                                   | `thread/replies.js` `replyIsEditing`                                               |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
 | Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                             |
-| What names the part of the page or a message a node stands in, and what a heading heads               | `thread/placement.js` `partOver`, `headed`                                         |
+| What names the part of the page or a message a node stands in, and where a heading's part ends        | `thread/placement.js` `partOver`, `headed`, `headingAfter`                         |
 
 ### Facts both runtimes know
 

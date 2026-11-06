@@ -15,16 +15,6 @@ export function threadNamed(name) {
   const at = named.get(name);
   return at === undefined ? null : (all[at] ?? null);
 }
-// The open conversations about the elements whose ids `about` accepts, from the
-// publisher's index of the element each one's anchor names (`threadsBySection`): one
-// question for each element a conversation stands on, however many stand on it.
-/** @param {(id: string) => boolean} about */
-export function openThreadsAbout(about) {
-  const { all, bySection } = threadState();
-  return [...bySection].flatMap(([id, positions]) =>
-    about(id) ? positions.flatMap((at) => all[at] ?? []) : [],
-  );
-}
 // The logged id of the thread `name` names, else the name as given.
 /** @param {string} name */
 export const threadIdNamed = (name) => threadNamed(name)?.id ?? name;

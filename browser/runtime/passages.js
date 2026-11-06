@@ -126,6 +126,7 @@ import {
   isText,
   isHTML,
   renderedParent,
+  skipper,
 } from "./shadow-tree.js";
 import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE, pageUpgraded } from "./page-paint.js";
@@ -615,7 +616,7 @@ export const authored = (root) => {
 /** @param {Node} root
  * @param {(node: Text, ctx: ReadingContext) => void} onText
  * @param {((element: Element) => boolean) | null} [skip]
- * @param {((ctx: ReadingContext) => void) | null} [onBreak]
+ * @param {((ctx: ReadingContext, br: Element) => void) | null} [onBreak]
  * @param {((element: Element, ctx: ReadingContext, entering: boolean) => void) | null} [onElement] */
 function walk(root, onText, skip = null, onBreak = null, onElement = null) {
   const frame = frameOf(root);
@@ -628,10 +629,15 @@ function walk(root, onText, skip = null, onBreak = null, onElement = null) {
   };
   /** @param {Element} child @param {ReadingContext} ctx */
   const visitElement = (child, ctx) => {
-    if (skip?.(child)) return;
-    const inner = enter(ctx, child);
+    if (!skip?.(child)) enterElement(child, enter(ctx, child));
+  };
+  // An element entered with the context it opens. A root handed in is entered exactly
+  // as a descendant is, so a slot reads what is assigned to it, not its fallback, and a
+  // host its declared tree.
+  /** @param {Element} child @param {ReadingContext} inner */
+  const enterElement = (child, inner) => {
     if (child.localName === "br") {
-      onBreak?.(inner);
+      onBreak?.(inner, child);
     } else if (isHTML(child, "slot")) {
       passed.set(child, inner);
       onElement?.(child, inner, true);
@@ -669,12 +675,8 @@ function walk(root, onText, skip = null, onBreak = null, onElement = null) {
   // facts starting over as they do when the walk crosses into it; the document starts
   // with nothing over it.
   const host = shadowHost(root);
-  const start = isElement(root)
-    ? contextAt(root, frame)
-    : host
-      ? crossed(contextAt(host, frame))
-      : NO_CONTEXT;
-  visit(root, start);
+  if (isElement(root)) enterElement(root, contextAt(root, frame));
+  else visit(root, host ? crossed(contextAt(host, frame)) : NO_CONTEXT);
 }
 // The step up the tree `walk` comes down, from any node, read or not. A slot is that step
 // only in a declared root, the one kind of root `walk` crosses into. Another root's slots
@@ -704,16 +706,23 @@ const { order: readingOrder, under: readingUnder } = alongClimb(readingParent);
 // the walk, for a reader that stands something else in their place (render-checks,
 // `shownVerbatim`). The lines format also carries computed block boundaries and
 // whitespace; ordinary passage readings never ask the browser for these styles.
+// `drawn` keeps only the words the page draws now (`drawsWithin`), asked of each word and
+// break as the walk meets it, so a break before a word left out still stands before the
+// next; `until` ends the reading where that element starts.
 /** @param {Node} root @param {Reading} [reading]
  * @param {((element: Element, count: number) => boolean) | null} [boundary]
- * @param {"prose" | "lines"} [format] @returns {Segment[]} */
+ * @param {"prose" | "lines"} [format]
+ * @param {{drawn?: boolean, until?: Element | null}} [only] @returns {Segment[]} */
 export function textNodesUnder(
   root,
   reading = "says",
   boundary = null,
   format = "prose",
+  only = {},
 ) {
   const keeps = READINGS[reading];
+  const draws = only.drawn ? drawnHere() : null;
+  let ended = false;
   /** @type {Segment[]} */
   const segments = [];
   let breakBefore = false;
@@ -728,7 +737,7 @@ export function textNodesUnder(
   walk(
     root,
     (node, ctx) => {
-      if (keeps(ctx)) {
+      if (!ended && keeps(ctx) && (!draws || draws(node))) {
         segments.push({
           ...segmentIn(node, ctx),
           breakBefore,
@@ -743,11 +752,12 @@ export function textNodesUnder(
       }
     },
     (child) =>
+      (ended ||= child === only.until) ||
       ((root === document || root === root.ownerDocument?.body) &&
         child.matches(LEAF_SURFACE)) ||
       (boundary?.(child, segments.length) ?? false),
-    (ctx) => {
-      if (keeps(ctx)) {
+    (ctx, br) => {
+      if (!ended && keeps(ctx) && (!draws || draws(br))) {
         breakBefore = true;
         lineBefore = "\n";
       }
@@ -856,6 +866,14 @@ export const layoutParts = () => {
 /** @param {Node} node */
 export const authoredScope = (node) =>
   closestAcross(node, MESSAGE_BODY) ?? pageDocument(node?.ownerDocument ?? document);
+// Whether the reading of the document `element` stands in (`authoredScope`) skips it as
+// Leaf's chrome: the rule the walk skips words by (`chromeMark`), counted from that
+// reading's frame, so a reply's markup and text are no chrome for standing in the
+// panel, and Leaf's controls in either are, while words a widget renders for the page,
+// as a Markdown preview's, are the page's.
+/** @param {Element} element */
+export const readAsChrome = (element) =>
+  contextAt(element, frameOf(authoredScope(element))).chrome;
 
 // elementFromPoint retargets to the host for a point over a shadow tree, so it names the
 // widget rather than the thing in it, and each root answers for its own. Mark hit testing
@@ -1089,55 +1107,66 @@ function linesFrom(segments) {
 // it. A suggestion labelled that way offered to accept “Retry three times. 1 comment”.
 // The lines format takes block boundaries and preserved whitespace from computed
 // styles while the same composed walk determines which words belong to the page.
-// `drawn` keeps only the words the page draws now (`drawsText`), for a reader that
-// shows them somewhere else, as a link's preview does.
-/** @param {Node} el @param {{format?: "prose" | "lines", drawn?: boolean}} [options] */
+// `drawn` keeps only the words the page draws now, for a reader that shows them
+// somewhere else, as a link's preview does, and `until` stops at an element
+// (`textNodesUnder`).
+/** @param {Node} el
+ * @param {{format?: "prose" | "lines", drawn?: boolean, until?: Element | null}} [options] */
 export const says = (el, options = {}) => {
-  const read = textNodesUnder(el, "says", null, options.format);
-  const segments = options.drawn ? read.filter(drawsText()) : read;
+  const segments = textNodesUnder(el, "says", null, options.format, options);
   return options.format === "lines" ? linesFrom(segments) : quoteFrom(segments);
 };
-// What the page draws now, by what the browser computes for each text node rather than
-// by pruning the elements over it, since a child can be drawn where its parent is not:
-// the visibility the text inherits from the element it is drawn in (its slot, else its
-// parent), and whether that element renders (`rendersBox`). A closed disclosure's own
-// words beside its summary are drawn in a tree the page can't see, which draws only the
-// summary, so the disclosure answers for them. No primitive gives this reading:
-// `innerText` keeps Leaf's own controls and reads a host's light children rather than
-// its declared tree, and a Range's text keeps everything. Each holder is asked once.
-const drawsText = () => {
+// What the page draws now, by what the browser computes for the element each word or
+// break is drawn in (its slot, its parent, or a shadow root's host), not by pruning the
+// elements over it, since a word can be drawn where its parent is not. A closed
+// disclosure's own words beside its summary are drawn in a tree the page can't see,
+// which draws only the summary, so the disclosure answers for them. No primitive gives
+// this reading: in Chromium and Firefox `innerText` keeps Leaf's own controls, reads a
+// host's light children in their light order rather than its declared tree, and reads an
+// unchosen tab's panel as nothing rather than whole; a Range's text keeps everything.
+// Each element is asked once a reading.
+const drawnHere = () => {
   /** @type {Map<Element, boolean>} */
   const asked = new Map();
-  /** @param {Segment} segment */
-  return ({ node }) => {
-    const holder = flatParent(node);
+  /** @param {Node} node */
+  return (node) => {
+    const holder = renderedParent(node);
     if (!holder) return false;
     let drawn = asked.get(holder);
     if (drawn === undefined)
       asked.set(
         holder,
-        (drawn =
-          !(isHTML(holder, "details") && !holder.open) &&
-          !/^(hidden|collapse)$/.test(getComputedStyle(holder).visibility) &&
-          rendersBox(holder)),
+        (drawn = !(isHTML(holder, "details") && !holder.open) && drawsWithin(holder)),
       );
     return drawn;
   };
 };
-// The element a node is drawn in: its slot, its parent, or a shadow root's host.
-/** @param {Element | Text} node @returns {Element | null} */
-const flatParent = (node) =>
-  node.assignedSlot ?? node.parentElement ?? shadowHost(node.getRootNode());
-/** Whether the page renders `element` now (`checkVisibility`): it is not under
- * `display: none` or `hidden`, nor in a skipped `content-visibility` subtree, as a closed
- * disclosure's body is. An element that makes no box (`display: contents`, as a slot)
- * renders where the nearest element holding it that makes one does.
- * @param {Element} element */
-export function rendersBox(element) {
-  /** @type {Element | null} */
-  let box = element;
-  while (box && getComputedStyle(box).display === "contents") box = flatParent(box);
-  return box?.checkVisibility() ?? false;
+/** Whether the page draws what `element` holds now, by what the browser computes: the
+ * nearest box at or over it (`display: contents` makes none) is drawn
+ * (`checkVisibility`) and shows what it holds rather than skipping it
+ * (`content-visibility: hidden`, as an unchosen tab's `hidden="until-found"` panel and a
+ * closed disclosure's body are), and, with `visibility`, `element` inherits
+ * `visibility: visible`. What a `content-visibility: auto` box skips off screen is drawn
+ * once scrolled to, so it counts as drawn and is not styled to ask (shadow-tree.js,
+ * `skipper`).
+ * @param {Element} element @param {boolean} [visibility] */
+export function drawsWithin(element, visibility = true) {
+  for (
+    let box = /** @type {Element | null} */ (element);
+    box;
+    box = renderedParent(box)
+  ) {
+    if (box.checkVisibility({ contentVisibilityAuto: true }))
+      return (
+        getComputedStyle(box).contentVisibility !== "hidden" &&
+        (!visibility ||
+          !/^(hidden|collapse)$/.test(getComputedStyle(element).visibility))
+      );
+    const skipping = skipper(box);
+    if (skipping) return getComputedStyle(skipping).contentVisibility === "auto";
+    if (getComputedStyle(box).display !== "contents") return false;
+  }
+  return false;
 }
 // The other question, and a different answer: what the *author* wrote here, with
 // everything an upgrade generated left out. A version comparison keys sources by it and

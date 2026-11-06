@@ -8,16 +8,19 @@ import {
 import { sectionOf } from "../anchor-resolution.js";
 import {
   authoredScope,
+  elementById,
   HEADING,
+  inPage,
   leafSurface,
   pageDocument,
-  pageParts,
   pageReadingVersion,
-  readingChildren,
+  readAsChrome,
 } from "../passages.js";
-import { documentChanged } from "../semantic-state.js";
+import { agentName, documentChanged } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
-import { byRenderedOrder, renderedOrder, upFrom } from "../shadow.js";
+import { byRenderedOrder, renderedOrder, shadowRootsIn, upFrom } from "../shadow.js";
+import { threadState } from "./state.js";
+import { threadAttention } from "./workflow.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
 // beginning and an end, and the user walks the thread the way they walk the
@@ -65,67 +68,75 @@ export const threadPlace = (t, placedAt) => {
 export const inPageOrder = (threads, placedAt) =>
   byRenderedOrder(threads, /** @param {T} t */ (t) => threadPlace(t, placedAt));
 
-// The page's own outline, in the order it renders, widgets' shadow trees included. Read off the headings the author wrote
-// rather than off <section> nesting, because both shapes are in the corpus and a heading
-// is the thing a user navigates by in either — a page written as one flow of h2s has an
-// outline just as much as one written as nested sections. The runtime's own chrome
-// contributes none (pageParts), which also keeps a heading inside a reply's Markdown out
-// of the page's outline.
+// A document's own outline, in the order it renders, widgets' shadow trees included:
+// the page's, or a message's markup, which is outlined as the page is. Read off the
+// headings the author wrote rather than off <section> nesting, because both shapes are in
+// the corpus and a heading is the thing a user navigates by in either — a page written as
+// one flow of h2s has an outline just as much as one written as nested sections. Leaf's
+// own chrome contributes none: its surfaces (`inPage`), which keeps a heading inside a
+// reply out of the page's outline, and its controls inside either document, by the rule
+// that document's reading skips them by (passages.js, `readAsChrome`).
 //
-// It is a reading of the page's own nodes, so it stands until the page reading moves
-// (passages.js, `pageReadingVersion`) or a caller says the document changed
-// (`presentDocument`): a thread pass over an unchanged page reads the outline it read.
-/** @typedef {{outline: readonly Element[], heads: Map<Element | null, Element[]>}} Outline
- * @typedef {Outline & {key: readonly [ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>]}} Outlined */
-/** @type {Outlined | null} */
-let outlined = null;
-/** @returns {Outlined} */
-function readOutline() {
-  /** @type {[ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>]} */
-  const key = [pageReadingVersion(), documentChanged()];
-  if (outlined?.key.every((part, index) => part === key[index])) return outlined;
-  outlined = {
-    key,
-    ...outlineFrom(
-      byRenderedOrder(
-        pageParts(HEADING),
-        /** @param {Element} heading */ (heading) => heading,
+// It is a reading of the document's own nodes, so it stands until the page reading moves
+// (passages.js, `pageReadingVersion`, which a declared tree staged anywhere also moves)
+// or a caller says the document changed (`presentDocument`): a thread pass over an
+// unchanged page reads the outline it read.
+/** @typedef {readonly [ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>]} ReadingKey
+ * @typedef {{key: ReadingKey, outline: readonly Element[], heads: Map<Element | null, Element[]>, at: Map<Element, number>}} Outlined */
+/** @type {WeakMap<Element, Outlined>} */
+const outlines = new WeakMap();
+/** @returns {ReadingKey} */
+const readingKey = () => [pageReadingVersion(), documentChanged()];
+/** @param {readonly unknown[] | undefined} kept @param {readonly unknown[]} key */
+const current = (kept, key) =>
+  kept?.every((part, index) => part === key[index]) ?? false;
+// The outline of the document `node` stands in (passages.js, `authoredScope`).
+/** @param {Node} node @returns {Outlined} */
+function outlineOf(node) {
+  const scope = authoredScope(node);
+  const key = readingKey();
+  const kept = outlines.get(scope);
+  if (kept && current(kept.key, key)) return kept;
+  const page = scope === pageDocument(scope.ownerDocument);
+  const roots = [page ? scope.ownerDocument : scope, ...shadowRootsIn(scope)];
+  const outline = Object.freeze(
+    byRenderedOrder(
+      roots.flatMap((root) =>
+        [...root.querySelectorAll(HEADING)].filter(
+          (heading) =>
+            authoredScope(heading) === scope &&
+            (!page || inPage(heading)) &&
+            !readAsChrome(heading),
+        ),
       ),
+      /** @param {Element} heading */ (heading) => heading,
     ),
-  };
-  return outlined;
-}
-export const pageOutline = () => readOutline().outline;
-// An outline's headings, and each container's, in the outline's order, for `partOver`.
-/** @param {Element[]} headings @returns {Outline} */
-function outlineFrom(headings) {
+  );
+  // Each container's headings, in the outline's order, for `partOver`, and where each
+  // heading stands in it.
   /** @type {Map<Element | null, Element[]>} */
   const heads = new Map();
-  for (const heading of headings) {
+  /** @type {Map<Element, number>} */
+  const at = new Map();
+  outline.forEach((heading, index) => {
+    at.set(heading, index);
     const container = headed(heading);
     const held = heads.get(container);
     if (held) held.push(heading);
     else heads.set(container, [heading]);
-  }
-  return { outline: Object.freeze(headings), heads };
+  });
+  const read = { key, outline, heads, at };
+  outlines.set(scope, read);
+  return read;
 }
-// The outline of the document `node` stands in: the page's, or a message's, which its
-// markup is outlined by as the page is by its own. A message's is read afresh from its
-// markup, in the order the page's reading walks it (declared shadow trees and slots as
-// they draw), since a reply is drawn once and small, so nothing need keep it current.
-/** @param {Node} node */
-const outlineOf = (node) => {
-  const scope = authoredScope(node);
-  return scope === pageDocument(node.ownerDocument ?? document)
-    ? readOutline()
-    : outlineFrom(headingsUnder(scope));
-};
-/** @param {Element} root @returns {Element[]} */
-const headingsUnder = (root) =>
-  readingChildren(root).flatMap((child) => [
-    ...(child.matches(HEADING) ? [child] : []),
-    ...headingsUnder(child),
-  ]);
+export const pageOutline = () => outlineOf(pageDocument()).outline;
+/** The heading after `heading` in its document's outline, or null.
+ * @param {Element} heading */
+export function headingAfter(heading) {
+  const { outline, at } = outlineOf(heading);
+  const index = at.get(heading);
+  return index === undefined ? null : (outline[index + 1] ?? null);
+}
 
 // What names the part of the page, or of a message's markup, a node stands in: the
 // heading over it, else the
@@ -181,6 +192,90 @@ function lastBefore(headings, node) {
   }
   return headings[low - 1] ?? null;
 }
+
+// ---------- where the open conversations stand ----------
+// Gathered once for each reading of the threads and the page, so asking about a place
+// costs a lookup, whatever the page holds: under each element, the conversations about
+// it or anything it holds; under each heading, those about what it heads, as `partOver`
+// reads ownership, its own part and those of the headings below its level; each with
+// the turn one owes the user (`threadAttention`), the first found. A heading heads
+// itself, so a conversation about a heading is its part's, not the part before it.
+/** @typedef {{threads: number, turn: NonNullable<ReturnType<typeof threadAttention>> | null}} Conversations
+ * @typedef {{key: readonly unknown[], inside: Map<Element, Conversations>, headed: Map<Element, Conversations>}} Gathered */
+/** @type {Gathered | null} */
+let gathered = null;
+/** @returns {Gathered} */
+function gatherConversations() {
+  const { all, bySection } = threadState();
+  const agent = agentName();
+  const key = [...readingKey(), bySection, agent];
+  if (gathered && current(gathered.key, key)) return gathered;
+  /** @type {Map<Element, Conversations>} */
+  const inside = new Map();
+  /** @type {Map<Element, Conversations>} */
+  const headed = new Map();
+  /** @type {Map<Element, Element | null>} */
+  const parents = new Map();
+  /** @param {Map<Element, Conversations>} map @param {Element} at @param {Conversations} these */
+  const add = (map, at, these) => {
+    const held = map.get(at);
+    map.set(
+      at,
+      held
+        ? { threads: held.threads + these.threads, turn: held.turn ?? these.turn }
+        : these,
+    );
+  };
+  for (const [id, positions] of bySection) {
+    const element = elementById(id);
+    if (!element) continue;
+    const threads = positions.flatMap((at) => all[at] ?? []);
+    const these = {
+      threads: threads.length,
+      turn:
+        threads
+          .map((thread) => threadAttention(thread, agent))
+          .find((attention) => attention?.kind === "needs_user") ?? null,
+    };
+    for (let at = /** @type {Element | null} */ (element); at; at = upFrom(at))
+      add(inside, at, these);
+    for (let at = headingOf(element); at; at = parentHeading(at, parents))
+      add(headed, at, these);
+  }
+  gathered = { key, inside, headed };
+  return gathered;
+}
+/** The open conversations about `place`: for a heading, about the part it heads; for
+ * any other element, about it or anything it holds. Null where there are none.
+ * @param {Element} place */
+export function conversationsAbout(place) {
+  const { inside, headed } = gatherConversations();
+  return (place.matches(HEADING) ? headed : inside).get(place) ?? null;
+}
+// The heading that heads `element`: itself, or the first heading over it (`partOver`).
+/** @param {Element} element @returns {Element | null} */
+function headingOf(element) {
+  for (
+    let at = element.matches(HEADING) ? element : partOver(element);
+    at;
+    at = partOver(at)
+  )
+    if (at.matches(HEADING)) return at;
+  return null;
+}
+// The heading whose part holds `heading`'s: the first heading over it at a higher level.
+/** @param {Element} heading @param {Map<Element, Element | null>} parents @returns {Element | null} */
+function parentHeading(heading, parents) {
+  const known = parents.get(heading);
+  if (known !== undefined) return known;
+  let at = headingOf(partOver(heading) ?? heading);
+  if (at === heading) at = null;
+  while (at && level(at) >= level(heading)) at = parentHeading(at, parents);
+  parents.set(heading, at);
+  return at;
+}
+/** @param {Element} heading */
+const level = (heading) => Number(heading.localName.slice(1));
 
 /** @param {Element} target */
 const subjectLabel = (target) => addressableLabel(target) || addressableWord(target);

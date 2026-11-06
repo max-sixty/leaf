@@ -108,6 +108,14 @@ test("a node in a declared tree stands where its host stands", () => {
   assert.equal(pageWords(document.querySelector("main p")), true);
 });
 
+test("a root handed in reads as it would inside the walk: a slot its assignment", () => {
+  document.body.innerHTML = '<main><div id="host"><p>Assigned words</p></div></main>';
+  const host = document.querySelector("#host");
+  host.attachShadow({ mode: "open" }).innerHTML =
+    "<h2>Title</h2><slot>Fallback words</slot>";
+  assert.equal(says(host.shadowRoot.querySelector("slot")), "Assigned words");
+});
+
 test("header and footer passages belong to the page while runtime surfaces do not", () => {
   document.body.innerHTML = `<header><p>Opening</p></header><main><p>Content</p></main>
     <footer><p>Closing</p></footer>

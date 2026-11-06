@@ -64,23 +64,30 @@ test("a section previews its heading and first lines, past what stands above the
   );
 });
 
-test("a heading previews its section, up to the next heading at its level or above", () => {
+test("a heading previews the part it heads itself, up to the outline's next heading", () => {
   assert.deepEqual(
     previewed(`<h2 id="it">Support</h2><p>It covers the spinner.</p>
-      <h3>Detail</h3><h2>Next</h2><p>Not this.</p>`).parts,
+      <h3>Detail</h3><p>Detail's own.</p>`).parts,
     [
       ["name", "Support"],
       ["text", "It covers the spinner."],
-      ["heading", "Detail"],
     ],
   );
-  // A block holding the next heading gives what stands before it.
+  // A block holding the next heading gives what stands before it, however deep.
   assert.deepEqual(
     previewed(`<h2 id="it">Support</h2><section><p>Inside.</p><h2>Next</h2>
       <p>Not this.</p></section>`).parts,
     [
       ["name", "Support"],
       ["text", "Inside."],
+    ],
+  );
+  assert.deepEqual(
+    previewed(`<h2 id="it">First</h2><div>Prefix <h2>Next section</h2>
+      <p>Other section words</p></div>`).parts,
+    [
+      ["name", "First"],
+      ["text", "Prefix"],
     ],
   );
   // A heading in a header heads what holds the header, from the words after it there.
@@ -144,6 +151,18 @@ test("a message's markup previews by its own document: its words, names and outl
     previewed(`<h2>Risk</h2><p id="it">It may fail.</p>`, { message: true }).parts,
     [
       ["name", "Risk"],
+      ["text", "It may fail."],
+    ],
+  );
+  // Leaf's controls in a message's markup are no part of its outline.
+  assert.deepEqual(
+    previewed(
+      `<h2>Actual subject</h2><h3 class="lf-ui" data-lf-gen="x">Generated</h3>
+      <p id="it">It may fail.</p>`,
+      { message: true },
+    ).parts,
+    [
+      ["name", "Actual subject"],
       ["text", "It may fail."],
     ],
   );

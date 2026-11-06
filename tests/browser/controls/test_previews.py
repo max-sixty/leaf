@@ -183,6 +183,10 @@ has <a id="to-support" href="#support">its own heading</a>.</p>
 </lf-options></lf-ask>
 <h2 id="support">Support</h2>
 <p id="support-playbook">The playbook covers the spinner.</p>
+<h2 id="first-sibling">First section</h2><p>First words.</p>
+<h2 id="second-sibling">Second section</h2><p>Second words.</p>
+<p><a id="to-first" href="#first-sibling">first</a>,
+<a id="to-second" href="#second-sibling">second</a></p>
 """
     + "<p>More of the page.</p>" * 30,
 )
@@ -214,6 +218,9 @@ def test_a_link_into_the_page_previews_where_it_points(engine, request, serve):
     panel_comment(
         serve.page_dir, "Does it cover queued edits?", {"section": "support-playbook"}
     )
+    panel_comment(
+        serve.page_dir, "Is this the right title?", {"section": "second-sibling"}
+    )
     browser = request.getfixturevalue(engine)
     page = open_page(browser, url)
     preview = page.locator(PREVIEW)
@@ -242,6 +249,13 @@ def test_a_link_into_the_page_previews_where_it_points(engine, request, serve):
         "The playbook covers the spinner."
     )
     expect(preview.locator(".lf-place-foot")).to_have_text("1 thread")
+    # A conversation about a heading is its own part's, not the part before it.
+    page.locator("#to-second").hover()
+    expect(name).to_have_text("Second section")
+    expect(preview.locator(".lf-place-foot")).to_have_text("1 thread")
+    page.locator("#to-first").hover()
+    expect(name).to_have_text("First section")
+    expect(preview.locator(".lf-place-foot")).to_have_count(0)
 
     page.locator("#to-meeting").hover()
     expect(name).to_have_text("Where should the group meet?")
@@ -302,8 +316,11 @@ DRAWN_PAGE = leaf_page(
 <a id="to-skipped" href="#skipped">a block skipping its rest</a>,
 <a id="to-shown" href="#shown">words shown inside hidden ones</a>,
 <a id="to-contents" href="#contents">a block that makes no box</a>,
-<a id="to-untitled" href="#untitled">a section whose title is hidden</a> and
-<a id="to-code" href="#code">code with hidden words and a control</a>.</p>
+<a id="to-untitled" href="#untitled">a section whose title is hidden</a>,
+<a id="to-code" href="#code">code with hidden words and a control</a>,
+<a id="to-broken" href="#broken">a line broken before hidden words</a>,
+<a id="to-skipping" href="#skipping">a block skipping its own words</a> and
+<a id="to-folded" href="#folded">a folded panel</a>.</p>
 <details id="closed"><summary>Method</summary>Secret text<p>Hidden paragraph.</p></details>
 <div id="held">Intro <details><summary>More</summary><p>Hidden words.</p></details></div>
 <p id="spans">Before <span style="display: none">Gone</span> <span hidden>Attr</span>
@@ -322,6 +339,11 @@ two
 three
 four
 five</pre>
+<p id="broken">first<br><span hidden>HIDDEN</span>second</p>
+<div id="skipping"><p>Shown words.</p><div style="content-visibility: hidden">SECRET
+CV</div><div hidden="until-found">SECRET FOUND</div></div>
+<section id="folded" hidden="until-found"><h3>Folded title</h3><p>Folded body.</p>
+</section>
 """
     + "<p>More of the page.</p>" * 20,
 )
@@ -334,8 +356,9 @@ def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve)
     its summary, words `display: none` or `hidden` and a script's text nothing, a title
     without its hidden word, a skipped subtree nothing, a word drawn inside a hidden
     one, a block with no box what it holds draws, a section whose title is hidden its
-    body and not the title, and code its lines without a hidden word or Leaf's
-    control."""
+    body and not the title, code its lines without a hidden word or Leaf's control, a
+    break before hidden words still a break, words a block's `content-visibility` skips
+    nothing, and a folded panel, which draws none of what it holds, all of it."""
     page = open_page(request.getfixturevalue(engine), serve(DRAWN_PAGE))
     # Words Leaf writes into a block, as the paint pass writes a comment's count.
     page.evaluate(
@@ -358,6 +381,9 @@ def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve)
         ("#to-contents", None, "Boxed words."),
         ("#to-untitled", None, "Visible body."),
         ("#to-code", None, "one two three four"),
+        ("#to-broken", None, "first second"),
+        ("#to-skipping", None, "Shown words."),
+        ("#to-folded", "Folded title", "Folded body."),
     ):
         page.mouse.move(0, 0)
         expect(preview).to_be_hidden()

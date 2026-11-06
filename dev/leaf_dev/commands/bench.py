@@ -18,7 +18,7 @@ with main or REF, chosen as every A/B command chooses its arms (`arms.choose_arm
 and `--input` takes some of them. A page without what an input needs, such as an
 option to click, reads none of that input, and the report names it as missing.
 
-`--read` chooses what is read, by default `cpu` and `paint`:
+`--read` chooses what is read, by default `cpu` and `paint`, and in Firefox `cpu`:
 
 - `cpu` reads the page's main-thread CPU in a tab of its own (`cpu_pass`): the load
   until the page settles and its main thread goes quiet, then each input's mean over
@@ -32,7 +32,12 @@ option to click, reads none of that input, and the report names it as missing.
   `AGENTS.md` holds to BUDGET_MS. Each counts the requests and bytes it caused
   (`Traffic`).
 - `server` times the server's paths on each generated page in this process, with no
-  browser and on this checkout only (`leaf_dev.server_paths`).
+  browser, on this checkout only (`leaf_dev.server_paths`).
+
+Each pass reads a POST its own way. The CPU pass reads it from the page's Resource
+Timing, which every engine keeps and which adds no work to the main thread it times.
+The paint pass reads Chrome's network data, which it takes anyway to attribute every
+request in the window to its starter, and which names the POST's attempt.
 
 Each reading is a row of its page's table, with a column for each size and arm. With
 three sizes or more, each reading's growth above the BASE page is fitted over the
@@ -92,7 +97,14 @@ import statistics
 import subprocess
 import time
 from collections import Counter
-from collections.abc import Callable, Generator, Hashable, Iterator, Sequence
+from collections.abc import (
+    Callable,
+    Generator,
+    Hashable,
+    Iterable,
+    Iterator,
+    Sequence,
+)
 from contextlib import contextmanager, nullcontext, suppress
 from dataclasses import asdict, dataclass, field, replace
 from functools import partial
@@ -761,8 +773,8 @@ class Input(NamedTuple):
     for a gesture, whose own input event the time counts from. The CPU pass reads the
     mean of `count`, with `ready` before each where `each`, each in its own window,
     and otherwise once before a window over them all and a quiet after them; it waits
-    for the input's painted goals where it has them, the POST's answer where it
-    `posts`, and then `after` ms. The paint pass times it `count` times, each after
+    for the input's painted goals where it has them, for the POST's answer where they
+    include the server's reading of its event (`delivered`), and then `after` ms. The paint pass times it `count` times, each after
     `ready`, where it `paints`, and a page reads the input only where it holds
     `needs`."""
 
@@ -770,7 +782,6 @@ class Input(NamedTuple):
     count: int = 1
     ready: Callable[[Tab], Goals] = lambda _: {}
     each: bool = True
-    posts: bool = False
     paints: bool = False
     after: float = 0
     needs: str = ""
@@ -1009,7 +1020,6 @@ INPUTS: dict[str, Input] = {
         4,
         aim_at_option,
         each=False,
-        posts=True,
         paints=True,
         after=400,
         needs="lf-option",
@@ -1025,12 +1035,8 @@ INPUTS: dict[str, Input] = {
         agent_stamp, ready=name_revision, paints=True, after=600, needs="h1"
     ),
     "select": Input(triple_click, 4, aim_at_title, each=False, after=400, needs="h1"),
-    "comment": Input(
-        send, ready=write_comment, posts=True, paints=True, after=400, needs="h1"
-    ),
-    "move": Input(
-        drop_card, ready=lift_card, posts=True, paints=True, after=400, needs="lf-card"
-    ),
+    "comment": Input(send, ready=write_comment, paints=True, after=400, needs="h1"),
+    "move": Input(drop_card, ready=lift_card, paints=True, after=400, needs="lf-card"),
     "reply": Input(agent_reply, ready=ask_agent, paints=True, after=300),
     "status": Input(agent_status, ready=name_status, paints=True, after=300),
 }
@@ -1277,7 +1283,7 @@ def per_input(tab: Tab, name: str, timed, idle: float) -> dict[str, float]:
     goals: Goals = {}
 
     def one() -> None:
-        if each.posts:
+        if any(fact == "delivered" for fact, _ in goals.values()):
             with page.expect_response(lambda r: r.url.endswith("/api/event")):
                 each.act(tab)
         else:
@@ -1320,10 +1326,10 @@ def paint_pass(
     traffic: Traffic,
     inputs: Sequence[str],
     profiles: Path | None,
-) -> list[dict]:
+) -> tuple[list[dict], list[str]]:
     """Each of `inputs` that `paints`, timed `count` times to each goal's first
     painted frame (`measure`), each a window of `Traffic`'s, profiled into `profiles`
-    where given."""
+    where given, and the inputs the page lacks."""
     with tab(browser) as page:
         page.set_default_timeout(DEADLINE_MS)
         page.context.add_init_script(path=MAIN_THREAD)
@@ -1339,10 +1345,13 @@ def paint_pass(
         ended(page)
         traffic.alone()
         current = Tab(page, bench)
-        windows = []
+        windows, missing = [], []
         for name in inputs:
             each = INPUTS[name]
-            if not each.paints or not holds(current, name):
+            if not each.paints:
+                continue
+            if not holds(current, name):
+                missing.append(name)
                 continue
             for sample in range(each.count):
                 current.sample = sample
@@ -1350,7 +1359,7 @@ def paint_pass(
                 windows.append(measure(current, traffic, name, goals, profiles))
         # Playwright delivers the browser's reports only while it talks to the page.
         page.evaluate("0")
-    return windows
+    return windows, missing
 
 
 def measure(
@@ -1678,20 +1687,16 @@ def interleaved[K](rounds: int, keys: Sequence[K]) -> Iterator[tuple[int, K]]:
             yield number, key
 
 
-def lowest[K: Hashable](
-    rounds: int, keys: Sequence[K], read: Callable[[K, int], dict]
-) -> dict[K, dict]:
-    """Each key's lowest reading of each cost over `rounds` interleaved rounds
-    (`interleaved`), where `read` takes the key and the round's number and returns
-    its readings. A busy host adds time to a reading and never takes it away, so
-    the lowest is the nearest the host lets a reading come to the work alone."""
-    readings: dict[K, list[dict]] = {key: [] for key in keys}
-    for number, key in interleaved(rounds, keys):
-        readings[key].append(read(key, number))
-    return {
-        key: {cost: min(each[cost] for each in taken) for cost in taken[0]}
-        for key, taken in readings.items()
-    }
+def lowest[K: Hashable](readings: Iterable[tuple[K, dict[str, float]]]):
+    """Each key's lowest reading of each cost, from `readings`, the rounds' readings
+    by key. A busy host adds time to a reading and never takes it away, so the lowest
+    is the nearest the host lets a reading come to the work alone."""
+    least: dict[K, dict[str, float]] = {}
+    for key, taken in readings:
+        held = least.setdefault(key, {})
+        for cost, value in taken.items():
+            held[cost] = min(held.get(cost, math.inf), value)
+    return least
 
 
 def label(reading: str) -> str:
@@ -1710,7 +1715,7 @@ def table(
 ) -> str:
     """Each of `readings` a line under its label, with its value in each of `columns`,
     then its exponent in each of `fits`, marked `!` above SUPERLINEAR."""
-    width = max(len(label(reading)) for reading in readings) + 1
+    width = max((len(label(reading)) for reading in readings), default=0) + 1
     lines = [
         title,
         " " * width + "".join(f"{head:>11}" for head, _ in [*columns, *fits]),
@@ -1804,7 +1809,13 @@ def serving(name: str, n: int | None, arm_dir: Path, scratch: Path):
             seed = scratch / "seed.jsonl"
             seed.write_text("".join(json.dumps(event) + "\n" for event in events))
     with serving_source(arm_dir, source, scratch / "page", seed):
-        yield BenchPage(served_page.get())
+        bench = BenchPage(served_page.get())
+        # The agent takes in what the page's log holds for it, as the session holding
+        # a page has, so a reply's delivery carries only the question it answers.
+        if json.loads(bench.leaf("page", "state", bench.directory)).get("pending"):
+            delivery = json.loads(bench.leaf("wait", bench.directory))
+            bench.leaf("delivery", "ack", delivery["id"])
+        yield bench
 
 
 def measure_page(
@@ -1845,9 +1856,10 @@ def measure_page(
         if "paint" in reads:
             last = n == sized[-1]
             with build(page_dir / f"paint-{number}") as bench:
-                record.windows = paint_pass(
+                record.windows, missing = paint_pass(
                     browser, bench, traffic[n, arm], inputs, profiles if last else None
                 )
+            record.missing = list(dict.fromkeys([*record.missing, *missing]))
         records.append(record)
     for (n, arm), seen in traffic.items() if "paint" in reads else ():
         own = [r for r in records if (r.size, r.arm) == (n, arm)]
@@ -1864,33 +1876,23 @@ def measure_page(
     return records
 
 
-def lowest_of(records: list[Record]) -> dict[tuple[int | None, str], dict[str, float]]:
-    """Each reading's lowest over the rounds in `records`, by size and arm."""
-    lowest: dict[tuple[int | None, str], dict[str, float]] = {}
-    for r in records:
-        held = lowest.setdefault((r.size, r.arm), {})
-        for reading, value in r.readings.items():
-            held[reading] = min(held.get(reading, math.inf), value)
-    return lowest
-
-
 def report(records: list[Record], arms: dict[str, Arm], run: Path, profile: bool):
     """Echo one page's table, each reading's lowest over the rounds by size and arm,
     with each arm's exponents where there are sizes to fit, then what the readings
     leave out, and with `profile` where the time went."""
     name, engine = records[0].page, records[0].engine
     sizes = sorted({r.size for r in records}, key=lambda n: n or 0)
-    lowest = lowest_of(records)
+    least = lowest(((r.size, r.arm), r.readings) for r in records)
     for r in records:
-        lowest[r.size, r.arm]["elements"] = r.elements
-    readings = list(dict.fromkeys(r for values in lowest.values() for r in values))
+        least[r.size, r.arm]["elements"] = r.elements
+    readings = list(dict.fromkeys(r for values in least.values() for r in values))
     readings.sort(key=lambda reading: reading != "elements")
     if not any(r.elements for r in records):
         readings.remove("elements")
     columns = [
         (
             " ".join(str(part) for part in (n, len(arms) > 1 and arm) if part) or arm,
-            lowest[n, arm],
+            least[n, arm],
         )
         for n in sizes
         for arm in arms
@@ -1901,12 +1903,12 @@ def report(records: list[Record], arms: dict[str, Arm], run: Path, profile: bool
             {
                 reading: exponent(
                     [n or 0 for n in sizes],
-                    [lowest[n, arm][reading] for n in sizes],
-                    floor(reading, lowest[sizes[0], arm]),
+                    [least[n, arm][reading] for n in sizes],
+                    floor(reading, least[sizes[0], arm]),
                 )
                 for reading in readings
                 if reading != "elements"
-                and all(reading in lowest[n, arm] for n in sizes)
+                and all(reading in least[n, arm] for n in sizes)
             },
         )
         for arm in arms
@@ -1922,7 +1924,7 @@ def report(records: list[Record], arms: dict[str, Arm], run: Path, profile: bool
     for arm in arms:
         if over := [
             f"{reading.split()[0]} {value:.0f}"
-            for reading, value in lowest[sizes[-1], arm].items()
+            for reading, value in least[sizes[-1], arm].items()
             if reading.endswith(" shown") and value > BUDGET_MS
         ]:
             click.echo(
@@ -2063,28 +2065,49 @@ def bench(
     profile: bool,
 ) -> None:
     """Measure what a page costs to load and to answer each input."""
-    chosen = set(reads or ("cpu", "paint"))
-    for name in pages:
-        if name not in COLLECTIONS:
-            try:
-                named_source(name)
-            except ValueError as error:
-                raise click.BadParameter(
-                    f"{error}; or a generated page: {', '.join(COLLECTIONS)}",
-                    param_hint="PAGE",
-                ) from error
+    # Firefox reads only CPU: the paint pass reads Chrome's DevTools protocol.
+    chosen = set(reads or (("cpu", "paint") if engine == "chromium" else ("cpu",)))
+    authored = [name for name in pages if name not in COLLECTIONS]
+    for name in authored:
+        try:
+            named_source(name)
+        except ValueError as error:
+            raise click.BadParameter(
+                f"{error}; or a generated page: {', '.join(COLLECTIONS)}",
+                param_hint="PAGE",
+            ) from error
     if engine not in ("chromium", "firefox"):
         raise click.UsageError(
             "--browser: this reads Chromium's and Firefox's CPU only"
         )
-    if engine != "chromium" and (profile or "paint" in chosen):
+    if engine == "firefox" and "paint" in chosen:
         raise click.UsageError(
-            "--browser firefox reads only cpu, and --profile is V8's; this module's "
-            "header says how to profile Firefox"
+            "--browser firefox reads only cpu: the paint pass reads Chrome's DevTools "
+            "protocol"
         )
-    run = run_directory(OUT)
+    if engine == "firefox" and profile:
+        raise click.UsageError(
+            "--profile is V8's; this module's header says how to profile Firefox"
+        )
+    if "server" in chosen and (base is not None or authored):
+        raise click.UsageError(
+            "--read server measures this checkout's generated pages only"
+        )
     inputs = [name for name in INPUTS if not chosen_inputs or name in chosen_inputs]
+    if "paint" in chosen and not any(INPUTS[name].paints for name in inputs):
+        if reads:
+            raise click.UsageError(
+                "--read paint: none of the inputs paints a result; those that do are "
+                + ", ".join(name for name, each in INPUTS.items() if each.paints)
+            )
+        chosen.discard("paint")
+    run = run_directory(OUT)
     results: dict = {"lowest": [], "records": []}
+
+    def write() -> None:
+        """Keep what the run has read so far, so a failed page leaves the others."""
+        (run / "results.json").write_text(json.dumps(results, indent=1, default=str))
+
     if browser_reads := chosen & {"cpu", "paint"}:
         arms = choose_arms(base, run)
         click.echo(f"{describe(arms)}, load average {load_average()}\n")
@@ -2098,7 +2121,9 @@ def bench(
                 report(records, arms, run, profile)
                 results["lowest"] += [
                     {"page": name, "size": n, "arm": arm, "readings": readings}
-                    for (n, arm), readings in lowest_of(records).items()
+                    for (n, arm), readings in lowest(
+                        ((r.size, r.arm), r.readings) for r in records
+                    ).items()
                 ]
                 # A profile's attribution stays in the report and its files.
                 results["records"] += [
@@ -2108,11 +2133,13 @@ def bench(
                     ]))
                     for r in records
                 ]  # fmt: skip
+                write()
     if "server" in chosen:
         sized = sorted({BASE, *(map(int, sizes.split(",")) if sizes else SERVER_SIZES)})
-        server_pages = [p for p in pages if p in COLLECTIONS] if pages else SERVER_AXES
-        results["server"] = bench_server(server_pages, sized, rounds, profile, run)
-    (run / "results.json").write_text(json.dumps(results, indent=1, default=str))
+        results["server"] = bench_server(
+            pages or SERVER_AXES, sized, rounds, profile, run
+        )
+        write()
     click.echo(
         f"load average {load_average()} after; results in {run.relative_to(ROOT)}"
     )

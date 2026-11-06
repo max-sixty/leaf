@@ -40,10 +40,15 @@ import shutil
 import time
 from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
-from functools import partial
 from pathlib import Path
 
-from leaf_dev.commands.bench import BUDGET_MS, REFERENCE, Collection, lowest
+from leaf_dev.commands.bench import (
+    BUDGET_MS,
+    REFERENCE,
+    Collection,
+    interleaved,
+    lowest,
+)
 
 PATHS = ("state", "append", "delivery", "agent", "thread", "activate")
 # A click's paths: admitting its event and computing the reading the server answers
@@ -295,9 +300,10 @@ def measure(
     `profile`, the function times of one more run of each path on the smallest
     page and the largest, in the order the rounds take them.
 
-    The rounds are interleaved (`bench.lowest`). In each a page appends first, as
-    a click does before its reading, and its versions come after every round, since
-    a new one leaves the appended events on an earlier revision."""
+    The rounds are interleaved (`bench.interleaved`, `bench.lowest`). In each a page
+    appends first, as a click does before its reading, and its versions come after
+    every round, since a new one leaves the appended events on an earlier
+    revision."""
     from leaf.event_log import read_events
 
     with scratch_state(directory / "state"):
@@ -306,11 +312,12 @@ def measure(
         calls = {n: server_paths(pages[n], collection.log(n)) for n in sizes}
         order = (("append", "state", "delivery", "agent", "thread"), ("activate",))
 
-        def timed(paths: tuple[str, ...], n: int, _round: int) -> dict[str, float]:
+        def timed(paths: tuple[str, ...], n: int) -> dict[str, float]:
             return {path: cpu_ms(calls[n][path]) for path in paths if path in calls[n]}
 
         appended, activated = (
-            lowest(rounds, sizes, partial(timed, paths)) for paths in order
+            lowest((n, timed(paths, n)) for _, n in interleaved(rounds, sizes))
+            for paths in order
         )
         profiled: dict[str, list[dict]] = {}
         if profile:

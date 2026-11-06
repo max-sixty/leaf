@@ -1,0 +1,59 @@
+{
+  "about": "Quote resolution's cases, which the browser's findQuote (passages.js) and the file's resolve_quote (anchor_capture.py) both answer: how many letters of the section, its words without the space between them, stand before the passage each resolves the anchor to, or null where it names none.",
+  "cases": [
+    {
+      "id": "a copy a fence parts is passed by, and the next starts past it",
+      "markup": "<p id=\"s\">A<span contenteditable=\"true\">AAA</span></p>",
+      "anchor": { "section": "s", "quote": "AA" },
+      "before": 2
+    },
+    {
+      "id": "copies that overlap are one, the first",
+      "markup": "<p id=\"s\">aaa</p>",
+      "anchor": { "section": "s", "quote": "aa" },
+      "before": 0
+    },
+    {
+      "id": "two copies past each other are two",
+      "markup": "<p id=\"s\">aaaa</p>",
+      "anchor": { "section": "s", "quote": "aa" },
+      "before": null
+    },
+    {
+      "id": "the words beside a copy tell it apart",
+      "markup": "<p id=\"s\">x MARK y MARK z</p>",
+      "anchor": { "section": "s", "quote": "MARK", "prefix": "y", "suffix": "z" },
+      "before": 6
+    },
+    {
+      "id": "copies nothing tells apart name no passage",
+      "markup": "<p id=\"s\">MARK and MARK</p>",
+      "anchor": { "section": "s", "quote": "MARK" },
+      "before": null
+    },
+    {
+      "id": "a section holds its own copy",
+      "markup": "<p id=\"a\">one two</p><p id=\"b\">one two</p>",
+      "anchor": { "section": "b", "quote": "one two" },
+      "before": 0
+    },
+    {
+      "id": "a gap between words may be an element's edge",
+      "markup": "<p id=\"s\">bold <b>text</b> here</p>",
+      "anchor": { "section": "s", "quote": "bold text here" },
+      "before": 0
+    },
+    {
+      "id": "words the page runs together are not two",
+      "markup": "<p id=\"s\">setup</p>",
+      "anchor": { "section": "s", "quote": "set up" },
+      "before": null
+    },
+    {
+      "id": "a quote runs from one block into the next",
+      "markup": "<div id=\"s\"><p>one</p><p>two</p></div>",
+      "anchor": { "section": "s", "quote": "one two" },
+      "before": 0
+    }
+  ]
+}

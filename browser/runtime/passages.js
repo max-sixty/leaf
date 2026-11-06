@@ -1133,30 +1133,48 @@ const LINE_AFTER = {
 // one whose end alone shows, as one running into a shadow stage far below its start, is
 // brought to where it is read from, and the whole of that line, a panel covering part
 // of it included. Search, thread travel and the comment box all go there. Words the
-// page draws no box for, as hidden ones, start no line. The line's end is found by
-// halving the first piece drawn, a character's box at a time.
+// page draws no box for, as hidden ones, start no line. The line runs on through the
+// segments after the first drawn one, as one set in an inline element of its own, until
+// a character stands on a line after it, found in each segment by halving it a
+// character's box at a time; it stops at a shadow root's edge, since a range is one
+// tree's.
 /** @param {readonly Segment[]} segments @returns {Segment[]} */
 export function passageStart(segments) {
-  const first =
-    segments.find((segment) =>
-      [...rangeOf([segment]).getClientRects()].some((box) => box.width || box.height),
-    ) ?? segments[0];
+  const drawn = segments.findIndex((segment) =>
+    [...rangeOf([segment]).getClientRects()].some((box) => box.width || box.height),
+  );
+  const at = Math.max(0, drawn);
+  const first = segments[at];
   if (!first) return [];
-  /** @param {number} at */
-  const character = (at) =>
-    rangeOf([{ ...first, start: at, end: at + 1 }]).getBoundingClientRect();
+  /** @param {Segment} segment @param {number} offset */
+  const character = (segment, offset) =>
+    rangeOf([{ ...segment, start: offset, end: offset + 1 }]).getBoundingClientRect();
   const mode = first.node.parentElement
     ? getComputedStyle(first.node.parentElement).writingMode
     : "horizontal-tb";
-  const after = LINE_AFTER[mode] ?? lineBelow;
-  const line = character(first.start);
-  let low = first.start + 1;
-  for (let high = first.end; low < high;) {
-    const mid = (low + high) >> 1;
-    if (after(character(mid), line)) high = mid;
-    else low = mid + 1;
+  const below = LINE_AFTER[mode] ?? lineBelow;
+  const line = character(first, first.start);
+  // A character the page draws no box for, as a hidden one, stands on no later line.
+  /** @param {DOMRect} box */
+  const after = (box) => Boolean(box.width || box.height) && below(box, line);
+  const root = first.node.getRootNode();
+  /** @type {Segment[]} */
+  const start = [];
+  for (const segment of segments.slice(at)) {
+    const opening = segment === first;
+    if (!opening && segment.node.getRootNode() !== root) break;
+    if (!opening && segment.end > segment.start)
+      if (after(character(segment, segment.start))) break;
+    let low = opening ? segment.start + 1 : segment.start;
+    for (let high = segment.end; low < high;) {
+      const mid = (low + high) >> 1;
+      if (after(character(segment, mid))) high = mid;
+      else low = mid + 1;
+    }
+    start.push({ ...segment, end: low });
+    if (low < segment.end) break;
   }
-  return [{ ...first, end: low }];
+  return start;
 }
 // The lines a passage's words are drawn in, all its pieces' in order.
 /** @param {readonly Segment[]} segments */
@@ -1439,7 +1457,9 @@ export function fencedAt(reading, element) {
 // elements between anchor passes, and a walk apiece for a class the reading never looks
 // at is the whole cost this exists to avoid. `slot` and `name` are in it for slot
 // assignment, and `name` assigns only on a `<slot>`: a chrome that rewrites the
-// `name` of its `<details>` rows on every paint says nothing about any words.
+// `name` of its `<details>` rows on every paint says nothing about any words. `id` says
+// nothing about them either, but an anchor's section is found by it, so its changes
+// are heard and reported apart from the reading (`heardChanges`).
 const READING_MARKERS = [
   "class",
   "data-lf-said",
@@ -1449,6 +1469,7 @@ const READING_MARKERS = [
   "slot",
   "name",
   "contenteditable",
+  "id",
 ];
 const WATCH_READING = {
   subtree: true,
@@ -1502,7 +1523,7 @@ const changesTheReading = (record) => {
   if (record.type === "characterData") return pageReads(target.parentNode);
   // A marker moved on `target` itself, so its own markers are what is changing and only
   // its place and its labels answer — including a label it has just stopped being.
-  if (!isElement(target)) return false;
+  if (!isElement(target) || record.attributeName === "id") return false;
   if (record.attributeName === "class") {
     const was = /(^|\s)lf-ui(\s|$)/.test(record.oldValue ?? "");
     if (was === target.classList.contains("lf-ui")) return false;
@@ -1534,24 +1555,60 @@ function watchReading() {
 // keeps where each anchor stands (anchor-placement.js), hears that the reading changed,
 // as it happens (`hearPageWords`), and reads what changed off the two readings
 // (`quotesChanged`), by the reading's own rules: its text, its edges and fences, and the
-// order its walk puts the page's trees in. It hears one thing besides, which no reading
-// shows: the text nodes a change wrote or took out of the tree (`written`), whose live
-// ranges the DOM moved, by its own rule, which is the light tree's (DOM, "replace data"
-// and "remove"), even where the page then says just what it said before.
-/** @typedef {{written: ReadonlySet<Node>}} WordsChange */
+// order its walk puts the page's trees in. It hears what no reading shows besides: the
+// text nodes a change wrote or took out of the tree (`written`), whose live ranges the
+// DOM moved, by its own rule, which is the light tree's (DOM, "replace data" and
+// "remove"), and which may have moved into or out of a section, even where the page
+// then says just what it said before; and the ids the page's elements gained or lost
+// (`ids`), with the elements whose own id changed (`renamed`), since an anchor's
+// section is found by its id. A reader that must not read older than the DOM takes the
+// changes not yet heard first (`catchUpWords`).
+/** @typedef {{written: ReadonlySet<Node>, ids: ReadonlySet<string>, renamed: ReadonlySet<Element>}} WordsChange */
 /** @type {Set<(change: WordsChange) => void>} */
 const hearers = new Set();
-/** @param {ReadonlySet<Node>} [written] */
-function changeReading(written = new Set()) {
+const NOTHING_CHANGED = Object.freeze({
+  written: new Set(),
+  ids: new Set(),
+  renamed: new Set(),
+});
+/** @param {WordsChange} [change] */
+function changeReading(change = NOTHING_CHANGED) {
   forgetReading();
-  for (const hear of hearers) hear({ written });
+  tellHearers(change);
+}
+/** @param {WordsChange} change */
+function tellHearers(change) {
+  for (const node of index.entries.size ? change.written : []) rewrittenText.add(node);
+  for (const hear of hearers) hear(change);
 }
 /** @param {MutationRecord[]} records */
 function heardChanges(records) {
   const changing = records.filter(changesTheReading);
-  if (!changing.length) return;
   /** @type {Set<Node>} */
   const written = new Set();
+  /** @type {Set<string>} */
+  const ids = new Set();
+  /** @type {Set<Element>} */
+  const renamed = new Set();
+  /** @param {Node} node */
+  const idsUnder = (node) => {
+    if (!isElement(node)) return;
+    if (node.id) ids.add(node.id);
+    for (const named of node.querySelectorAll("[id]")) ids.add(named.id);
+  };
+  for (const record of records) {
+    const { target } = record;
+    const naming = record.attributeName === "id" || record.type === "childList";
+    if (!hearers.size || !naming || leafSurface(target)) continue;
+    if (record.attributeName === "id" && isElement(target)) {
+      if (record.oldValue) ids.add(record.oldValue);
+      if (target.id) ids.add(target.id);
+      renamed.add(target);
+    }
+    if (record.type !== "childList") continue;
+    record.addedNodes.forEach(idsUnder);
+    record.removedNodes.forEach(idsUnder);
+  }
   for (const record of changing) {
     if (record.type === "characterData") written.add(record.target);
     if (record.type !== "childList" || !hearers.size) continue;
@@ -1562,7 +1619,14 @@ function heardChanges(records) {
         written.add(text);
     }
   }
-  changeReading(written);
+  if (changing.length) changeReading({ written, ids, renamed });
+  else if (ids.size) tellHearers({ written, ids, renamed });
+}
+// The changes the watcher holds and hasn't yet delivered, heard now, so a reader in the
+// task that made them reads after them.
+export function catchUpWords() {
+  const records = watchReading().takeRecords();
+  if (records.length) heardChanges(records);
 }
 /** @param {(change: WordsChange) => void} hear */
 export function hearPageWords(hear) {
@@ -1617,12 +1681,11 @@ export function pageText() {
   return (reading ??= readPage());
 }
 function catchUpReading() {
-  const records = watchReading().takeRecords();
-  if (records.length) heardChanges(records);
+  catchUpWords();
   const vocabulary = registry.$layer?.generation;
   settlements();
   if (vocabulary !== readingVocabulary || settledKey !== readingSettled)
-    forgetReading();
+    changeReading();
   readingVocabulary = vocabulary;
   readingSettled = settledKey;
 }
@@ -1823,27 +1886,25 @@ function prefixHashes(length, codeAt) {
 /** @param {Int32Array} sums @param {number} t @param {number} n */
 const sliceHash = (sums, t, n) =>
   ((sums[t + n] ?? 0) - Math.imul(sums[t] ?? 0, power(n))) | 0;
-// How many code units a string's keys hash: a few, so a pass asks each place few
-// hashes, then more, so strings that start alike, as rows of a list do, are told apart
-// by a hash rather than by reading each one.
+// A string's keys: the hash of its first few code units, which a pass asks of each place
+// it reads, and of all of them, asked only where the first matches, for each length the
+// strings starting so have. Strings that start alike, as rows of a list do, then part by
+// a hash, whatever they share before they differ: a place costs a hash for each such
+// length, never a reading of each string that starts so.
 const FIRST_KEY = 16;
-const LONG_KEY = 256;
-/** @typedef {{first: number, firstHash: number, long: number, longHash: number,
- * length: number}} Key */
+/** @typedef {{first: number, firstHash: number, length: number, wholeHash: number}} Key */
 /** @template {Key} K
  * @typedef {{keys: Map<number, Map<number, Map<number, Map<number, K[]>>>>,
- * longest: number, widest: number}} KeyTable */
+ * widest: number}} KeyTable */
 /** @param {string} letters @returns {Key} */
 function keyOf(letters) {
   const sums = prefixHashes(letters.length, (t) => letters.charCodeAt(t));
   const first = Math.min(letters.length, FIRST_KEY);
-  const long = Math.min(letters.length, LONG_KEY);
   return {
     first,
     firstHash: sliceHash(sums, 0, first),
-    long,
-    longHash: sliceHash(sums, 0, long),
     length: letters.length,
+    wholeHash: sliceHash(sums, 0, letters.length),
   };
 }
 /** @template K, V @param {Map<K, V>} map @param {K} key @param {() => V} make */
@@ -1856,20 +1917,18 @@ function slot(map, key, make) {
 function tableOf(entries) {
   /** @type {KeyTable<K>["keys"]} */
   const keys = new Map();
-  let longest = 0;
   let widest = 0;
   for (const entry of entries) {
     const byFirst = slot(keys, entry.first, () => new Map());
-    const byLong = slot(byFirst, entry.firstHash, () => new Map());
+    const byLength = slot(byFirst, entry.firstHash, () => new Map());
     slot(
-      slot(byLong, entry.long, () => new Map()),
-      entry.longHash,
+      slot(byLength, entry.length, () => new Map()),
+      entry.wholeHash,
       () => /** @type {K[]} */ ([]),
     ).push(entry);
-    longest = Math.max(longest, entry.long);
     widest = Math.max(widest, entry.length);
   }
-  return { keys, longest, widest };
+  return { keys, widest };
 }
 // Each place before `until` in a run of code units where one of a table's strings
 // starts, by the hashes of its code units: the string's entry and the place, for the
@@ -1881,9 +1940,9 @@ function keyStarts(length, codeAt, table, until, take) {
   for (let t = 0; t < until; t++)
     for (const [first, byFirst] of table.keys) {
       if (t + first > length) continue;
-      for (const [long, byHash] of byFirst.get(sliceHash(sums, t, first)) ?? []) {
-        if (t + long > length) continue;
-        for (const entry of byHash.get(sliceHash(sums, t, long)) ?? []) take(entry, t);
+      for (const [whole, byHash] of byFirst.get(sliceHash(sums, t, first)) ?? []) {
+        if (t + whole > length) continue;
+        for (const entry of byHash.get(sliceHash(sums, t, whole)) ?? []) take(entry, t);
       }
     }
 }
@@ -1912,17 +1971,17 @@ export function findEach(text, strings) {
   );
   return found;
 }
-/** @typedef {{from: number, to: number, near: [number, number] | null}} Copy */
-/** @typedef {Key & {quote: string, words: string[], copies: Copy[]}} QuoteEntry */
+/** @typedef {{from: number, to: number, fenced: boolean, near: [number, number] | null}} Copy */
+/** @typedef {Key & {quote: string, words: string[], copies: Copy[], changedAt: number}} QuoteEntry */
 /** @param {string} quote @returns {QuoteEntry | null} */
 function quoteEntry(quote) {
   const words = quote.trim().split(/\s+/).filter(Boolean);
   if (!words.length) return null;
-  return { ...keyOf(words.join("")), quote, words, copies: [] };
+  return { ...keyOf(words.join("")), quote, words, copies: [], changedAt: 0 };
 }
 // Every copy of a table's quotes that starts in raw[lo..hi): each place the page's
-// letters start as a quote's do, read against the quote's words, and kept where no
-// fence parts it.
+// letters start as a quote's do, read against the quote's words, and whether a fence
+// parts it.
 /** @param {PageReading} reading @param {KeyTable<QuoteEntry>} table @param {number} lo @param {number} hi
  * @param {(entry: QuoteEntry, copy: Copy) => void} take */
 function scan(reading, table, lo, hi, take) {
@@ -1934,7 +1993,7 @@ function scan(reading, table, lo, hi, take) {
   let starts = 0;
   for (let i = lo, past = 0; i < raw.length; i++) {
     if (gapAt(raw, i)) continue;
-    if (i >= hi && ++past > table.longest) break;
+    if (i >= hi && ++past > table.widest) break;
     if (i < hi) starts += 1;
     codes.push(raw.charCodeAt(i));
     places.push(i);
@@ -1943,8 +2002,8 @@ function scan(reading, table, lo, hi, take) {
   keyStarts(codes.length, codeAt, table, starts, (entry, t) => {
     const from = /** @type {number} */ (places[t]);
     const to = matchAt(raw, from, entry.words);
-    if (to !== -1 && withinCell(reading, from, to))
-      take(entry, { from, to, near: null });
+    if (to !== -1)
+      take(entry, { from, to, fenced: !withinCell(reading, from, to), near: null });
   });
 }
 // Where two readings of the page part, as the span of each that differs. Before it both
@@ -2035,8 +2094,10 @@ function lettersBefore(raw, at, count) {
 
 // The quotes anchor placement keeps (`trackQuotes`), each with every copy the page
 // reads of it, carried from one reading to the next through what changed between the
-// two (`carry`), and the quotes whose copies, or the words a resolution read beside one,
-// changed since placement last asked (`quotesChanged`).
+// two (`carry`), counting each carry that changed a quote (`version`), and which carry
+// each quote's copies, or the words a resolution read beside one, last changed in
+// (`changedAt`), so a reader asks for the quotes changed since it last asked
+// (`quotesChanged`).
 const index = {
   /** @type {PageReading | null} */
   reading: null,
@@ -2044,23 +2105,39 @@ const index = {
   entries: new Map(),
   /** @type {KeyTable<QuoteEntry>} */
   table: tableOf([]),
-  /** @type {Set<string>} */
-  changed: new Set(),
+  version: 0,
 };
+// The text nodes changes wrote or took out since the index's reading (`tellHearers`),
+// read again even where the page then reads the same: their copies' ranges moved, and
+// with the node, its place inside or outside a section.
+/** @type {Set<Node>} */
+const rewrittenText = new Set();
 // The index brought to `now` from the reading it was last brought to. A copy before the
 // change stands where it stood, one after it stands moved by what the change put in or
 // took out, and one the change touched is gone; the copies there are now are read from
 // the change and as many letters before it as the widest quote holds, since a copy that
-// starts further back ends before the change. Each quote whose copies moved has changed,
-// and so has one with a change in the words a resolution read beside a copy of it.
+// starts further back ends before the change. A text node a change rewrote counts as
+// changed wherever it stands in both. Each quote whose copies moved has changed, and so
+// has one with a change in the words a resolution read beside a copy of it.
 /** @param {PageReading} now */
 function carry(now) {
   const was = index.reading;
+  const rewritten = [...rewrittenText];
   index.reading = now;
+  rewrittenText.clear();
   if (!was || was === now || !index.entries.size) return;
-  const span = changedSpan(was, now);
-  if (!span) return;
-  const { from } = span;
+  const parted = changedSpan(was, now);
+  // Where the change starts, and how far from each reading's end it stops.
+  let from = parted?.from ?? Infinity;
+  let back = parted ? was.raw.length - parted.was : Infinity;
+  for (const node of rewritten) {
+    const at = isText(node) ? now.positions.get(node) : undefined;
+    if (at === undefined || !was.positions.has(/** @type {Text} */ (node))) continue;
+    from = Math.min(from, at);
+    back = Math.min(back, now.raw.length - at - /** @type {Text} */ (node).data.length);
+  }
+  if (from === Infinity) return;
+  const span = { was: was.raw.length - back, now: now.raw.length - back };
   const shift = span.now - span.was;
   /** @type {Set<QuoteEntry>} */
   const moved = new Set();
@@ -2076,6 +2153,7 @@ function carry(now) {
         copies.push({
           from: copy.from + shift,
           to: copy.to + shift,
+          fenced: copy.fenced,
           near: near && [near[0] + shift, near[1] + shift],
         });
       } else changed = true;
@@ -2089,11 +2167,12 @@ function carry(now) {
     entry.copies.push(copy);
     moved.add(entry);
   });
+  if (moved.size) index.version += 1;
   for (const entry of moved) {
     entry.copies = entry.copies
       .map((copy) => ({ ...copy, near: null }))
       .sort((left, right) => left.from - right.from);
-    index.changed.add(entry.quote);
+    entry.changedAt = index.version;
   }
 }
 // Keep the index for these quotes, each quote anchor placement's threads name: a quote it
@@ -2110,10 +2189,7 @@ export function trackQuotes(quotes) {
   if (!gone.length && !fresh.length) return;
   const now = pageText();
   carry(now);
-  for (const quote of gone) {
-    index.entries.delete(quote);
-    index.changed.delete(quote);
-  }
+  for (const quote of gone) index.entries.delete(quote);
   for (const entry of fresh) index.entries.set(entry.quote, entry);
   index.table = tableOf(index.entries.values());
   if (fresh.length)
@@ -2121,13 +2197,19 @@ export function trackQuotes(quotes) {
       entry.copies.push(copy),
     );
 }
-// The quotes whose copies changed since this was last asked, the index brought to the
-// page as it reads now.
-export function quotesChanged() {
+// The quotes whose copies changed after the index's version `since`, the index brought
+// to the page as it reads now, and the version it stands at.
+/** @param {number} since */
+export function quotesChanged(since) {
   if (index.entries.size) carry(pageText());
-  const { changed } = index;
-  index.changed = new Set();
-  return changed;
+  const { version } = index;
+  const quotes =
+    version === since
+      ? []
+      : [...index.entries.values()]
+          .filter((entry) => entry.changedAt > since)
+          .map((entry) => entry.quote);
+  return { version, quotes };
 }
 // A quote the index doesn't keep, as a draft's, asked of one reading: found by a pass
 // of its own, kept with the reading, since a capture asks it at each width of context.
@@ -2158,24 +2240,26 @@ export function findQuote(text, quote, anchor, within) {
   // A unique exact-context occurrence wins. If no context survives, a sole quote
   // occurrence is still identifiable; two are not. Document order is not identity:
   // guessing the first copy after the intended one's neighbours changed quietly moves
-  // a comment to words it was never made on. Copies that overlap are one candidate, the
-  // first: that is the quote repeating itself, as "aa" does in "aaa", not the page
-  // saying it twice. Context is read only to tell copies apart: a sole candidate is the
-  // answer whatever its neighbours say, and a second exact one settles that none is
-  // unique.
+  // a comment to words it was never made on. The copies are taken in order within the
+  // section, each one past the last, so copies that overlap are one, the first: that is
+  // the quote repeating itself, as "aa" does in "aaa", not the page saying it twice. A
+  // copy a fence parts takes its place in that order and is no candidate, so the copy
+  // after it is the one past it, as the file's reading takes them
+  // (anchor_capture.py, `occurrences`; tests/quote_cases.json holds both to one set of
+  // cases). Context is read only to tell copies apart: a sole candidate is the answer
+  // whatever its neighbours say, and a second exact one settles that none is unique.
   /** @type {Copy[]} */
-  const copies = [];
+  const candidates = [];
+  let end = -1;
   for (const copy of entry.copies) {
-    const last = copies.at(-1);
-    if (!last || copy.from >= last.to) copies.push(copy);
+    const inside =
+      !within ||
+      (under(pointAt(text, copy.from)?.node, within) &&
+        under(pointAt(text, copy.to - 1)?.node, within));
+    if (!inside || copy.from < end) continue;
+    end = copy.to;
+    if (!copy.fenced) candidates.push(copy);
   }
-  const candidates = within
-    ? copies.filter(
-        ({ from, to }) =>
-          under(pointAt(text, from)?.node, within) &&
-          under(pointAt(text, to - 1)?.node, within),
-      )
-    : copies;
   const [pre, post] = [anchor.prefix ?? "", anchor.suffix ?? ""];
   const exact = [];
   for (const hit of candidates.length > 1 ? candidates : []) {

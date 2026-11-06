@@ -619,7 +619,7 @@ test("a kept quote answers each change as a fresh pass over the page does", () =
     "Pi rho.",
   ];
   trackQuotes(quotes);
-  quotesChanged();
+  let seen = quotesChanged(0).version;
   // Each answer as the text nodes it stands in, by name, and its offsets in them.
   const names = new Map();
   const answer = (/** @type {string} */ quote) =>
@@ -678,10 +678,11 @@ test("a kept quote answers each change as a fresh pass over the page does", () =
       quotes.map((quote) => answer(` ${quote}`)),
       change,
     );
-    const changed = quotesChanged();
+    const { version, quotes: changed } = quotesChanged(seen);
+    seen = version;
     for (const [at, quote] of quotes.entries())
       if (before[at] !== after[at])
-        assert.ok(changed.has(quote), `${change}: ${quote} changed`);
+        assert.ok(changed.includes(quote), `${change}: ${quote} changed`);
     for (const quote of changed) assert.ok(near.includes(quote), `${change}: ${quote}`);
   }
   assert.ok(answer("beta gamma") && answer("mu nu xi"));
@@ -718,6 +719,36 @@ test("one pass over a text finds every place each string starts", () => {
   assert.deepEqual(found.get("aa"), [0, 1, 2, 8]);
 });
 
+// Strings that share a long start, as quotes of a list's rows do, part by the hash of
+// their whole length, so each place the shared start stands is read against the one
+// string standing there, not against every string that starts so.
+test("strings sharing a long start are each read only where they stand", () => {
+  const shared = "Row of a long list that every quote here starts with alike, ".repeat(
+    5,
+  );
+  const strings = Array.from(
+    { length: 400 },
+    (_, n) => `${shared}${String(n).padStart(3, "0")}`,
+  );
+  const text = strings.join(" ");
+  const native = String.prototype.startsWith;
+  let reads = 0;
+  String.prototype.startsWith = function (...args) {
+    reads += 1;
+    return native.apply(this, /** @type {[string, number]} */ (args));
+  };
+  try {
+    const found = findEach(text, strings);
+    assert.deepEqual(
+      strings.map((string) => found.get(string)),
+      strings.map((string) => [text.indexOf(string)]),
+    );
+  } finally {
+    String.prototype.startsWith = native;
+  }
+  assert.ok(reads <= 2 * strings.length, `${reads} reads for ${strings.length} copies`);
+});
+
 // A repeated quote's copies are told apart by the words beside them, so a change there is
 // a change to the quote even where no copy moved: the words its resolution read are kept
 // with the copy, and a change among them says the quote changed.
@@ -726,10 +757,10 @@ test("a change beside a kept quote's copy, where it was told apart, changes the 
     '<main><p id="x">one MARK two</p><p id="y">three MARK four</p></main>';
   const anchor = { prefix: "one", suffix: "two" };
   trackQuotes(["MARK"]);
-  quotesChanged();
+  const { version } = quotesChanged(0);
   assert.equal(findQuote(pageText(), "MARK", anchor)[0]?.node.parentElement?.id, "x");
   document.querySelector("#x").firstChild.data = "uno MARK two";
-  assert.ok(quotesChanged().has("MARK"));
+  assert.ok(quotesChanged(version).quotes.includes("MARK"));
   assert.deepEqual(findQuote(pageText(), "MARK", anchor), []);
   trackQuotes([]);
 });

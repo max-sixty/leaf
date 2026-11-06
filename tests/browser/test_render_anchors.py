@@ -6068,6 +6068,130 @@ def test_a_passage_a_script_makes_editable_inside_is_marked_no_more(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_the_thread_walk_reads_threads_where_a_script_left_them(engine, request, serve):
+    """A script that takes a marked passage's words out and, in a later task, puts them
+    back, while the pointer stays away, leaves the threads where they were: the thread
+    walk from the page's top opens the first in reading order, as reading the page
+    again finds."""
+    url = serve(
+        leaf_page(
+            "Reading order",
+            '<div id="all"><h1>Reading order</h1><p id="beta">Beta marked words.</p>'
+            '<p id="alpha">Alpha marked words.</p></div>',
+        )
+    )
+    for name in ("Alpha", "Beta"):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"{name} discussion",
+                "anchor": {"section": "all", "quote": f"{name} marked words"},
+            },
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function(f"() => ({MARKED})().split('|').length === 2")
+    page.mouse.move(1, 1)
+    alpha = "() => document.querySelector('#alpha').firstChild"
+    page.evaluate(f"() => {{ ({alpha})().data = 'Other words.'; }}")
+    page.wait_for_timeout(150)
+    assert page.evaluate(MARKED) == "Beta marked words"
+    page.evaluate(f"() => {{ ({alpha})().data = 'Alpha marked words.'; }}")
+    page.wait_for_timeout(150)
+    page.keyboard.press("t")
+    expect(page.locator(".lf-margin-preview:not([hidden])")).to_contain_text(
+        "Beta discussion"
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_press_in_the_task_a_script_repeats_a_marked_phrase_opens_nothing(
+    engine, request, serve
+):
+    """A press on a marked phrase in the task in which a script wrote the phrase a second
+    time, where nothing tells the two apart, finds no thread there; once the copy is
+    gone again, the same press opens the thread: a press reads the page as the script
+    left it."""
+    page = _changed_page(request, engine, serve)
+    press = """(again) => {
+      const changed = document.getElementById('changed');
+      const text = [...changed.childNodes]
+        .find((node) => node.nodeType === Node.TEXT_NODE && node.data.includes('marked'));
+      const range = document.createRange();
+      range.setStart(text, text.data.indexOf('marked'));
+      range.setEnd(text, text.data.indexOf('marked') + 3);
+      const box = range.getBoundingClientRect();
+      const [x, y] = [box.left + 4, box.top + box.height / 2];
+      if (again)
+        changed.append(Object.assign(document.createElement('em'),
+          {textContent: 'The marked phrase again.'}));
+      document.elementFromPoint(x, y).dispatchEvent(
+        new MouseEvent('click', {bubbles: true, clientX: x, clientY: y, detail: 1}));
+    }"""
+    card = page.locator(".lf-margin-preview:not([hidden])")
+    box = page.evaluate(PHRASE_AT, "marked")
+    assert _rest_on(page, box)
+    page.evaluate(press, True)
+    page.wait_for_timeout(400)
+    # Read once: a later presentation reads the page again and would hide the fault.
+    assert card.count() == 0
+    page.evaluate("() => document.querySelector('#changed em:last-child').remove()")
+    _rest_on(page, box)
+    page.wait_for_function(f"() => ({MARKED})() === 'marked phrase'", timeout=2000)
+    assert _rest_on(page, box)
+    page.evaluate(press, False)
+    expect(card).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_quote_follows_its_section_s_id_to_another_element(engine, request, serve):
+    """A script that swaps two elements' ids moves the section a thread's quote is
+    scoped to, so the quote stands where the section now holds it: the pointer finds the
+    mark on the element that now bears the id and none on the one that bore it, as
+    reading the page again finds."""
+    url = serve(
+        leaf_page(
+            "Swapped ids",
+            '<p id="a">First shared phrase.</p><p id="b">Second shared phrase.</p>'
+            + "<p>More.</p>" * 4,
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Which phrase?",
+            "anchor": {"section": "a", "quote": "shared phrase"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function(f"() => ({MARKED})() === 'shared phrase'")
+    page.evaluate(
+        """() => {
+          const [first, second] = [document.getElementById('a'), document.getElementById('b')];
+          first.id = 'b';
+          second.id = 'a';
+        }"""
+    )
+    phrase = """(id) => {
+      const text = document.getElementById(id).firstChild;
+      const range = document.createRange();
+      range.setStart(text, text.data.indexOf('shared'));
+      range.setEnd(text, text.data.indexOf('shared') + 3);
+      return range.getBoundingClientRect().toJSON();
+    }"""
+    assert _rest_on(page, page.evaluate(phrase, "a"))
+    assert not _rest_on(page, page.evaluate(phrase, "b"))
+    marked = """() => [...CSS.highlights.get('lf-mark')]
+      .map((range) => range.startContainer.parentElement.id).join()"""
+    page.wait_for_function(f"() => ({marked})() === 'a'", timeout=2000)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_search_match_whose_end_shows_is_brought_to_its_start(engine, request, serve):
     """A page search's match whose end stands in the window while its start stands
     above it, as one running from the page's words into a declared shadow stage far
@@ -6170,21 +6294,30 @@ def test_travel_to_a_thread_on_a_tall_passage_shows_where_it_starts(
             " with a further sentence to fill them.",
         ),
         (
+            680,
+            '<p style="writing-mode: vertical-rl; height: 400px; width: 120px">'
+            "<span>A</span> passage whose words run down several columns before they "
+            "reach the end, with a further sentence to fill them.</p>",
+            "A passage whose words run down several columns before they reach the end,"
+            " with a further sentence to fill them.",
+        ),
+        (
             1600,
             '<p><span style="display: none">Hidden beginning </span>Visible passage '
             "ending for the reader.</p>",
             "Hidden beginning Visible passage ending for the reader.",
         ),
     ],
-    ids=["vertical", "hidden-start"],
+    ids=["vertical", "vertical-across-nodes", "hidden-start"],
 )
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_travel_to_a_thread_shows_the_first_line_its_passage_draws(
     engine, before, words, quote, request, serve
 ):
     """The thread walk brings into sight the first line its passage draws: in vertical
-    writing, the whole of its first column, though its first word already shows, and
-    where its first words draw no box, the line its first drawn words stand on."""
+    writing, the whole of its first column, though its first word already shows and
+    though the column runs across text nodes, and where its first words draw no box,
+    the line its first drawn words stand on."""
     url = serve(
         leaf_page(
             "First line",

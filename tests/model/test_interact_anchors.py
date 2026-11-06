@@ -1,6 +1,7 @@
 """File-side anchor and thread-projection tests."""
 
 import json
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -59,6 +60,25 @@ def test_an_explicit_line_break_separates_quoted_words():
     assert passages_model.page_passages(document).text == (
         "Short label here Then a second line."
     )
+
+
+QUOTES = json.loads(Path(__file__).parents[1].joinpath("quote_cases.json").read_text())
+
+
+@pytest.mark.parametrize("case", QUOTES["cases"], ids=lambda case: case["id"])
+def test_a_quote_resolves_where_the_browser_resolves_it(case):
+    """A stored quote resolves to the passage the browser's `findQuote` resolves it to,
+    told by how many of its section's letters stand before it
+    (`tests/quote_cases.json`)."""
+    from leaf.anchor_capture import resolve_quote
+
+    passages = passages_model.page_passages(
+        structure_model.SourceDocument(f"<main>{case['markup']}</main>")
+    )
+    at = resolve_quote(passages, case["anchor"])
+    lo = passages.spans[case["anchor"]["section"]][0]
+    before = None if at is None else len("".join(passages.text[lo:at].split()))
+    assert before == case["before"]
 
 
 def test_an_empty_quote_neighbour_is_an_exact_boundary():

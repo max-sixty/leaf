@@ -25,6 +25,7 @@ from ..files import (
     stamped_version,
 )
 from ..passages import SourceReading
+from ..provenance import revision_places, saved_after
 from ..registry.storage import require_registry
 from ..revision_artifact import Resource, RevisionArtifact, read_artifact, read_revision
 from ..revisioning import Activation, activate_source, held_activation
@@ -255,16 +256,33 @@ class PageStateService:
             live = {key: context.presence[key] for key in presence_model.LIVE_FACTS}
         return row, reading, live
 
-    def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
+    def page_browser_view(
+        self, view_revision: int, through_seq: int, shown: int | None = None
+    ) -> dict:
+        """The `/api/view` answer: the revision's browser reading at the log boundary,
+        and, where the tab compares it with the revision `shown`, the user's messages
+        that waited while the version `shown` was saved (`provenance.saved_after`)."""
         with self.source.state_read() as (context, _reading, _source_error):
             if context.active is None:
                 raise ValueError(missing_revision(self.page_dir))
+            read = context.through(through_seq)
             projected = served_browser.project_browser_state(
-                context.through(through_seq),
-                view_revision,
-                include_active_view=False,
+                read, view_revision, include_active_view=False
             )
             if projected is None:
                 raise ValueError("page registry cannot be projected")
             view, _reading = projected
-        return view
+            waited = (
+                None
+                if shown is None
+                else saved_after(
+                    read.events,
+                    context.revision(context.active["revision"]).within,
+                    revision_places(read.events),
+                    read.revisions,
+                    {version["revision"] for version in read.versions},
+                    view_revision,
+                    shown,
+                )
+            )
+        return {"browser": view, "saved_after": waited}

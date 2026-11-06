@@ -610,6 +610,10 @@ const diffMarked = new Set();
  * @typedef {Readonly<{blocks: readonly Element[], removed: readonly Removed[], at: Element, gap: "before" | "after" | "in" | null}>} Change */
 /** @type {readonly Change[]} */
 let diffChanges = [];
+// What the server says the version shown was saved after, read with the base
+// (`/api/view`, `saved_after`): null where it can say nothing (change-provenance.js).
+/** @type {import("../types/contract.js").ServedViewAnswer["saved_after"]} */
+let diffSavedAfter = null;
 // Where each block a change took out stood among the base version's blocks, so its card
 // reads it in its place (`changeRedline`).
 /** @type {WeakMap<Removed, number>} */
@@ -720,19 +724,21 @@ function diffBlocks(root) {
     a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
   );
 }
-/** One revision's browser reading at a log boundary, as `/api/view` answers it.
- * @param {number} baseRevision @param {number} throughSeq
- * @returns {Promise<import("../types/contract.js").ServedViewAnswer["browser"]>} */
-async function baseReading(baseRevision, throughSeq) {
+/** One revision's browser reading at a log boundary, as `/api/view` answers it, and,
+ * where `shown` names the revision compared with it, what that version was saved after.
+ * @param {number} baseRevision @param {number} throughSeq @param {number | null} shown
+ * @returns {Promise<import("../types/contract.js").ServedViewAnswer>} */
+async function baseReading(baseRevision, throughSeq, shown) {
   const params = new URLSearchParams({
     revision: String(baseRevision),
     through_seq: String(throughSeq),
+    ...(shown === null ? {} : { shown: String(shown) }),
   });
   const res = await fetch(pageUrl(`api/view?${params}`));
   // The reading is another revision's, so only its server is held to this document's.
   if (!admitReading(res)) throw new LayerRefused("Leaf changed while comparing");
   if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
-  return (await res.json()).browser;
+  return await res.json();
 }
 // The longest run of `after` that keeps the order `before` gave the same units:
 // the units that did not move.
@@ -1490,6 +1496,7 @@ function setDiff(on, base = null, pendingBase = null) {
       for (const b of diffMarked) b.classList.remove("lf-ins-block");
       diffMarked.clear();
       diffChanges = [];
+      diffSavedAfter = null;
     }
     // Native effects run after both the selection and its marked DOM have settled.
     tick(comparisonGeneration);
@@ -1513,7 +1520,7 @@ export async function showComparison(base) {
   const wanted = () => mine === diffRequest;
   let loaded;
   try {
-    loaded = await loadBase(base, wanted);
+    loaded = await loadBase(base, wanted, runtime.currentRevision);
   } catch {
     if (wanted()) {
       diffPendingBase.value = null;
@@ -1524,6 +1531,7 @@ export async function showComparison(base) {
   if (!loaded || !wanted()) return;
   const diff = diffWith(loaded.doc, loaded.baseAuthored, base, loaded.reading);
   commitDiff(diff);
+  diffSavedAfter = loaded.savedAfter;
   setDiff(true, base);
   const n = diff.changes.length;
   notice(
@@ -1533,17 +1541,19 @@ export async function showComparison(base) {
   );
 }
 // A base's document and the server's reading of it at the log this tab has applied,
-// which `diffWith` reads. Null once `wanted` says a later press made it moot.
-/** @param {ComparisonBase} base @param {() => boolean} wanted */
-async function loadBase(base, wanted) {
+// which `diffWith` reads, and what the version at `shown` was saved after. Null once
+// `wanted` says a later press made it moot.
+/** @param {ComparisonBase} base @param {() => boolean} wanted
+ * @param {number | null} [shown] */
+async function loadBase(base, wanted, shown = null) {
   const documentRequest = authoredDocument(base.url);
   while (true) {
     const throughSeq = runtime.lastEventSeq;
     if (throughSeq === null)
       throw new Error("A comparison requires an accepted log reading");
-    const [doc, reading] = await Promise.all([
+    const [doc, { browser: reading, saved_after: savedAfter }] = await Promise.all([
       documentRequest,
-      baseReading(base.revision, throughSeq),
+      baseReading(base.revision, throughSeq, shown),
     ]);
     if (!wanted()) return null;
     if (runtime.lastEventSeq !== throughSeq) continue;
@@ -1554,7 +1564,7 @@ async function loadBase(base, wanted) {
     if (!source)
       throw new Error("A comparison revision must contain its authored document");
     await loadDeclaredMarkdown(source);
-    return { doc, reading, baseAuthored };
+    return { doc, reading, baseAuthored, savedAfter };
   }
 }
 /** How many changes a comparison with `base` would mark, read without marking any, or
@@ -1588,6 +1598,12 @@ const pressComparison = (version) => {
 
 /** The base the page's marks compare with, or null where nothing is compared. */
 export const comparisonBase = () => (diffOn.value ? diffBase.value : null);
+/** The user's messages the server says waited while the version the comparison shows
+ * was saved, read with its base; null where it can say nothing. */
+export const comparisonSavedAfter = () => {
+  comparisonGeneration.value;
+  return diffOn.value ? diffSavedAfter : null;
+};
 // Selection leads the documents it needs. Menu focus follows that immediate reading,
 // while the public projection above stays paired with the marks that have settled.
 export const selectedBase = () => diffPendingBase.value ?? comparisonBase();

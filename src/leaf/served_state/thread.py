@@ -129,7 +129,7 @@ def browser_thread(
         rendered_threads.append(
             {
                 # A thread's turn and closure histories are the server's to read
-                # (`unanswered_turns`, `provenance.message_waits`).
+                # (`unanswered_turns`, `provenance.saved_after`).
                 **{
                     key: value
                     for key, value in thread.items()

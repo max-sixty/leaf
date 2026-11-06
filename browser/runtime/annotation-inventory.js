@@ -91,9 +91,8 @@ const inProgress = readPart(
  */
 
 // What the inventory reads from the semantic root: the Questions, the workflows its
-// entries report, the shown revision, the agent's to-dos, how long the user's messages
-// waited (change-provenance.js), and the projection whose reported and overridden marks
-// it lists once the projection's chrome has painted them.
+// entries report, the shown revision and the agent's to-dos, and the projection whose
+// reported and overridden marks it lists once the projection's chrome has painted them.
 // What the thread pass decides about a thread reaches it as readings its paint follows:
 // where the thread is placed (`placedAt`) and whether a widget seats it (`claimed`), so
 // a pass that moves one repaints the margin, and one that moves none leaves it.
@@ -104,7 +103,6 @@ export const annotationSelection = (root) => ({
   workflows: root.effective.workflows,
   revision: root.document.revision,
   todos: root.authoritative?.browser.todos ?? null,
-  waits: root.authoritative?.browser.message_waits ?? null,
 });
 
 /** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./obligations/view.js").createObligationView>["goToObligation"], scrollToElement: ScrollToElement}} dependencies */

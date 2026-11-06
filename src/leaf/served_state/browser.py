@@ -12,7 +12,6 @@ from ..projection import (
     canonical_reports,
     page_reading,
 )
-from ..provenance import message_waits
 from ..thread_context import thread_memberships
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
@@ -243,7 +242,6 @@ def browser_state(
             for event in events
             if event["kind"] == "note"
         },
-        "message_waits": message_waits(events, threads, withdrawn),
     }
     return wire, BrowserReading(threads, durable.thread, documents)
 

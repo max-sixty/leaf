@@ -5,40 +5,34 @@
    waited while the version was saved (../SOUL.md, "Changes the user requests remain
    understandable as they happen").
 
-   Python derives the waits from the log (src/leaf/provenance.py, `message_waits`),
-   whose header says how far the order holds: each message's wait as places in the log,
-   from its own until the agent answered it or its thread closed, with the words it had
-   then. A revision's place is the seq of the event that names its bundle in
-   `publication`: the reply or note that published it, or the `activation` a read
-   appended. This module selects from those (`versionProvenance`): the revisions after
-   the comparison's base through the one shown, the waits any of them went live
-   inside, and the version they make, by its stamp, else Draft.
+   The server says which, with the base's reading the comparison asks for (`/api/view`,
+   `saved_after`), from the threads as they stood before the version went live
+   (src/leaf/provenance.py, `saved_after`, whose header says how far the order holds),
+   or says nothing: for a comparison across several versions, and for a version a
+   revision of which has no place in the log. This module says it in words
+   (`versionProvenance`), naming the version by its stamp, else Draft.
 
    The tie is one of order, so the words state order: the version was saved while
    these comments waited, or with none waiting. They say neither that it answers a
-   comment nor which paragraph followed which, since the log establishes neither
-   (provenance.py, "What reads it" and "How far the order holds"), and a comparison
-   across several versions says nothing of this. The user chose on 5 November 2026 to
-   say what each change came from rather than only what it did; the version is the
-   part of that the log can back.
+   comment nor which paragraph followed which, since the log establishes neither. The
+   user chose on 5 November 2026 to say what each change came from rather than only
+   what it did; the version is the part of that the log can back.
 
    `versionProvenance` is the one value a surface that describes a change reads, the ⇄
    entry's label (annotation-inventory.js), reading it once for every change. Its
    `lines` are the words a surface shows, each in its speaker's face: the heading in
-   Leaf's voice ("v4 saved while your comment waited:"), then the opening line each
-   message had then, in quotes, the user's own words. */
+   Leaf's voice ("v4 saved while your comment waited:"), then each message's opening
+   line when the version went live, in quotes, the user's own words. */
 import { runtime } from "./context.js";
-import { comparisonBase } from "./version.js";
+import { comparisonSavedAfter } from "./version.js";
 import { leafSays } from "./voice.js";
 import { counted, quotedWords } from "./words.js";
 
-/** One of the user's messages a version was saved after: `words`, the opening line it
- * had then.
- * @typedef {Readonly<{thread: string, message: string, kind: "comment" | "reply", words: string}>} NamedMessage */
-/** What a version was saved after: its name, the messages, and `lines`, what it says,
- * each line a run of words in their speakers' faces (voice.js).
- * @typedef {Readonly<{version: string, messages: readonly NamedMessage[], lines: readonly (readonly (string | import("./voice.js").Said)[])[]}>} VersionProvenance */
-/** @typedef {import("../types/contract.js").ServedBrowser["message_waits"]} MessageWaits */
+/** One of the user's messages a version was saved after, as the server names it.
+ * @typedef {NonNullable<import("../types/contract.js").ServedViewAnswer["saved_after"]>[number]} WaitedMessage */
+/** What a version was saved after: its name and `lines`, what it says, each line a run
+ * of words in their speakers' faces (voice.js).
+ * @typedef {Readonly<{version: string, lines: readonly (readonly (string | import("./voice.js").Said)[])[]}>} VersionProvenance */
 
 // The quoted lines a version's provenance shows at most before saying how many more.
 const QUOTED = 3;
@@ -46,10 +40,13 @@ const QUOTED = 3;
 const QUOTE_CAP = 90;
 
 /** What the messages are to the user: "your comment", "your 2 replies", or for kinds
- * mixed, "your 3 updates" (glossary.md, "Reader-facing words").
- * @param {readonly NamedMessage[]} messages */
+ * mixed, "your 3 updates" (glossary.md, "Reader-facing words"). A message that opened
+ * its thread is a comment; any other a reply.
+ * @param {readonly WaitedMessage[]} messages */
 function yours(messages) {
-  const kinds = new Set(messages.map(({ kind }) => kind));
+  const kinds = new Set(
+    messages.map(({ thread, message }) => (message === thread ? "comment" : "reply")),
+  );
   const [one, many] =
     kinds.size > 1
       ? ["update", "updates"]
@@ -61,53 +58,25 @@ function yours(messages) {
     : `your ${counted(messages.length, one, many)}`;
 }
 
-/** What the version `version`, whose revisions went live at the places `places` in the
- * log, was saved after: each message a wait of which any of them went live inside,
- * once, with the words of the latest such wait, in the order the messages were sent.
- * A place inside a wait comes after its start, and at its end only where the reply or
- * note that ended it published the revision.
- * @param {string} version @param {readonly number[]} places ascending
- * @param {MessageWaits} waits @returns {VersionProvenance} */
-export function savedAfter(version, places, waits) {
-  /** @type {Map<string, NamedMessage>} */
-  const messages = new Map();
-  for (const wait of waits) {
-    // The first place after the wait began, which must not come after it ended.
-    let low = 0;
-    let high = places.length;
-    while (low < high) {
-      const middle = (low + high) >> 1;
-      if (/** @type {number} */ (places[middle]) <= wait.from) low = middle + 1;
-      else high = middle;
-    }
-    const place = places[low];
-    if (place === undefined || (wait.until !== null && place > wait.until)) continue;
-    messages.set(
-      wait.message,
-      Object.freeze({
-        thread: wait.thread,
-        message: wait.message,
-        kind: wait.message === wait.thread ? "comment" : "reply",
-        words: wait.words,
-      }),
-    );
-  }
-  const said = [...messages.values()];
-  const shown = said.slice(0, said.length > QUOTED ? QUOTED - 1 : QUOTED);
+/** What the version `version` says it was saved after `messages`, in the order they
+ * were sent: a heading, up to three quotes, and how many more.
+ * @param {string} version @param {readonly WaitedMessage[]} messages
+ * @returns {VersionProvenance} */
+export function savedAfter(version, messages) {
+  const shown = messages.slice(0, messages.length > QUOTED ? QUOTED - 1 : QUOTED);
   return Object.freeze({
     version,
-    messages: Object.freeze(said),
     lines: Object.freeze([
       Object.freeze([
         leafSays(
-          said.length
-            ? `${version} saved while ${yours(said)} waited:`
+          messages.length
+            ? `${version} saved while ${yours(messages)} waited:`
             : `${version} saved with none of your comments waiting`,
         ),
       ]),
       ...shown.map(({ words }) => Object.freeze([quotedWords(words, QUOTE_CAP)])),
-      ...(said.length > shown.length
-        ? [Object.freeze([leafSays(`and ${said.length - shown.length} more`)])]
+      ...(messages.length > shown.length
+        ? [Object.freeze([leafSays(`and ${messages.length - shown.length} more`)])]
         : []),
     ]),
   });
@@ -117,37 +86,16 @@ export function savedAfter(version, places, waits) {
 /** @type {{inputs: readonly unknown[], value: VersionProvenance | null} | null} */
 let held = null;
 
-/** What the version the comparison shows was saved after, where the comparison's base
- * is the version before it; null for a comparison across several versions, and for a
- * version none of whose revisions has a place in the log. */
+/** What the version the comparison shows was saved after, or null where the server
+ * says nothing of it. */
 export function versionProvenance() {
-  const base = comparisonBase();
+  const messages = comparisonSavedAfter();
   const shown = runtime.currentRevision;
-  const { versions, events } = runtime;
-  const waits = runtime.browser?.message_waits ?? [];
-  const inputs = [base, shown, versions, events, waits];
+  const { versions } = runtime;
+  const inputs = [messages, shown, versions];
   if (held && held.inputs.every((input, at) => input === inputs[at])) return held.value;
-  /** @type {VersionProvenance | null} */
-  let value = null;
-  if (base && shown !== null) {
-    const between = versions.some(
-      ({ revision }) => base.revision < revision && revision < shown,
-    );
-    const places = events
-      .flatMap((event) =>
-        "publication" in event &&
-        event.publication &&
-        event.revision !== undefined &&
-        base.revision < event.revision &&
-        event.revision <= shown
-          ? [event.seq]
-          : [],
-      )
-      .sort((a, b) => a - b);
-    const stamp = versions.find(({ revision }) => revision === shown);
-    if (!between && places.length)
-      value = savedAfter(stamp ? `v${stamp.version}` : "Draft", places, waits);
-  }
+  const stamp = versions.find(({ revision }) => revision === shown);
+  const value = messages && savedAfter(stamp ? `v${stamp.version}` : "Draft", messages);
   held = { inputs, value };
   return value;
 }

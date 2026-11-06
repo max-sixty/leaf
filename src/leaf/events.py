@@ -227,7 +227,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     retracting it (`InForce`) leaves the one before deciding, at the place where
     that happened. ``closures`` holds each time the thread stood closed, in log order:
     the seq it ``closed`` at and the seq it ``reopened`` at, or null while it stands,
-    so what a closure ended stayed ended until then (`provenance.message_waits`);
+    so what a closure ended stayed ended until then (`provenance.saved_after`);
     only the server reads it. ``resolved`` is the closing that stands at the end of
     the log, or null.
 

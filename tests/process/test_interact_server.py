@@ -4089,14 +4089,14 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
         row for row in before["browser"]["history"] if row["id"] == picked["id"]
     ]
     assert gesture["gesture"] == {"form": "choice", "chosen": ["Flag first"]}
-    comparison = service.page_browser_view(2, picked["seq"])
+    comparison = service.page_browser_view(2, picked["seq"])["browser"]
     assert comparison["basis"]["through_seq"] == picked["seq"]
     assert comparison["history"][0]["gesture"] == gesture["gesture"]
 
     shutil.rmtree(page_dir)
 
     assert service.page_state() == before
-    assert service.page_browser_view(2, picked["seq"]) == comparison
+    assert service.page_browser_view(2, picked["seq"])["browser"] == comparison
     # The page as it stood at the gesture, as `leaf page picture` serves one: the log
     # and the versions stamped by then.
     then = snapshot.through(picked["seq"]).context

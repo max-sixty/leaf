@@ -1,10 +1,10 @@
-"""How long each of the user's messages waited, as places in the log, and where each
-revision stands among them (`provenance.py`, `revisioning.py`): what a version says
+"""Which of the user's messages waited while a version was saved, and where each
+revision stands in the log (`provenance.py`, `revisioning.py`): what a version says
 it was saved after."""
 
 from click.testing import CliRunner
 from interact_support import append_command, response_reference
-from model_folds import leaf_page, served_reading
+from model_folds import leaf_page, served_view
 
 from leaf import cli as cli_model
 from leaf import event_log as event_log_model
@@ -19,61 +19,116 @@ from model.interact_contract.test_thread_resolution import (
 AGENT = {"author": "agent", "agent": "Claude", "session": "s1"}
 PAGE = {
     revision: leaf_page("Plan", f'<p id="p">Version {revision}.</p>')
-    for revision in (1, 2)
+    for revision in (1, 2, 3)
 }
 
 
-def wait(turn, start, until, *, message=None, thread=None, words):
-    message = message or turn
+def live(revision):
+    """The `activation` a read appends as the revision goes live."""
     return {
-        "id": f"{turn}:{start}",
-        "thread": thread or message,
-        "message": message,
-        "words": words,
-        "from": start,
-        "until": until,
+        "kind": "activation",
+        "author": "page",
+        "revision": revision,
+        "publication": f"r{revision}-{revision:016x}",
     }
 
 
-def test_each_message_waits_from_its_place_in_the_log_until_answered_or_closed():
-    """A message waits from its own place in the log until the agent's answer to it,
-    and a rewrite of it waits as a turn of its own with the words it then had, one
-    answer ending both. A resolution ends a wait where it stands, and the undo that
-    takes it back starts a new one at the undo rather than reopening the old, so a
-    revision saved while the thread stood resolved came after nothing it held."""
-    events = [
-        {"kind": "comment", "text": "Make it **blue**\nfor the header", "revision": 1},
-        {"kind": "edit", "message": "e1", "text": "Actually make it red"},
-        {"kind": "reply", "parent": "e1", "responds": "e2", "text": "Red.", **AGENT},
-        {"kind": "comment", "text": "Why ship with that?", "revision": 1},
-        {"kind": "resolve", "parent": "e4"},
-        {"kind": "undo", "undoes": "e5"},
+def waited(message, words, thread=None):
+    return {"thread": thread or message, "message": message, "words": words}
+
+
+def saved_after(events, base, shown, documents=PAGE):
+    return served_view(documents, events, base, shown)["saved_after"]
+
+
+def test_a_version_names_what_waited_as_it_read_then_and_nothing_later_moves_it():
+    """A version names each message that waited while it was saved, with its opening
+    line as it read then, Markdown as it shows. Taking back a rewrite or the comment
+    itself after the version went live changes nothing it says; taking either back
+    before, or the agent answering before, does."""
+    comment = {"kind": "comment", "text": "Make it **blue**\nfor the header"}
+    rewrite = {"kind": "edit", "message": "e2", "text": "Make it red"}
+    saved = [live(1), comment, rewrite, live(2)]
+    assert saved_after(saved, 1, 2) == [waited("e2", "Make it red")]
+    taken_back = [
+        *saved,
+        {"kind": "undo", "undoes": "e3"},
+        {"kind": "undo", "undoes": "e2"},
     ]
-    assert served_reading(PAGE, events)["browser"]["message_waits"] == [
-        wait("e1", 1, 3, words="Make it blue"),
-        wait("e2", 2, 3, message="e1", words="Actually make it red"),
-        wait("e4", 4, 5, words="Why ship with that?"),
-        wait("e4", 6, None, words="Why ship with that?"),
+    assert saved_after(taken_back, 1, 2) == [waited("e2", "Make it red")]
+    assert saved_after(
+        [live(1), comment, rewrite, {"kind": "undo", "undoes": "e3"}, live(2)], 1, 2
+    ) == [waited("e2", "Make it blue")]
+    assert (
+        saved_after([live(1), comment, {"kind": "undo", "undoes": "e2"}, live(2)], 1, 2)
+        == []
+    )
+    answered = {
+        "kind": "reply",
+        "parent": "e2",
+        "responds": "e2",
+        "text": "Blue.",
+        **AGENT,
+    }
+    assert saved_after([live(1), comment, answered, live(2)], 1, 2) == []
+
+
+def test_a_message_waited_where_its_thread_stood_open_at_any_of_the_versions_revisions():
+    """A version whose revisions went live while a message waited at any of them names
+    it, though it was resolved before the last. Accepting a suggestion closes its
+    thread as a resolution does; taking the accept back while the user's resolution
+    stands leaves it closed, and taking back a reopening closes it again."""
+    resolved = [
+        live(1),
+        {"kind": "comment", "text": "Why?"},
+        live(2),
+        {"kind": "resolve", "parent": "e2"},
+        live(3),
     ]
+    assert saved_after(resolved, 1, 3) == [waited("e2", "Why?")]
+    assert saved_after(resolved, 2, 3) == []
 
-
-def test_a_wait_ends_while_anything_still_closes_its_thread():
-    """Accepting a suggestion answers the thread that asked for it as a resolution
-    would, so the thread's message stops waiting there (`events.build_threads`).
-    Taking the accept back while the user's own resolution stands leaves the thread
-    closed, and taking back a reopening closes it again where the undo stands."""
-
-    def waits(*events):
-        return served_reading(SETTLED, [ASKED, *events])["browser"]["message_waits"]
-
-    asked = "cameras are flaky"
-    assert waits(PICKED) == [wait("e1", 1, 2, words=asked)]
-    assert waits(PICKED, CLOSED, {"kind": "undo", "undoes": "e2"}) == [
-        wait("e1", 1, 2, words=asked)
+    # The suggestions answer `e1`, so the comment comes first.
+    pages = {1: SETTLED, 2: SETTLED, 3: SETTLED}
+    assert saved_after([ASKED, live(2)], 1, 2, pages) == [
+        waited("e1", "cameras are flaky")
     ]
-    assert waits(
-        CLOSED, {"kind": "unresolve", "parent": "e1"}, {"kind": "undo", "undoes": "e3"}
-    ) == [wait("e1", 1, 2, words=asked), wait("e1", 3, 4, words=asked)]
+    assert saved_after([ASKED, PICKED, live(2)], 1, 2, pages) == []
+    overlapping = [ASKED, PICKED, CLOSED, {"kind": "undo", "undoes": "e2"}, live(2)]
+    assert saved_after(overlapping, 1, 2, pages) == []
+    reopened = [
+        ASKED,
+        CLOSED,
+        {"kind": "unresolve", "parent": "e1"},
+        live(2),
+        {"kind": "undo", "undoes": "e3"},
+        live(3),
+    ]
+    assert saved_after(reopened, 1, 3, pages) == [waited("e1", "cameras are flaky")]
+    assert saved_after(reopened, 2, 3, pages) == []
+
+
+def test_a_version_says_nothing_where_the_log_cannot_place_it():
+    """A comparison across a stamped version says nothing, and so does a version one
+    of whose revisions no event places, as a Leaf before the activation event left
+    it: saying none waited there would assert what the log doesn't hold."""
+    unplaced = [
+        live(1),
+        {"kind": "comment", "text": "Why?"},
+        {"kind": "resolve", "parent": "e2"},
+        live(3),
+    ]
+    assert saved_after(unplaced, 1, 3) is None
+    assert saved_after(unplaced, 2, 3) == []
+    stamped = [
+        live(1),
+        live(2),
+        {"kind": "note", "version": 1, "revision": 2, "text": "Two.", **AGENT},
+        live(3),
+    ]
+    assert saved_after(stamped, 1, 3) is None
+    assert saved_after(stamped, 2, 3) == []
+    assert served_view(PAGE, stamped, 2)["saved_after"] is None
 
 
 def test_a_revision_takes_its_place_in_the_log_from_the_event_naming_its_bundle(
@@ -134,26 +189,3 @@ def test_a_revision_takes_its_place_in_the_log_from_the_event_naming_its_bundle(
         if event["kind"] == "reply"
     ]
     assert place(reply["revision"]) == reply["seq"]
-
-
-def test_a_gesture_sends_only_the_waits_it_ends():
-    """Waits are places in the log no later event moves, so however many threads wait
-    across however many revisions, resolving one sends the one wait it ends."""
-    documents = {
-        revision: leaf_page("Plan", f'<p id="p">Version {revision}.</p>')
-        for revision in range(1, 33)
-    }
-    comments = [
-        {"kind": "comment", "text": f"Question {k}?", "revision": 1} for k in range(32)
-    ]
-    held = served_reading(documents, comments)["browser"]["basis"]["key"]
-    resolved = served_reading(
-        documents, [*comments, {"kind": "resolve", "parent": "e1"}], held=held
-    )
-    [change] = [
-        change
-        for change in resolved["patch"]
-        if change["at"][:2] == ["browser", "message_waits"]
-    ]
-    assert change["at"] == ["browser", "message_waits"]
-    assert [name for name, _patch in change["changed"]] == ["e1:1"]

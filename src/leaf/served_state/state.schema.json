@@ -960,35 +960,6 @@
           "description": "Each version's note, by version.",
           "type": "object",
           "additionalProperties": { "type": "string" }
-        },
-        "message_waits": {
-          "description": "Each wait of each message the user sent, in log order, as places in the log: a revision whose `activation` event's seq is after `from` and, where `until` is set, before it was saved while the message waited (`provenance.message_waits`).",
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "description": "The turn's id and the place the wait began, so a message reopened after its thread closed has one wait for each.",
-                "type": "string"
-              },
-              "thread": { "type": "string" },
-              "message": {
-                "description": "The message the turn shows as; a rewrite's is the message it rewrote.",
-                "type": "string"
-              },
-              "words": {
-                "description": "The opening line the message had for this wait, as its Markdown shows it (`provenance.opening_words`).",
-                "type": "string"
-              },
-              "from": { "description": "Where the wait began.", "type": "integer" },
-              "until": {
-                "description": "Where the agent answered it or its thread closed, whichever came first; null while it waits.",
-                "type": ["integer", "null"]
-              }
-            },
-            "required": ["id", "thread", "message", "words", "from", "until"],
-            "additionalProperties": false
-          }
         }
       },
       "required": [
@@ -997,8 +968,7 @@
         "todos",
         "plan",
         "thread_memberships",
-        "version_notes",
-        "message_waits"
+        "version_notes"
       ],
       "additionalProperties": false
     },
@@ -1696,8 +1666,32 @@
     "ViewAnswer": {
       "description": "The answer `GET /api/view` gives (`served_state.service.PageStateService.page_browser_view`): one revision's browser reading at an exact log boundary, which version comparison folds.",
       "type": "object",
-      "properties": { "browser": { "$ref": "#/$defs/Browser" } },
-      "required": ["browser"],
+      "properties": {
+        "browser": { "$ref": "#/$defs/Browser" },
+        "saved_after": {
+          "description": "Where the request names `shown`, the user's messages that waited while the version at that revision was saved, compared with this one, in the order they were sent (`provenance.saved_after`); null where it names none, or where nothing can be said.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "thread": { "type": "string" },
+                  "message": { "type": "string" },
+                  "words": {
+                    "description": "The message's opening line when the version went live, as its Markdown shows it (`provenance.opening_words`).",
+                    "type": "string"
+                  }
+                },
+                "required": ["thread", "message", "words"],
+                "additionalProperties": false
+              }
+            },
+            { "type": "null" }
+          ]
+        }
+      },
+      "required": ["browser", "saved_after"],
       "additionalProperties": false
     },
     "Tail": {

@@ -60,10 +60,12 @@ const reading = ({
   pageObligations = [],
   threadObligations = [],
   workflows = [],
+  onMe = 0,
 } = {}) => ({
   obligations: [...pageObligations, ...threadObligations],
   thread: { threads },
   workflows,
+  onMe,
 });
 const kinds = (result) => result.news.map((item) => item.kind);
 const responseFailure = (source, kind = "failed") =>
@@ -335,7 +337,10 @@ test("page obligations come from the shown revision, not a waiting activation", 
   const shown = reading({ pageObligations: [item("shown")] });
   const waiting = reading({ pageObligations: [item("waiting")] });
   const selected = semanticNewsReading({
-    effective: { view: { obligations: shown.obligations, thread: shown.thread } },
+    effective: {
+      view: { obligations: shown.obligations, thread: shown.thread },
+      queues: { on_user: [item("shown")] },
+    },
     authoritative: {
       active: { revision: 2 },
       browser: {
@@ -348,6 +353,29 @@ test("page obligations come from the shown revision, not a waiting activation", 
     },
   });
   assert.deepEqual(selected.obligations, [item("shown")]);
+  assert.equal(selected.onMe, 1);
+});
+
+test("a reading that empties On me says so while the list stays empty", () => {
+  // A list empty from the first reading is no news.
+  const baseline = observeSemanticNews(null, reading());
+  assert.deepEqual(baseline.news, []);
+  const owed = observeSemanticNews(
+    baseline.observed,
+    reading({ pageObligations: [item("only")], onMe: 1 }),
+  );
+  const emptied = observeSemanticNews(owed.observed, reading());
+  assert.deepEqual(kinds(emptied), ["on_me_empty"]);
+  assert.equal(said(emptied.news), "Nothing waiting on me");
+  assert.deepEqual(observeSemanticNews(emptied.observed, reading()).news, []);
+  // A list that fills again before the notice shows takes it back.
+  const refilled = reading({ pageObligations: [item("next")], onMe: 1 });
+  const again = observeSemanticNews(emptied.observed, refilled);
+  const queued = combineSemanticNews(emptied.news, again.news);
+  assert.equal(
+    said(currentSemanticNews(queued, refilled, again.observed)),
+    "New on me",
+  );
 });
 
 test("a new message speaks for itself, with what it asks of the user", () => {

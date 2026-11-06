@@ -58,9 +58,9 @@ def _refreshes_restate_no_margin_name(page, population):
     population is: a run where rows stood somewhere the watch does not reach would
     otherwise return the same clean `[]` it returns when nothing is wrong.
 
-    Half of `render` runs in a frame callback — `scheduleMarginLayout`,
-    `scheduleRoving` and `scheduleMarginEntryLabels` are its whole tail — and five
-    refreshes in one synchronous task never reach it. Each refresh is therefore
+    Half of `render` runs in a frame callback — `scheduleMarginLayout` and
+    `scheduleRoving` are its whole tail — and five refreshes in one synchronous task
+    never reach it. Each refresh is therefore
     read across a settled frame, which both pages now allow. The layout pass
     places every row from what it writes, so a refresh that restated a posture, an
     offset or a push shows up here as a restatement.

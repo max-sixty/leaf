@@ -99,53 +99,22 @@ question about one entry goes with that entry, and one that turns on a claim con
 the claim and its evidence. Only a question about the whole record comes last.
 
 Where evidence or option pictures need more than the prose's width, set `data-width`
-on the `lf-ask` or, for a question without one, its answering widget. Nested blocks
-with their own prose limit, such as `lf-options`, also need `data-width`
-(`page-layout.md`, "Bounds and widths"). Size an option's picture
+on the block that holds them, such as the `lf-options`, figure or playground. An
+`lf-ask` takes no width of its own, so the question's words keep the column's edge
+beside it (`page-layout.md`, "Bounds and widths"). Size an option's picture
 by the difference the user weighs between the options rather than by the capture: crop
 it to the region that differs, and scale it down as far as that difference still reads,
 so all the options fit the window together. A difference of size or extent, such as how
 much of a thread a panel shows, reads at a scale where the words inside it don't, and a
 picture that links its original keeps the detail a click away.
 
-Option cards read down the group, each as wide as the group. `across` on the
-`lf-options` sets them side by side, which suits a group where what the user compares,
-each option's picture or the evidence above the list, still reads at a card's share of
-the row, and the question then fits the window. Keep them reading down where that share
-would shrink the pictures below the size at which their difference reads.
-
-The `lf-ask`, `lf-options` and `lf-option` entries give their markup and presentation.
+The `lf-ask`, `lf-options` and `lf-option` instructions give their markup and
+presentation, including when to set option cards side by side with `across`.
 
 ## One answer in its section and on a board
 
-When the user answers proposals beside their cases and also needs every answer in one
-view to compare or rearrange, keep each answer in its section's `lf-options` and add a
-board whose cards show those answers, rather than asking twice. Give each option a
-`value` naming the answer it gives, in words every section shares, and the board one
-column per value with that `value`, plus one column without a value for proposals not
-yet answered or answered in the user's own words. Each card's `shows` names its
-section's group, and the card appears in the column matching that group's selected value:
-
-```html
-<lf-options id="rail-choice" choose>
-  <lf-option id="rail-next" value="next">Next</lf-option>
-  <lf-option id="rail-later" value="later">Later</lf-option>
-</lf-options>
-<!-- … the other proposals' sections … -->
-<lf-board id="plan">
-  <lf-column id="plan-open" label="Undecided">
-    <lf-card id="plan-rail" shows="rail-choice"><strong>Keep the rail</strong></lf-card>
-  </lf-column>
-  <lf-column id="plan-next" label="Next" value="next"></lf-column>
-  <lf-column id="plan-later" label="Later" value="later"></lf-column>
-</lf-board>
-```
-
-A drop on the board answers through the group, so the page holds one answer, which
-Undo and `restated` take back in both views. When a revision writes the user's pick
-into the group, move the card to that pick's column too. A card that shows an answer
-keeps the order you wrote it in; where the order within a column is itself the user's
-call, ask for it as its own question.
+When the user needs answers beside their cases and together on a board, keep one
+answer in both views. Read the `lf-board` instructions for composing those views.
 
 ## Permission
 

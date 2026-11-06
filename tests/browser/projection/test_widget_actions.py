@@ -52,16 +52,17 @@ from leaf.render_checks import rendered
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def thread_quote(page, page_dir, skipping=None):
-    """The quote of the page's first thread, or first but `skipping`, in that thread's
-    view in the panel, once every gesture the page sent has been delivered."""
+def thread_head(page, page_dir, skipping=None):
+    """The head of the page's first thread, or first but `skipping`, in that thread's
+    view in the panel, once every gesture the page sent has been delivered: the words
+    the thread quotes and where they stand."""
     round_trip(page)
     thread = next(
         event["id"]
         for event in events_model.read_events(page_dir)
         if event["kind"] == "comment" and event["id"] != skipping
     )
-    return open_panel_thread(page, thread).locator(".lf-thread-quote")
+    return open_panel_thread(page, thread).locator(".lf-thread-quote-head")
 
 
 def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup(
@@ -695,7 +696,7 @@ def test_a_decision_detaches_the_threads_on_what_it_took_off_the_page(browser, s
     )
     page = open_page(browser, url)
     resized(page, 1920, 900)
-    expect(thread_quote(page, serve.page_dir)).not_to_have_attribute(
+    expect(thread_head(page, serve.page_dir)).not_to_have_attribute(
         "data-lf-detached", ""
     )
     page.locator(".lf-fp-close").click()
@@ -714,7 +715,7 @@ def test_a_decision_detaches_the_threads_on_what_it_took_off_the_page(browser, s
     unfolded_button(
         suggestion_control(page, "sug-thistle", "reject", visible=False)
     ).click()
-    expect(thread_quote(page, serve.page_dir)).to_have_attribute("data-lf-detached", "")
+    expect(thread_head(page, serve.page_dir)).to_have_attribute("data-lf-detached", "")
     expect(page.locator("#sug-thistle.lf-mark-el")).to_have_count(0)
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
@@ -736,7 +737,7 @@ def test_a_decision_detaches_the_threads_on_what_it_took_off_the_page(browser, s
 
     inline = page.locator(".lf-margin-thread")
     expect(inline.locator(".lf-msg-body")).to_have_text("Half-empty by whose reading?")
-    thread = thread_quote(page, serve.page_dir, skipping=on_element["id"])
+    thread = thread_head(page, serve.page_dir, skipping=on_element["id"])
     expect(thread).to_be_visible()
     expect(thread).not_to_have_attribute("data-lf-detached", "")
     page.locator(".lf-fp-close").click()
@@ -750,7 +751,7 @@ def test_a_decision_detaches_the_threads_on_what_it_took_off_the_page(browser, s
         suggestion_control(page, "sug-refill", "reject", visible=False)
     ).click()
     expect(
-        thread_quote(page, serve.page_dir, skipping=on_element["id"])
+        thread_head(page, serve.page_dir, skipping=on_element["id"])
     ).to_have_attribute("data-lf-detached", "")
     assert painted(page, "lf-mark") == "", (
         "a mark stayed painted on text the user's own decision removed"
@@ -782,7 +783,7 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
     )
     page = open_page(browser, url)
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
-    expect(thread_quote(page, serve.page_dir)).to_have_attribute("data-lf-detached", "")
+    expect(thread_head(page, serve.page_dir)).to_have_attribute("data-lf-detached", "")
     assert painted(page, "lf-mark") == "", (
         "the first pass anchored inside a slot the user's decision had retired"
     )
@@ -811,7 +812,7 @@ def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
     )
     page = open_page(browser, url)
     expect(page.locator("#th-cache lf-proposed")).to_be_visible()
-    expect(thread_quote(page, serve.page_dir)).not_to_have_attribute(
+    expect(thread_head(page, serve.page_dir)).not_to_have_attribute(
         "data-lf-detached", ""
     )
     assert painted(page, "lf-mark") != "", (
@@ -1002,7 +1003,7 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
         )
         == "Settled: Lax cookie"
     ), "fixture is not exercising the case — the label the slot hides never rendered"
-    expect(thread_quote(page, serve.page_dir)).to_have_attribute("data-lf-detached", "")
+    expect(thread_head(page, serve.page_dir)).to_have_attribute("data-lf-detached", "")
     assert painted(page, "lf-mark") == "", (
         "a quote matched inside the half the user accepted away, because the "
         "label there declared itself the page speaking"

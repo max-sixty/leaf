@@ -134,5 +134,6 @@ export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
 
 export { observeOutputs } from "./data.js";
 export { servedElements } from "./version.js";
+export { colourableAs, colouredAs } from "./syntax.js";
 
 export { pageRange } from "./native-selection.js";

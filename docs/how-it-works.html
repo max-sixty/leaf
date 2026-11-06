@@ -833,7 +833,8 @@ flowchart TD
                   <th scope="row">Hook notices</th>
                   <td>
                     An owed update not yet answered, input not yet picked up, a page
-                    holding input with nothing watching it, or a claim to reconnect.
+                    holding input with nothing watching it, or a page whose server did
+                    not start again.
                   </td>
                   <td>
                     When the agent ends a turn (<a href="#turn-end">Stop hook checks</a
@@ -1178,8 +1179,10 @@ flowchart TD
                 each ask it gives a thread title, a message of a few sentences that the
                 user can answer without the chat, and the words of the passage it
                 concerns, if one does. A step the user is to take is asked the same way:
-                the message says what to do and asks the user to reply once it is done.
-                Leaf skips an ask whose title a question the agent asked already has.
+                the message says what to do, and asks for a reply only for what the user
+                alone can report, such as what a build showed them, or where the agent's
+                next step waits on it, since the reply tells the agent to go on. Leaf
+                skips an ask whose title a question the agent asked already has.
               </p>
               <p id="fork-writes">
                 Leaf opens each remaining ask as a thread, its message written as the

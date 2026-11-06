@@ -795,15 +795,16 @@ const EVERYWHERE = {
 // it holds to what it shows: a cell far along a wide table is not a figure past the rail.
 /** @param {Element} anchor @param {Box} box @param {Element} main @param {Map<Element, {right: number, clip: number | null}>} reaches */
 function reach(anchor, box, main, reaches) {
-  let right = box.right;
+  let right = proseMeasure(anchor) > 0 ? -Infinity : box.right;
   for (let el = renderedParent(anchor); el && el !== main; el = renderedParent(el)) {
     let edge = reaches.get(el);
     if (edge === undefined) {
       const b = el.getBoundingClientRect();
       const style = getComputedStyle(el);
       // A box holding the page's prose, the column or a flow in it, is the page's
-      // flow, not a figure extending into its rail, however wide its box. The
-      // target's own box and ordinary framed ancestors still count in full.
+      // flow, not a figure extending into its rail, however wide its box, whether it
+      // holds the target or is the target. Any other target's own box and ordinary
+      // framed ancestors still count in full.
       edge = {
         right: proseMeasure(el) > 0 ? -Infinity : b.right,
         clip:

@@ -38,9 +38,10 @@ wait, with each step more than one harness takes written once over the primitive
 harness module supplies (`Terminal`), and the user (`User`). `--sandbox` runs the session's shell
 commands in its harness's sandbox; `--preview` has Codex serve the page with the
 canonical `leaf-dev preview --user`; `--forks` lets forks of Claude Code's
-conversation answer the user's thread messages, and runs the steps that test them
-in place of the delivery steps (`journey_claude_code`). The journey stops at the
-first check that fails and keeps no sample.
+conversation post the agent's working line on the user's thread messages before
+handing them to the session, and runs the steps that test them in place of the
+delivery steps (`journey_claude_code`). The journey stops at the first check that
+fails and keeps no sample.
 
 Where the user is, every step alike, is the journey's one axis (`User.end`):
 
@@ -86,8 +87,7 @@ of it: the user's end (`userEnd`), the `case`, `comment` for the release ask,
 the journey ran. A comment whose step held a permission prompt the user answered
 says so (`approved`), since the prompt held the session for as long as it stood. A
 comment a fork of the conversation decided on carries the fork's outcome, time and
-tokens (`fork`); one the fork answered has no `reply` breakdown, since the session
-spent nothing on it.
+tokens (`fork`).
 
 A failure receipt ends the journey on the first ask
 (`worker/README.md` owns that contract).
@@ -1515,7 +1515,8 @@ FORK_TOKENS = (
 
 def fork_summary(record: dict) -> str:
     """A fork's `fork_reply` record as a step prints it: what the fork did, in how
-    long, on how many tokens, and why it handed the thread over."""
+    long, on how many tokens, and the working line it posted as it handed the
+    thread over, or Leaf's reason where Leaf handed it."""
     usage = record.get("usage") or {}
     tokens = ", ".join(
         f"{usage[key]} {name}" for key, name in FORK_TOKENS if key in usage
@@ -1525,6 +1526,7 @@ def fork_summary(record: dict) -> str:
         + (f" after {record['elapsedMs']:.0f} ms" if "elapsedMs" in record else "")
         + (f" on {tokens} tokens" if tokens else "")
         + (f": {record['why']}" if "why" in record else "")
+        + (f': "{record["text"]}"' if "line" in record else "")
     )
 
 
@@ -1659,8 +1661,9 @@ def target_session(
 @click.option(
     "--forks",
     is_flag=True,
-    help="On claude-code, let forks of the session's conversation answer the user's "
-    "thread messages, and run the steps that test them in place of the delivery steps.",
+    help="On claude-code, let forks of the session's conversation post the agent's "
+    "working line on the user's thread messages before handing them to the session, "
+    "and run the steps that test them in place of the delivery steps.",
 )
 @click.option(
     "--case",

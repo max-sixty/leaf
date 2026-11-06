@@ -7,6 +7,20 @@
  * (`obligation`). */
 import { agentSays, saidBy } from "./voice.js";
 
+// What an On list says while it lists nothing, by the reading's `phase`: that nothing
+// waits on whoever it is on once the server's reading is in, else that the list can't
+// be had while the server is offline or is still loading, as Threads says of its list.
+// On me's words are its empty view's, `m` pressed over it, and the notice of a reading
+// that empties it (semantic-news.js).
+/** @param {string} phase @param {string} name */
+export const emptyOnList = (phase, name) =>
+  phase === "ready"
+    ? `Nothing waiting on ${name}`
+    : phase === "offline"
+      ? `On ${name} is unavailable while the server is offline`
+      : `Loading On ${name}…`;
+export const NOTHING_ON_ME = emptyOnList("ready", "me");
+
 // Whether a list item asks something of the user, whose row draws its record's
 // prompt and the controls that answer or complete it. An
 // update's record is answered by a reply or a version, or by the user sending again.

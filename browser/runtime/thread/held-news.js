@@ -480,9 +480,10 @@ export function newsNotice() {
   let label = "";
   node.lfPreview = () => (label ? { detail: [label] } : null);
   // A key on the notice, which stands the user on it, lands them on the thread, since
-  // the notice goes with what it held. A pointer's press takes no focus, so it shows the
-  // news and leaves the user where they stand: a reply being written keeps its caret,
-  // where the press once took it out of the box.
+  // the notice goes with what it held. A pointer's press takes no focus itself, and
+  // its owner's `open` decides where the press lands: a thread's leaves the user where
+  // they stand, so a reply being written keeps its caret, where the press once took it
+  // out of the box.
   node.addEventListener("mousedown", (event) => event.preventDefault());
   const show = () => {
     const currentLocation = focused() === node;

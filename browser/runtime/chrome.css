@@ -1295,11 +1295,17 @@ html[data-lf-region-capture]
     margin-block-start: 2px;
     color: color-mix(in srgb, var(--tip-ink) 76%, transparent);
   }
-  /* The last line a preview held to its room keeps says there is more: the block the
-     room ends in by a line clamp's own ellipsis, and a block before the room's end by
-     one after its words. */
+  /* The last line a preview held to its room keeps says there is more, by a line
+     clamp's own ellipsis, which never wraps a line nor makes one: in the block the room
+     ends in, and in a block before the room's end, clamped to the lines it has, where a
+     line of no height after its words is more for the clamp to hold back. With
+     `overflow: hidden`, Firefox counts no such line, and with any height it would add
+     to the block's scrollHeight, which the next fit reads. */
   .lf-preview [data-lf-cut]::after {
-    content: "…";
+    content: "\200b";
+    display: block;
+    line-height: 0;
+    font-size: 0;
   }
   .lf-preview [data-lf-clamp] {
     display: -webkit-box;

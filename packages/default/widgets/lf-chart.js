@@ -67,6 +67,8 @@ import {
 } from "./chart-points.js";
 
 const SVG = "http://www.w3.org/2000/svg";
+// What the page shows a preview in, as Leaf's does (preview.js).
+const TOOLTIP = '[role="tooltip"]';
 
 /** @typedef {import("./chart-points.js").Point} Point
  * @typedef {import("./chart-points.js").Reading & {svg: SVGSVGElement, ring: SVGGElement}} Reading
@@ -185,7 +187,11 @@ customElements.define(
           },
           { signal, passive: true },
         );
-        this.addEventListener("pointerleave", () => this.#leave(), { signal });
+        this.addEventListener(
+          "pointerleave",
+          (event) => this.#leave(event.relatedTarget),
+          { signal },
+        );
         // Focus the browser shows lands the reader on a point, the one they are on or
         // the first, which the arrows then step from: the keyboard's from then on.
         this.addEventListener(
@@ -202,6 +208,7 @@ customElements.define(
           () => this.#choose(this.#over ? this.#at : null, "pointer"),
           { signal },
         );
+        return () => this.#lent?.abort();
       });
       // A chart is drawn to the room it has, so the first draw waits for a box. On the
       // page that box is there already and this settles inside the upgrade, holding the
@@ -358,10 +365,36 @@ customElements.define(
       }
     }
 
-    // The pointer or finger left the drawing. A point the keyboard reached stays.
-    #leave() {
+    // The pointer or finger left the drawing. A point the keyboard reached stays, and so
+    // does the pointer's while the pointer reads its preview, which takes the pointer
+    // and may stand where the pointer rests, until the pointer goes on to something
+    // else; back on the drawing, it reads from where it comes.
+    /** @param {EventTarget | null} [onto] */
+    #leave(onto = null) {
       this.#over = false;
-      if (this.#by === "pointer") this.#choose(null, "pointer");
+      if (this.#by !== "pointer") return;
+      if (onto instanceof Element && onto.closest(TOOLTIP)) this.#lend();
+      else this.#choose(null, "pointer");
+    }
+
+    // Keeps the pointer's point while the pointer is on a tooltip.
+    /** @type {AbortController | null} */
+    #lent = null;
+    #lend() {
+      this.#lent?.abort();
+      const lent = (this.#lent = new AbortController());
+      document.addEventListener(
+        "pointerover",
+        (event) => {
+          const path = event.composedPath();
+          if (path.some((node) => node instanceof Element && node.matches(TOOLTIP)))
+            return;
+          lent.abort();
+          if (!path.includes(this) && this.#by === "pointer")
+            this.#choose(null, "pointer");
+        },
+        { capture: true, passive: true, signal: lent.signal },
+      );
     }
 
     /** @param {typeof import("@observablehq/plot")} Plot @param {Function} body

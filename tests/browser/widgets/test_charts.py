@@ -704,6 +704,11 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
     expect(preview).to_have_attribute("data-lf-route", "pointer")
     tip, at = preview.bounding_box(), ring.bounding_box()
     assert tip["y"] + tip["height"] <= at["y"], (tip, at)
+    # The pointer may cross onto the preview to read it, which keeps the point.
+    page.mouse.move(tip["x"] + tip["width"] / 2, tip["y"] + tip["height"] / 2)
+    page.wait_for_timeout(300)
+    assert said(page) == ["w2 · fixes", "14 hours"]
+    expect(ring).to_be_visible()
     page.mouse.move(*column(page, "hours", "w1", 0.85))
     expect(preview.locator(".lf-preview-word")).to_have_text("w1 · features")
     # Redrawn where it stands, never put away between the points.

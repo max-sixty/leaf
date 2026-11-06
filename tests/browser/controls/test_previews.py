@@ -2077,6 +2077,58 @@ def test_a_preview_over_another_target_goes_as_the_pointer_reaches_it(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_covering_preview_stays_while_the_pointer_is_on_it_over_inert_words(
+    engine, request, serve
+):
+    """A preview standing over what it covers lets the pointer through, and keeps
+    itself while the pointer is over it and over nothing there the user aims at, as a
+    pointer on a preview that takes it keeps that one (WCAG 1.4.13). The pointer moving
+    on to a target beneath it puts it away."""
+    fill = "position: fixed; left: 40px; top: 40px; width: calc(100vw - 80px);"
+    fill += " height: calc(100vh - 80px)"
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Beneath",
+                BENEATH["field"].format(fill)
+                + '<button id="reset" aria-label="Reset draft" style="position: fixed;'
+                ' left: 650px; top: 400px; z-index: 2">↺</button>',
+            )
+        ),
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(2, 2)
+    page.locator("#reset").hover()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Reset draft")
+    expect(tip).to_have_attribute("data-lf-covers", "")
+    box = tip.bounding_box()
+    words = (box["x"] + 8, box["y"] + box["height"] / 2)
+    page.evaluate(
+        """([x, y]) => {
+          const words = Object.assign(document.createElement('span'),
+            {id: 'plain', textContent: 'i'});
+          words.style.cssText = `position: fixed; left: ${x - 3}px; top: ${y - 6}px;`
+            + ' width: 8px; height: 12px; z-index: 3; font-size: 10px';
+          document.querySelector('main').append(words);
+        }""",
+        list(words),
+    )
+    page.mouse.move(*words)
+    assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", words) == (
+        "plain"
+    )
+    page.wait_for_timeout(400)
+    expect(tip).to_be_visible()
+    field = (box["x"] + box["width"] - 8, box["y"] + box["height"] / 2)
+    page.mouse.move(*field)
+    assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", field) == (
+        "under"
+    )
+    expect(tip).to_be_hidden(timeout=3000)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_preview_leaves_a_field_beside_it_reachable(engine, request, serve):
     """A field is a control the user works, though it previews nothing, so a preview
     stands clear of one beside its target, and a press on the field focuses it."""

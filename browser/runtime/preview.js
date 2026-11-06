@@ -202,8 +202,13 @@
    card the user was reading, since the preview covers its first line. Until that day
    it also took a title off its element as the pointer came, to read it on every route
    with no second tooltip beside it, which kept words a writer had since removed and
-   left a control its title named unnamed. Rejected: `interestfor`, which gives a
-   control the same three routes natively but ships only in Chromium; the platform's
+   left a control its title named unnamed. Until 6 November 2026 a preview that let the
+   pointer through, as one standing over what it covers, went as the pointer left its
+   target for it, though the pointer was on its words and on no other target there; it
+   now stays while the pointer is over it (`onPreview`), so a chart's point's words past
+   the chart's edge and a covering control's words can both be read. Rejected:
+   `interestfor`, which gives a control the same three routes natively but ships only
+   in Chromium; the platform's
    `title` alone for Leaf's controls, which no finger or keyboard reads and which can't
    draw a key chip; holding a `title` off only while the pointer rests within its
    element and putting it back as the pointer leaves, which writes it twice a hover,
@@ -1275,10 +1280,12 @@ function keepsAccess(el) {
   const { overflowX, overflowY } = getComputedStyle(el);
   return /auto|scroll/.test(`${overflowX} ${overflowY}`);
 }
-// The control other than `holder` that must stay reachable at a point of the page beneath
-// the preview, through every shadow tree there, the nearest around what the point finds
-// below what holds `holder` (`around`), since what holds it stands under the preview
-// wherever it stands.
+// The target other than the preview and `holder` at a point of the page, through every
+// shadow tree there: the nearest around what the point finds that must stay reachable
+// (`keepsAccess`), below what holds `holder` (`around`), since what holds it stands under
+// the preview wherever it stands and holds the words beside it. The one answer to what
+// else is there: placement keeps clear of it, and a pointer over it is on it rather than
+// on the preview (`onPreview`).
 /** @param {number} x @param {number} y @param {Element} holder @param {Set<Element>} around */
 function targetAt(x, y, holder, around) {
   let hit = document.elementsFromPoint(x, y).find((el) => !tip.contains(el)) ?? null;
@@ -1355,9 +1362,11 @@ function point(target) {
 
 // Whether the pointer is on the pointer's preview, the one answer for whatever asks: the
 // event's path holds the preview, or the preview lets the pointer through
-// (`data-lf-covers`) and the pointer is over its box and over nothing there the user
-// aims at (`keepsAccess`), whether or not that previews, as a field, a titled link or a
-// focusable region doesn't. On it, the pointer rides the preview, its target's still,
+// (`data-lf-covers`) and the pointer is over its box, off its subject, and over no target
+// there other than the preview and its subject (`targetAt`, the answer placement takes
+// too). A target is whatever the user aims at, whether or not it previews, as a field, a
+// titled link or a focusable region doesn't, and not a box the subject stands in, which
+// holds the words around it. On it, the pointer rides the preview, its target's still,
 // until it leaves the box (WCAG 1.4.13, "Hoverable"): a pointer crossing from a chart's
 // point to the words above it, past the chart's edge, keeps them, and one that reaches a
 // field beneath them takes the field.
@@ -1366,14 +1375,10 @@ const inTip = () => holds(tip.getBoundingClientRect(), rest.x, rest.y);
 function onPreview(path) {
   if (shown?.route !== "pointer") return false;
   if (path.includes(tip)) return true;
-  if (!tip.hasAttribute("data-lf-covers") || !inTip()) return false;
-  return !path.some(
-    (node) =>
-      isElement(node) &&
-      node !== document.documentElement &&
-      node !== document.body &&
-      keepsAccess(node),
-  );
+  const { holder } = shown;
+  if (!tip.hasAttribute("data-lf-covers") || !inTip() || path.includes(holder))
+    return false;
+  return !targetAt(rest.x, rest.y, holder, new Set(climb(holder)));
 }
 function ride() {
   clearTimeout(leaving);

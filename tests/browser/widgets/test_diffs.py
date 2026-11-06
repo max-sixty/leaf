@@ -33,6 +33,7 @@ from render_harness import (
     select,
     selection_field,
     sending,
+    tab_onto,
     told,
     write,
 )
@@ -1772,8 +1773,7 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(
         return reading;
     }"""
     )
-    page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
-    page.locator("lf-diff .lf-diff-head").focus()
+    tab_onto(page.locator("lf-diff .lf-diff-head"))
     expect(page.locator(PREVIEW)).to_be_visible()
     said = page.locator(PREVIEW).inner_text()
     assert head["height"] == pytest.approx(head["reserved"], abs=0.5), head
@@ -1837,10 +1837,9 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     }"""
     assert head.evaluate(read)["word"] is None
 
-    # A key moves focus there, the user's own move, so the focus is visible and reads.
-    page.keyboard.down("Shift")
-    head.focus()
-    page.keyboard.up("Shift")
+    # The keyboard steps onto it, the user's own move, so the focus is visible and
+    # reads.
+    tab_onto(head)
     expect(preview).to_be_visible()
     focused = head.evaluate(read)
     assert focused == {

@@ -786,7 +786,9 @@ MANIFEST_DIFF_PAGE = leaf_page(
 # row is sized to the longest line in its file so its fill reaches the end of it, and the
 # code box is the scrollport. So the room is measured out here — the code box's own width
 # less the source row's gutter and edge padding — and the line is measured by a
-# Range over the row's contents, which is what `_SELECT_IN_ROW` reads for the same reason.
+# Range over each run of its visible characters, which is what `_SELECT_IN_ROW` reads
+# for the same reason. A space where a wrapped line breaks hangs past the box, as
+# `pre-wrap` lets it, and draws nothing, so a range over the whole row counts it cut.
 # Reading the row's own box instead gives every row in a file the file's overhang, which
 # is how this last went wrong: 18 of 24 rows counted cut where one line overflowed, and
 # `widest` named a trailing-context line the user could see whole. Text wider than the
@@ -800,9 +802,17 @@ DIFF_CLIPPING = """() => {
         const range = document.createRange();
         for (const row of code.querySelectorAll('.lf-diff-line > [data-line]')) {
             const style = getComputedStyle(row);
+            const box = row.getBoundingClientRect();
             const room = code.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-            range.selectNodeContents(row);
-            rows.push({ row, over: Math.round(range.getBoundingClientRect().width - room) });
+            let right = box.left + parseFloat(style.paddingLeft);
+            const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+            for (let node = walker.nextNode(); node; node = walker.nextNode())
+                for (const run of node.data.matchAll(/\\S+/g)) {
+                    range.setStart(node, run.index);
+                    range.setEnd(node, run.index + run[0].length);
+                    for (const rect of range.getClientRects()) right = Math.max(right, rect.right);
+                }
+            rows.push({ row, over: Math.round(right - box.left - parseFloat(style.paddingLeft) - room) });
         }
     }
     const cut = rows.filter((entry) => entry.over > 0);

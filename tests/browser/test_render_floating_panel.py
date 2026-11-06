@@ -31,6 +31,7 @@ from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
     EDITOR_ROOTS,
     LONG_PAGE,
+    accessible_node,
     close_panel_menu,
     consume_browser_errors,
     holding,
@@ -481,9 +482,14 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     expect(hint.locator(".lf-compose-placeholder-words")).to_have_text(
         f"Resolved “{first}”"
     )
-    undo = hint.locator(".lf-compose-press")
+    undo = page.locator(".lf-fp-field .lf-compose-press")
     expect(undo.locator(".lf-compose-press-word")).to_have_text("Undo")
     expect(undo.locator("kbd")).to_have_text("z")
+    # A screen reader is given the press too, though the field's words are hidden
+    # from it as its placeholder.
+    node = accessible_node(undo)
+    assert not node.get("ignored") and node["role"]["value"] == "button", node
+    assert node["name"]["value"].startswith("Undo"), node
     second = page.locator(".lf-fp-head .lf-fp-title").inner_text()
     # Taking the first resolve back returns the user to the thread they resolved.
     with sending(page, "the undo"):

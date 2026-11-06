@@ -936,14 +936,28 @@ def comment_note(page, holder):
 
 @contextmanager
 def _accessibility(page):
-    """Read nodes of the browser's accessibility tree, by selector or backend node:
-    what a screen reader is given, not the DOM attributes that asked for it."""
+    """Read nodes of the browser's accessibility tree, by selector, Playwright locator
+    (which reaches into shadow trees) or backend node: what a screen reader is given,
+    not the DOM attributes that asked for it."""
     cdp = page.context.new_cdp_session(page)
 
-    def ax(selector=None, **at):
+    def ax(selector=None, *, locator=None, **at):
         if selector is not None:
             root = cdp.send("DOM.getDocument")["root"]["nodeId"]
             at = cdp.send("DOM.querySelector", {"nodeId": root, "selector": selector})
+        if locator is not None:
+            locator.evaluate("(node) => { window.__lfAccessibleNode = node; }")
+            held = cdp.send(
+                "Runtime.evaluate",
+                {
+                    "expression": """(() => {
+                      const node = window.__lfAccessibleNode;
+                      delete window.__lfAccessibleNode;
+                      return node;
+                    })()"""
+                },
+            )
+            at = {"objectId": held["result"]["objectId"]}
         return cdp.send(
             "Accessibility.getPartialAXTree", {**at, "fetchRelatives": False}
         )["nodes"][0]
@@ -952,6 +966,15 @@ def _accessibility(page):
         yield ax
     finally:
         cdp.detach()
+
+
+def accessible_node(locator):
+    """What a screen reader is given for the element `locator` names: the node the
+    browser's accessibility tree holds for it, with its `role` and `name`, or `ignored`
+    and the reasons. A role locator can't stand in for it, since Playwright's own
+    reading misses `aria-hidden` on a shadow ancestor of slotted content."""
+    with _accessibility(locator.page) as ax:
+        return ax(locator=locator)
 
 
 def accessible_details(page, selector):

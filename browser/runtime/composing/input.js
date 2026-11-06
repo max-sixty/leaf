@@ -268,15 +268,16 @@ export const standsAtItsBox = (error) => {
   const subject = error.subject;
   return Boolean(subject?.[INPUT_DRAFT]) && !error.passed;
 };
-// A box's own press at rest (`enters`, `BoxPress`), drawn in its placeholder after its
-// words as the entering word and its key are, so it stands exactly while they do. The
-// placeholder takes no pointer, so the press takes its own; it keeps the press out of
-// the field, which a press on the box's padding would otherwise focus (text-field.js), and
-// it keeps the notice that offers it (notifications.js, `keepsNotice`). The keyboard's
-// route is the press's own command and a finger's is this, so it takes no tab stop.
+// A box's own press at rest (`enters`, `BoxPress`), at its placeholder's far end, the
+// field's `end` slot (text-field.js), as the entering word and its key are, so it
+// stands exactly while the box's words do and reads in their face. Its mousedown keeps
+// the caret and focus where they are, and the press keeps the notice that offers it
+// (notifications.js, `keepsNotice`). The keyboard's route is the press's own command
+// and a finger's is this, so it takes no tab stop.
 /** @param {BoxPress} press @param {readonly string[]} keys */
 const pressAtRest = (press, keys) =>
   html`<span
+    slot="end"
     ${selectableOffered("button", "lf-compose-press", "inline")}
     data-lf-hint
     tabindex="-1"
@@ -577,29 +578,28 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           ? `${word}${entering ? ` · ${entering}` : ""}${suffix ? ` ${suffix}` : ""}${pressText ? ` · ${pressText}` : ""}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}`
           : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
-      keeps(ta, "data-lf-presses", press && !status ? "" : null);
       const ariaLabel = name();
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
       const parts = status ? null : hintParts?.();
       const lead = status ? "" : hintLead();
       const richHint = ((suffix || press) && !status) || parts != null || lead;
       render(
-        richHint
-          ? html` <span class="lf-compose-placeholder" slot="placeholder">
-              <span class="lf-compose-placeholder-lead">${lead}</span
-              ><span class="lf-compose-placeholder-words">${parts ?? word}</span
-              ><span class="lf-compose-placeholder-enters">${entering}</span
-              ><kbd class="lf-key-badge">${suffix}</kbd>${
-                press ? pressAtRest(press, pressKeys) : nothing
-              }${
-                lineHint
-                  ? html`<span class="lf-compose-placeholder-line"
-                      >· ${NEW_LINE} <kbd class="lf-key-badge">${lineHint}</kbd></span
-                    >`
-                  : nothing
-              }
-            </span>`
-          : nothing,
+        html`${
+          richHint
+            ? html` <span class="lf-compose-placeholder" slot="placeholder">
+                <span class="lf-compose-placeholder-lead">${lead}</span
+                ><span class="lf-compose-placeholder-words">${parts ?? word}</span
+                ><span class="lf-compose-placeholder-enters">${entering}</span
+                ><kbd class="lf-key-badge">${suffix}</kbd>${
+                  lineHint
+                    ? html`<span class="lf-compose-placeholder-line"
+                        >· ${NEW_LINE} <kbd class="lf-key-badge">${lineHint}</kbd></span
+                      >`
+                    : nothing
+                }
+              </span>`
+            : nothing
+        }${press && !status ? pressAtRest(press, pressKeys) : nothing}`,
         ta,
       );
       let error = inputError.value;

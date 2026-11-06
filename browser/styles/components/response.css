@@ -90,18 +90,17 @@ leaf-composition-field {
 .lf-compose-placeholder > .lf-compose-placeholder-enters:empty {
   display: none;
 }
-/* A box's own press at rest in that place, such as a passing notice's Undo
-   (composing/input.js, `pressAtRest`): its word and key stand whole at the box's far
-   end, as the entering word and its key do, and it takes the pointer the placeholder
-   around it doesn't. */
-.lf-compose-placeholder > .lf-compose-press {
-  flex: none;
+/* A box's own press at rest, such as a passing notice's Undo (composing/input.js,
+   `pressAtRest`), in the field's `end` slot (text-field.js): its word and key stand
+   whole at the box's far end, as the entering word and its key do, after the box's
+   words, which shorten first. */
+.lf-compose-press {
   display: inline-flex;
   align-items: baseline;
   gap: 0.25em;
-  margin-inline-start: auto;
-  overflow: visible;
-  pointer-events: auto;
+  margin-inline-start: 0.25em;
+  white-space: nowrap;
+  user-select: none;
 }
 .lf-compose-placeholder-lead:empty {
   display: none;

@@ -82,7 +82,14 @@
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
  * a box wants more than one run of text there, such as a label and the key that sends.
  * It is drawn in the theme's muted ink; a box that wants another face for it styles
- * `::part(placeholder)`, which a slotted child inherits.
+ * `::part(placeholder)`, which a slotted child inherits. The words are hidden from
+ * assistive technology, which reads them as the content node's `aria-placeholder`.
+ * A child in slot `end` is a press of the box's own at the placeholder's far end, such
+ * as a Resolve's Undo: it wears the placeholder's face and stands exactly while the
+ * words do, the words shorten before it, and it stays in the accessibility tree and
+ * takes the pointer, so a press on it is its own and never a press on the field.
+ * Rejected: the press among the slotted words, whose `aria-hidden` took it out of the
+ * accessibility tree (found in review, 6 November 2026).
  *
  * A connected field holding words draws them in its editor. An empty one builds its
  * editor when the user arrives in it (`#build`), since a page can show many empty
@@ -223,15 +230,18 @@ sheet.replaceSync(`
   /* The placeholder is one line that never widens the box — a response bar sizes to the
      words — and shortens with an ellipsis where the box is narrow, so it reads the same
      height whether it shows the plain words or a keyed hint. */
-  .lf-field-placeholder { pointer-events: none; white-space: nowrap;
-    contain: inline-size; overflow-x: clip; text-overflow: ellipsis;
-    color: var(--muted); }
+  .lf-field-placeholder { pointer-events: none; display: flex; align-items: baseline;
+    block-size: 1lh; contain: inline-size; color: var(--muted); }
+  .lf-field-placeholder-words { flex: 1 1 auto; min-width: 0; white-space: nowrap;
+    overflow-x: clip; text-overflow: ellipsis; }
   :host(:not(:state(placeholder-shown))) .lf-field-placeholder { visibility: hidden; }
-  /* A placeholder holding a press of its own (composing/input.js, \`pressAtRest\`)
-     stands over the empty line, so the press takes the pointer where it reads; the rest
-     of it passes the pointer on to the line beneath, as any placeholder does. Only an
-     empty field at rest holds one, so it stands over no caret. */
-  :host([data-lf-presses]) .lf-field-placeholder { z-index: 1; }
+  /* The box's own press at the far end takes the pointer where it reads, so while one
+     stands the placeholder stands over the empty line; the rest of it passes the
+     pointer on to the line beneath, as any placeholder does. A box offers one only
+     while its field is empty and the caret is elsewhere (composing/input.js,
+     \`pressAtRest\`), so it stands over no caret. */
+  .lf-field-end::slotted(*) { flex: none; pointer-events: auto; }
+  :host(:state(end-held)) .lf-field-placeholder { z-index: 1; }
   /* The trailing action's room, on every line. */
   .lf-field { padding-inline-end: var(--lf-field-end-room); }
   /* A draft wears the sent message's faces, or where it stands in place, those its
@@ -390,6 +400,7 @@ class LeafText extends HTMLElement {
   }
   #placeholderLayer = document.createElement("div");
   #placeholderText = document.createTextNode("");
+  #end = document.createElement("slot");
   #frame = document.createElement("div");
   #readOnly = false;
   #sizes = sizeObserver(() => {
@@ -560,12 +571,21 @@ class LeafText extends HTMLElement {
     this.#root = this.attachShadow({ mode: "closed", delegatesFocus: true });
     this.#frame.className = "lf-field";
     this.#placeholderLayer.className = "lf-field-placeholder";
-    this.#placeholderLayer.setAttribute("aria-hidden", "true");
     this.#placeholderLayer.setAttribute("part", "placeholder");
+    const words = document.createElement("span");
+    words.className = "lf-field-placeholder-words";
+    words.setAttribute("aria-hidden", "true");
     const hint = document.createElement("slot");
     hint.name = "placeholder";
     hint.append(this.#placeholderText);
-    this.#placeholderLayer.append(hint);
+    words.append(hint);
+    this.#end.name = "end";
+    this.#end.className = "lf-field-end";
+    this.#end.addEventListener("slotchange", () => {
+      if (this.#end.assignedElements().length) this.#internals.states.add("end-held");
+      else this.#internals.states.delete("end-held");
+    });
+    this.#placeholderLayer.append(words, this.#end);
     this.#rest.className = "lf-field-rest";
     // The break an empty editable line holds, as the editor's own empty line does, so
     // the place reads the same value to assistive technology.
@@ -957,9 +977,12 @@ class LeafText extends HTMLElement {
   // CodeMirror's to place.
   /** @param {MouseEvent} event */
   #pressPadding(event) {
-    // A press of the placeholder's own that took the press (composing/input.js,
-    // `pressAtRest`) is no press on the field.
-    if (event.button !== 0 || event.defaultPrevented) return;
+    // A press on the box's own press at the placeholder's end is that press's. The
+    // slot is in a closed root, so the event's path seen from the host leaves it out;
+    // the press itself is the host's child.
+    const target = /** @type {Node} */ (event.target);
+    const onEnd = this.#end.assignedElements().some((press) => press.contains(target));
+    if (event.button !== 0 || onEnd) return;
     if (!this.#view) {
       // The field is empty, so wherever the press lands the caret stands at its start.
       // Another button's press focuses the empty line's place natively, which builds the

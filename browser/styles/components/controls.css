@@ -1807,8 +1807,10 @@ textarea.field {
   cursor: pointer;
 }
 /* It declines the wash every generated press takes under the pointer (surfaces.css),
-   which a finger's tap leaves behind too. */
-:where(button).lf-inline-action:hover {
+   which a finger's tap leaves behind too, and so does one among a box's empty words,
+   which the user chose to read as those words do (5 November 2026). */
+:where(button).lf-inline-action:hover,
+.lf-inline-action[data-lf-hint]:hover {
   box-shadow: none;
 }
 @media (hover: hover) {

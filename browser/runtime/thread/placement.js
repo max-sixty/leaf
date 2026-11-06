@@ -14,6 +14,7 @@ import {
   documentOutline,
   elementById,
   GENERATED,
+  headed,
   HEADING,
   inPage,
   keptAnswer,
@@ -182,6 +183,26 @@ const namesWhatItHolds = (container, scope) =>
   container.localName !== "slot" &&
   !(container.localName === "main" && container.parentElement === scope) &&
   !overIn(container, GENERATED, scope);
+
+// Every part of the page a node stands in, outermost first: the part over it
+// (`partOver`), then the heading of a higher rank over each heading (the outline's
+// `above`), else the part over its container, as a reader of the page passes through
+// them to reach the node. A heading's own trail leaves it out. Each step costs what
+// `partOver` does, so a trail costs its length times that.
+/** @param {Element} node @returns {Element[]} */
+export function partTrail(node) {
+  /** @param {Element} at @returns {Element | null} */
+  const over = (at) => {
+    const { above } = outlineOf(at);
+    if (!above.has(at)) return partOver(at);
+    const container = headed(at);
+    return above.get(at) ?? (container ? partOver(container) : null);
+  };
+  /** @type {Element[]} */
+  const trail = [];
+  for (let part = over(node); part; part = over(part)) trail.unshift(part);
+  return trail;
+}
 
 // ---------- where the open conversations stand ----------
 // Gathered once for each reading of the threads and the page, so asking about a place

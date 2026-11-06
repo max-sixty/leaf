@@ -14,6 +14,7 @@ from render_harness import (
     PREVIEW,
     draft_control,
     leaf_page,
+    long_press,
     margins_laid_out,
     open_page,
     open_threads,
@@ -58,9 +59,9 @@ def _refreshes_restate_no_margin_name(page, population):
     population is: a run where rows stood somewhere the watch does not reach would
     otherwise return the same clean `[]` it returns when nothing is wrong.
 
-    Half of `render` runs in a frame callback — `scheduleMarginLayout`,
-    `scheduleRoving` and `scheduleMarginEntryLabels` are its whole tail — and five
-    refreshes in one synchronous task never reach it. Each refresh is therefore
+    Half of `render` runs in a frame callback — `scheduleMarginLayout` and
+    `scheduleRoving` are its whole tail — and five refreshes in one synchronous task
+    never reach it. Each refresh is therefore
     read across a settled frame, which both pages now allow. The layout pass
     places every row from what it writes, so a refresh that restated a posture, an
     offset or a push shows up here as a restatement.
@@ -255,9 +256,8 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
     """A margin entry's label and status are its preview, which a resting pointer and the
     keyboard read, and a finger holds the entry to read them, with whatever else its
     title says. The preview stands clear of the finger, above the entry, while the press
-    lasts, and a row arriving meanwhile doesn't move it. An action's release presses it
-    once, and the browser's own click after it reaches nothing the press put under the
-    finger. A tap leaves no preview behind, and the preview goes with the hold."""
+    lasts, and a row arriving meanwhile doesn't move it. The release presses nothing and
+    leaves the preview standing until the next touch; a tap presses and shows none."""
     lead = "<p>Text before the target, so the label has room above it.</p>" * 4
     url = serve(
         leaf_page(
@@ -280,14 +280,7 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
                 label: 'Sent', context: '2m ago'}),
               contributionEntry({key: 'act', icon: 'dot', label: 'Act on it',
                 title: 'Acts at once'}),
-            ]}), activate: (key) => {
-              window.pressed.push(key);
-              // What the press opens lands under the finger.
-              const beneath = document.createElement('button');
-              beneath.style = 'position: fixed; inset: 0; z-index: 2147483647';
-              beneath.onclick = () => window.pressed.push('beneath');
-              document.body.append(beneath);
-            }});
+            ]}), activate: (key) => window.pressed.push(key)});
         }"""
     )
     cdp = context.new_cdp_session(page)
@@ -303,12 +296,12 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
     for key, words in (("sent", "Sent2m ago"), ("act", "Act on itActs at once")):
         entry = entry_keyed(key)
         expect(entry).to_be_visible()
-        expect(preview).to_be_hidden()
         box = entry.bounding_box()
         point = {"x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2}
         cdp.send(
             "Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [point]}
         )
+        long_press(page, point)
         expect(preview).to_be_visible()
         expect(preview).to_have_text(words)
         expect(entry).to_have_attribute("data-lf-held", "")
@@ -331,10 +324,15 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
             rendered(page)
             assert preview.bounding_box() == held
         cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
-        expect(entry).not_to_have_attribute("data-lf-held", "")
-        expect(preview).to_be_hidden()
+        rendered(page)
+        expect(preview).to_have_text(words)
+        expect(entry).to_have_attribute("data-lf-held", "")
+    assert page.evaluate("window.pressed") == []
+    entry_keyed("act").tap()
     rendered(page)
     assert page.evaluate("window.pressed") == ["act"]
+    expect(preview).to_be_hidden()
+    expect(entry_keyed("act")).not_to_have_attribute("data-lf-held", "")
 
 
 OBLIGATION_MARKERS_PAGE = leaf_page(

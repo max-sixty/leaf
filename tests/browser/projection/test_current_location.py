@@ -524,7 +524,7 @@ def test_the_obligation_walk_keeps_its_place_when_a_version_lands(browser, serve
     page = open_page(browser, live_url(url))
     # Short enough that an obligation in the middle of the window has page text above it,
     # which is the whole of what makes the coarse reading the wrong one.
-    resized(page, 900, 400)
+    resized(page, 900, 600)
 
     for item in OBLIGATIONS_IN_ORDER[:3]:
         page.keyboard.press("m")

@@ -289,10 +289,11 @@
   content: "-";
   color: var(--danger-ink);
 }
-/* A line's number stands over the gutter's width on its line, set against the code
-   in the code's muted ink, a press or not. Where it takes a comment it is a gutter
-   press (controls.css, `.lf-gutter`), which draws that ink, with its + in the room
-   before the number, shown for the line the pointer is over. */
+/* A line's numbers, old then new in a cell each, stand over the gutter's width on
+   its line, set against the code in the code's muted ink, a press or not. Where they
+   take a comment they are a gutter press (controls.css, `.lf-gutter`), which draws
+   that ink, with its + in the room before the numbers, shown for the line the
+   pointer is over. */
 .lf-diff-line-number {
   position: absolute;
   z-index: 2;
@@ -305,7 +306,9 @@
   min-height: 0;
   padding: 0 1ch 0 2ch;
   font: inherit;
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, var(--lf-diff-digits));
+  column-gap: 1ch;
   align-items: start;
   justify-content: end;
   text-align: right;

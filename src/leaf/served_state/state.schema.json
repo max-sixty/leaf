@@ -211,6 +211,11 @@
           "description": "The acknowledgement cursor, the greatest `through` a `receipt` in the log holds: the updates through it reached their durable consumer.",
           "type": "integer"
         },
+        "forked": {
+          "description": "The user's waiting messages a fork of the claimant's conversation has taken on (`forks.forked`).",
+          "type": "array",
+          "items": { "type": "string" }
+        },
         "pending": {
           "description": "How many of the user's events past the cursor the agent hasn't taken in.",
           "type": "integer"
@@ -246,6 +251,10 @@
         "input_wakes": {
           "description": "Whether the nudge the claimant's next input gets would start a turn of its session's (`Harness.input_wakes`).",
           "type": "boolean"
+        },
+        "fork_lane": {
+          "description": "When the claimant's fork lane came up, in seconds since the epoch, or null while none runs (`forks.lane_since`).",
+          "type": ["number", "null"]
         },
         "session_cwd": {
           "description": "Where the claimant was working when it claimed the page, or null for a page nothing claimed.",
@@ -334,6 +343,7 @@
         "session_alive",
         "live_turn",
         "cursor",
+        "forked",
         "pending",
         "agent",
         "claim_session",
@@ -343,6 +353,7 @@
         "turn_opened",
         "turn_takes_input",
         "input_wakes",
+        "fork_lane",
         "session_cwd",
         "activity",
         "workflows",
@@ -633,7 +644,7 @@
           }
         },
         "at_work": {
-          "description": "Whether the agent is at work on it: at `working` or `replying`, whatever its condition.",
+          "description": "Whether the agent is at work on it, whatever its condition: at `working` or `replying`, or a fork of its conversation has taken its input on (`forks.forked`).",
           "type": "boolean"
         },
         "thread": {

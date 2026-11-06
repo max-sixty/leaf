@@ -2,27 +2,24 @@
 
 ## Measured facts
 
-Use `lf-num` for a repeatably measured number inside a sentence, as its entry shows.
-
-The value stays as you wrote it. Any later write to the source, even of the same value,
-makes `page check` advise that the number needs another look. Use one source id per
-measurement, and plain HTML for numbers with no repeatable source.
+Use `lf-num` for a repeatably measured number inside a sentence, as its entry shows,
+and plain HTML for numbers with no repeatable source.
 
 ## Interactive and visual evidence
 
 For an existing interface, capture the relevant panel, card or menu with enough
 surrounding background to preserve its whole shadow. Crop or mark the capture so
 the eye lands on the point, cutting through background rather than text. Use
-`lf-shot` for before-and-after captures. Captures that vary along other axes need each
-axis labelled once, which a table does by default ("Source files and media").
+`lf-shot` for before-and-after captures; its instructions cover preparing the pair and
+the comparison controls. Capture both versions at the same viewport. Before writing
+the prose and `alt`, open both images and compare them where the change should be.
+For a small change, crop both frames to the subject rather than making the reader
+search a whole window. Captures that vary along other axes need each axis labelled
+once, which a table does by default ("Source files and media").
 
 Use `lf-diagram` for Mermaid syntax rendered by Pele. It ships in the `diagram`
-package, so create the page with `leaf page init --package diagram <page>`.
-`page check --render` reports
-syntax errors and empty drawings; look at each rendered diagram to check it shows the
-relationships it should. Without visual access, check the source's labels and edges
-against the claims, state those claims in prose or a table beside it, and report the
-diagram as unchecked (`page-checkpoints.md`, "Pre-handover review").
+package, so create the page with `leaf page init --package diagram <page>`. Its
+instructions cover checking the drawing and reporting what you could verify.
 
 Draw what automatic layout can't place, such as a page layout, a wireframe or a
 thumbnail inside an option, as the `svg.drawing` idiom in a `<figure>` with an `id`,
@@ -58,56 +55,24 @@ parts (`module-annotations.md`, "Visual parts").
 
 ## Source files and media
 
-Use `lf-text-document` to show a text file, or a passage of one, that the user can
-comment on. Write a passage that belongs to this version of the page, such as a rule you
-quote, into its `<pre>`, HTML-escaped (& before < and >), and name its origin with
-`label`. Give Markdown `preview="markdown"`:
-
-```html
-<lf-text-document id="changelog-fix" label="CHANGELOG.md" preview="markdown">
-  <pre>**Fixed** a crash when `--config` names a missing file.</pre>
-</lf-text-document>
-```
-
-When the user reviews an edit to text, such as code, prose or configuration, show its
-exact patch in `lf-diff` and explain the effect beside it. Choose the comparison that covers the work being
-discussed; `wt step diff`, when available, often covers a branch.
+Use `lf-text-document` to show a text file or quoted passage the user can comment on.
+When the user reviews an edit to code, prose or configuration, show its exact patch
+in `lf-diff` and explain the effect beside it. Choose the comparison that covers the
+work being discussed; `wt step diff`, when available, often covers a branch.
 `lf-diff` ships in the `diff` package: create the page with
-`leaf page init --package diff <page>`. Bind text you will refresh, such as a whole
-file or a patch, to a data source, and leave out the `<pre>`:
+`leaf page init --package diff <page>`. The widget and package author instructions own
+markup, source binding and patch preparation.
 
-```html
-<lf-text-document
-  id="skill-source"
-  source="leaf-skill"
-  label="SKILL.md"
-  preview="markdown"
-></lf-text-document>
+Choose whether evidence should follow the current source or preserve what was
+reviewed. A bound widget always shows its source's current value, in every version
+of the page and every thread that quotes it. For a fixed review, embed the evidence
+as the widget's instructions describe, or give it a source id you never update.
+Evidence that should follow later `data set` calls shares one id.
 
-<lf-diff id="review-patch" source="review-patch" collapsed></lf-diff>
-```
-
-Then set each source to one JSON string, of a whole file, a line range, or a diff:
-
-```bash
-jq -Rs . SKILL.md | leaf data set <page> leaf-skill
-sed -n '71,102p' SKILL.md | jq -Rs . | leaf data set <page> leaf-skill
-wt step diff | jq -Rs . | leaf data set <page> review-patch
-```
-
-Run the pipeline again to refresh the open page. Keep the complete Git patch, including
-file-operation metadata: files without textual hunks still have commentable rows.
-For a large patch, use the manifest producer described by the contract:
-
-```bash
-leaf page instructions <page> --contract unified-diff | jq -er '.producer'
-```
-
-A bound widget always shows its source's current value, in every version of the page
-and every thread that quotes it. To keep evidence exactly as it was reviewed, write it
-into the widget's `<pre>`, or give it its own source id, such as `pr-patch-8f61c2a`
-for one commit's patch, and never write to that id again. Evidence that should follow
-later `data set` calls shares one id.
+For example, a file and its patch reviewed at one commit each need fixed evidence:
+give the file and the patch their own source ids and never overwrite either. A live
+working-file view instead keeps its source id as the file changes. The same choice
+of evidence lifetime applies whichever widget presents it.
 
 Run `leaf page media <page> <file>…`, naming each file as its own argument as a glob
 such as `shots/*.png` does, and use each printed `/media/…` `path` for images, video
@@ -146,35 +111,3 @@ accepts MP4 and WebM video and MP3, M4A, Ogg and WAV audio. An export embeds eac
 recording whole, a third larger, so trim recordings to what the reader needs.
 
 Put invented examples inside `lf-sample` and make them visibly fictional.
-
-`lf-shot` shows two versions of an interface, before and after, captured at the same
-viewport. Before writing the prose and `alt`, open both images and compare them where
-the change should be. For a small change, crop both frames to the subject rather than
-making the reader search a whole window. Check the pair as it first appears: Fit
-may shrink the captures to fit the available space. Choose crops and page space that make
-the relevant change readable there, without requiring the reader to zoom first.
-
-Every pair starts in **Slider**, followed by **Pair** and **Pixels** in the shared
-header. Before and After label the header, or each frame when stacked. Pair keeps
-the captures at the same scale; clicking either image opens its original. Fit places them beside one another or stacks
-them, whichever draws them larger, so short wide captures stack and tall narrow ones sit
-side by side; stacked frames fit together within the screen or the comparison's height limit. At 100%, both panes stay visible and scrolling either image moves
-the other to the same location. This scale uses CSS pixels when capture metadata
-supplies the pixel ratio, or bitmap pixels otherwise. The **…** menu offers Fit,
-100%, Outline changes, the Changed pixels color key and, for a pair with focus metadata, Full
-frame to inspect beyond that region.
-
-In Slider, click or tap the image to alternate between the complete Before and After
-frames. Drag the divider for an intermediate comparison, or focus it and use the
-arrow keys; Home and End show the complete frames.
-
-**Outline changes** marks changed regions in Pair and Slider, using the accent color
-for content that only moved. **Pixels** paints changed pixels amber over the greyed after image, softly for
-small changes and more strongly for large ones, so build no difference image of your
-own. It locates differences without inferring what was added or removed. These controls belong to the reader; author the pair with `before`,
-`after` and `alt`.
-
-The comparison reports identical images, slight changes or changes throughout the
-frame. If it reports identical images, or no outline sits where the prose puts the
-change, capture a case that shows the change or say that nothing changed. Name subtle
-changes in the prose. Where live data changed between captures, say where to look.

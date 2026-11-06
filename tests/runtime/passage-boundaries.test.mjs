@@ -36,10 +36,11 @@ import {
   pageWords,
   pointAt,
   quoteFrom,
+  refuseBareText,
   says,
   segmentsIn,
 } from "/runtime/passages.js";
-import { upFrom } from "/runtime/shadow.js";
+import { declaredRoot, upFrom } from "/runtime/shadow.js";
 import { adoptShadowStage, shadowStage } from "/runtime/shadow-stage.js";
 
 test("no node means no passage location, rather than a runtime error", () => {
@@ -304,6 +305,60 @@ test("each document's reading is forgotten alone: the page's and a reply's", () 
   } finally {
     chrome.remove();
   }
+});
+
+// Startup refuses a module's bare text before anything reads the page, so it has to
+// reach every root the reading would cross into, a stage inside another stage included.
+test("startup refuses bare text staged inside another widget's root", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "passage-nested-bare" },
+  });
+  document.body.innerHTML = "<main><lf-staged id=outer></lf-staged></main>";
+  const inner = Object.assign(document.createElement("lf-staged"), { id: "inner" });
+  const outer = shadowStage(document.getElementById("outer"), [inner]);
+  shadowStage(inner, [document.createTextNode("Loose words")]);
+  /** @type {string[]} */
+  const reasons = [];
+  /** @param {Event} event */
+  const failed = (event) => reasons.push(event.detail.reason);
+  window.addEventListener("lf-startup-failed", failed);
+  try {
+    refuseBareText();
+  } finally {
+    window.removeEventListener("lf-startup-failed", failed);
+  }
+  assert.equal(reasons.length, 1, String(reasons));
+  assert.match(reasons[0], /<lf-staged id="inner"> staged bare text/);
+  assert.equal(declaredRoot(outer.host), outer, "the outer stage holds an element");
+  assert.equal(declaredRoot(inner), null, "the inner stage is refused for good");
+});
+
+// The sweep runs before every page upgrades, so it asks each stage once rather than
+// filtering every stage for each root it admits, which grew with the square of a page of
+// sibling widgets.
+test("startup's refusal sweep asks each of many sibling stages once", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "passage-flat-sweep" },
+  });
+  const count = 200;
+  document.body.innerHTML = `<main>${"<lf-staged></lf-staged>".repeat(count)}</main>`;
+  for (const host of document.querySelectorAll("lf-staged"))
+    shadowStage(host, [document.createElement("p")]);
+  const { contains } = Node.prototype;
+  let checks = 0;
+  /** @param {Node | null} other */
+  Node.prototype.contains = function (other) {
+    checks += 1;
+    return contains.call(this, other);
+  };
+  try {
+    refuseBareText();
+  } finally {
+    Node.prototype.contains = contains;
+  }
+  assert.ok(checks <= count, `${checks} containment checks for ${count} stages`);
 });
 
 // A page script's own custom element attaches a root no declaration vouches for. The

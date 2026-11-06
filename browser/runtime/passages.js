@@ -106,6 +106,7 @@
    passes. */
 
 import { isNode, closestAcross } from "./shadow-tree.js";
+import { liveStages } from "./arrivals.js";
 export { closestAcross, inChrome } from "./shadow-tree.js";
 import {
   SAID,
@@ -151,7 +152,7 @@ import { excerptWords } from "./words.js";
  * outline: OutlineReading}} PageReading
  * @typedef {{container: Element, heading: Element | null, up: Over | null}} Over
  * @typedef {{outline: readonly Element[], at: Map<Element, number>,
- * over: Map<Element, Over | null>}} OutlineReading
+ * over: Map<Element, Over | null>, above: Map<Element, Element | null>}} OutlineReading
  * @typedef {{node: Text, offset: number, segment: Segment}} Point
  * @typedef {keyof typeof READINGS} Reading */
 
@@ -398,6 +399,38 @@ function refusesBareText(root) {
       }),
     );
   return true;
+}
+// Startup asks every declared root the page reading would cross into before the page
+// upgrades, so a page whose module staged bare text never presents even when nothing
+// has read the page's words yet: a reading is taken only when something needs one, and
+// a page with no comment to find again presents without one. Like the walk, it crosses
+// into a root only once every root over it is admitted, outer first; a refused root's
+// host reads by its light children, so the stages inside that root are never asked.
+// One pass over the stages, each root's answer kept, so startup stays linear in them.
+export function refuseBareText() {
+  /** @type {Map<Node, boolean>} */
+  const admitted = new Map();
+  /** @param {Element} host */
+  const reached = (host) => {
+    const over = host.getRootNode();
+    return over === document ? document.body.contains(host) : admits(over);
+  };
+  /** @param {Node} tree @returns {boolean} */
+  const admits = (tree) => {
+    let answer = admitted.get(tree);
+    if (answer === undefined) {
+      const host = shadowHost(tree);
+      answer =
+        host !== null &&
+        declaredRoot(host) === tree &&
+        reached(host) &&
+        !leafSurface(host) &&
+        !refusesBareText(/** @type {ShadowRoot} */ (tree));
+      admitted.set(tree, answer);
+    }
+    return answer;
+  };
+  for (const stage of liveStages()) admits(stage);
 }
 // The widget a reading belongs to. `.lf-ui` says the runtime built this rather than the
 // author, and a reading rooted at the document takes that straight: everything the layer
@@ -1826,8 +1859,10 @@ function readPage() {
 // to it is none; and, for each element the walk enters, what stood over it as the walk
 // reached it (`Over`): for each container out from it, the last heading met so far that
 // heads that container (`headed`). Each container's record is replaced, never changed,
-// when a heading arrives in it, so what an element was given stays as it was.
-// thread/placement.js reads names and parts from it (`partOver`).
+// when a heading arrives in it, so what an element was given stays as it was. And for
+// each heading, the nearest heading of a higher rank before it in the same container
+// (`above`), as a reader takes a flow of h2s to stand under the h1 over them.
+// thread/placement.js reads names and parts from it (`partOver`, `partTrail`).
 const outlineFold = () => {
   /** @type {Element[]} */
   const outline = [];
@@ -1835,6 +1870,12 @@ const outlineFold = () => {
   const at = new Map();
   /** @type {Map<Element, Over | null>} */
   const over = new Map();
+  /** @type {Map<Element, Element | null>} */
+  const above = new Map();
+  // Each container's headings still open to a later one of a lower rank, highest first.
+  /** @type {Map<Element | null, Element[]>} */
+  const ranks = new Map();
+  const rank = (/** @type {Element} */ heading) => Number(heading.localName.slice(1));
   /** @type {{element: Element, state: Over}[]} */
   const open = [];
   return {
@@ -1851,12 +1892,21 @@ const outlineFold = () => {
         const container = headed(element);
         const holder = open.findLast((frame) => frame.element === container);
         if (holder) holder.state = { ...holder.state, heading: element };
+        const higher = ranks.get(container) ?? [];
+        while (
+          higher.length &&
+          rank(/** @type {Element} */ (higher.at(-1))) >= rank(element)
+        )
+          higher.pop();
+        above.set(element, higher.at(-1) ?? null);
+        higher.push(element);
+        ranks.set(container, higher);
       }
       const up = open.at(-1)?.state ?? null;
       open.push({ element, state: { container: element, heading: null, up } });
     },
     /** @returns {OutlineReading} */
-    read: () => ({ outline: Object.freeze(outline), at, over }),
+    read: () => ({ outline: Object.freeze(outline), at, over, above }),
   };
 };
 /** The outline of the document `scope` (`authoredScope`): the page's, as its reading's

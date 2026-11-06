@@ -649,7 +649,7 @@
   /* Whatever qualifies another line: a row's end, a status, a description, a time. */
   --font-small: var(--t-6) / var(--lf-ui-lh) var(--sans);
   /* A status or reference that names a state rather than qualifying a line: a
-     passage's, a drawing's, a summary's. */
+     passage's or a drawing's. */
   --font-status: 500 var(--t-6) / var(--lf-ui-lh) var(--sans);
   --font-heading: 600 var(--t-6) / var(--lf-ui-lh) var(--sans); /* a group's name */
   --font-title: 600 var(--t-5) / var(--lf-ui-lh) var(--sans); /* a dialog's or pane's */

@@ -212,6 +212,24 @@ def _squeezed(at: str, v: dict) -> str:
     )
 
 
+def _drawn_height(at: str, v: dict) -> str:
+    # `box` is the height the element holds now: past `before`, what follows it moved
+    # as it drew; past `drawn`, a stated height larger than the drawing left room.
+    text = (
+        f"{at} was {v['before']}px tall before drawing and its drawing is"
+        f" {v['drawn']}px tall"
+    )
+    if moved := v["box"] - v["before"]:
+        direction = "down" if moved > 0 else "up"
+        text += f", so what follows it moved {direction} {abs(moved)}px as it drew"
+    if (blank := v["box"] - v["drawn"]) > 0:
+        text += f", leaving {blank}px blank under the drawing"
+    return (
+        f'{text}; data-height="{v["drawn"]}" holds the drawing\'s height from'
+        " first paint"
+    )
+
+
 def _clipped_content(at: str, v: dict) -> str:
     cuts = []
     if v["down"]:
@@ -624,9 +642,16 @@ _TEXT = {
         f"{at} stands {v['past']}px outside the {v['host']} it is part of"
     ),
     "past-column": lambda at, v: (
-        f"{at} is set {v['past']}px past the column, out in the margin; to give it"
-        ' more room, mark it data-width="wide" or "available" rather than sizing it'
-        " past the column, or scroll it sideways in a box of its own with"
+        f"{at} is set {v['past']}px past the column, out in the margin; "
+        + (
+            f"as a {v['item']} item it is by default no narrower than its content, so"
+            " first give it min-width: 0, which keeps a wide table or scrolling box in"
+            " it scrolling inside the column; or, "
+            if v.get("item")
+            else ""
+        )
+        + 'to give it more room, mark it data-width="wide" or "available" rather than'
+        " sizing it past the column, or scroll it sideways in a box of its own with"
         ' overflow-x: auto and class="scroll"'
     ),
     "outside-frame": lambda at, v: (
@@ -682,14 +707,25 @@ _TEXT = {
         f"{at} keeps moving for a reader who asked for less motion; stop or shorten it"
         " under @media (prefers-reduced-motion: reduce)"
     ),
+    "uncoloured-code": lambda at, v: (
+        f"{at} declares {v['language']}, but no reading face reaches it, so Leaf"
+        " leaves its tokens uncoloured; to colour it, set --lf-reading-face: 1 on a"
+        " box around the <pre>, or take the reading theme"
+    ),
     "contained-space": lambda at, v: (
         f"{at} declares {v['space']} space but stays inside "
         + ", ".join(v["holders"])
-        + "; to widen the enclosing box, put data-width on that holder; to share"
-        " the document's space through unframed section wrappers, give them"
-        ' class="layout-flow"'
+        + "; to let it break out with the words around it staying on the column, give"
+        ' the unframed wrappers class="layout-flow"; to widen a frame around it, put'
+        " data-width on the frame"
+    ),
+    "words-off-column": lambda at, v: (
+        f"{at} reaches past the column's start edge and takes its words with it, so"
+        " they no longer line up with the page's; put data-width on the block inside"
+        ' that needs the room, and give this wrapper class="layout-flow"'
     ),
     "squeezed-table": _squeezed,
+    "drawn-height": _drawn_height,
     "shrunk-labels": lambda at, v: (
         f"{at} draws labels below {v['threshold']}px, {v['labels']} at"
         f" {v['width']}px, the smallest ({v['words']!r}) at {v['drawn']:g}px from"
@@ -1894,12 +1930,13 @@ _TEXT = {
         " later"
     ),
     # A `leaf wait` (`session.Watch`, `session.read_watch_pass`): a server it brought
-    # back or could not, and why it ended.
+    # back or could not, and why it ended. A prompt hook that could not serve a
+    # session's page again says so too (`reconnect.serve_again`).
     "server-restarted": lambda at, v: (
         f"{v['page']}: server had died; restarted at {v['url']}"
     ),
     "revive-refused": lambda at, v: (
-        f"{v['page']}: server had died and did not start again: {v['error']}"
+        f"{v['page']}: server was down and did not start again: {v['error']}"
     ),
     "server-down": lambda at, v: (
         f"{v['page']}: server is not running; restart it with"

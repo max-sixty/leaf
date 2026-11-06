@@ -56,20 +56,33 @@ const CLUSTER_WIDTH = 168;
 
 // What a mark says to a pointer resting on it or a finger holding it, as its preview
 // (`lfPreview`, module-input.md, "Previews"): its name, then its time and what else the
-// recording says of it. A time keeps its unit on its line.
+// recording says of it. A time keeps its unit on its line. It is about the lane the mark
+// stands in, which the user reads along, so the preview keeps clear of the whole lane.
+// The lane's marks are thinner than the preview owner's hit tests are apart, so naming
+// the lane is what keeps the preview off the mark's neighbours.
 /** @param {string} text */
 const kept = (text) => text.replace(/(\d) s\b/g, "$1\u00a0s");
+/** @param {Element} mark */
+const laneOf = (mark) => mark.closest(".lf-trace-lane");
 /** @param {Tip} tip */
-const said = (tip) => () => ({ name: kept(tip.name), detail: tip.detail.map(kept) });
+const said = (tip) =>
+  /** @this {Element} */
+  function () {
+    return { name: kept(tip.name), detail: tip.detail.map(kept), about: laneOf(this) };
+  };
 // The marks one label holds: how many, then each one's words on a line of its own.
 /** @param {readonly {tip: Tip}[]} items @param {string} kind */
 const saidOfAll = (items, kind) =>
   items.length === 1 && items[0]
     ? said(items[0].tip)
-    : () => ({
-        name: `${items.length} ${kind}`,
-        detail: items.map(({ tip }) => kept([tip.name, ...tip.detail].join(" · "))),
-      });
+    : /** @this {Element} */
+      function () {
+        return {
+          name: `${items.length} ${kind}`,
+          detail: items.map(({ tip }) => kept([tip.name, ...tip.detail].join(" · "))),
+          about: laneOf(this),
+        };
+      };
 
 export class RecordingTimeline {
   #host;

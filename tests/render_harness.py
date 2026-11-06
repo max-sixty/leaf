@@ -85,6 +85,7 @@ from leaf_dev import browser as dev_browser
 from leaf_dev.browser import (
     ON_ME_MARK,
     PANEL,
+    chromium_metrics,
     panel_view,
     scroll_settled,
     slow_cpu,
@@ -859,6 +860,19 @@ def sending(page, what):
 # route that lands after the send's paint would wait out the whole deadline. The browser's
 # own record already shows the send was made, so this repeats a driver call — the thing
 # that dispatches the route here — until the list has it.
+def long_press(page, point):
+    """Send what a touch engine sends as a press it holds becomes a long press, a
+    `contextmenu` at the finger, which a held finger reads at (preview.js) and which
+    Chromium's injected touch never sends. Says whether the page let the platform's menu
+    open."""
+    return page.evaluate(
+        """([x, y]) => document.elementFromPoint(x, y).dispatchEvent(new PointerEvent(
+          'contextmenu', {bubbles: true, cancelable: true, composed: true,
+            pointerType: 'touch', clientX: x, clientY: y}))""",
+        [point["x"], point["y"]],
+    )
+
+
 def holding(page, held, count, what):
     """Wait until `held` has collected `count` requests the route put there."""
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
@@ -935,14 +949,28 @@ def comment_note(page, holder):
 
 @contextmanager
 def _accessibility(page):
-    """Read nodes of the browser's accessibility tree, by selector or backend node:
-    what a screen reader is given, not the DOM attributes that asked for it."""
+    """Read nodes of the browser's accessibility tree, by selector, Playwright locator
+    (which reaches into shadow trees) or backend node: what a screen reader is given,
+    not the DOM attributes that asked for it."""
     cdp = page.context.new_cdp_session(page)
 
-    def ax(selector=None, **at):
+    def ax(selector=None, *, locator=None, **at):
         if selector is not None:
             root = cdp.send("DOM.getDocument")["root"]["nodeId"]
             at = cdp.send("DOM.querySelector", {"nodeId": root, "selector": selector})
+        if locator is not None:
+            locator.evaluate("(node) => { window.__lfAccessibleNode = node; }")
+            held = cdp.send(
+                "Runtime.evaluate",
+                {
+                    "expression": """(() => {
+                      const node = window.__lfAccessibleNode;
+                      delete window.__lfAccessibleNode;
+                      return node;
+                    })()"""
+                },
+            )
+            at = {"objectId": held["result"]["objectId"]}
         return cdp.send(
             "Accessibility.getPartialAXTree", {**at, "fetchRelatives": False}
         )["nodes"][0]
@@ -951,6 +979,15 @@ def _accessibility(page):
         yield ax
     finally:
         cdp.detach()
+
+
+def accessible_node(locator):
+    """What a screen reader is given for the element `locator` names: the node the
+    browser's accessibility tree holds for it, with its `role` and `name`, or `ignored`
+    and the reasons. A role locator can't stand in for it, since Playwright's own
+    reading misses `aria-hidden` on a shadow ancestor of slotted content."""
+    with _accessibility(locator.page) as ax:
+        return ax(locator=locator)
 
 
 def accessible_details(page, selector):
@@ -2378,7 +2415,7 @@ BrowserContext.route = _arming_context
 Page.unroute_all = _disarming
 
 # A browser wait bounds a hang; it does not time the work it waits for (tests/AGENTS.md,
-# "Functional results do not depend on execution speed"). One that names no deadline
+# "Results do not depend on execution speed"). One that names no deadline
 # takes `SERVED_TIMEOUT_MS`, the bound on one probe or request: an `expect` assertion,
 # whose own default is five seconds, and every page action, wait and expectation on a
 # page `readable` prepares. A wait that spans a page handover names
@@ -2771,6 +2808,23 @@ def tab_onto(target):
     expect(target).to_be_focused()
 
 
+def expect_preview_words(target, words):
+    """Wait until `target`'s own preview declaration (`lfPreview`, runtime/preview.js)
+    says `words` as its name or a line of its detail, the whole line for a string or a
+    match for a pattern: the words a pointer, the keyboard or a finger read there, read
+    without showing them."""
+    pattern = words.pattern if isinstance(words, re.Pattern) else None
+    target.page.wait_for_function(
+        """([el, words, pattern]) => {
+          const said = el.lfPreview?.('pointer');
+          const lines = said ? [said.name, ...(said.detail ?? [])] : [];
+          return lines.some((line) => typeof line === 'string'
+            && (pattern === null ? line === words : new RegExp(pattern).test(line)));
+        }""",
+        arg=[target.element_handle(), None if pattern else words, pattern],
+    )
+
+
 def preview_parts(target, route="pointer"):
     """What `target`'s preview shows a pointer resting on it (runtime/preview.js), or
     with `route="focus"` the keyboard stepping onto it: its name, then each line of
@@ -2860,6 +2914,23 @@ def compositor_trace(page, categories=()):
         bool,
         failure="Chrome never completed the compositor screenshot trace",
     )
+
+
+def restyle_counts(page, act) -> list[int]:
+    """The elements each style recalc restyled while `act` ran, as Chromium's trace
+    counts them (`UpdateLayoutTree`), so a test bounds a change's restyle by its reach
+    rather than its time."""
+    browser = page.context.browser
+    browser.start_tracing(page=page, categories=["devtools.timeline"])
+    try:
+        act()
+    finally:
+        trace = json.loads(browser.stop_tracing())
+    return [
+        event["args"].get("elementCount", 0)
+        for event in trace["traceEvents"]
+        if event["name"] == "UpdateLayoutTree"
+    ]
 
 
 def rgb_pixel(image: Image.Image, point) -> tuple[int, int, int]:
@@ -3216,15 +3287,10 @@ def live_counts(page):
     nodes, those in its documents, comments included, and every detached node something
     still retains, and its event listeners. A count that climbs across repetitions of one
     gesture is a leak whether what it counts piles up in the page or behind it."""
-    session = page.context.new_cdp_session(page)
-    try:
-        session.send("HeapProfiler.collectGarbage")
-        session.send("Performance.enable")
-        metrics = session.send("Performance.getMetrics")["metrics"]
-    finally:
-        session.detach()
-    counted = {"Nodes": "nodes", "JSEventListeners": "event listeners"}
-    return {counted[m["name"]]: m["value"] for m in metrics if m["name"] in counted}
+    with chromium_metrics(page) as metrics:
+        page.request_gc()
+        counts = metrics()
+    return {"nodes": counts["Nodes"], "event listeners": counts["JSEventListeners"]}
 
 
 def still_page(browser, url, width=1200):

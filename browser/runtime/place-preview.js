@@ -152,7 +152,8 @@ export function linkPreview(link) {
 
 /** A place on the page as a preview shows it (preview.js, `Preview`): its name, then its
  * parts and the conversations about it as two lines of detail, in the face's excerpt
- * room.
+ * room, about the place itself, so where the page shows the place, the card stands
+ * clear of it rather than over what it previews.
  * @param {Element} place */
 export function placePreview(place) {
   const heading = place.matches(HEADING);
@@ -177,6 +178,7 @@ export function placePreview(place) {
       parts.length ? html`<span class="lf-place">${parts.map(partView)}</span>` : null,
       foot,
     ],
+    about: place,
     excerpt: true,
   };
 }

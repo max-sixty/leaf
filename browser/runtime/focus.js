@@ -1085,10 +1085,10 @@ function overPress(ended) {
 }
 /** @param {Press} ended */
 const overSoon = (ended) => setTimeout(() => overPress(ended));
-// A press that commits at its release, as a held preview does or the panel's field handing
-// selected words to the comment box, leaves the browser's own click after it to land on
-// whatever the release put under the pointer. The release claims that click, the one the
-// press under way owes; a keyboard's carries no count and is never it.
+// A press that commits at its release, as the panel's field handing selected words to
+// the comment box does, leaves the browser's own click after it to land on whatever the
+// release put under the pointer. The release claims that click, the one the press under
+// way owes; a keyboard's carries no count and is never it.
 export const claimReleaseClick = () => {
   if (press) press.clickClaimed = true;
 };
@@ -1437,6 +1437,22 @@ const openers = new WeakMap();
 /** @param {object} layer @param {Element | null} [opener] */
 export function openLayer(layer, opener = focused()) {
   openers.set(layer, opener && opener !== document.body ? opener : null);
+  layerOpened(layer);
+}
+// The user's input each layer last opened under (`inputCount`): every layer opened
+// through `openLayer`, and every native layer as it opens (keyboard/layer-stack.js).
+// Focus arriving in a layer that opened since the user's last input is the layer placing
+// them as it opens, and focus arriving in one that stood before is the user's own move.
+/** @type {WeakMap<object, number>} */
+const openings = new WeakMap();
+/** @param {object} layer */
+export const layerOpened = (layer) => void openings.set(layer, inputs.count);
+// Whether `node` stands in a layer that opened since the user's last input.
+/** @param {Element} node */
+export function openedThisInput(node) {
+  for (let at = /** @type {Element | null} */ (node); at; at = renderedParent(at))
+    if (openings.get(at) === inputs.count) return true;
+  return false;
 }
 /** @param {object} layer */
 export const openerOf = (layer) => openers.get(layer) ?? null;

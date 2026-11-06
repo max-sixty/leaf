@@ -616,11 +616,11 @@ export const authored = (root) => {
 // walk treats differently changes there too.
 //
 // `skip` answering true leaves an element out. It is handed the context the element
-// opens as a function, so a reader that leaves an element out by what the reading
-// counts there asks the walk's own answer, and one that never asks costs nothing.
+// stands in, so a reader that leaves an element out by what the reading counts there
+// asks the walk's own answer, the context the element opens (`enter`).
 /** @param {Node} root
  * @param {(node: Text, ctx: ReadingContext) => void} onText
- * @param {((element: Element, context: () => ReadingContext) => boolean) | null} [skip]
+ * @param {((element: Element, ctx: ReadingContext) => boolean) | null} [skip]
  * @param {((ctx: ReadingContext, br: Element) => void) | null} [onBreak]
  * @param {((element: Element, ctx: ReadingContext, entering: boolean) => void) | null} [onElement] */
 function walk(root, onText, skip = null, onBreak = null, onElement = null) {
@@ -634,10 +634,7 @@ function walk(root, onText, skip = null, onBreak = null, onElement = null) {
   };
   /** @param {Element} child @param {ReadingContext} ctx */
   const visitElement = (child, ctx) => {
-    /** @type {ReadingContext | undefined} */
-    let inner;
-    const opens = () => (inner ??= enter(ctx, child));
-    if (!skip?.(child, opens)) enterElement(child, opens());
+    if (!skip?.(child, ctx)) enterElement(child, enter(ctx, child));
   };
   // An element entered with the context it opens. A root handed in is entered exactly
   // as a descendant is, so a slot reads what is assigned to it, not its fallback, and a
@@ -707,6 +704,10 @@ export const readingChildren = (element) =>
     ? /** @type {HTMLSlotElement} */ (element).assignedElements({ flatten: true })
     : [...(declaredRoot(element) ?? element).children];
 const { order: readingOrder, under: readingUnder } = alongClimb(readingParent);
+// Whether a node is inside another, or is it, in the tree the walk reads: a slot holds
+// what is assigned to it, and a declared root's host what the root holds. Native
+// `contains` stops at the first and is wrong for the second.
+export { readingUnder };
 // One named reading's segments under `root`, carrying their reading block (`blockAt`),
 // typographic text block and generated element (`gen`, the nearest `[data-lf-gen]`
 // in their tree).
@@ -1140,7 +1141,7 @@ export function runsIntoLine(title, container) {
     (node, ctx) => {
       if (past && !ended && counts(ctx) && node.data.trim()) follows = ended = true;
     },
-    (child, opens) => {
+    (child, ctx) => {
       if (ended) return true;
       if (!past) {
         // What comes before the title holds none of its line, and its own words are no
@@ -1149,7 +1150,8 @@ export function runsIntoLine(title, container) {
         past = true;
         return true;
       }
-      if (counts(opens()) && (isHTML(child, "br") || !phrasing(child))) ended = true;
+      if (counts(enter(ctx, child)) && (isHTML(child, "br") || !phrasing(child)))
+        ended = true;
       return ended;
     },
     null,

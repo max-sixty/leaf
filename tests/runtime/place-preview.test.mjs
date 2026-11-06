@@ -251,6 +251,19 @@ test("a heading's section is walked through declared shadow trees and their slot
     placePreview(document.getElementById("slotted-words")).name,
     "Slotted topic",
   );
+  // A host's title and body, assigned to a slot inside a wrapper of its tree, preview
+  // as the tree draws them: the title names it, and the body follows.
+  document.body.innerHTML = `<main><lf-staged id="titled-host"></lf-staged></main>`;
+  const wrapper = document.createElement("template");
+  wrapper.innerHTML = `<div><slot></slot></div>`;
+  const titled = document.getElementById("titled-host");
+  shadowStage(titled, [...wrapper.content.childNodes]);
+  titled.innerHTML = `<strong>Slotted title</strong><p>Body words.</p>`;
+  const card = placePreview(titled);
+  const shown = document.createElement("div");
+  render(card.detail, shown);
+  assert.equal(card.name, "Slotted title");
+  assert.equal(shown.textContent.replace(/\s+/g, " ").trim(), "Body words.");
   // A slot's fallback, replaced by what is assigned to it, is no part of the outline,
   // so its heading ends nothing.
   document.body.innerHTML = `<main><lf-staged id="fallback"></lf-staged></main>`;

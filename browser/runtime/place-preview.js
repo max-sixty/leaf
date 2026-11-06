@@ -78,11 +78,12 @@ import {
   pageDocument,
   readingChildren,
   readingParent,
+  readingUnder,
   says,
 } from "./passages.js";
 import { declarationFor, registry } from "./registry.js";
 import { readPart } from "./semantic-state.js";
-import { overIn, under } from "./shadow.js";
+import { overIn } from "./shadow.js";
 import { conversationsAbout, headingAfter, partOver } from "./thread/placement.js";
 import { leafSays, voiced } from "./voice.js";
 import { capitalized, counted, excerptWords, labelWords } from "./words.js";
@@ -261,7 +262,8 @@ function partsOf(place, title) {
 function read(element, parts, title) {
   if (element === reading.stop) reading.ended = true;
   if (reading.ended || element === title) return null;
-  if (element.matches(LEAF_DRAWN) || (title && !element.contains(title))) return title;
+  if (element.matches(LEAF_DRAWN) || (title && !readingUnder(title, element)))
+    return title;
   // A question the user has answered shows its answer in place of its options; one
   // still open shows its options and then whose turn it is.
   const asks = question(element);
@@ -283,7 +285,7 @@ function read(element, parts, title) {
 /** @param {Element} element @param {Part[]} parts */
 function drawn(element, parts) {
   // A block holding the heading that ends the excerpt says what stands before it there.
-  const holdsStop = reading.stop !== null && under(reading.stop, element);
+  const holdsStop = reading.stop !== null && readingUnder(reading.stop, element);
   const textual = element.matches(TEXT_BLOCK) || holdsText(element);
   if (element.matches(HEADING)) part(parts, "heading", words(element));
   else if (holdsStop && !textual) readChildren(element, parts, null);

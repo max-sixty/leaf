@@ -247,7 +247,8 @@ a pasted link, so write a description that makes sense on its own.
 
 Widget attributes carry scalars and children carry prose; a titled member of a compound
 widget starts with a `<strong>`. A leading `<strong>` heads a part when the next thing
-after it is a `<br>`, a block element or the end of its container. Followed first by
+after it is a `<br>`, a block element or the end of the block holding it; the end of an
+inline element around it, such as a `<span>`, doesn't count. Followed first by
 text, hidden text included, it is a run-in label: it names its own line, and what
 follows belongs to the enclosing part, which On me groups by and a link's preview
 names. A block element is any outside HTML's phrasing content, including every widget

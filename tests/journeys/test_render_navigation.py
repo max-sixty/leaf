@@ -937,7 +937,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     label.hover()
     preview = page.locator(PREVIEW)
     expect(preview.locator(".lf-preview-word")).to_have_text("Label + context…")
-    expect(preview.locator(".lf-preview-more")).to_have_text("Patch ready")
+    expect(preview.locator(".lf-preview-detail")).to_have_text("Patch ready")
     page.mouse.move(0, 0)
 
     resting = sample("resting")

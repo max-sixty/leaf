@@ -36,19 +36,22 @@ from leaf_dev.page_fixtures import example_media
 
 def said_by_marks(scope):
     """Write what each mark under `scope` says when pointed at (its `lfPreview()`,
-    preview.js) into its `data-test-tip`, a line for each line it says, so a locator can
-    find a mark by its words."""
+    preview.js) into its `data-test-tip`, its name and each line of detail on a line of
+    its own, so a locator can find a mark by its words."""
     scope.evaluate(
         """async (scope) => {
           const {render} = await window.__lfWidgetApi();
           for (const mark of scope.querySelectorAll('*')) {
             if (typeof mark.lfPreview !== 'function') continue;
-            const box = document.createElement('div');
-            render(mark.lfPreview(), box);
-            mark.dataset.testTip = [...box.childNodes]
-              .filter((node) => node.nodeType === Node.TEXT_NODE || node.nodeName === 'BR')
-              .map((node) => (node.nodeName === 'BR' ? '\\n' : node.textContent))
-              .join('');
+            const said = mark.lfPreview();
+            mark.dataset.testTip = [said.name, ...(said.detail ?? [])]
+              .filter(Boolean)
+              .map((words) => {
+                const box = document.createElement('div');
+                render(words, box);
+                return box.textContent;
+              })
+              .join('\\n');
           }
         }"""
     )
@@ -1777,8 +1780,8 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
         tips = "\n".join(
             pins.evaluate_all("nodes => nodes.map(node => node.dataset.testTip)")
         )
-        assert re.findall(r"^(\d+) · ", tips, re.MULTILINE) == ["1", "2", "3"]
-        third = widget.locator('.lf-trace-moment-pin[data-test-tip^="3 ·"]')
+        assert re.findall(r"^Moment (\d+) · ", tips, re.MULTILINE) == ["1", "2", "3"]
+        third = widget.locator('.lf-trace-moment-pin[data-test-tip*="Moment 3 ·"]')
         for _ in range(8):
             if third.count():
                 break
@@ -2080,7 +2083,8 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
         shared.hover()
         expect(tip).to_be_visible()
         expect(tip).to_have_text(
-            f"1 · {labels[0]} · {docs_time:.3f} s\n2 · {labels[1]} · {docs_time:.3f} s",
+            f"2 moments\n{labels[0]} · Moment 1 · {docs_time:.3f} s\n"
+            f"{labels[1]} · Moment 2 · {docs_time:.3f} s",
             use_inner_text=True,
         )
         reading = tip.evaluate(
@@ -2122,7 +2126,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     expect_moment(widget, 1, labels[0])
     expect(rows.locator(".lf-trace-moment-number")).to_have_text(["1", "2", "3"])
     solo.hover()
-    expect(tip).to_have_text(f"3 · {labels[2]} · {api_time:.3f} s")
+    expect(tip).to_have_text(f"{labels[2]}Moment 3 · {api_time:.3f} s")
     solo.click()
     expect(widget.locator(f'[data-lf-datum="{api}"]')).to_be_visible()
     expect(solo).to_have_attribute("data-lf-current", "")

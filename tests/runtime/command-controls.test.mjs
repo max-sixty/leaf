@@ -2504,7 +2504,7 @@ test("a chosen contribution offer retains its exact reading across a later updat
     const { render } = await import("/runtime/framework.js");
     const said = (control) => {
       const box = document.createElement("div");
-      render(control.lfPreview(), box);
+      render(control.lfPreview().name, box);
       return box.textContent;
     };
     assert.match(said(before), /Before the update/);

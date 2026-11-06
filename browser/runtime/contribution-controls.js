@@ -279,15 +279,13 @@ function entryPreview() {
       part && (typeof part === "string" ? part : part.text) !== label ? [part] : [],
     )
     .flatMap((part, index) => (index ? [" · ", part] : [part]));
-  return html`<span class="lf-preview-word"
-      >${record.voice ? voiced(saidBy(record.voice, label)) : label}</span
-    >${
-      record.context
-        ? html`<span class="lf-preview-more">${voiced(record.context)}</span>`
-        : null
-    }${
-      more.length ? html`<span class="lf-preview-more">${voiced(more)}</span>` : null
-    }`;
+  return {
+    name: record.voice ? voiced(saidBy(record.voice, label)) : label,
+    detail: [
+      record.context ? voiced(record.context) : null,
+      more.length ? voiced(more) : null,
+    ],
+  };
 }
 
 /** @param {Element} control @param {string | null} description @param {string | null} title */

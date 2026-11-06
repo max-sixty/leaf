@@ -6,6 +6,7 @@ acts on it, to a resting pointer, to the keyboard and to a held finger
 import re
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
@@ -25,21 +26,27 @@ BOXES = """() => [...document.querySelectorAll(
   })"""
 
 
-def test_a_control_previews_its_word_and_every_key_that_presses_it(browser, serve):
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_control_previews_its_word_and_every_key_that_presses_it(
+    engine, request, serve
+):
     """A thread's Resolve shows its symbol, so its preview says its word and `r`, which
     presses it from anywhere in the thread, as a key chip: after a short rest of the
     pointer, at once under the keyboard's focus, and with no tooltip of the platform's
-    beside it. The preview moves nothing and takes no pointer, the next control the
-    pointer reaches says its own at once, and Escape puts the preview away while still
-    taking its own step."""
+    beside it. The preview moves nothing and takes no pointer, and the next control the
+    pointer reaches says its own at once. While it stands, Escape puts it away and does
+    nothing else, so the thread it covers stays open; the next Escape leaves it."""
     url = serve(PANEL_PAGE)
     thread = panel_comment(serve.page_dir, "Could the mobile cohort wait a week?")
-    page = open_page(browser, url)
+    page = open_page(request.getfixturevalue(engine), url)
     view = open_panel_thread(page, thread)
     resolve = page.locator(".lf-fp-thread-controls .lf-resolve")
     preview = page.locator(PREVIEW)
     expect(resolve).to_be_visible()
-    expect(resolve).not_to_have_attribute("title", re.compile(".*"))
+    # Off Leaf its word is the browser's tooltip; on Leaf the preview takes the title
+    # once the pointer comes, so the browser shows no second one.
+    title = resolve.get_attribute("title")
+    assert title, "a symbol control carries its word as a title"
     rendered(page)
     before = page.evaluate(BOXES)
 
@@ -47,6 +54,11 @@ def test_a_control_previews_its_word_and_every_key_that_presses_it(browser, serv
     expect(preview).to_be_visible()
     expect(preview.locator(".lf-preview-word")).to_have_text("Resolve thread")
     expect(preview.locator("kbd.lf-key-badge")).to_have_text(["r"])
+    assert resolve.get_attribute("title") is None, (
+        "the browser's tooltip would show too"
+    )
+    # The chip's key is the one a screen reader hears it has.
+    assert "r" in resolve.get_attribute("aria-keyshortcuts").split()
     rendered(page)
     assert page.evaluate(BOXES) == before, "showing the preview moved the thread"
     tip = preview.bounding_box()
@@ -72,18 +84,21 @@ def test_a_control_previews_its_word_and_every_key_that_presses_it(browser, serv
     expect(preview.locator("kbd.lf-key-badge")).to_have_text(["r"])
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
-    # The same press took the thread's own step, which leaves its view: dismissing a
-    # preview never costs a press.
+    expect(resolve).to_be_focused()
+    expect(view).to_be_visible()
+    page.keyboard.press("Escape")
     expect(view).to_be_hidden()
 
 
-def test_a_range_previews_beside_the_line_the_pointer_rests_on(browser, serve):
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_range_previews_beside_the_line_the_pointer_rests_on(engine, request, serve):
     """A range with no element of its own, as a passage mark is, previews through its
     owner's word of where the pointer rests: beside the line pointed at, carried with it
-    through a scroll, and gone once the pointer leaves the range."""
+    through a scroll, and gone once the pointer leaves the range. An owner that makes the
+    range again on every move points at the same range, so the dwell runs out once."""
     words = " ".join(["The passage runs across more than one line of the column."] * 6)
     page = open_page(
-        browser,
+        request.getfixturevalue(engine),
         serve(
             leaf_page("Ranges", f'<p id="passage">{words}</p>' + "<p>More.</p>" * 40)
         ),
@@ -91,18 +106,19 @@ def test_a_range_previews_beside_the_line_the_pointer_rests_on(browser, serve):
     reading = page.evaluate(
         """async () => {
           const {pointRange} = await window.__lfCheckApi();
-          const {html} = await window.__lfWidgetApi();
           const text = document.getElementById('passage').firstChild;
           const range = document.createRange();
           range.setStart(text, 0);
           range.setEnd(text, text.length);
           const lines = [...range.getClientRects()];
           const line = lines[1];
-          pointRange(range, () => html`<span class="lf-preview-word">Its thread</span>`,
-            {x: line.left + 2, y: line.top + line.height / 2});
           const tip = document.getElementById('lf-preview');
-          while (!tip.matches(':popover-open'))
+          const started = performance.now();
+          while (!tip.matches(':popover-open') && performance.now() - started < 2000) {
+            pointRange(range.cloneRange(), () => ({name: 'Its thread'}),
+              {x: line.left + 2, y: line.top + line.height / 2});
             await new Promise((done) => setTimeout(done, 20));
+          }
           const box = tip.getBoundingClientRect();
           scrollBy(0, 30);
           await new Promise(requestAnimationFrame);
@@ -308,3 +324,24 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(browser, serve):
     expect(resolved).to_have_attribute("datetime", "2026-08-16T01:30:00Z")
     expect(resolved).not_to_have_attribute("title", re.compile(".*"))
     assert preview_text(resolved) == "Sat 15 Aug 2026, 18:30 PT"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_shown_on_focus_describes_what_focus_is_on(engine, request, serve):
+    """A screen reader hears a preview the keyboard's focus shows as the focused
+    element's description while it stands, whatever supplied it, and the element's own
+    description is back once focus leaves: a margin entry's, which its label declares."""
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "Which command?", {"section": "lede"})
+    page = open_page(request.getfixturevalue(engine), url)
+    entry = page.locator('[data-lf-margin-for="lede"] .lf-margin-marker')
+    expect(entry).to_be_visible()
+    rendered(page)
+    described = "(node) => (node.ariaDescribedByElements ?? []).map((el) => el.id)"
+    page.keyboard.press("Shift")
+    entry.focus()
+    expect(page.locator(PREVIEW)).to_have_attribute("data-lf-route", "focus")
+    assert "lf-preview" in entry.evaluate(described)
+    page.keyboard.press("Tab")
+    expect(entry).not_to_be_focused()
+    assert entry.get_attribute("aria-describedby") is None

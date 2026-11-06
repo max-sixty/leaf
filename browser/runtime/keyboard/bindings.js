@@ -122,8 +122,8 @@
    scope also names its local keys. `Mod` expands to both Meta and Control because the
    dispatcher accepts both. The attribute cannot express a sequential sequence: spaces
    separate alternatives. An associated `control` in a sequence scope therefore omits
-   `aria-keyshortcuts` and exposes the complete route through its title and the keyboard
-   command reference. Call `paintKeys` when a state change moves row liveness so this projection
+   `aria-keyshortcuts` and exposes the complete route through its preview's key chips
+   (preview.js) and the keyboard command reference. Call `paintKeys` when a state change moves row liveness so this projection
    and the visible surfaces change together. */
 export { PRESS, rowArrows } from "../control-keys.js";
 import { coarsePointer } from "../pointer.js";
@@ -667,7 +667,7 @@ export function decisionControls(commands, where = "an obligation") {
 // Control or Meta; aria-keyshortcuts therefore states both working sequences. Native Space
 // uses the named key ARIA expects rather than a literal blank token.
 /** @param {string} binding */
-const ariaBindings = (binding) => {
+export const ariaBindings = (binding) => {
   const { key, mods } = parsed(binding);
   const variants = mods.includes("Mod") ? ["Meta", "Control"] : [null];
   return variants.map((modKey) =>

@@ -343,7 +343,8 @@ const pathOwners = new WeakMap();
 const cutPaths = new WeakMap();
 /** @this {Element} */
 function cutPath() {
-  return cutPaths.get(this) ?? null;
+  const path = cutPaths.get(this);
+  return path === undefined ? null : { name: path };
 }
 const pathSizes = sizeObserver((entries) => {
   const owners = new Set(

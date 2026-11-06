@@ -13,8 +13,9 @@ test("a symbol shows its action's symbol and says its name unless its label says
   const retry = offerAction("symbol", "", undefined, { action: "retry" });
   assert.deepEqual(symbolOf(retry), ["retry"]);
   assert.equal(retry.getAttribute("aria-label"), "Retry");
-  // Its preview says the name (preview.js), so the platform's tooltip doesn't too.
-  assert.equal(retry.hasAttribute("title"), false);
+  // Its word is its title too: the browser's tooltip off Leaf, and on Leaf the
+  // preview's words, which holds the title while it is pointed at (preview.js).
+  assert.equal(retry.getAttribute("title"), "Retry");
   const named = offerAction("symbol", "", "Retry loading the file", {
     action: "retry",
   });
@@ -70,6 +71,6 @@ test("a symbol whose action follows its state takes the new action's symbol and 
   nameAction(button, "expand-all", { label: "Expand all files" });
   assert.deepEqual(symbolOf(button), ["unfold"]);
   assert.equal(button.getAttribute("aria-label"), "Expand all files");
-  assert.equal(button.hasAttribute("title"), false);
+  assert.equal(button.getAttribute("title"), "Expand all files");
   assert.equal(button.className, face);
 });

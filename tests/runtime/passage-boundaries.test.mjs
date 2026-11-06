@@ -18,6 +18,8 @@ import "/runtime/stage-integration.js";
 import { programmaticSelection, selectEnds } from "/runtime/native-selection.js";
 import assert from "node:assert/strict";
 import test from "node:test";
+import v8 from "node:v8";
+import vm from "node:vm";
 
 import { registry } from "/runtime/registry.js";
 import {
@@ -31,6 +33,7 @@ import {
   findQuote,
   inChrome,
   neighbourhood,
+  pageReadingVersion,
   pageText,
   pageBlocks,
   pageWords,
@@ -305,6 +308,23 @@ test("each document's reading is forgotten alone: the page's and a reply's", () 
   } finally {
     chrome.remove();
   }
+});
+
+// A key naming a reading, and what a reader kept about an element still on the page,
+// outlive the reading they were taken under, so they hold nothing of it: a session that
+// reads its page again and again would otherwise keep every reading it forgot.
+test("a forgotten reading is held by no key or kept answer that outlives it", async () => {
+  v8.setFlagsFromString("--expose-gc");
+  const collect = vm.runInNewContext("gc");
+  document.body.innerHTML = '<main><p id="kept">Alpha</p><p id="other">Beta</p></main>';
+  const forgotten = new WeakRef(pageText());
+  const version = pageReadingVersion();
+  assert.equal(elementReading(document.getElementById("kept")), "Alpha");
+  /** @type {HTMLElement} */ (document.getElementById("other")).textContent = "Gamma";
+  assert.notEqual(pageReadingVersion(), version);
+  await new Promise((done) => setTimeout(done));
+  collect();
+  assert.equal(forgotten.deref(), undefined);
 });
 
 // Startup refuses a module's bare text before anything reads the page, so it has to

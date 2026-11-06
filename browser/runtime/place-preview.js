@@ -107,6 +107,10 @@ const ITEMS = 3;
 const ROWS = 3;
 const COLUMNS = 4;
 const LINES = 4;
+// The most of an element's words a preview reads, other than whitespace: enough for each
+// cut above, with a title read before a part's words, so pointing at a link to a long log
+// or a deep outline costs what the preview shows.
+const READ = 2 * WORDS;
 
 // What Leaf draws in a place, which is no part of what its author put there.
 const LEAF_DRAWN = `${GENERATED}, ${LEAF_SURFACE}`;
@@ -125,7 +129,7 @@ const full = (parts) => reading.ended || parts.length >= PARTS;
 // `whole` reads them drawn or not, as a widget's members are named (`membersPart`).
 /** @param {Element} element @param {"prose" | "lines"} [format] @param {boolean} [whole] */
 const said = (element, format = "prose", whole = reading.whole) =>
-  says(element, { format, drawn: !whole, until: reading.stop });
+  says(element, { format, drawn: !whole, until: reading.stop, upTo: READ });
 /** @param {Element} element @param {boolean} [whole] */
 const words = (element, whole = reading.whole) =>
   labelWords(said(element, "prose", whole));

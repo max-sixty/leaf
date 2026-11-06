@@ -750,11 +750,14 @@ export { readingUnder };
 // whitespace; ordinary passage readings never ask the browser for these styles.
 // `drawn` keeps only the words the page draws now (`drawsWithin`), asked of each word and
 // break as the walk meets it, so a break before a word left out still stands before the
-// next; `until` ends the reading where that element starts.
+// next; `until` ends the reading where that element starts; and `upTo` ends it once it
+// holds that many characters other than whitespace, cutting the text it ends in there, for
+// a reader that shows no more than that, as a link's preview does, so a long block costs
+// what the reader shows rather than what the block holds.
 /** @param {Node} root @param {Reading} [reading]
  * @param {((element: Element, count: number) => boolean) | null} [boundary]
  * @param {"prose" | "lines"} [format]
- * @param {{drawn?: boolean, until?: Element | null}} [only] @returns {Segment[]} */
+ * @param {{drawn?: boolean, until?: Element | null, upTo?: number}} [only] @returns {Segment[]} */
 export function textNodesUnder(
   root,
   reading = "says",
@@ -765,6 +768,8 @@ export function textNodesUnder(
   const keeps = READINGS[reading];
   const draws = only.drawn ? drawnHere() : null;
   let ended = false;
+  // Characters other than whitespace still to read, where the reader set a bound.
+  let wanted = only.upTo ?? Infinity;
   /** @type {Segment[]} */
   const segments = [];
   let breakBefore = false;
@@ -780,8 +785,20 @@ export function textNodesUnder(
     root,
     (node, ctx) => {
       if (!ended && keeps(ctx) && (!draws || draws(node))) {
+        let end = node.data.length;
+        if (wanted !== Infinity) {
+          // Read once: an engine may copy a long node's text on every read of `data`.
+          const text = node.data;
+          const words = /\S/gu;
+          while (wanted > 0 && words.exec(text)) wanted -= 1;
+          if (wanted === 0) {
+            end = words.lastIndex || end;
+            ended = true;
+          }
+        }
         segments.push({
           ...segmentIn(node, ctx),
+          end,
           breakBefore,
           ...(format === "lines" && {
             lineBefore,
@@ -1145,7 +1162,7 @@ function linesFrom(segments) {
 // somewhere else, as a link's preview does, and `until` stops at an element
 // (`textNodesUnder`).
 /** @param {Node} el
- * @param {{format?: "prose" | "lines", drawn?: boolean, until?: Element | null}} [options] */
+ * @param {{format?: "prose" | "lines", drawn?: boolean, until?: Element | null, upTo?: number}} [options] */
 export const says = (el, options = {}) => {
   const segments = textNodesUnder(el, "says", null, options.format, options);
   return options.format === "lines" ? linesFrom(segments) : quoteFrom(segments);
@@ -1626,14 +1643,16 @@ const changesTheReading = (record, reads) => {
 // (`documentOutline`). A record is replaced, never changed, so the record a reader took
 // is which reading it read. A change forgets the reading of the document it lands in and
 // that one alone (`forget`); a change no one document owns, the vocabulary or a
-// settlement, forgets them all.
-/** @typedef {{page: PageReading | null, outline: OutlineReading | null}} DocumentReading */
+// settlement, forgets them all. What a reader keeps to know which reading it read is the
+// record's `token`, an empty object, so a key or a kept answer that outlives the reading
+// holds none of it.
+/** @typedef {{token: object, page: PageReading | null, outline: OutlineReading | null}} DocumentReading */
 /** @type {WeakMap<Element, DocumentReading>} */
 let documents = new WeakMap();
 /** @param {Element} scope */
 function documentReading(scope) {
   let kept = documents.get(scope);
-  if (!kept) documents.set(scope, (kept = { page: null, outline: null }));
+  if (!kept) documents.set(scope, (kept = { token: {}, page: null, outline: null }));
   return kept;
 }
 /** @param {Element | null} scope */
@@ -1642,10 +1661,11 @@ const forget = (scope) => {
 };
 /** Which reading of the page stands: a new value each time the page's is forgotten, so a
  * reading derived from the page's own nodes, as the visual responses are, keeps what it
- * derived while this stands. */
+ * derived while this stands. It holds nothing of the reading itself.
+ * @returns {object} */
 export function pageReadingVersion() {
   catchUpReading();
-  return documentReading(pageDocument());
+  return documentReading(pageDocument()).token;
 }
 /** @param {readonly MutationRecord[]} records */
 function hear(records) {
@@ -1733,15 +1753,15 @@ function catchUpReading() {
 // A kept reading is answered before asking where the element stands: it was kept only
 // while its document read the element, and anything that moves the element out of that
 // — its removal, chrome arriving over it — is a change that forgets that document's
-// reading, which the kept reading names.
-/** @typedef {{scope: Element, of: DocumentReading, words: Partial<Record<Reading, string>>, answers: Map<string, unknown>}} Kept */
+// reading, whose token the kept reading holds.
+/** @typedef {{scope: Element, token: object, words: Partial<Record<Reading, string>>, answers: Map<string, unknown>}} Kept */
 /** @type {WeakMap<Element, Kept>} */
 const keptAbout = new WeakMap();
 /** @param {Element} element */
 function kept(element) {
   catchUpReading();
   const about = keptAbout.get(element);
-  return about && documents.get(about.scope) === about.of ? about : null;
+  return about && documents.get(about.scope)?.token === about.token ? about : null;
 }
 // Where to keep what an element answers: under the reading of its document, where that
 // document reads the element.
@@ -1753,7 +1773,12 @@ function keeping(element) {
   const scope = readingDocument(element);
   if (!scope || !readsIn(scope)(element)) return null;
   /** @type {Kept} */
-  const fresh = { scope, of: documentReading(scope), words: {}, answers: new Map() };
+  const fresh = {
+    scope,
+    token: documentReading(scope).token,
+    words: {},
+    answers: new Map(),
+  };
   keptAbout.set(element, fresh);
   return fresh;
 }

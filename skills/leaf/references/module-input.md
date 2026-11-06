@@ -290,8 +290,8 @@ Pointing reads; pressing acts (`interface-goals.md`). Leaf previews an element w
 pointer rests on it, when the keyboard focuses it or something inside it, and when a
 finger holds it, beside the element over the page, in one face: a name with key chips,
 then lines of detail. The preview holds no control, so a control the user presses stays
-on the widget; a pointer may cross onto it to read it, and a finger's release after a
-hold presses the element, so a widget that answers a click answers the hold too.
+on the widget; a pointer may cross onto it to read it, and a finger's long press reads
+it and presses nothing, so a widget's click answers a tap alone.
 
 A control needs no declaration. It previews its accessible name where its face shows a
 symbol or doesn't say that name, and every key the register binds to it as chips. A

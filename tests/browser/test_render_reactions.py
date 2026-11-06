@@ -2159,13 +2159,12 @@ def test_a_margin_card_offers_a_reply_s_reactions(browser, serve):
     assert (reacted["kind"], reacted["parent"]) == ("reply", reply), reacted
 
 
-def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
+def test_a_held_reaction_says_its_word_and_a_tap_reacts(browser, serve):
     """A finger learns what a reaction means by pressing and holding it: the choice
     under the finger shows its word for as long as the press lasts, sliding onto its
-    neighbour reads that one, and the release reacts with the choice it ends on. A
-    release off the list reacts with nothing, so a finger that read the wrong word
-    slides away first. The keyboard reads the same word by focusing a choice, and
-    its press still reacts."""
+    neighbour reads that one, and sliding off the list reads none. The release reacts
+    with nothing and leaves the word standing until the next press; a tap reacts. The
+    keyboard reads the same word by focusing a choice, and its press still reacts."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Why this change?", {"section": "how-cap"})
     reply = append_carried_log_record(
@@ -2235,9 +2234,11 @@ def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
     off = centre("change")
     touch("touchMove", {"x": off["x"], "y": off["y"] - 120})
     assert reading(held=False) == []
+    touch("touchMove", centre("change"))
+    assert reading() == [["change", "change"]]
     touch("touchEnd")
-    assert reading(held=False) == []
-    assert tokens() == [], "a release off the list reacted"
+    assert tokens() == [], "a hold's release reacted"
+    assert reading() == [["change", "change"]]
 
     # A press with a modifier held is the platform's (ctrl-click is the Mac's context
     # menu): it reads no word, and a release on another choice reacts with nothing.

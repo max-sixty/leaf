@@ -846,3 +846,77 @@ def test_focus_a_command_places_in_a_surface_it_opens_shows_no_preview(browser, 
     expect(tip).to_be_hidden()
     page.keyboard.press("Tab")
     expect(tip).to_have_text("Placed here")
+
+
+def test_a_finger_s_hold_reads_and_its_release_presses_nothing(browser, serve):
+    """A finger held on a target reads its preview once the press is a long press, and
+    letting go presses nothing, the browser's own click after the release included: a
+    held link stays where it is, and its preview stands until the next touch, which puts
+    it away. Where the browser says first that the press is long (`contextmenu`), the
+    hold reads then and its menu stays shut. A press let go before the hold reads is a
+    tap, which shows nothing and follows the link, its preview standing or not."""
+    url = serve(
+        leaf_page(
+            "Held link",
+            '<p><a id="go" href="#far">a link</a> to read before following.</p>'
+            + "<p>More.</p>" * 3
+            + '<p id="far">Far.</p>',
+        )
+    )
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    page.evaluate(
+        """() => {
+          const go = document.getElementById('go');
+          go.lfPreview = () => ({name: 'Where it goes'});
+          window.lfHeld = [];
+          for (const type of ['pointerdown', 'pointerup'])
+            go.addEventListener(type, (event) => window.lfHeld.push(event.timeStamp));
+        }"""
+    )
+    cdp = context.new_cdp_session(page)
+    tip = page.locator(PREVIEW)
+    box = page.locator("#go").bounding_box()
+    point = {"x": box["x"] + 10, "y": box["y"] + box["height"] / 2}
+    elsewhere = page.locator("#far").bounding_box()
+
+    def touch(kind, at=point):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {"type": kind, "touchPoints": [at] if kind != "touchEnd" else []},
+        )
+
+    touch("touchStart")
+    expect(tip.locator(".lf-preview-word")).to_have_text("Where it goes")
+    expect(tip).to_have_attribute("data-lf-route", "hold")
+    touch("touchEnd")
+    rendered(page)
+    assert page.evaluate("location.hash") == "", "the held link was followed"
+    expect(tip).to_be_visible()
+    expect(page.locator("#go")).to_have_attribute("data-lf-held", "")
+    touch("touchStart", {"x": elsewhere["x"] + 10, "y": elsewhere["y"] + 4})
+    touch("touchEnd")
+    expect(tip).to_be_hidden()
+
+    touch("touchStart")
+    menu = page.evaluate(
+        """() => document.getElementById('go').dispatchEvent(new PointerEvent(
+          'contextmenu', {bubbles: true, cancelable: true, composed: true,
+                          pointerType: 'touch'}))"""
+    )
+    assert menu is False, "the platform's menu opened over the held preview"
+    touch("touchEnd")
+    rendered(page)
+    assert page.evaluate("location.hash") == ""
+    expect(tip).to_be_visible()
+
+    page.evaluate("window.lfHeld = []")
+    touch("touchStart")
+    page.wait_for_timeout(300)
+    touch("touchEnd")
+    page.wait_for_function("location.hash === '#far'")
+    down, up = page.evaluate("window.lfHeld")
+    assert up - down < 450, f"the machine held the finger {up - down:.0f} ms"
+    expect(tip).to_be_hidden()

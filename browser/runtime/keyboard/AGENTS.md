@@ -118,7 +118,9 @@ element, so it can't be the only place a state's reason or the rest of a cut wor
 said. A state says its word on the surface that holds it (`quoteReading`), a panel
 row's cut words stand whole where no pointer can hover (`floating-panel.css`), and
 whatever previews, a control's word and keys among it, shows its preview to a finger
-holding it, whose release still presses (`preview.js`).
+holding it. The hold reads and its release presses nothing, while a tap still presses;
+until 5 November 2026 the release pressed, so a finger couldn't read without acting
+short of sliding off, which on touch often scrolls instead (`preview.js`).
 
 The comment field has one primary action, Dictate while empty and Send once it has
 words. Suggest and reactions share an anchored Other responses picker, reached by the

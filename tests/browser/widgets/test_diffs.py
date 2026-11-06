@@ -1797,9 +1797,9 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
 ):
     """A file's row gives way from its folders, and says its whole path as its preview:
     to the keyboard's location on the row, under it, and to a finger held on it, above
-    it, a folded file's too. Releasing the hold folds the file, as a tap does, and a tap
-    reads nothing. A row that shows its whole path at the width it has now previews
-    nothing."""
+    it, a folded file's too. Releasing the hold leaves the file as it was and the path
+    standing until the next touch, and a tap folds it and reads nothing. A row that shows its whole path at the width it has now
+    previews nothing."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config/deeply/nested/file.md"
     patch = "".join(
         f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n"
@@ -1873,19 +1873,12 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     assert (held["word"], held["open"], held["above"]) == (path, True, True), held
     touch("touchEnd")
     rendered(page)
-    assert head.evaluate(read) == {
-        "open": False,
-        "word": None,
-        "below": False,
-        "above": False,
-        "inside": False,
-    }, "the release folds the file and puts the preview away"
-    expect(head).to_be_focused()
+    assert head.evaluate(read) == held, "the release presses nothing"
     page.evaluate(RELEASE_FOCUS)
 
     page.touchscreen.tap(point["x"], point["y"])
     rendered(page)
-    assert head.evaluate(read)["open"] is True, "a tap unfolds it"
+    assert head.evaluate(read)["open"] is False, "a tap folds it"
     assert head.evaluate(read)["word"] is None, "a tap reads the path"
     page.evaluate(RELEASE_FOCUS)
 

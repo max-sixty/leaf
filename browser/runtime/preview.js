@@ -31,14 +31,14 @@
      widget-upgrade.js), and a standing preview redraws in place, or a pointer resting
      on the element or a finger holding it reads it; a preview the user put away stays
      away, whatever the element declares, until they aim again. When its preview goes,
-     whatever puts it away, the pointer or focus leaving, a finger lifting, Escape or
-     another target's taking its place, the element hears `lf-preview-ended`
-     (`PREVIEW_ENDED`), a `CustomEvent` dispatched at it alone, whose `detail.route` is
-     the route that read it, so a mark it drew for the reading, as a chart's ring on its
-     point, comes off then. It returns null where it adds nothing, so the search goes on
-     outward, and false where nothing shows and nothing around it may. A widget declares
-     it with no import, as it declares `lfCommands` and `lfCopy()`, so off Leaf it reads
-     nothing. What a declaration throws is reported and shows nothing.
+     whatever puts it away, the pointer or focus leaving, the press after a finger's
+     hold, Escape or another target's taking its place, the element hears
+     `lf-preview-ended` (`PREVIEW_ENDED`), a `CustomEvent` dispatched at it alone, whose
+     `detail.route` is the route that read it, so a mark it drew for the reading, as a
+     chart's ring on its point, comes off then. It returns null where it adds nothing,
+     so the search goes on outward, and false where nothing shows and nothing around it
+     may. A widget declares it with no import, as it declares `lfCommands` and
+     `lfCopy()`, so off Leaf it reads nothing. What a declaration throws is reported and shows nothing.
    - A `title` is its writer's, and the browser shows it to a pointer: over an element
      the browser's tooltip speaks for, its own title or one around it, a pointer reads
      no preview, so no second tooltip stands beside the browser's. Focus and a finger,
@@ -124,21 +124,22 @@
      control's own, which says what its accessible name and `aria-keyshortcuts` already
      do, and a proxy's, which describes what it stands for with its own markup, as a
      gloss's does.
-   - A finger held on a target for `DWELL` shows its preview, and the finger reads its
-     neighbours by sliding onto them: one of the same parent shows its own instead.
-     Releasing after the preview showed presses the target it ends on, or none when it
-     ends off them, so a finger that reads the wrong word slides off before letting go;
-     a tap releases before then and the browser's own click presses. The release presses
-     by dispatching the target's click, counted as a pointer's, and claims the browser's
-     own click after it (`claimReleaseClick`, focus.js), since a finger held long enough
-     to read may get none and the press may put something else under the finger, such
-     as the thread a margin entry opens. It first focuses the target without a ring, as
-     a pointer's press does, so what the press opens is laid out with the user on it. A
-     press or release with a modifier is not this gesture (`plainPress`). Touch capture
-     is released at the press so the slide is heard over each neighbour, and a finger
-     that starts scrolling ends the hold with `pointercancel`, which presses nothing; a
-     target that should not scroll from a press says so with `touch-action`. While a
-     preview is held, the platform's long-press menu stays shut.
+   - A finger held on a target for `HOLD`, or until the browser says the press is long
+     (`contextmenu`) where that comes first, shows its preview, and the finger reads its
+     neighbours by sliding onto them: one of the same parent shows its own instead. A
+     hold is the touch form of pointing, so it reads and presses nothing, as a
+     platform's long press follows no link and its tooltip clicks nothing: once the hold
+     has shown a preview, the touch's end is cancelled (`touchend`), wherever the finger
+     ends, so the browser makes no click of it, which would press the target and, as a
+     click outside a hint popover, close the preview. The preview stands until the next
+     press: a tap on its target, which presses, or a touch elsewhere or a finger's
+     scroll, which put it away, as iOS's link preview does. A press let go before `HOLD`
+     is a tap, which shows nothing and which the browser's click presses. A press with a
+     modifier is not this gesture (`plainPress`). Touch capture is released at the press
+     so the slide is heard over each neighbour, and a finger that starts scrolling ends
+     the hold with `pointercancel`, which puts its preview away; a target that should
+     not scroll from a press says so with `touch-action`. While a preview is held, the
+     platform's long-press menu stays shut.
    - While a preview stands, by pointer or by focus, it is Escape's first step and the
      press does nothing else (keyboard/AGENTS.md, "Escape"): it covers what lies under
      it, so the user can put it away without moving the pointer or focus, and without
@@ -149,12 +150,19 @@
    Each pointer boundary costs the path it walks, the nodes under the pointer, and a
    preview showing costs what it reads, for a control the page's commands, and a few
    hit tests for its side, never the page's elements (root AGENTS.md,
-   "Responsiveness"). The target a finger holds wears `data-lf-held` while the preview
-   stands, so its surface can keep it where the finger is (margin-layout.js, `HELD`).
+   "Responsiveness"). The target a finger held wears `data-lf-held` while its preview
+   stands, so its surface can keep it where the finger held it (margin-layout.js,
+   `HELD`).
 
-   Decisions: one dwell for the pointer and the finger, 200 ms, hides a flicker as either
-   crosses targets without holding the user up; the margin's labels waited 90 ms, the
-   platform's tooltips about a second. A preview says its words whole, wrapping where
+   Decisions: a pointer's dwell, 200 ms, hides a flicker as it crosses targets without
+   holding the user up; the margin's labels waited 90 ms, the platform's tooltips about a
+   second. A finger's is the platform's long press, 500 ms on iOS and Android, since a
+   press let go sooner is a tap, which presses. Until 5 November 2026 a finger read after
+   the pointer's 200 ms, and its release pressed the target it ended on and put the
+   preview away. That rule was dropped because a finger couldn't read without acting
+   short of sliding off before letting go, which on touch often scrolls instead: one
+   that held a link to read where it went followed it as it let go, and one that held a
+   thread's words opened the thread. A preview says its words whole, wrapping where
    they run long, where a margin entry's label cut its question to one line. It finds its
    neighbours by a few hit tests in the room it would take, where the margin's labels
    each measured every entry on the page to stand clear of them, a page-wide read on
@@ -188,13 +196,7 @@ import {
 } from "./keyboard/layer-stack.js";
 import { controlKeys } from "./keyboard/control-keys.js";
 import { advertisesKeys } from "./keyboard/bindings.js";
-import {
-  claimReleaseClick,
-  focused,
-  nativeFocusTarget,
-  onCurrentLocation,
-  typesText,
-} from "./focus.js";
+import { focused, onCurrentLocation, typesText } from "./focus.js";
 import { pageScope } from "./keyboard/register.js";
 import { offlineInteractive } from "./context.js";
 import { watchPresentation, whenDocumentPresented } from "./semantic-state.js";
@@ -228,9 +230,10 @@ import { shownParts } from "./geometry.js";
  * @typedef {import("./rect.js").Box} Box
  * @typedef {Element | Range} Target
  * @typedef {{from: Target, target: Target, holder: Element, route: Route, read: Read | null, at: {x: number, y: number} | undefined, clock: number, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
- * @typedef {{pointerId: number, parent: Element | null, target: Element | null, armed: boolean, timer: ReturnType<typeof setTimeout>}} Hold */
+ * @typedef {{pointerId: number, parent: Element | null, target: Element | null, armed: boolean, read: boolean, timer: ReturnType<typeof setTimeout>}} Hold */
 
 const DWELL = 200;
+const HOLD = 500;
 const WARM = 400;
 
 // The one element every preview draws in.
@@ -512,6 +515,8 @@ let leaving;
 let quiet = null;
 /** @type {Hold | null} */
 let hold = null;
+// Whether the release just heard ended a hold that read, whose touch's end it cancels.
+let spent = false;
 // Where the pointer last stood, which tells a target the user moved onto from one
 // that arrived under a still pointer.
 let rest = { x: NaN, y: NaN };
@@ -1236,6 +1241,8 @@ export function mountPreviews(chrome) {
     "pointerdown",
     (event) => {
       endHold();
+      spent = false;
+      if (shown?.route === "hold") hide();
       if (event.pointerType !== "touch") return quieten();
       if (!event.isPrimary || !plainPress(event)) return;
       const found = candidate(event.composedPath());
@@ -1249,13 +1256,8 @@ export function mountPreviews(chrome) {
         parent: found.parentElement,
         target: found,
         armed: false,
-        timer: setTimeout(() => {
-          if (hold !== held) return;
-          // Held this long, the finger reads, wherever it is now: one that slid onto
-          // the gap beside a neighbour reads the next it reaches.
-          held.armed = true;
-          if (held.target) show(held.target, "hold");
-        }, DWELL),
+        read: false,
+        timer: setTimeout(() => arm(held), HOLD),
       };
       hold = held;
     },
@@ -1270,7 +1272,8 @@ export function mountPreviews(chrome) {
       if (neighbour === hold.target) return;
       hold.target = neighbour;
       if (!hold.armed) return;
-      if (!neighbour || !show(neighbour, "hold")) hide();
+      if (neighbour && show(neighbour, "hold")) hold.read = true;
+      else hide();
     },
     { capture: true, passive: true },
   );
@@ -1278,30 +1281,28 @@ export function mountPreviews(chrome) {
     "pointerup",
     (event) => {
       if (hold?.pointerId !== event.pointerId) return;
-      const { target } = hold;
-      const read = shown?.route === "hold" && shown.from === target;
+      spent = hold.read;
       endHold();
-      if (!read || !target || !plainPress(event)) return;
-      claimReleaseClick();
-      if (target instanceof HTMLElement || target instanceof SVGElement)
-        nativeFocusTarget(target).focus({ preventScroll: true, focusVisible: false });
-      target.dispatchEvent(
-        new MouseEvent("click", {
-          bubbles: true,
-          cancelable: true,
-          composed: true,
-          detail: 1,
-          clientX: event.clientX,
-          clientY: event.clientY,
-        }),
-      );
     },
     { capture: true },
   );
   document.addEventListener(
+    "touchend",
+    (event) => {
+      if (!spent) return;
+      spent = false;
+      // One the browser won't let be cancelled ended a touch that moved, of which it
+      // makes no click.
+      if (event.cancelable) event.preventDefault();
+    },
+    { capture: true, passive: false },
+  );
+  document.addEventListener(
     "pointercancel",
     (event) => {
-      if (hold?.pointerId === event.pointerId) endHold();
+      if (hold?.pointerId !== event.pointerId) return;
+      endHold();
+      if (shown?.route === "hold") hide();
     },
     { capture: true },
   );
@@ -1316,6 +1317,7 @@ export function mountPreviews(chrome) {
   document.addEventListener(
     "contextmenu",
     (event) => {
+      if (hold) arm(hold);
       // Only while a held preview shows: a hold over a target that showed none, as an
       // external link, keeps the platform's own long-press menu.
       if (hold?.armed && shown?.route === "hold") event.preventDefault();
@@ -1324,9 +1326,19 @@ export function mountPreviews(chrome) {
   );
 }
 
+// Held for `HOLD`, or once the browser calls the press long, the finger reads, wherever
+// it is now: one that slid onto the gap beside a neighbour reads the next it reaches.
+/** @param {Hold} held */
+function arm(held) {
+  if (hold !== held || held.armed) return;
+  clearTimeout(held.timer);
+  held.armed = true;
+  if (held.target && show(held.target, "hold")) held.read = true;
+}
+
+// The hold ends with its release, and what it read stands until the next press.
 function endHold() {
   if (!hold) return;
   clearTimeout(hold.timer);
   hold = null;
-  if (shown?.route === "hold") hide();
 }

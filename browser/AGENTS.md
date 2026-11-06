@@ -239,7 +239,10 @@ playable").
 - **Every route reads it.** A resting pointer reads it after a short dwell, keyboard
   focus the user moved there themselves at once, by Tab or a keyboard walk, as whoever
   moved focus says, but not focus a surface places as it opens or hands back as it
-  closes, and a finger by holding the press, whose release still presses; where
+  closes, and a finger by a long press, the touch form of pointing, whose release
+  presses nothing and leaves the preview standing until the next press, while a tap
+  still presses (until 5 November 2026 the release pressed, so a finger couldn't read
+  without acting short of sliding off, which on touch often scrolls instead); where
   a surface can't take a hold, it says the words at rest, as a panel row's cut words
   stand whole. So no fact is said to hover alone. A preview the user put away stays
   away until they aim again, whatever the element declares meanwhile. A `title` is its

@@ -173,46 +173,36 @@
     const { display, flexDirection } = getComputedStyle(element);
     return display.endsWith("flex") && flexDirection.startsWith("row");
   };
-  // Whether a ResizeObserver delivery, the page's or this watch's, ran in the rendering
-  // update under way. It holds from the first callback to the next task, since a
-  // callback's DOM writes reach this watch in the callback, through a listener the input
-  // watch wraps, and in any chain of microtasks after it, all before that frame's
-  // paint. An observation started then asks for a notification at a depth the browser
-  // may have delivered already, a loop error.
-  let delivering = false;
-  const delivered = new MessageChannel();
-  delivered.port1.onmessage = () => (delivering = false);
-  const NativeResizeObserver = window.ResizeObserver;
-  window.ResizeObserver = class extends NativeResizeObserver {
-    /** @param {ResizeObserverCallback} callback */
-    constructor(callback) {
-      super((entries, observer) => {
-        if (!delivering) {
-          delivering = true;
-          delivered.port2.postMessage(null);
-        }
-        return callback.call(observer, entries, observer);
-      });
+  // An element's first painted arrangement: the box the browser drew it at in the
+  // update that first painted it. An IntersectionObserver takes it, after every
+  // ResizeObserver delivery of that update and before its paint, and it may start
+  // watching inside a delivery, where a ResizeObserver started at a depth the browser
+  // has delivered is a loop error. Until its arrangement is in, an element arrived in
+  // the frame being judged; once it is, the element stands, at that size and the
+  // height it appeared at, and the ResizeObserver, started at the next frame, reports
+  // each size after. The entries are taken as each record arrives, so a swap in the
+  // next frame is judged against them.
+  const painted = (entries) => {
+    for (const { target, boundingClientRect } of entries) {
+      firsts.unobserve(target);
+      if (!target.isConnected) continue;
+      const size = /^(inline|contents|none)$/.test(getComputedStyle(target).display)
+        ? { width: 0, height: 0 }
+        : { width: boundingClientRect.width, height: boundingClientRect.height };
+      if (!sizes.has(target)) sizes.set(target, size);
+      if (arrived.delete(target) && draws(size)) appeared.set(target, size.height);
     }
   };
-  // An element is watched as the watch first sees it, so the frame that paints it first
-  // reports its size. One seen during a delivery is watched from the next frame: its size
-  // as seen is the one this frame paints, the baseline a swap is judged against, and by
-  // then it has stood a frame, so it is no arrival.
+  const firsts = new IntersectionObserver(painted);
   const observeOnce = (element) => {
     if (!element || observed.has(element) || pending.has(element)) return;
-    if (!delivering) {
-      observed.add(element);
-      watch(element);
-      return;
-    }
-    if (!sizes.has(element)) sizes.set(element, measure(element));
     pending.add(element);
+    if (!sizes.has(element)) firsts.observe(element);
     frame(() => {
       pending.delete(element);
-      if (!element.isConnected) return;
-      arrived.delete(element);
-      observeOnce(element);
+      if (!element.isConnected || observed.has(element)) return;
+      observed.add(element);
+      watch(element);
     });
   };
   const watchArrival = (element) => {
@@ -252,12 +242,14 @@
   const release = (node) => {
     if (node.isConnected) return;
     for (const element of elementsOf(node)) {
+      firsts.unobserve(element);
       resizes.unobserve(element);
       observed.delete(element);
       flexRows.delete(element);
     }
   };
   const take = (records, from) => {
+    painted(firsts.takeRecords());
     for (const record of records) {
       // Any write names the input behind the frame; hiding a child is an attribute's.
       if (from) source = from;

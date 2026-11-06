@@ -111,17 +111,25 @@ def test_a_row_drawn_in_one_frame_that_its_next_occupant_grows_fails(browser):
     )
 
 
-# A page whose own ResizeObserver, watching a deeply nested box, draws a flex row at
-# the top of the page as its first delivery runs: in the callback itself, or two
-# microtasks after it.
-DELIVERED_ROW = """([later]) => new Promise((done) => {
+# A page with a flex row's holder at its top and a deeply nested box its own
+# ResizeObservers watch.
+DEEP = (
+    '<!doctype html><body style="margin:0"><div id="holder"></div>'
+    "<div><div><div><div><div>"
+    '<div id="deep" style="width:10px;height:10px"></div>'
+    "</div></div></div></div></div>"
+)
+# The page draws a flex row with one occupant `before` px tall as its observer's first
+# delivery runs, in the callback or two microtasks after it, and the next frame swaps
+# the occupant for one `after` px tall.
+DELIVERED_ROW = """([later, before, after]) => new Promise((done) => {
   const draw = () => {
     holder.innerHTML = '<div id="row" style="display:flex;width:300px">'
-      + '<button id="first" style="height:24px">First</button></div>';
+      + `<button id="first" style="height:${before}px">First</button></div>`;
     requestAnimationFrame(() => {
       const second = document.createElement('button');
       Object.assign(second, {id: 'second', textContent: 'Second'});
-      second.style.height = '40px';
+      second.style.height = `${after}px`;
       first.replaceWith(second);
       requestAnimationFrame(() => requestAnimationFrame(done));
     });
@@ -134,29 +142,71 @@ DELIVERED_ROW = """([later]) => new Promise((done) => {
     else draw();
   }).observe(deep);
 })"""
+# Observer A draws the row with a 24px occupant and observer B, delivering after it in
+# the same update, makes that occupant 40px, so the frame paints 40px; the next frame
+# swaps it for another 40px occupant.
+RESIZED_IN_DELIVERY = """() => new Promise((done) => {
+  let drawn = false, grown = false;
+  new ResizeObserver(() => {
+    if (drawn) return;
+    drawn = true;
+    holder.innerHTML = '<div id="row" style="display:flex;width:300px">'
+      + '<button id="first" style="height:24px">First</button></div>';
+  }).observe(deep);
+  new ResizeObserver(() => {
+    if (grown) return;
+    grown = true;
+    first.style.height = '40px';
+    requestAnimationFrame(() => {
+      const second = document.createElement('button');
+      Object.assign(second, {id: 'second', textContent: 'Second'});
+      second.style.height = '40px';
+      first.replaceWith(second);
+      requestAnimationFrame(() => requestAnimationFrame(done));
+    });
+  }).observe(deep);
+})"""
+# A task the page queued in an animation frame that also delivers sizes runs after
+# that frame's paint: it draws the row with a 24px occupant, and the next frame swaps
+# it for a 40px one before the 24px one is ever painted.
+UNPAINTED = """() => new Promise((done) => {
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      holder.innerHTML = '<div id="row" style="display:flex;width:300px">'
+        + '<button id="first" style="height:24px">First</button></div>';
+      requestAnimationFrame(() => {
+        const second = document.createElement('button');
+        Object.assign(second, {id: 'second', textContent: 'Second'});
+        second.style.height = '40px';
+        first.replaceWith(second);
+        requestAnimationFrame(() => requestAnimationFrame(done));
+      });
+    });
+    new ResizeObserver(() => {}).observe(deep);
+  });
+})"""
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 @pytest.mark.parametrize(
     "later", [False, True], ids=["in-callback", "microtasks-later"]
 )
-def test_a_row_the_page_draws_in_its_own_size_delivery_is_watched(browser, later):
+@pytest.mark.parametrize(
+    ("before", "after"), [(24, 40), (40, 24)], ids=["grows", "shrinks"]
+)
+def test_a_row_the_page_draws_in_its_own_size_delivery_is_watched(
+    engine, request, later, before, after
+):
     """A row the page draws while one of its own ResizeObservers delivers, in the
     callback or a chain of microtasks after it, stands above the box that observer
-    watches, at a depth the browser has delivered already. Watched at once, it was a
-    loop error; watched from the next frame with no size taken as it was drawn, a swap
-    in that frame that grew it went unseen."""
-    page = browser.new_page()
-    page.goto(
-        "data:text/html,"
-        + quote(
-            '<!doctype html><body style="margin:0"><div id="holder"></div>'
-            "<div><div><div><div><div>"
-            '<div id="deep" style="width:10px;height:10px"></div>'
-            "</div></div></div></div></div>"
-        )
-    )
+    watches, at a depth the browser has delivered already. It is judged against the
+    arrangement the browser painted it in, so an occupant the next frame swaps in that
+    grows or shrinks it is caught. Watched at once, it was a loop error; watched from
+    the next frame with no painted size, the swap went unseen."""
+    page = request.getfixturevalue(engine).new_page()
+    page.goto("data:text/html," + quote(DEEP))
     one_frame(page)
-    page.evaluate(DELIVERED_ROW, [later])
+    page.evaluate(DELIVERED_ROW, [later, before, after])
     judge_watches()
     consume_browser_errors(
         page,
@@ -165,8 +215,26 @@ def test_a_row_the_page_draws_in_its_own_size_delivery_is_watched(browser, later
             "place": ["div#row"],
             "left": [["button#first"]],
             "arrived": [["button#second"]],
+            "before": {"width": 300, "height": before},
+            "after": {"width": 300, "height": after},
         },
     )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize(
+    "script", [RESIZED_IN_DELIVERY, UNPAINTED], ids=["resized", "unpainted"]
+)
+def test_a_row_is_judged_by_the_arrangement_it_was_painted_in(engine, request, script):
+    """A row's first arrangement is the one a frame painted: one another delivery of
+    the same update resized before its paint stands at that size, and one drawn after a
+    paint and swapped before the next was never painted, so neither swap grows what
+    the user saw."""
+    page = request.getfixturevalue(engine).new_page()
+    page.goto("data:text/html," + quote(DEEP))
+    one_frame(page)
+    page.evaluate(script)
+    judge_watches()
 
 
 def test_an_occupant_that_grows_a_declarative_shadow_row_fails(browser):

@@ -307,6 +307,7 @@ import {
   letGo,
   onCurrentLocation,
   onPressAway,
+  openLayer,
   pressHolds,
   pressLed,
   pressRecords,
@@ -1566,6 +1567,7 @@ export function createFloatingPanel({
     // over it.
     if (!trail.value.some((level) => level.view === "threads")) searching = false;
     if (route.thread) arriveAt(route.thread);
+    openLayer(host);
     transition(before, { focus });
   }
   // Where the page's package draws its conversations, a thread opens in its reader, in

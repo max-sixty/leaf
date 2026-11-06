@@ -7,7 +7,13 @@ import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url, panel_comment
 from render_cases_navigation import _publish
-from render_harness import leaf_page, margins_laid_out, open_page, told
+from render_harness import (
+    leaf_page,
+    long_press,
+    margins_laid_out,
+    open_page,
+    told,
+)
 
 from browser.threads import open_panel_thread
 from leaf.render_checks import rendered
@@ -849,12 +855,13 @@ def test_focus_a_command_places_in_a_surface_it_opens_shows_no_preview(browser, 
 
 
 def test_a_finger_s_hold_reads_and_its_release_presses_nothing(browser, serve):
-    """A finger held on a target reads its preview once the press is a long press, and
-    letting go presses nothing, the browser's own click after the release included: a
-    held link stays where it is, and its preview stands until the next touch, which puts
-    it away. Where the browser says first that the press is long (`contextmenu`), the
-    hold reads then and its menu stays shut. A press let go before the hold reads is a
-    tap, which shows nothing and follows the link, its preview standing or not."""
+    """A finger held on a target reads its preview at the platform's own long press,
+    which its engine says (`contextmenu`), and the platform's menu stays shut; letting go
+    presses nothing, the browser's own click after the release included: a held link
+    stays where it is, and its preview stands until the next touch, which puts it away.
+    An engine that says nothing as a press grows long, as WebKit's touch engines don't
+    (`GestureEvent`), reads after `HOLD` instead. A press the platform never calls long
+    is a tap, however slow, which shows nothing and follows the link."""
     url = serve(
         leaf_page(
             "Held link",
@@ -868,16 +875,12 @@ def test_a_finger_s_hold_reads_and_its_release_presses_nothing(browser, serve):
     )
     page = open_page(browser, url, context=context)
     page.evaluate(
-        """() => {
-          const go = document.getElementById('go');
-          go.lfPreview = () => ({name: 'Where it goes'});
-          window.lfHeld = [];
-          for (const type of ['pointerdown', 'pointerup'])
-            go.addEventListener(type, (event) => window.lfHeld.push(event.timeStamp));
-        }"""
+        """() => { document.getElementById('go').lfPreview = () =>
+          ({name: 'Where it goes'}); }"""
     )
     cdp = context.new_cdp_session(page)
     tip = page.locator(PREVIEW)
+    word = tip.locator(".lf-preview-word")
     box = page.locator("#go").bounding_box()
     point = {"x": box["x"] + 10, "y": box["y"] + box["height"] / 2}
     elsewhere = page.locator("#far").bounding_box()
@@ -888,37 +891,39 @@ def test_a_finger_s_hold_reads_and_its_release_presses_nothing(browser, serve):
             {"type": kind, "touchPoints": [at] if kind != "touchEnd" else []},
         )
 
+    def put_away():
+        touch("touchStart", {"x": elsewhere["x"] + 10, "y": elsewhere["y"] + 4})
+        touch("touchEnd")
+        expect(tip).to_be_hidden()
+
     touch("touchStart")
-    expect(tip.locator(".lf-preview-word")).to_have_text("Where it goes")
+    page.wait_for_timeout(600)
+    expect(tip).to_be_hidden()
+    assert long_press(page, point) is False, "the platform's menu opened"
+    expect(tip).to_be_visible()
+    expect(word).to_have_text("Where it goes")
     expect(tip).to_have_attribute("data-lf-route", "hold")
     touch("touchEnd")
     rendered(page)
     assert page.evaluate("location.hash") == "", "the held link was followed"
     expect(tip).to_be_visible()
     expect(page.locator("#go")).to_have_attribute("data-lf-held", "")
-    touch("touchStart", {"x": elsewhere["x"] + 10, "y": elsewhere["y"] + 4})
-    touch("touchEnd")
-    expect(tip).to_be_hidden()
+    put_away()
 
+    page.evaluate("() => { window.GestureEvent = class extends UIEvent {}; }")
     touch("touchStart")
-    menu = page.evaluate(
-        """() => document.getElementById('go').dispatchEvent(new PointerEvent(
-          'contextmenu', {bubbles: true, cancelable: true, composed: true,
-                          pointerType: 'touch'}))"""
-    )
-    assert menu is False, "the platform's menu opened over the held preview"
+    expect(tip).to_be_visible()
     touch("touchEnd")
     rendered(page)
     assert page.evaluate("location.hash") == ""
     expect(tip).to_be_visible()
+    put_away()
+    page.evaluate("() => { delete window.GestureEvent; }")
 
-    page.evaluate("window.lfHeld = []")
     touch("touchStart")
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(700)
     touch("touchEnd")
     page.wait_for_function("location.hash === '#far'")
-    down, up = page.evaluate("window.lfHeld")
-    assert up - down < 450, f"the machine held the finger {up - down:.0f} ms"
     expect(tip).to_be_hidden()
 
 
@@ -944,10 +949,12 @@ def test_a_standing_preview_takes_its_place_again_as_what_holds_it_changes(
 ):
     """Where a standing preview stands is decided again whenever what it was decided
     from changes, its own place the first tried: words that grow over a neighbour leave
-    it where it stands, under the user's aim, and the pointer through to the neighbour,
-    which a press then reaches; a declared point that moves inside its element takes the
-    preview with it; and a scroll that carries its target to where its side no longer
-    holds it puts it on a side that does."""
+    it where it stands, under the user's aim, held to the room that clears the
+    neighbour, its last line ending in an ellipsis, so the neighbour shows whole and a
+    press reaches it, and the pointer can still cross onto the preview; a declared point
+    that moves inside its element takes the preview with it, a box the element changes
+    in place as well as a new one; and a scroll that carries its target to where its
+    side no longer holds it puts it on a side that does."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(leaf_page("Standing again", "<p>Words.</p>")),
@@ -989,8 +996,13 @@ def test_a_standing_preview_takes_its_place_again_as_what_holds_it_changes(
     expect(tip.locator(".lf-preview-detail")).to_have_count(4)
     rendered(page)
     grown = page.evaluate(AGAINST, "next")
-    assert grown["top"] == short["top"] and grown["reached"], grown
-    expect(tip).to_have_attribute("data-lf-covers", "")
+    assert grown["top"] == short["top"], grown
+    assert not grown["meets"] and grown["reached"], grown
+    assert tip.locator("[data-lf-clamp], [data-lf-cut]").count() == 1
+    held = tip.bounding_box()
+    page.mouse.move(held["x"] + 20, held["y"] + 8, steps=4)
+    page.wait_for_timeout(400)
+    expect(tip).to_be_visible()
     box = page.locator("#next").bounding_box()
     page.mouse.click(box["x"] + 45, box["y"] + 15)
     assert page.evaluate("window.pressed") == 1
@@ -1007,12 +1019,14 @@ def test_a_standing_preview_takes_its_place_again_as_what_holds_it_changes(
             + ' height: 300px';
           chart.tabIndex = 0;
           window.pointX = 320;
-          chart.lfPreview = () => ({name: 'Point value', at: {left: window.pointX,
-            right: window.pointX + 10, top: 250, bottom: 260}});
+          // The chart keeps one box for its point and changes it in place.
+          const at = {left: 320, right: 330, top: 250, bottom: 260};
+          chart.lfPreview = () => ({name: 'Point value', at});
           // A key the chart takes redraws it with its point moved and the same words.
           chart.addEventListener('keydown', (event) => {
             if (event.key !== 'F10') return;
             window.pointX = 700;
+            Object.assign(at, {left: 700, right: 710});
             previewChanged(chart);
           });
           const toChart = document.createElement('button');
@@ -1104,7 +1118,8 @@ def test_a_pinch_zoomed_window_holds_its_preview_in_what_it_shows(browser, serve
 def test_a_name_longer_than_its_room_ends_in_an_ellipsis(engine, request, serve):
     """A name that wraps to more lines than the room holds shows the lines that fit,
     the last ending in an ellipsis, as a long title one span holds: none is cut through
-    by the face's edge."""
+    by the face's edge. The room alone decides it, so a window grown to hold the whole
+    name shows it whole, standing or shown again."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
@@ -1136,6 +1151,17 @@ def test_a_name_longer_than_its_room_ends_in_an_ellipsis(engine, request, serve)
     )
     assert held["word"] <= held["face"] + 0.5, held
     assert held["clamp"] not in ("none", ""), held
+    page.set_viewport_size({"width": 900, "height": 800})
+    rendered(page)
+    clamped = "() => document.querySelectorAll('#lf-preview [data-lf-clamp]').length"
+    assert page.evaluate(clamped) == 0, "the clamp stayed as the window grew"
+    page.keyboard.press("Escape")
+    expect(tip).to_be_hidden()
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(tip.locator(".lf-preview-word")).to_contain_text("word79")
+    rendered(page)
+    assert page.evaluate(clamped) == 0, "the clamp stayed as it showed again"
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -1184,25 +1210,36 @@ def test_a_widget_s_new_aim_reads_again_whichever_child_holds_focus(
 def test_focus_moved_into_a_dialog_already_open_previews(engine, request, serve):
     """A move into a dialog that already stands is the user's, as one beside it is, so
     the control it lands on previews; only a surface placing focus as it opens shows
-    none."""
+    none, as one a widget opens through `openLayer` does."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
             leaf_page(
                 "Open dialog",
                 '<button id="outside">Outside</button><div role="dialog" id="open"'
-                ' aria-label="Standing"><button id="inside">I</button></div>',
+                ' aria-label="Standing"><button id="inside">I</button></div>'
+                '<div role="dialog" id="opening" aria-label="Opening" hidden>'
+                '<button id="first">F</button></div>',
             )
         ),
     )
     page.evaluate(
         """async () => {
           const api = await window.__lfWidgetApi();
-          for (const id of ['outside', 'inside'])
+          for (const id of ['outside', 'inside', 'first'])
             document.getElementById(id).lfPreview = () => ({name: `${id} detail`});
           // A key that moves the user to a place, as a command's walk does.
           const to = {F9: 'outside', F10: 'inside'};
           addEventListener('keydown', (event) => {
+            if (event.key === 'F8') {
+              // A widget opening its dialog, which places the user on its first control.
+              event.preventDefault();
+              const opening = document.getElementById('opening');
+              api.openLayer(opening);
+              opening.hidden = false;
+              api.focusDestination(document.getElementById('first'), 'move');
+              return;
+            }
             if (!to[event.key]) return;
             event.preventDefault();
             api.focusDestination(document.getElementById(to[event.key]), 'move');
@@ -1214,6 +1251,12 @@ def test_focus_moved_into_a_dialog_already_open_previews(engine, request, serve)
     expect(tip.locator(".lf-preview-word")).to_have_text("outside detail")
     page.keyboard.press("F10")
     expect(tip.locator(".lf-preview-word")).to_have_text("inside detail")
+    page.keyboard.press("Escape")
+    expect(tip).to_be_hidden()
+    page.keyboard.press("F8")
+    expect(page.locator("#first")).to_be_focused()
+    page.wait_for_timeout(300)
+    expect(tip).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -1267,3 +1310,46 @@ def test_an_aim_at_what_says_nothing_leaves_the_standing_preview(
     page.wait_for_timeout(400)
     expect(tip).to_be_visible()
     expect(word).to_have_text("Focus reads")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_window_resize_decides_once_where_a_preview_stands(engine, request, serve):
+    """A resize of the window changes the window, the visible viewport and maybe the
+    target's size at once, and the standing preview decides where it stands once for
+    all of them."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Resized",
+                '<p><button id="before">Before</button></p>'
+                '<p><span id="aim" tabindex="0">A value</span></p>',
+            )
+        ),
+    )
+    page.evaluate(
+        """() => {
+          document.getElementById('aim').lfPreview = () => ({name: 'A value says'});
+          // Each decision (preview.js, `stand`) measures the preview's width once; the
+          // page's watches measure it too.
+          const tip = document.getElementById('lf-preview');
+          const measure = tip.getBoundingClientRect;
+          window.lfDecisions = 0;
+          tip.getBoundingClientRect = function () {
+            const stack = new Error().stack ?? '';
+            if (stack.includes('at stand (') || stack.includes('stand@'))
+              window.lfDecisions += 1;
+            return measure.call(this);
+          };
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(tip.locator(".lf-preview-word")).to_have_text("A value says")
+    rendered(page)
+    page.evaluate("() => { window.lfDecisions = 0; }")
+    page.set_viewport_size({"width": 1000, "height": 640})
+    rendered(page)
+    page.wait_for_timeout(200)
+    assert page.evaluate("window.lfDecisions") == 1

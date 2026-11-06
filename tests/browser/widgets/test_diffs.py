@@ -26,6 +26,7 @@ from render_harness import (
     displayed,
     holding,
     leaf_page,
+    long_press,
     open_page,
     resized,
     said,
@@ -1918,6 +1919,7 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
         )
 
     touch("touchStart")
+    long_press(page, point)
     expect(preview).to_be_visible()
     expect(head).to_have_attribute("data-lf-held", "")
     held = head.evaluate(read)

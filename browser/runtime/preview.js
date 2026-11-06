@@ -90,18 +90,20 @@
    leaves what it is about in view (the box it stands by and the declaration's
    `about`), and covers no other target, tested every 23 px across the box it will draw.
    Where it stands now comes first, its top corner on the edge it stands by at the same
-   offsets from the box it stands by, so new words for the same target don't move it:
-   it stays while it holds the preview whole and what it is about clear, and lets the
-   pointer through to a target it has come to cover rather than move under the user's
-   aim (browser/AGENTS.md, "The page holds still under the user's aim"). Then below,
-   then above, from the box's start edge and then its end edge, so a right-to-left
-   target's starts at its right edge; beside, toward the nearer window edge first; then
-   centred across the window.
-   A finger's and a point's try above first. A new aim, as a chart's next point
-   (`previewChanged` with `aim`), tries no place first. Where every one covers a
-   target, the first that holds it stands and takes no pointer, so the pointer reaches
-   what it covers; where none holds it whole, the one with the most room stands and the
-   preview fits its lines to that room. A target smaller than the grid's step can stand
+   offsets from the box it stands by, and it stays there while that corner holds its
+   first line: held to the room down from the corner that covers no other target and
+   not what it is about, its words fitted to that room as to any (`fit`), so words that
+   grow never move it under the user's aim (browser/AGENTS.md, "The page holds still
+   under the user's aim") nor cover anything. Afresh, as for a new target, a new aim
+   (`previewChanged` with `aim`) or a corner that no longer holds its first line, it
+   tries below, then above, from the box's start edge and then its end edge, so a
+   right-to-left target's starts at its right edge; beside, toward the nearer window
+   edge first; then centred across the window. A finger's and a point's try above
+   first. Where every place that holds it whole covers a target, the first stands over
+   what it covers, so the user reads what they aimed at whole, and takes no pointer, so
+   the pointer reaches what it covers (`data-lf-covers`); a finger's or focus's preview
+   takes none anyway. Where none holds it whole, the one with the most room stands and
+   the preview fits its lines to that room. A target smaller than the grid's step can stand
    under it unseen: Leaf's own targets meet WCAG's least, 24 px, and no sampling proves
    an arbitrary target absent, so that is the grid's stated limit, as the holder's own
    box, which it doesn't test, is its bound on cost.
@@ -133,8 +135,11 @@
      control's own, which says what its accessible name and `aria-keyshortcuts` already
      do, and a proxy's, which describes what it stands for with its own markup, as a
      gloss's does.
-   - A finger held on a target for `HOLD`, or until the browser says the press is long
-     (`contextmenu`) where that comes first, shows its preview, and the finger reads its
+   - A finger held on a target shows its preview at the platform's own long press, as
+     the browser says it (`contextmenu`), so a press the platform takes for a tap, as a
+     user's longer touch-and-hold setting makes a slow one, presses; a WebKit touch
+     engine says nothing (WebKit bug 213953), so there it shows after `HOLD`
+     (notes/browser-support.md, "A touch long press in WebKit"). The finger reads its
      neighbours by sliding onto them: one of the same parent shows its own instead. A
      hold is the touch form of pointing, so it reads and presses nothing, as a
      platform's long press follows no link and its tooltip clicks nothing: once the hold
@@ -142,8 +147,9 @@
      ends, so the browser makes no click of it, which would press the target and, as a
      click outside a hint popover, close the preview. The preview stands until the next
      press: a tap on its target, which presses, or a touch elsewhere or a finger's
-     scroll, which put it away, as iOS's link preview does. A press let go before `HOLD`
-     is a tap, which shows nothing and which the browser's click presses. A press with a
+     scroll, which put it away, as iOS's link preview does. A press let go before the
+     hold reads is a tap, which shows nothing and which the browser's click presses. A
+     press with a
      modifier is not this gesture (`plainPress`). Touch capture is released at the press
      so the slide is heard over each neighbour, and a finger that starts scrolling ends
      the hold with `pointercancel`, which puts its preview away; a target that should
@@ -165,8 +171,9 @@
 
    Decisions: a pointer's dwell, 200 ms, hides a flicker as it crosses targets without
    holding the user up; the margin's labels waited 90 ms, the platform's tooltips about a
-   second. A finger's is the platform's long press, 500 ms on iOS and Android, since a
-   press let go sooner is a tap, which presses. Until 5 November 2026 a finger read after
+   second. A finger's is the platform's long press, since a press let go sooner is a
+   tap, which presses: Android's, as the user set it, and 500 ms where WebKit says
+   nothing, UIKit's default for a long press. Until 5 November 2026 a finger read after
    the pointer's 200 ms, and its release pressed the target it ended on and put the
    preview away. That rule was dropped because a finger couldn't read without acting
    short of sliding off before letting go, which on touch often scrolls instead: one
@@ -201,12 +208,11 @@ import {
   carryChromeStyles,
   closeNativeLayer,
   nativeLayers,
-  openedThisInput,
   showNativeLayer,
 } from "./keyboard/layer-stack.js";
 import { controlKeys } from "./keyboard/control-keys.js";
 import { advertisesKeys } from "./keyboard/bindings.js";
-import { focused, onCurrentLocation, typesText } from "./focus.js";
+import { focused, onCurrentLocation, openedThisInput, typesText } from "./focus.js";
 import { pageScope } from "./keyboard/register.js";
 import { offlineInteractive } from "./context.js";
 import { watchPresentation, whenDocumentPresented } from "./semantic-state.js";
@@ -238,11 +244,14 @@ import { shownParts, shownWindow, visualViewport } from "./geometry.js";
  * @typedef {{name: Words | null, keys: Presses, detail: Words[], list: List | null, at: Element | import("./rect.js").Box | null, about: Element | null, excerpt: boolean, restates: boolean}} Reading
  * @typedef {import("./rect.js").Box} Box
  * @typedef {Element | Range} Target
- * @typedef {{from: Target, target: Target, holder: Element, route: Route, read: Read | null, at: {x: number, y: number} | undefined, line?: number, reading: Reading, clock: number, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
- * @typedef {{pointerId: number, parent: Element | null, target: Element | null, armed: boolean, read: boolean, timer: ReturnType<typeof setTimeout>}} Hold */
+ * @typedef {{from: Target, target: Target, holder: Element, route: Route, read: Read | null, at: {x: number, y: number} | undefined, line?: number, within?: Box | null, reading: Reading, clock: number, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
+ * @typedef {{pointerId: number, parent: Element | null, target: Element | null, armed: boolean, read: boolean, timer: ReturnType<typeof setTimeout> | undefined}} Hold */
 
 const DWELL = 200;
 const HOLD = 500;
+// Whether the engine says nothing as a touch press grows long, as only WebKit's touch
+// engines, which alone expose `GestureEvent`, do.
+const holdsUntold = () => "GestureEvent" in window;
 const WARM = 400;
 
 // The one element every preview draws in.
@@ -300,10 +309,12 @@ const face = ({ name, keys, detail, list }) => [
 // Where the room ends between two blocks, the one before ends in an ellipsis
 // (`data-lf-cut`). A list's items go whole, and its count, at the foot in their place,
 // says how many more there are in the words its declaration gives. No preview scrolls:
-// what pressing its target opens says the rest. Each place is written once, with its
-// final value, so the lines a past fit clamped are read as they lay out whole.
-/** @param {Reading} reading */
-function fit(reading) {
+// what pressing its target opens says the rest. The room alone decides it, measured from
+// the face's top, never from where a past fit left the face's foot, and each place is
+// written once, with its final value, so the lines a past fit clamped are read as they
+// lay out whole.
+/** @param {Reading} reading @param {number} room */
+function fit(reading, room) {
   const lines = /** @type {HTMLElement[]} */ ([
     ...body.querySelectorAll(":scope > .lf-preview-name, :scope > .lf-preview-detail"),
   ]);
@@ -316,17 +327,16 @@ function fit(reading) {
   const holding = was ? lines.findIndex((line) => line.contains(was)) : -1;
   // The blocks from the clamped one on read as much higher as its clamp holds back.
   const after = holding < 0 ? Infinity : holding;
+  // Where the room it is held to ends, measured from its top, whatever a past fit kept.
+  const faceTop = body.getBoundingClientRect().top;
   let end = Infinity;
-  if (wholeHeight() > body.clientHeight + 1) {
+  if (wholeHeight() > room + 0.5) {
     if (list && more) {
       // The count line measures before it says anything, its first words those for all
       // the items, the longest it can say.
       if (!more.textContent) render(list.more(list.items.length), more);
-      end = more.getBoundingClientRect().top;
-    } else
-      end =
-        body.getBoundingClientRect().bottom -
-        parseFloat(getComputedStyle(body).paddingBlockEnd);
+      end = faceTop + room - more.getBoundingClientRect().height;
+    } else end = faceTop + room - parseFloat(getComputedStyle(body).paddingBlockEnd);
   }
   const over = lines.findIndex(
     (line, at) =>
@@ -636,6 +646,7 @@ function show(from, route, read = null, at, again = false, fresh = false) {
     stop: () => {},
     described: null,
   };
+  takeWithin(record);
   // A target that leaves the page, as a re-render replaces it, takes its preview along.
   record.stop = watchOwner(holder, { disconnect: () => shown === record && hide() });
   shown = record;
@@ -674,16 +685,17 @@ function show(from, route, read = null, at, again = false, fresh = false) {
 // through every scroll and resize (`anchor()`, chrome.css). Its edges stand at offsets
 // from that element's (`--lf-preview-{top,bottom,left,right}`), its top or its bottom and
 // its left or its right, or, centred, at the left the window gives it, as its side says
-// (`data-lf-y`, `data-lf-x`). Its side is the
-// first of: where it stands now; below, then above, each from the box's start edge and
-// then its end edge; beside, toward the nearer window edge and then the other; centred
-// across the window below, then above; that holds the whole preview inside the part of
-// the window the user sees and covers no other target, by a hit test every `REACH` across
-// the box it would draw. A finger's and a point's try above first, since the finger
-// covers what lies below and a point's axis stands under it. Where every one that holds
-// it covers a target, the first stands and lets the pointer through to what it covers
-// (`data-lf-covers`); where none holds it whole, the one with the most room stands, held
-// to that room, and the preview fits its lines to it (`fit`).
+// (`data-lf-y`, `data-lf-x`). Where it stands now holds while its first line does,
+// clear of every other target, by hit tests every `REACH` out from that corner
+// (`clearRoom`). Afresh, its side is the first of: below, then above, each from the
+// box's start edge and then its end edge; beside, toward the nearer window edge and then
+// the other; centred across the window below, then above; that holds the whole preview
+// inside the part of the window the user sees and covers no other target. A finger's
+// and a point's try above first, since the finger covers what lies below and a point's
+// axis stands under it. Where every one that holds it covers a target, the first stands
+// and lets the pointer through to what it covers (`data-lf-covers`); where none holds it
+// whole, the one with the most room stands, held to that room, and the preview fits its
+// lines to it (`fit`).
 const EDGE = 8;
 const GAP = { line: 6, box: 11, hold: 27 };
 const REACH = 23;
@@ -704,11 +716,25 @@ function boxed(el) {
   return null;
 }
 
-// A declared box at the offsets inside its element it was declared at, which the
-// element carries as the page moves, so a decision made again later, as a scroll's,
-// reads it where it stands then.
-/** @type {WeakMap<Box, Box>} */
-const declaredWithin = new WeakMap();
+// A declared box as offsets inside the element the preview stands by, taken as each
+// reading is, since a widget may change one box in place, and carried by that element
+// from then on, so a decision made again as the page moves reads it where it stands.
+/** @param {Shown} record */
+function takeWithin(record) {
+  const declared = record.reading.at;
+  const source = declared && !isElement(declared) ? boxed(record.holder) : null;
+  if (!declared || isElement(declared) || !source) {
+    record.within = null;
+    return;
+  }
+  const by = source.getBoundingClientRect();
+  record.within = {
+    top: declared.top - by.top,
+    right: by.right - declared.right,
+    bottom: by.bottom - declared.bottom,
+    left: declared.left - by.left,
+  };
+}
 // What the preview stands by: its anchor element and the box inside it, in client
 // coordinates, the anchor's own where it stands for itself.
 /** @param {Shown} record @param {Reading} reading @returns {{source: HTMLElement, box: Box} | null} */
@@ -730,19 +756,9 @@ function anchorOf(record, reading) {
   const declared = reading.at;
   if (declared && !isElement(declared)) {
     const source = boxed(holder);
-    if (!source) return null;
+    const { within } = record;
+    if (!source || !within) return null;
     const by = source.getBoundingClientRect();
-    let within = declaredWithin.get(declared);
-    if (!within)
-      declaredWithin.set(
-        declared,
-        (within = {
-          top: declared.top - by.top,
-          right: by.right - declared.right,
-          bottom: by.bottom - declared.bottom,
-          left: declared.left - by.left,
-        }),
-      );
     return {
       source,
       box: {
@@ -823,7 +839,7 @@ const following = sizeObserver(
     const { width, height } = entry.contentRect;
     const was = followedSize;
     followedSize = { width, height };
-    if (shown && was && (was.width !== width || was.height !== height)) refresh();
+    if (shown && was && (was.width !== width || was.height !== height)) decide(true);
   },
   // A preview comes and goes for as long as the page plays.
   { counted: false },
@@ -854,20 +870,30 @@ function scrolled(event) {
     followed &&
     (box === document || (isElement(box) && renderedUnder(followed, box)))
   )
-    replace();
+    decide(false);
 }
-// Decide the standing preview's place again in the next frame, once however many of its
-// grounds changed in this one.
-let replacing = 0;
-function replace() {
-  if (!shown || replacing) return;
-  replacing = nextRender(() => {
-    replacing = 0;
-    if (shown) stand(shown, shown.reading, true, true);
+// Decide the standing preview again in the next frame, once however many of its grounds
+// changed in this one: its words and place (`refresh`) where what it says may have
+// changed with them, as a presentation's or a resize's, of the window or of what it
+// stands by, and else its place alone, as a scroll's or the visible viewport's.
+let deciding = 0;
+let rereading = false;
+/** @param {boolean} reread */
+function decide(reread) {
+  if (!shown) return;
+  rereading ||= reread;
+  if (deciding) return;
+  deciding = nextRender(() => {
+    deciding = 0;
+    const read = rereading;
+    rereading = false;
+    if (!shown) return;
+    if (read) refresh();
+    else stand(shown, shown.reading, true, true);
   });
 }
 
-/** @typedef {{y: "below" | "above" | "top", x: "left" | "right" | "after" | "before" | "center", box: Box, room: number}} Placement */
+/** @typedef {{y: "below" | "above" | "top", x: "left" | "right" | "after" | "before" | "center", from: number, room: number, box: Box}} Placement */
 // The target the standing preview stands for, the edge across it stands by, left or
 // right, and its top corner on that edge as offsets from the box it stands by, which the
 // next decision for that target tries first.
@@ -934,45 +960,49 @@ function stand(record, reading, standing, again) {
           : x === "before"
             ? box.left - gap - width
             : room.left + (room.width - width) / 2;
-  /** @param {Placement["y"]} y @param {Placement["x"]} x @returns {Placement} */
-  const placement = (y, x) => {
-    const space = rowRoom(y);
+  // A place on a side, from the edge it grows from: the top where it stands below or
+  // level with the box, which its words grow down from, and the bottom above it, which
+  // they grow up from; its box is as much of the preview as the window holds there.
+  /** @param {Placement["y"]} y @param {Placement["x"]} x @param {number} from @param {number} space @param {number} left @returns {Placement} */
+  const placeAt = (y, x, from, space, left) => {
     const tall = Math.min(height, Math.max(space, 0));
-    const left = leftOf(x);
-    const top =
-      y === "below" ? box.bottom + gap : y === "above" ? box.top - gap - tall : box.top;
+    const top = y === "above" ? from - tall : from;
     return {
       y,
       x,
-      box: { left, top, right: left + width, bottom: top + tall },
+      from,
       room: space,
+      box: { left, top, right: left + width, bottom: top + tall },
     };
   };
+  /** @param {Placement["y"]} y @param {Placement["x"]} x */
+  const placement = (y, x) =>
+    placeAt(
+      y,
+      x,
+      y === "below" ? box.bottom + gap : y === "above" ? box.top - gap : box.top,
+      rowRoom(y),
+      leftOf(x),
+    );
   const [start, end] = rtl
     ? /** @type {const} */ (["right", "left"])
     : /** @type {const} */ (["left", "right"]);
-  /** @type {Placement[]} */
-  const placements = [];
   // Where it stands now: its top corner on the edge it stands by at the same offsets
   // from the box it stands by.
   const was = again && placed?.target === target ? placed : null;
-  /** @type {Placement | null} */
-  let now = null;
-  if (was) {
-    const left =
-      was.x === "right" ? box.right - was.corner.x - width : box.left + was.corner.x;
-    const top = box.top + was.corner.y;
-    now = {
-      y: "top",
-      x: was.x,
-      box: { left, top, right: left + width, bottom: top + height },
-      room: room.bottom - top,
-    };
-    placements.push(now);
-  }
+  const now = was
+    ? placeAt(
+        "top",
+        was.x,
+        box.top + was.corner.y,
+        room.bottom - (box.top + was.corner.y),
+        was.x === "right" ? box.right - was.corner.x - width : box.left + was.corner.x,
+      )
+    : null;
   /** @type {Placement["y"][]} */
   const rows = route === "hold" || point ? ["above", "below"] : ["below", "above"];
-  placements.push(...rows.flatMap((y) => [placement(y, start), placement(y, end)]));
+  /** @type {Placement[]} */
+  const placements = rows.flatMap((y) => [placement(y, start), placement(y, end)]);
   if (!(target instanceof Range)) {
     const toward =
       box.left + box.right > room.left + room.right
@@ -984,32 +1014,62 @@ function stand(record, reading, standing, again) {
   // Only where none keeps what it is about clear may it cover that.
   const clearOnes = placements.filter(clear);
   const pool = clearOnes.length ? clearOnes : placements;
-  const whole = pool.filter((at) => inside(at) && at.room >= height);
-  // Where it stands now holds while it holds it whole and what it is about clear, and
-  // there it lets the pointer through to a target it has come to cover rather than move
-  // under the user's aim; a fresh decision takes the first place that covers none.
-  const stays = now && whole.includes(now) ? now : null;
-  const uncovered = stays ? null : whole.find((at) => !covers(at.box, holder));
-  const chosen =
-    stays ??
-    uncovered ??
-    whole[0] ??
-    pool
-      .filter(inside)
-      .reduce(
-        (most, at) => (!most || at.room > most.room ? at : most),
-        /** @type {Placement | null} */ (null),
-      ) ??
-    placement(rows[0] ?? "below", "center");
-  const free = chosen === uncovered || !covers(chosen.box, holder);
+  const least = Math.min(firstLine(), height);
+  // How much of the preview a place holds clear of every other target, and, where it
+  // stands now, of what it is about, which its words grow toward from there.
+  /** @param {Placement} at */
+  const clearHeight = (at) => {
+    const reach = Math.min(height, at.room, at === now ? towardSubject(at) : Infinity);
+    return reach < least ? reach : Math.min(reach, clearRoom(at, reach, holder));
+  };
+  /** @type {Placement | null} */
+  let chosen = null;
+  let held = 0;
+  // Where it stands now holds while its first line does, held to the room that clears
+  // every other target and what it is about, so new words never move it or cover.
+  if (now && inside(now)) {
+    const clearOf = clearHeight(now);
+    if (clearOf >= least) [chosen, held] = [now, clearOf];
+  }
+  let covering = false;
+  if (!chosen) {
+    // Afresh, the first place that holds it whole and clear of every other target.
+    // Where none does, the first that holds it whole stands over what it covers and lets
+    // the pointer through to it, which shows the user what they aimed at whole, and a
+    // finger's or focus's preview takes no pointer anyway; where none holds it whole,
+    // the one with the most room stands, held to that room.
+    const inView = pool.filter(inside);
+    chosen =
+      inView.find((at) => at.room >= height && clearHeight(at) >= height - 0.5) ?? null;
+    if (chosen) held = height;
+    else {
+      chosen =
+        inView.find((at) => at.room >= height) ??
+        inView.reduce(
+          (most, at) => (!most || at.room > most.room ? at : most),
+          /** @type {Placement | null} */ (null),
+        ) ??
+        placement(rows[0] ?? "below", "center");
+      held = Math.max(Math.min(height, chosen.room), 0);
+      covering = clearRoom(chosen, held, holder) < held - 0.5;
+    }
+  }
+  const tall = Math.min(height, held);
+  const top = chosen.y === "above" ? chosen.from - tall : chosen.from;
+  const drawn = {
+    left: chosen.box.left,
+    top,
+    right: chosen.box.right,
+    bottom: top + tall,
+  };
   // Its edges at their offsets from the element it stands by: its top, or, above, its
   // bottom, and its left, or its right where it stands from the box's right edge; centred,
   // its left stands where the window puts it, whatever the element does across.
   const edges = {
-    top: chosen.box.top - by.top,
-    bottom: chosen.box.bottom - by.top,
-    left: chosen.box.left - (chosen.x === "center" ? 0 : by.left),
-    right: by.right - chosen.box.right,
+    top: drawn.top - by.top,
+    bottom: drawn.bottom - by.top,
+    left: drawn.left - (chosen.x === "center" ? 0 : by.left),
+    right: by.right - drawn.right,
   };
   for (const [edge, length] of Object.entries(edges))
     tip.style.setProperty(`--lf-preview-${edge}`, layoutPx(length));
@@ -1018,54 +1078,111 @@ function stand(record, reading, standing, again) {
     target,
     x: right ? "right" : "left",
     corner: {
-      x: right ? box.right - chosen.box.right : chosen.box.left - box.left,
-      y: chosen.box.top - box.top,
+      x: right ? box.right - drawn.right : drawn.left - box.left,
+      y: drawn.top - box.top,
     },
   };
   keeps(tip, "data-lf-y", chosen.y);
   keeps(tip, "data-lf-x", chosen.x);
   tip.style.setProperty(
     "--lf-preview-room",
-    chosen.room >= height ? "none" : layoutPx(Math.max(chosen.room, 0)),
+    held >= height ? "none" : layoutPx(Math.max(held, 0)),
   );
-  keeps(tip, "data-lf-covers", free ? null : "");
-  fit(reading);
+  keeps(tip, "data-lf-covers", covering ? "" : null);
+  fit(reading, held >= height ? Infinity : held);
   return true;
-}
-// Whether a preview drawn in `at` covers a target other than `holder`: a hit test every
-// `REACH` across it, through the preview where it stands now. A target too small to hold
-// a test point is smaller than any Leaf asks a pointer to reach, WCAG's least, 24 px; an
-// author's smaller one can stand unseen between the points, since no sampling proves a
-// target absent, which is the grid's limit. A point inside the holder's own box finds the
-// holder or what it holds, which are no other target, so it is not tested, as most of a
-// preview standing over a chart is not, which bounds its cost.
-/** @param {Box} at @param {Element} holder */
-function covers(at, holder) {
-  const own = holder.getBoundingClientRect();
-  /** @param {number} from @param {number} to */
-  const steps = (from, to) => {
-    const count = Math.max(1, Math.ceil((to - from - 2) / REACH));
-    return Array.from(
-      { length: count + 1 },
-      (_, n) => from + 1 + ((to - from - 2) * n) / count,
-    );
-  };
-  for (const y of steps(at.top, at.bottom))
-    for (const x of steps(at.left, at.right)) {
-      if (holds(own, x, y)) continue;
-      let hit =
-        document.elementsFromPoint(x, y).find((el) => !tip.contains(el)) ?? null;
-      for (
-        let inner = hit?.shadowRoot?.elementFromPoint(x, y);
-        hit && inner && inner !== hit;
-        inner = hit.shadowRoot?.elementFromPoint(x, y)
-      )
-        hit = inner;
-      const found = hit && candidate(climb(hit));
-      if (found && !renderedUnder(found, holder) && !renderedUnder(holder, found))
-        return true;
+
+  // How far where it stands now may grow down before it meets what it is about.
+  /** @param {Placement} at */
+  function towardSubject(at) {
+    let until = Infinity;
+    for (const [subject, clearing] of /** @type {const} */ ([
+      [box, gap],
+      [about, 0],
+    ])) {
+      if (!subject || subject.left >= at.box.right || at.box.left >= subject.right)
+        continue;
+      if (subject.bottom <= at.from + 0.5) continue;
+      until = Math.min(until, Math.max(0, subject.top - clearing - at.from));
     }
-  return false;
+    return until;
+  }
+}
+
+// The least of a preview a place must hold for it to stand there: its first line as the
+// face draws it, with the face's padding.
+function firstLine() {
+  const first = /** @type {HTMLElement | null} */ (body.firstElementChild);
+  if (!first) return 0;
+  const words = /** @type {HTMLElement} */ (
+    first.querySelector(":scope > .lf-preview-word") ?? first
+  );
+  const keys = first.querySelector(":scope > .lf-preview-keys");
+  const line = Math.max(
+    parseFloat(getComputedStyle(words).lineHeight),
+    keys?.getBoundingClientRect().height ?? 0,
+  );
+  return (
+    first.getBoundingClientRect().top -
+    body.getBoundingClientRect().top +
+    line +
+    parseFloat(getComputedStyle(body).paddingBlockEnd)
+  );
+}
+// How far a preview at `at` may run from the edge it grows from, up to `reach`, before
+// it covers a target other than `holder`: hit tests every `REACH` across its width, row
+// by row out from that edge, through the preview where it stands now, the first row
+// that finds a target ending the room at that target's near edge. A target too small to
+// hold a test point is smaller than any Leaf asks a pointer to reach, WCAG's least,
+// 24 px; an author's smaller one can stand unseen between the points, since no sampling
+// proves a target absent, which is the grid's limit. A point inside the holder's own box
+// finds the holder or what it holds, which are no other target, so it is not tested, as
+// most of a preview standing over a chart is not, which bounds its cost.
+/** @param {Placement} at @param {number} reach @param {Element} holder */
+function clearRoom(at, reach, holder) {
+  const own = holder.getBoundingClientRect();
+  const down = at.y !== "above";
+  const across = steps(at.box.left, at.box.right);
+  const count = Math.max(1, Math.ceil((reach - 2) / REACH));
+  for (let n = 0; n <= count; n++) {
+    const off = 1 + (Math.max(reach - 2, 0) * n) / count;
+    const y = down ? at.from + off : at.from - off;
+    let edge = Infinity;
+    for (const x of across) {
+      if (holds(own, x, y)) continue;
+      const found = targetAt(x, y, holder);
+      if (!found) continue;
+      const hit = found.getBoundingClientRect();
+      edge = Math.min(edge, down ? hit.top - at.from : at.from - hit.bottom);
+    }
+    if (edge < Infinity) return Math.max(0, edge);
+  }
+  return reach;
+}
+// The points `REACH` apart from just inside `from` to just inside `to`.
+/** @param {number} from @param {number} to */
+function steps(from, to) {
+  const count = Math.max(1, Math.ceil((to - from - 2) / REACH));
+  return Array.from(
+    { length: count + 1 },
+    (_, n) => from + 1 + ((to - from - 2) * n) / count,
+  );
+}
+// The target other than `holder`, or around or in it, at a point of the page beneath the
+// preview, through every shadow tree there.
+/** @param {number} x @param {number} y @param {Element} holder */
+function targetAt(x, y, holder) {
+  let hit = document.elementsFromPoint(x, y).find((el) => !tip.contains(el)) ?? null;
+  for (
+    let inner = hit?.shadowRoot?.elementFromPoint(x, y);
+    hit && inner && inner !== hit;
+    inner = hit.shadowRoot?.elementFromPoint(x, y)
+  )
+    hit = inner;
+  const found = hit && candidate(climb(hit));
+  return found && !renderedUnder(found, holder) && !renderedUnder(holder, found)
+    ? found
+    : null;
 }
 
 function hide() {
@@ -1232,6 +1349,7 @@ function refresh() {
     return void show(record.from, record.route, record.read, record.at, true, true);
   render(face(found.reading), body);
   record.reading = found.reading;
+  takeWithin(record);
   stand(record, found.reading, true, true);
 }
 let refreshing = false;
@@ -1250,14 +1368,14 @@ export function mountPreviews(chrome) {
       .catch(() => {})
       .then(() => {
         refreshing = false;
-        refresh();
+        decide(true);
       });
   };
   watchPresentation(presented);
-  window.addEventListener("resize", () => shown && refresh(), { passive: true });
+  window.addEventListener("resize", () => decide(true), { passive: true });
   document.addEventListener("scroll", scrolled, { capture: true, passive: true });
-  visualViewport.addEventListener("resize", replace, { passive: true });
-  visualViewport.addEventListener("scroll", replace, { passive: true });
+  for (const type of ["resize", "scroll"])
+    visualViewport.addEventListener(type, () => decide(false), { passive: true });
 
   document.addEventListener(
     PREVIEW,
@@ -1325,7 +1443,7 @@ export function mountPreviews(chrome) {
   // moved it says (focus.js, `focusDestination`): a Tab, Shift+Tab or a placement
   // standing in for one (`step`), and a move to a place, as a walk lands (`move`), but
   // not one into a surface that opened since the user's last input, which is the
-  // surface placing them as it opens (layer-stack.js, `openedThisInput`).
+  // surface placing them as it opens (focus.js, `openedThisInput`).
   onCurrentLocation((node, cause) => {
     quiet = null;
     if (shown?.route === "focus" && shown.from !== node) hide();
@@ -1377,7 +1495,7 @@ export function mountPreviews(chrome) {
         target: found,
         armed: false,
         read: false,
-        timer: setTimeout(() => arm(held), HOLD),
+        timer: holdsUntold() ? setTimeout(() => arm(held), HOLD) : undefined,
       };
       hold = held;
     },
@@ -1446,8 +1564,9 @@ export function mountPreviews(chrome) {
   );
 }
 
-// Held for `HOLD`, or once the browser calls the press long, the finger reads, wherever
-// it is now: one that slid onto the gap beside a neighbour reads the next it reaches.
+// Once the browser calls the press long, or held for `HOLD` where it says nothing, the
+// finger reads, wherever it is now: one that slid onto the gap beside a neighbour reads
+// the next it reaches.
 /** @param {Hold} held */
 function arm(held) {
   if (hold !== held || held.armed) return;

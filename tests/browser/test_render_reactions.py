@@ -41,6 +41,7 @@ from render_harness import (
     held_frames,
     holding,
     leaf_page,
+    long_press,
     margins_laid_out,
     open_page,
     open_threads,
@@ -2227,6 +2228,7 @@ def test_a_held_reaction_says_its_word_and_a_tap_reacts(browser, serve):
         ]
 
     touch("touchStart", centre("keep"))
+    long_press(page, centre("keep"))
     assert reading() == [["keep", "keep"]]
     touch("touchMove", centre("change"))
     expect(preview).to_have_text("change")

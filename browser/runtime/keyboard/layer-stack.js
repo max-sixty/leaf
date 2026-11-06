@@ -56,11 +56,8 @@
    popovers first (`dismissPopoversOutside`), so the reading finds the user already handed
    back from them.
 
-   Each opening is recorded against the user's input it came under (`openedThisInput`),
-   a native layer's here as it opens and a surface Leaf draws in the page as a dialog,
-   the thread card, as its owner says it opened (`surfaceOpened`): focus arriving in a
-   surface that opened since the user's last input is the surface placing them as it
-   opens, and focus arriving in one that stood before is the user's own move.
+   Each native layer's opening is recorded against the user's input it came under
+   (focus.js, `layerOpened`), as every layer opened through `openLayer` is.
 
    Whether a node is one of these layers, or stands in one as rendered, is asked of
    `shadow-tree.js` (`nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding`), below this module and the
@@ -91,7 +88,7 @@ import {
   focusDestination,
   handBack,
   canPlaceFocus,
-  inputCount,
+  layerOpened,
 } from "../focus.js";
 import { move } from "../dom-move.js";
 import { renderedUnder } from "../shadow-tree.js";
@@ -100,7 +97,6 @@ import {
   isNativeLayer,
   nativeLayerHolding,
   nativeLayerKind,
-  renderedParent,
 } from "../shadow-tree.js";
 import { watchOwner } from "../arrivals.js";
 import { keeps } from "../keeps.js";
@@ -146,21 +142,6 @@ function prune() {
   entries = entries.filter((entry) => entry.active());
 }
 
-// The user's input count each surface last opened under (`inputCount`, focus.js).
-/** @type {WeakMap<Element, number>} */
-const openings = new WeakMap();
-// A surface Leaf draws in the page as a dialog says it opened, as the thread card does.
-/** @param {Element} surface */
-export const surfaceOpened = (surface) => void openings.set(surface, inputCount());
-// Whether `node` stands in a surface that opened since the user's last input.
-/** @param {Element} node */
-export function openedThisInput(node) {
-  const now = inputCount();
-  for (let at = /** @type {Element | null} */ (node); at; at = renderedParent(at))
-    if (openings.get(at) === now) return true;
-  return false;
-}
-
 // An open entry is left alone wherever it sits, and not merely where it is already on
 // top: `toggle` is queued rather than synchronous, so moving a layer on that last
 // declaration would make it the newest thing on the stack after something else opened over
@@ -196,7 +177,7 @@ function pushNativeLayer(node, source = null) {
       entry.opening = false;
     });
   entries.push(entry);
-  openings.set(node, inputCount());
+  layerOpened(node);
   return entry;
 }
 

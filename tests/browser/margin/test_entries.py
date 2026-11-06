@@ -14,6 +14,7 @@ from render_harness import (
     PREVIEW,
     draft_control,
     leaf_page,
+    long_press,
     margins_laid_out,
     open_page,
     open_threads,
@@ -300,6 +301,7 @@ def test_a_finger_holding_a_margin_entry_reads_its_label_above_it(browser, serve
         cdp.send(
             "Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [point]}
         )
+        long_press(page, point)
         expect(preview).to_be_visible()
         expect(preview).to_have_text(words)
         expect(entry).to_have_attribute("data-lf-held", "")

@@ -860,6 +860,19 @@ def sending(page, what):
 # route that lands after the send's paint would wait out the whole deadline. The browser's
 # own record already shows the send was made, so this repeats a driver call — the thing
 # that dispatches the route here — until the list has it.
+def long_press(page, point):
+    """Send what a touch engine sends as a press it holds becomes a long press, a
+    `contextmenu` at the finger, which a held finger reads at (preview.js) and which
+    Chromium's injected touch never sends. Says whether the page let the platform's menu
+    open."""
+    return page.evaluate(
+        """([x, y]) => document.elementFromPoint(x, y).dispatchEvent(new PointerEvent(
+          'contextmenu', {bubbles: true, cancelable: true, composed: true,
+            pointerType: 'touch', clientX: x, clientY: y}))""",
+        [point["x"], point["y"]],
+    )
+
+
 def holding(page, held, count, what):
     """Wait until `held` has collected `count` requests the route put there."""
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000

@@ -866,9 +866,16 @@ on a Leaf page the hint one does:
 
 ```html
 <style>
-  .tip { position: fixed; inset: auto; margin: 0; position-anchor: auto;
-    position-area: block-end span-inline-end; }
-  button { position: fixed; }
+  .tip {
+    position: fixed;
+    inset: auto;
+    margin: 0;
+    position-anchor: auto;
+    position-area: block-end span-inline-end;
+  }
+  button {
+    position: fixed;
+  }
 </style>
 <button id="a" style="left: 20px; top: 20px">A</button>
 <button id="b" style="left: 400px; top: 200px">B</button>
@@ -891,3 +898,28 @@ words the last one had, it moves the preview to the other side of a sibling, its
 stage's mark, which re-lays it out and which the page's write watch reads as a change,
 as a re-insertion at the same place it would not. To recheck, run the page in Firefox;
 once it logs 0, drop the move in `open`.
+
+### A touch long press in WebKit
+
+WebKit gap. A WebKit touch engine, iOS and iPadOS Safari and every iOS browser, sends no
+event as a touch press becomes a long press: no `contextmenu`
+([WebKit bug 213953](https://bugs.webkit.org/show_bug.cgi?id=213953), open, its last
+comment 2026-03-28), where Chromium on Android sends one at the long-press timeout the
+user set and Gecko on Android one at its own. Read in WebKit's source at main 58fe6ea4b
+(2026-11-05), `Source/WebKit/UIProcess/ios/WKContentViewInteraction.mm`: the long press
+WebKit recognizes is UIKit's, at 0.12 s for its highlight (`highlightDelay`, line 539)
+and 0.75 s for its sheet (`tapAndHoldDelay`, line 540), and neither reaches the page as
+an event. The highlight one, enabled only where an app uses no context menus or allows no
+link previews (line 1849), sends a click when the touch ends, however long it was held
+(lines 3787–3790), unless a touch event the page cancelled cleared it (lines
+2496–2502). Safari uses context menus, so its click after a long hold is UIKit's tap
+recognizer's to give, which WebKit sets no duration on.
+
+So a held finger reads a preview (`browser/runtime/preview.js`, the hold) at
+`contextmenu` where the engine sends it, and after 500 ms, UIKit's default for a long
+press, where `GestureEvent` says the engine is WebKit's touch one; the touch's end is
+cancelled there as everywhere, which stops WebKit's own click. The cost: on iOS a press
+held past 500 ms reads rather than presses whatever the user set in Touch
+Accommodations, which no page can read. To recheck, hold a finger on an element with a
+`contextmenu` listener in Safari on an iPhone or the simulator; once it logs, drop the
+timer and `holdsUntold` in `preview.js`.

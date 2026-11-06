@@ -21,6 +21,7 @@ from render_harness import (
     PREVIEW,
     compare_with,
     open_page,
+    preview_parts,
     stamp_page,
     wait_for_revision,
 )
@@ -636,15 +637,15 @@ def test_a_change_names_only_the_revisions_that_wrote_its_own_blocks(browser, se
     wait_for_revision(page, 3)
     compare_with(page, 1)
     page.keyboard.press("Escape")
-    labels = page.locator('[data-lf-kinds~="change"] .lf-margin-entry-label')
-    expect(labels).to_have_count(2)
-    expect(labels.nth(0)).to_contain_text(
-        "In v2, after your comment: “Is Alpha right?”"
-    )
-    expect(labels.nth(0)).not_to_contain_text("Beta")
-    expect(labels.nth(1)).to_contain_text(
-        "In Draft, after your 2 comments: “Is Alpha right?” “Is Beta right?”"
-    )
+    changes = page.locator('.lf-margin-entry[data-lf-kinds~="change"]')
+    expect(changes).to_have_count(2)
+    first = " ".join(preview_parts(changes.nth(0)))
+    assert "In v2, after your comment: “Is Alpha right?”" in first, first
+    assert "Beta" not in first, first
+    second = " ".join(preview_parts(changes.nth(1)))
+    assert (
+        "In Draft, after your 2 comments: “Is Alpha right?” “Is Beta right?”" in second
+    ), second
 
 
 def _comment_on(d, section, words, revision=1, text="Say which way?"):

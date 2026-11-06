@@ -8,6 +8,29 @@ import { actionClass } from "./control-faces.js";
 import { actionOffers } from "./icon-paths.js";
 import "./role-button-press.js";
 
+// The words a `title` gave an element. On Leaf the preview takes the attribute off the
+// first time the pointer reaches the element, so the browser's tooltip never stands
+// beside it (preview.js), and keeps its words here, where every reader of an element's
+// title reads them: the attribute, or what the preview took. A frame's title is its
+// accessible name, not a tooltip, so it stays where it is.
+/** @type {WeakMap<Element, string>} */
+const takenTitles = new WeakMap();
+/** @param {Element} el */
+export const titled = (el) =>
+  el.localName !== "iframe" && (el.hasAttribute("title") || takenTitles.has(el));
+/** @param {Element} el @returns {string | null} */
+export const titleWords = (el) =>
+  el.localName === "iframe"
+    ? null
+    : (el.getAttribute("title") ?? takenTitles.get(el) ?? null);
+/** @param {Element} el */
+export function takeTitle(el) {
+  const title = el.getAttribute("title");
+  if (title === null || el.localName === "iframe") return;
+  takenTitles.set(el, title);
+  el.removeAttribute("title");
+}
+
 // Native controls are the ordinary case. A widget gets their activation, disabled state,
 // focus behavior, and platform accessibility contract without Leaf recreating any of it:
 // ordinary buttons and links need no Leaf activation binding, nor does a

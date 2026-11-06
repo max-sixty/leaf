@@ -21,6 +21,7 @@ from render_harness import (
     open_page,
     panel_control,
     panel_field,
+    preview_parts,
     resized,
     scroll_settled,
     selection_field,
@@ -343,7 +344,7 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
     select("#first")
     context = page.locator(".lf-fp-mode")
     expect(context).to_have_text("Selection")
-    expect(context).to_have_attribute("title", "“The first passage holds its words.”")
+    assert preview_parts(context) == ["“The first passage holds its words.”"]
     field.click()
     expect(composer).to_be_focused()
     expect(field).to_have_js_property("value", "A page note")
@@ -657,8 +658,9 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     expect(search_command.locator(".lf-command-reference-description")).to_have_count(0)
     expect(select_command.locator("kbd")).to_have_text("s")
     expect(select_command).to_have_accessible_name("Select mode")
-    expect(select_command).to_have_attribute(
-        "title", "Choose an element by pressing it or typing its hint, then comment"
+    assert (
+        "Choose an element by pressing it or typing its hint, then comment"
+        in preview_parts(select_command)
     )
     page.keyboard.press("Escape")
     page.keyboard.press("/")

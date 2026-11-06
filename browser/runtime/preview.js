@@ -11,20 +11,22 @@
      whose face says its name and that no key reaches previews nothing. A field the user
      types in previews nothing: its words are what they read.
    - An element declares what pointing at it adds as its `lfPreview(route)`, called once
-     as its preview shows on that route (`"pointer"`, `"focus"` or `"hold"`):
-     `{name, keys, detail, at, excerpt}`, every field optional (module-input.md,
-     "Previews"). On a control its lines stand under the control's own name and keys,
-     and its name replaces the accessible name where that says more than the face
-     should; `at` is where to stand, the declaring element by default, another element
-     or a box in client coordinates inside it, as a chart's point, which the preview
-     stands above; and `excerpt` asks for the face's room for a block of the page. When
-     what it says changes under an aim that stays, it says so (`previewChanged`,
+     as its preview shows on that route (`"pointer"`, `"focus"` or `"hold"`), and again
+     for each new presentation of the document while the preview stands, so the words
+     follow the page, a thread's turn or a link's place, redrawn in place with no fade
+     and left as they are where they come back the same: `{name, keys, detail, at,
+     excerpt}`, every field optional (module-input.md, "Previews"). On a control its
+     lines stand under the control's own name and keys, and its name replaces the
+     accessible name where that says more than the face should; `at` is where to stand,
+     the declaring element by default, another element or a box in client coordinates
+     inside it, as a chart's point, which the preview stands above; and `excerpt` asks
+     for the face's room for a block of the page. When what it says changes under an aim
+     that stays inside the element, as a chart's point, it says so (`previewChanged`,
      widget-upgrade.js), and a standing preview redraws in place or the route reading
-     the element shows it. It returns null where
-     it adds nothing, so the search goes on outward, and false where nothing shows and
-     nothing around it may. A widget declares it with no import, as it declares
-     `lfCommands` and `lfCopy()`, so off Leaf it reads nothing. What a declaration
-     throws is reported and shows nothing.
+     the element shows it. It returns null where it adds nothing, so the search goes on
+     outward, and false where nothing shows and nothing around it may. A widget declares
+     it with no import, as it declares `lfCommands` and `lfCopy()`, so off Leaf it reads
+     nothing. What a declaration throws is reported and shows nothing.
    - A `title` is an element's declared words: a line under its name, or its name where
      it has none, so a portable widget that writes one reads off Leaf in the browser's
      tooltip and on Leaf on every route, in this face alone. The first time the pointer
@@ -52,17 +54,26 @@
 
    One preview stands at a time, in one element: a hint popover (`popover="hint"`), in
    the top layer, so it stands over a modal or an open popover around its target, and a
-   hint closes no popover the user opened. It takes no pointer and holds no control, so
-   it is no layer the keyboard tiers its scopes over (layer-stack.js). It stands beside
-   its target by CSS anchor positioning, by the name css-anchors.js gives a target in
-   the document, and by a place of its own over any other box (`standBy`), so a hover
-   adds no rule: below it, its end edge in line with the target's, so it stays within
-   the surface the target stands in, above where the window has no room below, and
-   higher above a finger that holds it, which covers what lies below and around it. Its
-   gap to the target clears the target's focus ring. The browser carries it through
-   every scroll that moves its target, and nothing around the target moves. A range's
-   preview stands by insets from the box in the document holding the range, measured
-   when it shows.
+   hint closes no popover the user opened. It holds no control, so it is no layer the
+   keyboard tiers its scopes over (layer-stack.js). A pointer's preview takes the
+   pointer, so the pointer can cross from the target onto it and read it there; leaving
+   it puts it away after a dwell, and reaching another target from it shows that one at
+   once (WCAG 1.4.13, "Hoverable").
+
+   Where it stands is one rule (`stand`), measured as it shows: by the gap that clears a
+   focus ring, below the box it previews, or above where the window has no room below,
+   above first for a finger, which covers what lies below, and for a point inside its
+   target; beside a column of targets, as margin entries and a list's rows stand
+   (`stacked`), so it covers none of them and the pointer reaches each, toward the
+   nearer window edge, so a margin entry's covers no passage. Along the line
+   it starts at the box's start edge and stays inside the nearest box around the target
+   wide enough to hold it, so a link early in a line keeps it in the reading column and
+   a control at a card's end edge keeps it in the card. It is written as insets from the
+   box that carries the target, the nearest that scrolls, stands fixed or sticky, or
+   stands in the top layer, else the page's root, by the name css-anchors.js gives that
+   box, so the browser carries it through every scroll that moves the target, a hover
+   names no target, which observers of the page's boxes would hear, and nothing around
+   the target moves.
 
    Its routes:
 
@@ -115,21 +126,23 @@
    Decisions: one dwell for the pointer and the finger, 200 ms, hides a flicker as either
    crosses targets without holding the user up; the margin's labels waited 90 ms, the
    platform's tooltips about a second. A preview says its words whole, wrapping where
-   they run long, where a margin entry's label cut its question to one line. It stands by
-   its own target and may cover a neighbouring entry, which still takes the pointer
-   through it: the margin's labels each measured every entry on the page to stand clear
-   of them, a page-wide read on every hover. Escape put a preview away and took its own
-   step too until 5 November 2026: dismissing one then closed the thread card the user
-   was reading, since the preview covers its first line. Rejected: `interestfor`, which
-   gives a control the same three routes natively but ships only in Chromium; the
-   platform's `title` alone, which no finger or keyboard reads and which can't draw a
-   key chip; holding a `title` off only while the pointer rests within its element and
-   putting it back as the pointer leaves, which writes it twice a hover, each a change
-   of the element's description a screen reader hears; a popover's implicit anchor (`showPopover({source})`), which Firefox 157
-   keeps on the first source it was shown with; and a preview that follows its target
-   by a script, which trails each scroll by a frame. */
+   they run long, where a margin entry's label cut its question to one line. It finds a
+   column of targets by one hit test each side of its own, where the margin's labels
+   each measured every entry on the page to stand clear of them, a page-wide read on
+   every hover. Until 5 November 2026 a preview took no pointer, so a covered neighbour
+   took the pointer through it but the pointer couldn't stay on the preview to read it,
+   and Escape put a preview away and took its own step too, which closed the thread
+   card the user was reading, since the preview covers its first line. Rejected:
+   `interestfor`, which gives a control the same three routes natively but ships only in
+   Chromium; the platform's `title` alone, which no finger or keyboard reads and which
+   can't draw a key chip; holding a `title` off only while the pointer rests within its
+   element and putting it back as the pointer leaves, which writes it twice a hover, each
+   a change of the element's description a screen reader hears; a popover's implicit
+   anchor (`showPopover({source})`), which Firefox 157 keeps on the first source it was
+   shown with; and a preview that follows its target by a script, which trails each
+   scroll by a frame. */
 import { html, nothing, render } from "/runtime/framework.js";
-import { anchorAt, anchorElement, anchorName } from "./css-anchors.js";
+import { anchorAt, anchorElement } from "./css-anchors.js";
 import { closeNativeLayer, showNativeLayer } from "./keyboard/layer-stack.js";
 import { controlKeys } from "./keyboard/control-keys.js";
 import { advertisesKeys } from "./keyboard/bindings.js";
@@ -142,12 +155,21 @@ import {
 } from "./focus.js";
 import { pageScope } from "./keyboard/register.js";
 import { offlineInteractive } from "./context.js";
+import { watchPresentation, whenDocumentPresented } from "./semantic-state.js";
 import { plainPress } from "./pointer.js";
-import { hostIn, isElement, renderedParent, under } from "./shadow-tree.js";
+import {
+  hostIn,
+  isElement,
+  isNativeLayer,
+  renderedParent,
+  renderedUnder,
+  under,
+} from "./shadow-tree.js";
 import { PREVIEW } from "./widget-upgrade.js";
 import { keeps } from "./keeps.js";
 import { watchOwner } from "./arrivals.js";
 import { actionClass } from "./control-faces.js";
+import { takeTitle, titled, titleWords } from "./element-markers.js";
 
 /** @typedef {string | Node | import("/vendor/lit.js").TemplateResult} Word
  * @typedef {Word | readonly Word[]} Words
@@ -158,15 +180,13 @@ import { actionClass } from "./control-faces.js";
  * @typedef {"pointer" | "focus" | "hold"} Route
  * @typedef {(route: Route) => Declared} Read
  * @typedef {{name: Words | null, keys: Presses, detail: Words[], at: Element | import("./rect.js").Box | null, excerpt: boolean, restates: boolean}} Reading
+ * @typedef {import("./rect.js").Box} Box
  * @typedef {Element | Range} Target
- * @typedef {{from: Target, target: Target, holder: Element, route: Route, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
+ * @typedef {{from: Target, target: Target, holder: Element, route: Route, read: Read | null, at: {x: number, y: number} | undefined, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
  * @typedef {{pointerId: number, parent: Element | null, target: Element | null, armed: boolean, timer: ReturnType<typeof setTimeout>}} Hold */
 
 const DWELL = 200;
 const WARM = 400;
-// The space between a range's preview and the line it stands by, which a range's
-// owner draws no ring around (the face's own gap is controls.css's).
-const GAP = 6;
 
 // The one element every preview draws in.
 const tip = document.createElement("div");
@@ -176,46 +196,37 @@ tip.setAttribute("popover", "hint");
 tip.setAttribute("role", "tooltip");
 
 // The one face: the name with each press as key chips, then each line of detail.
-/** @param {Reading} reading */
-const face = ({ name, keys, detail }) =>
-  html`${
-    name || keys.length
-      ? html`<span class="lf-preview-name"
-          ><span class="lf-preview-word">${name}</span>${keys.map(
-            (steps) =>
-              html`<span class="lf-preview-keys"
-                >${steps.map(
-                  (step) => html`<kbd class="lf-key-badge">${step}</kbd>`,
-                )}</span
-              >`,
-          )}</span
-        >`
-      : nothing
-  }${detail.map((line) => html`<span class="lf-preview-detail">${line}</span>`)}`;
+const chip = (/** @type {string} */ step) =>
+  html`<kbd class="lf-key-badge">${step}</kbd>`;
+const chips = (/** @type {readonly string[]} */ steps) =>
+  html`<span class="lf-preview-keys">${steps.map(chip)}</span>`;
+const detailLine = (/** @type {Words} */ line) =>
+  html`<span class="lf-preview-detail">${line}</span>`;
+/** @type {(reading: Reading) => unknown[]} */
+const face = ({ name, keys, detail }) => [
+  name || keys.length
+    ? html`<span class="lf-preview-name"
+        ><span class="lf-preview-word">${name}</span>${keys.map(chips)}</span
+      >`
+    : nothing,
+  ...detail.map(detailLine),
+];
 
 const CONTROL = 'button, summary, a[href], [role="button"], [data-lf-offer]';
 // A proxy stands in for what the pointer takes by itself (control-faces.js, `proxy`),
 // so what it stands for previews: a gloss's proxy, its phrase.
 const PROXY = `.${actionClass("proxy")}`;
 
-// The words an element's `title` gave it, taken off the element the first time the
-// pointer reaches it, so the browser's own tooltip never stands beside its preview.
-// Putting it back as the pointer left wrote it twice a hover, which a screen reader
-// hears as the element's description changing. A title the writer writes again is
-// taken again, with its new words, the next time the pointer comes.
-/** @type {WeakMap<Element, string>} */
-const takenTitles = new WeakMap();
-/** @param {Element} el */
-const titleOf = (el) => el.getAttribute("title") ?? takenTitles.get(el) ?? null;
-// Take the title the browser would show for the pointer at `path`: the innermost one.
+// The pointer takes the title the browser would show for it at `path`, the innermost,
+// off its element the first time it comes, so the browser's own tooltip never stands
+// beside the preview (element-markers.js, `takeTitle`). Putting it back as the pointer
+// left wrote it twice a hover, which a screen reader hears as the element's description
+// changing. A title the writer writes again is taken again with its new words.
 /** @param {Iterable<EventTarget>} path */
-function takeTitle(path) {
-  for (const node of path) {
-    if (!isElement(node) || !node.hasAttribute("title")) continue;
-    takenTitles.set(node, node.getAttribute("title") ?? "");
-    node.removeAttribute("title");
-    return;
-  }
+function takePointedTitle(path) {
+  for (const node of path)
+    if (isElement(node) && node.hasAttribute("title") && titled(node))
+      return takeTitle(node);
 }
 
 // The words of `text` alone, as one reads them, punctuation and case aside.
@@ -240,7 +251,7 @@ function accessibleName(control) {
       .map((el) => el.textContent?.trim() ?? "")
       .join(" ")
       .trim();
-  return titleOf(control) ?? (control.textContent ?? "").replace(/\s+/g, " ").trim();
+  return titleWords(control) ?? (control.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
 // What `node` declares, read once as its preview shows on `route`. A declaration that
@@ -262,8 +273,7 @@ function declaration(node, route) {
 /** @param {Element} node */
 const mayPreview = (node) =>
   typeof node.lfPreview === "function" ||
-  node.hasAttribute("title") ||
-  takenTitles.has(node) ||
+  titled(node) ||
   (node.matches(CONTROL) && !typesText(node));
 
 /** Read `declared` into the face's lines: the name first, then each line of detail, each
@@ -312,7 +322,7 @@ function readingOf(node, route) {
   if (node.getAttribute("aria-expanded") === "true" || node.matches(PROXY)) return null;
   const declared = declaration(node, route);
   if (declared === false) return false;
-  const title = titleOf(node);
+  const title = titleWords(node);
   if (!(node.matches(CONTROL) && !typesText(node)))
     return lines(declared ?? null, { title });
   const name = accessibleName(node);
@@ -339,6 +349,36 @@ function candidate(path) {
     if (mayPreview(node)) return node;
   }
   return null;
+}
+// Whether `target` stands in a column of targets, as margin entries and a list's rows
+// do, so a preview below it would cover the next and keep the pointer from it: a target
+// just above or below it, and none just beside it, where a toolbar's controls stand,
+// whose preview below covers none of them. A few hit tests each side, at the target's
+// middle, as far as a preview's first line reaches.
+const REACH = [10, 24, 40];
+/** @param {Element} target */
+function stacked(target) {
+  const box = target.getBoundingClientRect();
+  const x = (box.left + box.right) / 2;
+  const y = (box.top + box.bottom) / 2;
+  /** @param {number} atX @param {number} atY */
+  const other = (atX, atY) => {
+    let hit = document.elementFromPoint(atX, atY);
+    const inner = hit?.shadowRoot?.elementFromPoint(atX, atY);
+    if (inner) hit = inner;
+    const found = hit && candidate(climb(hit));
+    return Boolean(
+      found && found !== target && !found.contains(target) && !target.contains(found),
+    );
+  };
+  if (REACH.some((step) => other(box.left - step, y) || other(box.right + step, y)))
+    return false;
+  return REACH.some((step) => other(x, box.top - step) || other(x, box.bottom + step));
+}
+/** @param {Element} node */
+function* climb(node) {
+  for (let at = /** @type {Element | null} */ (node); at; at = renderedParent(at))
+    yield at;
 }
 // What previews from `node` outward on `route`, and where it stands.
 /** @param {Element} node @param {Route} route @returns {{target: Element, reading: Reading} | null} */
@@ -367,6 +407,9 @@ let pointingRead = null;
 let pointingAt;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let dwell;
+// The wait before a pointer's preview goes once the pointer has left its target.
+/** @type {ReturnType<typeof setTimeout> | undefined} */
+let leaving;
 // The target whose preview a press, a key or Escape put away, quiet until the user
 // points at something else or focus arrives anew.
 /** @type {Target | null} */
@@ -380,9 +423,11 @@ let rest = { x: NaN, y: NaN };
 // pointer's to read.
 /** @type {Node | null} */
 let beneath = null;
-// Whether a key is down: a change a key brings to the focused element is the keyboard's
-// to read, since Firefox shows no focus a key lands on once a pointer's press gave it.
-let keying = false;
+// The key that is down, if one is: a change a key brings to the focused element is the
+// keyboard's to read, since Firefox shows no focus a key lands on once a pointer's press
+// gave it, and a focus a key moves is the user's own, but for Escape's.
+/** @type {string | null} */
+let keyDown = null;
 
 // What `from` previews on `route`, a range's through the read its owner gave.
 /** @param {Target} from @param {Route} route @param {Read | null} read
@@ -413,32 +458,35 @@ function show(from, route, read = null, at, again = false) {
   if (!again && shown?.from === from && shown.route === route) return true;
   const found = readFrom(from, route, read);
   const standing = again && found && shown?.from === from ? shown : null;
-  // Ending the standing record's watch runs its disconnect, which would hide it.
-  if (standing) ((shown = null), standing.stop());
-  else hide();
+  // Ending the standing record's watch can run its disconnect, which hides whatever
+  // `shown` names, so the record stops being the one shown first.
+  if (standing) {
+    shown = null;
+    standing.stop();
+  } else hide();
   if (!found) return false;
   const { target, holder, reading } = found;
   render(face(reading), tip);
   /** @type {Shown} */
-  const record = { from, target, holder, route, stop: () => {}, described: null };
+  /** @type {Shown} */
+  const record = {
+    from,
+    target,
+    holder,
+    route,
+    read,
+    at,
+    stop: () => {},
+    described: null,
+  };
   // A target that leaves the page, as a re-render replaces it, takes its preview along.
   record.stop = watchOwner(holder, { disconnect: () => shown === record && hide() });
   shown = record;
   keeps(tip, "data-lf-route", route);
-  const point = Boolean(reading.at) && !isElement(reading.at);
-  keeps(tip, "data-lf-at", target instanceof Range ? "range" : point ? "point" : null);
   keeps(tip, "data-lf-face", reading.excerpt ? "excerpt" : null);
   if (route === "hold") keeps(holder, "data-lf-held", "");
-  if (target instanceof Range) {
-    tip.style.removeProperty("position-anchor");
-    showNativeLayer(tip);
-    standByRange(target, holder, at);
-  } else {
-    for (const inset of ["position", "left", "top", "position-visibility"])
-      tip.style.removeProperty(inset);
-    tip.style.setProperty("position-anchor", standBy(reading.at ?? holder, holder));
-    if (!standing) showNativeLayer(tip);
-  }
+  if (!standing) showNativeLayer(tip);
+  stand(record, reading, at);
   if (standing) {
     record.described = standing.described;
     return true;
@@ -458,66 +506,128 @@ function show(from, route, read = null, at, again = false) {
   return true;
 }
 
-// The places a preview stands by where its target is no box the document can name, as
-// a box in a widget's shadow tree is not, or where it names a box inside itself, as a
-// chart's point: each stands over that box by insets from the nearest box in the
-// document, which carries it through every scroll. Naming the box itself would declare
-// a `::part()` rule for each box a hover reached, kept for the session, and in Chromium
-// restyle the page each time an anchor's name moved. Two take turns, so a preview whose
-// anchor changed is placed afresh, where one keeping its anchor would first stand where
-// the last box's fallback had put it.
-/** @param {string} name */
-const placeNamed = (name) => {
-  const place = document.createElement("div");
-  place.className = "lf-ui lf-preview-at";
-  place.style.setProperty("anchor-name", name);
-  return { place, name };
-};
-const places = /** @type {const} */ ([
-  placeNamed("--lf-preview-at"),
-  placeNamed("--lf-preview-by"),
-]);
-let turn = 0;
-/** The name the preview stands by: a box in the document by its own, and any other by a
- * place over it, an element or a box in client coordinates inside `holder`.
- * @param {Element | import("./rect.js").Box} at @param {Element} holder */
-function standBy(at, holder) {
-  if (isElement(at) && at.getRootNode() === document)
-    return anchorName(anchorElement(at));
-  const box = isElement(at) ? at.getBoundingClientRect() : at;
-  const host =
-    hostIn(isElement(at) ? at : holder, document) ?? document.documentElement;
-  turn = turn ? 0 : 1;
-  const { place, name } = turn ? places[1] : places[0];
-  anchorAt(place, anchorElement(host), box, undefined, "anchors-visible");
-  return name;
-}
+// Where a preview stands, one rule for every target (`stand`): beside the box it
+// previews, a range's line, a declared box or element, or the target, by the gap that
+// clears a focus ring; below it, or above where the window has no room below, and above
+// first for a finger, which covers what lies below, and for a point inside its target,
+// as a chart's tip leaves the axis below in view; beside a column of targets
+// (`stacked`), so it covers none of them, on the side toward the nearer window edge
+// where there is room, as a margin entry's stands in the free margin rather than over
+// the passage it is about. Along the other axis it starts at the box's
+// start edge and stays inside the nearest box around the target wide enough to hold it,
+// shifting back toward the start where it would cross that box's end: a link early in a
+// line keeps its preview in the reading column, and a control at a card's end edge keeps
+// its preview in the card. It is written as insets from the box that carries the target
+// through a scroll (`carrier`, css-anchors.js `anchorAt`), so a hover names no target and
+// adds no rule.
+const EDGE = 8;
+const GAP = { line: 6, box: 11, hold: 27 };
 
-// A range's preview stands below the line the pointer is on, or above it where the
-// window has no room below, inside the window's width, by insets from the nearest box
-// in the document holding it.
-/** @param {Range} range @param {Element} holder @param {{x: number, y: number}} [at] */
-function standByRange(range, holder, at) {
-  const lines = [...range.getClientRects()];
-  const line =
-    lines.find(
-      (rect) =>
-        at &&
-        at.x >= rect.left &&
-        at.x <= rect.right &&
-        at.y >= rect.top &&
-        at.y <= rect.bottom,
-    ) ?? lines[0];
-  if (!line) return;
+/** @param {Box} box @param {number} x @param {number} y */
+const holds = (box, x, y) =>
+  x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+
+/** @param {Shown} record @param {Reading} reading @param {{x: number, y: number}} [at] */
+function stand(record, reading, at) {
+  const { target, holder, route } = record;
+  const declared = reading.at;
+  /** @type {Box | undefined} */
+  let box;
+  if (target instanceof Range) {
+    const lines = [...target.getClientRects()];
+    box = lines.find((line) => at && holds(line, at.x, at.y)) ?? lines[0];
+  } else if (declared && !isElement(declared)) box = declared;
+  else
+    box = anchorElement(
+      declared?.isConnected ? declared : holder,
+    ).getBoundingClientRect();
+  if (!box) return;
   const { width, height } = tip.getBoundingClientRect();
-  const room = document.documentElement.clientWidth;
-  const left = Math.max(GAP, Math.min(line.left, room - width - GAP));
-  const top =
-    line.bottom + GAP + height > innerHeight
-      ? line.top - GAP - height
-      : line.bottom + GAP;
-  const host = hostIn(holder, document) ?? document.documentElement;
-  anchorAt(tip, anchorElement(host), { left, top }, undefined, "anchors-visible");
+  const room = { width: document.documentElement.clientWidth, height: innerHeight };
+  const point = Boolean(declared) && !isElement(declared);
+  const gap =
+    target instanceof Range ? GAP.line : route === "hold" ? GAP.hold : GAP.box;
+  /** @param {number} at @param {number} low @param {number} high */
+  const clamp = (at, low, high) => Math.max(low, Math.min(at, high));
+  let left;
+  let top;
+  const before = box.left - gap - width;
+  const after = box.right + gap;
+  const fitsBefore = before >= EDGE;
+  const fitsAfter = after + width <= room.width - EDGE;
+  // A column too wide to stand beside, as a list of full rows, takes it below instead.
+  if (
+    route !== "hold" &&
+    !point &&
+    !(target instanceof Range) &&
+    (fitsBefore || fitsAfter) &&
+    stacked(holder)
+  ) {
+    const outward = box.left + box.right > room.width ? fitsAfter : !fitsBefore;
+    left = outward && fitsAfter ? after : fitsBefore ? before : after;
+    top = box.top;
+  } else {
+    const above = box.top - gap - height;
+    const below = box.bottom + gap;
+    const upFirst = route === "hold" || point;
+    top = upFirst
+      ? above >= EDGE
+        ? above
+        : below
+      : below + height <= room.height - EDGE || above < EDGE
+        ? below
+        : above;
+    const container = containerFor(holder, width);
+    left = clamp(box.left, container.left, container.right - width);
+  }
+  left = clamp(left, EDGE, room.width - width - EDGE);
+  top = clamp(top, EDGE, room.height - height - EDGE);
+  anchorAt(
+    tip,
+    anchorElement(carrier(holder)),
+    { left, top },
+    undefined,
+    "anchors-visible",
+  );
+}
+// The box that carries `holder` through a scroll or holds it still over one: the nearest
+// box around it that scrolls, stands fixed or sticky, or stands in the top layer, else
+// the page's root. The preview stands by insets from it, so a hover names no target:
+// naming one wrote its style, which observers of the page's boxes, as the margin's, hear
+// as a change and lay out again, the first time each paragraph previewed. These boxes
+// are few, each named once.
+/** @param {Element} holder */
+function carrier(holder) {
+  for (
+    let at = /** @type {Element | null} */ (hostIn(holder, document) ?? holder);
+    at && at !== document.documentElement;
+    at = renderedParent(at)
+  ) {
+    if (isNativeLayer(at)) return at;
+    const { position, overflowX, overflowY } = getComputedStyle(at);
+    if (position === "fixed" || position === "sticky") return at;
+    if (/auto|scroll/.test(`${overflowX} ${overflowY}`)) return at;
+  }
+  return document.documentElement;
+}
+// The nearest box around `holder` wide enough to hold a preview `width` wide: the
+// paragraph a link stands in, the card a toolbar stands in, else the window.
+/** @param {Element} holder @param {number} width @returns {Box} */
+function containerFor(holder, width) {
+  for (
+    let at = renderedParent(holder);
+    at && at !== document.body;
+    at = renderedParent(at)
+  ) {
+    const box = at.getBoundingClientRect();
+    if (box.width >= width) return box;
+  }
+  return {
+    left: 0,
+    top: 0,
+    right: document.documentElement.clientWidth,
+    bottom: innerHeight,
+  };
 }
 
 function hide() {
@@ -540,15 +650,24 @@ function hide() {
   cooled = performance.now();
 }
 
-// The pointer's target changed: start its dwell, or show it at once while warm.
+// The pointer's target changed: start its dwell, or show it at once while warm. A
+// pointer that leaves its target for nothing, as on its way onto the preview, puts the
+// preview away only after a dwell, which its reaching the preview or the target cancels;
+// one that reaches another target shows that one at once.
 /** @param {Target | null} target @param {Read | null} [read] @param {{x: number, y: number}} [at] */
 function point(target, read = null, at) {
   if (target === pointing) return;
+  clearTimeout(leaving);
   pointing = target;
   pointingRead = read;
   pointingAt = at;
   clearTimeout(dwell);
-  if (shown && shown.route !== "focus" && shown.from !== target) hide();
+  if (shown?.route === "pointer" && !target) {
+    const record = shown;
+    leaving = setTimeout(() => {
+      if (shown === record && !pointing) hide();
+    }, DWELL);
+  } else if (shown && shown.route !== "focus" && shown.from !== target) hide();
   if (target !== quiet) quiet = null;
   if (!target || target === quiet) return;
   if (performance.now() - cooled < WARM) show(target, "pointer", read, at);
@@ -577,11 +696,27 @@ const sameRange = (a, b) =>
 /** A range's owner says the pointer rests on one of its ranges, or on none of them: what
  * pointing at it reads, and where the pointer is, which picks the line it stands by. A
  * range with the same boundaries as the one pointed at is the same range, however many
- * times its owner makes it.
+ * times its owner makes it, and its latest read is the one a standing preview says. A
+ * target inside the range under the pointer, as a link in a thread's passage, is the
+ * innermost and wins, as it does for the keyboard and a finger.
  * @param {Range | null} range @param {Read} [read] @param {{x: number, y: number}} [at] */
 export function pointRange(range, read, at) {
   if (range) {
-    if (sameRange(range, pointing)) return;
+    // The same range again may say other words: its declaration is the latest, and a
+    // preview standing for it reads it now.
+    if (sameRange(range, pointing)) {
+      pointingRead = read ?? null;
+      if (shown?.from === pointing && read) {
+        shown.read = read;
+        refresh();
+      }
+      return;
+    }
+    const holder = isElement(range.commonAncestorContainer)
+      ? range.commonAncestorContainer
+      : range.commonAncestorContainer.parentElement;
+    if (pointing && isElement(pointing) && holder && renderedUnder(pointing, holder))
+      return;
     point(range, read, at);
   } else if (pointing instanceof Range) point(null);
 }
@@ -603,7 +738,7 @@ function changed(node) {
       hold.target = node;
       show(node, "hold");
     }
-  } else if (focused() === node && (keying || node.matches(":focus-visible")))
+  } else if (focused() === node && (keyDown || node.matches(":focus-visible")))
     show(node, "focus");
   else if (beneath && under(beneath, node)) {
     pointing = null;
@@ -611,9 +746,58 @@ function changed(node) {
   }
 }
 
+// Whether the user moved focus to `node` themselves, which is what a focus preview
+// reads: a Tab or Shift+Tab (`step`), or a key that moved them between items, as an
+// arrow, Home or End does in a list or a widget, a move made while a key is down that
+// stays in the surface the user was in. Focus the runtime places as a surface opens,
+// as the Page Map's first row or a margin card's first control, focus it hands back as
+// one closes (`return`), and focus Escape moves as the user backs out, as from a reply
+// box to its thread, are no aim of theirs: a preview there stands in front of the
+// Escape the user reaches for next, which it would take.
+/** @param {Element} node @param {import("./focus.js").CurrentLocationCause} cause @param {Element | null} left */
+function aimed(node, cause, left) {
+  if (cause === "step") return true;
+  if (cause !== "move" || !keyDown || keyDown === "Escape") return false;
+  for (let at = /** @type {Element | null} */ (node); at; at = renderedParent(at))
+    if (isNativeLayer(at) || at.getAttribute("role") === "dialog")
+      return Boolean(left && renderedUnder(left, at));
+  return true;
+}
+
+// A new presentation of the document reads the standing preview again, as the place a
+// link opens or a thread's turn changes under it: what it says now is drawn where it
+// stands, with no fade, and words that came back the same leave it as it is. A
+// preview whose target now says nothing goes.
+function refresh() {
+  const record = shown;
+  if (!record) return;
+  const found = readFrom(record.from, record.route, record.read);
+  if (!found) return hide();
+  if (found.target !== record.target)
+    return void show(record.from, record.route, record.read, record.at, true);
+  const before = tip.textContent;
+  render(face(found.reading), tip);
+  if (tip.textContent !== before) stand(record, found.reading, record.at);
+}
+let refreshing = false;
+
 /** @param {HTMLElement} home */
 export function mountPreviews(home) {
-  home.append(...places.map(({ place }) => place), tip);
+  home.append(tip);
+  // Once for each new presentation, a revision's included, after it has painted, and
+  // never for a pointer's move.
+  const presented = () => {
+    if (!shown || refreshing) return;
+    refreshing = true;
+    void whenDocumentPresented()
+      .catch(() => {})
+      .then(() => {
+        refreshing = false;
+        refresh();
+      });
+  };
+  watchPresentation(presented);
+
   document.addEventListener(
     PREVIEW,
     (event) => {
@@ -633,7 +817,13 @@ export function mountPreviews(home) {
       if (event.pointerType === "touch") return;
       const path = event.composedPath();
       beneath = isElement(path[0]) ? path[0] : null;
-      takeTitle(path);
+      // The pointer on a preview keeps it, as on its target (WCAG 1.4.13, "Hoverable").
+      if (path.includes(tip)) {
+        clearTimeout(leaving);
+        if (shown?.route === "pointer") pointing = shown.from;
+        return;
+      }
+      takePointedTitle(path);
       // Something that arrives under a pointer the user hasn't moved takes it, but
       // shows nothing: the user pointed at what was there before. A pointer carrying a
       // press, as a drag does, is acting, not reading.
@@ -670,14 +860,12 @@ export function mountPreviews(home) {
   );
   // Focus arriving is a new reading, whatever put the target's last one away, and
   // focus leaving takes its preview along. It shows once the task that moved focus has
-  // done, which may be opening a popover the platform lets no other open inside. Focus
-  // handed back, as a surface the user closed returns them to what opened it, is no
-  // arrival of theirs, so it reads nothing there: a preview over it would stand in
-  // front of the next Escape the user is backing out with.
-  onCurrentLocation((node, cause) => {
+  // done, which may be opening a popover the platform lets no other open inside, and
+  // only where the user moved focus there themselves (`aimed`).
+  onCurrentLocation((node, cause, left) => {
     quiet = null;
     if (shown?.route === "focus" && shown.from !== node) hide();
-    if (!node || cause === "return") return;
+    if (!node || !aimed(node, cause, left)) return;
     queueMicrotask(() => {
       if (focused() !== node || !node.matches(":focus-visible")) return;
       if (shown?.from !== node) show(node, "focus");
@@ -702,14 +890,14 @@ export function mountPreviews(home) {
   document.addEventListener(
     "keydown",
     (event) => {
-      keying = true;
+      keyDown = event.key;
       if (event.key === "Escape") {
         if (offlineInteractive) quieten();
       } else if (shown?.route === "pointer" || !shown) quieten();
     },
     { capture: true },
   );
-  document.addEventListener("keyup", () => (keying = false), { capture: true });
+  document.addEventListener("keyup", () => (keyDown = null), { capture: true });
   document.addEventListener(
     "pointerdown",
     (event) => {
@@ -786,7 +974,7 @@ export function mountPreviews(home) {
   // A tab the user leaves ends what they were reading in it.
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") {
-      keying = false;
+      keyDown = null;
       point(null);
       quieten();
       endHold();
@@ -795,7 +983,9 @@ export function mountPreviews(home) {
   document.addEventListener(
     "contextmenu",
     (event) => {
-      if (hold?.armed) event.preventDefault();
+      // Only while a held preview shows: a hold over a target that showed none, as an
+      // external link, keeps the platform's own long-press menu.
+      if (hold?.armed && shown?.route === "hold") event.preventDefault();
     },
     { capture: true },
   );

@@ -113,6 +113,9 @@ def test_escape_from_a_seated_reply_send_returns_to_its_thread(browser, serve):
     page.keyboard.type("draft")
     page.keyboard.press("Tab")
     expect(thread.locator(".lf-thread-send")).to_be_focused()
+    # The Tab showed Send's preview, Escape's first step (WCAG 1.4.13).
+    page.keyboard.press("Escape")
+    expect(page.locator("#lf-preview")).to_be_hidden()
     page.keyboard.press("Escape")
     expect(thread).to_be_focused()
     page.keyboard.press("Enter")

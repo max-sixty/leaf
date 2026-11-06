@@ -7,7 +7,7 @@
  */
 
 import { ringBox, visibleFocus } from "../focus.js";
-import { placeHolder, shownParts } from "../geometry.js";
+import { shownParts } from "../geometry.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import {
   targetElement,
@@ -15,13 +15,16 @@ import {
   targetSegments,
   targetSurface,
 } from "../resolved-target.js";
-import { elementFromPointAcross, pageWords, rangeOf } from "../passages.js";
+import { pageWords, rangeOf } from "../passages.js";
 import { bareReaction } from "../thread/model.js";
 import { threadNamed } from "../thread/state.js";
 import { threadPreview } from "../thread/messages.js";
 import { pointRange } from "../preview.js";
-import { renderedParent } from "../shadow.js";
+import { declaredRoot, renderedParent, shadowHost } from "../shadow.js";
+import { isElement } from "../shadow-tree.js";
 import { annotationsHidden } from "./annotation-layer.js";
+import { keeps } from "../keeps.js";
+import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
 
 const MARK = "lf-mark";
 const PENDING = "lf-pending";
@@ -50,11 +53,18 @@ export function createAnchorPaint({
 }) {
   /** @type {Map<string, Mark[]>} */
   const marked = new Map();
-  // Each mark by the element a point over it stands in, which the hit test climbs to
-  // from the point (`markHit`): a range by the element holding its text, an element by
-  // itself. Each keeps its thread's place in reading order.
-  /** @type {Map<Element, {id: string, where: Mark, order: number}[]>} */
-  const findable = new Map();
+  // Where the hit test finds each mark (`markHit`), with its thread's place in reading
+  // order: a passage's piece by the text node it lies in, sorted by where it starts there
+  // and carrying the furthest end of the pieces up to it (`reach`), so a search back from
+  // an offset passes only pieces that may still cover it; an element's mark by the
+  // element; and the shadow trees holding any of them, which the caret lookup looks into.
+  /** @typedef {{id: string, where: Mark, order: number}} Findable */
+  /** @type {Map<Node, (Findable & {start: number, end: number, reach: number})[]>} */
+  const inText = new Map();
+  /** @type {Map<Element, Findable[]>} */
+  const onElement = new Map();
+  /** @type {ShadowRoot[]} */
+  let markedRoots = [];
   /** @type {Map<Element, Element>} */
   const visualTargets = new Map();
   /** @type {Element[]} */
@@ -221,35 +231,100 @@ export function createAnchorPaint({
   }
 
   // Which thread's painted mark lies under a point, and the mark: of those the point
-  // lies in, the first thread's in reading order. Text highlights have no DOM node, so
-  // their client rects are the only exact hit test. The test reads only the marks
-  // standing in the elements under the point, climbing from the innermost, so a pointer
-  // move costs the same on a page of any size (root AGENTS.md, "Responsiveness"); every
-  // mark on the page cost 1.5 ms a move at 512 passages. With the annotation layer
+  // lies in, the first thread's in reading order. One caret lookup says which text node,
+  // and where in it, the point is over, looking into the shadow trees that hold marks;
+  // the test then reads the geometry only of the pieces on that node that cover that
+  // offset, since a text highlight has no DOM node and its client rects are its only
+  // exact hit test, and climbs from the node for an element's mark. So a pointer move
+  // costs the same however many marks the page or the paragraph holds (root AGENTS.md,
+  // "Responsiveness"): reading every mark's rects in the element pointed at cost 512
+  // reads at the last of 512 marks in one paragraph. What the lookup finds outside the
+  // page's words, as the chrome over them, holds no mark. With the annotation layer
   // hidden there is no mark to be under: an unseen passage shows no hand and opens
   // nothing.
   /** @param {number} x @param {number} y @returns {{id: string, where: Mark} | null} */
   function markHit(x, y) {
     if (annotationsHidden()) return null;
-    const over = document.elementFromPoint(x, y);
-    if (!pageWords(over)) return null;
-    /** @type {{id: string, where: Mark, order: number} | null} */
+    const caret = document.caretPositionFromPoint(x, y, { shadowRoots: markedRoots });
+    const node = caret?.offsetNode;
+    const holder = node && (isElement(node) ? node : node.parentElement);
+    if (!caret || !node || !holder || !pageWords(holder)) return null;
+    /** @type {Findable | null} */
     let hit = null;
-    for (let at = elementFromPointAcross(x, y); at; at = renderedParent(at))
-      for (const mark of findable.get(at) ?? [])
-        if (
-          (!hit || mark.order < hit.order) &&
-          (!(mark.where instanceof Range) ||
-            [...mark.where.getClientRects()].some(
-              (rect) =>
-                x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom,
-            ))
+    const pieces = inText.get(node) ?? [];
+    const { offset } = caret;
+    // The last piece starting at or before the offset, then back over every piece whose
+    // run may still reach it.
+    let low = 0;
+    for (let high = pieces.length; low < high;) {
+      const mid = (low + high) >> 1;
+      if ((pieces[mid]?.start ?? Infinity) <= offset) low = mid + 1;
+      else high = mid;
+    }
+    for (let at = low - 1; at >= 0; at--) {
+      const piece = pieces[at];
+      if (!piece || piece.reach < offset) break;
+      if (
+        piece.end >= offset &&
+        (!hit || piece.order < hit.order) &&
+        [...piece.where.getClientRects()].some(
+          (rect) =>
+            x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom,
         )
-          hit = mark;
+      )
+        hit = piece;
+    }
+    for (let at = /** @type {Element | null} */ (holder); at; at = renderedParent(at))
+      for (const mark of onElement.get(at) ?? [])
+        if (!hit || mark.order < hit.order) hit = mark;
     return hit && { id: hit.id, where: hit.where };
   }
   /** @param {number} x @param {number} y */
   const markAt = (x, y) => markHit(x, y)?.id ?? null;
+
+  // Index the marks where the hit test finds them (`inText`, `onElement`), and gather
+  // the shadow trees they stand in, every level of them, and those of an element's mark
+  // that hosts its own, which the caret lookup must look into to land inside them.
+  function index() {
+    inText.clear();
+    onElement.clear();
+    /** @type {Set<ShadowRoot>} */
+    const roots = new Set();
+    /** @param {Node} node */
+    const within = (node) => {
+      for (let root = node.getRootNode(); root instanceof ShadowRoot;) {
+        roots.add(root);
+        root = shadowHost(root)?.getRootNode() ?? document;
+      }
+    };
+    let order = 0;
+    for (const [id, marks] of marked) {
+      for (const where of marks) {
+        if (where instanceof Range) {
+          const node = where.startContainer;
+          const end = where.endContainer === node ? where.endOffset : Infinity;
+          const pieces = inText.get(node) ?? [];
+          pieces.push({ id, where, order, start: where.startOffset, end, reach: end });
+          inText.set(node, pieces);
+          within(node);
+        } else {
+          const standing = onElement.get(where) ?? [];
+          standing.push({ id, where, order });
+          onElement.set(where, standing);
+          within(where);
+          const own = declaredRoot(where);
+          if (own) roots.add(own);
+        }
+      }
+      order++;
+    }
+    for (const pieces of inText.values()) {
+      pieces.sort((a, b) => a.start - b.start);
+      let reach = -Infinity;
+      for (const piece of pieces) piece.reach = reach = Math.max(reach, piece.end);
+    }
+    markedRoots = [...roots];
+  }
 
   // A thread's words preview the thread, as its margin entry does (`threadPreview`).
   // An element's thread previews nothing on the page, for the reason its contour stands
@@ -304,7 +379,7 @@ export function createAnchorPaint({
       const onMark = hit?.id ?? null;
       if (aimed) pointMark(hit, at);
       aimed = false;
-      document.body.classList.toggle("lf-over-mark", Boolean(onMark));
+      keeps(document.body, RUNTIME_PAINT_ATTRIBUTE.overMark, onMark ? "" : null);
       const row = rowThread();
       const id = row ?? onMark;
       if (id !== hovering || Boolean(row) !== hoverFromRow)
@@ -317,7 +392,6 @@ export function createAnchorPaint({
   function paint({ readings, draft, action }) {
     const before = outlined();
     marked.clear();
-    findable.clear();
     pendingOutline = [];
     actionOutline = [];
     visualTargets.clear();
@@ -352,17 +426,7 @@ export function createAnchorPaint({
         posted.push(...ranges);
       }
     }
-    let order = 0;
-    for (const [id, marks] of marked) {
-      for (const where of marks) {
-        const holder = placeHolder(where);
-        if (!holder) continue;
-        const standing = findable.get(holder) ?? [];
-        standing.push({ id, where, order });
-        findable.set(holder, standing);
-      }
-      order++;
-    }
+    index();
     const resolvedDraft = draft.resolved;
     const draftMarked = Boolean(resolvedDraft && resolvedDraft.status !== "outdated");
     pendingOutline =
@@ -415,7 +479,7 @@ export function createAnchorPaint({
     hoverFrame = 0;
     const before = outlined();
     marked.clear();
-    findable.clear();
+    index();
     pendingOutline = [];
     actionOutline = [];
     paintOutlines(before);

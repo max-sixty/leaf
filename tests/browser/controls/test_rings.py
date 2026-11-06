@@ -622,7 +622,7 @@ def test_a_marked_element_draws_nothing_under_the_pointer(browser, serve):
         box = target.bounding_box()
         inside = (box["x"] + 6, box["y"] + box["height"] / 2)
         page.mouse.move(*inside)
-        expect(page.locator("body")).to_have_class(re.compile(r"\blf-over-mark\b"))
+        expect(page.locator("body")).to_have_attribute("data-lf-over-mark", "")
         expect(target).not_to_have_attribute("data-lf-mark", re.compile(".*"))
         rest = mark_edges(page, ident, ink)
         assert all(seen == {0} for seen in rest.values()), (

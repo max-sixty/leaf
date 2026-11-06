@@ -1012,10 +1012,20 @@ export function createMarginProjection({
       {
         writesRelation: false,
         writesSeat,
-        // A thread's entry previews its threads, as their passage marks do.
+        // A thread's entry previews its threads, as their passage marks do, as they
+        // read when it shows; to the keyboard a lone thread's line leaves out the word
+        // the entry's name already says (`markerName`, `spokenContext`).
         preview:
           choice?.kind === "comment"
-            ? () => threadPreview(choice.items.map((item) => item.thread))
+            ? (route) =>
+                threadPreview(
+                  choice.items.map(
+                    (item) => threadNamed(item.thread.id) ?? item.thread,
+                  ),
+                  route === "focus" && choice.items.length === 1
+                    ? spokenContext(choice)
+                    : null,
+                )
             : null,
       },
     );

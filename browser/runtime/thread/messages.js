@@ -64,7 +64,7 @@ import {
   workflowTitle,
   workflowWord,
 } from "./workflow.js";
-import { agentSays, leafSays, voiced } from "../voice.js";
+import { agentSays, leafSays, voiced, wordsText } from "../voice.js";
 import { markDeclared, renderQuiet, renderSaid } from "../declared-words.js";
 import { highlightBlocks } from "../syntax.js";
 import { agePreview, ago, clockTime } from "../presence.js";
@@ -219,16 +219,16 @@ export const openingLine = (message) =>
 /** @param {{readonly author: string, readonly agent?: string | null}} message */
 const authorName = (message) => (message.author === "agent" ? message.agent : "Me");
 
-// The threads a preview names before it says how many more, and the characters of a
-// thread's name or a message's opening line it keeps, which wrap within its width.
-const PREVIEWED_THREADS = 3;
+// The characters of a thread's name or a message's opening line a preview keeps,
+// which wrap within its width.
 const PREVIEWED_LINE = 120;
 
 // Where a thread stands, as its preview says it (`threadPreview`): its word
 // (`threadAttention`) and the agent's line on the work in hand, what it holds unread
-// and how many messages it holds, each said by whoever says it.
-/** @param {import("./workflow.js").ThreadRecord} thread */
-function threadStands(thread) {
+// and how many messages it holds, each said by whoever says it, less the part `said`,
+// which what it describes already says.
+/** @param {import("./workflow.js").ThreadRecord} thread @param {string | null} said */
+function threadStands(thread, said) {
   const attention = threadAttention(thread, agentName());
   const detail = attention?.kind === "waiting" ? attention.workflow?.detail : null;
   const unread = thread.unread.length;
@@ -239,7 +239,9 @@ function threadStands(thread) {
       ...(detail ? [agentSays(labelWords(detail))] : []),
       ...(unread ? [leafSays(`${unread} unread`)] : []),
       leafSays(counted(turns(thread).length, "message")),
-    ].flatMap((part, at) => (at ? [" · ", part] : [part])),
+    ]
+      .filter((part) => wordsText(part) !== said)
+      .flatMap((part, at) => (at ? [" · ", part] : [part])),
   };
 }
 
@@ -250,11 +252,15 @@ function threadStands(thread) {
  * thread stands: "Your turn · 1 unread · 5 messages". An untitled thread's name is its
  * opening words, so a thread whose last message is its first says them once. A target
  * holding several threads is named by their count, as the card a press opens lists
- * them, and gives each a line, its name and where it stands, then how many more past
- * the first few. A line in the user's turn wears the turn's mark (`data-lf-turn`).
+ * them, and gives each a line, its name and where it stands: seven, the most the
+ * example and page logs hold on one target, fit the window. A line in the user's turn
+ * wears the turn's mark (`data-lf-turn`). Where the preview describes something that
+ * already says one thread's word, as a margin entry's name does to the keyboard,
+ * `said` is that word, which its line leaves out, so a screen reader hears it once.
  * @param {readonly import("./workflow.js").ThreadRecord[]} threads
+ * @param {string | null} [said]
  * @returns {import("../preview.js").Preview | null} */
-export function threadPreview(threads) {
+export function threadPreview(threads, said = null) {
   const [only] = threads;
   if (!only) return null;
   /** @param {ReturnType<typeof threadStands>} stands @param {string} [lead] */
@@ -271,24 +277,18 @@ export function threadPreview(threads) {
           (deleted(last)
             ? voiced(DELETED)
             : excerptWords(openingLine(last), PREVIEWED_LINE)),
-        standing(threadStands(only)),
+        standing(threadStands(only, said)),
       ],
     };
   }
-  const shown =
-    threads.length > PREVIEWED_THREADS
-      ? threads.slice(0, PREVIEWED_THREADS - 1)
-      : threads;
-  const more = threads.length - shown.length;
   return {
     name: counted(threads.length, "thread"),
-    detail: [
-      ...shown.map((thread) =>
-        standing(threadStands(thread), `${excerptWords(threadName(thread), 60)} · `),
+    detail: threads.map((thread) =>
+      standing(
+        threadStands(thread, null),
+        `${excerptWords(threadName(thread), 60)} · `,
       ),
-      more > 0 &&
-        voiced(leafSays(`and ${counted(more, "more thread", "more threads")}`)),
-    ],
+    ),
   };
 }
 
@@ -580,18 +580,16 @@ export class MessageView {
       generatedElement(this.node, { says: false });
       this.node.dataset.lfOffer = "";
       // A message the keyboard stands on previews when it was said, the clock time its
-      // age says to a pointer or a finger (`agePreview`), beside the age where its head
-      // shows one. Its words preview nothing to a pointer or a finger, since they are
-      // what the user reads.
+      // age says to a pointer or a finger (`agePreview`), beside the age in its head.
+      // Its words preview nothing to a pointer or a finger, since they are what the user
+      // reads.
       this.node.lfPreview = (/** @type {import("../preview.js").Route} */ route) => {
         const at = route === "focus" ? clockTime(this.#model?.timestamp) : "";
+        // Where the head draws no age, as the second of two messages with one, its
+        // place in the head stands for it.
+        const meta = this.node.querySelector(":scope > .lf-msg-head > .lf-msg-meta");
         return at
-          ? {
-              name: at,
-              at: this.node.querySelector(
-                ":scope > .lf-msg-head > .lf-msg-meta > time",
-              ),
-            }
+          ? { name: at, at: meta?.querySelector(":scope > time") ?? meta }
           : null;
       };
       // A double click on the user's own words opens them for rewriting, as the word

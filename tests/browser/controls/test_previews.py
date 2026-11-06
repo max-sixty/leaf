@@ -10,7 +10,7 @@ import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
-from render_harness import leaf_page, open_page, preview_text
+from render_harness import leaf_page, open_page, preview_parts, preview_text
 
 from browser.threads import open_panel_thread, thread_row
 from leaf.render_checks import rendered
@@ -215,8 +215,8 @@ def test_a_thread_previews_where_it_stands_from_its_words_and_its_entry(
     its last message and when, that message's opening line, and the thread's word, what
     it holds unread and how many messages. A resting pointer reads it beside the line it
     rests on, the keyboard on the entry reads it at once, which a screen reader hears as
-    the entry's description, and a press on the words still opens the card
-    (thread/messages.js, `threadPreview`)."""
+    the entry's description, less the thread's word its name already says, and a press
+    on the words still opens the card (thread/messages.js, `threadPreview`)."""
     page = open_page(request.getfixturevalue(engine), _thread_on_a_passage(serve))
     preview = page.locator(PREVIEW)
     line = page.evaluate(MARK_LINE, MARKED)
@@ -240,7 +240,10 @@ def test_a_thread_previews_where_it_stands_from_its_words_and_its_entry(
     page.keyboard.press("Shift")
     entry.focus()
     expect(preview).to_be_visible()
-    assert preview.inner_text() == said
+    # A screen reader hears the thread's word once: the entry's name says it, so the
+    # preview, its description, leaves it out.
+    assert "Your turn" in entry.get_attribute("aria-label")
+    assert preview.inner_text() == said.replace("Your turn · ", "")
     assert "lf-preview" in entry.evaluate(DESCRIBED)
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
@@ -282,19 +285,31 @@ def test_a_finger_holding_a_thread_s_words_reads_it_above_them(browser, serve):
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, serve):
     """An age says how long ago, and its preview says when, in the reader's own zone:
-    a message's age to a resting pointer, and the message the keyboard stands on,
-    beside its age, which a screen reader hears as the message's description; the
-    message's words say no time to a pointer. The panel's ages are times too. No title
-    stands beside any of them."""
+    a message's age to a resting pointer, and the message the keyboard stands on, in
+    its head where its age stands, or would where the message above has the same one,
+    which a screen reader hears as the message's description; the message's words say
+    no time to a pointer. The panel's ages are times too. No title stands beside any of
+    them."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
-    asked = append_carried_log_record(
+    listed = append_carried_log_record(
         d,
         {
             "kind": "comment",
             "author": "agent",
             "agent": "Claude",
             "ts": "2026-08-15T21:02:00Z",
+            "text": "Here are the stalls I found.",
+        },
+    )["id"]
+    asked = append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": listed,
+            "ts": "2026-08-15T21:22:00Z",
             "text": "Which stall do I chase first?",
             "obligation": True,
         },
@@ -319,24 +334,22 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     page.keyboard.press("m")
     question = page.locator(f'.lf-msg[data-lf-event="{asked}"]')
     expect(question).to_be_focused()
-    expect(preview).to_have_text("Sat 15 Aug 2026, 14:02 PT")
+    expect(preview).to_have_text("Sat 15 Aug 2026, 14:22 PT")
     assert "lf-preview" in question.evaluate(DESCRIBED)
-    # It stands by the age, not under the whole message.
+    # It stands by the head, where the age the message above shares would stand, not
+    # under the whole message.
     tip = preview.bounding_box()
-    time = question.locator(".lf-msg-head time").bounding_box()
-    assert 0 <= tip["y"] - (time["y"] + time["height"]) <= 24, (tip, time)
-    assert (
-        tip["x"] <= time["x"] + time["width"] and tip["x"] + tip["width"] >= time["x"]
-    )
+    head = question.locator(".lf-msg-head").bounding_box()
+    assert 0 <= tip["y"] - (head["y"] + head["height"]) <= 24, (tip, head)
     # A pointer on the words of the message the keyboard is on hears no time from them.
     body = question.locator(".lf-msg-body").bounding_box()
     page.mouse.move(body["x"] + 8, body["y"] + body["height"] / 2, steps=3)
     page.wait_for_timeout(500)
-    expect(preview).not_to_have_text("Sat 15 Aug 2026, 14:02 PT")
+    expect(preview).not_to_have_text("Sat 15 Aug 2026, 14:22 PT")
     page.mouse.move(0, 0)
     page.keyboard.press("Escape")
 
-    view = open_panel_thread(page, asked)
+    view = open_panel_thread(page, listed)
     age = view.locator(".lf-msg-head time").first
     expect(age).not_to_have_attribute("title", re.compile(".*"))
     box = age.bounding_box()
@@ -371,3 +384,20 @@ def test_a_preview_shown_on_focus_describes_what_focus_is_on(engine, request, se
     page.keyboard.press("Tab")
     expect(entry).not_to_be_focused()
     assert entry.get_attribute("aria-describedby") is None
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_an_entry_holding_several_threads_says_each(engine, request, serve):
+    """A margin entry holding several threads is named by their count and gives every
+    thread a line of its name and where it stands, as the card a press opens lists
+    them all."""
+    url = serve(PANEL_PAGE)
+    for n in range(1, 5):
+        panel_comment(serve.page_dir, f"Question {n} on the lede?", {"section": "lede"})
+    page = open_page(request.getfixturevalue(engine), url)
+    entry = page.locator('[data-lf-margin-for="lede"] > .lf-margin-marker')
+    parts = preview_parts(entry)
+    assert parts[0] == "4 threads", parts
+    assert [part.split(" · ")[0] for part in parts[1:]] == [
+        f"Question {n} on the lede?" for n in range(1, 5)
+    ], parts

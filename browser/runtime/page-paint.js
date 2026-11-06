@@ -57,6 +57,10 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   // The anchor name a heading holds while its link shows (heading-links.js, marks.css),
   // which the margin likewise does not hear.
   headingLink: "data-lf-heading-link",
+  // On the body while the pointer rests on a thread's mark, which shows the hand
+  // (annotation-overlay/anchor-paint.js). As a class, the margin heard each crossing of
+  // a mark's edge and laid out every row: 1,024 geometry reads at 512 marks.
+  overMark: "data-lf-over-mark",
 });
 
 export const PAGE_PAINT_ATTRIBUTE = Object.freeze({

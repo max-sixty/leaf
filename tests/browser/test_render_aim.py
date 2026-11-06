@@ -3418,7 +3418,7 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
 
     point = midpoint(decoration)
     page.mouse.move(point["x"], point["y"])
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-over-mark\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-over-mark", "")
     page.mouse.click(point["x"], point["y"])
     expect(
         page.locator(

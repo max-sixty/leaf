@@ -43,6 +43,7 @@ from render_harness import (
     panel_menu,
     panel_settled,
     panel_view,
+    preview_text,
     resized,
     rgb_pixels,
     round_trip,
@@ -4055,6 +4056,11 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
         "Working on 1; 1 up next. Now: Drafting the note's first line."
     )
     expect(summary).to_contain_text("Last done: Tidy the wording")
+    # Its age is a time, which says when to a pointer, as every age the panel shows.
+    assert re.fullmatch(
+        r"\w{3} \d{1,2} \w{3} \d{4}, \d{2}:\d{2} .+",
+        preview_text(summary.locator("time")),
+    )
     expect(summary.locator('[data-lf-voice="agent"]')).to_have_text(
         ["Drafting the note's first line", "Tidy the wording"]
     )

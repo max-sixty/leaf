@@ -3,6 +3,7 @@ same by every fold and its membership."""
 
 import itertools
 import json
+import random
 from copy import deepcopy
 
 import model_folds as model
@@ -707,3 +708,79 @@ def test_every_change_to_a_threads_resolution_reaches_its_membership():
             before, after = resolved(events[:at]), resolved(events[: at + 1])
             changed = {thread for thread in after if before[thread] != after[thread]}
             assert changed <= set(memberships[events[at]["id"]]), (history, at)
+
+
+def test_a_walk_reads_each_coordinate_as_the_retraction_rule_does_at_every_step():
+    """However a walk reaches a step, through actions, undos, version notes and
+    containments taking hold (`InForce`), each coordinate's winner and the actions
+    in force are those `action_retracted` gives from scratch under that step's
+    floors and containment, and the step reports exactly the winners it moved. A
+    containment handed over before any decision turns on one still holds when a
+    note later makes one turn on it."""
+    owners, units, elements = ["g1", "g2", "g3"], ["u1", "u2"], ["o1", "o2", "o3"]
+    retracted = event_folds_model.action_retracted
+
+    def reading(kept, floors, within):
+        return {
+            event_folds_model.event_coordinate(action): action
+            for action in kept
+            if not retracted(action, floors, within)
+        }
+
+    for seed in range(60):
+        rng = random.Random(seed)
+        within = {element: [rng.choice(owners)] for element in elements}
+        walk = event_folds_model.InForce(within)
+        floors, revision, kept = {}, 1, []
+        for step in range(150):
+            before = reading(kept, floors, within)
+            roll = rng.random()
+            if roll < 0.45:
+                action = {
+                    "id": f"a{step}",
+                    "widget": rng.choice(owners),
+                    "action": rng.choice(["choose", "mark"]),
+                    "revision": rng.randint(max(1, revision - 3), revision),
+                    "meaning": {
+                        "unit": rng.choice(units),
+                        "depends": rng.sample(elements, rng.randrange(3)),
+                        **({"creates": True} if rng.random() < 0.2 else {}),
+                    },
+                }
+                kept.append(action)
+                changes = [walk.admit(action)]
+            elif roll < 0.55 and kept:
+                changes = [walk.withdraw(kept.pop(rng.randrange(len(kept)))["id"])]
+            elif roll < 0.75:
+                revision += 1
+                note = {
+                    "revision": revision - rng.randrange(2),
+                    "restated": rng.sample(
+                        elements + owners + units, rng.randrange(1, 4)
+                    ),
+                }
+                for element in note["restated"]:
+                    floors[element] = max(floors.get(element, 0), note["revision"])
+                changes = walk.restate(note)
+            else:
+                within = {
+                    element: rng.sample(owners, rng.randrange(3))
+                    if rng.random() < 0.5
+                    else holders
+                    for element, holders in within.items()
+                }
+                changes = walk.contain(lambda within=within: within)
+            after = reading(kept, floors, within)
+            assert {
+                change.coordinate: (change.before, change.after)
+                for change in changes
+                if change is not None
+            } == {
+                coordinate: (before.get(coordinate), after.get(coordinate))
+                for coordinate in {*before, *after}
+                if before.get(coordinate) is not after.get(coordinate)
+            }, (seed, step)
+            assert walk.winners() == after, (seed, step)
+            assert walk.ids() == {
+                action["id"] for action in kept if not retracted(action, floors, within)
+            }, (seed, step)

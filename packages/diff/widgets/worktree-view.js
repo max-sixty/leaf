@@ -52,7 +52,7 @@ export function render(host) {
       >
     </summary>
     <div class="lf-worktree-path" data-lf-gen="1" data-lf-said>
-      <span>Worktree</span><code>${host.getAttribute("path")}</code>
+      <span>Worktree</span> <code>${host.getAttribute("path")}</code>
     </div>
     <div class="lf-worktree-body"><slot></slot></div>
   </details>`;

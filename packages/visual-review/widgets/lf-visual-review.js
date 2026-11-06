@@ -371,8 +371,9 @@ customElements.define(
                   >
                     <span class="lf-vr-case-number lf-row-lead" aria-hidden="true"
                       >${run.cases.indexOf(record) + 1}</span
-                    ><span class="lf-row-main">${record.title}</span
-                    ><span
+                    >
+                    <span class="lf-row-main">${record.title}</span>
+                    <span
                       class="lf-vr-case-status lf-row-end"
                       data-lf-approved=${String(approved)}
                       >${iconTemplate("check")}<span class="lf-quiet"

@@ -19,16 +19,19 @@ test("the count leads the title while above zero and follows it to zero", async 
   assert.equal(document.title, "Finish the ship review");
   assert.equal(document.head.querySelectorAll("title").length, 1);
 
-  // A revision changes the authored title while a count is showing.
+  // A revision replaces the authored title node while a count is showing
+  // (version.js, `activateHead`).
   paintTabTitle(3);
-  authored.textContent = "Ship review, revised";
+  const revised = document.createElement("title");
+  revised.textContent = "Ship review, revised";
+  authored.replaceWith(revised);
   await settled();
   assert.equal(document.title, "(3) Ship review, revised");
   paintTabTitle(0);
   assert.equal(document.title, "Ship review, revised");
 });
 
-test("All pages reads the authored title whatever the tab shows", () => {
+test("All pages and a thread card's trail read the authored title whatever the tab shows", () => {
   paintTabTitle(2);
   assert.match(document.title, /^\(2\) /);
   assert.doesNotMatch(authoredTitle(), /^\(/);

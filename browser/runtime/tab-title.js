@@ -15,9 +15,9 @@
    untouched.
 
    `authoredTitle()` is what other readers of "this page's title" use (All pages,
-   live-leaves.js); `document.title` now says the tab's. A revision changes the authored
-   title in place, which the head observer follows: its work is one head's, not the
-   page's size. */
+   live-leaves.js; a thread card's trail, thread-card.js); `document.title` now says the
+   tab's. A revision replaces the authored title node (version.js, `activateHead`), which
+   the head observer follows: its work is one head's, not the page's size. */
 
 const TAB = document.createElement("title");
 TAB.dataset.lfRuntime = "";

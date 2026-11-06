@@ -4,22 +4,23 @@ import {
   addressableLabel,
   addressableWord,
   declaredName,
+  leadingTitle,
 } from "../addressable-names.js";
 import { sectionOf } from "../anchor-resolution.js";
 import {
   authoredScope,
   elementById,
   HEADING,
-  inPage,
   leafSurface,
+  outlineReading,
   pageDocument,
+  pageOutlineReading,
   pageReadingVersion,
-  readAsChrome,
 } from "../passages.js";
-import { agentName, documentChanged } from "../semantic-state.js";
+import { agentName } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
-import { byRenderedOrder, renderedOrder, shadowRootsIn, upFrom } from "../shadow.js";
-import { threadState } from "./state.js";
+import { byRenderedOrder, upFrom } from "../shadow.js";
+import { threadNamed, threadState } from "./state.js";
 import { threadAttention } from "./workflow.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
@@ -68,68 +69,43 @@ export const threadPlace = (t, placedAt) => {
 export const inPageOrder = (threads, placedAt) =>
   byRenderedOrder(threads, /** @param {T} t */ (t) => threadPlace(t, placedAt));
 
-// A document's own outline, in the order it renders, widgets' shadow trees included:
-// the page's, or a message's markup, which is outlined as the page is. Read off the
-// headings the author wrote rather than off <section> nesting, because both shapes are in
-// the corpus and a heading is the thing a user navigates by in either — a page written as
-// one flow of h2s has an outline just as much as one written as nested sections. Leaf's
-// own chrome contributes none: its surfaces (`inPage`), which keeps a heading inside a
-// reply out of the page's outline, and its controls inside either document, by the rule
-// that document's reading skips them by (passages.js, `readAsChrome`).
-//
-// It is a reading of the document's own nodes, so it stands until the page reading moves
-// (passages.js, `pageReadingVersion`, which a declared tree staged anywhere also moves)
-// or a caller says the document changed (`presentDocument`): a thread pass over an
-// unchanged page reads the outline it read.
-/** @typedef {readonly [ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>]} ReadingKey
- * @typedef {{key: ReadingKey, outline: readonly Element[], heads: Map<Element | null, Element[]>, at: Map<Element, number>}} Outlined */
-/** @type {WeakMap<Element, Outlined>} */
-const outlines = new WeakMap();
-/** @returns {ReadingKey} */
-const readingKey = () => [pageReadingVersion(), documentChanged()];
+// A document's own outline: the page's, or a message's markup, which is outlined as the
+// page is. Read off the headings the author wrote rather than off <section> nesting,
+// because both shapes are in the corpus and a heading is the thing a user navigates by in
+// either — a page written as one flow of h2s has an outline just as much as one written
+// as nested sections. It is recorded by the walk that reads the document's words
+// (passages.js, `outlineFold`), so it holds what that reading holds, in its order:
+// declared shadow trees as they draw, a slot's assignment and not its fallback, and none
+// of Leaf's chrome. The page's stands as long as the page's reading does. A message's is
+// kept against what it is read from: the message as the thread reading publishes it,
+// whose value is new exactly when its words change, and the page reading's version,
+// which a widget staging its declared tree in the message moves.
+/** @type {WeakMap<Element, {key: readonly unknown[], reading: import("../passages.js").OutlineReading}>} */
+const messageOutlines = new WeakMap();
 /** @param {readonly unknown[] | undefined} kept @param {readonly unknown[]} key */
 const current = (kept, key) =>
   kept?.every((part, index) => part === key[index]) ?? false;
 // The outline of the document `node` stands in (passages.js, `authoredScope`).
-/** @param {Node} node @returns {Outlined} */
+/** @param {Node} node */
 function outlineOf(node) {
   const scope = authoredScope(node);
-  const key = readingKey();
-  const kept = outlines.get(scope);
-  if (kept && current(kept.key, key)) return kept;
-  const page = scope === pageDocument(scope.ownerDocument);
-  const roots = [page ? scope.ownerDocument : scope, ...shadowRootsIn(scope)];
-  const outline = Object.freeze(
-    byRenderedOrder(
-      roots.flatMap((root) =>
-        [...root.querySelectorAll(HEADING)].filter(
-          (heading) =>
-            authoredScope(heading) === scope &&
-            (!page || inPage(heading)) &&
-            !readAsChrome(heading),
-        ),
-      ),
-      /** @param {Element} heading */ (heading) => heading,
-    ),
-  );
-  // Each container's headings, in the outline's order, for `partOver`, and where each
-  // heading stands in it.
-  /** @type {Map<Element | null, Element[]>} */
-  const heads = new Map();
-  /** @type {Map<Element, number>} */
-  const at = new Map();
-  outline.forEach((heading, index) => {
-    at.set(heading, index);
-    const container = headed(heading);
-    const held = heads.get(container);
-    if (held) held.push(heading);
-    else heads.set(container, [heading]);
-  });
-  const read = { key, outline, heads, at };
-  outlines.set(scope, read);
-  return read;
+  if (scope === pageDocument(scope.ownerDocument)) return pageOutlineReading();
+  const message = messageOf(scope);
+  const key = [message, pageReadingVersion()];
+  const kept = messageOutlines.get(scope);
+  if (message && kept && current(kept.key, key)) return kept.reading;
+  const reading = outlineReading(scope);
+  messageOutlines.set(scope, { key, reading });
+  return reading;
 }
-export const pageOutline = () => outlineOf(pageDocument()).outline;
+// The message whose markup `body` draws, as the thread reading publishes it.
+/** @param {Element} body */
+function messageOf(body) {
+  const id = body.closest("[data-lf-event]")?.getAttribute("data-lf-event");
+  const thread = id ? threadNamed(id) : null;
+  return thread?.msgs.find((message) => message.id === id) ?? null;
+}
+export const pageOutline = () => pageOutlineReading().outline;
 /** The heading after `heading` in its document's outline, or null.
  * @param {Element} heading */
 export function headingAfter(heading) {
@@ -139,59 +115,60 @@ export function headingAfter(heading) {
 }
 
 // What names the part of the page, or of a message's markup, a node stands in: the
-// heading over it, else the
-// nearest region holding it whose declaration titles it (`declaredName`), such as a tab
-// by its label, or null where neither does. A run-in title, a paragraph's leading
-// <strong>, names its paragraph and no part. On me's place for an item and an obligation's arrival
-// (obligations/view.js, `arrivalRegion`) both ask it.
+// heading over it, else the nearest region holding it whose declaration titles it
+// (`declaredName`), such as a tab by its label, or null where neither does. A run-in
+// title, a paragraph's leading <strong>, names its paragraph and no part. On me's place
+// for an item and an obligation's arrival (obligations/view.js, `arrivalRegion`) both
+// ask it, as a link's preview does for a place with no name of its own.
 //
-// A heading heads its container from where it stands on: the outline's last heading
-// before the node, in the rendered order (`renderedOrder`), whose container holds the
-// node, asked from the node's innermost container out, so the nearest part wins. A
-// heading in a `header` or `hgroup` heads what holds that, as HTML's outline reads it,
-// so a page's title in its header heads the page's sections. The container is what
-// "the heading over this" means: a question's own heading stands inside the question,
-// so it heads neither the question, which it follows, nor the next question, which its
-// container does not hold. A heading the reader cannot see, as in a tab not selected,
-// still heads its part, so a part's name does not change as the page shows or hides
-// it; an arrival measures what it lands on and passes one that shows nothing. On the
-// corpus page, whose pages stand in tabs with their titles in headers and their last
-// sections untitled, the container alone sent every item to the corpus's own title.
-const HEADERS = "header, hgroup";
-/** The container `heading` heads, from where it stands on.
- * @param {Element} heading */
-export const headed = (heading) => {
-  const at = upFrom(heading);
-  return at?.matches(HEADERS) ? upFrom(at) : at;
-};
+// From the node's innermost container out, the nearest part wins: in each, the last
+// heading the reading met before the node that heads that container (passages.js,
+// `headed`), else the container's own name by the authoring contract, its declared
+// name or its leading title (addressable-names.js, `leadingTitle`), which Python reads
+// by the same rule (`tests/name_cases.json`). So the <section> the author wrote decides
+// for what stands in it before its heading, as an eyebrow or a lead paragraph does:
+// that heading names it, as it names the section, where the heading before the section
+// once did. A heading in a `header` or `hgroup` heads what holds that, so a page's title
+// in its header heads the page's sections. The container is what "the heading over
+// this" means: a question's own heading stands inside the question, so it heads neither
+// the question, which it follows, nor the next question, which its container does not
+// hold. A heading the reader cannot see, as in a tab not selected, still heads its part,
+// so a part's name does not change as the page shows or hides it; an arrival measures
+// what it lands on and passes one that shows nothing. On the corpus page, whose pages
+// stand in tabs with their titles in headers and their last sections untitled, the
+// container alone sent every item to the corpus's own title.
 //
-// Each container's headings stand in the outline's order, so the last one before the
-// node is found by halving, and a call costs the node's depth times the log of the
-// outline rather than the whole outline: On me asks it of every item it lists.
+// The reading records what stood over each element as its walk reached it, so a call
+// costs the node's depth: On me asks it of every item it lists. A node the reading never
+// reached, as one the page does not draw, stands as the nearest element it reached does.
 /** @param {Element} node */
 export function partOver(node) {
-  const { heads } = outlineOf(node);
-  for (let at = upFrom(node); at; at = upFrom(at)) {
-    const heading = lastBefore(heads.get(at), node);
-    if (heading) return heading;
-    if (declaredName(at)) return at;
+  const { over } = outlineOf(node);
+  let state = over.get(node);
+  for (let at = upFrom(node); state === undefined && at; at = upFrom(at)) {
+    const outer = over.get(at);
+    if (outer !== undefined) state = { container: at, heading: null, up: outer };
+  }
+  const scope = authoredScope(node);
+  for (let at = state ?? null; at; at = at.up) {
+    if (at.heading) return at.heading;
+    const { container } = at;
+    if (declaredName(container)) return container;
+    if (!titled(container, scope)) continue;
+    const title = leadingTitle(container);
+    if (title && title !== node && title.matches(HEADING)) return title;
   }
   return null;
 }
-// The last of `headings`, in rendered order, that the reader reaches before `node`.
-/** @param {readonly Element[] | undefined} headings @param {Element} node */
-function lastBefore(headings, node) {
-  if (!headings) return null;
-  let low = 0;
-  let high = headings.length;
-  while (low < high) {
-    const middle = (low + high) >> 1;
-    const heading = /** @type {Element} */ (headings[middle]);
-    if (renderedOrder(heading, node) < 0) low = middle + 1;
-    else high = middle;
-  }
-  return headings[low - 1] ?? null;
-}
+// Whether a container's leading title names what it holds, as the authoring contract
+// names a holder's members (addressable-names.js, `holderNaming`): short of the document
+// it stands in and the page's column, whose leading heading titles the page, and never a
+// slot, whose own children are the fallback its assignment replaces.
+/** @param {Element} container @param {Element} scope */
+const titled = (container, scope) =>
+  container !== scope &&
+  container.localName !== "slot" &&
+  !(container.localName === "main" && container.parentElement === scope);
 
 // ---------- where the open conversations stand ----------
 // Gathered once for each reading of the threads and the page, so asking about a place
@@ -200,6 +177,10 @@ function lastBefore(headings, node) {
 // reads ownership, its own part and those of the headings below its level; each with
 // the turn one owes the user (`threadAttention`), the first found. A heading heads
 // itself, so a conversation about a heading is its part's, not the part before it.
+// Kept against exactly what it reads: the threads as the thread reading publishes them,
+// a new value whenever any thread's contents change, its turns included; the agent's
+// name the turns are said in; and the page's outline reading, which moves with the
+// page's reading.
 /** @typedef {{threads: number, turn: NonNullable<ReturnType<typeof threadAttention>> | null}} Conversations
  * @typedef {{key: readonly unknown[], inside: Map<Element, Conversations>, headed: Map<Element, Conversations>}} Gathered */
 /** @type {Gathered | null} */
@@ -208,7 +189,7 @@ let gathered = null;
 function gatherConversations() {
   const { all, bySection } = threadState();
   const agent = agentName();
-  const key = [...readingKey(), bySection, agent];
+  const key = [all, agent, pageOutlineReading()];
   if (gathered && current(gathered.key, key)) return gathered;
   /** @type {Map<Element, Conversations>} */
   const inside = new Map();

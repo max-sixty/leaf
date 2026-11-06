@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { render } from "/runtime/framework.js";
 import { linkedPlace, placePreview } from "/runtime/place-preview.js";
+import { partOver } from "/runtime/thread/placement.js";
 import { registry } from "/runtime/registry.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
 
@@ -214,6 +215,19 @@ test("a heading's section is walked through declared shadow trees and their slot
     [...lines.querySelectorAll(".lf-place-text")].map((part) => part.textContent),
     ["Drawn first.", "Drawn second."],
   );
+  // A slot's fallback, replaced by what is assigned to it, is no part of the outline,
+  // so its heading ends nothing.
+  document.body.innerHTML = `<main><lf-staged id="fallback"></lf-staged></main>`;
+  const fallback = document.createElement("template");
+  fallback.innerHTML = `<h2 id="it">First</h2><slot><h3>Fallback heading</h3></slot>
+    <h2>Next</h2><p>Next words.</p>`;
+  const holder = document.getElementById("fallback");
+  shadowStage(holder, [...fallback.content.childNodes]);
+  holder.innerHTML = "<p>Assigned body.</p>";
+  const first = placePreview(holder.shadowRoot.getElementById("it"));
+  const body = document.createElement("div");
+  render(first.detail, body);
+  assert.equal(body.textContent.replace(/\s+/g, " ").trim(), "Assigned body.");
 });
 
 test("a place with no name of its own takes the nearest name holding it", () => {
@@ -225,6 +239,17 @@ test("a place with no name of its own takes the nearest name holding it", () => 
       ["text", "It may fail."],
     ],
   );
+  // A section the author wrote is named by its heading, words before the heading
+  // included, on the card and in On me alike (`partOver`).
+  assert.deepEqual(
+    previewed(`<h2>Earlier</h2><section><p id="it">Context first.</p><h2>Later</h2>
+      <p>After.</p></section>`).parts,
+    [
+      ["name", "Later"],
+      ["text", "Context first."],
+    ],
+  );
+  assert.equal(partOver(document.getElementById("it"))?.textContent, "Later");
   // Else the part it stands in, as On me names it (`partOver`): an aside's heading
   // heads the aside alone.
   assert.deepEqual(

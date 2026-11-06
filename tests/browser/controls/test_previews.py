@@ -4,6 +4,7 @@ acts on it, to a resting pointer, to the keyboard and to a held finger
 `browser/margin/test_entries.py`."""
 
 import pytest
+from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url, panel_comment
 from render_cases_navigation import _publish
@@ -203,7 +204,7 @@ def test_a_link_into_the_page_previews_where_it_points(engine, request, serve):
     in Chromium, and in Firefox, which takes no held touch from a test, by the pointer
     events a finger sends. A link to another site previews nothing."""
     url = serve(LINKS_PAGE)
-    panel_comment(
+    question = panel_comment(
         serve.page_dir,
         "Should this wait for the vendor's release?",
         {"section": "stall"},
@@ -237,6 +238,20 @@ def test_a_link_into_the_page_previews_where_it_points(engine, request, serve):
     assert (
         preview.locator("[id], a, button, input, [tabindex], lf-options").count() == 0
     )
+    # Answering the question turns its thread to the agent: the standing preview says
+    # so with the thread reading that says it.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": question,
+            "revision": 1,
+            "text": "Hold it until then.",
+        },
+    )
+    told(page)
+    expect(preview.locator(".lf-place-foot")).to_have_text("2 threads")
 
     page.locator("#to-decision").hover()
     expect(name).to_have_text("Patch decision")
@@ -319,8 +334,9 @@ DRAWN_PAGE = leaf_page(
 <a id="to-untitled" href="#untitled">a section whose title is hidden</a>,
 <a id="to-code" href="#code">code with hidden words and a control</a>,
 <a id="to-broken" href="#broken">a line broken before hidden words</a>,
-<a id="to-skipping" href="#skipping">a block skipping its own words</a> and
-<a id="to-folded" href="#folded">a folded panel</a>.</p>
+<a id="to-skipping" href="#skipping">a block skipping its own words</a>,
+<a id="to-folded" href="#folded">a folded panel</a> and
+<a id="to-far" href="#far">words out of view</a>.</p>
 <details id="closed"><summary>Method</summary>Secret text<p>Hidden paragraph.</p></details>
 <div id="held">Intro <details><summary>More</summary><p>Hidden words.</p></details></div>
 <p id="spans">Before <span style="display: none">Gone</span> <span hidden>Attr</span>
@@ -345,7 +361,10 @@ CV</div><div hidden="until-found">SECRET FOUND</div></div>
 <section id="folded" hidden="until-found"><h3>Folded title</h3><p>Folded body.</p>
 </section>
 """
-    + "<p>More of the page.</p>" * 20,
+    + "<p>More of the page.</p>" * 40
+    + """<div style="content-visibility: auto; contain-intrinsic-size: auto 40px">
+<p id="far">Far <span style="visibility: hidden">SECRET VISIBILITY</span>
+<span style="display: none">SECRET DISPLAY</span> words.</p></div>""",
 )
 
 
@@ -358,7 +377,9 @@ def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve)
     one, a block with no box what it holds draws, a section whose title is hidden its
     body and not the title, code its lines without a hidden word or Leaf's control, a
     break before hidden words still a break, words a block's `content-visibility` skips
-    nothing, and a folded panel, which draws none of what it holds, all of it."""
+    nothing, a folded panel, which draws none of what it holds, all of it, and words a
+    `content-visibility: auto` box skips out of view as they will draw: without what
+    their own styles hide. Code cut short ends in an ellipsis, as cut prose does."""
     page = open_page(request.getfixturevalue(engine), serve(DRAWN_PAGE))
     # Words Leaf writes into a block, as the paint pass writes a comment's count.
     page.evaluate(
@@ -380,10 +401,11 @@ def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve)
         ("#to-shown", None, "Plain Shown words."),
         ("#to-contents", None, "Boxed words."),
         ("#to-untitled", None, "Visible body."),
-        ("#to-code", None, "one two three four"),
+        ("#to-code", None, "one two three four…"),
         ("#to-broken", None, "first second"),
         ("#to-skipping", None, "Shown words."),
         ("#to-folded", "Folded title", "Folded body."),
+        ("#to-far", None, "Far words."),
     ):
         page.mouse.move(0, 0)
         expect(preview).to_be_hidden()
@@ -396,6 +418,39 @@ def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve)
         else:
             expect(parts).to_have_count(0)
         assert not {"SECRET", "HIDDEN", "CONTROL"} & set(preview.inner_text().split())
+
+
+def test_a_message_s_parts_follow_its_accepted_edit(browser, serve):
+    """A message's markup is outlined as the page is, and an edit the log accepts
+    outlines it again: the paragraph after a heading the edit changed stands under the
+    new heading."""
+    url = serve(PANEL_PAGE)
+    thread = panel_comment(
+        serve.page_dir, "## Original heading\n\nWords after the heading."
+    )
+    page = open_page(browser, url)
+    view = open_panel_thread(page, thread)
+    part = """async () => {
+      const {partOver} = await import('/runtime/thread/placement.js');
+      const words = [...document.querySelectorAll('.lf-msg-body p')]
+        .find((p) => p.textContent.includes('Words after the heading'));
+      return partOver(words)?.textContent.trim() ?? null;
+    }"""
+    expect(view.locator("h2")).to_have_text("Original heading")
+    assert page.evaluate(part) == "Original heading"
+    view.locator(".lf-msg-text").dblclick()
+    expect(view.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("### Changed heading")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("Words after the heading.")
+    page.keyboard.press("Enter")
+    expect(view.locator(".lf-msg-editor")).to_have_count(0)
+    expect(view.locator(".lf-edited")).to_have_text("edited")
+    told(page)
+    expect(view.locator("h3")).to_have_text("Changed heading")
+    assert page.evaluate(part) == "Changed heading"
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

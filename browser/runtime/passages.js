@@ -145,7 +145,11 @@ import { excerptWords } from "./words.js";
  * lineBefore?: string, whiteSpace?: string}} Segment
  * @typedef {Segment & {rawStart: number}} IndexedSegment
  * @typedef {{raw: string, positions: WeakMap<Text, number>,
- * fences: number[], segments: IndexedSegment[], blocks?: Element[]}} PageReading
+ * fences: number[], segments: IndexedSegment[], blocks?: Element[],
+ * outline: OutlineReading}} PageReading
+ * @typedef {{container: Element, heading: Element | null, up: Over | null}} Over
+ * @typedef {{outline: readonly Element[], at: Map<Element, number>,
+ * over: Map<Element, Over | null>}} OutlineReading
  * @typedef {{node: Text, offset: number, segment: Segment}} Point
  * @typedef {keyof typeof READINGS} Reading */
 
@@ -866,14 +870,6 @@ export const layoutParts = () => {
 /** @param {Node} node */
 export const authoredScope = (node) =>
   closestAcross(node, MESSAGE_BODY) ?? pageDocument(node?.ownerDocument ?? document);
-// Whether the reading of the document `element` stands in (`authoredScope`) skips it as
-// Leaf's chrome: the rule the walk skips words by (`chromeMark`), counted from that
-// reading's frame, so a reply's markup and text are no chrome for standing in the
-// panel, and Leaf's controls in either are, while words a widget renders for the page,
-// as a Markdown preview's, are the page's.
-/** @param {Element} element */
-export const readAsChrome = (element) =>
-  contextAt(element, frameOf(authoredScope(element))).chrome;
 
 // elementFromPoint retargets to the host for a point over a shadow tree, so it names the
 // widget rather than the thing in it, and each root answers for its own. Mark hit testing
@@ -1147,8 +1143,8 @@ const drawnHere = () => {
  * (`content-visibility: hidden`, as an unchosen tab's `hidden="until-found"` panel and a
  * closed disclosure's body are), and, with `visibility`, `element` inherits
  * `visibility: visible`. What a `content-visibility: auto` box skips off screen is drawn
- * once scrolled to, so it counts as drawn and is not styled to ask (shadow-tree.js,
- * `skipper`).
+ * once scrolled to, by the same rules, so it is asked as it is, which styles what is
+ * asked; what `hidden` skips is answered without styling it (shadow-tree.js, `skipper`).
  * @param {Element} element @param {boolean} [visibility] */
 export function drawsWithin(element, visibility = true) {
   for (
@@ -1156,14 +1152,15 @@ export function drawsWithin(element, visibility = true) {
     box;
     box = renderedParent(box)
   ) {
-    if (box.checkVisibility({ contentVisibilityAuto: true }))
+    if (box.checkVisibility())
       return (
         getComputedStyle(box).contentVisibility !== "hidden" &&
         (!visibility ||
           !/^(hidden|collapse)$/.test(getComputedStyle(element).visibility))
       );
     const skipping = skipper(box);
-    if (skipping) return getComputedStyle(skipping).contentVisibility === "auto";
+    if (skipping && getComputedStyle(skipping).contentVisibility !== "auto")
+      return false;
     if (getComputedStyle(box).display !== "contents") return false;
   }
   return false;
@@ -1649,6 +1646,7 @@ function readPage() {
   const cellChains = []; // the cell candidates over each segment, nearest first
   const keeps = READINGS.says;
   let breakBefore = false;
+  const outline = outlineFold();
   walk(
     document.body,
     (node, ctx) => {
@@ -1661,6 +1659,7 @@ function readPage() {
     (ctx) => {
       if (keeps(ctx)) breakBefore = true;
     },
+    outline.enter,
   );
 
   // Generated page-words that the registry does not model are their own passage cells:
@@ -1711,8 +1710,65 @@ function readPage() {
     positions,
     fences: [...fences].sort((a, b) => a - b),
     segments: indexed,
+    outline: outline.read(),
   };
 }
+// A document's outline, recorded by the walk that reads it, in composed reading order:
+// its headings, Leaf's chrome aside, so a slot's fallback replaced by what is assigned
+// to it is none; and, for each element the walk enters, what stood over it as the walk
+// reached it (`Over`): for each container out from it, the last heading met so far that
+// heads that container (`headed`). Each container's record is replaced, never changed,
+// when a heading arrives in it, so what an element was given stays as it was.
+// thread/placement.js reads names and parts from it (`partOver`).
+const outlineFold = () => {
+  /** @type {Element[]} */
+  const outline = [];
+  /** @type {Map<Element, number>} */
+  const at = new Map();
+  /** @type {Map<Element, Over | null>} */
+  const over = new Map();
+  /** @type {{element: Element, state: Over}[]} */
+  const open = [];
+  return {
+    /** @param {Element} element @param {ReadingContext} ctx @param {boolean} entering */
+    enter(element, ctx, entering) {
+      if (!entering) {
+        open.pop();
+        return;
+      }
+      over.set(element, open.at(-1)?.state ?? null);
+      if (element.matches(HEADING) && !ctx.chrome) {
+        at.set(element, outline.length);
+        outline.push(element);
+        const container = headed(element);
+        const holder = open.findLast((frame) => frame.element === container);
+        if (holder) holder.state = { ...holder.state, heading: element };
+      }
+      const up = open.at(-1)?.state ?? null;
+      open.push({ element, state: { container: element, heading: null, up } });
+    },
+    /** @returns {OutlineReading} */
+    read: () => ({ outline: Object.freeze(outline), at, over }),
+  };
+};
+/** The page's outline, as its reading's walk recorded it (`readPage`). */
+export const pageOutlineReading = () => pageText().outline;
+/** The outline of a document handed in, as a message's markup, walked as the page's is.
+ * @param {Element} root @returns {OutlineReading} */
+export function outlineReading(root) {
+  const outline = outlineFold();
+  walk(root, () => {}, null, null, outline.enter);
+  return outline.read();
+}
+// The container a heading heads, from where it stands on: what holds it, or what holds
+// the `header` or `hgroup` it stands in, as HTML's outline reads a page's title in its
+// header heading the page's sections.
+const HEADERS = "header, hgroup";
+/** @param {Element} heading */
+export const headed = (heading) => {
+  const at = upFrom(heading);
+  return at?.matches(HEADERS) ? upFrom(at) : at;
+};
 // The page's text blocks in reading order: each block (`blockAt`) holding a word of the
 // page's reading, once. Kept on the reading it came from, so it moves exactly when the
 // words do and costs nothing to ask again until then.

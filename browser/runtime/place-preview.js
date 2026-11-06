@@ -76,6 +76,7 @@ import {
   authoredScope,
   drawsWithin,
   GENERATED,
+  headed,
   HEADING,
   inPage,
   LEAF_SURFACE,
@@ -87,12 +88,7 @@ import {
 import { declarationFor, registry } from "./registry.js";
 import { readPart } from "./semantic-state.js";
 import { overIn, under } from "./shadow.js";
-import {
-  conversationsAbout,
-  headed,
-  headingAfter,
-  partOver,
-} from "./thread/placement.js";
+import { conversationsAbout, headingAfter, partOver } from "./thread/placement.js";
 import { leafSays, voiced } from "./voice.js";
 import { capitalized, counted, excerptWords, labelWords } from "./words.js";
 
@@ -214,9 +210,9 @@ const namedBy = (naming, whole = reading.whole) =>
   !naming ? "" : "words" in naming ? naming.words : words(naming.by, whole);
 
 // The blocks after a heading in the page's reading, from the heading out to the part it
-// heads (`headed`), as the reader asks for them: the next heading of the outline ends
-// the reading (`read`), and the reader stops asking once it holds what the preview
-// shows.
+// heads (passages.js, `headed`), as the reader asks for them: the next heading of the
+// outline ends the reading (`read`), and the reader stops asking once it holds what the
+// preview shows.
 /** @param {Element} heading @returns {Generator<Element>} */
 function* sectionOf(heading) {
   const container = headed(heading);
@@ -302,8 +298,11 @@ function drawn(element, parts) {
   else if (element.localName === "figure" || element.localName === "img")
     figurePart(element, parts);
   else if (element.localName === "pre") {
-    const lines = said(element, "lines").split("\n").slice(0, LINES).join("\n");
-    if (lines.trim()) parts.push({ kind: "code", lines });
+    // Code cut short ends in the ellipsis cut prose does (words.js, `excerptWords`).
+    const all = said(element, "lines").trimEnd().split("\n");
+    const lines = all.slice(0, LINES).join("\n");
+    if (lines.trim())
+      parts.push({ kind: "code", lines: all.length > LINES ? `${lines}…` : lines });
   } else if (textual) {
     part(parts, "text", words(element));
     if (holdsStop) reading.ended = true;

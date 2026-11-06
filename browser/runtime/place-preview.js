@@ -97,8 +97,8 @@ import { capitalized, counted, excerptWords, labelWords } from "./words.js";
  *   | {kind: "state", words: Words}} Part */
 
 // How much of a place a preview shows: its name's words, parts after its name, a
-// paragraph's words (CSS cuts it to its lines), a list's items, a table's rows and
-// columns, a code block's lines.
+// paragraph's words, a list's items, a table's rows and columns, a code block's lines.
+// The face cuts what its room doesn't hold.
 const NAME = 120;
 const PARTS = 2;
 const WORDS = 280;
@@ -150,10 +150,11 @@ export function linkPreview(link) {
   return place ? placePreview(place) : null;
 }
 
-/** A place on the page as a preview shows it (preview.js, `Preview`): its name, then its
- * parts and the conversations about it as two lines of detail, in the face's excerpt
- * room, about the place itself, so where the page shows the place, the card stands
- * clear of it rather than over what it previews.
+/** A place on the page as a preview shows it (preview.js, `Preview`): its name, then
+ * each of its parts and the conversations about it as a line of detail, so a face held to
+ * a short room keeps the parts that fit whole and cuts the one the room ends in
+ * (preview.js, `fit`), in the face's excerpt room, about the place itself, so where the
+ * page shows the place, the card stands clear of it rather than over what it previews.
  * @param {Element} place */
 export function placePreview(place) {
   const heading = place.matches(HEADING);
@@ -174,10 +175,7 @@ export function placePreview(place) {
   if (!name && !parts.length && !foot) return null;
   return {
     name: name ? excerptWords(name, NAME) : null,
-    detail: [
-      parts.length ? html`<span class="lf-place">${parts.map(partView)}</span>` : null,
-      foot,
-    ],
+    detail: [...parts.map(partView), foot],
     about: place,
     excerpt: true,
   };

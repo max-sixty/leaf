@@ -37,11 +37,10 @@ function previewed(markup, { message = false } = {}) {
   assert.equal(preview.excerpt, true);
   const tip = document.createElement("div");
   render(preview.detail, tip);
-  const place = tip.querySelector(".lf-place");
   return {
     parts: [
       ...(preview.name ? [["name", preview.name]] : []),
-      ...[...(place?.children ?? [])].map((part) => [
+      ...[...tip.children].map((part) => [
         part.className.replace("lf-place-", ""),
         part.textContent.replace(/\s+/g, " ").trim(),
       ]),

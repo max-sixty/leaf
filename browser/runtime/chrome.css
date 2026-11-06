@@ -1317,26 +1317,15 @@ html[data-lf-region-capture]
     background: var(--tip-bg);
     color: color-mix(in srgb, var(--tip-ink) 76%, transparent);
   }
-  /* A place's preview (place-preview.js), what a link into the page opens, in
-     the excerpt room: under the place's name, its first parts as the page reads them, a
-     paragraph cut to three lines and a list's items, a table's cells and a code block's
-     lines to one, then the conversations about it under a rule. The tooltip's ground is
-     the page's ink, so its marks mix the tooltip's own ink rather than the paper's
-     colours. */
-  .lf-place {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
+  /* A place's preview (place-preview.js), what a link into the page opens, in the
+     excerpt room: under the place's name, its first parts as the page reads them, each a
+     line of detail the face fits to its room (`fit`, preview.js), a list's items, a
+     table's cells and a code block's lines each cut to one, then the conversations about
+     it under a rule. The tooltip's ground is the page's ink, so its marks mix the
+     tooltip's own ink rather than the paper's colours. */
   .lf-place-heading,
   .lf-place-cell[data-lf-head] {
     font-weight: 600;
-  }
-  .lf-place-text {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-    overflow: hidden;
   }
   .lf-place-list {
     display: flex;
@@ -1376,6 +1365,7 @@ html[data-lf-region-capture]
     color: color-mix(in srgb, currentColor 72%, transparent);
   }
   .lf-place-code {
+    display: block;
     white-space: pre;
     font: var(--font-code);
   }

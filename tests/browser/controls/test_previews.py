@@ -443,7 +443,7 @@ def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve)
         }"""
     )
     preview = page.locator(PREVIEW)
-    parts = preview.locator(".lf-place")
+    parts = preview.locator(".lf-preview-detail")
     for link, name, said in (
         ("#to-closed", "Method", None),
         ("#to-held", None, "Intro More"),
@@ -467,7 +467,7 @@ def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve)
         if name:
             expect(preview.locator(".lf-preview-word")).to_have_text(name)
         if said:
-            assert " ".join(parts.inner_text().split()) == said, link
+            assert " ".join(" ".join(parts.all_inner_texts()).split()) == said, link
         else:
             expect(parts).to_have_count(0)
         assert not {"SECRET", "HIDDEN", "CONTROL"} & set(preview.inner_text().split())

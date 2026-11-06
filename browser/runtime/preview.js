@@ -19,7 +19,9 @@
      lines stand under the control's own name and keys, and its name replaces the
      accessible name where that says more than the face should; `at` is where to stand,
      the declaring element by default, another element or a box in client coordinates
-     inside it, as a chart's point, which the preview stands above; `excerpt` asks
+     inside it, as a chart's point, which the preview stands above; `about` is what it
+     is about, which it leaves in view as it does the box it stands by, as a margin
+     entry's passage or a time's message; `excerpt` asks
      for the face's room for a block of the page; and `list` is items under the lines,
      `{items, more}`, as the threads standing at one place, of which the face shows as
      many as the room it is held to holds, and under them the words `more(count)` gives
@@ -82,15 +84,18 @@
    the element through every scroll, a shadow tree's included, and this module places
    it again as the element or the window resizes; a hover writes nothing on the
    target, which observers of the page's boxes would hear. Its side is the first that
-   holds it whole inside the window and covers no other target, tested every 23 px
-   across the box it will draw, so no target as large as WCAG's least escapes: below,
+   holds it whole inside the window, leaves what it is about in view (the box it
+   stands by and the declaration's `about`), and covers no other target, tested every
+   23 px across the box it will draw, so no target as large as WCAG's least escapes: below,
    then above, from the box's start edge and then its end edge, so a right-to-left
    target's starts at its right edge; beside, toward the nearer window edge first; then
    centred across the window. A finger's and a point's try above first. Where every one
    covers a target, the first that holds it stands and takes no pointer, so the pointer
    reaches what it covers; where none holds it whole, the one with the most room stands
-   and the preview fits its lines to that room. A standing preview whose box moves, as
-   a chart's from point to point, keeps its side while that side still holds it.
+   and the preview fits its lines to that room. A redraw of the same subject, as new
+   words for the same target, keeps the corner its words start at, so they don't move,
+   while it still fits there; a new aim, as a chart's next point (`previewChanged` with
+   `aim`), places it afresh.
 
    Its routes:
 
@@ -215,11 +220,11 @@ import { shownParts } from "./geometry.js";
  * @typedef {readonly (readonly string[])[]} Presses
  * @typedef {Words | null | undefined | false} Line
  * @typedef {{items: readonly Words[], more: (count: number) => Words}} List
- * @typedef {{name?: Words | null, keys?: Presses, detail?: readonly Line[], list?: List | null, at?: Element | import("./rect.js").Box | null, excerpt?: boolean}} Preview
+ * @typedef {{name?: Words | null, keys?: Presses, detail?: readonly Line[], list?: List | null, at?: Element | import("./rect.js").Box | null, about?: Element | null, excerpt?: boolean}} Preview
  * @typedef {Preview | null | undefined | false} Declared
  * @typedef {"pointer" | "focus" | "hold"} Route
  * @typedef {(route: Route) => Declared} Read
- * @typedef {{name: Words | null, keys: Presses, detail: Words[], list: List | null, at: Element | import("./rect.js").Box | null, excerpt: boolean, restates: boolean}} Reading
+ * @typedef {{name: Words | null, keys: Presses, detail: Words[], list: List | null, at: Element | import("./rect.js").Box | null, about: Element | null, excerpt: boolean, restates: boolean}} Reading
  * @typedef {import("./rect.js").Box} Box
  * @typedef {Element | Range} Target
  * @typedef {{from: Target, target: Target, holder: Element, route: Route, read: Read | null, at: {x: number, y: number} | undefined, clock: number, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
@@ -418,6 +423,7 @@ function lines(declared, own) {
     keys,
     detail,
     at: declared?.at ?? null,
+    about: declared?.about ?? null,
     excerpt: Boolean(declared?.excerpt),
     list,
     restates: false,
@@ -538,8 +544,8 @@ function readFrom(from, route, read) {
 // Show what `from` previews on `route`, and say whether one shows. Shown `again` for
 // the preview standing, it draws what its target says now where it stands, with no
 // fade.
-/** @param {Target} from @param {Route} route @param {Read | null} [read] @param {{x: number, y: number}} [at] @param {boolean} [again] */
-function show(from, route, read = null, at, again = false) {
+/** @param {Target} from @param {Route} route @param {Read | null} [read] @param {{x: number, y: number}} [at] @param {boolean} [again] @param {boolean} [fresh] */
+function show(from, route, read = null, at, again = false, fresh = false) {
   if (!again && shown?.from === from && shown.route === route) return true;
   const found = readFrom(from, route, read);
   const standing = again && found && shown?.from === from ? shown : null;
@@ -572,7 +578,7 @@ function show(from, route, read = null, at, again = false) {
   keeps(tip, "data-lf-face", reading.excerpt ? "excerpt" : null);
   keeps(tip, "data-lf-list", reading.list ? "" : null);
   if (route === "hold") keeps(holder, "data-lf-held", "");
-  if (!stand(record, reading, Boolean(standing))) {
+  if (!stand(record, reading, Boolean(standing), Boolean(standing) && !fresh)) {
     hide();
     return false;
   }
@@ -729,12 +735,22 @@ function follow(source) {
 }
 
 /** @typedef {{y: "below" | "above" | "top", x: "left" | "right" | "after" | "before" | "center", box: Box, room: number}} Placement */
-/** @type {Placement | null} */
+// Where the standing preview stands, and its start corner as offsets from the element it
+// stands by, which a redraw of the same subject keeps.
+/** @type {(Placement & {source: Element, corner: {x: number, y: number}}) | null} */
 let placed = null;
 
-// Stand the preview by its anchor on its side, and say whether it stands.
-/** @param {Shown} record @param {Reading} reading @param {boolean} standing */
-function stand(record, reading, standing) {
+/** @param {Box} a @param {Box} b */
+const meets = (a, b) =>
+  a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+
+// Stand the preview by its anchor on its side, and say whether it stands. A redraw of
+// the subject it stands for, as new words for the same target, keeps the corner its
+// words start at, so they don't move (`placed`), while it still fits there and covers
+// none of what it is about; a new aim, or a redraw that no longer fits, places it
+// afresh.
+/** @param {Shown} record @param {Reading} reading @param {boolean} standing @param {boolean} redraw */
+function stand(record, reading, standing, redraw) {
   const moved = seat();
   const anchor = anchorOf(record, reading);
   if (!anchor) return false;
@@ -748,100 +764,149 @@ function stand(record, reading, standing) {
   keeps(tip, "dir", rtl ? "rtl" : "ltr");
   tip.style.setProperty("--lf-preview-gap", `${gap}px`);
   const by = source.getBoundingClientRect();
-  const insets = {
-    top: box.top - by.top,
-    right: by.right - box.right,
-    bottom: by.bottom - box.bottom,
-    left: box.left - by.left,
-  };
-  for (const [edge, length] of Object.entries(insets))
-    tip.style.setProperty(`--lf-preview-inset-${edge}`, layoutPx(length));
+  const same = redraw && placed?.source === source ? placed : null;
   open(source, standing, moved);
   follow(source);
   const width = tip.getBoundingClientRect().width;
-  // Its whole height, whatever room it was last held to.
-  const height = body.scrollHeight;
+  // Its whole height, whatever room it was last held to: its drawn height where it is
+  // whole, which is fractional where scrollHeight rounds.
+  const height =
+    body.scrollHeight > body.clientHeight + 1
+      ? body.scrollHeight
+      : body.getBoundingClientRect().height;
   const room = { width: document.documentElement.clientWidth, height: innerHeight };
-  /** @param {Placement["y"]} y */
-  const rowRoom = (y) =>
-    y === "below"
-      ? room.height - EDGE - (box.bottom + gap)
-      : y === "above"
-        ? box.top - gap - EDGE
-        : room.height - EDGE - box.top;
-  /** @param {Placement["x"]} x */
-  const leftOf = (x) =>
-    x === "left"
-      ? box.left
-      : x === "right"
-        ? box.right - width
-        : x === "after"
-          ? box.right + gap
-          : x === "before"
-            ? box.left - gap - width
-            : EDGE + (room.width - 2 * EDGE - width) / 2;
-  /** @param {Placement["y"]} y @param {Placement["x"]} x @returns {Placement} */
-  const placement = (y, x) => {
-    const space = rowRoom(y);
-    const tall = Math.min(height, Math.max(space, 0));
-    const left = leftOf(x);
-    const top =
-      y === "below" ? box.bottom + gap : y === "above" ? box.top - gap - tall : box.top;
-    return {
-      y,
-      x,
-      box: { left, top, right: left + width, bottom: top + tall },
-      room: space,
-    };
-  };
-  const [start, end] = rtl
-    ? /** @type {const} */ (["right", "left"])
-    : /** @type {const} */ (["left", "right"]);
-  /** @type {Placement["y"][]} */
-  const rows = route === "hold" || point ? ["above", "below"] : ["below", "above"];
-  /** @type {Placement[]} */
-  const placements = rows.flatMap((y) => [placement(y, start), placement(y, end)]);
-  if (!(target instanceof Range)) {
-    const toward =
-      box.left + box.right > room.width ? ["after", "before"] : ["before", "after"];
-    placements.push(
-      ...toward.map((x) => placement("top", /** @type {Placement["x"]} */ (x))),
-    );
-  }
-  placements.push(...rows.map((y) => placement(y, "center")));
+  // What it is about stays in view: the box it stands by, and what its declaration
+  // names (`about`), as a margin entry's passage or a time's message.
+  const about = reading.about?.isConnected
+    ? reading.about.getBoundingClientRect()
+    : null;
+  /** @param {Placement} at */
+  const clear = (at) => !meets(at.box, box) && !(about && meets(at.box, about));
   /** @param {Placement} at */
   const inside = (at) =>
-    at.box.left >= EDGE - 0.5 && at.box.right <= room.width - EDGE + 0.5;
-  // A standing preview whose box moves, as a chart's does from point to point, keeps
-  // its side while that side still holds it and covers nothing, one test of the box it
-  // moves to, so a pointer moving over a chart pays for no search.
-  const kept =
-    standing && placed
-      ? placements.find((at) => at.y === placed?.y && at.x === placed?.x)
-      : undefined;
-  const whole = placements.filter((at) => inside(at) && at.room >= height);
-  const free =
-    kept && whole.includes(kept) && !covers(kept.box, holder)
-      ? kept
-      : whole.find((at) => !covers(at.box, holder));
-  const chosen =
-    free ??
-    whole[0] ??
-    placements
-      .filter(inside)
-      .reduce(
-        (most, at) => (!most || at.room > most.room ? at : most),
-        /** @type {Placement | null} */ (null),
-      ) ??
-    placement(rows[0] ?? "below", "center");
-  placed = chosen;
+    at.box.left >= EDGE - 0.5 &&
+    at.box.right <= room.width - EDGE + 0.5 &&
+    at.box.top >= EDGE - 0.5;
+  /** @type {Placement | null} */
+  let chosen = null;
+  let free = true;
+  if (same) {
+    const top = by.top + same.corner.y;
+    const left = rtl ? by.right - same.corner.x - width : by.left + same.corner.x;
+    /** @type {Placement} */
+    const kept = {
+      y: "top",
+      x: rtl ? "right" : "left",
+      box: { left, top, right: left + width, bottom: top + height },
+      room: room.height - EDGE - top,
+    };
+    if (inside(kept) && kept.room >= height && clear(kept)) chosen = kept;
+  }
+  if (!chosen) {
+    /** @param {Placement["y"]} y */
+    const rowRoom = (y) =>
+      y === "below"
+        ? room.height - EDGE - (box.bottom + gap)
+        : y === "above"
+          ? box.top - gap - EDGE
+          : room.height - EDGE - box.top;
+    /** @param {Placement["x"]} x */
+    const leftOf = (x) =>
+      x === "left"
+        ? box.left
+        : x === "right"
+          ? box.right - width
+          : x === "after"
+            ? box.right + gap
+            : x === "before"
+              ? box.left - gap - width
+              : EDGE + (room.width - 2 * EDGE - width) / 2;
+    /** @param {Placement["y"]} y @param {Placement["x"]} x @returns {Placement} */
+    const placement = (y, x) => {
+      const space = rowRoom(y);
+      const tall = Math.min(height, Math.max(space, 0));
+      const left = leftOf(x);
+      const top =
+        y === "below"
+          ? box.bottom + gap
+          : y === "above"
+            ? box.top - gap - tall
+            : box.top;
+      return {
+        y,
+        x,
+        box: { left, top, right: left + width, bottom: top + tall },
+        room: space,
+      };
+    };
+    const [start, end] = rtl
+      ? /** @type {const} */ (["right", "left"])
+      : /** @type {const} */ (["left", "right"]);
+    /** @type {Placement["y"][]} */
+    const rows = route === "hold" || point ? ["above", "below"] : ["below", "above"];
+    /** @type {Placement[]} */
+    const placements = rows.flatMap((y) => [placement(y, start), placement(y, end)]);
+    if (!(target instanceof Range)) {
+      const toward =
+        box.left + box.right > room.width ? ["after", "before"] : ["before", "after"];
+      placements.push(
+        ...toward.map((x) => placement("top", /** @type {Placement["x"]} */ (x))),
+      );
+    }
+    placements.push(...rows.map((y) => placement(y, "center")));
+    // Only where none keeps what it is about clear may it cover that.
+    const clearOnes = placements.filter(clear);
+    const pool = clearOnes.length ? clearOnes : placements;
+    const whole = pool.filter((at) => inside(at) && at.room >= height);
+    const uncovered = whole.find((at) => !covers(at.box, holder));
+    free = Boolean(uncovered);
+    chosen =
+      uncovered ??
+      whole[0] ??
+      pool
+        .filter(inside)
+        .reduce(
+          (most, at) => (!most || at.room > most.room ? at : most),
+          /** @type {Placement | null} */ (null),
+        ) ??
+      placement(rows[0] ?? "below", "center");
+    if (!free) free = !covers(chosen.box, holder);
+  }
+  // The box sits at its offsets inside its element, or, kept, at its start corner's.
+  const insets =
+    chosen === null ||
+    chosen.y !== "top" ||
+    !same ||
+    chosen.x !== (rtl ? "right" : "left")
+      ? {
+          top: box.top - by.top,
+          right: by.right - box.right,
+          bottom: by.bottom - box.bottom,
+          left: box.left - by.left,
+        }
+      : {
+          top: same.corner.y,
+          right: rtl ? same.corner.x : by.right - box.right,
+          bottom: by.bottom - box.bottom,
+          left: rtl ? box.left - by.left : same.corner.x,
+        };
+  for (const [edge, length] of Object.entries(insets))
+    tip.style.setProperty(`--lf-preview-inset-${edge}`, layoutPx(length));
+  placed = {
+    ...chosen,
+    source,
+    corner: {
+      x: rtl ? by.right - chosen.box.right : chosen.box.left - by.left,
+      y: chosen.box.top - by.top,
+    },
+  };
   keeps(tip, "data-lf-y", chosen.y);
   keeps(tip, "data-lf-x", chosen.x);
   tip.style.setProperty(
     "--lf-preview-room",
     chosen.room >= height ? "none" : layoutPx(Math.max(chosen.room, 0)),
   );
-  keeps(tip, "data-lf-covers", free || !covers(chosen.box, holder) ? null : "");
+  keeps(tip, "data-lf-covers", free ? null : "");
   fit(reading);
   return true;
 }
@@ -994,7 +1059,7 @@ export function pointRange(range, read, at) {
 function changed(node, aim) {
   if (aim && quiet === node) quiet = null;
   if (shown && shown.from === node) {
-    show(node, shown.route, null, undefined, true);
+    show(node, shown.route, null, undefined, true, aim);
     return;
   }
   if (hold?.armed) {
@@ -1042,11 +1107,11 @@ function refresh() {
   );
   if (!found) return hide();
   if (found.target !== record.target)
-    return void show(record.from, record.route, record.read, record.at, true);
+    return void show(record.from, record.route, record.read, record.at, true, true);
   render(face(found.reading), body);
   // Where it stands is read again with what it says: a declaration's `at` may move to
   // another element or box under the same words, and the room the window leaves changes.
-  stand(record, found.reading, true);
+  stand(record, found.reading, true, true);
 }
 let refreshing = false;
 

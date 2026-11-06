@@ -306,16 +306,19 @@ once each time the preview shows, with the route that asked: `"pointer"`, `"focu
 stands, so what it says follows the page without tracking its own inputs; words that
 come back the same leave the preview as it is. It returns:
 
-- `{name, keys, detail, list, at, excerpt}`, every field optional. `name` replaces the
-  control's accessible name in the preview, or names an element that has none. `keys`
+- `{name, keys, detail, list, at, about, excerpt}`, every field optional. `name`
+  replaces the control's accessible name in the preview, or names an element that has
+  none. `keys`
   lists presses the register can't see, each as the steps its chips draw, as a control's
   own activation keys a drag grip names. `detail` is lines under the name, each words or
   an `html` template; a falsy line is left out. `at` is where the preview stands, the
   declaring element by default: another element, as a message's age stands its preview
   by its `<time>`, or a box in client coordinates (`{left, top, right, bottom}`, such as
   a `DOMRect`) inside the element, as a chart's value stands over its point, which the
-  preview stands above. `excerpt: true` gives a preview that quotes a block of the page
-  the face's wider room. A preview taller than the room beside its element shows the
+  preview stands above. `about` is the element the preview is about, which Leaf leaves
+  in view as it places the preview, as a margin entry's passage or a time's message;
+  the box it stands by is always left in view. `excerpt: true` gives a preview that
+  quotes a block of the page the face's wider room. A preview taller than the room beside its element shows the
   lines that fit and ends the last in an ellipsis; no preview scrolls, so what pressing
   the element opens says the rest. `list: {items, more}` is items under the lines, each
   words or a template, as the threads standing at one place: Leaf shows as many as the

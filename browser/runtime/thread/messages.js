@@ -635,7 +635,7 @@ export class MessageView {
             model.edited && model.body.kind !== "deleted"
               ? html`<span
                   class="lf-edited"
-                  .lfPreview=${() => ({ name: model.edited })}
+                  .lfPreview=${() => ({ name: model.edited, about: this.node })}
                   >edited</span
                 >`
               : nothing

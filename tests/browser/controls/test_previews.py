@@ -421,6 +421,40 @@ def test_an_entry_holding_several_threads_says_each(engine, request, serve):
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_passage_several_threads_mark_previews_them_all_as_its_entry_does(
+    engine, request, serve
+):
+    """Words several threads are about preview every one of them when pointed at, as
+    their margin entry does, with the same lines, and a press on them still opens the
+    first thread's card."""
+    url = serve(
+        leaf_page("Shared", f'<p id="passage">{PASSAGE}</p>' + "<p>More.</p>" * 6)
+    )
+    for n in ("one", "two", "three"):
+        panel_comment(
+            serve.page_dir,
+            f"Question {n} on these words?",
+            {"section": "passage", "quote": MARKED},
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    preview = page.locator(PREVIEW)
+    line = page.evaluate(MARK_LINE, MARKED)
+    rendered(page)
+    page.mouse.move(line["left"] - 20, line["top"] - 20)
+    page.mouse.move(line["left"] + 10, line["top"] + line["height"] / 2, steps=3)
+    expect(preview.locator(".lf-preview-word")).to_have_text("3 threads")
+    said = preview.inner_text()
+    entry = page.locator('[data-lf-margin-for="passage"] > .lf-margin-marker')
+    entry.hover()
+    expect(preview.locator(".lf-preview-word")).to_have_text("3 threads")
+    assert preview.inner_text() == said, "the entry and the words say different things"
+    page.mouse.move(0, 0)
+    expect(preview).to_be_hidden()
+    page.mouse.click(line["left"] + 10, line["top"] + line["height"] / 2)
+    expect(page.locator(CARD)).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_threads_row_previews_its_thread(engine, request, serve):
     """A row in Threads previews its thread as the thread's margin entry does, to the
     keyboard moving onto it, which hears the word the row's state already says once,

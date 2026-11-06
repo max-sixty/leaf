@@ -1099,11 +1099,22 @@ export function rangeOf(segments) {
   range.setEnd(last.node, last.end);
   return range;
 }
-// The lines a passage's words are drawn in: each segment's own, in order, wherever the
-// segment stands, in the page's tree or a shadow tree.
+// A passage's pieces in order: each segment, the block holding its words
+// (`segmentBlock`) and the lines it is drawn in, wherever it stands, in the page's tree
+// or a shadow tree. What clips a passage's lines, stands a mark over them or tells
+// whether a point is on them reads each piece against its own block, since a passage
+// runs across blocks and into shadow trees.
+/** @param {readonly Segment[]} segments */
+export const segmentPieces = (segments) =>
+  segments.map((segment) => ({
+    segment,
+    block: segmentBlock(segment),
+    lines: [...rangeOf([segment]).getClientRects()],
+  }));
+// The lines a passage's words are drawn in, all its pieces' in order.
 /** @param {readonly Segment[]} segments */
 export const segmentLines = (segments) =>
-  segments.flatMap((segment) => [...rangeOf([segment]).getClientRects()]);
+  segmentPieces(segments).flatMap((piece) => piece.lines);
 // The box around them, as `Range.getBoundingClientRect` gives one tree's range: around
 // the lines with an area, else the first.
 /** @param {readonly Segment[]} segments */

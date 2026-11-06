@@ -32,59 +32,56 @@ const REACT = "lf-react";
 const HOVER = "lf-mark-hover";
 const HERE = "lf-mark-here";
 
-// A text node's pieces cut into the stretches between their boundaries, each with the
-// first piece in reading order covering it: a sweep from the start, holding the pieces
-// that have begun in a heap by order and dropping those that ended as they reach its
-// top, so each piece enters and leaves once.
-/** @template {{order: number, start: number, end: number}} P @param {P[]} pieces
- * @returns {{bounds: number[], owners: (P | null)[]}} */
-function stretchesOf(pieces) {
-  const bounds = [...new Set(pieces.flatMap(({ start, end }) => [start, end]))].sort(
-    (a, b) => a - b,
-  );
-  const begun = [...pieces].sort((a, b) => a.start - b.start);
+// A text node's pieces as a centred interval tree: each node holds the pieces covering
+// its centre character, sorted by start and by end, with those wholly before and after
+// it below. `piecesAt` finds every piece covering a character by one walk down, reading
+// only the pieces it finds beside the tree's depth, which grows with the logarithm of
+// the pieces the node holds; it is built in the order of the pieces times that.
+/** @typedef {{start: number, end: number}} Span */
+/** @template {Span} P @typedef {{centre: number, byStart: P[], byEnd: P[],
+ * before: PieceTree<P> | null, after: PieceTree<P> | null}} PieceTree */
+/** @template {Span} P @param {readonly P[]} pieces sorted by start, none empty
+ * @returns {PieceTree<P> | null} */
+function treeOf(pieces) {
+  const middle = pieces[pieces.length >> 1];
+  if (!middle) return null;
+  const centre = middle.start;
   /** @type {P[]} */
-  const heap = [];
-  /** @param {number} a @param {number} b */
-  const before = (a, b) => (heap[a]?.order ?? Infinity) < (heap[b]?.order ?? Infinity);
-  /** @param {number} a @param {number} b */
-  const swap = (a, b) => {
-    const held = /** @type {P} */ (heap[a]);
-    heap[a] = /** @type {P} */ (heap[b]);
-    heap[b] = held;
+  const before = [];
+  /** @type {P[]} */
+  const after = [];
+  /** @type {P[]} */
+  const here = [];
+  for (const piece of pieces)
+    (piece.end <= centre ? before : piece.start > centre ? after : here).push(piece);
+  return {
+    centre,
+    byStart: here,
+    byEnd: [...here].sort((a, b) => b.end - a.end),
+    before: treeOf(before),
+    after: treeOf(after),
   };
-  /** @param {P} piece */
-  const push = (piece) => {
-    heap.push(piece);
-    for (
-      let at = heap.length - 1;
-      at > 0 && before(at, (at - 1) >> 1);
-      at = (at - 1) >> 1
-    )
-      swap(at, (at - 1) >> 1);
-  };
-  const pop = () => {
-    const last = heap.pop();
-    if (!heap.length || !last) return;
-    heap[0] = last;
-    for (let at = 0; ;) {
-      const left = 2 * at + 1;
-      const least = left + 1 < heap.length && before(left + 1, left) ? left + 1 : left;
-      if (least >= heap.length || !before(least, at)) return;
-      swap(at, least);
-      at = least;
+}
+/** @template {Span} P @param {PieceTree<P> | null} tree @param {number} at */
+function piecesAt(tree, at) {
+  /** @type {P[]} */
+  const found = [];
+  for (let node = tree; node;) {
+    if (at < node.centre) {
+      for (const piece of node.byStart) {
+        if (piece.start > at) break;
+        found.push(piece);
+      }
+      node = node.before;
+    } else {
+      for (const piece of node.byEnd) {
+        if (piece.end <= at) break;
+        found.push(piece);
+      }
+      node = node.after;
     }
-  };
-  /** @type {(P | null)[]} */
-  const owners = [];
-  let next = 0;
-  for (const at of bounds.slice(0, -1)) {
-    for (; next < begun.length && (begun[next]?.start ?? Infinity) <= at; next++)
-      push(/** @type {P} */ (begun[next]));
-    while (heap.length && (heap[0]?.end ?? -Infinity) <= at) pop();
-    owners.push(heap[0] ?? null);
   }
-  return { bounds, owners };
+  return found;
 }
 
 // `rowThread(under)` names the thread whose row in the floating panel's Threads holds the
@@ -109,13 +106,20 @@ export function createAnchorPaint({
 }) {
   /** @type {Map<string, Mark[]>} */
   const marked = new Map();
+  // What each thread's marks are made from: its passage's segments, their nodes and
+  // offsets as the pass resolved them, or its elements. The ranges the highlight paints
+  // and the index the pointer is found in (`index`) are both made from this record, and
+  // then part: a range moves with its words as the page changes under it, while the
+  // index keeps the record's offsets (`paint`).
+  /** @typedef {Element | Readonly<{node: Node, start: number, end: number}>} Made */
+  /** @type {Map<string, readonly Made[]>} */
+  const made = new Map();
   // Where the hit test finds each mark (`markHit`), with its thread's place in reading
-  // order: for each text node a passage's pieces lie in, the stretches its pieces'
-  // boundaries cut it into, each with the first thread in reading order whose piece
-  // covers it (`covering`); an element's mark by the element; and the shadow trees
-  // holding a passage's piece, which the caret lookup looks into.
+  // order: for each text node a passage's pieces lie in, the tree of those pieces
+  // (`piecesAt`); an element's mark by the element; and the shadow trees holding a
+  // passage's piece, which the caret lookup looks into.
   /** @typedef {{id: string, where: Mark, order: number}} Findable */
-  /** @type {Map<Node, {bounds: number[], owners: (Findable | null)[]}>} */
+  /** @type {Map<Node, PieceTree<Findable & Span> | null>} */
   const inText = new Map();
   /** @type {Map<Element, Findable[]>} */
   const onElement = new Map();
@@ -287,42 +291,60 @@ export function createAnchorPaint({
   }
 
   // Which thread's painted mark lies under a point, and the mark: of those the point
-  // lies in, the first thread's in reading order. The element under the point is the
-  // platform's hit test (`elementFromPointAcross`), so the chrome over the page's words
-  // holds no mark, an image whose element is marked is its mark's, and a point past a
-  // marked inline element is not that element's; an element's mark is found by climbing
-  // from it. A passage's piece is found by the character under the point: the caret
-  // lookup names a text node and an offset, one or two characters' boxes say whether
-  // the point is over the one before or after it, and that text node's stretches name
-  // the first piece covering that character. So a pointer move reads no mark's geometry
-  // and costs the same however many marks the page, a paragraph or one run of words
-  // holds (root AGENTS.md, "Responsiveness"): reading the rects of the marks in the
-  // element pointed at cost 512 reads at the last of 512 marks in one paragraph, and the
-  // platform's own `highlightsFromPoint` walks every range a highlight holds
-  // (notes/browser-support.md, "Highlight hit testing"). With the annotation layer
-  // hidden there is no mark to be under: an unseen passage shows no hand and opens
-  // nothing.
+  // lies in, the first thread's in reading order, which a press opens; and every thread
+  // marking what that mark marks, the character under the point or the element, in
+  // reading order, which the mark previews, as its margin entry does. The element under
+  // the point is the platform's hit test (`elementFromPointAcross`), so the chrome over
+  // the page's words holds no mark, an image whose element is marked is its mark's, and
+  // a point past a marked inline element is not that element's; an element's mark is
+  // found by climbing from it. A passage's piece is found by the character under the
+  // point: the caret lookup names a text node and an offset, one or two characters'
+  // boxes say whether the point is over the one before or after it, and that text
+  // node's tree names the pieces covering that character. So a pointer move reads no
+  // mark's geometry, and what it reads besides grows only with the threads it finds and
+  // the logarithm of the marks the page, a paragraph or one run of words holds (root
+  // AGENTS.md, "Responsiveness"): reading the rects of the marks in the element pointed
+  // at cost 512 reads at the last of 512 marks in one paragraph, and the platform's own
+  // `highlightsFromPoint` walks every range a highlight holds (notes/browser-support.md,
+  // "Highlight hit testing"). With the annotation layer hidden there is no mark to be
+  // under: an unseen passage shows no hand and opens nothing.
   /** @param {number} x @param {number} y @param {Element | null} [under] the element
    * under the point, where the caller has hit-tested it already
-   * @returns {{id: string, where: Mark} | null} */
+   * @returns {{id: string, where: Mark, threads: string[]} | null} */
   function markHit(x, y, under = elementFromPointAcross(x, y)) {
     if (annotationsHidden() || !under || !pageWords(under)) return null;
-    /** @type {Findable | null} */
-    let hit = null;
+    /** @type {Findable[]} */
+    let words = [];
     const caret = inText.size
       ? document.caretPositionFromPoint(x, y, { shadowRoots: markedRoots })
       : null;
-    const stretches = caret && inText.get(caret.offsetNode);
-    if (caret && stretches)
+    const tree = caret && inText.get(caret.offsetNode);
+    if (caret && tree)
       for (const at of [caret.offset, caret.offset - 1]) {
         if (at < 0 || !overCharacter(caret.offsetNode, at, x, y)) continue;
-        hit = covering(stretches, at);
+        words = piecesAt(tree, at);
         break;
       }
-    for (let at = /** @type {Element | null} */ (under); at; at = renderedParent(at))
-      for (const mark of onElement.get(at) ?? [])
-        if (!hit || mark.order < hit.order) hit = mark;
-    return hit && { id: hit.id, where: hit.where };
+    /** @param {readonly Findable[]} marks */
+    const first = (marks) =>
+      marks.reduce(
+        (/** @type {Findable | null} */ least, mark) =>
+          !least || mark.order < least.order ? mark : least,
+        null,
+      );
+    let hit = first(words);
+    let alike = words;
+    for (let at = /** @type {Element | null} */ (under); at; at = renderedParent(at)) {
+      const marks = onElement.get(at) ?? [];
+      const least = first(marks);
+      if (least && (!hit || least.order < hit.order)) {
+        hit = least;
+        alike = marks;
+      }
+    }
+    if (!hit) return null;
+    const threads = [...alike].sort((a, b) => a.order - b.order).map(({ id }) => id);
+    return { id: hit.id, where: hit.where, threads };
   }
   // Whether the point lies over the character at `at` in a text node.
   /** @param {Node} node @param {number} at @param {number} x @param {number} y */
@@ -334,17 +356,6 @@ export function createAnchorPaint({
     return [...character.getClientRects()].some(
       (rect) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom,
     );
-  }
-  // The first piece covering the character at `at`, by the stretch holding it.
-  /** @param {{bounds: number[], owners: (Findable | null)[]}} stretches @param {number} at */
-  function covering({ bounds, owners }, at) {
-    let low = 0;
-    for (let high = bounds.length; low < high;) {
-      const mid = (low + high) >> 1;
-      if ((bounds[mid] ?? Infinity) <= at) low = mid + 1;
-      else high = mid;
-    }
-    return owners[low - 1] ?? null;
   }
   /** @param {number} x @param {number} y */
   const markAt = (x, y) => markHit(x, y)?.id ?? null;
@@ -361,29 +372,29 @@ export function createAnchorPaint({
     const roots = new Set();
     let order = 0;
     for (const [id, marks] of marked) {
-      for (const where of marks) {
-        if (where instanceof Range) {
-          const node = where.startContainer;
-          const end =
-            where.endContainer === node
-              ? where.endOffset
-              : (node.textContent?.length ?? where.startOffset);
+      const from = made.get(id) ?? [];
+      marks.forEach((where, at) => {
+        const part = from[at];
+        if (where instanceof Range && part && !(part instanceof Element)) {
+          const { node, start, end } = part;
+          if (end <= start) return;
           const pieces = byText.get(node) ?? [];
-          pieces.push({ id, where, order, start: where.startOffset, end });
+          pieces.push({ id, where, order, start, end });
           byText.set(node, pieces);
           for (let root = node.getRootNode(); root instanceof ShadowRoot;) {
             roots.add(root);
             root = shadowHost(root)?.getRootNode() ?? document;
           }
-        } else {
+        } else if (where instanceof Element) {
           const standing = onElement.get(where) ?? [];
           standing.push({ id, where, order });
           onElement.set(where, standing);
         }
-      }
+      });
       order++;
     }
-    for (const [node, pieces] of byText) inText.set(node, stretchesOf(pieces));
+    for (const [node, pieces] of byText)
+      inText.set(node, treeOf(pieces.sort((a, b) => a.start - b.start)));
     markedRoots = [...roots];
   }
 
@@ -401,7 +412,8 @@ export function createAnchorPaint({
   // where a passage ran into a shadow tree (passages.js, `rangeOf`).
   /** @type {{id: string, where: Mark} | null} */
   let standing = null;
-  /** @param {{id: string, where: Mark} | null} hit @param {{x: number, y: number}} at */
+  /** @param {{id: string, where: Mark, threads: string[]} | null} hit
+   * @param {{x: number, y: number}} at */
   function pointMark(hit, at) {
     const id = resting && hit ? hit.id : null;
     if (!hit || !id) {
@@ -414,13 +426,15 @@ export function createAnchorPaint({
     const { where } = standing;
     const piece = where instanceof Range ? where : document.createRange();
     if (!(where instanceof Range)) piece.selectNode(where);
-    // The thread the user is in is in front of them already, as an entry standing
-    // open previews nothing (preview.js).
+    // A thread the user is in is in front of them already, as an entry standing open
+    // previews nothing (preview.js).
+    const { threads } = hit;
     pointRange(
       piece,
       () => {
-        const thread = id === currentLocationThreadId() ? null : threadNamed(id);
-        return thread ? threadPreview([thread]) : null;
+        const here = currentLocationThreadId();
+        if (here && threads.includes(here)) return null;
+        return threadPreview(threads.flatMap((name) => threadNamed(name) ?? []));
       },
       at,
     );
@@ -455,35 +469,51 @@ export function createAnchorPaint({
     });
   }
 
-  // Whether the last pass's marks of a thread mark what this pass's would: the same
-  // words, piece by piece, by the live ranges' bounds now, or the same elements.
-  /** @param {Mark[] | undefined} last @param {readonly import("../passages.js").Segment[]} segments */
-  const markSame = (last, segments) =>
-    last?.length === segments.length &&
-    last.every((mark, at) => {
-      const segment = segments[at];
+  // Whether a thread's marks were made from what this pass would make them from, which
+  // the index holds, and whether its ranges still stand there, which the highlight
+  // paints: a revision writing words ahead of a passage in its text node moves its ranges
+  // and leaves the index at the record's offsets, and a widget moving its words into a
+  // shadow stage collapses its ranges onto the host and leaves the record as it was.
+  /** @param {readonly Mark[]} marks @param {readonly Made[]} now */
+  const standAlike = (marks, now) =>
+    marks.every((mark, at) => {
+      const part = now[at];
       return (
-        mark instanceof Range &&
-        segment !== undefined &&
-        mark.startContainer === segment.node &&
-        mark.startOffset === segment.start &&
-        mark.endContainer === segment.node &&
-        mark.endOffset === segment.end
+        !(mark instanceof Range) ||
+        (part !== undefined &&
+          !(part instanceof Element) &&
+          mark.startContainer === part.node &&
+          mark.startOffset === part.start &&
+          mark.endContainer === part.node &&
+          mark.endOffset === part.end)
       );
     });
-  /** @param {Mark[] | undefined} last @param {readonly Element[]} parts */
-  const markSameParts = (last, parts) =>
-    last?.length === parts.length && last.every((mark, at) => mark === parts[at]);
+  /** @param {readonly Made[] | undefined} was @param {readonly Made[]} now */
+  const madeAlike = (was, now) =>
+    was?.length === now.length &&
+    was.every((part, at) => {
+      const other = now[at];
+      if (part instanceof Element || other instanceof Element) return part === other;
+      return (
+        other !== undefined &&
+        part.node === other.node &&
+        part.start === other.start &&
+        part.end === other.end
+      );
+    });
 
-  // A pass keeps the marks of each thread whose marks it would make again, so a
-  // presentation that changes no mark keeps its ranges, the index of them (`index`) and
-  // the highlight painting them as they stand, and the hover stays bound to them; only a
-  // pass that changes a mark, or the order of the threads marked, builds them again.
+  // A pass keeps the marks of each thread whose marks it would make from what they were
+  // made from (`made`), so a presentation that changes no mark keeps its ranges, the
+  // index of them (`index`) and the highlight painting them as they stand, and the
+  // hover stays bound to them; only a pass that changes a mark, or the order of the
+  // threads marked, builds them again.
   /** @param {NonNullable<ReturnType<ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["read"]>>} reading */
   function paint({ readings, draft, action }) {
     const before = outlined();
     const last = new Map(marked);
+    const lastMade = new Map(made);
     marked.clear();
+    made.clear();
     pendingOutline = [];
     actionOutline = [];
     visualTargets.clear();
@@ -505,23 +535,26 @@ export function createAnchorPaint({
       }
 
       const kept = last.get(thread.id);
+      const was = lastMade.get(thread.id);
       if (targetElement(found)) {
         rememberVisual(found);
         if (!thread.root.drawing) {
           const parts = targetParts(found);
-          marked.set(thread.id, kept && markSameParts(kept, parts) ? kept : parts);
+          marked.set(thread.id, kept && madeAlike(was, parts) ? kept : parts);
+          made.set(thread.id, parts);
         }
       } else if (!thread.root.drawing) {
         const segments = targetSegments(found);
-        const ranges =
-          kept && markSame(kept, segments)
-            ? /** @type {Range[]} */ (kept)
-            : segments.map(
-                /** @param {Parameters<typeof rangeOf>[0][number]} segment */ (
-                  segment,
-                ) => rangeOf([segment]),
-              );
+        const from = segments.map(({ node, start, end }) => ({ node, start, end }));
+        const alike = kept && was && madeAlike(was, from) && standAlike(kept, from);
+        const ranges = alike
+          ? /** @type {Range[]} */ (kept)
+          : segments.map(
+              /** @param {Parameters<typeof rangeOf>[0][number]} segment */ (segment) =>
+                rangeOf([segment]),
+            );
         marked.set(thread.id, ranges);
+        made.set(thread.id, alike ? was : from);
         posted.push(...ranges);
       }
     }
@@ -583,6 +616,7 @@ export function createAnchorPaint({
     hoverFrame = 0;
     const before = outlined();
     marked.clear();
+    made.clear();
     index();
     pendingOutline = [];
     actionOutline = [];

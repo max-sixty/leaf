@@ -264,7 +264,9 @@ function fitLines(list) {
   const face = list.closest(".lf-preview");
   const more = list.querySelector(":scope > .lf-preview-more");
   const lines = [...list.querySelectorAll(":scope > .lf-preview-thread")];
-  if (!face || !more || !lines.length) return;
+  // A face put away has no room to fit, and counting none in it would write the count
+  // into the observer's own delivery.
+  if (!face || !more || !lines.length || !list.checkVisibility()) return;
   const style = getComputedStyle(face);
   const room =
     face.getBoundingClientRect().bottom -

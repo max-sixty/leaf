@@ -5489,6 +5489,73 @@ def test_a_presentation_that_changes_no_mark_builds_none(browser, serve):
     assert built == 0, built
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_revision_that_moves_marked_words_moves_where_their_mark_is_found(
+    engine, request, serve
+):
+    """A revision that writes words ahead of a marked phrase in its paragraph moves the
+    phrase along its text, and its mark with it: the pointer finds the mark where it is
+    now drawn, by the hand, the preview and a press, and nothing at the words that now
+    stand where the phrase stood."""
+
+    def page_with(prefix):
+        return leaf_page(
+            "Moved",
+            f'<p id="moved">{prefix}Words before the marked phrase and after it.</p>'
+            + "<p>More.</p>" * 4,
+        )
+
+    url = serve(page_with(""))
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About the phrase?",
+            "anchor": {"section": "moved", "quote": "marked phrase"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), live_url(url))
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 1")
+    words = """(at) => {
+      const text = document.getElementById('moved').firstChild;
+      const range = document.createRange();
+      range.setStart(text, at);
+      range.setEnd(text, at + 3);
+      return range.getBoundingClientRect().toJSON();
+    }"""
+    stood = page.evaluate(
+        "() => document.getElementById('moved').textContent.indexOf('marked')"
+    )
+    _publish(
+        serve.page_dir,
+        2,
+        page_with("An entirely new prefix has been inserted. "),
+        "two",
+    )
+    told(page)
+    expect(page.locator("#moved")).to_contain_text("An entirely new prefix")
+    stands = page.evaluate(
+        "() => document.getElementById('moved').textContent.indexOf('marked')"
+    )
+    assert stands > stood
+    body = page.locator("body")
+    old = page.evaluate(words, stood)
+    page.mouse.move(old["left"] - 30, old["top"] - 30)
+    page.mouse.move(old["left"] + 4, old["top"] + old["height"] / 2, steps=2)
+    page.wait_for_timeout(300)
+    expect(body).not_to_have_attribute("data-lf-over-mark", "")
+    now = page.evaluate(words, stands)
+    page.mouse.move(now["left"] + 4, now["top"] + now["height"] / 2, steps=2)
+    expect(body).to_have_attribute("data-lf-over-mark", "")
+    expect(page.locator("#lf-preview .lf-preview-word")).to_have_text(
+        "About the phrase?"
+    )
+    page.mouse.click(now["left"] + 4, now["top"] + now["height"] / 2)
+    expect(page.locator(".lf-margin-preview:not([hidden])")).to_be_visible()
+
+
 # A widget whose words read as the page's prose (`x-verbatim`), staged in a declared
 # shadow tree as it connects.
 VERBATIM_STAGE = {**LATE_STAGE, "x-verbatim": True}
@@ -5552,6 +5619,61 @@ def test_a_passage_running_into_a_shadow_tree_previews_by_the_line_pointed_at(
     above = 0 <= line["top"] - (box["y"] + box["height"]) <= 12
     assert below or above, (box, line)
     assert abs(box["x"] - line["left"]) <= 12, (box, line)
+
+
+@pytest.mark.parametrize("staged", [False, True], ids=["page", "shadow"])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_search_match_across_blocks_marks_and_selects_each_piece(
+    engine, staged, request, serve
+):
+    """A page search's match that runs from one paragraph into the next, in the page's
+    tree or into a declared shadow stage, stands a mark over each piece's words, clipped
+    by that piece's own block, and landing on it selects every piece."""
+    second = '<p id="second">passage inside the stage.</p>'
+    url = serve(
+        leaf_page(
+            "Across",
+            '<div id="both"><p id="first">Words before shadow</p>'
+            + (
+                f'<lf-late-stage id="late">{second}</lf-late-stage>'
+                if staged
+                else second
+            )
+            + "</div>"
+            + "<p>After.</p>" * 6,
+        ),
+        layer_registry={"lf-late-stage": VERBATIM_STAGE},
+        layer_widgets={"lf-late-stage.js": STAGED_ON_CONNECT},
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.keyboard.press("/")
+    page.keyboard.type("before shadow passage inside")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+    boxes = page.evaluate(
+        """() => {
+          const late = document.getElementById('late');
+          const second = (late?.shadowRoot ?? document).getElementById('second');
+          const blocks = [document.getElementById('first'), second]
+            .map((block) => block.getBoundingClientRect());
+          const marks = [...document.querySelectorAll('.lf-page-search-match')]
+            .map((mark) => mark.getBoundingClientRect())
+            .filter((box) => box.width && box.height);
+          return blocks.map((block) => marks.filter((box) =>
+            box.top >= block.top - 1 && box.bottom <= block.bottom + 1).length);
+        }"""
+    )
+    assert boxes[0] >= 1 and boxes[1] >= 1, boxes
+    page.keyboard.press("Enter")
+    selected = page.evaluate(
+        """() => {
+          const late = document.getElementById('late');
+          const roots = late?.shadowRoot ? [late.shadowRoot] : [];
+          const [range] = getSelection().getComposedRanges({shadowRoots: roots});
+          return range && [range.startContainer.parentElement.id, range.startOffset,
+            range.endContainer.parentElement.id, range.endOffset];
+        }"""
+    )
+    assert selected == ["first", 6, "second", 14], selected
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

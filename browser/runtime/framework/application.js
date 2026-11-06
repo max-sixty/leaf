@@ -26,6 +26,7 @@ import {
   foldThreads,
   threadRecordReader,
   threadNames,
+  threadsBySection,
 } from "../thread/model.js";
 import {
   threadForAttempt,
@@ -1143,6 +1144,17 @@ export function createSemanticApplication({ presentation } = {}) {
       markingRead,
       ready,
     );
+    // The thread each name names and the threads about each element, indexed as the
+    // threads arrive, so a reader asking either does no walk of its own. Each index holds
+    // a thread's place in `threads` rather than the record, so a record has one home
+    // and sharing an index against the last reading compares numbers.
+    const placeOf = new Map(threads.map((thread, index) => [thread, index]));
+    const threadsNamed = new Map(
+      [...threadNames(threads)].map(([name, thread]) => [
+        name,
+        /** @type {number} */ (placeOf.get(thread)),
+      ]),
+    );
     const selectedQueues = localQueues(
       ready ? (view?.queues ?? NO_QUEUES) : NO_QUEUES,
       workflows,
@@ -1169,6 +1181,8 @@ export function createSemanticApplication({ presentation } = {}) {
       widgets,
       thread: {
         all: threads,
+        named: threadsNamed,
+        bySection: threadsBySection(threads),
         collection: {
           phase,
           threads: threads.filter(discussed),
@@ -1178,7 +1192,13 @@ export function createSemanticApplication({ presentation } = {}) {
         // reading settled (held-news.js, `gesturedOn`).
         gestured: [...new Set([...unresolved, ...settled].flatMap(threadsOfEntry))],
       },
-      obligations: { phase, ...items },
+      // Each obligation by its id, indexed as the reading arrives, so a reader asking
+      // for one does no walk of its own.
+      obligations: {
+        phase,
+        ...items,
+        byId: new Map(all.map((item) => [item.id, item])),
+      },
       // The agent's plan in force, as the server read it (`plans.plan_reading`).
       plan: ready ? (state?.browser.plan ?? null) : null,
       // On me (on the user), On <agent> (on the agent), and done: the served lists

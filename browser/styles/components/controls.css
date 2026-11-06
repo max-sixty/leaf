@@ -438,6 +438,15 @@ svg[data-lf-icon] {
   margin-inline-end: 6px;
   color: var(--muted);
 }
+/* A member the widget's answer picks, checked as paper marks a chosen option
+   (options.css). */
+.lf-place-item[data-lf-chosen] {
+  font-weight: 600;
+}
+.lf-place-item[data-lf-chosen]::before {
+  content: "✓";
+  color: var(--ok-ink);
+}
 .lf-place-table {
   display: grid;
   grid-template-columns: repeat(var(--lf-columns), minmax(0, auto));

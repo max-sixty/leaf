@@ -101,6 +101,23 @@ export function threadNames(threads) {
   return byName;
 }
 
+// Where in `threads` the threads about each element stand, by the id of the element
+// their anchor names (`section`). A thread with no anchor is about the page as a whole
+// and stands under no id.
+/** @param {readonly {anchor: {section?: string | null} | null}[]} threads */
+export function threadsBySection(threads) {
+  /** @type {Map<string, number[]>} */
+  const bySection = new Map();
+  threads.forEach((thread, at) => {
+    const section = thread.anchor?.section;
+    if (!section) return;
+    const about = bySection.get(section);
+    if (about) about.push(at);
+    else bySection.set(section, [at]);
+  });
+  return bySection;
+}
+
 // A message whose words the user may rewrite: one of their own that the log holds, with
 // words to revise. A reaction or a bare drawing has none (`event_contracts._edit_error`).
 /** @param {{author?: string, pending?: boolean, token?: string, text?: string | undefined}} message */

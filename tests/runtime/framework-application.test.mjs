@@ -1440,6 +1440,10 @@ test("the publisher carries the server's obligation reading, page obligations be
     all: [record, frozen],
     user: [record],
     unanswered: [record],
+    byId: new Map([
+      [record.id, record],
+      [frozen.id, frozen],
+    ]),
   });
   assert.throws(() => {
     app.read().effective.obligations.all[0].source.id = "other";

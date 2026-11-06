@@ -603,6 +603,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                              |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
 | The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |
+| The threads about an element, by its id                                                               | `thread/state.js` `threadsOnSection`                                               |
 | The thread id a drawn thread carries, and the page threads drawn with an id                           | `thread/selectors.js` `drawnThreadId`, `drawnThreadsWithId`                        |
 | Where opening a thread puts the user: its reply, or the thread                                        | `thread/focus.js` `openingPart`                                                    |
 | Whether the user is writing a reply                                                                   | `thread/replies.js` `replyIsEditing`                                               |

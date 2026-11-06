@@ -120,13 +120,20 @@ LINKS_PAGE = leaf_page(
     """
 <p id="lede">The patch decision is <a id="to-decision" href="#decision">below</a>,
 after <a id="to-stall" href="#stall">the reconnect stall</a>; the vendor's notes are
-<a id="to-site" href="https://example.com/notes">on their site</a>.</p>
+<a id="to-site" href="https://example.com/notes">on their site</a>; the group meets
+at <a id="to-meeting" href="#meeting">the settled meeting point</a>.</p>
 <section id="stall"><p class="eyebrow">offline editing</p><h2>iOS reconnect stall</h2>
-<p>One reconnect in about 40 stalls until the app is backgrounded.</p></section>
+<p id="stall-detail">One reconnect in about 40 stalls until the app is backgrounded.</p>
+</section>
 <lf-ask id="decision"><h3>Patch decision</h3>
 <lf-options id="decision-options" choose>
   <lf-option id="decision-ship" chosen>Ship with the resend.</lf-option>
   <lf-option id="decision-hold">Hold the patch.</lf-option>
+</lf-options></lf-ask>
+<lf-ask id="meeting"><h3>Where should the group meet?</h3>
+<lf-options id="meeting-options" choose settled>
+  <lf-option id="meeting-door">At the door</lf-option>
+  <lf-option id="meeting-desk" chosen>At reception</lf-option>
 </lf-options></lf-ask>
 """
     + "<p>More of the page.</p>" * 30,
@@ -135,9 +142,10 @@ after <a id="to-stall" href="#stall">the reconnect stall</a>; the vendor's notes
 
 def test_a_link_into_the_page_previews_where_it_points(browser, serve):
     """A link into the page previews the place it names: its heading and first lines
-    as the page reads them, a question's answer from the reading the page holds, and
-    the conversations about it with whose turn one is. It holds only words, so no id or
-    control of the place is repeated. A resting pointer and the keyboard's focus read
+    as the page reads them, a question's answer from the reading the page holds, the
+    pick of a question authored settled, and the conversations about it or anything in
+    it, with whose turn one is. It holds only words, so no id or control of the place is
+    repeated. A resting pointer and the keyboard's focus read
     it, a press still follows the link, and a finger held on the link reads it and
     follows it on release. A link to another site previews nothing."""
     url = serve(LINKS_PAGE)
@@ -147,6 +155,11 @@ def test_a_link_into_the_page_previews_where_it_points(browser, serve):
         {"section": "stall"},
         author="agent",
         obligation=True,
+    )
+    panel_comment(
+        serve.page_dir,
+        "Does backgrounding always clear it?",
+        {"section": "stall-detail"},
     )
     page = open_page(browser, url)
     preview = page.locator(PREVIEW)
@@ -158,7 +171,7 @@ def test_a_link_into_the_page_previews_where_it_points(browser, serve):
         "One reconnect in about 40 stalls until the app is backgrounded."
     )
     expect(place).not_to_contain_text("offline editing")
-    expect(place.locator(".lf-place-foot")).to_have_text("1 threadYour turn")
+    expect(place.locator(".lf-place-foot")).to_have_text("2 threadsYour turn")
     assert (
         preview.locator("[id], a, button, input, [tabindex], lf-options").count() == 0
     )
@@ -167,6 +180,12 @@ def test_a_link_into_the_page_previews_where_it_points(browser, serve):
     expect(place.locator(".lf-place-name")).to_have_text("Patch decision")
     expect(place.locator(".lf-place-state")).to_have_text(
         "Answered: Ship with the resend."
+    )
+    page.locator("#to-meeting").hover()
+    expect(place.locator(".lf-place-name")).to_have_text("Where should the group meet?")
+    expect(place.locator(".lf-place-item[data-lf-chosen]")).to_have_text("At reception")
+    expect(place.locator(".lf-place-item:not([data-lf-chosen])")).to_have_text(
+        "At the door"
     )
     page.locator("#to-site").hover()
     expect(preview).to_be_hidden()

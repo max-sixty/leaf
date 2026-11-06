@@ -21,10 +21,11 @@
      summary alone. A heading's parts are those of the section it opens. Anything drawn
      before the name, such as an eyebrow, and anything Leaf draws inside the place are
      left out;
-   - a widget's current state where it asks the user something: its obligation's
-     answer in the words a Done row says it in, or that it waits on the user, from the
-     reading the page already holds; an answered question shows its answer in place of
-     its options;
+   - a widget's current state, from the reading the page already holds: where it asks
+     the user something, its obligation's answer in the words a Done row says it in, or
+     that it waits on the user, and an answered question shows its answer in place of
+     its options; elsewhere, its options with each one its answer picks checked, as
+     the widget reads its own state, so a question authored settled marks its pick;
    - the open conversations about the place or anything in it, and whether one is the
      user's turn, as a margin entry says it.
 
@@ -32,9 +33,10 @@
    widgets and carry controls, and the preview holds no control. The walk stops once it
    has the parts it shows, and it reads each part's words by the page's own reading
    (`elementReading`), so a preview's work is the link's and its place's, whatever the
-   page holds (root AGENTS.md, "Responsiveness"). The conversations come from one index
-   for each publication of the threads and reading of the page, so asking a place is a
-   lookup.
+   page holds (root AGENTS.md, "Responsiveness"). Obligations and conversations come
+   from the indexes the publisher keeps as each reading arrives, by an obligation's id
+   and by the element a thread is about, so the preview looks up what it shows and
+   walks nothing else.
 
    Decisions: a table shows its first rows in its own columns, cut to one line a cell,
    since a row's cells read apart are a table's point; a figure shows its picture, the
@@ -56,29 +58,25 @@ import { readObligations } from "./obligations/model.js";
 import { hasObligationSource } from "./obligations/source.js";
 import {
   authoredScope,
-  elementById,
   elementReading,
   GENERATED,
   HEADING,
   inPage,
   LEAF_SURFACE,
   pageDocument,
-  pageReadingVersion,
 } from "./passages.js";
-import { registry } from "./registry.js";
-import { agentName } from "./semantic-state.js";
-import { declaredRoot, overIn, upFrom } from "./shadow.js";
-import { allThreads } from "./thread/state.js";
+import { declarationFor, registry } from "./registry.js";
+import { agentName, readPart } from "./semantic-state.js";
+import { declaredRoot, overIn } from "./shadow.js";
+import { threadsOnSection } from "./thread/state.js";
 import { discussed } from "./thread/model.js";
 import { threadAttention } from "./thread/workflow.js";
 import { leafSays, voiced } from "./voice.js";
 import { capitalized, counted, excerptWords, labelWords } from "./words.js";
 
-/** @typedef {ReturnType<typeof allThreads>[number]} Thread
- * @typedef {import("./framework/application.js").ObligationRecord} Obligation
- * @typedef {import("./voice.js").Words} Words
+/** @typedef {import("./voice.js").Words} Words
  * @typedef {{kind: "heading" | "text", words: string}
- *   | {kind: "list", items: string[], more: string | null}
+ *   | {kind: "list", items: {words: string, chosen: boolean}[], more: string | null}
  *   | {kind: "table", rows: {words: string, head: boolean}[][], more: string | null}
  *   | {kind: "figure", src: string, caption: string}
  *   | {kind: "code", lines: string}
@@ -251,16 +249,16 @@ function listPart(list, parts) {
     (item) =>
       item.matches(list.localName === "dl" ? "dt" : "li") && !item.matches(UNSHOWN),
   );
-  const shown = items
-    .slice(0, ITEMS)
-    .map((item) =>
-      item.localName === "dt" ? termWords(item) : excerptWords(words(item), WORDS),
-    );
+  const shown = items.slice(0, ITEMS).map((item) => ({
+    words: item.localName === "dt" ? termWords(item) : excerptWords(words(item), WORDS),
+    chosen: false,
+  }));
   listed(parts, shown, items.length);
 }
 
 // A run of like members, as a question's options, a board's columns or a set of tabs
-// are, reads as a list of their names.
+// are, reads as a list of their names, the first few and every one the widget's answer
+// picks, marked as picked.
 /** @param {Element} element @param {Part[]} parts */
 function membersPart(element, parts) {
   const members = [...(declaredRoot(element) ?? element).children].filter(
@@ -274,14 +272,39 @@ function membersPart(element, parts) {
     members.some((member) => member.localName !== first.localName)
   )
     return false;
+  const chosen = picked(element);
+  const kept = new Set(members.filter((member) => chosen.has(member.id)));
+  for (const member of members) {
+    if (kept.size >= ITEMS) break;
+    kept.add(member);
+  }
   const shown = members
-    .slice(0, ITEMS)
-    .map((member) => excerptWords(ownName(member) || words(member), WORDS));
+    .filter((member) => kept.has(member))
+    .map((member) => ({
+      words: excerptWords(ownName(member) || words(member), WORDS),
+      chosen: chosen.has(member.id),
+    }));
   listed(parts, shown, members.length);
   return true;
 }
 
-/** @param {Part[]} parts @param {string[]} items @param {number} of */
+const widgetStates = readPart((root) => root.effective.widgets);
+// The members a widget's answer picks, as the widget reads its own state: the value of
+// its `x-awaits` verb where that verb records a pick on the members it names (`x-state`),
+// folded from the authored initial values and every action in force since, so a group
+// authored settled with its pick `chosen` marks that pick as the widget does.
+/** @param {Element} widget @returns {ReadonlySet<unknown>} */
+function picked(widget) {
+  const verb = declarationFor(widget, "x-awaits")?.value;
+  const record = verb ? declarationFor(widget, "x-state")?.[verb]?.record : null;
+  const value =
+    verb && record?.kind === "attribute"
+      ? widgetStates().get(widget.id)?.state[verb]?.value
+      : null;
+  return new Set(Array.isArray(value) ? value : []);
+}
+
+/** @param {Part[]} parts @param {{words: string, chosen: boolean}[]} items @param {number} of */
 function listed(parts, items, of) {
   if (items.length)
     parts.push({
@@ -358,7 +381,7 @@ function figurePart(figure, parts) {
 /** @param {Element} element @returns {{words: Words, settled: boolean} | null} */
 function question(element) {
   if (!element.id || !registry[element.localName]) return null;
-  const item = obligationsById(readObligations().all).get(`widget:${element.id}`);
+  const item = readObligations().byId.get(`widget:${element.id}`);
   if (!hasObligationSource(item, "widget")) return null;
   if (item.status !== "open") return { words: obligationEnding(item), settled: true };
   return item.next_actor === "user"
@@ -366,41 +389,14 @@ function question(element) {
     : null;
 }
 
-/** @type {WeakMap<readonly Obligation[], Map<string, Obligation>>} */
-const obligationIndex = new WeakMap();
-/** @param {readonly Obligation[]} items */
-function obligationsById(items) {
-  let index = obligationIndex.get(items);
-  if (!index)
-    obligationIndex.set(items, (index = new Map(items.map((item) => [item.id, item]))));
-  return index;
-}
-
-// The open conversations about each element the page names by id, those about what it
-// holds included: one climb from each thread's element, once for each publication of
-// the threads and reading of the page.
-/** @type {WeakMap<readonly Thread[], {version: number, about: Map<string, Thread[]>}>} */
-const threadIndex = new WeakMap();
+// The open conversations about the place and the elements it holds, from the threads
+// the publisher indexed by the element each is about as they arrived
+// (`threadsOnSection`): a lookup for each id the place holds, so the work is the place's.
 /** @param {Element} place */
 function threadsAbout(place) {
-  if (!place.id) return [];
-  const threads = allThreads();
-  const version = pageReadingVersion();
-  let index = threadIndex.get(threads);
-  if (index?.version !== version) {
-    index = { version, about: new Map() };
-    for (const thread of threads) {
-      if (thread.resolved || !discussed(thread)) continue;
-      for (let at = elementById(thread.anchor?.section); at; at = upFrom(at)) {
-        if (!at.id) continue;
-        const about = index.about.get(at.id);
-        if (about) about.push(thread);
-        else index.about.set(at.id, [thread]);
-      }
-    }
-    threadIndex.set(threads, index);
-  }
-  return index.about.get(place.id) ?? [];
+  return [place, ...place.querySelectorAll("[id]")]
+    .flatMap((element) => threadsOnSection(element.id))
+    .filter((thread) => !thread.resolved && discussed(thread));
 }
 
 // How many conversations stand open about the place, and the user's turn where one is
@@ -442,7 +438,10 @@ function partView(part) {
     case "list":
       return html`<span class="lf-place-list"
         >${part.items.map(
-          (item) => html`<span class="lf-place-item">${item}</span>`,
+          (item) =>
+            html`<span class="lf-place-item" ?data-lf-chosen=${item.chosen}
+              >${item.words}</span
+            >`,
         )}${more(part.more)}</span
       >`;
     case "table":

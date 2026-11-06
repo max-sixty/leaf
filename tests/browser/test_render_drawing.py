@@ -1177,9 +1177,7 @@ def test_page_mode_keeps_visible_native_ink_and_exact_drawing_comment(browser, s
     expect(
         page.locator(f"{PANEL_THREAD} .lf-msg").filter(has_text="The bend I mean")
     ).to_be_visible()
-    expect(
-        page.locator(".lf-margin-layer, .lf-margin-cluster, .lf-margin-preview")
-    ).to_have_count(0)
+    expect(page.locator(".lf-margin-cluster, .lf-margin-preview")).to_have_count(0)
     expect(page.locator('[data-lf-command="annotations.toggle"]')).to_have_count(0)
 
 

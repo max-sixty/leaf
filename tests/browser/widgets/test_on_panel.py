@@ -550,7 +550,10 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
     url = serve(GROUPED_PAGE)
     ask_in_thread(serve.page_dir, "reap", FORK_QUESTION)
     page = open_page(browser, url)
-    resized(page, 1440, 900)
+    # Tall enough that each stop stands above the open On me view, which covers the
+    # window's foot: a key at a stop the view hides lets go of it, so `m` would go on
+    # from what the user reads rather than from the stop.
+    resized(page, 1440, 1400)
     view = open_on_me(page)
     chooser = page.get_by_role("combobox", name="Group On me")
     expect(chooser).to_have_value("place")
@@ -653,7 +656,10 @@ def test_an_answer_in_on_me_keeps_its_groups_and_the_m_walk_in_one_order(
     url = serve(GROUPED_PAGE)
     ask_in_thread(serve.page_dir, "reap", FORK_QUESTION)
     page = open_page(browser, url)
-    resized(page, 1440, 900)
+    # Tall enough that each stop stands above the open On me view, which covers the
+    # window's foot: a key at a stop the view hides lets go of it, so `m` would go on
+    # from what the user reads rather than from the stop.
+    resized(page, 1440, 1400)
     view = open_on_me(page)
     page.get_by_role("combobox", name="Group On me").select_option("kind")
     exit_code = on_card(page, "widget:exit")

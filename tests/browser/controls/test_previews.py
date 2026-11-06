@@ -115,9 +115,13 @@ def test_a_range_previews_beside_the_line_the_pointer_rests_on(engine, request, 
           }
           const box = tip.getBoundingClientRect();
           scrollBy(0, 30);
-          await new Promise(requestAnimationFrame);
-          await new Promise(requestAnimationFrame);
-          const carried = tip.getBoundingClientRect().top - range.getClientRects()[1].bottom;
+          // Firefox carries an anchored box after its own scroll a frame or two late
+          // under load.
+          const offset = () => tip.getBoundingClientRect().top
+            - range.getClientRects()[1].bottom;
+          for (let n = 0; n < 10 && Math.abs(offset() - (box.top - line.bottom)) >= 1; n++)
+            await new Promise(requestAnimationFrame);
+          const carried = offset();
           pointRange(null);
           const leaving = tip.matches(':popover-open');
           await new Promise((done) => setTimeout(done, 400));
@@ -606,8 +610,8 @@ def test_a_title_stays_its_writers(engine, request, serve):
 def test_a_preview_stands_by_its_target_as_the_page_moves(engine, request, serve):
     """The browser stands a preview by its target: through a scroll inside the page
     and a resize of the window, from a right-to-left target's right edge, and, taller
-    than the room on either side once the window shrinks, held to the room below with
-    its face scrolling."""
+    than the room on either side once the window shrinks, held to the room it has with
+    the lines that fit, the last ending in an ellipsis."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
@@ -635,8 +639,9 @@ def test_a_preview_stands_by_its_target_as_the_page_moves(engine, request, serve
       return {start: Math.round(tip.left - at.left), end: Math.round(at.right - tip.right),
         gap: Math.round(tip.top - at.bottom), top: Math.round(tip.top),
         bottom: Math.round(tip.bottom), window: innerHeight,
-        scrolls: document.getElementById('lf-preview').scrollHeight
-          > document.getElementById('lf-preview').clientHeight + 1};
+        cut: Boolean(document.querySelector('#lf-preview [data-lf-cut]')),
+        hidden: [...document.querySelectorAll('#lf-preview .lf-preview-detail')]
+          .filter((line) => getComputedStyle(line).visibility === 'hidden').length};
     }"""
     page.locator("#before").focus()
     page.keyboard.press("Tab")
@@ -649,7 +654,9 @@ def test_a_preview_stands_by_its_target_as_the_page_moves(engine, request, serve
     page.set_viewport_size({"width": size["width"] - 200, "height": size["height"]})
     page.wait_for_timeout(300)
     resized = page.evaluate(beside, "inner")
-    assert (resized["start"], resized["gap"]) == (shown["start"], shown["gap"])
+    # The window's resize places it again, by the same gap, on whichever side then
+    # holds it and covers no other target.
+    assert resized["gap"] == shown["gap"], (resized, shown)
     page.set_viewport_size(size)
 
     rtl = page.locator("#rtl")
@@ -671,7 +678,8 @@ def test_a_preview_stands_by_its_target_as_the_page_moves(engine, request, serve
     page.wait_for_timeout(400)
     held = page.evaluate(beside, "inner")
     assert held["top"] >= 0 and held["bottom"] <= held["window"], held
-    assert held["scrolls"], held
+    # No preview scrolls: the lines that fit show, the last ending in an ellipsis.
+    assert held["cut"] and held["hidden"] > 0, held
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -725,3 +733,72 @@ def test_a_list_preview_shows_what_its_room_holds_and_counts_the_rest(
     page.wait_for_timeout(400)
     tall = page.evaluate(read)
     assert tall["hidden"] == 0 and tall["more"] is None, tall
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_stands_where_it_covers_no_small_target_and_fits_any_window(
+    engine, request, serve
+):
+    """The side a preview takes is tested across the box the browser draws, every few
+    pixels, so a control as small as WCAG's least target, 24 px, standing under the
+    middle of the room below its target, sends it to a free side, and the box drawn
+    covers none of them. In a window shorter than the preview, shorter than a few
+    lines, it holds itself inside the window with the lines that fit."""
+    rows = "".join(
+        f'<button class="small" id="s{i}" aria-label="Small {i}" '
+        f'style="position: absolute; left: {x}px; top: {y}px; width: 24px; height: 24px; '
+        'padding: 0">·</button>'
+        for i, (x, y) in enumerate(
+            [(1100 + dx, 140 + dy) for dx in (40, 110, 180) for dy in (8, 40)]
+        )
+    )
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Small targets",
+                '<p><button id="before">Before</button></p>'
+                '<button id="aim" style="position: absolute; left: 1100px; top: 100px" '
+                'aria-label="Aimed at, with a name that runs on for a while">⚙</button>'
+                + rows,
+            )
+        ),
+    )
+    tip = page.locator(PREVIEW)
+    aim = page.locator("#aim")
+    page.mouse.move(2, 2)
+    aim.hover()
+    expect(tip.locator(".lf-preview-word")).to_contain_text("Aimed at")
+    covered = page.evaluate(
+        """() => {
+          const tip = document.getElementById('lf-preview').getBoundingClientRect();
+          return [...document.querySelectorAll('.small')].filter((el) => {
+            const box = el.getBoundingClientRect();
+            return box.left < tip.right && tip.left < box.right && box.top < tip.bottom
+              && tip.top < box.bottom;
+          }).map((el) => el.id);
+        }"""
+    )
+    assert covered == [], covered
+
+    page.mouse.move(2, 2)
+    expect(tip).to_be_hidden()
+    page.evaluate(
+        """() => { document.getElementById('aim').lfPreview = () => ({name: 'Many',
+          detail: Array.from({length: 12}, (_, i) => `Line ${i + 1} of its detail`)}); }"""
+    )
+    size = page.viewport_size
+    page.set_viewport_size({"width": size["width"], "height": 150})
+    page.evaluate(
+        "() => document.getElementById('aim').scrollIntoView({block: 'center'})"
+    )
+    aim.hover()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Many")
+    held = page.evaluate(
+        """() => {
+          const box = document.getElementById('lf-preview').getBoundingClientRect();
+          return {top: box.top, bottom: box.bottom, window: innerHeight,
+            cut: Boolean(document.querySelector('#lf-preview [data-lf-cut]'))};
+        }"""
+    )
+    assert held["top"] >= 0 and held["bottom"] <= held["window"] and held["cut"], held

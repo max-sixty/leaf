@@ -315,8 +315,9 @@ come back the same leave the preview as it is. It returns:
   by its `<time>`, or a box in client coordinates (`{left, top, right, bottom}`, such as
   a `DOMRect`) inside the element, as a chart's value stands over its point, which the
   preview stands above. `excerpt: true` gives a preview that quotes a block of the page
-  the face's wider room. A preview taller than the room beside its element is held to
-  that room and its face scrolls. `list: {items, more}` is items under the lines, each
+  the face's wider room. A preview taller than the room beside its element shows the
+  lines that fit and ends the last in an ellipsis; no preview scrolls, so what pressing
+  the element opens says the rest. `list: {items, more}` is items under the lines, each
   words or a template, as the threads standing at one place: Leaf shows as many as the
   room holds, through every resize, and under them `more(count)`'s words for the rest,
   such as "and 26 more threads", so the items need no measuring of their own; the rest

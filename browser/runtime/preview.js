@@ -23,8 +23,8 @@
      for the face's room for a block of the page; and `list` is items under the lines,
      `{items, more}`, as the threads standing at one place, of which the face shows as
      many as the room it is held to holds, and under them the words `more(count)` gives
-     for the rest, as "and 26 more threads" (`fitList`), where another preview's face
-     scrolls. When what it says changes under an aim
+     for the rest, as "and 26 more threads" (`fit`), where another preview's last line
+     that fits ends in an ellipsis. When what it says changes under an aim
      that stays inside the element, as a chart's point, it says so (`previewChanged`,
      widget-upgrade.js), and a standing preview redraws in place, or a pointer resting
      on the element or a finger holding it reads it; a preview the user put away stays
@@ -73,24 +73,24 @@
    there; leaving it puts it away after a dwell, and reaching another target from it
    shows that one at once (WCAG 1.4.13, "Hoverable").
 
-   The browser places it (`stand`): it is shown with its target as its source
-   (`showPopover({source})`), whose box is its implicit anchor (`position-anchor:
-   auto`), and controls.css stands it there in logical terms (`position-area`), with
-   the fallbacks that keep it inside the window (`position-try-fallbacks`). So it
-   follows its target through every scroll and resize, a shadow tree's included, a
-   right-to-left target's starts at its right edge, and a hover writes nothing on the
-   target, which observers of the page's boxes would hear. A target with no HTML box of
-   its own, as a range's line, a declared box or a shape in a drawing, is stood for by
-   the place (`.lf-preview-place`), a box in the chrome this module moves onto it as it
-   shows, which scrolls with the page but not with a box scrolling inside it, and stays
-   where it was as the window resizes, a rare move under a resting aim. Which side it
-   stands on is this module's, measured as it shows: below by the gap that clears a
-   focus ring, or above, or beside toward the nearer window edge, the first where it
-   fits the window and covers no other target, a few hit tests across the room each
-   side offers, so in a column of targets or a grid of them the pointer reaches each
-   neighbour; above first for a finger, which covers what lies below, and for a point
-   inside its target. Where every side covers a target, it stands below and takes no
-   pointer, so the pointer reaches what it covers.
+   Where it stands is decided once, here (`stand`), and drawn by the browser from that
+   decision alone, with no fallback of its own to disagree with it. It is shown with an
+   element as its source (`showPopover({source})`), whose box is its implicit anchor
+   (`position-anchor: auto`): the target, or a range's line by the element holding the
+   range, a declared box by the declaring element and a shape by its drawing's HTML
+   host, each box at its offsets inside that element. So the browser carries it with
+   the element through every scroll, a shadow tree's included, and this module places
+   it again as the element or the window resizes; a hover writes nothing on the
+   target, which observers of the page's boxes would hear. Its side is the first that
+   holds it whole inside the window and covers no other target, tested every 23 px
+   across the box it will draw, so no target as large as WCAG's least escapes: below,
+   then above, from the box's start edge and then its end edge, so a right-to-left
+   target's starts at its right edge; beside, toward the nearer window edge first; then
+   centred across the window. A finger's and a point's try above first. Where every one
+   covers a target, the first that holds it stands and takes no pointer, so the pointer
+   reaches what it covers; where none holds it whole, the one with the most room stands
+   and the preview fits its lines to that room. A standing preview whose box moves, as
+   a chart's from point to point, keeps its side while that side still holds it.
 
    Its routes:
 
@@ -168,10 +168,12 @@
    as an anchor, which writes its style, so the margin laid out again the first time
    each paragraph previewed; insets measured from the box that scrolls the target, which
    lost the target as it moved inside that box and stood by the layout viewport; a
-   script moving the place as the page scrolls, which trails each scroll by a frame and
-   which Firefox warns of as a scroll-linked effect; and
-   keeping the preview inside the box around its target, which only a script measuring
-   that box could do, where the window's edge serves. */
+   box in the chrome copied onto a range's line or a declared box, which kept still as
+   the box scrolling the target moved; `position-try-fallbacks` behind the side test,
+   which drew another box than the one tested; a preview that scrolls, whose detail no
+   key reached and a pointer passed through where it covered a target; and keeping the
+   preview inside the box around its target, which only a script measuring that box
+   could do, where the window's edge serves. */
 import { html, nothing, render } from "/runtime/framework.js";
 import {
   carryChromeStyles,
@@ -231,17 +233,22 @@ tip.className = "lf-ui lf-preview";
 tip.id = "lf-preview";
 tip.setAttribute("popover", "hint");
 tip.setAttribute("role", "tooltip");
-// What stands for a target with no HTML box of its own as the preview's source.
-const place = document.createElement("div");
-place.className = "lf-preview-place";
-// The chrome's own box the two stand in, wherever it stands, a modal dialog of the
-// page's included, so the chrome's guard and rules dress them and the margin's observer
-// hears none of their writes (margin-layout.js, `SURFACES`). It takes no box of its own
-// in the dialog's layout.
+// What it shows, which fades in inside the box the browser places: an anchored box that
+// fades is placed again in every frame of the fade, as Chromium 156 lays out the page's
+// root for it, a cost that grows with the page.
+const body = document.createElement("div");
+body.className = "lf-preview-face";
+tip.append(body);
+// The chrome's own box the preview stands in, wherever it stands, a modal dialog of the
+// page's included, so the chrome's sheet dresses it and the margin's observer hears none
+// of its writes (margin-layout.js, `SURFACES`). It takes no box of its own in the
+// dialog's layout. Its mark is a sibling the preview moves around (`open`).
 const stage = document.createElement("div");
 stage.className = "lf-chrome";
 stage.style.display = "contents";
-stage.append(place, tip);
+const mark = document.createElement("span");
+mark.hidden = true;
+stage.append(mark, tip);
 // The chrome the preview stands in when no modal dialog does.
 /** @type {Element | null} */
 let home = null;
@@ -268,50 +275,50 @@ const face = ({ name, keys, detail, list }) => [
     : []),
 ];
 
-// A list longer than the room its face is held to shows the items that fit and, in
-// their place below, the words its declaration gives for how many more there are. The
-// rest stay laid out, unseen and unheard (`visibility: hidden`), so what the face
-// shows changes nothing about its size, and the browser's choice of where it stands,
-// which a shorter face could change, holds; a resize the face's bound follows fits it
-// again (`fitting`). Each fit reads the face's items, a few at one place.
-/** @type {List | null} */
-let listing = null;
-/** @param {List | null} list */
-function fitList(list) {
-  listing = list;
-  if (!list) return;
-  const items = /** @type {HTMLElement[]} */ ([
-    ...tip.querySelectorAll(".lf-preview-item"),
+// A preview longer than the room it stands in shows the lines that fit: the rest stay
+// laid out, unseen and unheard (`visibility: hidden`), so what it shows changes nothing
+// about its size, and the line before them ends in an ellipsis (`data-lf-cut`), where a
+// list says instead, in its place at the foot, the words its declaration gives for how
+// many more there are. No preview scrolls: what pressing its target opens says the rest.
+// Each place is written once, with its final value.
+/** @param {Reading} reading */
+function fit(reading) {
+  const lines = /** @type {HTMLElement[]} */ ([
+    ...body.querySelectorAll(":scope > .lf-preview-name, :scope > .lf-preview-detail"),
   ]);
   const more = /** @type {HTMLElement | null} */ (
-    tip.querySelector(".lf-preview-more")
+    body.querySelector(":scope > .lf-preview-more")
   );
-  if (!more) return;
-  // Each place is written once, with its final value: the count line stands laid out
-  // and unseen, so it measures before it says anything, its first words those for all
-  // the items, the longest it can say.
-  let fit = items.length;
-  if (tip.scrollHeight > tip.clientHeight + 1) {
-    if (!more.textContent) render(list.more(items.length), more);
-    const end = more.getBoundingClientRect().top;
-    const over = items.findIndex((line) => line.getBoundingClientRect().bottom > end);
-    if (over >= 0) fit = over;
+  const { list } = reading;
+  let end = Infinity;
+  if (body.scrollHeight > body.clientHeight + 1) {
+    if (list && more) {
+      // The count line measures before it says anything, its first words those for all
+      // the items, the longest it can say.
+      if (!more.textContent) render(list.more(list.items.length), more);
+      end = more.getBoundingClientRect().top;
+    } else
+      end =
+        body.getBoundingClientRect().bottom -
+        parseFloat(getComputedStyle(body).paddingBlockEnd);
   }
-  items.forEach((line, at) => {
-    line.style.visibility = at < fit ? "" : "hidden";
+  const over = lines.findIndex(
+    (line) => line.getBoundingClientRect().bottom > end + 0.5,
+  );
+  const kept = over < 0 ? lines.length : Math.max(1, over);
+  lines.forEach((line, at) => {
+    line.style.visibility = at < kept ? "" : "hidden";
+    keeps(
+      line,
+      "data-lf-cut",
+      !list && at === kept - 1 && kept < lines.length ? "" : null,
+    );
   });
-  if (fit < items.length) render(list.more(items.length - fit), more);
-  more.style.visibility = fit < items.length ? "" : "hidden";
+  if (!list || !more) return;
+  const hidden = lines.length - kept;
+  if (hidden) render(list.more(Math.min(hidden, list.items.length)), more);
+  more.style.visibility = hidden ? "" : "hidden";
 }
-// The face's box, which a resize of the room it is held to changes, fits its list again.
-const fitting = sizeObserver(
-  () => {
-    if (shown && listing) fitList(listing);
-  },
-  // A preview comes and goes for as long as the page plays.
-  { counted: false },
-);
-fitting.observe(tip);
 
 const CONTROL = 'button, summary, a[href], [role="button"], [data-lf-offer]';
 // A proxy stands in for what the pointer takes by itself (control-faces.js, `proxy`),
@@ -544,7 +551,7 @@ function show(from, route, read = null, at, again = false) {
   } else hide();
   if (!found) return false;
   const { target, holder, reading } = found;
-  render(face(reading), tip);
+  render(face(reading), body);
   /** @type {Shown} */
   const record = {
     from,
@@ -567,7 +574,6 @@ function show(from, route, read = null, at, again = false) {
     hide();
     return false;
   }
-  fitList(reading.list);
   if (standing) {
     record.described = standing.described;
     return true;
@@ -587,65 +593,81 @@ function show(from, route, read = null, at, again = false) {
   return true;
 }
 
-// Where a preview stands (`stand`). The browser stands it by its source in logical
-// terms, keeps it inside the window and carries it through every scroll and resize
-// (controls.css); this module picks the source and the side. The source is the box it
-// previews: a declared element or the target, or, where that is no HTML box with a box
-// of its own, as a range's line under the pointer, a declared box or a shape in a
-// drawing, the place moved onto that box. The side is the first of below, above, and
-// beside toward the nearer window edge, then the other edge, where the preview fits the
-// window and covers no other target; above first for a finger and for a point inside
-// its target. Where every side covers one, it stands below and the pointer passes
-// through it to what it covers.
+// Where a preview stands (`stand`), decided here, from the box the browser will draw,
+// and drawn by the browser from that decision alone, with no fallback of its own. Its
+// anchor is an element: the target or the declared element, a range's line by the element
+// holding the range, and a declared box by the declaring element, each box held at its
+// offsets inside its element (`--lf-preview-inset-*`), so the browser carries the preview
+// with the element through every scroll and resize (`anchor()`, chrome.css), and this
+// module places it again as that element or the window resizes (`following`). Its side is
+// the first of: below, then above, each from the box's start edge and then its end edge;
+// beside, toward the nearer window edge and then the other; centred across the window
+// below, then above; that holds the whole preview inside the window and covers no other
+// target, by a hit test every `REACH` across the box it would draw, so no target as large
+// as WCAG's least, 24 px, escapes. A finger's and a point's try above first, since the
+// finger covers what lies below and a point's axis stands under it. Where every one that
+// holds it covers a target, the first stands and lets the pointer through to what it
+// covers (`data-lf-covers`); where none holds it whole, the one with the most room stands,
+// held to that room, and the preview fits its lines to it (`fit`).
 const EDGE = 8;
 const GAP = { line: 6, box: 11, hold: 27 };
+const REACH = 23;
 tip.style.setProperty("--lf-preview-edge", `${EDGE}px`);
 
 /** @param {Box} box @param {number} x @param {number} y */
 const holds = (box, x, y) =>
   x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
 
-// The place, moved onto `box`, in client coordinates, as offsets from the box that
-// holds it: the chrome's, at the document's origin, so it scrolls with the page, or a
-// modal dialog's.
-/** @param {Box} box */
-function placeAt(box) {
-  const holder = place.offsetParent ?? document.documentElement;
-  const by = holder.getBoundingClientRect();
-  place.style.width = layoutPx(box.right - box.left);
-  place.style.height = layoutPx(box.bottom - box.top);
-  place.style.left = layoutPx(
-    box.left - by.left - holder.clientLeft + holder.scrollLeft,
-  );
-  place.style.top = layoutPx(box.top - by.top - holder.clientTop + holder.scrollTop);
-  return place;
+// The nearest HTML element with a box of its own at or around `el`: a `display:
+// contents` element's first shown part, and a shape in a drawing's HTML host.
+/** @param {Element} el @returns {HTMLElement | null} */
+function boxed(el) {
+  for (let at = /** @type {Element | null} */ (el); at; at = renderedParent(at)) {
+    if (!isHTML(at)) continue;
+    const [part] = shownParts(at);
+    if (isHTML(part)) return /** @type {HTMLElement} */ (part);
+  }
+  return null;
 }
 
-/** @param {Shown} record @param {Reading} reading @returns {HTMLElement | null} */
-function sourceOf(record, reading) {
+// What the preview stands by: its anchor element and the box inside it, in client
+// coordinates, the anchor's own where it stands for itself.
+/** @param {Shown} record @param {Reading} reading @returns {{source: HTMLElement, box: Box} | null} */
+function anchorOf(record, reading) {
   const { target, holder, at } = record;
   if (target instanceof Range) {
     const lines = [...target.getClientRects()];
     const line = lines.find((box) => at && holds(box, at.x, at.y)) ?? lines[0];
-    return line ? placeAt(line) : null;
+    const common = target.commonAncestorContainer;
+    const around = isElement(common) ? common : common.parentElement;
+    const source = around && boxed(around);
+    return line && source ? { source, box: line } : null;
   }
   const declared = reading.at;
-  if (declared && !isElement(declared)) return placeAt(declared);
+  if (declared && !isElement(declared)) {
+    const source = boxed(holder);
+    return source ? { source, box: declared } : null;
+  }
   const el = declared?.isConnected ? declared : holder;
-  // A `display: contents` box stands by its first shown part.
-  const [part] = shownParts(el);
-  if (isHTML(part)) return /** @type {HTMLElement} */ (part);
-  return placeAt(el.getBoundingClientRect());
+  const source = boxed(el);
+  if (!source) return null;
+  return {
+    source,
+    box: (source === el || source.parentElement === el
+      ? source
+      : el
+    ).getBoundingClientRect(),
+  };
 }
 
 // The source the preview was last shown with, where it stood then, what it said, and
-// which side of the place it stands on among its seat's children.
+// which side of its stage's mark it stands on.
 /** @type {Element | null} */
 let anchored = null;
 /** @type {Element | null} */
 let seated = null;
 let said = "";
-let beforePlace = false;
+let beforeMark = false;
 // Stand the stage in the topmost modal dialog while one stands, else in the chrome, and
 // say whether it moved.
 function seat() {
@@ -655,115 +677,191 @@ function seat() {
   if (modal) carryChromeStyles(modal);
   into.append(stage);
   seated = into;
-  beforePlace = false;
+  beforeMark = false;
   return true;
 }
-// Show the preview by `source`. Firefox 157 stands a popover shown by a new source by the
-// source it was last shown with while nothing about the popover itself changed since,
-// as its words (notes/browser-support.md), and any insertion lays it out again, so a new
-// source that comes with the same words moves it to the place's other side, a change
-// the page's watch of its writes reads as one.
+// Show the preview by `source`. Firefox 157 stands a popover hidden and shown again by a
+// new source in one task by the source it was last shown with, while nothing about the
+// popover itself changed since, as its words (notes/browser-support.md). Any insertion
+// lays it out again, so a new source that comes with the same words moves it to the
+// other side of its mark, a change the page's watch of its writes reads as one.
 /** @param {HTMLElement} source @param {boolean} standing @param {boolean} moved */
 function open(source, standing, moved) {
   if (standing && source === anchored && !moved) return;
   if (standing) closeNativeLayer(tip);
   if (!moved && source !== anchored && tip.textContent === said) {
-    beforePlace = !beforePlace;
-    if (beforePlace) place.before(tip);
-    else place.after(tip);
+    beforeMark = !beforeMark;
+    if (beforeMark) mark.before(tip);
+    else mark.after(tip);
   }
   anchored = source;
   said = tip.textContent ?? "";
   showNativeLayer(tip, { source });
 }
 
-// Stand the preview by its source on its side, and say whether it stands.
+// The element the standing preview stands by, which resizing places it again. Its first
+// reading, as observing it starts, is the size it was placed at, so it moves nothing.
+/** @type {Element | null} */
+let followed = null;
+/** @type {{width: number, height: number} | null} */
+let followedSize = null;
+const following = sizeObserver(
+  (entries) => {
+    const entry = entries.at(-1);
+    if (!entry) return;
+    const { width, height } = entry.contentRect;
+    const was = followedSize;
+    followedSize = { width, height };
+    if (shown && was && (was.width !== width || was.height !== height)) refresh();
+  },
+  // A preview comes and goes for as long as the page plays.
+  { counted: false },
+);
+/** @param {Element | null} source */
+function follow(source) {
+  if (source === followed) return;
+  if (followed) following.unobserve(followed);
+  followed = source;
+  followedSize = null;
+  if (source) following.observe(source);
+}
+
+/** @typedef {{y: "below" | "above" | "top", x: "left" | "right" | "after" | "before" | "center", box: Box, room: number}} Placement */
+/** @type {Placement | null} */
+let placed = null;
+
+// Stand the preview by its anchor on its side, and say whether it stands.
 /** @param {Shown} record @param {Reading} reading @param {boolean} standing */
 function stand(record, reading, standing) {
   const moved = seat();
-  const source = sourceOf(record, reading);
-  if (!source) return false;
+  const anchor = anchorOf(record, reading);
+  if (!anchor) return false;
+  const { source, box } = anchor;
   const { target, holder, route } = record;
   const declared = reading.at;
   const point = Boolean(declared) && !isElement(declared);
   const gap =
     target instanceof Range ? GAP.line : route === "hold" ? GAP.hold : GAP.box;
-  keeps(tip, "dir", getComputedStyle(holder).direction === "rtl" ? "rtl" : "ltr");
+  const rtl = getComputedStyle(holder).direction === "rtl";
+  keeps(tip, "dir", rtl ? "rtl" : "ltr");
   tip.style.setProperty("--lf-preview-gap", `${gap}px`);
+  const by = source.getBoundingClientRect();
+  const insets = {
+    top: box.top - by.top,
+    right: by.right - box.right,
+    bottom: by.bottom - box.bottom,
+    left: box.left - by.left,
+  };
+  for (const [edge, length] of Object.entries(insets))
+    tip.style.setProperty(`--lf-preview-inset-${edge}`, layoutPx(length));
   open(source, standing, moved);
-  const box = source.getBoundingClientRect();
-  const { width, height } = tip.getBoundingClientRect();
+  follow(source);
+  const width = tip.getBoundingClientRect().width;
+  // Its whole height, whatever room it was last held to.
+  const height = body.scrollHeight;
   const room = { width: document.documentElement.clientWidth, height: innerHeight };
-  const rtl = tip.dir === "rtl";
-  const start = Math.max(
-    EDGE,
-    Math.min(rtl ? box.right - width : box.left, room.width - EDGE - width),
-  );
-  /** @type {[string, Box][]} */
-  const rooms = [
-    [
-      "below",
-      {
-        left: start,
-        top: box.bottom + gap,
-        right: start + width,
-        bottom: box.bottom + gap + height,
-      },
-    ],
-    [
-      "above",
-      {
-        left: start,
-        top: box.top - gap - height,
-        right: start + width,
-        bottom: box.top - gap,
-      },
-    ],
-  ];
-  if (route === "hold" || point) rooms.reverse();
-  // Beside it, the side toward the nearer window edge first, named in logical terms:
-  // the right is the inline end of a left-to-right target.
+  /** @param {Placement["y"]} y */
+  const rowRoom = (y) =>
+    y === "below"
+      ? room.height - EDGE - (box.bottom + gap)
+      : y === "above"
+        ? box.top - gap - EDGE
+        : room.height - EDGE - box.top;
+  /** @param {Placement["x"]} x */
+  const leftOf = (x) =>
+    x === "left"
+      ? box.left
+      : x === "right"
+        ? box.right - width
+        : x === "after"
+          ? box.right + gap
+          : x === "before"
+            ? box.left - gap - width
+            : EDGE + (room.width - 2 * EDGE - width) / 2;
+  /** @param {Placement["y"]} y @param {Placement["x"]} x @returns {Placement} */
+  const placement = (y, x) => {
+    const space = rowRoom(y);
+    const tall = Math.min(height, Math.max(space, 0));
+    const left = leftOf(x);
+    const top =
+      y === "below" ? box.bottom + gap : y === "above" ? box.top - gap - tall : box.top;
+    return {
+      y,
+      x,
+      box: { left, top, right: left + width, bottom: top + tall },
+      room: space,
+    };
+  };
+  const [start, end] = rtl
+    ? /** @type {const} */ (["right", "left"])
+    : /** @type {const} */ (["left", "right"]);
+  /** @type {Placement["y"][]} */
+  const rows = route === "hold" || point ? ["above", "below"] : ["below", "above"];
+  /** @type {Placement[]} */
+  const placements = rows.flatMap((y) => [placement(y, start), placement(y, end)]);
   if (!(target instanceof Range)) {
-    /** @type {[string, Box]} */
-    const right = [
-      rtl ? "start" : "end",
-      {
-        left: box.right + gap,
-        top: box.top,
-        right: box.right + gap + width,
-        bottom: box.top + height,
-      },
-    ];
-    /** @type {[string, Box]} */
-    const left = [
-      rtl ? "end" : "start",
-      {
-        left: box.left - gap - width,
-        top: box.top,
-        right: box.left - gap,
-        bottom: box.top + height,
-      },
-    ];
-    rooms.push(...(box.left + box.right > room.width ? [right, left] : [left, right]));
+    const toward =
+      box.left + box.right > room.width ? ["after", "before"] : ["before", "after"];
+    placements.push(
+      ...toward.map((x) => placement("top", /** @type {Placement["x"]} */ (x))),
+    );
   }
-  /** @param {Box} at */
-  const fits = (at) =>
-    at.left >= EDGE &&
-    at.top >= EDGE &&
-    at.right <= room.width - EDGE &&
-    at.bottom <= room.height - EDGE;
-  const free = rooms.find(([, at]) => fits(at) && !covers(at, holder));
-  const [side = "below"] = free ?? rooms[0] ?? [];
-  keeps(tip, "data-lf-side", side);
-  keeps(tip, "data-lf-covers", free ? null : "");
+  placements.push(...rows.map((y) => placement(y, "center")));
+  /** @param {Placement} at */
+  const inside = (at) =>
+    at.box.left >= EDGE - 0.5 && at.box.right <= room.width - EDGE + 0.5;
+  // A standing preview whose box moves, as a chart's does from point to point, keeps
+  // its side while that side still holds it and covers nothing, one test of the box it
+  // moves to, so a pointer moving over a chart pays for no search.
+  const kept =
+    standing && placed
+      ? placements.find((at) => at.y === placed?.y && at.x === placed?.x)
+      : undefined;
+  const whole = placements.filter((at) => inside(at) && at.room >= height);
+  const free =
+    kept && whole.includes(kept) && !covers(kept.box, holder)
+      ? kept
+      : whole.find((at) => !covers(at.box, holder));
+  const chosen =
+    free ??
+    whole[0] ??
+    placements
+      .filter(inside)
+      .reduce(
+        (most, at) => (!most || at.room > most.room ? at : most),
+        /** @type {Placement | null} */ (null),
+      ) ??
+    placement(rows[0] ?? "below", "center");
+  placed = chosen;
+  keeps(tip, "data-lf-y", chosen.y);
+  keeps(tip, "data-lf-x", chosen.x);
+  tip.style.setProperty(
+    "--lf-preview-room",
+    chosen.room >= height ? "none" : layoutPx(Math.max(chosen.room, 0)),
+  );
+  keeps(tip, "data-lf-covers", free || !covers(chosen.box, holder) ? null : "");
+  fit(reading);
   return true;
 }
-// Whether a preview standing in `at` covers a target other than `holder`, by a few hit
-// tests across it, through the preview where it stands now.
+// Whether a preview drawn in `at` covers a target other than `holder`: a hit test every
+// `REACH` across it, through the preview where it stands now, so a target too small to
+// hold a test point is smaller than any a pointer is asked to reach. A point inside the
+// holder's own box finds the holder or what it holds, which are no other target, so it
+// is not tested, as most of a preview standing over a chart is not.
 /** @param {Box} at @param {Element} holder */
 function covers(at, holder) {
-  for (const y of [at.top + 4, at.bottom - 4])
-    for (const x of [at.left + 4, (at.left + at.right) / 2, at.right - 4]) {
+  const own = holder.getBoundingClientRect();
+  /** @param {number} from @param {number} to */
+  const steps = (from, to) => {
+    const count = Math.max(1, Math.ceil((to - from - 2) / REACH));
+    return Array.from(
+      { length: count + 1 },
+      (_, n) => from + 1 + ((to - from - 2) * n) / count,
+    );
+  };
+  for (const y of steps(at.top, at.bottom))
+    for (const x of steps(at.left, at.right)) {
+      if (holds(own, x, y)) continue;
       let hit =
         document.elementsFromPoint(x, y).find((el) => !tip.contains(el)) ?? null;
       for (
@@ -793,6 +891,7 @@ function hide() {
     else described.el.setAttribute("aria-describedby", described.attribute);
   }
   if (record.route === "hold") record.holder.removeAttribute("data-lf-held");
+  follow(null);
   // Its words stay in the closed popover, so the next preview that says the same
   // writes nothing.
   closeNativeLayer(tip);
@@ -934,10 +1033,10 @@ function refresh() {
   if (!found) return hide();
   if (found.target !== record.target)
     return void show(record.from, record.route, record.read, record.at, true);
-  const before = tip.textContent;
-  render(face(found.reading), tip);
-  if (tip.textContent !== before) stand(record, found.reading, true);
-  fitList(found.reading.list);
+  render(face(found.reading), body);
+  // Where it stands is read again with what it says: a declaration's `at` may move to
+  // another element or box under the same words, and the room the window leaves changes.
+  stand(record, found.reading, true);
 }
 let refreshing = false;
 
@@ -959,6 +1058,7 @@ export function mountPreviews(chrome) {
       });
   };
   watchPresentation(presented);
+  window.addEventListener("resize", () => shown && refresh(), { passive: true });
 
   document.addEventListener(
     PREVIEW,

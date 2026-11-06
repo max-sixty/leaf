@@ -1060,7 +1060,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         style, so a fade that has started is in the list on the first read and a preview
         that never moves reports empty at once."""
         page.wait_for_function(
-            "() => document.getElementById('lf-preview').getAnimations().length === 0"
+            "() => document.getElementById('lf-preview')"
+            ".getAnimations({subtree: true}).length === 0"
         )
 
     def assert_status(phase, context, control=marker):
@@ -1106,14 +1107,16 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         label = page.locator(PREVIEW)
         expect(label).to_be_visible()
         words_still()
-        expect(label).to_have_css("opacity", "1")
+        # The face is what fades and is drawn (preview.js).
+        drawn = label.locator(".lf-preview-face")
+        expect(drawn).to_have_css("opacity", "1")
         hovered = face(control)
         assert {
             key: hovered[key]
             for key in ("background", "border", "ink", "iconInk", "opacity")
         } == resting_surface
-        expect(label).to_have_css("background-color", expected_label_background)
-        expect(label).to_have_css("color", expected_label_ink)
+        expect(drawn).to_have_css("background-color", expected_label_background)
+        expect(drawn).to_have_css("color", expected_label_ink)
         expect(label).to_have_text(f"{phase}{context}")
         # A rectangular trace uses the same outside stroke as target focus, on the
         # region's perimeter, in the trace's quiet ink, cut to brackets.

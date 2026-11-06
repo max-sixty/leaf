@@ -138,7 +138,8 @@ import { excerptWords } from "./words.js";
 /** @typedef {{el: Element, editing: boolean, up: CellChain | null}} CellChain
  * @typedef {{chrome: boolean, silenced: boolean, generated: boolean,
  * gen: Element | null, block: Element | null, textBlock: Element | null,
- * island: Element | null, cells: CellChain | null}} ReadingContext
+ * island: Element | null, cells: CellChain | null, hidden: boolean,
+ * closed: boolean}} ReadingContext
  * @typedef {{node: Text, start: number, end: number, block: Element | null,
  * textBlock: Element | null, gen: Element | null, breakBefore?: boolean,
  * lineBefore?: string, whiteSpace?: string}} Segment
@@ -456,6 +457,8 @@ const NO_CONTEXT = Object.freeze({
   textBlock: null,
   island: null,
   cells: null,
+  hidden: false,
+  closed: false,
 });
 // The markers are the selectors the point readings climb with — `UI_MARKS` and `SAID`
 // (shadow.js, `uiInside`), `GENERATED` (`authored`), `GEN`, `ISLAND`, `TEXT_BLOCK` — and
@@ -520,7 +523,10 @@ function enter(ctx, el, inFrame = true) {
   const editing = editingBoundary(el);
   const cell = opaque(el) || editing || (marked && el.matches(GEN) && unmodelled(el));
   const silent = !ctx.silenced && silences(el);
-  if (!marked && !block && !cell && !silent) return ctx;
+  const closed = closedDisclosure(el);
+  const hides = hidesItself(el) || (ctx.closed && el.localName !== "summary");
+  if (!marked && !block && !cell && !silent && !closed && !ctx.closed && !hides)
+    return ctx;
   const chrome = (marked && inFrame ? chromeMark(el) : null) ?? ctx.chrome;
   const generated = ctx.generated || (marked && inFrame && el.matches(GENERATED));
   return {
@@ -532,6 +538,8 @@ function enter(ctx, el, inFrame = true) {
     textBlock: textBlock ? el : ctx.textBlock,
     island: marked && el.matches(ISLAND) ? el : ctx.island,
     cells: cell ? { el, editing, up: ctx.cells } : ctx.cells,
+    hidden: ctx.hidden || hides,
+    closed,
   };
 }
 // The tree-local facts start over inside a declared shadow root, as `closest` does.
@@ -542,6 +550,7 @@ const crossed = (ctx) => ({
   silenced: false,
   generated: false,
   gen: null,
+  closed: false,
 });
 // Every fact at one element, climbing rather than carrying: its ancestors, host by host,
 // folded through `enter` from the top, the tree-local facts starting over at each shadow
@@ -559,6 +568,24 @@ function contextAt(el, frame) {
   }
   return ctx;
 }
+// What a reader who lands on an element is kept from seeing in it: an element `hidden`,
+// or hidden from every reader (`aria-hidden`), and what a closed disclosure holds beside
+// its summary, its words included. A landing opens what holds its destination and
+// nothing inside it (anchor-travel.js), so these are what the `shown` reading leaves out,
+// counted from the reading's root down.
+/** @param {Element} el */
+const hidesItself = (el) =>
+  el.hasAttribute("hidden") || el.getAttribute("aria-hidden") === "true";
+/** @param {Element} el */
+const closedDisclosure = (el) => el.localName === "details" && !el.hasAttribute("open");
+/** Whether an element a reader lands beside is kept from them: hidden itself, or the
+ * body of a closed disclosure holding it.
+ * @param {Element} el */
+export const keptHidden = (el) =>
+  hidesItself(el) ||
+  (el.localName !== "summary" &&
+    el.parentElement !== null &&
+    closedDisclosure(el.parentElement));
 // A whole text node as a segment of the context it stands in. Its block is `blockAt`'s
 // answer, carried.
 /** @param {Text} node @param {ReadingContext} ctx @returns {Segment} */
@@ -576,11 +603,17 @@ const segmentIn = (node, ctx) => ({
 // the page silences are still on screen (render-checks, `retiredSlots`). Like every
 // reading its chrome is bounded at the root's frame, so chrome above that widget is not
 // its apparatus: a settled slot under a bare `.lf-ui` ancestor still shows its words.
+//
+// `shown` is `wrote` less what a reader landing on the root is kept from (`keptHidden`):
+// the root's own state and what holds it count for nothing, since landing reveals them.
+// It is never kept (`elementReading`), since opening a disclosure changes it and changes
+// nothing the page reading watches.
 /** @satisfies {Record<string, (ctx: ReadingContext) => boolean>} */
 const READINGS = {
   says: (ctx) => !ctx.chrome && !ctx.silenced,
   wrote: (ctx) => !ctx.generated,
   unsilenced: (ctx) => !ctx.chrome,
+  shown: (ctx) => !ctx.generated && !ctx.hidden && !ctx.closed,
 };
 // The `wrote` reading asked of one node: whether it is authored, within the frame `root`
 // stands in. Revision installs ask it of every node they place, so it climbs natively
@@ -669,12 +702,12 @@ function walk(root, onText, skip = null, onBreak = null, onElement = null) {
   // facts starting over as they do when the walk crosses into it; the document starts
   // with nothing over it.
   const host = shadowHost(root);
-  const start = isElement(root)
+  const over = isElement(root)
     ? contextAt(root, frame)
     : host
       ? crossed(contextAt(host, frame))
       : NO_CONTEXT;
-  visit(root, start);
+  visit(root, over.hidden ? { ...over, hidden: false } : over);
 }
 // The step up the tree `walk` comes down, from any node, read or not. A slot is that step
 // only in a declared root, the one kind of root `walk` crosses into. Another root's slots
@@ -1392,6 +1425,8 @@ const WATCH_READING = {
 let reading = null;
 /** @type {WeakMap<Element, Partial<Record<Reading, string>>>} */
 let elementReadings = new WeakMap();
+/** @type {WeakMap<Element, Map<string, unknown>>} */
+let elementAnswers = new WeakMap();
 /** @type {string | undefined} */
 let readingVocabulary;
 /** @type {string | undefined} */
@@ -1448,16 +1483,37 @@ let readingVersion = 0;
 const forgetReading = () => {
   reading = null;
   elementReadings = new WeakMap();
+  elementAnswers = new WeakMap();
   readingVersion += 1;
 };
 export function pageReadingVersion() {
   catchUpReading();
   return readingVersion;
 }
+// Which headings the page holds and in what order, which its outline reads
+// (thread/placement.js): it advances only when a heading joins or leaves the page, by
+// itself or in what holds it, so words changing elsewhere leave the outline standing.
+let headingsVersion = 0;
+/** @param {MutationRecord} record */
+const movesHeadings = (record) =>
+  record.type === "childList" &&
+  inPage(record.target) &&
+  [...record.addedNodes, ...record.removedNodes].some(
+    (node) => isElement(node) && (node.matches(HEADING) || node.querySelector(HEADING)),
+  );
+/** @param {readonly MutationRecord[]} records */
+function readRecords(records) {
+  if (records.some(movesHeadings)) headingsVersion += 1;
+  return records.some(changesTheReading);
+}
+export function pageHeadingsVersion() {
+  catchUpReading();
+  return headingsVersion;
+}
 function watchReading() {
   if (watcher) return watcher;
   watcher = new MutationObserver((records) => {
-    if (records.some(changesTheReading)) forgetReading();
+    if (readRecords(records)) forgetReading();
   });
   watcher.observe(document, WATCH_READING);
   return watcher;
@@ -1469,6 +1525,7 @@ function watchReading() {
 /** @param {ShadowRoot} root */
 export function watchPassageRoot(root) {
   watchReading().observe(root, WATCH_READING);
+  headingsVersion += 1;
   forgetReading();
 }
 // An opaque widget and its original direct children fence the cell walk. Marking them is
@@ -1505,7 +1562,7 @@ export function pageText() {
   return (reading ??= readPage());
 }
 function catchUpReading() {
-  const moved = watchReading().takeRecords().some(changesTheReading);
+  const moved = readRecords(watchReading().takeRecords());
   const vocabulary = registry.$layer?.generation;
   settlements();
   if (moved || vocabulary !== readingVocabulary || settledKey !== readingSettled)
@@ -1531,9 +1588,28 @@ export function elementReading(element, reading = "says") {
   let kept = elementReadings.get(element);
   if (kept?.[reading] !== undefined) return kept[reading];
   const value = quoteFrom(textNodesUnder(element, reading));
-  if (element.isConnected && element.ownerDocument === document && pageReads(element)) {
+  if (reading !== "shown" && keepable(element)) {
     if (!kept) elementReadings.set(element, (kept = {}));
     kept[reading] = value;
+  }
+  return value;
+}
+/** @param {Element} element */
+const keepable = (element) =>
+  element.isConnected && element.ownerDocument === document && pageReads(element);
+/** An answer about an element's own children and words, such as which of them titles
+ * it, kept as long as the page reading stands, as its words are (`elementReading`),
+ * and asked afresh of an element the page does not read.
+ * @template T @param {Element} element @param {string} question @param {() => T} answer
+ * @returns {T} */
+export function keptAnswer(element, question, answer) {
+  catchUpReading();
+  const kept = elementAnswers.get(element);
+  if (kept?.has(question)) return /** @type {T} */ (kept.get(question));
+  const value = answer();
+  if (keepable(element)) {
+    if (kept) kept.set(question, value);
+    else elementAnswers.set(element, new Map([[question, value]]));
   }
   return value;
 }

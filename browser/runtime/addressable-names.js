@@ -6,7 +6,7 @@
  * reader, so generated chrome never names anything. */
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
-import { authoredScope, elementReading, HEADING } from "./passages.js";
+import { authoredScope, elementReading, HEADING, keptAnswer } from "./passages.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { uiInside, upFrom } from "./shadow.js";
 import { excerptWords } from "./words.js";
@@ -87,9 +87,15 @@ export function addressableSays(addressable) {
 // element by the same rule off the document (`gesture_words.element_name`), and
 // `tests/name_cases.json` holds both to the same cases.
 const TITLES = `summary, ${HEADING}, strong`;
-/** The element whose words name `container` by that rule, or null. */
+/** The element whose words name `container` by that rule, or null. Finding it reads the
+ * container's children, so the answer is kept as long as the page reading stands
+ * (`keptAnswer`), as an element's words are: a label asked again on every pass, or a
+ * preview climbing past a long run of paragraphs, reads them once.
+ * @param {Element} container @returns {Element | null} */
+export const leadingTitle = (container) =>
+  keptAnswer(container, "leading title", () => readLeadingTitle(container));
 /** @param {Element} container @returns {Element | null} */
-export function leadingTitle(container) {
+function readLeadingTitle(container) {
   for (const node of container.childNodes) {
     if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) return null;
     if (!(node instanceof Element) || uiInside(node, container)) continue;
@@ -129,8 +135,10 @@ export function addressableName(element) {
 const LABEL_WORDS = 60;
 /** @param {Element} element */
 const captionOf = (element) => {
-  const caption = [...element.children].find(
-    (child) => child.matches("figcaption, caption") && !uiInside(child, element),
+  const caption = keptAnswer(element, "caption", () =>
+    [...element.children].find(
+      (child) => child.matches("figcaption, caption") && !uiInside(child, element),
+    ),
   );
   return caption ? elementReading(caption) : "";
 };
@@ -158,15 +166,8 @@ export function addressableLabel(element) {
   const own = ownName(element);
   if (own) return own;
   if (saysItself(element)) return excerptWords(addressableSays(element), LABEL_WORDS);
-  const scope = authoredScope(element);
-  // The page's column is `main`, beside the body's other content; its leading heading
-  // titles the page, not each unnamed element in it.
-  const column = (/** @type {Element} */ at) =>
-    at.localName === "main" && at.parentElement === scope;
-  for (let at = upFrom(element); at && at !== scope && !column(at); at = upFrom(at)) {
-    const name = ownName(at);
-    if (name) return name;
-  }
+  const held = holderName(element);
+  if (held) return held;
   // A registered widget has a word of its own, which says more than its members' words
   // run together. Plain markup has none worth saying (a `div`), so its words, or the
   // name of the picture it holds, are the last resort.
@@ -176,6 +177,23 @@ export function addressableLabel(element) {
       element.querySelector("[aria-label]")?.getAttribute("aria-label"),
     LABEL_WORDS,
   );
+}
+
+// The name of the nearest element holding `element` that has one, short of the document
+// it stands in (the page's column, or a message's body), or "": a question's options are
+// named by the question, a chart by its section. The page's column is `main`, beside the
+// body's other content; its leading heading titles the page, not each unnamed element in
+// it.
+/** @param {Element} element */
+export function holderName(element) {
+  const scope = authoredScope(element);
+  const column = (/** @type {Element} */ at) =>
+    at.localName === "main" && at.parentElement === scope;
+  for (let at = upFrom(element); at && at !== scope && !column(at); at = upFrom(at)) {
+    const name = ownName(at);
+    if (name) return name;
+  }
+  return "";
 }
 
 // A thread's § coordinate and the visual-action picker both show it.

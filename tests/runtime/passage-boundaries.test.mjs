@@ -600,6 +600,22 @@ test("a message's markup reads as its own document, and its rendered text as the
   assert.equal(elementReading(document.getElementById("text"), "wrote"), "");
 });
 
+test("the shown reading leaves out what a reader landing on the element is kept from", () => {
+  document.body.innerHTML = `<main><details id="outer"><summary>Method</summary>
+    Secret text <p id="inner">Inner words <span hidden>gone</span> stay.</p></details>
+    <div id="mixed">Intro <details><summary>More</summary><p>Hidden.</p></details>
+    <span aria-hidden="true">decor</span></div></main>`;
+  const shown = (id) => elementReading(document.getElementById(id), "shown");
+  assert.equal(shown("outer"), "Method");
+  assert.equal(shown("mixed"), "Intro More");
+  // What holds the root counts for nothing, since landing on it opens that.
+  assert.equal(shown("inner"), "Inner words stay.");
+  assert.equal(
+    elementReading(document.getElementById("inner"), "wrote"),
+    "Inner words gone stay.",
+  );
+});
+
 test("one element's two readings are kept apart", () => {
   document.body.innerHTML =
     '<main><p id="line">Words <span data-lf-gen="">generated</span></p></main>';

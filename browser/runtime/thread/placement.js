@@ -6,10 +6,18 @@ import {
   declaredName,
 } from "../addressable-names.js";
 import { sectionOf } from "../anchor-resolution.js";
-import { HEADING, leafSurface, pageParts, pageReadingVersion } from "../passages.js";
+import {
+  authoredScope,
+  GENERATED,
+  HEADING,
+  leafSurface,
+  pageDocument,
+  pageHeadingsVersion,
+  pageParts,
+} from "../passages.js";
 import { documentChanged } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
-import { byRenderedOrder, renderedOrder, upFrom } from "../shadow.js";
+import { byRenderedOrder, overIn, renderedOrder, upFrom } from "../shadow.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
 // beginning and an end, and the user walks the thread the way they walk the
@@ -64,36 +72,59 @@ export const inPageOrder = (threads, placedAt) =>
 // contributes none (pageParts), which also keeps a heading inside a reply's Markdown out
 // of the page's outline.
 //
-// It is a reading of the page's own nodes, so it stands until the page reading moves
-// (passages.js, `pageReadingVersion`) or a caller says the document changed
-// (`presentDocument`): a thread pass over an unchanged page reads the outline it read.
-/** @typedef {{key: readonly [ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>], outline: readonly Element[], heads: Map<Element | null, Element[]>}} Outlined */
+// It is a reading of which headings the page holds and in what order, so it stands
+// until a heading joins or leaves the page (passages.js, `pageHeadingsVersion`) or a
+// caller says the document changed (`presentDocument`): a thread pass, or a preview,
+// after words changed elsewhere reads the outline it read.
+/** @typedef {{outline: readonly Element[], heads: Map<Element | null, Element[]>}} Outline
+ * @typedef {Outline & {key: readonly [number, ReturnType<typeof documentChanged>]}} Outlined */
 /** @type {Outlined | null} */
 let outlined = null;
 /** @returns {Outlined} */
 function readOutline() {
-  /** @type {[ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>]} */
-  const key = [pageReadingVersion(), documentChanged()];
+  /** @type {[number, ReturnType<typeof documentChanged>]} */
+  const key = [pageHeadingsVersion(), documentChanged()];
   if (outlined?.key.every((part, index) => part === key[index])) return outlined;
-  const outline = Object.freeze(
-    byRenderedOrder(
-      pageParts(HEADING),
-      /** @param {Element} heading */ (heading) => heading,
+  outlined = {
+    key,
+    ...outlineOf(
+      byRenderedOrder(
+        pageParts(HEADING),
+        /** @param {Element} heading */ (heading) => heading,
+      ),
     ),
-  );
-  // Each container's headings, in the outline's order, for `partOver`.
+  };
+  return outlined;
+}
+// An outline of `headings`, in their order, with each container's headings for
+// `partOver`.
+/** @param {Element[]} headings @returns {Outline} */
+function outlineOf(headings) {
   /** @type {Map<Element | null, Element[]>} */
   const heads = new Map();
-  for (const heading of outline) {
+  for (const heading of headings) {
     const container = headed(heading);
     const held = heads.get(container);
     if (held) held.push(heading);
     else heads.set(container, [heading]);
   }
-  outlined = { key, outline, heads };
-  return outlined;
+  return { outline: Object.freeze(headings), heads };
 }
 export const pageOutline = () => readOutline().outline;
+// The outline of the document `node` stands in: the page's, or a message's own. A
+// message's markup is a document of its own (`authoredScope`), whose headings head its
+// parts and none of the page's; it is read off the message as it stands, a message
+// being small.
+/** @param {Element} node @returns {Outline} */
+function outlineFor(node) {
+  const scope = authoredScope(node);
+  if (scope === pageDocument()) return readOutline();
+  return outlineOf(
+    [...scope.querySelectorAll(HEADING)].filter(
+      (heading) => !overIn(heading, GENERATED, scope),
+    ),
+  );
+}
 
 // What names the part of the page a node stands in: the heading over it, else the
 // nearest region holding it whose declaration titles it (`declaredName`), such as a tab
@@ -125,7 +156,7 @@ const headed = (heading) => {
 // outline rather than the whole outline: On me asks it of every item it lists.
 /** @param {Element} node */
 export function partOver(node) {
-  const { heads } = readOutline();
+  const { heads } = outlineFor(node);
   for (let at = upFrom(node); at; at = upFrom(at)) {
     const heading = lastBefore(heads.get(at), node);
     if (heading) return heading;
@@ -155,29 +186,29 @@ function reachedBefore(headings, node, through = false) {
 }
 
 // The part of the page a heading heads, by the rule `partOver` reads: the blocks after
-// it in its container, the `header` or `hgroup` holding it passed, up to the one holding
-// the container's next heading. A block of the part is one `partOver` answers this
-// heading for, or a block holding a part of its own under it, as a nested section does.
+// it where it stands, then after the `header` or `hgroup` holding it, so a header's
+// standfirst opens the part, up to the block holding its container's next heading. A
+// block of the part is one `partOver` answers this heading for, or a block holding a part
+// of its own under it, as a nested section does.
 /** @param {Element} heading @returns {Element[]} */
 export function headedPart(heading) {
   const container = headed(heading);
-  const headings = readOutline().heads.get(container) ?? [];
+  const headings = outlineFor(heading).heads.get(container) ?? [];
   const next = headings[reachedBefore(headings, heading, true)] ?? null;
-  /** @param {Element} node */
-  const blockOf = (node) => {
-    let at = node;
-    for (let up = upFrom(at); up && up !== container; up = upFrom(up)) at = up;
-    return at;
-  };
-  const until = next && blockOf(next);
+  /** @type {Set<Element>} */
+  const holdsNext = new Set();
+  for (let at = next; at && at !== container; at = upFrom(at)) holdsNext.add(at);
   /** @type {Element[]} */
   const part = [];
   for (
-    let at = blockOf(heading).nextElementSibling;
-    at && at !== until;
-    at = at.nextElementSibling
+    let at = /** @type {Element | null} */ (heading);
+    at && at !== container;
+    at = upFrom(at)
   )
-    part.push(at);
+    for (let block = at.nextElementSibling; block; block = block.nextElementSibling) {
+      if (holdsNext.has(block)) return part;
+      part.push(block);
+    }
   return part;
 }
 

@@ -8,11 +8,25 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { render } from "/runtime/framework.js";
 import { linkedPlace, placePreview } from "/runtime/place-preview.js";
+import { pageOutline } from "/runtime/thread/placement.js";
 
-// The preview's name and parts, each as [its class without the prefix, its words].
-/** @param {string} markup */
-function previewed(markup) {
-  document.body.innerHTML = `<main>${markup}</main>`;
+// The preview's name and parts, each as [its class without the prefix, its words], of
+// `#it` in `markup`: the page's, or with `message` the markup of a reply as the floating
+// panel draws it, in the chrome after the page's body, inside generated chrome around
+// the message's body.
+/** @param {string} markup @param {{message?: boolean}} [where] */
+function previewed(markup, { message = false } = {}) {
+  document.querySelector(".lf-chrome")?.remove();
+  document.body.innerHTML = message
+    ? "<main><p>The page.</p></main>"
+    : `<main>${markup}</main>`;
+  if (message) {
+    const chrome = document.createElement("div");
+    chrome.className = "lf-chrome";
+    chrome.innerHTML = `<div class="lf-msg lf-ui" data-lf-gen="1"><div class="lf-msg-body">
+      <div class="lf-msg-text"><p>The reply's words.</p></div>${markup}</div></div>`;
+    document.documentElement.append(chrome);
+  }
   const preview = placePreview(document.getElementById("it"));
   if (!preview) return null;
   assert.equal(preview.excerpt, true);
@@ -58,13 +72,22 @@ test("a heading previews the part of the page it heads, as the page's outline re
       ["text", "And queued edits."],
     ],
   );
-  // A heading in a header heads what holds the header.
+  // A heading in a header heads what holds the header, from the words after it there.
   assert.deepEqual(
     previewed(`<section><header><h2 id="it">Risk</h2></header>
       <p>First lines.</p></section>`).parts,
     [
       ["name", "Risk"],
       ["text", "First lines."],
+    ],
+  );
+  assert.deepEqual(
+    previewed(`<section><header><h2 id="it">Risk</h2><p>Important standfirst.</p>
+      </header><p>Later body.</p></section>`).parts,
+    [
+      ["name", "Risk"],
+      ["text", "Important standfirst."],
+      ["text", "Later body."],
     ],
   );
 });
@@ -116,18 +139,72 @@ test("a closed disclosure shows only its summary, linked to or held", () => {
   );
 });
 
-test("a native block in a message's markup previews its words", () => {
-  // As the floating panel draws a reply: generated chrome around the body that holds
-  // the markup the agent sent.
+test("a message's markup previews by its own document: its words, names and outline", () => {
   assert.deepEqual(
-    previewed(`<div class="lf-msg lf-ui" data-lf-gen="1"><div class="lf-msg-body">
-      <div class="lf-msg-text"><p>The reply's words.</p></div>
-      <section id="it"><h2>Message heading</h2><p>Message first lines.</p></section>
-      </div></div>`).parts,
+    previewed(
+      `<section id="it"><h2>Message heading</h2><p>Message first lines.</p></section>`,
+      { message: true },
+    ).parts,
     [
       ["name", "Message heading"],
       ["text", "Message first lines."],
     ],
+  );
+  // A paragraph is named by the heading over it in the message.
+  assert.deepEqual(
+    previewed(`<h2>Risk</h2><p id="it">It may fail.</p>`, { message: true }).parts,
+    [
+      ["name", "Risk"],
+      ["text", "It may fail."],
+    ],
+  );
+  // A heading heads the message's part it opens, up to the message's next heading.
+  assert.deepEqual(
+    previewed(`<h2 id="it">Risk</h2><h2>Other section</h2><p>Other text</p>`, {
+      message: true,
+    }).parts,
+    [["name", "Risk"]],
+  );
+});
+
+test("the outline stands while words change elsewhere, and moves when a heading comes", () => {
+  document.body.innerHTML = `<main><h2 id="first">First</h2><p id="words">Words.</p></main>`;
+  const before = pageOutline();
+  document.getElementById("words").firstChild.data = "Other words.";
+  assert.equal(pageOutline(), before);
+  document
+    .querySelector("main")
+    .insertAdjacentHTML("beforeend", "<section><h2>Second</h2></section>");
+  assert.deepEqual(
+    pageOutline().map((heading) => heading.textContent),
+    ["First", "Second"],
+  );
+});
+
+test("a place with no name of its own takes the nearest name holding it", () => {
+  assert.deepEqual(
+    previewed(`<section aria-label="Deployment"><p id="it">It may fail.</p></section>`)
+      .parts,
+    [
+      ["name", "Deployment"],
+      ["text", "It may fail."],
+    ],
+  );
+});
+
+test("what a place keeps hidden stays out of its words too", () => {
+  assert.deepEqual(
+    previewed(`<details id="it"><summary>Method</summary>Secret text</details>`).parts,
+    [["name", "Method"]],
+  );
+  assert.deepEqual(
+    previewed(`<div id="it">Intro <details><summary>More</summary>
+      <p>Hidden paragraph.</p></details></div>`).parts,
+    [["text", "Intro More"]],
+  );
+  assert.deepEqual(
+    previewed(`<p id="it">Shown <span hidden>secret</span> words.</p>`).parts,
+    [["text", "Shown words."]],
   );
 });
 

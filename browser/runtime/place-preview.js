@@ -51,6 +51,7 @@ import { fragmentTarget } from "./anchor-resolution.js";
 import {
   addressableWord,
   declaredName,
+  holderName,
   leadingTitle,
   ownName,
 } from "./addressable-names.js";
@@ -64,6 +65,7 @@ import {
   GENERATED,
   HEADING,
   inPage,
+  keptHidden,
   LEAF_SURFACE,
   pageDocument,
 } from "./passages.js";
@@ -98,11 +100,11 @@ const LINES = 4;
 // What is no part of the place the page drew: what Leaf draws in it and what the page
 // never draws.
 const NOT_DRAWN = `${GENERATED}, ${LEAF_SURFACE}, script, style, template, noscript`;
-// What a preview leaves out of a place: that, and what the place keeps hidden until the
-// reader opens it, a closed disclosure's body or a tab not chosen. Following the link
-// opens what holds the place and nothing inside it (anchor-travel.js), so the place
-// shows what it shows once the reader lands on it.
-const UNSHOWN = `${NOT_DRAWN}, [aria-hidden="true"], [hidden], details:not([open]) > :not(summary)`;
+// What a preview leaves out of a place: that, and what a reader landing on the place is
+// kept from (`keptHidden`, passages.js), a closed disclosure's body or a tab not chosen,
+// which the place's words leave out by the same rule (the `shown` reading).
+/** @param {Element} element */
+const unshown = (element) => element.matches(NOT_DRAWN) || keptHidden(element);
 const LIST = "ul, ol, menu, dl";
 
 /** The place a link into the page names, or null for any other link.
@@ -151,22 +153,23 @@ export function placePreview(place) {
   };
 }
 
-// A place with no name of its own takes the name of the part of the page it stands in
-// (`partOver`, read off the page's outline), as a question's options and a section's
-// paragraph do, whose parts then say its words; a widget in no named part takes its
-// word.
+// A place with no name of its own takes the name of the nearest element holding it that
+// has one (`holderName`), as a question's options and a section's paragraphs do, else
+// the heading over it in the outline of its document (`partOver`), as a paragraph after
+// a heading in a flow of headings does; its parts then say its words. A widget in no
+// named part takes its word.
 /** @param {Element} place */
 function placeName(place) {
-  const own = ownName(place);
-  if (own) return own;
+  const named = ownName(place) || holderName(place);
+  if (named) return named;
   const part = partOver(place);
   const held = part ? (part.matches(HEADING) ? words(part) : declaredName(part)) : "";
   return held || (registry[place.localName] ? capitalized(addressableWord(place)) : "");
 }
 
-/** The authored words an element holds, as the page reads them.
+/** The authored words an element shows a reader who lands on it, as the page reads them.
  * @param {Element} element */
-const words = (element) => labelWords(elementReading(element, "wrote"));
+const words = (element) => labelWords(elementReading(element, "shown"));
 
 // The parts of the blocks a heading heads.
 /** @param {readonly Element[]} blocks */
@@ -175,7 +178,7 @@ function sectionParts(blocks) {
   const parts = [];
   for (const block of blocks) {
     if (parts.length >= PARTS) break;
-    if (!block.matches(UNSHOWN)) read(block, parts, null);
+    if (!unshown(block)) read(block, parts, null);
   }
   return parts;
 }
@@ -233,7 +236,7 @@ function readChildren(element, parts, title) {
   let still = title;
   for (const child of (declaredRoot(element) ?? element).children) {
     if (parts.length >= PARTS) break;
-    if (!child.matches(UNSHOWN)) still = read(child, parts, still);
+    if (!unshown(child)) still = read(child, parts, still);
   }
   return still;
 }
@@ -253,8 +256,7 @@ const holdsText = (element) =>
 /** @param {Element} list @param {Part[]} parts */
 function listPart(list, parts) {
   const items = [...list.children].filter(
-    (item) =>
-      item.matches(list.localName === "dl" ? "dt" : "li") && !item.matches(UNSHOWN),
+    (item) => item.matches(list.localName === "dl" ? "dt" : "li") && !unshown(item),
   );
   const shown = items.slice(0, ITEMS).map((item) => ({
     words: item.localName === "dt" ? termWords(item) : excerptWords(words(item), WORDS),
@@ -344,7 +346,7 @@ function tablePart(table, parts) {
   const shown = [];
   for (const row of rows) {
     if (shown.length >= ROWS) break;
-    if (row.matches(UNSHOWN)) continue;
+    if (unshown(row)) continue;
     shown.push(
       [...row.cells]
         .slice(0, COLUMNS)

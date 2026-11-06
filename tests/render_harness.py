@@ -2764,8 +2764,9 @@ PREVIEW = "#lf-preview"
 def preview_parts(target, route="pointer"):
     """What `target`'s preview shows a pointer resting on it (runtime/preview.js), or
     with `route="focus"` the keyboard moving onto it: its name, then each line of
-    detail, as the face draws them, key chips left out. The pointer leaves it again
-    after, so the next reading is a new one."""
+    detail, as the face draws them, key chips left out: of a list of threads, each line
+    it shows and the count of the rest. The pointer leaves it again after, so the next
+    reading is a new one."""
     page = target.page
     tip = page.locator("#lf-preview")
     if route == "focus":
@@ -2781,7 +2782,9 @@ def preview_parts(target, route="pointer"):
     expect(tip).to_be_visible()
     expect(tip).to_have_attribute("data-lf-route", route)
     parts = tip.evaluate(
-        """(tip) => [...tip.querySelectorAll('.lf-preview-word, .lf-preview-detail')]
+        """(tip) => [...tip.querySelectorAll(`.lf-preview-word,
+            .lf-preview-detail:not(:has(.lf-preview-thread)),
+            .lf-preview-thread:not([data-lf-past]), .lf-preview-more:not(:empty)`)]
           .map((part) => part.textContent)"""
     )
     if route == "pointer":

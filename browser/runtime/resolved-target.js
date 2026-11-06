@@ -11,7 +11,7 @@
  * mark, margin row or page order, and travel to it opens the message. */
 
 import { shownParts } from "./geometry.js";
-import { rangeOf } from "./passages.js";
+import { rangeOf, segmentLines, segmentsBox } from "./passages.js";
 
 /** @typedef {{exact: boolean, status: "exact" | "fallback" | "outdated", datumElement: Element | null}} Resolution
  * @typedef {Resolution & {kind: "element", element: Element, place: Element, surface: Element | null}} ElementTarget
@@ -106,15 +106,25 @@ export function rangeGeometry(range) {
 /** @param {ResolvedTarget | null | undefined} resolved */
 export const passageBoxes = (resolved) =>
   targetRange(resolved)
-    ? targetSegments(resolved)
-        .flatMap((segment) => [...rangeOf([segment]).getClientRects()])
-        .filter((box) => box.width && box.height)
+    ? segmentLines(targetSegments(resolved)).filter((box) => box.width && box.height)
     : [];
 
+// A passage's geometry as `rangeGeometry` gives a selection's, read from its segments'
+// own lines, which hold where one range across a shadow root collapses (passages.js,
+// `rangeOf`).
 /** @param {ResolvedTarget | null | undefined} resolved */
 export function passageGeometry(resolved) {
   const range = targetRange(resolved);
-  return range && rangeGeometry(range);
+  const segments = targetSegments(resolved);
+  const [first] = segments;
+  if (!range || !first) return null;
+  const lines = segmentLines(segments);
+  return {
+    range,
+    contextNode: first.node,
+    box: segmentsBox(segments),
+    attachment: lines.find((rect) => rect.width > 0 && rect.height > 0) ?? null,
+  };
 }
 
 /** @param {ResolvedTarget | null | undefined} resolved */

@@ -134,6 +134,7 @@ import { presentDocument, readPart } from "./semantic-state.js";
 import { COLLAPSE, TEXT_BLOCK } from "./kernel-facts.js";
 import { textUnits } from "./text-alignment.js";
 import { excerptWords } from "./words.js";
+import { union } from "./rect.js";
 
 /** @typedef {{el: Element, editing: boolean, up: CellChain | null}} CellChain
  * @typedef {{chrome: boolean, silenced: boolean, generated: boolean,
@@ -1082,7 +1083,11 @@ export const says = (el, options = {}) => {
 /** @param {Node} el */
 export const wrote = (el) => quoteFrom(textNodesUnder(el, "wrote"));
 
-// A passage as one Range: what paints it, and what measures it for a scroll.
+// A passage as one Range: what selects it, and what tells two passages' bounds apart.
+// Both ends of a Range stand in one tree, so a passage that runs into a shadow tree, as
+// the words of a declared stage stand at their host's place in the page's string, makes
+// a range that collapses onto its end (DOM, "set the start or end"). What a passage's
+// words are drawn in is its segments' own lines (`segmentLines`).
 /** @param {readonly Segment[]} segments */
 export function rangeOf(segments) {
   const first = segments[0];
@@ -1093,6 +1098,20 @@ export function rangeOf(segments) {
   range.setStart(first.node, first.start);
   range.setEnd(last.node, last.end);
   return range;
+}
+// The lines a passage's words are drawn in: each segment's own, in order, wherever the
+// segment stands, in the page's tree or a shadow tree.
+/** @param {readonly Segment[]} segments */
+export const segmentLines = (segments) =>
+  segments.flatMap((segment) => [...rangeOf([segment]).getClientRects()]);
+// The box around them, as `Range.getBoundingClientRect` gives one tree's range: around
+// the lines with an area, else the first.
+/** @param {readonly Segment[]} segments */
+export function segmentsBox(segments) {
+  const lines = segmentLines(segments);
+  const drawn = lines.filter((line) => line.width || line.height);
+  const box = union(drawn.length ? drawn : lines.slice(0, 1));
+  return box ? new DOMRect(box.left, box.top, box.width, box.height) : new DOMRect();
 }
 
 // Find `quote` among `segments`; returns the segments it covers, or none. The quote's own

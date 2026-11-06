@@ -248,6 +248,7 @@ import {
   threadHeading,
   threadName,
   threadPassage,
+  threadPreview,
   titlePending,
 } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
@@ -2765,15 +2766,23 @@ export function createFloatingPanel({
     const resolved = rows
       .filter(({ section }) => section === "resolved")
       .map(({ thread }) => thread);
+    // A row previews its thread as the thread's margin entry and mark do
+    // (`threadPreview`), leaving out to the keyboard the word its status already says.
     /** @param {ReturnType<typeof readThreads>["threads"][number]} thread */
-    const row = (thread) =>
-      html`<button
+    const row = (thread) => {
+      const attention = threadAttention(thread, agentName());
+      return html`<button
         type="button"
         ${offeredAction("row", "lf-fp-thread")}
         data-lf-key=${thread.key}
         ?data-lf-unread=${isNews(thread)}
         ?data-lf-resolved=${thread.resolved}
-        data-lf-turn=${threadAttention(thread, agentName())?.kind === "needs_user" ? "user" : nothing}
+        data-lf-turn=${attention?.kind === "needs_user" ? "user" : nothing}
+        .lfPreview=${(/** @type {import("./preview.js").Route} */ route) =>
+          threadPreview(
+            [thread],
+            route === "focus" && attention ? wordsText(attention.word) : null,
+          )}
         @click=${() => open({ view: "thread", thread: thread.key })}
       >
         <span class="lf-row-lead"
@@ -2784,6 +2793,7 @@ export function createFloatingPanel({
         <span class="lf-fp-label lf-row-main">${threadHeading(thread)}</span>
         <span class="lf-row-end">${threadStatus(thread)}</span>
       </button>`;
+    };
     // Every thread stands in a group, as every item does in On's lists (`groupedItems`).
     // The open ones keep their group's box as a search narrows them to its matches, so
     // the rows stay under the box they stood in.

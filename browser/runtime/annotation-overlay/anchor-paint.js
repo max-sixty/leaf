@@ -2,8 +2,9 @@
  *
  * Anchor placement resolves conversations and composition before this optional paint.
  * This instance owns highlights, outlines and pointer hit testing; its marks never
- * supply target existence, surface admission, drawing placement or travel. Its hit
- * test tells the preview owner which passage the pointer rests on (`pointMark`).
+ * supply target existence, surface admission, drawing placement or travel. Its one hit
+ * test answers which mark the pointer rests on, for a press (`markAt`) and for the
+ * preview owner (`pointMark`).
  */
 
 import { ringBox, visibleFocus } from "../focus.js";
@@ -386,32 +387,37 @@ export function createAnchorPaint({
     markedRoots = [...roots];
   }
 
-  // A thread's words preview the thread, as its margin entry does (`threadPreview`).
-  // An element's thread previews nothing on the page, for the reason its contour stands
-  // only from the row (`paintHover`): the pointer is inside the element wherever the
-  // user reads in it. The preview owner hears only where the user's own input put the
-  // pointer, so a mark a scroll or a repaint carries under a still pointer shows
-  // nothing, as the owner holds for elements, and a pointer carrying a press, as in
-  // selecting words, rests on no mark.
-  // The owner is told the whole passage, from its first piece's start to its last's
-  // end, which keeps its bounds as the pointer crosses the pieces an inline element
-  // splits it into, or a repaint makes it again, so its preview stands once (preview.js,
-  // `pointRange`) by the line the pointer is on.
+  // A thread's mark previews the thread, as its margin entry does (`threadPreview`),
+  // from the one hit a press reads too (`markHit`), on a passage's words and on an
+  // element's mark alike, wherever the hand stands. The preview owner hears only where
+  // the user's own input put the pointer, so a mark a scroll or a repaint carries under
+  // a still pointer shows nothing, as the owner holds for elements, and a pointer
+  // carrying a press, as in selecting words, rests on no mark.
+  // The owner is told the piece the preview stands by: the passage's segment, or the
+  // element marked, the pointer came onto the thread's marks over, held while it stays
+  // on them, so the preview stands once by the line first pointed at as the pointer
+  // crosses the pieces an inline element or a shadow root splits a passage into
+  // (preview.js, `pointRange`). One range from the first piece to the last collapsed
+  // where a passage ran into a shadow tree (passages.js, `rangeOf`).
+  /** @type {{id: string, where: Mark} | null} */
+  let standing = null;
   /** @param {{id: string, where: Mark} | null} hit @param {{x: number, y: number}} at */
   function pointMark(hit, at) {
-    const id = resting && hit?.where instanceof Range ? hit.id : null;
-    const pieces = marksFor(id).filter((mark) => mark instanceof Range);
-    const [first] = pieces;
-    const last = pieces.at(-1);
-    pointed = Boolean(first && last);
-    if (!id || !first || !last) return void pointRange(null);
-    const passage = document.createRange();
-    passage.setStart(first.startContainer, first.startOffset);
-    passage.setEnd(last.endContainer, last.endOffset);
+    const id = resting && hit ? hit.id : null;
+    if (!hit || !id) {
+      standing = null;
+      pointed = false;
+      return void pointRange(null);
+    }
+    if (standing?.id !== id || !marksFor(id).includes(standing.where)) standing = hit;
+    pointed = true;
+    const { where } = standing;
+    const piece = where instanceof Range ? where : document.createRange();
+    if (!(where instanceof Range)) piece.selectNode(where);
     // The thread the user is in is in front of them already, as an entry standing
     // open previews nothing (preview.js).
     pointRange(
-      passage,
+      piece,
       () => {
         const thread = id === currentLocationThreadId() ? null : threadNamed(id);
         return thread ? threadPreview([thread]) : null;
@@ -449,9 +455,34 @@ export function createAnchorPaint({
     });
   }
 
+  // Whether the last pass's marks of a thread mark what this pass's would: the same
+  // words, piece by piece, by the live ranges' bounds now, or the same elements.
+  /** @param {Mark[] | undefined} last @param {readonly import("../passages.js").Segment[]} segments */
+  const markSame = (last, segments) =>
+    last?.length === segments.length &&
+    last.every((mark, at) => {
+      const segment = segments[at];
+      return (
+        mark instanceof Range &&
+        segment !== undefined &&
+        mark.startContainer === segment.node &&
+        mark.startOffset === segment.start &&
+        mark.endContainer === segment.node &&
+        mark.endOffset === segment.end
+      );
+    });
+  /** @param {Mark[] | undefined} last @param {readonly Element[]} parts */
+  const markSameParts = (last, parts) =>
+    last?.length === parts.length && last.every((mark, at) => mark === parts[at]);
+
+  // A pass keeps the marks of each thread whose marks it would make again, so a
+  // presentation that changes no mark keeps its ranges, the index of them (`index`) and
+  // the highlight painting them as they stand, and the hover stays bound to them; only a
+  // pass that changes a mark, or the order of the threads marked, builds them again.
   /** @param {NonNullable<ReturnType<ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["read"]>>} reading */
   function paint({ readings, draft, action }) {
     const before = outlined();
+    const last = new Map(marked);
     marked.clear();
     pendingOutline = [];
     actionOutline = [];
@@ -473,21 +504,32 @@ export function createAnchorPaint({
         continue;
       }
 
+      const kept = last.get(thread.id);
       if (targetElement(found)) {
         rememberVisual(found);
         if (!thread.root.drawing) {
-          marked.set(thread.id, targetParts(found));
+          const parts = targetParts(found);
+          marked.set(thread.id, kept && markSameParts(kept, parts) ? kept : parts);
         }
       } else if (!thread.root.drawing) {
-        const ranges = targetSegments(found).map(
-          /** @param {Parameters<typeof rangeOf>[0][number]} segment */ (segment) =>
-            rangeOf([segment]),
-        );
+        const segments = targetSegments(found);
+        const ranges =
+          kept && markSame(kept, segments)
+            ? /** @type {Range[]} */ (kept)
+            : segments.map(
+                /** @param {Parameters<typeof rangeOf>[0][number]} segment */ (
+                  segment,
+                ) => rangeOf([segment]),
+              );
         marked.set(thread.id, ranges);
         posted.push(...ranges);
       }
     }
-    index();
+    const order = [...last.keys()];
+    const remarked =
+      marked.size !== last.size ||
+      [...marked].some(([id, marks], at) => order[at] !== id || last.get(id) !== marks);
+    if (remarked) index();
     const resolvedDraft = draft.resolved;
     const draftMarked = Boolean(resolvedDraft && resolvedDraft.status !== "outdated");
     pendingOutline =
@@ -507,16 +549,16 @@ export function createAnchorPaint({
     if (action) rememberVisual(action);
     paintOutlines(before);
 
-    CSS.highlights.set(MARK, new Highlight(...posted));
+    if (remarked) CSS.highlights.set(MARK, new Highlight(...posted));
     CSS.highlights.set(REACT, new Highlight(...reactions));
     CSS.highlights.set(
       PENDING,
       Object.assign(new Highlight(...pending), { priority: 3 }),
     );
     paintCurrentLocation(false);
-    // This pass creates new Range objects. Rebind hover even when the semantic id did
-    // not change, then update the shared visual projection once.
-    if (hovering) paintHover(hovering, hoverFromRow, false);
+    // A pass that made new marks rebinds the hover to them even when the semantic id
+    // did not change, then updates the shared visual projection once.
+    if (remarked && hovering) paintHover(hovering, hoverFromRow, false);
     paintVisualStates();
     refreshHover();
   }
@@ -536,6 +578,7 @@ export function createAnchorPaint({
     mounted = false;
     if (pointed) pointRange(null);
     pointed = false;
+    standing = null;
     if (hoverFrame) cancelRender(hoverFrame);
     hoverFrame = 0;
     const before = outlined();

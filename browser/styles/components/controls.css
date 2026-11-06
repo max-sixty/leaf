@@ -390,8 +390,29 @@ svg[data-lf-icon] {
 /* A thread's line in the user's turn takes the turn's green ("Visual treatment carries
    meaning"; thread/messages.js, `threadPreview`), drawn halfway to the tooltip's ink,
    which reads at 4.8:1 or more on the inked ground in either scheme. */
-.lf-preview-detail > [data-lf-turn="user"] {
+.lf-preview-detail [data-lf-turn="user"] {
   color: color-mix(in srgb, var(--ok) 50%, var(--tip-ink));
+}
+/* A preview of several threads lists every thread's line, which its face clips at the
+   room the owner holds it to rather than scrolling them; the lines that fit stand
+   first, then the count of the rest, and the rest after it out of sight, laid out so
+   the face stays as tall as the room (thread/messages.js, `fitLines`). */
+.lf-preview:has(.lf-preview-threads) {
+  overflow: clip;
+}
+.lf-preview-threads {
+  display: grid;
+  row-gap: 2px;
+}
+.lf-preview-thread[data-lf-past] {
+  order: 2;
+  visibility: hidden;
+}
+.lf-preview-more {
+  order: 1;
+}
+.lf-preview-more:empty {
+  display: none;
 }
 @media (prefers-reduced-motion: reduce) {
   .lf-preview {

@@ -407,8 +407,7 @@ def test_a_preview_shown_on_focus_describes_what_focus_is_on(engine, request, se
 def test_an_entry_holding_several_threads_says_each(engine, request, serve):
     """A margin entry holding several threads is named by their count and gives every
     thread a line of its name and where it stands, as the card a press opens lists
-    them all. In a window too short for every line it gives the lines that fit, and
-    its last says how many more threads the press reaches, so it stays in the window."""
+    them all."""
     url = serve(PANEL_PAGE)
     for n in range(1, 5):
         panel_comment(serve.page_dir, f"Question {n} on the lede?", {"section": "lede"})
@@ -420,15 +419,79 @@ def test_an_entry_holding_several_threads_says_each(engine, request, serve):
         f"Question {n} on the lede?" for n in range(1, 5)
     ], parts
 
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_threads_row_previews_its_thread(engine, request, serve):
+    """A row in Threads previews its thread as the thread's margin entry does, to the
+    keyboard moving onto it, which hears the word the row's state already says once,
+    and to a pointer resting on it."""
+    url = serve(PANEL_PAGE)
+    for n in ("one", "two"):
+        panel_comment(serve.page_dir, f"Question {n} on the lede?", {"section": "lede"})
+    page = open_page(request.getfixturevalue(engine), url)
     tip = page.locator(PREVIEW)
-    expect(tip).to_be_hidden()
-    page.set_viewport_size({"width": page.viewport_size["width"], "height": 250})
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
+    rows = page.locator(".lf-fp-thread[data-lf-key]")
+    expect(rows.first).to_be_focused()
+    expect(tip).to_have_attribute("data-lf-route", "focus")
+    expect(tip.locator(".lf-preview-word")).to_have_text("Question one on the lede?")
+    expect(tip.locator(".lf-preview-detail").last).to_have_text("1 message")
+    second = rows.nth(1)
+    state = second.locator(".lf-row-end").inner_text()
+    pointed = preview_parts(second)
+    assert pointed[0] == "Question two on the lede?", pointed
+    assert pointed[1].startswith("Me · "), pointed
+    assert pointed[-1] == f"{state} · 1 message", pointed
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_crowded_preview_counts_its_lines_again_as_its_room_changes(
+    engine, request, serve
+):
+    """An entry's preview gives a line to as many of its threads as its face holds in
+    the room the owner holds it to, then says how many more, and counts again as that
+    room changes under it while it stands: fewer as the window shrinks, every one again
+    as it grows back."""
+    url = serve(PANEL_PAGE)
+    for n in range(1, 13):
+        panel_comment(serve.page_dir, f"Question {n} on the lede?", {"section": "lede"})
+    browser = request.getfixturevalue(engine)
+    context = browser.new_context(viewport={"width": 1200, "height": 900})
+    page = open_page(browser, url, context=context)
+    # The owner's hold on the face's block size, which its round 5 gives the room the
+    # face stands in; this stands in for it until that round merges.
+    page.evaluate(
+        """() => {
+          const bound = new CSSStyleSheet();
+          bound.replaceSync('.lf-preview { max-block-size: calc(100dvh - 16px); }');
+          document.adoptedStyleSheets = [...document.adoptedStyleSheets, bound];
+        }"""
+    )
+    entry = page.locator('[data-lf-margin-for="lede"] > .lf-margin-marker')
+    tip = page.locator(PREVIEW)
+    shown = tip.locator(".lf-preview-thread:not([data-lf-past])")
+    more = tip.locator(".lf-preview-more")
     page.mouse.move(2, 2)
     entry.hover()
-    expect(tip.locator(".lf-preview-detail")).to_have_count(3)
-    expect(tip.locator(".lf-preview-detail").last).to_have_text("and 2 more threads")
-    box = tip.bounding_box()
-    assert box["y"] >= 0 and box["y"] + box["height"] <= 250, box
+    expect(tip).to_be_visible()
+    expect(shown).to_have_count(12)
+    expect(more).to_have_text("")
+
+    page.set_viewport_size({"width": 1200, "height": 250})
+    expect(more).to_have_text(re.compile(r"^and \d+ more threads?$"))
+    count = shown.count()
+    assert 0 < count < 12, count
+    expect(more).to_have_text(
+        f"and {12 - count} more thread{'s' if 12 - count > 1 else ''}"
+    )
+    face = tip.bounding_box()
+    foot = more.bounding_box()
+    assert foot["y"] + foot["height"] <= face["y"] + face["height"] + 0.5, (foot, face)
+
+    page.set_viewport_size({"width": 1200, "height": 900})
+    expect(shown).to_have_count(12)
+    expect(more).to_have_text("")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

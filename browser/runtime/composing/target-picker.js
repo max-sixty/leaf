@@ -16,6 +16,8 @@ import {
   quoteFrom,
   rangeOf,
   segmentBlock,
+  segmentLines,
+  segmentsBox,
 } from "../passages.js";
 import { shownBox } from "../geometry.js";
 import { skipped } from "../shadow-tree.js";
@@ -207,17 +209,14 @@ export function createTargetPicker({
     return visibleTargetParts(element).length > 0;
   };
 
-  /** @param {Range} range @param {Element} owner @param {PlacementReading} reading */
-  function firstShown(range, owner, reading) {
-    if (
-      range.startContainer.parentElement &&
-      skipped(range.startContainer.parentElement)
-    )
-      return null;
+  /** @param {Match} segments @param {Element} owner @param {PlacementReading} reading */
+  function firstShown(segments, owner, reading) {
+    const start = segments[0]?.node.parentElement;
+    if (start && skipped(start)) return null;
     const clip = reading.clipOver(owner);
     if (!clip) return null;
     return (
-      [...range.getClientRects()]
+      segmentLines(segments)
         .map((box) => reading.clearPart(box, clip, owner))
         .find((part) => reading.exposes(null, part)) ?? null
     );
@@ -353,14 +352,12 @@ export function createTargetPicker({
   /** @param {Match} segments @param {PlacementReading} [reading] */
   function matchRect(segments, reading = room()) {
     const owner = matchOwner(segments);
-    return owner ? firstShown(rangeOf(segments), owner, reading) : null;
+    return owner ? firstShown(segments, owner, reading) : null;
   }
 
   /** @param {Match[]} found */
   function startingMatch(found) {
-    const next = found.findIndex(
-      (segments) => rangeOf(segments).getBoundingClientRect().bottom > 0,
-    );
+    const next = found.findIndex((segments) => segmentsBox(segments).bottom > 0);
     return next === -1 ? 0 : next;
   }
 
@@ -658,7 +655,7 @@ export function createTargetPicker({
     const first = segments?.[0];
     const own = owner && shownBox(owner);
     if (!segments || !first || !owner || !clip || !own) return marks.place([]);
-    const boxes = [...rangeOf(segments).getClientRects()].filter((box) =>
+    const boxes = segmentLines(segments).filter((box) =>
       reading.exposes(null, reading.clearPart(box, clip, owner)),
     );
     const anchor = anchorFor(first.node);
@@ -840,7 +837,7 @@ export function createTargetPicker({
     if (!segments || !ev.composedPath().some((node) => node === matchOwner(segments)))
       return false;
     const { clientX: x, clientY: y } = ev;
-    return [...rangeOf(segments).getClientRects()].some(
+    return segmentLines(segments).some(
       (rect) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom,
     );
   }

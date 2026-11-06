@@ -5452,11 +5452,118 @@ def test_a_passage_staged_into_a_new_shadow_tree_keeps_its_mark(engine, request,
     expect(page.locator("body")).to_have_attribute("data-lf-over-mark", "")
 
 
-def test_an_element_s_mark_is_under_the_pointer_only_over_the_element(browser, serve):
+def test_a_presentation_that_changes_no_mark_builds_none(browser, serve):
+    """The anchor paint builds a thread's marks, the index the pointer is found in and
+    the highlight painting them only for a presentation that changes a mark: ten that
+    change none build nothing (anchor-paint.js, `paint`)."""
+    url = serve(leaf_page("Kept", '<p id="kept">Words a thread is about.</p>'))
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About these?",
+            "anchor": {"section": "kept", "quote": "a thread"},
+        },
+    )
+    page = open_page(browser, url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 1")
+    built = page.evaluate(
+        """async () => {
+          const api = await window.__lfCheckApi();
+          const own = CSS.highlights.set.bind(CSS.highlights);
+          let built = 0;
+          CSS.highlights.set = (name, value) => {
+            if (name === 'lf-mark') built++;
+            return own(name, value);
+          };
+          for (let n = 0; n < 10; n++) {
+            api.presentDocument();
+            await api.whenDocumentPresented();
+          }
+          CSS.highlights.set = own;
+          return built;
+        }"""
+    )
+    assert built == 0, built
+
+
+# A widget whose words read as the page's prose (`x-verbatim`), staged in a declared
+# shadow tree as it connects.
+VERBATIM_STAGE = {**LATE_STAGE, "x-verbatim": True}
+STAGED_ON_CONNECT = """
+import {shadowStage} from '/runtime/widget-api.js';
+customElements.define('lf-late-stage', class extends HTMLElement {
+  connectedCallback() { shadowStage(this, [...this.childNodes]); }
+});
+"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_passage_running_into_a_shadow_tree_previews_by_the_line_pointed_at(
+    engine, request, serve
+):
+    """A passage that runs from the page's words into a declared shadow tree is drawn in
+    its segments' own lines, since one range can't cross a root: its preview stands by
+    the line the pointer rests on, in the page's words, rather than where a range
+    across the root collapsed, at the passage's end inside the shadow tree."""
+    url = serve(
+        leaf_page(
+            "Across a root",
+            '<div id="both"><p>The first line of the passage ends here.</p>'
+            '<lf-late-stage id="late"><p>Its second line stands inside the widget.</p>'
+            "</lf-late-stage></div>" + "<p>After.</p>" * 12,
+        ),
+        layer_registry={"lf-late-stage": VERBATIM_STAGE},
+        layer_widgets={"lf-late-stage.js": STAGED_ON_CONNECT},
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Across the root?",
+            "anchor": {
+                "section": "both",
+                "quote": "passage ends here. Its second line",
+            },
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2")
+    line = page.evaluate(
+        """() => {
+          const text = document.querySelector('#both > p').firstChild;
+          const at = text.data.indexOf('passage ends');
+          const range = document.createRange();
+          range.setStart(text, at);
+          range.setEnd(text, at + 'passage ends'.length);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    page.mouse.move(line["left"] - 30, line["top"] - 30)
+    page.mouse.move(line["left"] + 6, line["top"] + line["height"] / 2, steps=3)
+    tip = page.locator("#lf-preview")
+    expect(tip.locator(".lf-preview-word")).to_have_text("Across the root?")
+    box = tip.bounding_box()
+    below = 0 <= box["y"] - line["bottom"] <= 12
+    above = 0 <= line["top"] - (box["y"] + box["height"]) <= 12
+    assert below or above, (box, line)
+    assert abs(box["x"] - line["left"]) <= 12, (box, line)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_an_element_s_mark_is_under_the_pointer_only_over_the_element(
+    engine, request, serve
+):
     """A thread on an element is under the pointer wherever the platform's hit test puts
     the pointer inside that element, as over an image, which holds no text to find, and
     nowhere past it, as beside a marked word at a line's end, where the nearest
-    character is still the word's."""
+    character is still the word's. The mark under the pointer for a press is the one
+    that previews: the image's thread to a pointer resting on it, and in Chromium to a
+    finger holding it."""
     box = (
         "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' "
         "height='80'%3E%3Crect width='160' height='80' fill='%23a55'/%3E%3C/svg%3E"
@@ -5480,15 +5587,32 @@ def test_an_element_s_mark_is_under_the_pointer_only_over_the_element(browser, s
                 "anchor": {"section": section},
             },
         )
+    browser = request.getfixturevalue(engine)
     page = open_page(browser, url)
     body = page.locator("body")
+    said = page.locator("#lf-preview .lf-preview-word")
     pic = page.locator("#pic").bounding_box()
     bold = page.locator("#bold").bounding_box()
     middle = bold["y"] + bold["height"] / 2
     page.mouse.move(pic["x"] + 40, pic["y"] + 40)
     page.mouse.move(pic["x"] + 60, pic["y"] + 50, steps=2)
     expect(body).to_have_attribute("data-lf-over-mark", "")
+    expect(said).to_have_text("About pic?")
     page.mouse.move(bold["x"] + bold["width"] + 35, middle, steps=2)
     expect(body).not_to_have_attribute("data-lf-over-mark", "")
+    expect(page.locator("#lf-preview")).to_be_hidden()
     page.mouse.move(bold["x"] + bold["width"] / 2, middle, steps=2)
     expect(body).to_have_attribute("data-lf-over-mark", "")
+    expect(said).to_have_text("About bold?")
+    if engine != "browser":
+        return
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, has_touch=True
+    )
+    touched = open_page(browser, url, context=context)
+    held = touched.locator("#pic").bounding_box()
+    point = {"x": held["x"] + 60, "y": held["y"] + 50}
+    cdp = context.new_cdp_session(touched)
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [point]})
+    expect(touched.locator("#lf-preview .lf-preview-word")).to_have_text("About pic?")
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})

@@ -297,9 +297,13 @@ answer is read once as it shows, takes no pointer and holds no control, so a con
 the user presses stays on the widget. A control needs no declaration: its accessible
 name, where its face shows only a symbol, and the keys its commands bind are its
 preview, and an `aria-description` adds a line under them; a `title` beside them would
-be a second tooltip, so a control carries none. A finger's release after a hold presses
-the element, so a widget that answers a click answers the hold too. Off Leaf nothing
-reads `lfPreview`.
+be a second tooltip, so a control carries none. A link an author wrote to a place on the
+page previews that place with no declaration. A link a widget draws previews nothing
+unless the widget declares it, since only the widget knows whether its words already
+say what the place holds; to show the place, return `placePreview(element)`, the name,
+first lines, answer and threads Leaf shows for an authored link. A finger's release
+after a hold presses the element, so a widget that answers a click answers the hold
+too. Off Leaf nothing reads `lfPreview`.
 
 ### Pointer presses
 

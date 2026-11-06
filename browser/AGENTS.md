@@ -241,10 +241,12 @@ playable").
   together.
 - **One owner shows every preview.** An element declares what pointing at it reads
   (`lfPreview`, `../skills/leaf/references/module-input.md`, "Previews"), a control's
-  word and keys come from its name and the register, and a range's owner says where
-  the pointer rests on it. `runtime/preview.js` shows one at a time on every route and
-  puts it away on leave, blur, a press or Escape, which still takes its own step. Check:
-  `test_a_control_previews_its_word_and_every_key_that_presses_it`.
+  word and keys come from its name and the register, a link an author wrote into the
+  page shows the place it names (`runtime/place-preview.js`), and a range's owner says
+  where the pointer rests on it. `runtime/preview.js` shows one at a time on every
+  route and puts it away on leave, blur, a press or Escape, which still takes its own
+  step. Checks: `test_a_control_previews_its_word_and_every_key_that_presses_it`,
+  `test_a_link_into_the_page_previews_where_it_points`.
 
 ### Visual treatment carries meaning
 
@@ -329,7 +331,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | External data                                                                                               | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                  |
 | Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`                                                      |
 | Repaint and geometry                                                                                        | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `shown-box.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js`             |
-| Chrome and available space                                                                                  | `chrome.js`, `floating-panel.js`, `page-layout.js`, `root-headers.js`, `page-controls.js`, `preview.js`                                                    |
+| Chrome and available space                                                                                  | `chrome.js`, `floating-panel.js`, `page-layout.js`, `root-headers.js`, `page-controls.js`, `preview.js`, `place-preview.js`                                |
 | Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                         |
 | Keyboard                                                                                                    | `keyboard/AGENTS.md`                                                                                                                                       |
 | Focus and navigation                                                                                        | `focus.js`, `current-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js`, `change-walk.js`                    |
@@ -596,6 +598,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                             |
 | What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                    |
 | What an element (its `lfPreview`), control or range says when pointed at, on every route              | `preview.js` `pointRange`, `pressPreview`                                          |
+| What a place on the page shows as a preview, and the place a link into the page names                 | `place-preview.js` `placePreview`, `linkedPlace`                                   |
 | The keys that press a control                                                                         | `keyboard/control-keys.js` `controlKeys`                                           |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                              |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |

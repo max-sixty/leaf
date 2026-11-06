@@ -398,6 +398,86 @@ svg[data-lf-icon] {
 .lf-preview:not(.lf-popover) .lf-preview-more {
   color: color-mix(in srgb, var(--tip-ink) 72%, transparent);
 }
+/* A place's preview (runtime/place-preview.js), what a link into the page opens: the
+   place's name, cut to two lines, over its first parts as the page reads them, a
+   paragraph cut to three lines and a list's items, a table's cells and a code block's
+   lines to one, then the conversations about it under a rule. */
+.lf-place {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lf-place-name,
+.lf-place-heading,
+.lf-place-cell[data-lf-head] {
+  font-weight: 600;
+}
+.lf-place-name,
+.lf-place-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.lf-place-name {
+  -webkit-line-clamp: 2;
+}
+.lf-place-list {
+  display: flex;
+  flex-direction: column;
+}
+.lf-place-item,
+.lf-place-cell,
+.lf-place-code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lf-place-item::before {
+  content: "•";
+  margin-inline-end: 6px;
+  color: var(--muted);
+}
+.lf-place-table {
+  display: grid;
+  grid-template-columns: repeat(var(--lf-columns), minmax(0, auto));
+  gap: 2px 12px;
+  font: var(--font-small);
+}
+.lf-place-row {
+  display: contents;
+}
+.lf-place-more {
+  grid-column: 1 / -1;
+  font: var(--font-small);
+  color: var(--muted);
+}
+.lf-place-code {
+  white-space: pre;
+  font: var(--font-code);
+}
+.lf-place-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lf-place-figure > img {
+  display: block;
+  max-width: 100%;
+  max-height: 8rem;
+  object-fit: contain;
+  object-position: left;
+}
+.lf-place-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin-block-start: 2px;
+  padding-block-start: 6px;
+  border-block-start: 1px solid var(--rule);
+  font: var(--font-small);
+  color: var(--muted);
+}
 @media (prefers-reduced-motion: reduce) {
   .lf-preview {
     transition: none;
@@ -1400,8 +1480,9 @@ wa-copy-button.lf-icon-action {
   color: var(--turn-ink);
 }
 /* A row that says the thread's word at its end, in Threads and the Page Map, says the
-   user's turn in the same green. */
-:is(.lf-page-map-action, .lf-fp-thread)[data-lf-turn="user"] > .lf-row-end {
+   user's turn in the same green, as a place's preview does under its conversations. */
+:is(.lf-page-map-action, .lf-fp-thread)[data-lf-turn="user"] > .lf-row-end,
+.lf-place-turn {
   color: var(--turn-ink);
 }
 .lf-margin-face[data-lf-turn="user"] {

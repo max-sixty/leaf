@@ -113,3 +113,84 @@ def test_a_range_previews_beside_the_line_the_pointer_rests_on(browser, serve):
     assert reading["gap"] > 0 and reading["left"] == 0, reading
     assert abs(reading["carried"] - reading["gap"]) < 1, "the scroll left it behind"
     assert not reading["open"], "the preview stayed once the pointer left the range"
+
+
+LINKS_PAGE = leaf_page(
+    "Links into the page",
+    """
+<p id="lede">The patch decision is <a id="to-decision" href="#decision">below</a>,
+after <a id="to-stall" href="#stall">the reconnect stall</a>; the vendor's notes are
+<a id="to-site" href="https://example.com/notes">on their site</a>.</p>
+<section id="stall"><p class="eyebrow">offline editing</p><h2>iOS reconnect stall</h2>
+<p>One reconnect in about 40 stalls until the app is backgrounded.</p></section>
+<lf-ask id="decision"><h3>Patch decision</h3>
+<lf-options id="decision-options" choose>
+  <lf-option id="decision-ship" chosen>Ship with the resend.</lf-option>
+  <lf-option id="decision-hold">Hold the patch.</lf-option>
+</lf-options></lf-ask>
+"""
+    + "<p>More of the page.</p>" * 30,
+)
+
+
+def test_a_link_into_the_page_previews_where_it_points(browser, serve):
+    """A link into the page previews the place it names: its heading and first lines
+    as the page reads them, a question's answer from the reading the page holds, and
+    the conversations about it with whose turn one is. It holds only words, so no id or
+    control of the place is repeated. A resting pointer and the keyboard's focus read
+    it, a press still follows the link, and a finger held on the link reads it and
+    follows it on release. A link to another site previews nothing."""
+    url = serve(LINKS_PAGE)
+    panel_comment(
+        serve.page_dir,
+        "Should this wait for the vendor's release?",
+        {"section": "stall"},
+        author="agent",
+        obligation=True,
+    )
+    page = open_page(browser, url)
+    preview = page.locator(PREVIEW)
+    place = preview.locator(".lf-place")
+
+    page.locator("#to-stall").hover()
+    expect(place.locator(".lf-place-name")).to_have_text("iOS reconnect stall")
+    expect(place.locator(".lf-place-text")).to_have_text(
+        "One reconnect in about 40 stalls until the app is backgrounded."
+    )
+    expect(place).not_to_contain_text("offline editing")
+    expect(place.locator(".lf-place-foot")).to_have_text("1 threadYour turn")
+    assert (
+        preview.locator("[id], a, button, input, [tabindex], lf-options").count() == 0
+    )
+
+    page.locator("#to-decision").hover()
+    expect(place.locator(".lf-place-name")).to_have_text("Patch decision")
+    expect(place.locator(".lf-place-state")).to_have_text(
+        "Answered: Ship with the resend."
+    )
+    page.locator("#to-site").hover()
+    expect(preview).to_be_hidden()
+
+    # The keyboard's focus reads it at once, and Enter follows the link.
+    page.locator("#to-site").focus()
+    page.keyboard.press("Shift+Tab")
+    expect(page.locator("#to-stall")).to_be_focused()
+    expect(place.locator(".lf-place-name")).to_have_text("iOS reconnect stall")
+    page.keyboard.press("Enter")
+    expect(preview).to_be_hidden()
+    page.wait_for_function("location.hash === '#stall'")
+
+    # A held finger reads the preview, and letting go follows the link.
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    phone = open_page(browser, url, context=context)
+    cdp = context.new_cdp_session(phone)
+    box = phone.locator("#to-decision").bounding_box()
+    point = {"x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2}
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [point]})
+    held = phone.locator(PREVIEW)
+    expect(held.locator(".lf-place-name")).to_have_text("Patch decision")
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    expect(held).to_be_hidden()
+    phone.wait_for_function("location.hash === '#decision'")

@@ -15,6 +15,8 @@
      coarse pointer leaves out with every other advertised key. A control whose face
      says its word and that no key reaches previews nothing. A field the user types in
      previews nothing: its words are what they read.
+   - A link into the page previews the place it names, and what that place holds
+     (place-preview.js), since that is what pressing it opens.
    - A range with no element of its own, as a passage mark is, is its owner's to hit
      test, so the owner says where the pointer rests (`pointRange`) and this module does
      the rest, placing the preview by the line the pointer is on.
@@ -103,6 +105,7 @@ import { isElement, renderedParent } from "./shadow-tree.js";
 import { keeps } from "./keeps.js";
 import { watchOwner } from "./arrivals.js";
 import { actionClass } from "./control-faces.js";
+import { linkPreview } from "./place-preview.js";
 
 /** @typedef {string | Node | import("/vendor/lit.js").TemplateResult} Words
  * @typedef {Words | {popover: Words}} Preview
@@ -162,7 +165,9 @@ function readerOf(node) {
   if (node.getAttribute("aria-expanded") === "true" || node.matches(PROXY)) return null;
   const declared = node.lfPreview;
   if (typeof declared === "function") return () => declared.call(node);
-  if (node.matches(CONTROL) && !typesText(node)) return () => controlPreview(node);
+  // A link into the page previews the place it opens (place-preview.js).
+  if (node.matches(CONTROL) && !typesText(node))
+    return () => linkPreview(node) ?? controlPreview(node);
   return null;
 }
 // The innermost node along `path` that previews something now.

@@ -339,6 +339,25 @@ dl.lf-facts dd {
       background: none;
       font-size: 0.9em;
     }
+    /* A row's first cell names it, and a short name there stays whole, as an option
+     * table in a man page keeps `--output-dir`. `anywhere` (above) gives a name a
+     * one-character minimum, and a table's automatic layout hands the room above each
+     * column's minimum out by how much more it would take, so a column of names beside
+     * a column of sentences got almost none: at 720px `--output-dir` stood as
+     * `--output-` over `dir`, and at 420px every name took two or three lines. The
+     * name's minimum is its own width up to 20ch or a quarter of the nearest size
+     * container (the body, unless a box nearer declares one), whichever is less, so a
+     * longer one still breaks rather than hold the column open. Only the
+     * first cell, because code in a sentence is not a name the row is read by: on every
+     * cell, `allowUnsandboxedCommands` in a sentence made a four-column table scroll at
+     * 560px. A minimum needs a box, hence the inline-block. Firefox and WebKit lack
+     * calc-size(), and keep the breakable name. */
+    @supports (min-inline-size: calc-size(max-content, size)) {
+      :is(th, td):first-child :is(code, samp):not(pre *) {
+        display: inline-block;
+        min-inline-size: calc-size(max-content, min(size, 20ch, 25cqi));
+      }
+    }
     /* A caption says what its table covers, such as which case each of several tables
        shows, so it is the table's title rather than apparatus: it takes the table's
        face, size and ink, and the weight its column headings wear. Set at the chip size

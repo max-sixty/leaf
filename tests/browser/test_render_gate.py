@@ -4687,6 +4687,48 @@ def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, 
         assert scrolls == 0, (width, scrolls)
 
 
+def test_a_short_name_in_a_rows_first_cell_stays_on_one_line(browser, serve):
+    """The other side of the rule above: an option table, a column of short names beside
+    a column of sentences. With every name breakable anywhere, the table's automatic
+    layout gave the name column almost nothing past one character, so `--output-dir`
+    stood as `--output-` over `dir` on the full measure and every name took two or
+    three lines in a 420px window. A row's first cell keeps its name whole, and the
+    table still fits."""
+    rows = (
+        ("--plugin", "Loads the named plugin before the run starts, so its commands"),
+        ("--dry-run", "Reports what the run would change without writing anything,"),
+        ("--output-dir", "Writes every generated file under this directory instead of"),
+    )
+    body = "".join(
+        f"<tr><td><code>{name}</code></td><td>{does} {does.lower()} {does.lower()}</td></tr>"
+        for name, does in rows
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Options",
+                '<h1>Options</h1><table id="options"><thead><tr><th>Option</th>'
+                f"<th>What it does</th></tr></thead><tbody>{body}</tbody></table>",
+            )
+        ),
+    )
+    for width in (1600, 800, 420):
+        resized(page, width, 900)
+        measured = page.locator("#options").evaluate(
+            """(t) => {
+            const range = document.createRange();
+            return { scrolls: t.scrollWidth - t.clientWidth,
+                     lines: [...t.querySelectorAll('td code')].map((c) => {
+                         range.selectNodeContents(c.firstChild);
+                         return new Set([...range.getClientRects()]
+                             .map((r) => Math.round(r.top))).size;
+                     }) };
+        }"""
+        )
+        assert measured == {"scrolls": 0, "lines": [1, 1, 1]}, (width, measured)
+
+
 def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, serve):
     """A narrow authored body is not the page's viewport. Its child can be wider than
     that body while still fitting on screen, so measuring body would invent sideways

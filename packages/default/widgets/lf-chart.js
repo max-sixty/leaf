@@ -28,10 +28,10 @@
  * the new drawing still holds it. The point the reader is on wears a ring, with a rule
  * to the axis it stands at, and its words stand beside it in the page's preview
  * (`lfPreview`), which the chart reads again as the aim moves to another point
- * (`previewChanged`). The ring is the chart's own, so it goes when the aim leaves: the
- * pointer and finger by leaving the drawing, the keyboard by leaving the chart. A
- * finger slides across the drawing to read along it, and scrolls the page up and down
- * it.
+ * (`previewChanged`). The ring goes when the aim leaves, the pointer and finger by
+ * leaving the drawing and the keyboard by leaving the chart, and when the page puts
+ * the preview away (`PREVIEW_ENDED`), as Escape does. A finger slides across the
+ * drawing to read along it, and scrolls the page up and down it.
  *
  * The vendored bundle loads once, on the first draw rather than with this module: a chart
  * in a shut panel has no box, so measure holds its draw, and the 384KB bundle waits with
@@ -44,6 +44,7 @@
  * refusal as the `error` event `failSoft` dispatches, which the page reports to the
  * author. */
 import {
+  PREVIEW_ENDED,
   PendingTaskEvent,
   announce,
   bodyText,
@@ -54,6 +55,7 @@ import {
   failSoft,
   inBaseLayer,
   measure,
+  nextRender,
   once,
   previewChanged,
   sizeObserver,
@@ -217,7 +219,26 @@ customElements.define(
           () => this.#choose(this.#over ? this.#at : null, "pointer"),
           { signal },
         );
-        return () => this.#lent?.abort();
+        // The ring marks the point the page's preview says, so it comes off when the
+        // page puts the preview away, whatever puts it away: the pointer leaving the
+        // window from it, a finger lifting, Escape. A redraw then has no point to read
+        // again, and the next aim reads from where it lands. It comes off once the task
+        // that put the preview away is done, and only if the route whose preview went
+        // still holds the point: a Tab that puts a resting pointer's preview away lands
+        // focus here in the same task, and the keyboard takes the point on.
+        this.addEventListener(
+          PREVIEW_ENDED,
+          (event) => {
+            const { route } = /** @type {CustomEvent} */ (event).detail;
+            const read = this.#at;
+            nextRender(() => {
+              const holds =
+                route === "focus" ? this.#by !== "pointer" : this.#by === "pointer";
+              if (holds && this.#at === read) this.#choose(null, "pointer");
+            });
+          },
+          { signal },
+        );
       });
       // A chart is drawn to the room it has, so the first draw waits for a box. On the
       // page that box is there already and this settles inside the upgrade, holding the
@@ -417,34 +438,14 @@ customElements.define(
 
     // The pointer or finger left the drawing. A point the keyboard reached stays, and so
     // does the pointer's while the pointer reads its preview, which takes the pointer
-    // and may stand where the pointer rests, until the pointer goes on to something
-    // else; back on the drawing, it reads from where it comes.
+    // and may stand where the pointer rests, until the page puts the preview away
+    // (`PREVIEW_ENDED`); back on the drawing, it reads from where it comes.
     /** @param {EventTarget | null} [onto] */
     #leave(onto = null) {
       this.#over = false;
       if (this.#by !== "pointer") return;
-      if (onto instanceof Element && onto.closest(TOOLTIP)) this.#lend();
-      else this.#choose(null, "pointer");
-    }
-
-    // Keeps the pointer's point while the pointer is on a tooltip.
-    /** @type {AbortController | null} */
-    #lent = null;
-    #lend() {
-      this.#lent?.abort();
-      const lent = (this.#lent = new AbortController());
-      document.addEventListener(
-        "pointerover",
-        (event) => {
-          const path = event.composedPath();
-          if (path.some((node) => node instanceof Element && node.matches(TOOLTIP)))
-            return;
-          lent.abort();
-          if (!path.includes(this) && this.#by === "pointer")
-            this.#choose(null, "pointer");
-        },
-        { capture: true, passive: true, signal: lent.signal },
-      );
+      if (!(onto instanceof Element && onto.closest(TOOLTIP)))
+        this.#choose(null, "pointer");
     }
 
     /** @param {PlotBundle} bundle @param {Function} body @param {number} width

@@ -732,9 +732,11 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
 ):
     """A resting pointer reads the point nearest it, standing above the ring on that
     point, and moving along the drawing reads each point it comes to at once; leaving
-    the drawing puts both away. Focus the browser shows lands on the first point, the
-    arrows step along a series and across to the other, and Home and End reach a
-    series' ends. Escape puts the preview away, and the next leaves the chart."""
+    the drawing puts both away, and so does leaving the window from the preview. Focus
+    the browser shows lands on the first point, the arrows step along a series and
+    across to the other, and Home and End reach a series' ends. Escape puts the preview
+    and the ring away, a redraw brings back neither, and the next Escape leaves the
+    chart."""
     page = open_page(request.getfixturevalue(engine), serve(VALUES_PAGE))
     chart = page.locator("#hours")
     preview = page.locator(PREVIEW)
@@ -793,9 +795,34 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
     expect(preview.locator(".lf-preview-word")).to_have_text("w1 · fixes")
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
     expect(chart).to_be_focused()
+    # A redraw for a new width brings back neither.
+    drawn = chart.evaluate("el => el.drawn")
+    chart.evaluate("el => { el.style.width = `${el.clientWidth - 80}px`; }")
+    page.wait_for_function(
+        "([drawn]) => document.getElementById('hours').drawn !== drawn", arg=[drawn]
+    )
+    page.wait_for_timeout(300)
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
     page.keyboard.press("Escape")
     expect(chart).not_to_be_focused()
+
+    # Leaving the window from the preview puts it away, and its point with it.
+    page.mouse.move(*column(page, "hours", "w2", 0.2))
+    page.mouse.move(*column(page, "hours", "w2", 0.15))
+    expect(preview).to_be_visible()
+    tip = preview.bounding_box()
+    page.mouse.move(tip["x"] + tip["width"] / 2, tip["y"] + tip["height"] / 2)
+    preview.evaluate(
+        "tip => tip.dispatchEvent(new PointerEvent('pointerout',"
+        " {bubbles: true, pointerType: 'mouse', relatedTarget: null}))"
+    )
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
+    assert chart.evaluate("el => el.lfPreview()") is None
+    page.mouse.move(2, 2)
 
 
 def test_a_finger_held_on_a_chart_reads_the_point_under_it(browser, serve):

@@ -5556,6 +5556,74 @@ def test_a_revision_that_moves_marked_words_moves_where_their_mark_is_found(
     expect(page.locator(".lf-margin-preview:not([hidden])")).to_be_visible()
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_a_script_writes_ahead_of_a_mark_move_where_it_is_found(
+    engine, request, serve
+):
+    """A script that writes words ahead of a marked phrase in its text node, with no
+    revision and nothing presented after it, moves the phrase's mark with its words, and
+    the pointer finds the mark where it is now drawn, by the hand and the preview, and
+    nothing at the words that now stand where the phrase stood, which a press there
+    opens nothing for."""
+    url = serve(
+        leaf_page(
+            "Script",
+            '<p id="moved">Words before the marked phrase and after it.</p>'
+            + "<p>More.</p>" * 4,
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About the phrase?",
+            "anchor": {"section": "moved", "quote": "marked phrase"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 1")
+    at = "() => document.getElementById('moved').textContent.indexOf('marked')"
+    stood = page.evaluate(at)
+    body = page.locator("body")
+    words = """(at) => {
+      const text = document.getElementById('moved').firstChild;
+      const range = document.createRange();
+      range.setStart(text, at);
+      range.setEnd(text, at + 3);
+      return range.getBoundingClientRect().toJSON();
+    }"""
+    # The pointer rests on the phrase first, so the marks have been found where they
+    # stood before the words move.
+    before = page.evaluate(words, stood)
+    page.mouse.move(before["left"] - 30, before["top"] - 30)
+    page.mouse.move(before["left"] + 4, before["top"] + before["height"] / 2, steps=2)
+    expect(body).to_have_attribute("data-lf-over-mark", "")
+    page.mouse.move(2, 2)
+    page.evaluate(
+        "() => document.getElementById('moved').firstChild"
+        ".insertData(0, 'A script wrote these words first. ')"
+    )
+    stands = page.evaluate(at)
+    assert stands > stood
+    old = page.evaluate(words, stood)
+    page.mouse.move(old["left"] - 30, old["top"] - 30)
+    page.mouse.move(old["left"] + 4, old["top"] + old["height"] / 2, steps=2)
+    page.wait_for_timeout(300)
+    # Read once: a later presentation would find the marks again and hide the fault.
+    assert not page.evaluate("() => document.body.hasAttribute('data-lf-over-mark')")
+    page.mouse.click(old["left"] + 4, old["top"] + old["height"] / 2)
+    page.wait_for_timeout(300)
+    expect(page.locator(".lf-margin-preview:not([hidden])")).to_have_count(0)
+    now = page.evaluate(words, stands)
+    page.mouse.move(now["left"] + 4, now["top"] + now["height"] / 2, steps=2)
+    expect(body).to_have_attribute("data-lf-over-mark", "")
+    expect(page.locator("#lf-preview .lf-preview-word")).to_have_text(
+        "About the phrase?"
+    )
+
+
 # A widget whose words read as the page's prose (`x-verbatim`), staged in a declared
 # shadow tree as it connects.
 VERBATIM_STAGE = {**LATE_STAGE, "x-verbatim": True}

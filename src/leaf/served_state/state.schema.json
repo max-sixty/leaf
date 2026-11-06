@@ -960,6 +960,22 @@
           "description": "Each version's note, by version.",
           "type": "object",
           "additionalProperties": { "type": "string" }
+        },
+        "revision_messages": {
+          "description": "By revision, for each revision that came after one of the user's messages still waiting for an answer: those of them the agent answered first after it, each by its thread and its id, in the order the user sent them (`provenance.revision_messages`). A revision absent came with none waiting.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "thread": { "type": "string" },
+                "message": { "type": "string" }
+              },
+              "required": ["thread", "message"],
+              "additionalProperties": false
+            }
+          }
         }
       },
       "required": [
@@ -968,7 +984,8 @@
         "todos",
         "plan",
         "thread_memberships",
-        "version_notes"
+        "version_notes",
+        "revision_messages"
       ],
       "additionalProperties": false
     },
@@ -1666,8 +1683,15 @@
     "ViewAnswer": {
       "description": "The answer `GET /api/view` gives (`served_state.service.PageStateService.page_browser_view`): one revision's browser reading at an exact log boundary, which version comparison folds.",
       "type": "object",
-      "properties": { "browser": { "$ref": "#/$defs/Browser" } },
-      "required": ["browser"],
+      "properties": {
+        "browser": { "$ref": "#/$defs/Browser" },
+        "changed": {
+          "description": "By revision, for each revision after the one viewed: the ids of the elements whose own words it changed from the revision before it, `\"\"` naming the words in no element with an id (`provenance.revision_changes`).",
+          "type": "object",
+          "additionalProperties": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "required": ["browser", "changed"],
       "additionalProperties": false
     },
     "Tail": {

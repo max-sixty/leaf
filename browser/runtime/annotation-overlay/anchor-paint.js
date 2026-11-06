@@ -2,11 +2,12 @@
  *
  * Anchor placement resolves conversations and composition before this optional paint.
  * This instance owns highlights, outlines and pointer hit testing; its marks never
- * supply target existence, surface admission, drawing placement or travel.
+ * supply target existence, surface admission, drawing placement or travel. Its hit
+ * test tells the preview owner which passage the pointer rests on (`pointMark`).
  */
 
 import { ringBox, visibleFocus } from "../focus.js";
-import { shownParts } from "../geometry.js";
+import { placeHolder, shownParts } from "../geometry.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import {
   targetElement,
@@ -16,7 +17,10 @@ import {
 } from "../resolved-target.js";
 import { elementFromPointAcross, pageWords, rangeOf } from "../passages.js";
 import { bareReaction } from "../thread/model.js";
-import { under } from "../shadow.js";
+import { threadNamed } from "../thread/state.js";
+import { threadPreview } from "../thread/messages.js";
+import { pointRange } from "../preview.js";
+import { renderedParent } from "../shadow.js";
 import { annotationsHidden } from "./annotation-layer.js";
 
 const MARK = "lf-mark";
@@ -46,6 +50,11 @@ export function createAnchorPaint({
 }) {
   /** @type {Map<string, Mark[]>} */
   const marked = new Map();
+  // Each mark by the element a point over it stands in, which the hit test climbs to
+  // from the point (`markHit`): a range by the element holding its text, an element by
+  // itself. Each keeps its thread's place in reading order.
+  /** @type {Map<Element, {id: string, where: Mark, order: number}[]>} */
+  const findable = new Map();
   /** @type {Map<Element, Element>} */
   const visualTargets = new Map();
   /** @type {Element[]} */
@@ -63,6 +72,15 @@ export function createAnchorPaint({
   let hereParts = [];
   let hoverFrame = 0;
   let mounted = false;
+  // Whether the hover pass reads the pointer where the user's own input put it, and
+  // whether it rests there rather than carrying a press, as selecting words does; the
+  // kind of pointer that put it there; and the thread whose words the preview owner was
+  // last told it rests on (`pointMark`), undefined where it is to be told again.
+  let aimed = false;
+  let resting = false;
+  let aimedWith = "";
+  /** @type {string | null | undefined} */
+  let pointed = null;
 
   /** @param {string | null} id */
   const marksFor = (id) => (id === null ? [] : (marked.get(id) ?? []));
@@ -205,41 +223,89 @@ export function createAnchorPaint({
     if (repaintVisuals) paintVisualStates();
   }
 
-  // Which thread's painted mark lies under a point. Text highlights have no DOM node,
-  // so their client rects are the only exact hit test. With the annotation layer hidden
-  // there is no mark to be under: an unseen passage shows no hand and opens nothing.
-  /** @param {number} x @param {number} y */
-  function markAt(x, y) {
+  // Which thread's painted mark lies under a point, and the mark: of those the point
+  // lies in, the first thread's in reading order. Text highlights have no DOM node, so
+  // their client rects are the only exact hit test. The test reads only the marks
+  // standing in the elements under the point, climbing from the innermost, so a pointer
+  // move costs the same on a page of any size (root AGENTS.md, "Responsiveness"); every
+  // mark on the page cost 1.5 ms a move at 512 passages. With the annotation layer
+  // hidden there is no mark to be under: an unseen passage shows no hand and opens
+  // nothing.
+  /** @param {number} x @param {number} y @returns {{id: string, where: Mark} | null} */
+  function markHit(x, y) {
     if (annotationsHidden()) return null;
     const over = document.elementFromPoint(x, y);
     if (!pageWords(over)) return null;
-    const deep = elementFromPointAcross(x, y);
-    for (const [id, marks] of marked)
-      for (const where of marks) {
-        const hit =
-          where instanceof Range
-            ? [...where.getClientRects()].some(
-                (rect) =>
-                  x >= rect.left &&
-                  x <= rect.right &&
-                  y >= rect.top &&
-                  y <= rect.bottom,
-              )
-            : under(deep, where);
-        if (hit) return id;
-      }
-    return null;
+    /** @type {{id: string, where: Mark, order: number} | null} */
+    let hit = null;
+    for (let at = elementFromPointAcross(x, y); at; at = renderedParent(at))
+      for (const mark of findable.get(at) ?? [])
+        if (
+          (!hit || mark.order < hit.order) &&
+          (!(mark.where instanceof Range) ||
+            [...mark.where.getClientRects()].some(
+              (rect) =>
+                x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom,
+            ))
+        )
+          hit = mark;
+    return hit && { id: hit.id, where: hit.where };
+  }
+  /** @param {number} x @param {number} y */
+  const markAt = (x, y) => markHit(x, y)?.id ?? null;
+
+  // A thread's words preview the thread, as its margin entry does (`threadPreview`).
+  // An element's thread previews nothing on the page, for the reason its contour stands
+  // only from the row (`paintHover`): the pointer is inside the element wherever the
+  // user reads in it. The preview owner hears only where the user's own input put the
+  // pointer, so a mark a scroll or a repaint carries under a still pointer shows
+  // nothing, as the owner holds for elements, and a pointer carrying a press, as in
+  // selecting words, rests on no mark.
+  /** @param {{id: string, where: Mark} | null} hit @param {{x: number, y: number}} at */
+  function pointMark(hit, at) {
+    const id = resting && hit?.where instanceof Range ? hit.id : null;
+    if (id === pointed) return;
+    pointed = id;
+    if (!id || !(hit?.where instanceof Range)) return void pointRange(null);
+    // The thread the user is in is in front of them already, as an entry standing
+    // open previews nothing (preview.js).
+    pointRange(
+      hit.where,
+      () => {
+        const thread = id === currentLocationThreadId() ? null : threadNamed(id);
+        return thread ? threadPreview([thread]) : null;
+      },
+      at,
+    );
+  }
+  // The user moved the pointer, or pressed a finger, which may rest on a mark: a
+  // finger's press is a new aim, and so is another kind of pointer's first move, so the
+  // mark it lands on is said again.
+  /** @param {PointerEvent} event */
+  function pointerAimed(event) {
+    aimed = true;
+    resting = event.pointerType === "touch" || !event.buttons;
+    if (
+      event.pointerType !== aimedWith ||
+      (event.type === "pointerdown" && event.pointerType === "touch")
+    )
+      pointed = undefined;
+    aimedWith = event.pointerType;
+    refreshHover();
   }
 
   // Hover reads the pointer, and the rows and margin entries it is on, inside the
   // scheduled frame. Capturing a node at event time would leave reconciliation able to
   // replace it before paint.
   function refreshHover() {
-    if (hoverFrame || (!marked.size && !hovering && !hoveredRow)) return;
+    if (hoverFrame || (!marked.size && !hovering && !hoveredRow && !pointed)) return;
     hoverFrame = nextRender(() => {
       hoverFrame = 0;
       const at = pointer();
-      const onMark = markAt(at.x, at.y);
+      const hit = markHit(at.x, at.y);
+      const onMark = hit?.id ?? null;
+      if (aimed) pointMark(hit, at);
+      aimed = false;
       document.body.classList.toggle("lf-over-mark", Boolean(onMark));
       const row = rowThread();
       const id = row ?? onMark;
@@ -253,6 +319,7 @@ export function createAnchorPaint({
   function paint({ readings, draft, action }) {
     const before = outlined();
     marked.clear();
+    findable.clear();
     pendingOutline = [];
     actionOutline = [];
     visualTargets.clear();
@@ -286,6 +353,17 @@ export function createAnchorPaint({
         marked.set(thread.id, ranges);
         posted.push(...ranges);
       }
+    }
+    let order = 0;
+    for (const [id, marks] of marked) {
+      for (const where of marks) {
+        const holder = placeHolder(where);
+        if (!holder) continue;
+        const standing = findable.get(holder) ?? [];
+        standing.push({ id, where, order });
+        findable.set(holder, standing);
+      }
+      order++;
     }
     const resolvedDraft = draft.resolved;
     const draftMarked = Boolean(resolvedDraft && resolvedDraft.status !== "outdated");
@@ -323,16 +401,23 @@ export function createAnchorPaint({
   function mount() {
     if (mounted) return;
     mounted = true;
-    document.addEventListener("pointermove", refreshHover);
+    document.addEventListener("pointermove", pointerAimed);
+    document.addEventListener("pointerdown", pointerAimed);
   }
 
   function destroy() {
-    if (mounted) document.removeEventListener("pointermove", refreshHover);
+    if (mounted) {
+      document.removeEventListener("pointermove", pointerAimed);
+      document.removeEventListener("pointerdown", pointerAimed);
+    }
     mounted = false;
+    if (pointed) pointRange(null);
+    pointed = null;
     if (hoverFrame) cancelRender(hoverFrame);
     hoverFrame = 0;
     const before = outlined();
     marked.clear();
+    findable.clear();
     pendingOutline = [];
     actionOutline = [];
     paintOutlines(before);

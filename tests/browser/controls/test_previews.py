@@ -3,11 +3,15 @@ acts on it, to a resting pointer, to the keyboard and to a held finger
 (runtime/preview.js). The margin entry's preview, its label, is held in
 `browser/margin/test_entries.py`."""
 
+import re
+from datetime import UTC, datetime, timedelta
+
+from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
-from render_harness import leaf_page, open_page
+from render_harness import leaf_page, open_page, preview_text
 
-from browser.threads import open_panel_thread
+from browser.threads import open_panel_thread, thread_row
 from leaf.render_checks import rendered
 
 PREVIEW = "#lf-preview"
@@ -35,7 +39,7 @@ def test_a_control_previews_its_word_and_every_key_that_presses_it(browser, serv
     resolve = page.locator(".lf-fp-thread-controls .lf-resolve")
     preview = page.locator(PREVIEW)
     expect(resolve).to_be_visible()
-    expect(resolve).not_to_have_attribute("title", "")
+    expect(resolve).not_to_have_attribute("title", re.compile(".*"))
     rendered(page)
     before = page.evaluate(BOXES)
 
@@ -113,3 +117,194 @@ def test_a_range_previews_beside_the_line_the_pointer_rests_on(browser, serve):
     assert reading["gap"] > 0 and reading["left"] == 0, reading
     assert abs(reading["carried"] - reading["gap"]) < 1, "the scroll left it behind"
     assert not reading["open"], "the preview stayed once the pointer left the range"
+
+
+# A passage a thread is about, the words its mark paints, and where they stand.
+PASSAGE = (
+    "Nothing is lost, and the edits stay queued, but the user sees a spinner until "
+    "they background the app: one reconnect in about 40."
+)
+MARKED = "one reconnect in about 40"
+MARK_LINE = """(words) => {
+  const text = document.getElementById('passage').firstChild;
+  const at = text.data.indexOf(words);
+  const range = document.createRange();
+  range.setStart(text, at);
+  range.setEnd(text, at + words.length);
+  return range.getClientRects()[0].toJSON();
+}"""
+CARD = ".lf-margin-preview:not([hidden])"
+
+
+def _thread_on_a_passage(serve, viewport=None):
+    """A page whose passage holds a thread the agent answered three hours ago with a
+    question back, and the page's URL."""
+    url = serve(
+        leaf_page(
+            "Passages", f'<p id="passage">{PASSAGE}</p>' + "<p>More words.</p>" * 12
+        )
+    )
+    then = (datetime.now(UTC) - timedelta(hours=3)).isoformat()
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "ts": then,
+            "text": "Why ship with that?",
+            "anchor": {"section": "passage", "quote": MARKED},
+        },
+    )["id"]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "ts": then,
+            "parent": root,
+            "responds": root,
+            "text": "No edits were lost in 8,412 sessions.\nWhich stall do I chase?",
+            "obligation": True,
+        },
+    )
+    return url
+
+
+def _says_where_the_thread_stands(preview):
+    """The thread's name, then who said its last message and when, that message's
+    opening line, and where the thread stands, in the turn's colour."""
+    expect(preview.locator(".lf-preview-word")).to_have_text("Why ship with that?")
+    lines = preview.locator(".lf-preview-more")
+    expect(lines).to_have_text(
+        [
+            "Claude · 3h ago",
+            "No edits were lost in 8,412 sessions.",
+            "Your turn · 1 unread · 2 messages",
+        ]
+    )
+    expect(lines.last).to_have_attribute("data-lf-turn", "user")
+
+
+def test_a_thread_previews_where_it_stands_from_its_words_and_its_entry(browser, serve):
+    """A thread's passage mark and its margin entry say the same thing when pointed at,
+    from the reading every surface paints the thread from: the thread's name, who wrote
+    its last message and when, that message's opening line, and the thread's word, what
+    it holds unread and how many messages. A resting pointer reads it beside the line it rests on, the
+    keyboard on the entry reads it at once, and a press on the words still opens the
+    card (thread/messages.js, `threadPreview`)."""
+    page = open_page(browser, _thread_on_a_passage(serve))
+    preview = page.locator(PREVIEW)
+    line = page.evaluate(MARK_LINE, MARKED)
+    rendered(page)
+
+    page.mouse.move(line["left"] - 20, line["top"] - 20)
+    page.mouse.move(line["left"] + 10, line["top"] + line["height"] / 2, steps=3)
+    expect(preview).to_be_visible()
+    _says_where_the_thread_stands(preview)
+    tip = preview.bounding_box()
+    assert tip["y"] >= line["bottom"] and tip["x"] == line["left"], (tip, line)
+    said = preview.inner_text()
+
+    entry = page.locator('[data-lf-margin-for="passage"] > .lf-margin-marker')
+    entry.hover()
+    expect(preview).to_be_visible()
+    assert preview.inner_text() == said, "the entry and the words say different things"
+    page.mouse.move(0, 0)
+    expect(preview).to_be_hidden()
+
+    page.keyboard.press("Shift")
+    entry.focus()
+    expect(preview).to_be_visible()
+    assert preview.inner_text() == said
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+
+    page.mouse.click(line["left"] + 10, line["top"] + line["height"] / 2)
+    expect(page.locator(CARD)).to_be_visible()
+    # The thread the user is now in previews nothing from its words, as an entry
+    # standing open previews nothing: the card says it all.
+    page.mouse.move(line["left"] + 30, line["top"] + line["height"] / 2, steps=3)
+    page.wait_for_timeout(500)
+    expect(preview).to_be_hidden()
+
+
+def test_a_finger_holding_a_thread_s_words_reads_it_above_them(browser, serve):
+    """A finger held on a thread's words reads the preview a pointer would, above the
+    line, which the finger doesn't cover, and its release opens the thread, as a tap
+    on the words does (preview.js, `pointRange`)."""
+    url = _thread_on_a_passage(serve)
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, has_touch=True
+    )
+    page = open_page(browser, url, context=context)
+    cdp = context.new_cdp_session(page)
+    preview = page.locator(PREVIEW)
+    line = page.evaluate(MARK_LINE, MARKED)
+    rendered(page)
+    point = {"x": line["left"] + 10, "y": line["top"] + line["height"] / 2}
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [point]})
+    expect(preview).to_be_visible()
+    _says_where_the_thread_stands(preview)
+    tip = preview.bounding_box()
+    assert tip["y"] + tip["height"] <= line["top"], (tip, line)
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    expect(preview).to_be_hidden()
+    expect(page.locator(CARD)).to_be_visible()
+
+
+def test_an_age_previews_its_clock_time_in_the_reader_s_zone(browser, serve):
+    """An age says how long ago, and its preview says when, in the reader's own zone:
+    a message's age to a resting pointer, the message the keyboard stands on whether or
+    not its head shows the age, and the panel's ages, which are times too. No title
+    stands beside it."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    asked = append_carried_log_record(
+        d,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Claude",
+            "ts": "2026-08-15T21:02:00Z",
+            "text": "Which stall do I chase first?",
+            "obligation": True,
+        },
+    )["id"]
+    settled = panel_comment(d, "Could the mobile cohort wait a week?")
+    append_carried_log_record(
+        d,
+        {
+            "kind": "resolve",
+            "author": "user",
+            "parent": settled,
+            "ts": "2026-08-16T01:30:00Z",
+        },
+    )
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, timezone_id="America/Los_Angeles"
+    )
+    page = open_page(browser, url, context=context)
+    preview = page.locator(PREVIEW)
+
+    page.keyboard.press("m")
+    question = page.locator(f'.lf-msg[data-lf-event="{asked}"]')
+    expect(question).to_be_focused()
+    expect(preview).to_have_text("Sat 15 Aug 2026, 14:02 PT")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+
+    view = open_panel_thread(page, asked)
+    age = view.locator(".lf-msg-head time").first
+    expect(age).not_to_have_attribute("title", re.compile(".*"))
+    box = age.bounding_box()
+    page.mouse.move(box["x"] - 30, box["y"] - 30)
+    age.hover()
+    expect(preview).to_have_text("Sat 15 Aug 2026, 14:02 PT")
+    page.mouse.move(0, 0)
+    expect(preview).to_be_hidden()
+
+    resolved = thread_row(page, settled).locator("time")
+    expect(resolved).to_have_attribute("datetime", "2026-08-16T01:30:00Z")
+    expect(resolved).not_to_have_attribute("title", re.compile(".*"))
+    assert preview_text(resolved) == "Sat 15 Aug 2026, 18:30 PT"

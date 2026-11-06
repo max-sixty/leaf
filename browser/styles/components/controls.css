@@ -390,13 +390,32 @@ svg[data-lf-icon] {
   border-color: color-mix(in srgb, currentColor 45%, transparent);
   color: inherit;
 }
+/* A line under the word breaks where its words say, as a change's says what it came
+   after under what it did (change-provenance.js). */
 .lf-preview-more {
   display: block;
   margin-block-start: 2px;
   font: var(--font-fine);
+  white-space: pre-line;
 }
 .lf-preview:not(.lf-popover) .lf-preview-more {
   color: color-mix(in srgb, var(--tip-ink) 72%, transparent);
+}
+/* A line quoting what was said, as a thread's last message (thread/messages.js,
+   `threadPreview`), in the tooltip's full ink and a reading weight. A thread's line in
+   the user's turn takes the turn's green ("Visual treatment carries meaning"). */
+.lf-preview-more.lf-preview-said {
+  margin-block-start: 3px;
+  font: 400 var(--t-6) / 1.35 var(--sans);
+}
+.lf-preview:not(.lf-popover) .lf-preview-more.lf-preview-said {
+  color: var(--tip-ink);
+}
+/* The turn's green drawn halfway to the tooltip's ink, which reads at 4.8:1 or more on
+   the inked ground in either scheme. */
+.lf-preview:not(.lf-popover) .lf-preview-more[data-lf-turn="user"] {
+  color: color-mix(in srgb, var(--ok) 50%, var(--tip-ink));
+  font-weight: 600;
 }
 @media (prefers-reduced-motion: reduce) {
   .lf-preview {

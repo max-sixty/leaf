@@ -198,8 +198,10 @@ widget. On a page without Leaf, nothing listens and the marks mean nothing.
 ### Time readings
 
 `ago(ts)` words a server timestamp as the page does everywhere: "just now", then "2m
-ago", "2h ago", "2d ago". `shortAgo(ts)` is the short form ("now", "2h").
-`quietSince(ts)` says whether work last heard at `ts` has been quiet longer than the
+ago", "2h ago", "2d ago". `shortAgo(ts)` is the short form ("now", "2h"). Draw an age
+in `<time datetime=${ts}>` and declare `agePreview` as its `lfPreview`
+(`module-input.md`, "Previews"), so pointing at it says when, in the reader's zone,
+as Leaf's own ages do: "Sat 15 Aug 2026, 14:02 PT". `quietSince(ts)` says whether work last heard at `ts` has been quiet longer than the
 server's grace period. For any other reading, use `clockValue((now) => reading)`, with
 `now` the server's time in milliseconds. Read them synchronously in `render()`, which
 then redraws as the time's reading changes.

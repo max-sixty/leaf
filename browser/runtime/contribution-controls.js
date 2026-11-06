@@ -453,15 +453,17 @@ export const contributionReceipts = elementDirective(
   presentContributionReceipts,
 );
 
-/** @param {HTMLElement} control @param {EntryInput | PresentedEntry} offered @param {HostOptions} [options] */
+/** @param {HTMLElement} control @param {EntryInput | PresentedEntry} offered
+ * @param {HostOptions & {preview?: (() => import("./preview.js").Preview | null) | null}} [options] */
 export function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))
     syncContributionSelection(control, options.selected);
   // Its label is its preview, which a resting pointer, the keyboard and a finger
-  // holding it read (`entryPreview`).
+  // holding it read (`entryPreview`), unless its projection says what it opens more
+  // fully, as a thread's entry previews its threads.
   control.classList.toggle("lf-margin-entry", true);
-  control.lfPreview = entryPreview;
+  control.lfPreview = options.preview ?? entryPreview;
   const glyph = record.icon
     ? iconTemplate(record.icon)
     : html`<span class="lf-margin-entry-glyph" aria-hidden="true"

@@ -273,7 +273,7 @@ import { queueItemKey, readPlan, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
 import { groupingLabel, ON_ME_GROUPINGS, queueStop } from "./queue-walk.js";
 import { carriesObligation, itemNoun, itemOutcome } from "./queues.js";
-import { ago, shortAgo } from "./presence.js";
+import { agePreview, ago, shortAgo } from "./presence.js";
 import { userChoice } from "./storage.js";
 import { obligationEnding } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
@@ -390,6 +390,13 @@ function navigationWords() {
 /** @param {number} at */
 const clock = (at) =>
   new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+// An age the panel shows, short, in a room of its own (`.lf-fp-age`), which previews the
+// clock time behind it as every age does (presence.js, `agePreview`).
+/** @param {string} ts @param {string} [face] */
+const panelAge = (ts, face = "lf-fp-age") =>
+  html`<time class=${face} datetime=${ts} .lfPreview=${agePreview}
+    >${shortAgo(ts)}</time
+  >`;
 
 /** @typedef {(typeof GROUPS)[number]} MenuGroup */
 /** @typedef {({view: "thread", thread: string} | {view: "group", group: MenuGroup} |
@@ -1314,9 +1321,8 @@ export function createFloatingPanel({
     const word = thread.resolved
       ? RESOLVED
       : threadAttention(thread, agentName())?.word;
-    const since = thread.resolved ? shortAgo(thread.resolved.ts) : "";
     const draft = draftHasContent(replyContext(thread.key)) && "Draft";
-    return html`${word ? voiced(word) : nothing}${since ? html` <span class="lf-fp-age">${since}</span>` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
+    return html`${word ? voiced(word) : nothing}${thread.resolved?.ts ? html` ${panelAge(thread.resolved.ts)}` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
   };
   const rows = () => pageControls();
 
@@ -3236,7 +3242,7 @@ export function createFloatingPanel({
               On me
             </button>`
           : step.state === "working" && step.since
-            ? html`<span class="lf-fp-plan-time">${shortAgo(step.since)}</span>`
+            ? panelAge(step.since, "lf-fp-plan-time")
             : nothing
       }${
         step.running
@@ -3646,19 +3652,11 @@ export function createFloatingPanel({
     if (list === "agent") {
       const work = workOn(item);
       end = html`<span class="lf-fp-value"
-        >${voiced(work.word ?? "")}${
-          work.since
-            ? html` <span class="lf-fp-age">${shortAgo(work.since)}</span>`
-            : nothing
-        }</span
+        >${voiced(work.word ?? "")}${work.since ? html` ${panelAge(work.since)}` : nothing}</span
       >`;
     } else if ("state" in item && !record)
       end = html`<span class="lf-fp-value"
-        >${voiced(itemOutcome(item))}${
-          item.ended
-            ? html` <span class="lf-fp-age">${shortAgo(item.ended)}</span>`
-            : nothing
-        }</span
+        >${voiced(itemOutcome(item))}${item.ended ? html` ${panelAge(item.ended)}` : nothing}</span
       >`;
     else if (answered && !opened)
       end = html`<span class="lf-fp-value">${voiced(obligationEnding(record))}</span>`;

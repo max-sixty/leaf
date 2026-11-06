@@ -10,7 +10,8 @@
    block it starts with, or, where it only took blocks out, on its gap's stand-in
    (margin-bars.js, `removalProxy`), which rings the gap, since the block beside the gap
    didn't change. It brings the change into view where it is not, and says the walk's
-   position as every walk says it (walk-position.js). A current location anywhere in a
+   position as every walk says it (walk-position.js), a listener hearing after it what
+   the change came after (change-provenance.js). A current location anywhere in a
    change's blocks, or on its gap's stand-in, is on that change, so the next step goes
    on to the following one, even from one of two gaps beside one block to the other;
    from any other origin a step compares only where each change stands, as an editor's
@@ -24,6 +25,8 @@
    routes"): every change is marked where it stands, and its margin entry and Page Map
    row reach it with a tap. */
 import { comparisonBase, comparisonChanges } from "./version.js";
+import { changeProvenance } from "./change-provenance.js";
+import { wordsText } from "./voice.js";
 import { removalProxy } from "./margin-bars.js";
 import { effect, untracked } from "/runtime/framework.js";
 import { pageCommand } from "./keyboard/register.js";
@@ -79,7 +82,10 @@ function step(dir) {
     scrollIntoView(change.at, { behavior: scrollBehavior(), block: "start" });
   focusDestination(landing(change), "move");
   const said = beginWalk("change", "Change", position);
-  if (said) announce(said);
+  // A listener hears what the change came after where it stands, as the ⇄ entry's
+  // preview says it under what it did (change-provenance.js).
+  const cameAfter = (changeProvenance(change)?.lines ?? []).map(wordsText).join(" ");
+  if (said) announce(cameAfter ? `${said}. ${cameAfter}` : said);
 }
 
 export function createChangeWalk() {

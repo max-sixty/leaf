@@ -1,4 +1,5 @@
 import {
+  agePreview,
   offerActionElement,
   fragmentTarget,
   generatedElement,
@@ -92,10 +93,7 @@ export function createActivity(host) {
       <p class="lf-activity-line">
         <strong class="lf-activity-actor">${row.actor}</strong>
         <span class="lf-activity-what">${row.what}</span> ${target(row)}
-        <time
-          class="lf-activity-time"
-          datetime=${row.ts}
-          title=${new Date(row.ts).toLocaleString()}
+        <time class="lf-activity-time" datetime=${row.ts} .lfPreview=${agePreview}
           >${capabilities.age?.(row.ts) ?? ""}</time
         >${row.undone ? html` <span class="lf-activity-undone">undone</span>` : nothing}
       </p>

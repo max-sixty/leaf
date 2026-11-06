@@ -16,8 +16,9 @@
      says its word and that no key reaches previews nothing. A field the user types in
      previews nothing: its words are what they read.
    - A range with no element of its own, as a passage mark is, is its owner's to hit
-     test, so the owner says where the pointer rests (`pointRange`) and this module does
-     the rest, placing the preview by the line the pointer is on.
+     test, so the owner says where the pointer rests (`pointRange`), after each move the
+     user makes and as a finger presses, and this module does the rest, placing the
+     preview by the line the pointer is on.
 
    Nothing standing open (`aria-expanded="true"`) previews, since what pressing it opens
    is already in front of the user, and the search goes on outward from it, as it does
@@ -64,7 +65,11 @@
      is released at the press so the slide is heard over each neighbour, and a finger
      that starts scrolling ends the hold with `pointercancel`, which presses nothing; a
      target that should not scroll from a press says so with `touch-action`. While a
-     preview is held, the platform's long-press menu stays shut.
+     preview is held, the platform's long-press menu stays shut. A finger pressing where
+     no element previews holds whatever range its owner says it rests on, and slides
+     only as the owner says; its preview stands above the line, and its release presses
+     the element holding the range, as a tap there would, which the owner answers as it
+     answers a tap. A finger that only moved, as a pointer would, reads no range.
    - Escape hides the preview standing and still takes its own step (keyboard/AGENTS.md,
      "Escape"): a preview is in front of the user, not a step of what they are doing,
      so dismissing one never costs a press.
@@ -88,6 +93,7 @@
    each scroll by a frame. */
 import { html, nothing, render } from "/runtime/framework.js";
 import { anchorAt, anchorElement, anchorName } from "./css-anchors.js";
+import { placeHolder } from "./geometry.js";
 import { closeNativeLayer, showNativeLayer } from "./keyboard/layer-stack.js";
 import { controlKeys } from "./keyboard/control-keys.js";
 import { advertisesKeys } from "./keyboard/bindings.js";
@@ -110,7 +116,7 @@ import { actionClass } from "./control-faces.js";
  * @typedef {Element | Range} Target
  * @typedef {"pointer" | "focus" | "hold"} Route
  * @typedef {{target: Target, holder: Element, route: Route, stop: () => void, described: readonly Element[] | null}} Shown
- * @typedef {{pointerId: number, parent: Element | null, target: Element | null, read: Read | null, shown: boolean, timer: ReturnType<typeof setTimeout>}} Hold */
+ * @typedef {{pointerId: number, parent: Element | null, target: Target | null, read: Read | null, at: {x: number, y: number}, shown: boolean, timer: ReturnType<typeof setTimeout>}} Hold */
 
 const DWELL = 200;
 const WARM = 400;
@@ -200,6 +206,9 @@ let hold = null;
 // Where the pointer last stood, which tells a target the user moved onto from one
 // that arrived under a still pointer.
 let rest = { x: NaN, y: NaN };
+// Whether the pointer the user last moved or pressed is a finger, which reads a range
+// only while it holds a press (`pointRange`).
+let finger = false;
 
 /** @param {Preview} preview */
 const popoverFace = (preview) =>
@@ -209,12 +218,7 @@ const popoverFace = (preview) =>
 function show(target, read, route, at) {
   if (shown?.target === target && shown.route === route) return;
   hide();
-  const holder =
-    target instanceof Range
-      ? isElement(target.startContainer)
-        ? target.startContainer
-        : target.startContainer.parentElement
-      : target;
+  const holder = placeHolder(target);
   const preview = holder?.isConnected ? read() : null;
   if (!holder || !preview) return;
   const popover = popoverFace(preview);
@@ -234,9 +238,9 @@ function show(target, read, route, at) {
       tip.style.removeProperty(inset);
     tip.style.setProperty("position-anchor", anchorName(anchor));
   }
-  if (route === "hold") keeps(holder, "data-lf-held", "");
+  if (route === "hold" && !(target instanceof Range)) keeps(holder, "data-lf-held", "");
   showNativeLayer(tip);
-  if (target instanceof Range) standByRange(target, anchor, at);
+  if (target instanceof Range) standByRange(target, anchor, at, route === "hold");
   if (route === "focus" && holder.lfPreview && focused() === holder) {
     const described = holder.ariaDescribedByElements ?? [];
     record.described = described;
@@ -245,9 +249,10 @@ function show(target, read, route, at) {
 }
 
 // A range's preview stands below the line the pointer is on, or above it where the
-// window has no room below, inside the window's width.
-/** @param {Range} range @param {Element} anchor @param {{x: number, y: number}} [at] */
-function standByRange(range, anchor, at) {
+// window has no room below, inside the window's width; above it for a finger, which
+// covers what lies below, unless the window has no room above.
+/** @param {Range} range @param {Element} anchor @param {{x: number, y: number}} [at] @param {boolean} [held] */
+function standByRange(range, anchor, at, held = false) {
   const lines = [...range.getClientRects()];
   const line =
     lines.find(
@@ -262,10 +267,9 @@ function standByRange(range, anchor, at) {
   const { width, height } = tip.getBoundingClientRect();
   const room = document.documentElement.clientWidth;
   const left = Math.max(GAP, Math.min(line.left, room - width - GAP));
-  const top =
-    line.bottom + GAP + height > innerHeight
-      ? line.top - GAP - height
-      : line.bottom + GAP;
+  const above = line.top - GAP - height;
+  const below = line.bottom + GAP;
+  const top = (held ? above >= 0 : below + height > innerHeight) ? above : below;
   anchorAt(tip, anchor, { left, top }, undefined, "anchors-visible");
 }
 
@@ -275,7 +279,8 @@ function hide() {
   shown = null;
   record.stop();
   if (record.described) record.holder.ariaDescribedByElements = record.described;
-  if (record.route === "hold") record.holder.removeAttribute("data-lf-held");
+  if (record.route === "hold" && !(record.target instanceof Range))
+    record.holder.removeAttribute("data-lf-held");
   // Its words stay in the closed popover, so the next preview that says the same
   // writes nothing.
   closeNativeLayer(tip);
@@ -307,11 +312,28 @@ function quieten() {
 }
 
 /** A range's owner says the pointer rests on one of its ranges, or on none of them: what
- * pointing at it reads, and where the pointer is, which picks the line it stands by.
+ * pointing at it reads, and where the pointer is, which picks the line it stands by. A
+ * finger holding a press holds the range it rests on (`holdRange`); one that only moved
+ * reads none.
  * @param {Range | null} range @param {Read} [read] @param {{x: number, y: number}} [at] */
 export function pointRange(range, read, at) {
-  if (range) point(range, read, at);
+  if (hold) holdRange(hold, range, read, at);
+  else if (finger) return;
+  else if (range) point(range, read, at);
   else if (pointing instanceof Range) point(null);
+}
+
+// A finger's hold rests on a range or on none, unless it holds an element, which
+// previews itself; once the dwell has shown the hold's preview, it shows the range's.
+/** @param {Hold} held @param {Range | null} range @param {Read | undefined} read @param {{x: number, y: number}} [at] */
+function holdRange(held, range, read, at) {
+  if (isElement(held.target) || (range ?? null) === held.target) return;
+  held.target = range;
+  held.read = (range && read) || null;
+  if (at) held.at = at;
+  if (!held.shown) return;
+  if (range && read) show(range, read, "hold", held.at);
+  else hide();
 }
 
 /** @param {HTMLElement} home */
@@ -345,6 +367,7 @@ export function mountPreviews(home) {
     "pointermove",
     (event) => {
       rest = { x: event.clientX, y: event.clientY };
+      finger = event.pointerType === "touch";
     },
     { capture: true, passive: true },
   );
@@ -380,23 +403,28 @@ export function mountPreviews(home) {
     "pointerdown",
     (event) => {
       endHold();
-      if (event.pointerType !== "touch") return quieten();
+      finger = event.pointerType === "touch";
+      if (!finger) return quieten();
       if (!event.isPrimary || !plainPress(event)) return;
       const found = previewing(event.composedPath());
-      if (!found || found.target.matches(":disabled, [aria-disabled='true']")) return;
+      if (found?.target.matches(":disabled, [aria-disabled='true']")) return;
       const origin = event.composedPath()[0];
-      if (isElement(origin) && origin.hasPointerCapture(event.pointerId))
+      if (found && isElement(origin) && origin.hasPointerCapture(event.pointerId))
         origin.releasePointerCapture(event.pointerId);
+      // Where no element previews, the hold waits for a range's owner to say what the
+      // finger rests on (`holdRange`), which it says as the press arrives.
+      /** @type {Hold} */
       const held = {
         pointerId: event.pointerId,
-        parent: found.target.parentElement,
-        target: /** @type {Element | null} */ (found.target),
-        read: /** @type {Read | null} */ (found.read),
+        parent: found?.target.parentElement ?? null,
+        target: found?.target ?? null,
+        read: found?.read ?? null,
+        at: { x: event.clientX, y: event.clientY },
         shown: false,
         timer: setTimeout(() => {
-          if (hold !== held) return;
+          if (hold !== held || !held.target || !held.read) return;
           held.shown = true;
-          if (held.target && held.read) show(held.target, held.read, "hold");
+          show(held.target, held.read, "hold", held.at);
         }, DWELL),
       };
       hold = held;
@@ -406,7 +434,7 @@ export function mountPreviews(home) {
   document.addEventListener(
     "pointermove",
     (event) => {
-      if (hold?.pointerId !== event.pointerId) return;
+      if (hold?.pointerId !== event.pointerId || hold.target instanceof Range) return;
       const found = previewing(event.composedPath());
       const neighbour = found?.target.parentElement === hold.parent ? found : null;
       if ((neighbour?.target ?? null) === hold.target) return;
@@ -428,7 +456,7 @@ export function mountPreviews(home) {
       claimReleaseClick();
       if (target instanceof HTMLElement || target instanceof SVGElement)
         nativeFocusTarget(target).focus({ preventScroll: true, focusVisible: false });
-      target.dispatchEvent(
+      placeHolder(target)?.dispatchEvent(
         new MouseEvent("click", {
           bubbles: true,
           cancelable: true,

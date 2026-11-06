@@ -1015,7 +1015,7 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     # `needs_user` for recovery: the margin and panel name the action owed.
     margin = page.locator('[data-lf-margin-for="cd-q"] > .lf-margin-marker')
     expect(margin).to_have_attribute("data-lf-turn", "user")
-    assert preview_parts(margin)[1:2] == ["Send it again"]
+    assert any("Send it again" in part for part in preview_parts(margin))
 
     # Threads names the action owed on the thread's row, whole.
     status = thread_row(page, unanswered["id"]).locator(".lf-row-end")
@@ -1041,7 +1041,7 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(draft).to_have_js_property("value", "Try the south pair again.")
     page.unroute("**/api/event")
     rendered(page)
-    assert preview_parts(margin)[1:2] == ["Send it again"]
+    assert any("Send it again" in part for part in preview_parts(margin))
 
     # The failed answer remains distinct from the muted clock without a chip face, in
     # the colour of a warning and Leaf's italic.

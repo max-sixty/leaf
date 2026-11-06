@@ -605,6 +605,70 @@ def control_preview(page: Page) -> None:
     settle(page)
 
 
+# Longer than a preview's dwell (preview.js, `DWELL`), so a runtime that previews what
+# the pointer rests on has shown it, and one that doesn't shows the page as it stands.
+PREVIEW_DWELL_MS = 400
+
+
+def thread_preview(page: Page) -> None:
+    """The open thread's passage mark under a resting pointer, which previews who wrote
+    its last message and when, that message's opening line and where the thread stands
+    (thread/messages.js, `threadPreview`)."""
+    line = page.evaluate(
+        """(words) => {
+          const walker = document.createTreeWalker(document.querySelector('main'),
+            NodeFilter.SHOW_TEXT);
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const at = node.data.indexOf(words);
+            if (at < 0) continue;
+            node.parentElement.scrollIntoView({block: 'center', behavior: 'instant'});
+            const range = document.createRange();
+            range.setStart(node, at);
+            range.setEnd(node, at + words.length);
+            return range.getClientRects()[0].toJSON();
+          }
+        }""",
+        "The trusted supervisor owns shutdown.",
+    )
+    page.mouse.move(line["left"] - 20, line["top"] - 20)
+    page.mouse.move(line["left"] + 10, line["top"] + line["height"] / 2, steps=3)
+    page.wait_for_timeout(PREVIEW_DWELL_MS)
+    settle(page)
+
+
+def age_preview(page: Page) -> None:
+    """The first margin card's first age under a resting pointer, which previews the clock
+    time behind it in the reader's zone (presence.js, `agePreview`)."""
+    card_by_pointer(page)
+    age = page.locator(".lf-margin-preview .lf-msg-head time").first
+    box = age.bounding_box()
+    assert box, "the card shows no age"
+    # The card may open with the age under the pointer, which reads nothing until the
+    # pointer moves.
+    page.mouse.move(box["x"] - 30, box["y"] + box["height"] + 30)
+    age.hover()
+    page.wait_for_timeout(PREVIEW_DWELL_MS)
+    settle(page)
+
+
+def change_preview(page: Page) -> None:
+    """With the comparison on (`v`), the first change's ⇄ entry under a resting pointer,
+    which previews what the change did and which of the user's comments it came after
+    (change-provenance.js)."""
+    page.keyboard.press("v")
+    change = page.locator('.lf-margin-marker[data-lf-kinds~="change"]').first
+    expect(change).to_be_attached()
+    change.evaluate(
+        "m => { const box = m.getBoundingClientRect();"
+        " if (box.top < 0 || box.bottom > innerHeight)"
+        " scrollBy(0, box.top - innerHeight / 3); }"
+    )
+    scroll_settled(page)
+    change.hover()
+    page.wait_for_timeout(PREVIEW_DWELL_MS)
+    settle(page)
+
+
 def open_card(page: Page, marker: Locator) -> None:
     """The margin card `marker` opens, by a click on it. The margin is fixed to the
     window and anchored to the page, so Playwright's scroll into view leaves a marker
@@ -2906,6 +2970,9 @@ STATES = (
     State("page-map-turn", "ship-review", page_map, region=".lf-page-map-dialog"),
     State("plan-card", "review-a-plan", card_by_pointer),
     State("control-preview", "review-a-plan", control_preview),
+    State("thread-preview", "review-a-plan", thread_preview),
+    State("age-preview", "review-a-plan", age_preview),
+    State("change-preview", "review-a-plan", change_preview),
     State("reaction-palette", "ship-review", reaction_palette),
     State("reaction-pressed", "ship-review", reaction_pressed),
     State(

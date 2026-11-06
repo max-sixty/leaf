@@ -12,6 +12,7 @@ from ..projection import (
     canonical_reports,
     page_reading,
 )
+from ..provenance import revision_messages
 from ..thread_context import thread_memberships
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
@@ -242,6 +243,12 @@ def browser_state(
             for event in events
             if event["kind"] == "note"
         },
+        "revision_messages": revision_messages(
+            events,
+            threads,
+            revision_ids if revision_ids is not None else readings,
+            withdrawn,
+        ),
     }
     return wire, BrowserReading(threads, durable.thread, documents)
 

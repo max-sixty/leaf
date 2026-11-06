@@ -258,7 +258,7 @@ import { linkPreview } from "./place-preview.js";
  * @typedef {import("./rect.js").Box} Box
  * @typedef {Element | Range} Target
  * @typedef {{from: Target, target: Target, holder: Element, route: Route, read: Read | null, at: {x: number, y: number} | undefined, line?: number, within?: Box | null, reading: Reading, clock: number, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
- * @typedef {{pointerId: number, parent: Element | null, target: Target | null, says: Read | null, at: {x: number, y: number}, armed: boolean, read: boolean, timer: ReturnType<typeof setTimeout> | undefined}} Hold */
+ * @typedef {{pointerId: number, node: Node | null, parent: Element | null, element: Element | null, range: Range | null, says: Read | null, at: {x: number, y: number}, armed: boolean, read: boolean, timer: ReturnType<typeof setTimeout> | undefined}} Hold */
 
 const DWELL = 200;
 const HOLD = 500;
@@ -1417,10 +1417,22 @@ const sameTarget = (a, b) => a === b || (a instanceof Range && sameRange(a, b));
 // The pointer's target, from what each layer says it rests on (`over`, `ranged`).
 /** @returns {Target | null} */
 function aimed() {
-  const pressed = beneath && pressedControl(beneath);
-  if (pressed) return over && under(over, pressed) ? over : null;
-  return ranged ? ranged.range : over;
+  return readingAt(beneath, over, ranged?.range ?? null);
 }
+// What pointing at `node` reads, by a pointer or a held finger: where a press there is
+// taken (`pressedControl`), whatever in the taker previews itself (`element` inside
+// it), or nothing; elsewhere the innermost reading, the range a range's owner says is
+// there before the element. The click, the hand over a mark and a widget's own handler
+// ask `pressedControl` too, so what a point reads is what a press there acts on.
+/** @param {Node | null} node @param {Element | null} element @param {Range | null} range
+ * @returns {Target | null} */
+function readingAt(node, element, range) {
+  const pressed = node && pressedControl(node);
+  if (pressed) return element && under(element, pressed) ? element : null;
+  return range ?? element;
+}
+/** @param {Hold} held */
+const heldTarget = (held) => readingAt(held.node, held.element, held.range);
 function aim() {
   const target = aimed();
   if (target instanceof Range) point(target, ranged?.read ?? null, ranged?.at);
@@ -1464,21 +1476,26 @@ export function pointRange(range, read, at) {
   }
 }
 
-// A finger's hold rests on a range or on none, unless it holds an element, which
-// previews itself; once the hold is armed, it shows the range's preview. The same range
-// again keeps its place and takes its owner's latest words.
+// A finger's hold rests on a range or on none, beside the element it found, and reads
+// whichever the pointer's rule takes (`readingAt`); once the hold is armed, it shows
+// that. The same range again keeps its place and takes its owner's latest words.
 /** @param {Hold} held @param {Range | null} range @param {Read | undefined} read @param {{x: number, y: number}} [at] */
 function holdRange(held, range, read, at) {
-  if (isElement(held.target)) return;
-  if (range ? sameRange(range, held.target) : !held.target) {
+  if (range ? sameRange(range, held.range) : !held.range) {
     if (range && read) held.says = read;
     return;
   }
-  held.target = range;
+  held.range = range;
   held.says = (range && read) || null;
   if (at) held.at = at;
-  if (!held.armed) return;
-  if (range && show(range, "hold", held.says, held.at)) held.read = true;
+  if (held.armed) showHeld(held);
+}
+// The hold's reading, shown where it says something, put away where it says nothing.
+/** @param {Hold} held */
+function showHeld(held) {
+  const target = heldTarget(held);
+  const says = target instanceof Range ? held.says : null;
+  if (target && show(target, "hold", says, held.at)) held.read = true;
   else hide();
 }
 
@@ -1503,10 +1520,11 @@ function changed(node, aim) {
   }
   const on = focused();
   if (hold?.armed) {
-    if (within(hold.target)) show(/** @type {Element} */ (hold.target), "hold");
-    else if (!hold.target && hold.parent === node.parentElement) {
-      hold.target = node;
-      show(node, "hold");
+    const target = heldTarget(hold);
+    if (isElement(target) && within(target)) show(target, "hold");
+    else if (!target && hold.parent === node.parentElement) {
+      hold.element = node;
+      showHeld(hold);
     }
   } else if (aim && on && within(on)) showFocus(on);
   else if (beneath && under(beneath, node) && !within(quiet)) {
@@ -1692,8 +1710,10 @@ export function mountPreviews(chrome) {
       /** @type {Hold} */
       const held = {
         pointerId: event.pointerId,
+        node: origin instanceof Node ? origin : null,
         parent: found?.parentElement ?? null,
-        target: found,
+        element: found,
+        range: null,
         says: null,
         at: { x: event.clientX, y: event.clientY },
         armed: false,
@@ -1707,14 +1727,14 @@ export function mountPreviews(chrome) {
   document.addEventListener(
     "pointermove",
     (event) => {
-      if (hold?.pointerId !== event.pointerId || hold.target instanceof Range) return;
-      const found = candidate(event.composedPath());
+      if (hold?.pointerId !== event.pointerId || hold.range) return;
+      const path = event.composedPath();
+      const found = candidate(path);
       const neighbour = found?.parentElement === hold.parent ? found : null;
-      if (neighbour === hold.target) return;
-      hold.target = neighbour;
-      if (!hold.armed) return;
-      if (neighbour && show(neighbour, "hold")) hold.read = true;
-      else hide();
+      if (neighbour === hold.element) return;
+      hold.element = neighbour;
+      hold.node = path[0] instanceof Node ? path[0] : null;
+      if (hold.armed) showHeld(hold);
     },
     { capture: true, passive: true },
   );
@@ -1776,7 +1796,9 @@ function arm(held) {
   if (hold !== held || held.armed) return;
   clearTimeout(held.timer);
   held.armed = true;
-  if (held.target && show(held.target, "hold", held.says, held.at)) held.read = true;
+  const target = heldTarget(held);
+  const says = target instanceof Range ? held.says : null;
+  if (target && show(target, "hold", says, held.at)) held.read = true;
 }
 
 // The hold ends with its release, and what it read stands until the next press.

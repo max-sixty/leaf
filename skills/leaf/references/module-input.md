@@ -370,7 +370,14 @@ usual meaning.
 A control labelled with the page's own words skips a click where
 `reachedForWords(control)` is true, since the user was selecting the words, but lets a
 click made with Enter or Space through, checking `pressIsKeyboardActivation(event)`
-first. A container that takes a click anywhere on it, as an option card does, asks
+first. A widget that takes a press on its own content, not only on its controls, as a
+gloss's phrase or an option card does, declares where in its registry entry (`x-press`)
+and acts on a click only where `pressedControl(event.composedPath()[0])` answers that
+part, or one of its own controls. Leaf asks the same question to decide whether a press
+opens a thread instead and what pointing there reads, so the two never disagree. Where
+the widget can't act for now, as a draft that can't edit, it says so with a
+`lfTakesPress(part)` property that returns false, which `pressedControl` reads. A
+container that takes a click anywhere on it, and that Leaf doesn't read, asks
 `worksInside(event.target, container)` for the control inside that the click was aimed
 at.
 

@@ -1772,6 +1772,194 @@ def test_a_widget_s_marked_words_read_and_press_as_the_widget_takes_them(
     }
 
 
+# A page of the widgets that take their own press, a card that only says what it holds,
+# and a gloss whose explanation a thread is about, with a thread on each.
+OWNERS_PAGE = (
+    '<div id="info" tabindex="0"><p id="info-words">Informational marked words with '
+    "facts.</p></div>"
+    '<lf-draft id="draft"><pre>Draft marked words for review.</pre></lf-draft>'
+    '<lf-options id="opts" choose><lf-option id="o1"><small class="tag">small cohort'
+    "</small> <strong>Start small</strong> Then widen."
+    '<div tabindex="0" id="nested-tab">Nested marked tab words.</div>'
+    '<lf-code id="nested-code" language="python"><pre>marked_code = 1</pre></lf-code>'
+    '</lf-option><lf-option id="o2"><strong>Start wide</strong> Then trim.</lf-option>'
+    "</lf-options>"
+    '<lf-timeline id="timeline" aria-label="Sequence"><lf-lane label="Actor">'
+    '<lf-event id="first" at="0" label="First event"></lf-event>'
+    '<lf-event id="last" at="1000" label="Last event"></lf-event></lf-lane></lf-timeline>'
+    '<p id="glossed">Start with a <lf-gloss id="gloss" tip="A precise explanation with '
+    'marked definition words.">walking skeleton</lf-gloss>.</p>'
+    '<lf-sample id="sample"><lf-draft id="inert"><pre>Unavailable marked draft words.'
+    "</pre></lf-draft></lf-sample>" + "<p>More words.</p>" * 4
+)
+OWNER_THREADS = {
+    "info-words": "marked words",
+    "draft": "marked words",
+    "o1": "small cohort",
+    "nested-tab": "marked tab words",
+    "nested-code": "marked_code",
+    "gloss": "marked definition words",
+    "inert": "marked draft words",
+}
+
+
+def _owners(serve, viewport=None):
+    """The owners page with a thread on each widget's words, and its url."""
+    url = serve(leaf_page("Owners", OWNERS_PAGE), packages=("timeline",))
+    for section, quote in OWNER_THREADS.items():
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "text": f"On {section}",
+                "anchor": {"section": section, "quote": quote},
+            },
+        )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "On timeline",
+            "anchor": {"section": "timeline", "visual": "event:last"},
+        },
+    )
+    return url
+
+
+def test_a_finger_s_hold_reads_what_a_tap_there_acts_on(browser, serve):
+    """A held finger reads by the pointer's one rule: where a tap acts on a widget, a
+    draft's text, an option's chip or a timeline's event, it reads no thread there, and
+    where a tap opens the thread, on a card that only says what it holds or the gloss's
+    pinned explanation, it reads the thread."""
+    context = browser.new_context(
+        viewport={"width": 1000, "height": 900}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, _owners(serve), context=context)
+    page.locator("#info").evaluate(
+        "el => { el.lfPreview = () => ({name: 'Facts about the card'}); }"
+    )
+    cdp = context.new_cdp_session(page)
+    word = page.locator(PREVIEW).locator(".lf-preview-word")
+    rendered(page)
+
+    def touch(kind, at):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {"type": kind, "touchPoints": [at] if kind != "touchEnd" else []},
+        )
+
+    def holds(place):
+        """What a finger held at `place` reads, once the platform calls it long; its
+        touch puts away what the last hold read."""
+        at = place()
+        touch("touchStart", at)
+        page.wait_for_timeout(600)
+        long_press(page, at)
+        page.wait_for_timeout(300)
+        said = word.inner_text() if page.locator(PREVIEW).is_visible() else None
+        touch("touchEnd", at)
+        page.wait_for_timeout(200)
+        return said
+
+    def words_at(selector, words):
+        page.locator(selector).first.scroll_into_view_if_needed()
+        return page.evaluate(WORDS_AT, [selector, words])
+
+    def box_at(selector):
+        element = page.locator(selector).first
+        element.scroll_into_view_if_needed()
+        box = element.bounding_box()
+        return {"x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2}
+
+    # The gloss's explanation pinned open, so its words are on the page to hold.
+    page.locator("#gloss").evaluate("el => el.click()")
+    expect(page.locator("#lf-gloss-tip-1")).to_be_visible()
+    readings = {
+        "definition": holds(
+            lambda: page.evaluate(WORDS_AT, ["#lf-gloss-tip-1", "definition"])
+        ),
+        "draft": holds(lambda: words_at("#draft", "marked")),
+        "option": holds(lambda: words_at("#o1", "cohort")),
+        "timeline": holds(
+            lambda: box_at('#timeline [data-lf-event="last"] .lf-timeline-label')
+        ),
+        "card": holds(lambda: words_at("#info", "marked")),
+    }
+    assert readings == {
+        "definition": "On gloss",
+        "draft": None,
+        "option": None,
+        "timeline": None,
+        "card": "On info-words",
+    }
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_press_a_widget_cannot_take_opens_the_thread_there(engine, request, serve):
+    """A widget takes a press only where it can act on it: a draft an exhibit holds
+    can't edit, and code or a tab stop inside a choosing option keeps its own gesture, so
+    a press on a thread's words there opens the thread, and pointing there reads it."""
+    page = open_page(request.getfixturevalue(engine), _owners(serve))
+    tip = page.locator(PREVIEW)
+    cards = page.locator(".lf-margin-preview:not([hidden])")
+    rendered(page)
+
+    def reads_and_presses(selector, words, effect):
+        page.keyboard.press("Escape")
+        # Escape from a card hands focus to its margin entry, which a focus preview reads.
+        page.evaluate("() => document.activeElement?.blur()")
+        page.mouse.move(2, 2)
+        page.wait_for_timeout(300)
+        page.locator(selector).first.scroll_into_view_if_needed()
+        at = page.evaluate(WORDS_AT, [selector, words])
+        page.mouse.move(at["x"], at["y"], steps=3)
+        page.wait_for_timeout(600)
+        said = (
+            tip.locator(".lf-preview-word").inner_text() if tip.is_visible() else None
+        )
+        page.mouse.click(at["x"], at["y"])
+        page.wait_for_timeout(500)
+        return said, page.evaluate(effect), cards.count()
+
+    editing = """() => {
+      const save = document.querySelector('#inert [data-lf-draft-action=save]');
+      return Boolean(save && !save.hidden);
+    }"""
+    picked = "() => document.querySelector('#o1 .lf-pick').getAttribute('aria-checked')"
+    readings = {
+        "sample": reads_and_presses("#inert", "marked", editing),
+        "code": reads_and_presses("#nested-code", "marked_code", picked),
+        "tab": reads_and_presses("#nested-tab", "marked", picked),
+    }
+    assert readings == {
+        "sample": ("On inert", False, 1),
+        "tab": ("On nested-tab", "false", 1),
+        "code": ("On nested-code", "false", 1),
+    }
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_tap_on_a_thread_s_words_in_a_focusable_box_keeps_its_card(
+    engine, request, serve
+):
+    """A tap on a thread's words in a box focus can rest on opens the thread's card,
+    which stays open as focus lands on the box the tap landed in, as Firefox moves it
+    there after the tap's click."""
+    browser = request.getfixturevalue(engine)
+    context = browser.new_context(
+        viewport={"width": 1000, "height": 900}, has_touch=True
+    )
+    page = open_page(browser, _owners(serve), context=context)
+    cards = page.locator(".lf-margin-preview:not([hidden])")
+    rendered(page)
+    at = page.evaluate(WORDS_AT, ["#info", "marked"])
+    page.touchscreen.tap(at["x"], at["y"])
+    page.wait_for_timeout(700)
+    assert cards.count() == 1, "the card the tap opened closed"
+
+
 def test_a_standing_preview_says_what_a_new_revision_changed(browser, serve):
     """A preview standing over a link while a new revision changes the place it points
     at says the place's new words, with no pointer input: a revision ends in a

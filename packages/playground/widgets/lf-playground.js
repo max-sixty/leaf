@@ -81,7 +81,7 @@ import {
   whileConnected,
   focused,
   under,
-  worksInside,
+  pressedControl,
   commandsChanged,
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
@@ -201,6 +201,9 @@ customElements.define(
     #drawn = undefined;
     #ready = false;
     #interactive = false;
+    // A press on a choice picks it only while the playground takes input
+    // (`pressedControl`).
+    lfTakesPress = () => this.#interactive;
     /** @type {(PlaygroundView["regions"][number] & {id: string})[]} */
     #regions = [];
 
@@ -380,7 +383,9 @@ customElements.define(
           if (!(target instanceof Element)) return;
           const choice = target.closest("lf-playground-choice");
           if (!choice || choice.closest("lf-playground") !== this) return;
-          if (reachedForWords(choice) || worksInside(target, choice)) return;
+          if (reachedForWords(choice)) return;
+          // The choice's press, as Leaf says (`x-press`), and not a control in it.
+          if (pressedControl(event.composedPath()[0] ?? null) !== choice) return;
           /** @type {HTMLInputElement | null} */
           const radio = choice.querySelector(":scope > .lf-choice > input");
           if (!radio) throw new Error("A playground choice needs its rendered radio");

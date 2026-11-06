@@ -25,8 +25,8 @@ import {
   offerAction,
   generatedElement,
   once,
+  pressedControl,
   reachedForWords,
-  worksInside,
   whileConnected,
   commandsChanged,
 } from "/runtime/widget-api.js";
@@ -107,11 +107,10 @@ customElements.define(
     /** @param {MouseEvent} event */
     #click(event) {
       if (event.defaultPrevented || reachedForWords(this)) return;
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const nested = worksInside(target, this);
-      if (nested && nested !== this.#mark) return;
-      if (event.composedPath().includes(this.#bubble)) return;
+      // The press is the gloss's where Leaf says it is (`x-press`), its phrase, or its
+      // proxy's: not the explanation it says, nor a control inside it.
+      const taker = pressedControl(event.composedPath()[0] ?? null);
+      if (taker !== this && taker !== this.#mark) return;
       this.#pin(!this.#pinned);
       this.#sync();
     }

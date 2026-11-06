@@ -116,6 +116,7 @@ import {
   onPressAway,
   onCurrentLocation,
   pressLed,
+  pressedOn,
   focused,
   closeLayer,
   rove,
@@ -1985,7 +1986,10 @@ export function createMarginProjection({
     }
     const entry = arrivalOf(active) && threadEntryAt(active);
     if (!entry) {
-      if (previewOpen() && !inChrome(active)) closePreview();
+      // Focus landing on the box the user's press landed in, as Firefox moves it to a
+      // tap's tab stop after the tap's click opened a thread in it, keeps the card the
+      // press opened; a press anywhere else has put it away already (`pressedAway`).
+      if (previewOpen() && !inChrome(active) && !pressedOn(active)) closePreview();
       return;
     }
     if (previewOpen() && card.selection()?.entry?.key === entry.key) return;

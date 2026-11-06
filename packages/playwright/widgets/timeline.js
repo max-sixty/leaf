@@ -29,6 +29,7 @@ import {
   layoutPx,
   keeps,
   pressIsKeyboardActivation,
+  pressedControl,
   assignRows,
   axisTicks,
   textWidth as measure,
@@ -856,7 +857,8 @@ export class RecordingTimeline {
 
   /** @param {PointerEvent} event */
   #press(event) {
-    if (this.#options.quoted || event.button !== 0) return;
+    // A press is the trace's where Leaf says it is (`x-press`, `lfTakesPress`).
+    if (event.button !== 0 || !pressedControl(event.composedPath()[0] ?? null)) return;
     const target = event.target;
     if (!(target instanceof Element)) return;
     const handle = target.closest(".lf-trace-playhead-handle");
@@ -895,7 +897,7 @@ export class RecordingTimeline {
 
   /** @param {PointerEvent} event */
   #tap(event) {
-    if (this.#options.quoted) return;
+    if (!pressedControl(event.composedPath()[0] ?? null)) return;
     const touched = event.pointerType === "touch" ? this.#touched : null;
     this.#touched = null;
     const target = touched?.target ?? event.target;

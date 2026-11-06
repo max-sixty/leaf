@@ -751,7 +751,7 @@ let pressedPath = null;
 // Whether a node is what that press asked for: a node under it, or the control of a
 // label under it, which the platform focuses at the press's click.
 /** @param {Element | null} node */
-const pressedOn = (node) =>
+export const pressedOn = (node) =>
   pressedPath !== null &&
   pressedPath.some((ref) => {
     const at = ref.deref();

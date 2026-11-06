@@ -1,5 +1,6 @@
 """Widget structure and interaction contract validation."""
 
+import turbohtml
 from jsonschema.exceptions import SchemaError
 
 from leaf.schema import ATTRIBUTE_KEYS, EXTENSION_SCHEMA
@@ -262,6 +263,18 @@ def _validate_shown_answers(tag: str, entry: dict, declarations: dict, path) -> 
             raise registry_error("awaits-key", path, tag, key=key)
 
 
+def _selector_error(selector: str) -> str | None:
+    """Why `selector` doesn't parse as CSS, or None where it does: matched against an
+    element, which is all its parse needs."""
+    probe = turbohtml.parse("<p></p>").find("p")
+    try:
+        if probe is not None:
+            probe.matches(selector)
+    except turbohtml.SelectorSyntaxError as error:
+        return str(error)
+    return None
+
+
 def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -> dict:
     # A predicate names declared attributes. Booleans test presence or absence;
     # strings must be values the attribute's schema admits, or the widget silently
@@ -285,6 +298,12 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
             if isinstance(entry.get("x-exhibit"), dict)
             else {},
         ),
+        (
+            "x-press",
+            entry["x-press"].get("when", {})
+            if isinstance(entry.get("x-press"), dict)
+            else {},
+        ),
     ]
     for declaration, condition in conditions:
         for attr, values in condition.items():
@@ -306,6 +325,12 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
                         **tested,
                         **schema_reading(errors[0]),
                     )
+    # The parts a press reaches are a CSS selector the browser matches on every press
+    # and hover there; one it can't parse would throw on each and stop threads opening.
+    press = entry.get("x-press")
+    if isinstance(press, dict) and (region := press.get("region")):
+        if (error := _selector_error(region)) is not None:
+            raise registry_error("press-region", path, tag, region=region, error=error)
     thread = entry.get("x-thread-seat", {})
     mutable_values = {
         spec["record"]["attr"]

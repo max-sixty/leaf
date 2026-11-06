@@ -189,6 +189,7 @@ export {
   dragging,
   el,
   motionPreview,
+  pressedControl,
   reachedForWords,
   worksInside,
 } from "./widget-elements.js";

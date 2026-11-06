@@ -107,6 +107,7 @@ import {
   LeafElement,
   onUserInput,
   signal,
+  pressedControl,
   quoted,
   registerVisualParts,
   scopedMediaUrl,
@@ -325,6 +326,9 @@ const transport = (target, label, action, disabled) =>
  * }} TraceNodes */
 
 export class Trace extends LeafElement {
+  // A quoted trace is evidence to read: a press on it seeks, inspects or pauses
+  // nothing (`pressedControl`).
+  lfTakesPress = () => !quoted(this);
   /** @type {TraceNodes | null} */
   #nativeNodes = null;
   get #nodes() {
@@ -784,6 +788,8 @@ export class Trace extends LeafElement {
   /** @param {Event} event */
   #inspect(event) {
     const path = event.composedPath();
+    // A click is the trace's where Leaf says it is (`x-press`, `lfTakesPress`).
+    if (event.type !== "lf-inspect" && !pressedControl(path[0] ?? null)) return;
     if (path.includes(this.#nodes.metadata)) this.pause();
     else if (
       event.type === "lf-inspect" ||

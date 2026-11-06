@@ -334,9 +334,7 @@ DRAWN_PAGE = leaf_page(
 <a id="to-broken" href="#broken">a line broken before hidden words</a>,
 <a id="to-skipping" href="#skipping">a block skipping its own words</a>,
 <a id="to-folded" href="#folded">a folded panel</a>,
-<a id="to-far" href="#far">words out of view</a>,
-<a id="to-alone" href="#alone">a title over hidden words</a>,
-<a id="to-folded-run" href="#folded-run">a folded lead-in</a> and
+<a id="to-far" href="#far">words out of view</a> and
 <a id="to-joined" href="#joined">code joined over a hidden break</a>.</p>
 <details id="closed"><summary>Method</summary>Secret text<p>Hidden paragraph.</p></details>
 <div id="held">Intro <details><summary>More</summary><p>Hidden words.</p></details></div>
@@ -362,15 +360,71 @@ CV</div><div hidden="until-found">SECRET FOUND</div></div>
 <section id="folded" hidden="until-found"><h3>Folded title</h3><p>Folded body.</p>
 </section>
 <pre id="joined"><code>con<br hidden>st value = 1;</code></pre>
-<div><strong>Group</strong><span hidden>HIDDEN</span><p id="alone">Target words.</p></div>
-<section hidden="until-found"><h3>Folded part</h3><p><strong>Lead.</strong> Words
-<em id="folded-run">run on</em>.</p></section>
 """
     + "<p>More of the page.</p>" * 40
     + """<div style="content-visibility: auto; contain-intrinsic-size: auto 40px">
 <p id="far">Far <span style="visibility: hidden">SECRET VISIBILITY</span>
 <span style="display: none">SECRET DISPLAY</span> words.</p></div>""",
 )
+
+
+LEAD_IN_PAGE = leaf_page(
+    "Lead-ins",
+    """
+<h2>Outer</h2>
+<p><a id="to-folded" href="#folded">folded words</a>,
+<a id="to-kept" href="#kept">words after a kept newline</a> and
+<a id="to-drawn" href="#drawn">words after a drawn title</a></p>
+<details id="fold"><summary>Disclosure</summary><div><strong>Group</strong>
+<span hidden>words</span><p id="folded">Folded words.</p></div></details>
+<div style="white-space: pre-line"><strong>Kept</strong>
+<span id="kept">Kept words.</span></div>
+<p><strong><span id="drawn-title">Group</span></strong> runs on
+<span id="drawn">Drawn words.</span></p>
+<p id="elsewhere">Words elsewhere.</p>
+""",
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_bold_lead_in_runs_on_by_its_markup_whatever_draws_it(engine, request, serve):
+    """Whether a bold title runs into its line, and so makes no part, is a fact about
+    the markup, so the name a card gives what follows it stands while the page draws it
+    differently: with the disclosure around it closed or open and after an edit
+    elsewhere, a title followed by words the page hides runs into them; a newline the
+    whitespace keeps is no break; and a title whose words a widget's declared tree draws
+    runs into the words after it."""
+    page = open_page(request.getfixturevalue(engine), serve(LEAD_IN_PAGE))
+    page.evaluate(
+        """async () => {
+          const {registry} = await import('/runtime/registry.js');
+          const {shadowStage} = await import('/runtime/shadow-stage.js');
+          registry['lf-staged-title'] = {'x-shadow': true};
+          // The title's words move into a widget's declared tree, drawn where they stood.
+          const words = document.getElementById('drawn-title');
+          const host = document.createElement('lf-staged-title');
+          words.replaceWith(host);
+          shadowStage(host, [words]);
+        }"""
+    )
+    preview = page.locator(PREVIEW)
+
+    def named(link, name):
+        page.mouse.move(0, 0)
+        expect(preview).to_be_hidden()
+        page.locator(link).hover()
+        expect(preview.locator(".lf-preview-word")).to_have_text(name)
+
+    named("#to-folded", "Disclosure")
+    page.locator("#fold > summary").click()
+    expect(page.locator("#folded")).to_be_visible()
+    named("#to-folded", "Disclosure")
+    page.evaluate(
+        "() => { document.getElementById('elsewhere').firstChild.data = 'Other words.'; }"
+    )
+    named("#to-folded", "Disclosure")
+    named("#to-kept", "Outer")
+    named("#to-drawn", "Outer")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -384,10 +438,8 @@ def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve)
     break before hidden words still a break, words a block's `content-visibility` skips
     nothing, a folded panel, which draws none of what it holds, all of it, and words a
     `content-visibility: auto` box skips out of view as they will draw: without what
-    their own styles hide. Code cut short ends in an ellipsis, as cut prose does, a
-    hidden break joins the line it would have split, and a bold title followed by
-    words the page hides stands alone on its line, so it names what follows it, while
-    one a folded panel holds runs into its words as they will draw."""
+    their own styles hide. Code cut short ends in an ellipsis, as cut prose does, and a
+    hidden break joins the line it would have split."""
     page = open_page(request.getfixturevalue(engine), serve(DRAWN_PAGE))
     # Words Leaf writes into a block, as the paint pass writes a comment's count.
     page.evaluate(
@@ -415,8 +467,6 @@ def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve)
         ("#to-folded", "Folded title", "Folded body."),
         ("#to-far", None, "Far words."),
         ("#to-joined", None, "const value = 1;"),
-        ("#to-alone", "Group", "Target words."),
-        ("#to-folded-run", "Folded part", "run on"),
     ):
         page.mouse.move(0, 0)
         expect(preview).to_be_hidden()

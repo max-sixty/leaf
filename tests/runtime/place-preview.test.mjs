@@ -332,18 +332,36 @@ test("a place with no name of its own is named by the part it stands in, as On m
       "Outer",
       "heading",
     );
-  // A title alone on its drawn line heads what follows it: a break ends the line, as
-  // a block does through a wrapper that draws no box.
+  // A title alone on its line heads what follows it: a break ends the line.
   named(
     `<h2>Outer</h2><p><strong>Group</strong><br><span id="it">Target</span></p>`,
     "Group",
     "p",
   );
+  // A widget set among the words around it (x-inline) runs on from the title; any other
+  // widget starts a block of its own.
+  Object.assign(registry, {
+    "lf-word": { "x-inline": true },
+    "lf-block": {},
+    $layer: { generation: "place-preview-run-in-widgets" },
+  });
+  named(
+    `<h2>Outer</h2><p><strong>Label</strong> <lf-word id="it">term</lf-word></p>`,
+    "Outer",
+    "heading",
+  );
+  named(
+    `<h2>Outer</h2><div><strong>Group</strong><lf-block><p id="it">Asked.</p></lf-block></div>`,
+    "Group",
+    "div",
+  );
+  // The line is the markup's, whatever styles draw: a span drawn as a block still runs
+  // on from the title.
   named(
     `<h2>Outer</h2><p><strong>Group</strong><span style="display: contents"><span
     style="display: block" id="it">Target</span></span></p>`,
-    "Group",
-    "p",
+    "Outer",
+    "heading",
   );
   // A title over a nested list heads the list: no words share its line.
   named(

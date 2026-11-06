@@ -134,7 +134,7 @@ import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
 import { readPart } from "./semantic-state.js";
-import { COLLAPSE, TEXT_BLOCK } from "./kernel-facts.js";
+import { COLLAPSE, PHRASING, TEXT_BLOCK } from "./kernel-facts.js";
 import { textUnits } from "./text-alignment.js";
 import { excerptWords } from "./words.js";
 
@@ -709,13 +709,11 @@ const { order: readingOrder, under: readingUnder } = alongClimb(readingParent);
 // whitespace; ordinary passage readings never ask the browser for these styles.
 // `drawn` keeps only the words the page draws now (`drawsWithin`), asked of each word and
 // break as the walk meets it, so a break before a word left out still stands before the
-// next; `until` ends the reading where that element starts, and `last` answering true
-// ends it after the segment it was handed.
+// next; `until` ends the reading where that element starts.
 /** @param {Node} root @param {Reading} [reading]
  * @param {((element: Element, count: number) => boolean) | null} [boundary]
  * @param {"prose" | "lines"} [format]
- * @param {{drawn?: boolean, until?: Element | null, last?: (segment: Segment) => boolean}} [only]
- * @returns {Segment[]} */
+ * @param {{drawn?: boolean, until?: Element | null}} [only] @returns {Segment[]} */
 export function textNodesUnder(
   root,
   reading = "says",
@@ -741,7 +739,7 @@ export function textNodesUnder(
     root,
     (node, ctx) => {
       if (!ended && keeps(ctx) && (!draws || draws(node))) {
-        const segment = {
+        segments.push({
           ...segmentIn(node, ctx),
           breakBefore,
           ...(format === "lines" && {
@@ -749,11 +747,9 @@ export function textNodesUnder(
             whiteSpace: style(node.assignedSlot ?? elementOver(node))
               .whiteSpaceCollapse,
           }),
-        };
-        segments.push(segment);
+        });
         breakBefore = false;
         lineBefore = "";
-        ended = only.last?.(segment) ?? false;
       }
     },
     (child) =>
@@ -1113,30 +1109,45 @@ export const says = (el, options = {}) => {
   const segments = textNodesUnder(el, "says", null, options.format, options);
   return options.format === "lines" ? linesFrom(segments) : quoteFrom(segments);
 };
-/** Whether words the page draws follow `element` on the line it is drawn on inside
- * `root`, as the `lines` reading of what it draws has them (`says`): from the element's
- * last word to the next break, so a `<br>` and a block end the line, one inside a
- * wrapper that draws no box too, and words the page hides are not on it. Where the page
- * draws none of the element, as an unchosen tab's panel holds it, the line reads whole,
- * as a preview reads such a place (place-preview.js). The reading ends where the answer
- * does.
- * @param {Element} element @param {Element} root */
-export function wordsFollowOnLine(element, root) {
+// Whether an element stands within a line of words: HTML's phrasing content
+// (`$passages.phrasing`), or a widget declared to stand among the words around it
+// (x-inline). Every other element, a widget included, starts a block of its own.
+/** @param {Element} element */
+const phrasing = (element) =>
+  element.matches(PHRASING) || Boolean(registry[element.localName]?.["x-inline"]);
+/** Whether authored words follow `title` on its line inside `container`, by the markup
+ * alone: words its author wrote after it, through the tree the walk reads (a widget's
+ * declared tree, a slot's assignment), before a `<br>`, an element outside phrasing
+ * content (`phrasing`), or the end of what holds the title. No style is read, so a line
+ * is the same whatever the reader opens, hides or resizes.
+ * @param {Element} title @param {Element} container */
+export function runsIntoLine(title, container) {
   let past = false;
-  let follow = false;
-  textNodesUnder(root, "says", null, "lines", {
-    drawn: drawsWithin(element, false),
-    last: (segment) => {
-      if (element.contains(segment.node)) past = true;
-      else if (past) {
-        if (segment.lineBefore === "\n") return true;
-        follow = segment.node.data.slice(segment.start, segment.end).trim() !== "";
-        return follow;
-      }
-      return false;
+  let ended = false;
+  let follows = false;
+  walk(
+    container,
+    (node, ctx) => {
+      if (past && !ended && READINGS.wrote(ctx) && node.data.trim())
+        follows = ended = true;
     },
-  });
-  return follow;
+    (child) => {
+      if (ended) return true;
+      if (!past) {
+        // The title's own words are no part of its line's.
+        if (child === title) return (past = true);
+        return !child.contains(title);
+      }
+      if (isHTML(child, "br") || !phrasing(child)) ended = true;
+      return ended;
+    },
+    null,
+    (element, _ctx, entering) => {
+      if (!entering && past && element !== container && element.contains(title))
+        ended = true;
+    },
+  );
+  return follows;
 }
 // What the page draws now, by what the browser computes for the element each word is
 // drawn in (its slot, its parent, or a shadow root's host), and for each break, the

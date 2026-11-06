@@ -246,9 +246,9 @@ a pasted link, so write a description that makes sense on its own.
 ## Markup
 
 Widget attributes carry scalars and children carry prose; a titled member of a compound
-widget starts with a `<strong>`. A leading `<strong>` that runs into its line's words
-names that line but doesn't start a part: what follows belongs to the enclosing part,
-which On me groups by and a link's preview names. A widget whose body is data, such
+widget starts with a `<strong>`. A leading `<strong>` that words follow before any
+`<br>` or block element names that line but doesn't start a part: what follows belongs
+to the enclosing part, which On me groups by and a link's preview names. A widget whose body is data, such
 as `lf-code`, holds escaped text in a `<pre>`. Escape `&` first, then `<` and `>`.
 
 Format filenames and paths as inline code.

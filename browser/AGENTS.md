@@ -623,7 +623,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | What names the part of the page or a message a node stands in, and where a heading's part ends        | `thread/placement.js` `partOver`, `headingAfter`                                   |
 | A document's outline, and what stood over each element, as the walk reading it met them               | `passages.js` `documentOutline`, `headed`                                          |
 | Which reading of the page stands, for what is derived from it                                         | `passages.js` `pageReadingVersion`                                                 |
-| Whether words the page draws follow an element on the line it is drawn on                             | `passages.js` `wordsFollowOnLine`                                                  |
+| Whether a title runs into words on its line, read off the markup                                      | `passages.js` `runsIntoLine`                                                       |
 
 ### Facts both runtimes know
 

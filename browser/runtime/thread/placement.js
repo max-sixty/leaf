@@ -20,7 +20,7 @@ import {
   leafSurface,
   pageDocument,
   pageReadingVersion,
-  wordsFollowOnLine,
+  runsIntoLine,
 } from "../passages.js";
 import { agentName } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
@@ -110,12 +110,15 @@ export function headingAfter(heading) {
 // its author gave it. So a <section> the author wrote names what stands in it before
 // its heading, a sub-heading inside it heads what follows the sub-heading, a captioned
 // figure or table names what it holds, and a region the author labelled is a part. A
-// run-in label, a leading <strong> followed by words of the line it opens, as a
-// paragraph's or a titled option's is, names its own element and makes no part: a bold
-// label opening a line is no place a reader groups by, so On me's bands and a preview's
-// name go on to the part holding the line. A <strong> that titles a container of blocks,
-// with no words between it and the first of them, names that container as a part, as a
-// heading would. The contract stops short of the document the node stands in and the
+// run-in label, a leading <strong> that words follow before a <br> or a block element,
+// as a paragraph's or a titled option's is, names its own element and makes no part: a
+// bold label opening a line is no place a reader groups by, so On me's bands and a
+// preview's name go on to the part holding the line. A <strong> alone on its line, over
+// a <br> or a container's blocks, names that container as a part, as a heading would.
+// Which it is is the markup's (`runsIntoLine`), not the line the browser draws: a
+// drawn line moved with every style a page could set, a box-less wrapper, kept
+// newlines, hidden words, and renamed a part as the reader opened a disclosure, where
+// Python's names, read off the document, never move. The contract stops short of the document the node stands in and the
 // page's column, whose leading heading titles the page, and passes a
 // slot, whose own children are the fallback its assignment replaces, and what Leaf
 // generates in the document, whose labels are Leaf's. A heading in a `header` or
@@ -165,14 +168,12 @@ export function partOver(node) {
   return null;
 }
 // Whether a title runs into words on its own line, as a paragraph's bold lead-in runs
-// into its sentence: words the page draws follow it before the line breaks
-// (`wordsFollowOnLine`), whatever inline element carries them. A title alone on its line
-// heads what follows it. Kept as long as its document's reading stands, so a change to
-// styles alone, such as a `hidden` toggled after the title, shows at the next change to
-// the document's words.
+// into its sentence, read off the markup (`runsIntoLine`), so a place is the same part
+// whatever the reader opens or the page draws. A title alone on its line heads what
+// follows it. Kept as long as its document's reading stands, as the markup does.
 /** @param {Element} title @param {Element} container */
 const runsIn = (title, container) =>
-  keptAnswer(title, "runs into its line", () => wordsFollowOnLine(title, container));
+  keptAnswer(title, "runs into its line", () => runsIntoLine(title, container));
 // Whether the contract's name for `container` names what it holds: short of the document
 // it stands in and the page's column, never a slot, and never what Leaf generated there.
 /** @param {Element} container @param {Element} scope */

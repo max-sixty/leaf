@@ -864,7 +864,9 @@ def test_clicking_into_the_field_moves_none_of_an_open_view_s_controls(browser, 
     page.locator(".lf-fp-send").hover()
     expect(page.locator("#lf-preview")).to_be_visible()
     expect(page.locator("#lf-preview .lf-preview-word")).to_have_text("Send")
-    expect(page.locator("#lf-preview kbd")).to_have_text(["⏎"])
+    # The key that sends, and where Return sends, the one that makes a new line.
+    expect(page.locator("#lf-preview kbd")).to_have_text(["⏎", "⇧⏎"])
+    expect(page.locator("#lf-preview .lf-preview-detail")).to_have_text("New line ⇧⏎")
     settled(page)
     assert page.locator(".lf-fp-close").bounding_box() == close
     assert view.bounding_box() == stands
@@ -2970,22 +2972,30 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
 
 def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     """The row's status and errors remain inline; its menu carries the full reading.
-    Hover and keyboard focus preview status only when the leaf is folded."""
+    The leaf's preview names what it opens, and says the status under that only when
+    the leaf is folded."""
     page = floating(browser, serve(LONG_PAGE))
     peek = page.locator(PREVIEW)
     leaf = page.locator(".lf-fp-leaf")
     seat = page.locator(".lf-fp-field")
     expect(field(page)).to_have_attribute("placeholder", re.compile(r"^Away\b"))
     assert seat.get_attribute("title") is None
-    for target in (leaf, seat):
-        target.hover()
-        rendered(page)
-        expect(peek).to_be_hidden()
+    leaf.hover()
+    expect(peek).to_have_text("Page menu")
+    seat.hover()
+    rendered(page)
+    expect(peek).to_be_hidden()
 
     leaf.click()
     expect(page.locator(panel_view("menu"))).to_contain_text("Updates are saved.")
     expect(peek).to_be_hidden()
     page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+    # Escape hands the keyboard back to the leaf, where the user didn't go, so it
+    # previews nothing that would stand in front of their next Escape.
+    expect(leaf).to_be_focused()
+    expect(peek).to_be_hidden()
+    page.locator("body").click(position={"x": 5, "y": 5})
     page.evaluate(
         "async text => (await window.__lfWidgetApi()).raiseError(text)",
         "Couldn't save the draft",
@@ -2996,16 +3006,19 @@ def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     expect(peek).to_be_hidden()
     page.locator("body").click(position={"x": 5, "y": 5})
     page.keyboard.press(".")
+    # The preview stands by the leaf, so it is read where the leaf comes to rest.
+    panel_settled(page, open=False)
     leaf.hover()
     expect(peek).to_be_visible()
     expect(peek).to_contain_text("Away right now.")
     leaf.click()
     expect(peek).to_be_hidden()
+    panel_settled(page, open=False)
     # Tab back onto the expanded leaf: keyboard focus must not repeat the status.
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     expect(leaf).to_be_focused()
-    expect(peek).to_be_hidden()
+    expect(peek).to_have_text("Page menu")
 
 
 def test_floating_menu_tracks_stalled_detail_hidden_by_a_draft(browser, serve, request):

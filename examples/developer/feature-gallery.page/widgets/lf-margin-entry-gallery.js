@@ -45,7 +45,7 @@ function wireSample({ sample, key, control, disclosure }) {
     );
     // The words beside each fixed sample say what its preview would, over the next
     // cell, so only the live discovery samples keep the preview the factory gives them.
-    if (!sample.showLabel) control.lfPreview = () => null;
+    if (!sample.showLabel) control.lfPreview = () => false;
   };
   paint();
   if (disclosure) {

@@ -85,14 +85,17 @@ export function offer(tag, cls, label, inputType, pressable = false) {
 }
 // `label` names the press. A worded role shows it, and `offerAction` writes it as the
 // words; the element writer leaves the words to whoever owns the element's content,
-// such as a template. A symbol or mark says it as the accessible name, which its
-// preview shows with the keys that press it (preview.js); off Leaf it has no tooltip.
+// such as a template. A symbol or mark says it as the accessible name and the `title`,
+// which off Leaf is the browser's tooltip and on Leaf the preview's words, shown with
+// the keys that press it (preview.js).
 /** @template {Element} T @param {T} node @param {LeafActionRole} role
  * @param {string} [cls] @param {string} [label] @returns {T} */
 const roleElement = (node, role, cls, label) => {
   offerElement(node, actionClass(role, cls));
-  if (label !== undefined && (role === "symbol" || role === "mark"))
+  if (label !== undefined && (role === "symbol" || role === "mark")) {
     keeps(node, "aria-label", label);
+    keeps(node, "title", label);
+  }
   return node;
 };
 /** @param {LeafActionRole} role @param {string} [cls] @param {string} [label] */

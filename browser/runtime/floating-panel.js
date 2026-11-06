@@ -4527,9 +4527,9 @@ export function createFloatingPanel({
     if (!coarsePointer.matches) focusDestination(threadSearchInput, "move");
   }
   // Folded, the leaf's peek carries passing notices, since there is no field to show
-  // them. The folded leaf's preview says the page's status (preview.js), which the row
-  // and the menu already show unfolded; the words keep still while they show, even as
-  // the live status ages.
+  // them. The leaf's preview names what pressing it does (preview.js), and folded, says
+  // the page's status under that, which the row and the menu already show unfolded; the
+  // words keep still while they show, even as the live status ages.
   function peekPresentation() {
     const notice = passing();
     const telling = notice.visible && host.dataset.lfRest === "mark";
@@ -4538,10 +4538,18 @@ export function createFloatingPanel({
       shown: telling,
     };
   }
+  // The leaf's label carries the status's summary for a screen reader, which its
+  // preview says in full, so the preview names the leaf in fewer words. A passing
+  // notice standing in the folded leaf's peek is all it says.
   function leafPreview() {
-    return host.dataset.lfRest === "mark" && !passing().visible && pagePresented()
-      ? statusParts(status().explanationParts)
-      : null;
+    if (host.dataset.lfRest !== "mark") return { name: "Page menu" };
+    if (passing().visible) return false;
+    const fold = commandSteps(FOLD);
+    return {
+      name: "Unfold Leaf",
+      keys: fold.length ? [fold] : [],
+      detail: [pagePresented() && statusParts(status().explanationParts)],
+    };
   }
   // What stands open above the row, the menu as any view, is a step of the page's Escape,
   // taken wherever focus has fallen once the field has been left

@@ -228,22 +228,27 @@ playable").
 
 - **A preview reads and never acts.** It says where a thread stands, what a link points
   at, what caused a change or the time behind an age; a control's says its word and
-  every key that presses it, each as a key chip. It stands over the page beside what it
-  previews, in the tooltip face or, for a passage of words, the popover face, moves
-  nothing around it ("The page holds still under the user's aim") and holds no control.
-  Revealing a block's own controls, as Copy appears on a code block, is no preview and
-  stays its block's.
+  every key that presses it, each as a key chip. Every preview wears one face, its name
+  and key chips on the first line and its detail under them. It stands over the page
+  beside what it previews, clear of the target's focus ring and inside the surface the
+  target stands in, moves nothing around it ("The page holds still under the user's
+  aim") and holds no control. Revealing a block's own controls, as Copy appears on a
+  code block, is no preview and stays its block's.
 - **Every route reads it.** A resting pointer reads it after a short dwell, keyboard
   focus at once, and a finger by holding the press, whose release still presses; where
   a surface can't take a hold, it says the words at rest, as a panel row's cut words
-  stand whole. So no fact is said to hover alone. A `title` reaches only a resting
-  pointer, so a control that previews carries none, and two tooltips never stand
-  together.
-- **One owner shows every preview.** An element declares what pointing at it reads
+  stand whole. So no fact is said to hover alone. A `title` is an element's words like
+  any other: the browser's tooltip off Leaf, and on Leaf the preview's, on every route,
+  which takes the attribute off the first time the pointer comes, so two tooltips never
+  stand together.
+- **One owner shows every preview.** An element adds to what pointing at it reads
   (`lfPreview`, `../skills/leaf/references/module-input.md`, "Previews"), a control's
   word and keys come from its name and the register, and a range's owner says where
-  the pointer rests on it. `runtime/preview.js` shows one at a time on every route and
-  puts it away on leave, blur, a press or Escape, which still takes its own step. Check:
+  the pointer rests on it. `runtime/preview.js` shows one at a time on every route,
+  puts it away on leave, blur or a press, and gives a screen reader the words it shows
+  on focus as the focused element's description.
+  While one stands it is Escape's first step, which does nothing else, so a preview
+  over the surface the user is in never costs them that surface (WCAG 1.4.13). Check:
   `test_a_control_previews_its_word_and_every_key_that_presses_it`.
 
 ### Visual treatment carries meaning
@@ -595,7 +600,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowWord`, `progressFace`, `todoWord`                    |
 | A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                             |
 | What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                    |
-| What an element (its `lfPreview`), control or range says when pointed at, on every route              | `preview.js` `pointRange`, `pressPreview`                                          |
+| What an element (its `lfPreview`), control or range says when pointed at, on every route              | `preview.js` `pointRange`                                                          |
 | The keys that press a control                                                                         | `keyboard/control-keys.js` `controlKeys`                                           |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                              |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |

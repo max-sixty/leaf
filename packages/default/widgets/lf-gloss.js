@@ -6,10 +6,10 @@
  * places those same words after the phrase.
  *
  * Pointing reads; pressing acts. A pointer resting on the phrase, keyboard focus on it
- * and a finger holding it read the explanation as the phrase's preview, in the popover
- * face (`lfPreview`, module-input.md, "Previews"). A press pins the explanation's own
- * card open, where its words can be selected and commented on, and a second press puts
- * it away. The phrase is the visible affordance; a proxy at the same place
+ * and a finger holding it read the explanation as the phrase's preview, in the face
+ * every preview wears (`lfPreview`, module-input.md, "Previews"). A press pins the
+ * explanation's own card open, on the page's paper rather than the preview's ink,
+ * where its words can be selected and commented on, and a second press puts it away. The phrase is the visible affordance; a proxy at the same place
  * (control-faces.js, `proxy`) gives Tab, Enter, and Space their native route without
  * adding a second mark to the prose, and its description is the card, which a screen
  * reader hears on focus. An auto popover owns the card's top-layer lifecycle and light
@@ -36,9 +36,14 @@ customElements.define(
     #bubble = document.createElement("span");
     #mark = offerAction("proxy", "lf-gloss-mark");
     #pinned = false;
-    // A pinned card already shows the explanation, so the phrase previews nothing.
+    // A pinned card already shows the explanation, so nothing previews over it.
     lfPreview = () =>
-      this.#pinned ? null : { popover: this.getAttribute("tip") ?? "" };
+      this.#pinned
+        ? false
+        : {
+            name: this.#phrase(),
+            detail: [this.getAttribute("tip")],
+          };
 
     connectedCallback() {
       if (!once(this)) return;
@@ -52,8 +57,18 @@ customElements.define(
       });
     }
 
+    // The authored phrase, which names the gloss, without the words the card adds.
+    #phrase() {
+      return [...this.childNodes]
+        .filter((node) => node !== this.#bubble && node !== this.#mark)
+        .map((node) => node.textContent)
+        .join("")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
     #build() {
-      const phrase = this.textContent.replace(/\s+/g, " ").trim();
+      const phrase = this.#phrase();
       this.#mark.setAttribute("aria-label", `Explain “${phrase}”`);
       this.#mark.setAttribute("aria-expanded", "false");
 

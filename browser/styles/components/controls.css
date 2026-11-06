@@ -319,26 +319,40 @@ svg[data-lf-icon] {
   box-shadow: var(--raise-2);
 }
 /* A preview (runtime/preview.js): what pointing at a mark, control or value reads,
-   standing beside it over the page. It wears the tooltip face (`--tip-*`, tokens.css),
-   or the popover face (`.lf-popover`, above) where it shows a passage of words. Its
-   anchor is its target, so it stands centred below the target, above it where the
-   window has no room below, and above a finger holding the target; it goes with its
-   target out of view. It takes no pointer, holds no control and moves nothing. It
-   fades in where it stands, as a word that rose into place would move under nobody's
-   input. */
+   standing beside it over the page, in one face whatever it previews: the tooltip's
+   ground and ink (`--tip-*`, tokens.css), its name on the first line at the face's
+   weight with the key chips that press it, then each line of detail in the same type,
+   a step dimmer. Its anchor is its target. It stands below the target with its end
+   edge in line with the target's, so a control at a card's edge keeps its preview
+   inside the card; at the start edge where the window has no room the other way, and
+   above where there is none below. Its gap clears the target's focus ring by the face's
+   own spacing, and a finger holding the target sees it higher, where the fingertip
+   doesn't reach. It goes with its target out of view, takes no pointer, holds no
+   control and moves nothing, and fades in where it stands for a pointer or a finger,
+   as a word that rose into place would move under nobody's input; under the
+   keyboard's focus it is there at once. A preview that quotes a block of the page,
+   such as the place a link opens, takes the excerpt room: the same face, wider. */
 .lf-preview {
+  --lf-preview-gap: calc(var(--focus-ring-room) + 6px);
   position: fixed;
   inset: auto;
-  /* Clear of its target, and of the window's edge it is shifted against. */
-  margin: 6px 8px;
-  position-area: block-end;
-  justify-self: anchor-center;
-  position-try-fallbacks: flip-block;
+  margin: var(--lf-preview-gap) 0;
+  position-area: block-end span-inline-start;
+  position-try-fallbacks:
+    flip-inline,
+    flip-block,
+    flip-block flip-inline;
   position-visibility: anchors-visible;
   box-sizing: border-box;
   width: max-content;
   max-width: min(320px, calc(100vw - 16px));
   overflow: visible;
+  padding: var(--tip-pad);
+  border: 0;
+  border-radius: var(--tip-r);
+  background: var(--tip-bg);
+  color: var(--tip-ink);
+  box-shadow: var(--raise-1);
   font: var(--font-tip);
   text-align: start;
   white-space: normal;
@@ -350,53 +364,56 @@ svg[data-lf-icon] {
     opacity: 0;
   }
 }
-.lf-preview:not(.lf-popover) {
-  padding: var(--tip-pad);
-  border: 0;
-  border-radius: var(--tip-r);
-  background: var(--tip-bg);
-  color: var(--tip-ink);
-  box-shadow: var(--raise-1);
-}
-.lf-preview.lf-popover {
-  max-width: min(22rem, calc(100vw - 24px));
-  margin: 8px;
-  padding: 10px 13px 11px;
-  font: var(--font-message);
-}
 .lf-preview[data-lf-route="hold"] {
+  --lf-preview-gap: calc(var(--focus-ring-room) + 22px);
+  position-area: block-start span-inline-start;
+}
+/* Above a point inside its target, as a chart's tip stands over its point and leaves
+   the axis below it in view. */
+.lf-preview[data-lf-at="point"] {
   position-area: block-start;
+}
+/* What a preview stands by where its target is no box the document names, or where it
+   names a box inside itself: an anchor of its own over that box, which draws nothing. */
+.lf-preview-at {
+  position: fixed;
+  margin: 0;
+  pointer-events: none;
+}
+.lf-preview[data-lf-route="focus"] {
+  transition: none;
+}
+.lf-preview[data-lf-face="excerpt"] {
+  max-width: min(26rem, calc(100vw - 16px));
 }
 /* A range's preview stands by insets its owner measures, beside the line pointed at. */
 .lf-preview[data-lf-at="range"] {
   position-area: none;
-  justify-self: auto;
   position-try-fallbacks: none;
   margin: 0;
 }
-.lf-preview-line {
+.lf-preview-name {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 2px 8px;
+  font-weight: 600;
 }
 .lf-preview-keys {
   display: inline-flex;
   gap: 2px;
 }
 /* Its key chips are the keys' own face, drawn in the tooltip's ink. */
-.lf-preview:not(.lf-popover) .lf-key-badge {
+.lf-preview .lf-key-badge {
   background: transparent;
   border-color: color-mix(in srgb, currentColor 45%, transparent);
   color: inherit;
+  font-weight: 400;
 }
-.lf-preview-more {
+.lf-preview-detail {
   display: block;
   margin-block-start: 2px;
-  font: var(--font-fine);
-}
-.lf-preview:not(.lf-popover) .lf-preview-more {
-  color: color-mix(in srgb, var(--tip-ink) 72%, transparent);
+  color: color-mix(in srgb, var(--tip-ink) 76%, transparent);
 }
 @media (prefers-reduced-motion: reduce) {
   .lf-preview {
@@ -406,6 +423,9 @@ svg[data-lf-icon] {
 @media (forced-colors: active) {
   .lf-preview {
     border: 1px solid CanvasText;
+  }
+  .lf-preview-detail {
+    color: inherit;
   }
 }
 /* The list is an auto popover, in the top layer: open, it stands over everything in

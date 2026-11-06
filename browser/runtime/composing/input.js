@@ -47,7 +47,13 @@ import { describeFailure } from "../exception.js";
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeysWithin } from "../keyboard/scopes.js";
 import { keeps } from "../keeps.js";
-import { advertisesKeys, submitBindings, spell, PRESS } from "../keyboard/bindings.js";
+import {
+  advertisesKeys,
+  ariaBindings,
+  submitBindings,
+  spell,
+  PRESS,
+} from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce } from "../notifications.js";
 import { drawingThumbnail } from "./drawing-context.js";
@@ -74,7 +80,6 @@ import { scrollIntoView } from "../landing-scroll.js";
 import { retainUserIntent } from "../user-intent.js";
 import { coarsePointer } from "../pointer.js";
 import { offeredAction } from "../widget-elements.js";
-import { pressPreview } from "../preview.js";
 
 /** @typedef {import("./drawing-record.js").DraftDrawing} Drawing
  * @typedef {import("./text-field.js").LeafTextElement} TextField
@@ -343,6 +348,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const oneLine = ta.getAttribute("aria-multiline") === "false";
     const sendBindings = () => (oneLine ? ["Enter", "Mod+Enter"] : submitBindings());
     const sendKey = () => sendBindings().slice(0, 1).map(spell).join("");
+    // Where Return sends a box that holds lines, Shift+Return makes one.
+    /** @param {string} sendKeys */
+    const lineKeyOf = (sendKeys) =>
+      sendKeys === spell("Enter") && !oneLine ? spell("Shift+Enter") : "";
     // The editor is kept whole in Lit's Node part. A rewrite's submit root sits
     // beside its existing Discard control, without an extra layout box.
     const submitEnd = document.createComment("");
@@ -531,8 +540,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // Where Return sends a box that holds lines, the box says which key makes one,
       // beside the key that sends, so a writer meets Shift+Return before Return sends
       // half a message; the send control's tooltip says the same.
-      const lineKey =
-        sendKeys === spell("Enter") && !oneLine ? spell("Shift+Enter") : "";
+      const lineKey = lineKeyOf(sendKeys);
       const lineHint = focusedHere.value && !status ? lineKey : "";
       const entering = suffix && !focusedHere.value && !status ? enters() : "";
       const placeholder =
@@ -594,6 +602,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         aria-disabled=${String(!canSend())}
         ?data-lf-empty=${!hasWords}
         ?hidden=${micShown}
+        aria-keyshortcuts=${sendBindings().flatMap(ariaBindings).join(" ")}
         @mousedown=${keepEditing}
         @click=${() => pressed(send)}
       ></button>`;
@@ -758,13 +767,18 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     if (!visualField) throw new Error("Composition template has no field frame");
     sync.composition = () => ({ field: visualField, frame: field });
     sendBtn = (submitIn ?? field).querySelector("button.lf-compose-submit");
-    // Send's preview names the key that sends from the box, which the box's own
-    // `text.send` answers rather than the control (preview.js, `pressPreview`).
-    if (sendBtn) {
-      const control = sendBtn;
-      control.lfPreview = () =>
-        pressPreview(control, advertisesKeys() ? [[sendKey()]] : []);
-    }
+    // The key that sends from the box is the box's own `text.send`, which sends rather
+    // than pressing Send, so the box says it beside Send: as a key chip in Send's
+    // preview (preview.js), with the key that makes a new line where Return sends, and
+    // in its `aria-keyshortcuts`, both from `sendBindings`.
+    if (sendBtn)
+      sendBtn.lfPreview = () => {
+        const line = advertisesKeys() ? lineKeyOf(sendKey()) : "";
+        return {
+          keys: [[sendKey()]],
+          detail: [line && html`${NEW_LINE} <kbd class="lf-key-badge">${line}</kbd>`],
+        };
+      };
     mic = field.querySelector("button.lf-compose-dictate");
     sync.button = sendBtn;
     whileConnected(field, (signal) => {

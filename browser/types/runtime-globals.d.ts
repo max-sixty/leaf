@@ -150,8 +150,9 @@ interface Element {
     | undefined;
   /** The text a block marked `data-lf-copy` copies (`code-copy.js`). */
   lfCopy?: () => string;
-  /** What pointing at this element reads, asked as its preview shows (`preview.js`). */
-  lfPreview?: () => import("../runtime/preview.js").Preview | null | undefined;
+  /** What pointing at this element adds, asked once as its preview shows on a route
+   * (`preview.js`): null adds nothing, false shows nothing here or around it. */
+  lfPreview?: import("../runtime/preview.js").Read;
 }
 
 interface HTMLScriptElement {

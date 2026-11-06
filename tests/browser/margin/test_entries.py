@@ -367,10 +367,14 @@ def test_an_obligation_marker_names_its_question_once_the_user_points_at_it(
     preview = page.locator(PREVIEW)
     expect(preview).to_be_hidden()
 
+    # Whether the face cuts its words, measured on the face's box, whose overflow is
+    # what a reader would lose.
     read = """(marker) => {
-        const word = document.querySelector('#lf-preview .lf-preview-word');
+        const tip = document.getElementById('lf-preview');
+        const word = tip.querySelector('.lf-preview-word');
         return {text: word.textContent, name: marker.getAttribute('aria-label'),
-                cut: word.scrollWidth > word.clientWidth};
+                cut: tip.scrollWidth > tip.clientWidth
+                  || tip.scrollHeight > tip.clientHeight};
     }"""
     seen = {}
     for item in ("short-ask", "long-ask"):
@@ -387,6 +391,7 @@ def test_an_obligation_marker_names_its_question_once_the_user_points_at_it(
     assert seen["short-ask"]["text"] == "Where should sessions live?", seen
     assert not seen["short-ask"]["cut"], seen
     assert seen["long-ask"]["text"] == question, seen
+    assert not seen["long-ask"]["cut"], seen
     # The accessible route includes the question's distinguishing alternative.
     assert "roll every tenant" in seen["long-ask"]["name"], seen
 

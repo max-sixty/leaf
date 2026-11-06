@@ -2761,33 +2761,30 @@ LANDING_TOP = "(await window.__lfCheckApi()).landingBand(document.scrollingEleme
 PREVIEW = "#lf-preview"
 
 
-def preview_text(target):
-    """The words `target`'s declared preview says, read from its `lfPreview()` without
-    pointing at it (runtime/preview.js), as the preview's `textContent` would be."""
-    return target.evaluate(
-        """async (node) => {
-          const {render} = await window.__lfWidgetApi();
-          const box = document.createElement('div');
-          const said = node.lfPreview?.() ?? null;
-          render(said?.popover ?? said, box);
-          return box.textContent;
-        }"""
-    )
-
-
 def preview_parts(target):
-    """What `target`'s declared preview says, its word and then each line under it,
-    read from its `lfPreview()` without pointing at it (runtime/preview.js): what the
-    target says, apart from where and when the preview shows it."""
-    return target.evaluate(
-        """async (node) => {
-          const {render} = await window.__lfWidgetApi();
-          const box = document.createElement('div');
-          render(node.lfPreview?.() ?? null, box);
-          return [...box.querySelectorAll('.lf-preview-word, .lf-preview-more')]
-            .map((part) => part.textContent);
-        }"""
+    """What `target`'s preview shows a pointer resting on it (runtime/preview.js): its
+    name, then each line of detail, as the face draws them, key chips left out. The
+    pointer leaves it again after, so the next reading is a new one."""
+    page = target.page
+    tip = page.locator("#lf-preview")
+    # From somewhere else: a pointer already resting where the target now stands reads
+    # nothing there until it moves (preview.js).
+    page.mouse.move(2, 2)
+    target.hover()
+    expect(tip).to_be_visible()
+    expect(tip).to_have_attribute("data-lf-route", "pointer")
+    parts = tip.evaluate(
+        """(tip) => [...tip.querySelectorAll('.lf-preview-word, .lf-preview-detail')]
+          .map((part) => part.textContent)"""
     )
+    page.mouse.move(0, 0)
+    return parts
+
+
+def preview_text(target):
+    """The words `target`'s preview shows a resting pointer, as its face's
+    `textContent` reads them where no key chip stands beside its name."""
+    return "".join(preview_parts(target))
 
 
 def resized(page, width, height):

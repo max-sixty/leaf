@@ -251,6 +251,47 @@ def test_entering_and_leaving_a_floating_comment_box_restyles_only_the_chrome(
     assert max(leaving, entering) < whole / 4, moves
 
 
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
+    request, serve, engine
+):
+    """A comment box on words low in the window stands over the chrome at its foot, the
+    band the root's scroll padding keeps the page's own content clear of. Chromium and
+    WebKit reveal a caret in a box anchored to the page by scrolling the page, counting
+    that padding, so the first key typed there moved the words beneath the box, 16 px
+    in Chromium 156 and 14 in WebKit 27.2, and each line that grew the box further down
+    moved them again. The padding goes while the user writes in such a box
+    (annotation-overlay/floating.js, `readFloatingEditor`; base.css). Firefox 157
+    reveals no caret through a fixed box."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    resized(page, 1512, 860)
+    words = page.locator("#p40")
+    words.evaluate("n => scrollBy(0, n.getBoundingClientRect().top - 740)")
+    rendered(page)
+    words.click(modifiers=["Alt"], position={"x": 40, "y": 8})
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    rendered(page)
+    scrolled = page.evaluate("scrollY")
+    page.keyboard.type("Fine")
+    rendered(page)
+    assert page.evaluate("scrollY") == scrolled
+    # The band the panel states on the root, which the rule hides from the browser.
+    caret, band_top = field.evaluate(f"""box => {{{CARET_AT}
+      const caret = document.createRange();
+      caret.setStart(at, offset);
+      const band = parseFloat(document.documentElement.style.scrollPaddingBottom);
+      return [caret.getBoundingClientRect().bottom, innerHeight - band];
+    }}""")
+    assert caret > band_top, (
+        "the caret stands above the foot's band, so this proves nothing",
+        caret,
+        band_top,
+    )
+
+
 # The field's shadow root is closed, so the reading keeps each root as it is attached.
 KEEP_ROOTS = """(() => {
   const attach = Element.prototype.attachShadow;

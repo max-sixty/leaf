@@ -2757,6 +2757,51 @@ def fills_the_window(page, block, fills):
 LANDING_TOP = "(await window.__lfCheckApi()).landingBand(document.scrollingElement).top"
 
 
+# The one preview standing over the page (runtime/preview.js).
+PREVIEW = "#lf-preview"
+
+
+def tab_onto(target):
+    """Step onto `target` with the keyboard, as the user does: Shift+Tab off it and Tab
+    back, a move the user made themselves, which a focus preview reads (preview.js),
+    where a script's focus reads nothing."""
+    target.focus()
+    target.page.keyboard.press("Shift+Tab")
+    target.page.keyboard.press("Tab")
+    expect(target).to_be_focused()
+
+
+def preview_parts(target, route="pointer"):
+    """What `target`'s preview shows a pointer resting on it (runtime/preview.js), or
+    with `route="focus"` the keyboard stepping onto it: its name, then each line of
+    detail, as the face draws them, key chips left out. The pointer leaves it again
+    after, so the next reading is a new one."""
+    page = target.page
+    tip = page.locator("#lf-preview")
+    if route == "focus":
+        tab_onto(target)
+    else:
+        # From somewhere else: a pointer already resting where the target now stands
+        # reads nothing there until it moves (preview.js).
+        page.mouse.move(2, 2)
+        target.hover()
+    expect(tip).to_be_visible()
+    expect(tip).to_have_attribute("data-lf-route", route)
+    parts = tip.evaluate(
+        """(tip) => [...tip.querySelectorAll('.lf-preview-word, .lf-preview-detail')]
+          .map((part) => part.textContent)"""
+    )
+    if route == "pointer":
+        page.mouse.move(0, 0)
+    return parts
+
+
+def preview_text(target):
+    """The words `target`'s preview shows a resting pointer, as its face's
+    `textContent` reads them where no key chip stands beside its name."""
+    return "".join(preview_parts(target))
+
+
 def resized(page, width, height):
     """Resize and wait for the page's listeners and rendering update.
 

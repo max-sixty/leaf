@@ -72,7 +72,7 @@ const landOnClose = (event) => {
 /** @param {string} popover @param {string} name */
 const closeButton = (popover, name) =>
   html`<button
-    ${offeredAction("symbol", "", name, { title: `${name} (Esc)`, action: "close" })}
+    ${offeredAction("symbol", "", name, { action: "close" })}
     popovertarget=${popover}
     popovertargetaction="hide"
   ></button>`;

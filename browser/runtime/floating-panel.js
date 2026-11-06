@@ -294,7 +294,6 @@ import {
 import { statusContextReading } from "./keyboard/status-context.js";
 import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
-import { onReadingInterrupted, readingIsContinuous } from "./reading-continuity.js";
 import {
   claimReleaseClick,
   focusDestination,
@@ -614,18 +613,12 @@ export function createFloatingPanel({
                 "symbol",
                 "lf-fp-leaf",
                 `${folded ? "Unfold Leaf" : "Page menu"} · ${statusModel.summary}`,
-                // The peek says the leaf's state on hover and focus (`showPeek`),
-                // so the leaf takes no tooltip of its own.
-                { action: "menu", title: "" },
+                { action: "menu" },
               )}
               data-lf-tone=${statusModel.tone || nothing}
-              aria-describedby="lf-fp-peek"
               aria-expanded=${folded ? nothing : String(!initial && menuStands())}
+              .lfPreview=${leafPreview}
               @click=${pressLeaf}
-              @pointerenter=${() => showPeek(true)}
-              @pointerleave=${() => showPeek(false)}
-              @focus=${() => showPeek(leaf.matches(":focus-visible"))}
-              @blur=${() => showPeek(false)}
             >
               <span
                 class="lf-fp-error-dot"
@@ -673,7 +666,10 @@ export function createFloatingPanel({
                 class="lf-fp-mode"
                 ?hidden=${mode === nothing}
                 aria-label=${search ? searchLabel : nothing}
-                title=${search ? searchLabel : selection ? reading.words : nothing}
+                .lfPreview=${() => {
+                  const words = search ? searchLabel : selection ? reading.words : null;
+                  return words ? { name: words } : null;
+                }}
                 >${mode}</span
               >
               <div class="lf-fp-actions" ?hidden=${!searchControls.length}>
@@ -692,12 +688,7 @@ export function createFloatingPanel({
           </div>
         </div>
       </div>
-      <div
-        class="lf-fp-peek"
-        id="lf-fp-peek"
-        role="tooltip"
-        ?data-lf-shown=${Boolean(peek?.shown)}
-      >
+      <div class="lf-fp-peek" ?data-lf-shown=${Boolean(peek?.shown)}>
         ${peek?.content ?? nothing}
       </div>
       <button
@@ -726,9 +717,6 @@ export function createFloatingPanel({
   const stage = shell("stage");
   const head = shell("head");
   const controls = shell("controls");
-  let peekAsked = false; // pointer or focus on the folded leaf
-  /** @type {import("./activity-words.js").Words | null} */
-  let peekReading = null;
   // The fold mark rides the box's top-right corner, chosen over the row's end on
   // 15 October. The menu's fold row and `.` provide its keyboard and touch routes.
   // It shows only while the pointer is near the corner it rides, so the panel at rest,
@@ -2149,7 +2137,7 @@ export function createFloatingPanel({
     html`<button
       type="button"
       data-lf-row=${row ?? nothing}
-      title=${title ?? nothing}
+      .lfPreview=${() => (title ? { detail: [title] } : null)}
       ${offeredAction("row", "lf-fp-item")}
       aria-current=${current ? "true" : nothing}
       ?disabled=${disabled}
@@ -3551,7 +3539,8 @@ export function createFloatingPanel({
         if (choice.commits)
           return html`<button
             ${offeredAction("commit", "lf-fp-commit")}
-            title=${choice.description || nothing}
+            .lfPreview=${() =>
+              choice.description ? { detail: [choice.description] } : null}
             aria-pressed=${String(choice.chosen)}
             @click=${press}
           >
@@ -4508,7 +4497,7 @@ export function createFloatingPanel({
               <button
                 type="button"
                 ${offeredAction("inline", "lf-fp-row-notice-press")}
-                title=${press.title ?? nothing}
+                .lfPreview=${() => (press.title ? { detail: [press.title] } : null)}
                 ?disabled=${press.disabled}
                 ?data-lf-notice-press=${Boolean(passing)}
                 @click=${press.run}
@@ -4541,33 +4530,31 @@ export function createFloatingPanel({
     open({ view: "menu" });
     if (!coarsePointer.matches) focusDestination(threadSearchInput, "move");
   }
-  // Only the folded leaf needs a status peek; the row and menu already show status.
-  // Folded, it also carries passing notices because there is no field to show them.
-  const peekAsks = () => host.dataset.lfRest === "mark" && peekAsked;
+  // Folded, the leaf's peek carries passing notices, since there is no field to show
+  // them. The leaf's preview names what pressing it does (preview.js), and folded, says
+  // the page's status under that, which the row and the menu already show unfolded; the
+  // words keep still while they show, even as the live status ages.
   function peekPresentation() {
-    const folded = host.dataset.lfRest === "mark";
     const notice = passing();
-    const telling = notice.visible && folded;
-    const reading = status();
-    const parts = reading.explanationParts;
-    const asked = peekAsks();
-    // Keep words still through one exposure, even as the live status ages.
-    if (!asked || !readingIsContinuous()) peekReading = null;
-    if (asked && !telling && pagePresented()) peekReading ??= parts;
+    const telling = notice.visible && host.dataset.lfRest === "mark";
     return {
-      content: telling
-        ? voiced(noticeWords(notice.message))
-        : statusParts(peekReading ?? parts),
-      shown: telling || asked,
+      content: telling ? voiced(noticeWords(notice.message)) : nothing,
+      shown: telling,
     };
   }
-  // Hovering the expanded row must not register a new exposure of status words.
-  /** @param {boolean} on */
-  const showPeek = (on) => {
-    const before = peekAsks();
-    peekAsked = on;
-    if (peekAsks() !== before) paint();
-  };
+  // The leaf's label carries the status's summary for a screen reader, which its
+  // preview says in full, so the preview names the leaf in fewer words. A passing
+  // notice standing in the folded leaf's peek is all it says.
+  function leafPreview() {
+    if (host.dataset.lfRest !== "mark") return { name: "Page menu" };
+    if (passing().visible) return false;
+    const fold = commandSteps(FOLD);
+    return {
+      name: "Unfold Leaf",
+      keys: fold.length ? [fold] : [],
+      detail: [pagePresented() && statusParts(status().explanationParts)],
+    };
+  }
   // What stands open above the row, the menu as any view, is a step of the page's Escape,
   // taken wherever focus has fallen once the field has been left
   // (`panel.floating.leave`); with nothing open, the page's own foot of the ladder takes
@@ -5023,10 +5010,6 @@ export function createFloatingPanel({
     // Upgrade turns the status to its loading words without a publication.
     document.addEventListener(UPGRADE, () => paint(), { once: true });
     document.addEventListener("lf-chrome-preference", () => paint());
-    onReadingInterrupted(() => {
-      peekReading = null;
-      paint();
-    });
     paint();
   }
 

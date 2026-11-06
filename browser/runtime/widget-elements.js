@@ -292,10 +292,10 @@ document.addEventListener(
 
 // Every surface that closes wears one control for it: the cross, named for what it
 // closes, since the glyph alone says only "close". `name` is the accessible name, such
-// as "Close threads"; `title` is the hover's, which says the key where one closes it too.
-/** @param {{name: string, title?: string, className?: string}} options */
-export const closeControl = ({ name, title = name, className = "" }) =>
-  offerAction("symbol", className, name, { title, action: "close" });
+// as "Close threads", which its preview says with the keys the register gives it.
+/** @param {{name: string, className?: string}} options */
+export const closeControl = ({ name, className = "" }) =>
+  offerAction("symbol", className, name, { action: "close" });
 
 // The anchored response bar has one control grammar of its own. Its buttons share the
 // field's type, border, height, and floating elevation without claiming to be target-

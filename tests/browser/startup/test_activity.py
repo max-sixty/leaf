@@ -40,19 +40,32 @@ from leaf import state as cleanup_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-# Where the leaf's peek says the status's whole sentence.
-PEEK = ".lf-fp-peek"
+# Where the folded leaf says the status's whole sentence: under its name in its
+# preview (preview.js).
+PEEK = "#lf-preview .lf-preview-detail"
 LEAF = ".lf-fp-leaf"
 
 
 def expect_status_says(page, words):
-    """Point at the leaf and read the status's whole sentence in its peek, which keeps
-    what it opened with for one exposure (floating-panel.js), so the pointer leaves
-    again and the next reading is a new exposure."""
-    page.locator(".lf-fp-leaf").hover()
+    """Fold the panel to its leaf, the one seat that says the status's whole sentence
+    when pointed at, read it in the leaf's preview, which keeps what it opened with
+    while it shows (preview.js), and unfold the panel again. Folding puts away what
+    stands open in the panel, and the pointer leaves, so the next reading is a new
+    one."""
+    close = page.locator(".lf-fp-close")
+    if close.is_visible():
+        close.click()
+        panel_settled(page, open=False)
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press(".")
+    leaf = page.locator(LEAF)
+    expect(leaf).to_have_attribute("aria-label", re.compile(r"^Unfold Leaf"))
+    leaf.hover()
     expect(page.locator(PEEK)).to_have_text(words)
     page.mouse.move(5, 5)
-    expect(page.locator(PEEK)).to_be_hidden()
+    expect(page.locator("#lf-preview")).to_be_hidden()
+    page.keyboard.press(".")
+    expect(leaf).to_have_attribute("aria-label", re.compile(r"^Page menu"))
 
 
 def workflow_of(scope, message):
@@ -437,6 +450,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
         page, "--muted"
     )
     expect_status_says(page, page_work)
+    work_line = workflow_of(open_panel_thread(page, held), held)
 
     # Turn closure belongs to one exact session. When a Codex watcher task holds the
     # page, its turn ending is no evidence that the page task, which wrote this claim,

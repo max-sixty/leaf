@@ -1924,7 +1924,8 @@
     color: var(--danger-ink);
   }
 
-  /* The folded leaf's status on hover or focus, and passing notices. */
+  /* The folded leaf's passing notices, since there is no field to show them; its status
+     is its preview (runtime/preview.js). */
   .lf-fp-leaf {
     anchor-name: --lf-fp-leaf;
   }

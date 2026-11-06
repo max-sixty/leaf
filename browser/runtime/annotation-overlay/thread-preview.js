@@ -222,7 +222,6 @@ export function createThreadPreview({
   const previewOpen = () => previewSession !== null;
   const previewClose = closeControl({
     name: "Dismiss thread view",
-    title: "Dismiss thread view (Esc)",
     className: "lf-margin-preview-close",
   });
   const previewNav = el("span", "lf-margin-preview-nav");

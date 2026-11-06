@@ -208,15 +208,53 @@ needs (`../SOUL.md`, "Let the user work as directly as in a terminal").
   the symbols for play, pause, copy and undo, so they can tell what the control does
   before hovering it; a symbol is smaller and quieter than a word. The control names its
   action from `ACTIONS` in `runtime/icon-paths.js`, which gives it the action's symbol,
-  and says its name as tooltip and accessible name, without the word beside the symbol.
+  and says its name as its accessible name and its preview (below), without the word
+  beside the symbol.
   An action shows one symbol, or one word, wherever Leaf offers it, so a reader who
   learns it in one place knows it in every other, and a press names an action, never an
   icon, so its symbol can't drift. One control whose symbol follows its state, such
   as play turning to pause, replaces a button for each state. A symbol only related to
   the action, such as a speech bubble for answering a question, leaves the reader
-  guessing, and a tooltip doesn't fix that: the reader must already suspect the control
-  to hover it, and a touch screen has no hover. The rows of the leaf's menu keep their
-  words, since the user opened the menu to read them.
+  guessing, and a preview doesn't fix that: the reader must already suspect the control
+  to point at it. The rows of the leaf's menu keep their words, since the user opened
+  the menu to read them.
+
+### Pointing reads; pressing acts
+
+Hovering, focusing or holding a press on a mark, control or value shows its whole word
+and a preview of what pressing it opens, or of the fact it stands for, so the user can
+judge whether to go there before going (`../SOUL.md`, "Make the work concrete and
+playable").
+
+- **A preview reads and never acts.** It says where a thread stands, what a link points
+  at, what caused a change or the time behind an age; a control's says its word and
+  every key that presses it, each as a key chip. Every preview wears one face, its name
+  and key chips on the first line and its detail under them. It stands over the page
+  beside what it previews, where the browser keeps it as the target moves, clear of
+  the target's focus ring and inside the window, covering none of the targets beside
+  it where a side is free of them, moves nothing around it
+  ("The page holds still under the user's aim") and holds no control. The pointer can
+  cross onto it and read it there (WCAG 1.4.13). Revealing a block's own controls, as Copy appears on a
+  code block, is no preview and stays its block's.
+- **Every route reads it.** A resting pointer reads it after a short dwell, keyboard
+  focus the user moved there themselves at once, by Tab or a keyboard walk, as whoever
+  moved focus says, but not focus a surface places as it opens or hands back as it
+  closes, and a finger by holding the press, whose release still presses; where
+  a surface can't take a hold, it says the words at rest, as a panel row's cut words
+  stand whole. So no fact is said to hover alone. A preview the user put away stays
+  away until they aim again, whatever the element declares meanwhile. A `title` is its
+  writer's: the browser's tooltip shows it to a pointer, and Leaf's preview to focus
+  and a finger, so two tooltips never stand together. Leaf's own controls declare
+  their words to the preview and write no title on Leaf.
+- **One owner shows every preview.** An element adds to what pointing at it reads
+  (`lfPreview`, `../skills/leaf/references/module-input.md`, "Previews"), a control's
+  word and keys come from its name and the register, and a range's owner says where
+  the pointer rests on it. `runtime/preview.js` shows one at a time on every route,
+  puts it away on leave, blur or a press, and gives a screen reader the words it shows
+  on focus as the focused element's description.
+  While one stands it is Escape's first step, which does nothing else, so a preview
+  over the surface the user is in never costs them that surface (WCAG 1.4.13). Check:
+  `test_a_control_previews_its_word_and_every_key_that_presses_it`.
 
 ### Visual treatment carries meaning
 
@@ -301,7 +339,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | External data                                                                                               | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                  |
 | Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`, `change-provenance.js`                              |
 | Repaint and geometry                                                                                        | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `shown-box.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js`             |
-| Chrome and available space                                                                                  | `chrome.js`, `floating-panel.js`, `page-layout.js`, `root-headers.js`, `page-controls.js`                                                                  |
+| Chrome and available space                                                                                  | `chrome.js`, `floating-panel.js`, `page-layout.js`, `root-headers.js`, `page-controls.js`, `preview.js`                                                    |
 | Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                         |
 | Keyboard                                                                                                    | `keyboard/AGENTS.md`                                                                                                                                       |
 | Focus and navigation                                                                                        | `focus.js`, `current-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js`, `change-walk.js`                    |
@@ -568,6 +606,8 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowWord`, `progressFace`, `todoWord`                    |
 | A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                             |
 | What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                    |
+| What an element (its `lfPreview`), control or range says when pointed at, on every route              | `preview.js` `pointRange`                                                          |
+| The keys that press a control                                                                         | `keyboard/control-keys.js` `controlKeys`                                           |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                              |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
 | The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |

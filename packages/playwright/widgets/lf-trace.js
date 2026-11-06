@@ -289,10 +289,10 @@ const playbackLayer = () =>
   });
 
 // A command row owns each transport button's activation and availability.
-/** @param {import("lit/directives/ref.js").Ref<HTMLButtonElement>} target @param {string} label @param {string} action @param {boolean} disabled @param {string} [title] */
-const transport = (target, label, action, disabled, title = label) =>
+/** @param {import("lit/directives/ref.js").Ref<HTMLButtonElement>} target @param {string} label @param {string} action @param {boolean} disabled */
+const transport = (target, label, action, disabled) =>
   html`<button
-    ${offeredAction("symbol", "lf-trace-transport-button", label, { title, action })}
+    ${offeredAction("symbol", "lf-trace-transport-button", label, { action })}
     ${ref(target)}
     ?disabled=${disabled}
   ></button>`;
@@ -1532,7 +1532,12 @@ export class Trace extends LeafElement {
     const percent = `${Math.round((this.#picture?.imageData.ratio ?? 1) * 100)}%`;
     const fitted = !this.#scopeView().image;
     keepsText(this.#nodes.zoomLabel, fitted ? "Fit" : percent);
-    keeps(this.#nodes.imageScale, "title", fitted ? `Fit · ${percent}` : percent);
+    // What the scale stands at, which its preview says beside its name (preview.js).
+    keeps(
+      this.#nodes.imageScale,
+      "aria-description",
+      fitted ? `Fit · ${percent}` : percent,
+    );
     for (const button of this.#nodes.imageScaleOptions.querySelectorAll("button"))
       keeps(
         button,
@@ -2074,21 +2079,37 @@ export class Trace extends LeafElement {
               : action.method === "keyboardUp"
                 ? `${action.input.key}↑`
                 : action.input.key,
-          title: `${this.#inputLabel(action)} · call ${span(action)}${send === null ? "" : ` · Action checkpoint ${this.#time(send, action.stream)}, just before it is sent`}`,
+          tip: {
+            name: this.#inputLabel(action),
+            detail: [
+              `Call ${span(action)}`,
+              ...(send === null
+                ? []
+                : [
+                    `Action checkpoint ${this.#time(send, action.stream)}, just before it is sent`,
+                  ]),
+            ],
+          },
         });
       } else
         calls.push({
           ...mark,
           label: action.method,
           error: !!action.error,
-          title: `${action.title} · ${span(action)}${action.error ? ` · ${action.error}` : ""}`,
+          tip: {
+            name: action.title,
+            detail: [span(action), ...(action.error ? [action.error] : [])],
+          },
         });
     }
     const moments = this.#scopeMoments().map((moment) => ({
       id: String(moment.number),
       number: moment.number,
       time: moment.time - origin,
-      title: `${moment.number} · ${moment.label} · ${this.#time(moment.time, moment.stream)}`,
+      tip: {
+        name: moment.label ?? `Moment ${moment.number}`,
+        detail: [`Moment ${moment.number} · ${this.#time(moment.time, moment.stream)}`],
+      },
       current: this.#momentSelected(moment),
     }));
     const captures = this.#items().map((item) => ({
@@ -2149,7 +2170,9 @@ export class Trace extends LeafElement {
         ? `Image from ${this.#time(shown.timestamp, shown.stream)}`
         : "";
     keepsText(this.#nodes.selectionLabel, selection);
-    keeps(this.#nodes.selectionLabel, "title", selection || null);
+    // Cut to its line, it says itself whole when pointed at.
+    this.#nodes.selectionLabel.lfPreview = () =>
+      selection ? { name: selection } : null;
     this.#drawInput();
   }
 
@@ -2350,14 +2373,8 @@ export class Trace extends LeafElement {
                       it at once (defaults.css, .lf-trace-play[data-lf-playing]). -->
                   ${actionTemplate("pause", "lf-action-icon")}
                 </button>
-                ${transport(
-                  this.#previous,
-                  "Previous",
-                  "previous",
-                  q,
-                  "Previous capture",
-                )}
-                ${transport(this.#next, "Next", "next", q, "Next capture")}
+                ${transport(this.#previous, "Previous capture", "previous", q)}
+                ${transport(this.#next, "Next capture", "next", q)}
               </div>
               <div class="lf-trace-position-row">
                 <span class="lf-trace-position" ${ref(this.#positionLabel)}></span
@@ -2378,7 +2395,7 @@ export class Trace extends LeafElement {
                   ${offered("")}
                   name=${`${this.id}-pace`}
                   aria-label="Playback pace"
-                  title="Review pace slows near recorded input and marked results, and speeds quiet intervals."
+                  aria-description="Review pace slows near recorded input and marked results, and speeds quiet intervals."
                   ?disabled=${q}
                   .value=${live(this.#pace)}
                   @change=${(/** @type {Event} */ event) => {
@@ -2500,7 +2517,11 @@ export class Trace extends LeafElement {
           </div>
         </div>
         <div class="lf-trace-capture-footer" ?hidden=${!trace}>
-          <p class="lf-trace-caption" title=${caption || nothing} ?hidden=${!extent}>
+          <p
+            class="lf-trace-caption"
+            .lfPreview=${() => (caption ? { name: caption } : null)}
+            ?hidden=${!extent}
+          >
             ${caption}
           </p>
           <a

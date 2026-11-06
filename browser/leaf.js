@@ -110,7 +110,7 @@ import { loadIcon, mountPageStatus } from "./runtime/page-status.js";
 import "./runtime/page-about.js";
 
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
-import { holdToRead } from "./runtime/held-word.js";
+import { mountPreviews } from "./runtime/preview.js";
 
 import { leavesOffered } from "./runtime/live-leaves.js";
 import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
@@ -726,7 +726,6 @@ async function boot() {
     mountPageStatus();
     floatingPanel.mount(chromeForeground);
     responseSurface.mount();
-    holdToRead();
     reactions.mount();
     targets.mount();
     drawing.mount();
@@ -774,6 +773,8 @@ async function boot() {
       reflectKeys,
     });
   }
+  // Exports keep previews too: a gloss or a timeline's marks say theirs there as well.
+  mountPreviews(chromeRoot);
 
   // Widget commands belong to interactive documents, including offline exports.
   // The register admits page and chrome commands only in a live document.

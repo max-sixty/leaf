@@ -103,41 +103,16 @@
   ) {
   background: color-mix(in srgb, var(--accent) 24%, var(--card));
 }
-/* A reaction's word, while a press on it is held or it has focus
-   (held-word.js): the focused or held reading of a face that is
-   otherwise one glyph. The word is the choice's own name, so it says what the accessible
-   name says, and it stands above the choice, where the finger pressing it does not cover
-   it. The press owns the gesture, so it neither scrolls nor opens the platform's
-   long-press menu. A reaction offered in the margin is a margin entry, which says its
-   word through its own label (the entry face, below) and, like every entry, lets a
-   finger that starts on it scroll the page. */
+/* A reaction says its word through its preview (runtime/preview.js), which a finger
+   reads by holding the choice, so the press owns the gesture: it neither scrolls nor
+   opens the platform's long-press menu. A reaction offered in the margin is a margin
+   entry, which, like every entry, lets a finger that starts on it scroll the page. */
 .lf-react {
   touch-action: none;
   -webkit-touch-callout: none;
   user-select: none;
   -webkit-user-select: none;
   position: relative;
-}
-:is(.lf-reaction, .lf-response-face[aria-pressed]):is(
-    [data-lf-held-word],
-    [data-lf-focus]
-  )::after {
-  content: attr(aria-label);
-  position: absolute;
-  z-index: 5;
-  inset-block-end: calc(100% + 6px);
-  inset-inline-start: 50%;
-  translate: -50% 0;
-  width: max-content;
-  max-width: 220px;
-  padding: var(--tip-pad);
-  border-radius: var(--tip-r);
-  background: var(--tip-bg);
-  color: var(--tip-ink);
-  box-shadow: var(--raise-1);
-  font: var(--font-tip);
-  white-space: nowrap;
-  pointer-events: none;
 }
 /* A reaction surface offers one quiet trigger. A token in force remains visible
    in a closed message strip as the user's receipt and eraser. */
@@ -342,6 +317,158 @@ svg[data-lf-icon] {
   background: var(--lf-ground);
   color: var(--ink);
   box-shadow: var(--raise-2);
+}
+/* A preview (runtime/preview.js): what pointing at a mark, control or value reads,
+   standing beside it over the page, in one face whatever it previews: the tooltip's
+   ground and ink (`--tip-*`, tokens.css), its name on the first line at the face's
+   weight with the key chips that press it, then each line of detail in the same type,
+   a step dimmer. The browser stands it by its source, the box it previews, which is
+   its implicit anchor (`showPopover({source})`): on the side the owner picks
+   (`data-lf-side`, below by default), by the gap that clears that box's ring
+   (`--lf-preview-gap`) and an edge's room from the window (`--lf-preview-edge`), in
+   logical terms, so it starts at a right-to-left target's right edge. Where the window
+   has no room there, it flips to the other end of the line, then the other side, then
+   centres across the window; taller than the room on either side, it is held to the
+   room below or above and its face scrolls. It goes with its source out of view. A
+   pointer's preview takes the pointer, so the pointer can cross onto it and read it
+   there (WCAG 1.4.13, "Hoverable"), unless it covers another target
+   (`data-lf-covers`); a focus's or a finger's takes none. It fades in for a pointer or
+   a finger, as a word that rose into place would move under nobody's input; under the
+   keyboard's focus it is there at once. A preview that quotes a block of the page,
+   such as the place a link opens, takes the excerpt room: the same face, wider. Five
+   fallbacks at most, since Chromium 156 tries no sixth (notes/browser-support.md). */
+.lf-preview {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  position-anchor: auto;
+  position-area: self-block-end span-self-inline-end;
+  margin-block: var(--lf-preview-gap) var(--lf-preview-edge);
+  margin-inline: 0 var(--lf-preview-edge);
+  position-try-fallbacks:
+    flip-inline,
+    flip-block,
+    flip-block flip-inline,
+    --lf-preview-under,
+    --lf-preview-over;
+  position-visibility: anchors-visible;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 16px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--tip-pad);
+  border: 0;
+  border-radius: var(--tip-r);
+  background: var(--tip-bg);
+  color: var(--tip-ink);
+  box-shadow: var(--raise-1);
+  font: var(--font-tip);
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 90ms ease;
+  @starting-style {
+    opacity: 0;
+  }
+}
+.lf-preview[data-lf-side="above"] {
+  position-area: self-block-start span-self-inline-end;
+  margin-block: var(--lf-preview-edge) var(--lf-preview-gap);
+}
+.lf-preview:is([data-lf-side="end"], [data-lf-side="start"]) {
+  margin-block: 0 var(--lf-preview-edge);
+}
+.lf-preview[data-lf-side="end"] {
+  position-area: self-inline-end span-self-block-end;
+  margin-inline: var(--lf-preview-gap) var(--lf-preview-edge);
+}
+.lf-preview[data-lf-side="start"] {
+  position-area: self-inline-start span-self-block-end;
+  margin-inline: var(--lf-preview-edge) var(--lf-preview-gap);
+}
+/* Centred across the window, as where the line is too narrow for either end, and held
+   to the room on its side where the preview is taller than it, at least a few lines,
+   its face scrolling. */
+@position-try --lf-preview-under {
+  position-area: self-block-end span-all;
+  margin-block: var(--lf-preview-gap) var(--lf-preview-edge);
+  margin-inline: var(--lf-preview-edge);
+  max-block-size: max(8em, calc(100% - var(--lf-preview-gap) - var(--lf-preview-edge)));
+}
+@position-try --lf-preview-over {
+  position-area: self-block-start span-all;
+  margin-block: var(--lf-preview-edge) var(--lf-preview-gap);
+  margin-inline: var(--lf-preview-edge);
+  max-block-size: max(8em, calc(100% - var(--lf-preview-gap) - var(--lf-preview-edge)));
+}
+.lf-preview[data-lf-route="pointer"]:not([data-lf-covers]) {
+  pointer-events: auto;
+}
+.lf-preview[data-lf-route="focus"] {
+  transition: none;
+}
+/* What stands for a target with no HTML box of its own, as a range's line, while its
+   preview shows: a box over it that nothing sees or hits, scrolling with the page. */
+.lf-preview-place {
+  position: absolute;
+  margin: 0;
+  pointer-events: none;
+}
+/* A list the owner fits to the room its face is held to (`fitList`, preview.js) clips
+   rather than scrolls, its count of the rest standing at the face's foot. */
+.lf-preview[data-lf-list] {
+  overflow: clip;
+}
+.lf-preview-more {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  padding: var(--tip-pad);
+  padding-block-start: 0;
+  background: var(--tip-bg);
+  color: color-mix(in srgb, var(--tip-ink) 76%, transparent);
+}
+.lf-preview[data-lf-face="excerpt"] {
+  max-width: min(26rem, calc(100vw - 16px));
+}
+.lf-preview-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  font-weight: 600;
+}
+.lf-preview-keys {
+  display: inline-flex;
+  gap: 2px;
+}
+/* Its key chips are the keys' own face, drawn in the tooltip's ink. */
+.lf-preview .lf-key-badge {
+  background: transparent;
+  border-color: color-mix(in srgb, currentColor 45%, transparent);
+  color: inherit;
+  font-weight: 400;
+}
+.lf-preview-detail {
+  display: block;
+  margin-block-start: 2px;
+  color: color-mix(in srgb, var(--tip-ink) 76%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lf-preview {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  .lf-preview {
+    border: 1px solid CanvasText;
+  }
+  .lf-preview-detail {
+    color: inherit;
+  }
 }
 /* The list is an auto popover, in the top layer: open, it stands over everything in
    the thread, the sticky title and reply row included, so its message is never raised
@@ -1274,119 +1401,19 @@ wa-copy-button.lf-icon-action {
 .lf-margin-entry-glyph {
   line-height: 1;
 }
-.lf-margin-face > .lf-margin-entry-space {
-  display: none;
-}
-.lf-margin-face > .lf-margin-entry-label {
-  position: absolute;
-  z-index: 3;
-  inset-block-start: calc(100% + 6px);
-  inset-inline-end: 0;
-  display: block;
-  width: max-content;
-  max-width: min(320px, 100vw - 8px);
-  padding: var(--tip-pad);
-  border-radius: var(--tip-r);
-  background: var(--tip-bg);
-  color: var(--tip-ink);
-  font: var(--font-tip);
-  white-space: normal;
-  overflow-wrap: anywhere;
-  box-shadow: var(--raise-1);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transform: translateY(-2px);
-  transition:
-    opacity 90ms ease,
-    transform 90ms ease,
-    visibility 0s linear 90ms;
-}
-.lf-margin-entry-label-word,
-.lf-margin-entry-context,
-.lf-margin-entry-more {
-  display: block;
-}
-/* The label is one line, cut where the tooltip's width runs out: most are a kind's
-   word, and an obligation's is its question, which the marker's accessible name also says. */
-.lf-margin-entry-label-word {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.lf-margin-entry-context,
-.lf-margin-entry-more {
-  margin-block-start: 2px;
-  color: color-mix(in srgb, var(--paper) 72%, transparent);
-  font: var(--font-fine);
-}
-/* A context of several lines breaks where its words say, as a change's says what its
-   version was saved after under what it did (change-provenance.js). */
-.lf-margin-entry-context {
-  white-space: pre-line;
-}
-/* What the entry's title says beyond the label, such as an agent's work on it. */
-.lf-margin-entry-more:empty {
-  display: none;
-}
-/* Inline controls keep their native label. Physical margin controls take the
-   geometry owner's placement, whose readiness gates their first visible paint. */
-.lf-margin-projection .lf-margin-face[data-lf-label-side] > .lf-margin-entry-label {
-  inset: auto;
-  left: var(--lf-label-x);
-  top: var(--lf-label-y);
-}
-/* Hover reveals the label after a short delay, only where the pointer really hovers: a
-   phone keeps the last tapped entry hovered until the next tap, so there the label
-   would outstay the tap. A finger holds the entry to read it instead (held-word.js),
-   and the focus a tap leaves behind says it only where the keyboard placed it, below. */
-@media (hover: hover) {
-  .lf-margin-face:hover:not([aria-expanded="true"]) > .lf-margin-entry-label {
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
-    transition-delay: 90ms;
-  }
-}
-/* A margin entry held under a press, or a focused destination, says its label at once.
-   Besides avoiding a needless delay for the user, this keeps a contribution that is
-   rebuilt while the margin projection settles from restarting three paint-only
-   transitions at time zero forever. */
-.lf-margin-face:is([data-lf-held-word], [data-lf-focus]:not([aria-expanded="true"]))
-  > .lf-margin-entry-label {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
-  transition: none;
-}
-@media (hover: none) {
-  .lf-margin-face[data-lf-focus]:not(:focus-visible, [data-lf-held-word])
-    > .lf-margin-entry-label {
-    opacity: 0;
-    visibility: hidden;
-  }
-}
-.lf-margin-projection
-  .lf-margin-face:not([data-lf-label-side])
-  > .lf-margin-entry-label {
-  opacity: 0;
-  visibility: hidden;
-  transition: none;
-}
-/* In the margin's projection a face is drawn with its label only while the label can
-   show: revealed, held, or placed by the geometry owner, which measures it drawn
-   (margin-layout.js, `placeMarginEntryLabel`). Its glyph, unread dot and count share
-   its one grid cell, the dot and count standing in its corner by alignment as their
-   insets stand them elsewhere, so the face is the containing block of its label alone,
-   and only while the label stands: Chromium's hit test visits every positioned box on
-   every call, and a page of 512 questions held a face for each. */
+/* An entry's label is its preview (runtime/preview.js, declared by
+   contribution-controls.js), standing over the page beside the entry. In the margin's
+   projection its glyph, unread dot and count share its one grid cell, the dot and count
+   standing in its corner by alignment as their insets stand them elsewhere, so no face
+   is a positioned box: Chromium's hit test visits every positioned box on every call,
+   and a page of 512 questions held a face for each. */
 .lf-margin-projection .lf-margin-face {
   position: static;
   display: inline-grid;
   place-content: normal;
   place-items: center;
 }
-.lf-margin-projection .lf-margin-face > :not(.lf-margin-entry-label),
+.lf-margin-projection .lf-margin-face > *,
 .lf-margin-projection .lf-margin-face[data-lf-unread]::after {
   grid-area: 1 / 1;
 }
@@ -1400,25 +1427,6 @@ wa-copy-button.lf-icon-action {
   align-self: start;
   justify-self: right;
   margin: -7px -7px 0 0;
-}
-.lf-margin-projection
-  .lf-margin-face:is(
-    :hover,
-    [data-lf-focus],
-    [data-lf-held-word],
-    [data-lf-label-side]
-  ) {
-  position: relative;
-}
-.lf-margin-projection
-  .lf-margin-face:not(
-    :hover,
-    [data-lf-focus],
-    [data-lf-held-word],
-    [data-lf-label-side]
-  )
-  > .lf-margin-entry-label {
-  display: none;
 }
 .lf-margin-count {
   position: absolute;

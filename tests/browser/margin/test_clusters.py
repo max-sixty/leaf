@@ -15,6 +15,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_harness import (
+    PREVIEW,
     RELEASE_FOCUS,
     _traffic,
     _until,
@@ -529,11 +530,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(more).to_be_visible()
     for button in (suggestion_item.locator("[data-lf-margin-entry-key=accept]"), more):
         expect(button).to_have_class(re.compile(r"lf-margin-entry"))
-    expect(
-        suggestion_item.locator(
-            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
-        )
-    ).to_be_hidden()
+    expect(page.locator(PREVIEW)).to_be_hidden()
     expect(
         suggestion_item.locator("[data-lf-margin-entry-key=accept]")
     ).to_have_attribute("data-lf-behavior", "action")
@@ -614,12 +611,12 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
 
     before_hover = more.bounding_box()
     more.hover()
-    expect(more.locator(".lf-margin-entry-label")).to_be_visible()
+    expect(page.locator(PREVIEW)).to_be_visible()
     assert more.bounding_box() == before_hover, (
         "the transient label moved its margin entry"
     )
     page.mouse.move(0, 0)
-    expect(more.locator(".lf-margin-entry-label")).to_be_hidden()
+    expect(page.locator(PREVIEW)).to_be_hidden()
 
     # In the rail; a pin's entries are smaller, since a pin covers what it stands on.
     shapes = page.locator(
@@ -659,7 +656,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(ok).to_have_attribute("aria-label", "keep")
     expect(ok).not_to_have_attribute("title", re.compile(".+"))
     ok.hover()
-    expect(ok.locator(".lf-margin-entry-label")).to_have_text("keep")
+    expect(page.locator(PREVIEW)).to_have_text("keep")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     page.evaluate(
         "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
@@ -678,29 +675,11 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     resized(page, 2400, 900)
     page.mouse.move(0, 0)
     page.evaluate("() => document.activeElement.blur()")
-    expect(
-        suggestion_item.locator(
-            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
-        )
-    ).to_be_hidden()
+    expect(page.locator(PREVIEW)).to_be_hidden()
     accept.hover()
-    expect(
-        suggestion_item.locator(
-            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
-        )
-    ).to_be_visible()
+    expect(page.locator(PREVIEW)).to_be_visible()
     page.mouse.move(0, 0)
-    expect(
-        suggestion_item.locator(
-            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
-        )
-    ).to_be_hidden()
-    accept.focus()
-    expect(
-        suggestion_item.locator(
-            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
-        )
-    ).to_be_visible()
+    expect(page.locator(PREVIEW)).to_be_hidden()
     page.mouse.move(0, 0)
     accept.focus()
     page.keyboard.press("e")
@@ -989,7 +968,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
         expect(primary).to_be_focused()
         expect(page.locator(f"#{target}")).to_have_attribute("data-lf-traced", "")
         primary.hover()
-        label = item.locator('[data-lf-margin-entry-key="save"] .lf-margin-entry-label')
+        label = page.locator(PREVIEW)
         expect(label).to_be_visible()
         box = label.bounding_box()
         assert box["x"] >= 0 and box["x"] + box["width"] <= width

@@ -745,7 +745,6 @@ export class MessageView {
         error: "Message not copied · select its words to copy",
       });
       this.#copy.tabIndex = -1;
-      this.#copy.title = "Copy as Markdown";
     }
     if (this.#copy.value !== markdown) this.#copy.value = markdown;
     return this.#copy;
@@ -754,7 +753,10 @@ export class MessageView {
   /** @param {ReturnType<typeof messageReading>["body"]} body @param {string | null} edited */
   #body(body, edited) {
     if (body.kind === "deleted")
-      return html`<div class="lf-msg-text lf-msg-deleted" title=${edited ?? ""}>
+      return html`<div
+        class="lf-msg-text lf-msg-deleted"
+        .lfPreview=${() => (edited ? { name: edited } : null)}
+      >
         ${voiced(DELETED)}
       </div>`;
     if (body.kind === "reaction")

@@ -47,7 +47,13 @@ import { describeFailure } from "../exception.js";
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeysWithin } from "../keyboard/scopes.js";
 import { keeps } from "../keeps.js";
-import { advertisesKeys, submitBindings, spell, PRESS } from "../keyboard/bindings.js";
+import {
+  advertisesKeys,
+  ariaBindings,
+  submitBindings,
+  spell,
+  PRESS,
+} from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce } from "../notifications.js";
 import { drawingThumbnail } from "./drawing-context.js";
@@ -190,15 +196,21 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
               })}
             </button>
             <button
-              ${offeredAction("mark", "lf-composer-drawing-undo", "Undo last stroke", { action: "undo" })}
+              ${offeredAction("mark", "lf-composer-drawing-undo", "Undo last stroke", {
+                action: "undo",
+              })}
               data-lf-corner
-              @mousedown=${/** @param {MouseEvent} event */ (event) => event.preventDefault()}
+              @mousedown=${
+                /** @param {MouseEvent} event */ (event) => event.preventDefault()
+              }
               @click=${drawing.undoStroke}
             ></button>
             <button
               ${offeredAction("mark", "", "Remove drawing", { action: "remove" })}
               data-lf-corner
-              @mousedown=${/** @param {MouseEvent} event */ (event) => event.preventDefault()}
+              @mousedown=${
+                /** @param {MouseEvent} event */ (event) => event.preventDefault()
+              }
               @click=${drawing.removeDrawing}
             ></button>
           </span>
@@ -206,7 +218,12 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
       : null,
     media.map(({ index, url }) => {
       const remove = html`<button
-        ${offeredAction("mark", "lf-composer-media-remove", `Remove attached image ${index + 1}`, { action: "remove" })}
+        ${offeredAction(
+          "mark",
+          "lf-composer-media-remove",
+          `Remove attached image ${index + 1}`,
+          { action: "remove" },
+        )}
         data-lf-corner
         @click=${() => removeMedia(index)}
       ></button>`;
@@ -342,6 +359,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const oneLine = ta.getAttribute("aria-multiline") === "false";
     const sendBindings = () => (oneLine ? ["Enter", "Mod+Enter"] : submitBindings());
     const sendKey = () => sendBindings().slice(0, 1).map(spell).join("");
+    // Where Return sends a box that holds lines, Shift+Return makes one.
+    /** @param {string} sendKeys */
+    const lineKeyOf = (sendKeys) =>
+      sendKeys === spell("Enter") && !oneLine ? spell("Shift+Enter") : "";
     // The editor is kept whole in Lit's Node part. A rewrite's submit root sits
     // beside its existing Discard control, without an extra layout box.
     const submitEnd = document.createComment("");
@@ -530,8 +551,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // Where Return sends a box that holds lines, the box says which key makes one,
       // beside the key that sends, so a writer meets Shift+Return before Return sends
       // half a message; the send control's tooltip says the same.
-      const lineKey =
-        sendKeys === spell("Enter") && !oneLine ? spell("Shift+Enter") : "";
+      const lineKey = lineKeyOf(sendKeys);
       const lineHint = focusedHere.value && !status ? lineKey : "";
       const entering = suffix && !focusedHere.value && !status ? enters() : "";
       const placeholder =
@@ -572,7 +592,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         else watchError.unobserve(ta);
       }
       const action = sendLabel();
-      const newline = lineKey ? ` · ${NEW_LINE} (${lineKey})` : "";
       const phase = dictationPhase();
       const live = phase === "starting" || phase === "listening";
       const failed = loadingFailure || dictation?.failure;
@@ -588,13 +607,13 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         type="button"
         ${offeredAction("symbol", `${sendClass} lf-compose-submit`.trim(), action, {
           action: actionWord(),
-          title: sendKeys ? `${action} (${sendKeys})${newline}` : action,
         })}
         ?data-lf-disc=${!submitIn}
         data-lf-tone="accent"
         aria-disabled=${String(!canSend())}
         ?data-lf-empty=${!hasWords}
         ?hidden=${micShown}
+        aria-keyshortcuts=${sendBindings().flatMap(ariaBindings).join(" ")}
         @mousedown=${keepEditing}
         @click=${() => pressed(send)}
       ></button>`;
@@ -640,7 +659,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
             type="button"
             ${offeredAction("symbol", "lf-compose-dictate", micAction, {
               action: "dictate",
-              title: live || !status ? micAction : `${micAction} (${status})`,
             })}
             ?hidden=${!micShown}
             data-lf-disc
@@ -648,7 +666,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
             data-lf-dictation=${dictationState}
             aria-pressed=${String(live)}
             aria-description=${status || nothing}
-            @mousedown=${/** @param {MouseEvent} event */ (event) => event.preventDefault()}
+            @mousedown=${
+              /** @param {MouseEvent} event */ (event) => event.preventDefault()
+            }
           ></button>`
         : nothing;
       const content = html`
@@ -658,7 +678,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           class="lf-compose-error"
           aria-hidden="true"
           ?hidden=${!error}
-          title=${error?.message ?? nothing}
+          .lfPreview=${() => (error ? { name: error.message } : null)}
           @pointerdown=${
             /** @param {PointerEvent} event */ (event) => {
               event.preventDefault();
@@ -675,7 +695,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
               type="button"
               ${offeredAction("word", "lf-compose-alt")}
               aria-disabled=${String(!canSend())}
-              title=${altLabel}
               @mousedown=${keepEditing}
               @click=${() => pressed(altSend)}
             >
@@ -760,6 +779,18 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     if (!visualField) throw new Error("Composition template has no field frame");
     sync.composition = () => ({ field: visualField, frame: field });
     sendBtn = (submitIn ?? field).querySelector("button.lf-compose-submit");
+    // The key that sends from the box is the box's own `text.send`, which sends rather
+    // than pressing Send, so the box says it beside Send: as a key chip in Send's
+    // preview (preview.js), with the key that makes a new line where Return sends, and
+    // in its `aria-keyshortcuts`, both from `sendBindings`.
+    if (sendBtn)
+      sendBtn.lfPreview = () => {
+        const line = advertisesKeys() ? lineKeyOf(sendKey()) : "";
+        return {
+          keys: [[sendKey()]],
+          detail: [line && html`${NEW_LINE} <kbd class="lf-key-badge">${line}</kbd>`],
+        };
+      };
     mic = field.querySelector("button.lf-compose-dictate");
     sync.button = sendBtn;
     whileConnected(field, (signal) => {

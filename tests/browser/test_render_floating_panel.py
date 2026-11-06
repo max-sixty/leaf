@@ -1625,10 +1625,10 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
 
 def test_a_pointer_press_on_the_joined_notice_lands_the_walk_on_its_row(browser, serve):
     """A pointer's or a finger's press on the notice lands the list's walk on the first
-    row it names, as Enter on it does. Where the user stood on a row of the list, focus
-    goes with the walk, since a focused row is where the walk stands; it stayed on the
-    old row, and the walk with it, while only the new row came into sight. Where the
-    caret is in the panel's field, the walk moves and the caret stays."""
+    row it names, as Enter on it does. Where the user stood on a row of the list, or on
+    the view itself, as Escape from Threads' search leaves them, focus goes with the
+    walk, since the arrows walk from focus there. Where the caret is in the panel's
+    field, the walk moves and the caret stays."""
     url = serve(LONG_PAGE, comments=3)
     page = floating(browser, url)
     dev_browser.go_to_threads(page)
@@ -1648,6 +1648,17 @@ def test_a_pointer_press_on_the_joined_notice_lands_the_walk_on_its_row(browser,
     expect(joined).to_be_focused()
     expect(joined).to_have_attribute("tabindex", "0")
     expect(stood).to_have_attribute("tabindex", "-1")
+
+    page.keyboard.press("/")
+    page.keyboard.press("Escape")
+    expect(page.locator(panel_view("threads"))).to_be_focused()
+    panel_comment(serve.page_dir, "Is the retry window documented?", author="agent")
+    told(page)
+    expect(notice).to_have_attribute("title", "1 new thread")
+    notice.click()
+    searched = rows.filter(has_text="Is the retry window documented?")
+    expect(searched).to_be_focused()
+    expect(searched).to_have_attribute("tabindex", "0")
 
     field(page).click()
     panel_comment(serve.page_dir, "Does the summary need a date?", author="agent")

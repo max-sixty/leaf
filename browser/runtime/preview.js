@@ -111,11 +111,14 @@
    a chart's point, takes no pointer either, wherever it stands, so the pointer goes on
    reading the element beneath it: what it covers there, as the chart's next point, is
    that element's own, which no side's room is tested against, since only other
-   controls and what the preview is about are. Each length is compared at the precision layout keeps, so a room
-   and the line it is asked to hold, read off two boxes at one edge, are one length. A
-   target thinner than the grid's step can stand under it unseen, and some of Leaf's
-   own are thinner, as the trace timeline's marks are, which declare their lane as what
-   they are about so their previews keep clear of it. No sampling proves a target
+   controls and what the preview is about are. A pointer over the box of a preview that
+   lets it through, and over no other target, still keeps the preview, as one on a
+   preview that takes it does, so a pointer crossing from a point to its words keeps
+   them past the element's edge. Each length is compared at the precision layout keeps,
+   so a room and the line it is asked to hold, read off two boxes at one edge, are one
+   length. A target thinner than the grid's step can stand under it unseen, and some of
+   Leaf's own are thinner, as the trace timeline's marks are, which declare their lane
+   as what they are about so their previews keep clear of it. No sampling proves a target
    absent, so that is the grid's stated limit, as the holder's own box, which it
    doesn't test, is its bound on cost.
 
@@ -672,6 +675,8 @@ let rest = { x: NaN, y: NaN };
 // pointer's to read.
 /** @type {Node | null} */
 let beneath = null;
+// Whether the pointer rides a preview that lets it through (`ride`).
+let riding = false;
 
 // What `from` previews on `route`.
 /** @param {Element} from @param {Route} route
@@ -1327,6 +1332,7 @@ function ended(record) {
 // one that reaches another target shows that one at once.
 /** @param {Element | null} target */
 function point(target) {
+  riding = false;
   if (target === pointing) return;
   clearTimeout(leaving);
   // The pointer reaching another target, or leaving one, is an aim of its own.
@@ -1347,6 +1353,21 @@ function point(target) {
     }, DWELL);
 }
 
+// A preview that lets the pointer through (`data-lf-covers`) holds it as one that takes
+// it does while the pointer is over its box and over no other target: it rides the
+// preview, its target's still, until it leaves the box (WCAG 1.4.13, "Hoverable"). So a
+// pointer crossing from a chart's point to the words above it, past the chart's edge,
+// keeps them.
+const overTip = () =>
+  shown?.route === "pointer" &&
+  tip.hasAttribute("data-lf-covers") &&
+  holds(tip.getBoundingClientRect(), rest.x, rest.y);
+function ride() {
+  clearTimeout(leaving);
+  pointing = /** @type {Shown} */ (shown).from;
+  riding = true;
+}
+
 // Put the standing preview away for its target, until the user comes to another.
 function quieten() {
   clearTimeout(dwell);
@@ -1361,7 +1382,8 @@ function quieten() {
 // it after the dwell, unless the user put its preview away. Focus on it opens none for
 // a redraw. Where the user aimed at something new inside it (`aim`), as a chart's next
 // point, the aim is a new target: whatever put the last preview away, the route reading
-// the element shows it, focus included.
+// the element shows it, focus the browser shows included; focus a press put there
+// without showing it leaves the aim to the pointer.
 // What changed is the element that supplied the reading, its owner, which may stand
 // around what the route aims at, as a widget declares for the control in it that holds
 // focus.
@@ -1381,7 +1403,7 @@ function changed(node, aim) {
       hold.target = node;
       show(node, "hold");
     }
-  } else if (aim && on && within(on)) showFocus(on);
+  } else if (aim && on && within(on) && on.matches(":focus-visible")) showFocus(on);
   else if (beneath && under(beneath, node) && !within(quiet)) {
     pointing = null;
     point(node);
@@ -1477,7 +1499,8 @@ export function mountPreviews(chrome) {
         pointing = found;
         clearTimeout(dwell);
         if (shown?.route === "pointer" && shown.from !== pointing) hide();
-      } else point(found);
+      } else if (!found && overTip()) ride();
+      else point(found);
     },
     { capture: true, passive: true },
   );
@@ -1485,6 +1508,7 @@ export function mountPreviews(chrome) {
     "pointermove",
     (event) => {
       rest = { x: event.clientX, y: event.clientY };
+      if (riding && !overTip()) point(null);
     },
     { capture: true, passive: true },
   );

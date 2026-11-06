@@ -1213,6 +1213,111 @@ def test_the_pointer_reads_the_point_its_preview_stands_over(engine, request, se
     expect(preview.locator(".lf-preview-word")).to_have_text("run 3")
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_reading_stays_while_the_pointer_crosses_onto_it_past_the_chart(
+    engine, request, serve
+):
+    """A high point's six lines stand above the chart's top. The pointer moving from
+    the point up onto them crosses the chart's edge and keeps them and the ring; moving
+    off them puts both away."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "tall",
+                f'<h1 id="t">Tasks</h1>{TALL}<p style="height: 1200px">After.</p>',
+            )
+        ),
+    )
+    chart = page.locator("#tall")
+    preview = page.locator(PREVIEW)
+    ring = chart.locator(".lf-chart-at circle")
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+    box = dots.nth(1).bounding_box()
+    high = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.move(high[0] - 4, high[1])
+    page.mouse.move(*high)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
+    tip = preview.bounding_box()
+    drawing = chart.locator("svg[role=img]").bounding_box()
+    assert tip["y"] < drawing["y"] - 20, (
+        "the reading doesn't reach past the chart",
+        tip,
+    )
+    lines = (tip["x"] + 12, tip["y"] + 12)
+    for step in range(1, 11):
+        page.mouse.move(
+            high[0] + (lines[0] - high[0]) * step / 10,
+            high[1] + (lines[1] - high[1]) * step / 10,
+        )
+    page.wait_for_timeout(400)
+    assert said(page) == ["Higher", *(f"line {n}" for n in range(2, 7))]
+    expect(ring).to_be_visible()
+    page.mouse.move(2, 2)
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_after_a_click_on_the_chart_the_next_point_shows_its_preview(
+    engine, request, serve
+):
+    """A press on the chart puts its preview away and gives it focus the browser doesn't
+    show; the pointer moving on to another point reads that point."""
+    page = open_page(request.getfixturevalue(engine), serve(VALUES_PAGE))
+    chart = page.locator("#hours")
+    preview = page.locator(PREVIEW)
+    expect(chart.locator("svg[role=img]")).to_be_visible()
+    page.mouse.move(*column(page, "hours", "w2", 0.2))
+    page.mouse.move(*column(page, "hours", "w2", 0.15))
+    expect(preview.locator(".lf-preview-detail")).to_have_text(
+        ["kind fixes", "hours 14"]
+    )
+    page.mouse.down()
+    page.mouse.up()
+    expect(preview).to_be_hidden()
+    expect(chart).to_be_focused()
+    page.mouse.move(*column(page, "hours", "w1", 0.85))
+    expect(preview.locator(".lf-preview-detail")).to_have_text(
+        ["kind features", "hours 21"]
+    )
+    expect(preview).to_have_attribute("data-lf-route", "pointer")
+
+
+def test_a_held_reading_kept_in_a_gap_stays_as_the_window_resizes(browser, serve):
+    """A finger holds a point and slides into the drawing where no point is within
+    reach, which keeps the reading; the window changing size reads the preview again and
+    keeps the same point. Chromium alone: Playwright holds no finger in Firefox."""
+    context = browser.new_context(has_touch=True)
+    page = open_page(browser, serve(VALUES_PAGE), context=context)
+    preview = page.locator(PREVIEW)
+    ring = page.locator("#hours .lf-chart-at circle")
+    expect(page.locator("#hours svg[role=img]")).to_be_visible()
+    cdp = context.new_cdp_session(page)
+
+    def touch(kind, at=None):
+        points = [{"x": at[0], "y": at[1]}] if at else []
+        cdp.send("Input.dispatchTouchEvent", {"type": kind, "touchPoints": points})
+
+    start = column(page, "hours", "w2")
+    touch("touchStart", start)
+    page.wait_for_timeout(600)
+    long_press(page, {"x": start[0], "y": start[1]})
+    expect(preview).to_be_visible()
+    for step in range(1, 5):
+        touch("touchMove", (start[0] - 20 * step, start[1]))
+    page.wait_for_timeout(300)
+    assert said(page) == ["week w2", "kind fixes", "hours 14"]
+    size = page.viewport_size
+    page.set_viewport_size({"width": size["width"], "height": size["height"] + 1})
+    page.wait_for_timeout(400)
+    assert said(page) == ["week w2", "kind fixes", "hours 14"]
+    expect(ring).to_be_visible()
+    touch("touchEnd")
+
+
 def test_a_second_hold_on_the_same_point_reads_it_again(browser, serve):
     """A finger holds a point and lifts, leaving its preview standing; holding the same
     point again puts that preview away and reads the point again at the long press.

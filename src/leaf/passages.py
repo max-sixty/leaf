@@ -256,12 +256,14 @@ class _OwnedWords:
         return self.parts
 
 
-# The tags whose text is one block: one space goes between two runs of text in
-# different blocks and none between runs that share one.
-TEXT_BLOCK_TAGS = frozenset(kernel_passages()["blocks"])
-# The tags HTML draws inline, whose text reads in the block of the element around them,
-# as the runtime's `segmentTextBlock` reads it.
-INLINE_TAGS = frozenset(kernel_passages()["inline"])
+# The elements whose words run into the words beside them: HTML's phrasing content less
+# those drawn as boxes of their own (`$passages.apart`), as the runtime's `enter` reads
+# it. Every other element, a text block among them, and a widget unless it is declared
+# `x-inline`, reads its words apart from those around it: one space goes between two
+# runs of words read in different elements and none between runs read in one.
+JOINS_WORDS_TAGS = frozenset(kernel_passages()["phrasing"]) - frozenset(
+    kernel_passages()["apart"]
+)
 # Text no anchor can reach: executable/style content and native field defaults.
 # head is outside the browser's tree altogether, which starts at document.body —
 # without it a page's <title> would be quotable and land nowhere.
@@ -321,7 +323,7 @@ class _PassageParser:
         self.bearing = (
             set()
         )  # ids still showing something: text under them, or a surviving child
-        self.stack = []  # [{"tag", "id", "ids", "skip", "sub", "opaque", "editable", "fenced", "retired_by", "tb", "block", "tail"}]
+        self.stack = []  # [{"tag", "id", "ids", "skip", "sub", "opaque", "editable", "fenced", "retired_by", "block", "tail"}]
         self._uid = 0
         self._block = None  # the block the last character came from
         self._space = False  # a separator waiting for a character to follow it
@@ -368,12 +370,11 @@ class _PassageParser:
         self.fences.add(len(self.chars))
 
     def _said(self, frame: dict, values: list) -> None:
-        # renderSaid puts each value in its own <span>, so each is its own block wherever
-        # the widget sits outside a text block — the same rule, applied to the span.
+        # renderSaid puts each value in a <span> of its own, drawn as its element's
+        # caption, label or popover rather than among its words, so each reads apart, as
+        # the runtime's `enter` reads a `SAID` span.
         for value in values:
-            self._write(
-                value, frame["tb"] if frame["tb"] else self._fresh(), frame["ids"]
-            )
+            self._write(value, self._fresh(), frame["ids"])
 
     def _close(self, frame: dict) -> None:
         """Everything an element's end does, whether it was written or inferred — an
@@ -422,19 +423,8 @@ class _PassageParser:
         if tag in VOID_TAGS:
             return
         entry = self.registry.get(tag) or {}
-        # The innermost open text block, if any: the runtime's `closest(TEXT_BLOCK)`.
-        tb = (
-            self._fresh()
-            if tag in TEXT_BLOCK_TAGS
-            else (parent["tb"] if parent else None)
-        )
-        block = (
-            tb
-            if tb
-            else parent["block"]
-            if parent and tag in INLINE_TAGS
-            else self._fresh()
-        )
+        joins = tag in JOINS_WORDS_TAGS or bool(entry.get("x-inline"))
+        block = parent["block"] if parent and joins else self._fresh()
         if entry.get("x-upgrade"):
             for ancestor in reversed(self.stack):
                 if ancestor["verbatim"]:
@@ -524,11 +514,12 @@ class _PassageParser:
             "upgrade": bool(entry.get("x-upgrade")),
             "verbatim": provenance,
             "fenced": opaque or bool(parent and parent["opaque"]) or editing_boundary,
-            "tb": tb,
-            # …and where there is none, the nearest element around that HTML doesn't
-            # draw inline, which is what the runtime falls back to: fresh for each such
-            # element, its parent's for an inline one, so `a<em>b</em>c` reads as one
-            # block under a <div> as under a <p>, and `<div>a</div><div>b</div>` as two.
+            # The element its words are read in, as the runtime's walk carries it
+            # (`enter`, `words`): fresh for every element whose words stand apart, a
+            # text block among them, its parent's for one that joins them
+            # (`JOINS_WORDS_TAGS`), so `a<em>b</em>c` reads as one run under a <div> as
+            # under a <p>, `<div>a</div><div>b</div>` as two, and a <button>'s label
+            # apart from the words beside it.
             "block": block,
             "tail": [],
         }

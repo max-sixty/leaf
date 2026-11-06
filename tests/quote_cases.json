@@ -1,5 +1,5 @@
 {
-  "about": "Quote resolution's cases, which the browser's findQuote (passages.js) and the file's resolve_quote (anchor_capture.py) both answer: how many letters of the section, its words without the space between them, stand before the passage each resolves the anchor to, or null where it names none. A case's `registry` adds to the layer's, and its `stage` gives each tag the shadow tree the browser stages for it, its light children slotted there.",
+  "about": "Quote resolution's cases, which the browser's findQuote (passages.js) and the file's resolve_quote (anchor_capture.py) both answer: how many letters of the section, its words without the space between them, stand before the passage each resolves the anchor to, or null where it names none. A case's `registry` adds to the layer's, the browser rendering each `x-says` value it declares, and its `stage` gives each tag the shadow tree the browser stages for it, its light children slotted there, or `true` to stage the host's own children.",
   "cases": [
     {
       "id": "a copy a fence parts is passed by, and the next starts past it",
@@ -181,6 +181,117 @@
         "quote": "alpha beta"
       },
       "before": 0
+    },
+    {
+      "id": "an output runs into the words beside it",
+      "markup": "<div id=\"s\">alpha<output>beta</output>gamma</div>",
+      "anchor": {
+        "section": "s",
+        "quote": "alphabetagamma"
+      },
+      "before": 0
+    },
+    {
+      "id": "a ruby's base runs into the words before it",
+      "markup": "<div id=\"s\">alpha<ruby>beta<rt>delta</rt></ruby>gamma</div>",
+      "anchor": {
+        "section": "s",
+        "quote": "alphabeta"
+      },
+      "before": 0
+    },
+    {
+      "id": "words a widget's slot draws run together",
+      "markup": "<div id=\"s\"><lf-gap-slot><span>alpha</span><span>beta</span></lf-gap-slot></div>",
+      "anchor": {
+        "section": "s",
+        "quote": "alphabeta"
+      },
+      "before": 0,
+      "registry": {
+        "lf-gap-slot": {
+          "x-shadow": true
+        }
+      },
+      "stage": {
+        "lf-gap-slot": "<p><slot></slot></p>"
+      }
+    },
+    {
+      "id": "a button's label stands apart from the words beside it",
+      "markup": "<p id=\"s\">alpha<button>beta</button>gamma</p>",
+      "anchor": {
+        "section": "s",
+        "quote": "alpha beta gamma"
+      },
+      "before": 0
+    },
+    {
+      "id": "two staged widgets side by side read apart",
+      "markup": "<div id=\"s\"><lf-word><span>alpha</span></lf-word><lf-word><span>beta</span></lf-word></div>",
+      "registry": {
+        "lf-word": {
+          "x-shadow": true
+        }
+      },
+      "stage": {
+        "lf-word": true
+      },
+      "anchor": {
+        "section": "s",
+        "quote": "alpha beta"
+      },
+      "before": 0
+    },
+    {
+      "id": "two staged widgets side by side are not one word",
+      "markup": "<div id=\"s\"><lf-word><span>alpha</span></lf-word><lf-word><span>beta</span></lf-word></div>",
+      "registry": {
+        "lf-word": {
+          "x-shadow": true
+        }
+      },
+      "stage": {
+        "lf-word": true
+      },
+      "anchor": {
+        "section": "s",
+        "quote": "alphabeta"
+      },
+      "before": null
+    },
+    {
+      "id": "a said label stands apart from its element's words",
+      "markup": "<div id=\"s\"><lf-said-label label=\"Head\">body words</lf-said-label></div>",
+      "registry": {
+        "lf-said-label": {
+          "x-says": {
+            "label": "before"
+          }
+        }
+      },
+      "anchor": {
+        "section": "s",
+        "quote": "Head body"
+      },
+      "before": 0
+    },
+    {
+      "id": "a said tip stands apart from its phrase in a text block",
+      "markup": "<p id=\"s\">lead <lf-said-tip tip=\"Tip\">gloss</lf-said-tip> tail</p>",
+      "registry": {
+        "lf-said-tip": {
+          "x-says": {
+            "tip": "after"
+          },
+          "x-inline": true
+        }
+      },
+      "anchor": {
+        "section": "s",
+        "quote": "gloss Tip"
+      },
+      "before": 4
     }
   ]
 }

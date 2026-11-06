@@ -132,7 +132,7 @@ import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
 import { presentDocument, readPart } from "./semantic-state.js";
-import { COLLAPSE, INLINE, TEXT_BLOCK } from "./kernel-facts.js";
+import { COLLAPSE, JOINS_WORDS, TEXT_BLOCK } from "./kernel-facts.js";
 import { textUnits } from "./text-alignment.js";
 import { excerptWords } from "./words.js";
 import { union } from "./rect.js";
@@ -140,10 +140,10 @@ import { union } from "./rect.js";
 /** @typedef {{el: Element, editing: boolean, up: CellChain | null}} CellChain
  * @typedef {{chrome: boolean, silenced: boolean, generated: boolean,
  * gen: Element | null, block: Element | null, textBlock: Element | null,
- * island: Element | null, cells: CellChain | null}} ReadingContext
+ * words: Element | null, island: Element | null, cells: CellChain | null}} ReadingContext
  * @typedef {{node: Text, start: number, end: number, block: Element | null,
- * textBlock: Element | null, gen: Element | null, breakBefore?: boolean,
- * lineBefore?: string, whiteSpace?: string}} Segment
+ * textBlock: Element | null, words: Element | null, gen: Element | null,
+ * breakBefore?: boolean, lineBefore?: string, whiteSpace?: string}} Segment
  * @typedef {Segment & {rawStart: number}} IndexedSegment
  * @typedef {{raw: string, positions: WeakMap<Text, number>,
  * fences: number[], segments: IndexedSegment[], blocks?: Element[]}} PageReading
@@ -421,14 +421,15 @@ const frameOf = (node) => {
 // read at one element (`enter`): whether it is chrome or a declared label, the nearer
 // deciding (`uiInside`'s rule); whether it silences what it holds (`silences`); whether
 // an upgrade generated it (`GENERATED`); which generated element and which text block
-// the words stand in; and whether it is one of the passage cells `pageText` fences on.
+// the words stand in, and which element they are read in (`words`); and whether it is
+// one of the passage cells `pageText` fences on.
 // Carried down, each element answers once for everything under it; asked per text node,
 // the same answers came from a climb apiece, most of them to the body.
 //
 // Three of the facts stop at a shadow boundary and the rest cross it, because that is
 // how the readings they carry are defined: `closest` for chrome, silence and the
-// generated marks, the climb through hosts (`closestAcross`, `upFrom`) for blocks and
-// cells. A declared root therefore starts its tree-local facts over (`crossed`).
+// generated marks, the climb through hosts (`closestAcross`, `upFrom`) for blocks, the
+// element words are read in and cells. A declared root therefore starts its tree-local facts over (`crossed`).
 //
 // The same rules asked of one element are `contextAt`: the element's ancestors folded
 // through `enter` from the top. A walk starts from it at its root, and the page reading's
@@ -442,6 +443,7 @@ const NO_CONTEXT = Object.freeze({
   gen: null,
   block: null,
   textBlock: null,
+  words: null,
   island: null,
   cells: null,
 });
@@ -500,6 +502,15 @@ const isEditing = (el) => el !== null && isHTML(el) && el.isContentEditable;
 // point query's ancestors above the reading's frame, where chrome and the generated
 // marks are somebody else's (`frameOf`). An element that starts nothing — most spans,
 // links and wrappers — hands its parent's context down unchanged.
+//
+// `words` is the element the words under it are read in: the nearest one whose words
+// are not the words beside it, which every element is but those that join them
+// (`JOINS_WORDS`, a widget declared `x-inline`). Two runs of words read in different
+// elements are parted by a space; in one, by none, so `<span>one</span><span>two</span>`
+// reads "onetwo" wherever it stands, and two widgets side by side read apart, whatever
+// tree their words are drawn in. A said value (`SAID`) reads apart too, though its
+// element is a <span>: it is drawn as its element's caption, label or popover, never
+// among the element's words, and the file reads it so (`_said` in passages.py).
 /** @param {ReadingContext} ctx @param {Element} el @param {boolean} [inFrame] @returns {ReadingContext} */
 function enter(ctx, el, inFrame = true) {
   const marked = el.hasAttributes() && el.matches(MARKS);
@@ -508,7 +519,10 @@ function enter(ctx, el, inFrame = true) {
   const editing = editingBoundary(el);
   const cell = opaque(el) || editing || (marked && el.matches(GEN) && unmodelled(el));
   const silent = !ctx.silenced && silences(el);
-  if (!marked && !block && !cell && !silent) return ctx;
+  const apart =
+    (!JOINS_WORDS.has(el.localName) && !registry[el.localName]?.["x-inline"]) ||
+    (marked && el.matches(SAID));
+  if (!marked && !block && !cell && !silent && !apart) return ctx;
   const chrome = (marked && inFrame ? chromeMark(el) : null) ?? ctx.chrome;
   const generated = ctx.generated || (marked && inFrame && el.matches(GENERATED));
   return {
@@ -518,6 +532,7 @@ function enter(ctx, el, inFrame = true) {
     gen: marked && el.matches(GEN) ? el : ctx.gen,
     block: block ? el : ctx.block,
     textBlock: textBlock ? el : ctx.textBlock,
+    words: apart ? el : ctx.words,
     island: marked && el.matches(ISLAND) ? el : ctx.island,
     cells: cell ? { el, editing, up: ctx.cells } : ctx.cells,
   };
@@ -556,6 +571,7 @@ const segmentIn = (node, ctx) => ({
   end: node.data.length,
   block: ctx.block ?? (ctx.island ? upFrom(ctx.island) : null),
   textBlock: ctx.textBlock ?? (ctx.island ? upFrom(ctx.island) : null),
+  words: ctx.words,
   gen: ctx.gen,
 });
 // Which text each named reading keeps. `says` skips the runtime's own words and whatever
@@ -623,10 +639,13 @@ function walk(root, onText, skip = null, onBreak = null, onElement = null) {
     } else if (isHTML(child, "slot")) {
       passed.set(child, inner);
       onElement?.(child, inner, true);
+      // In its light context, but read among the words where the slot draws it.
+      /** @param {Node} node */
+      const drawn = (node) => ({ ...contextOver(node), words: inner.words });
       for (const assigned of child.assignedNodes({ flatten: true }))
         isText(assigned)
-          ? onText(assigned, contextOver(assigned))
-          : isElement(assigned) && visitElement(assigned, contextOver(assigned));
+          ? onText(assigned, drawn(assigned))
+          : isElement(assigned) && visitElement(assigned, drawn(assigned));
       onElement?.(child, inner, false);
     } else {
       // Assigned elements enter their own declared root exactly as ordinary
@@ -958,18 +977,12 @@ export const blockAt = (node) => {
 // else the element holding the text (the walk refuses text with none).
 /** @param {Segment} segment */
 export const segmentBlock = (segment) => segment.block ?? segment.node.parentElement;
-// Typography follows the HTML text blocks, independently of projected datum identity.
-// Text in no text block reads in the nearest element around it that HTML doesn't draw
-// inline (the kernel's `inline` tags), so words in two spans side by side are one word
-// wherever the spans stand, and only a block's end or a line break parts them
-// (passages.py reads the same).
-/** @param {Segment} segment */
-const segmentTextBlock = (segment) => {
-  if (segment.textBlock) return segment.textBlock;
-  let at = segment.node.parentElement;
-  while (at && INLINE.has(at.localName)) at = at.parentElement;
-  return at;
-};
+// Whether the reading reads a space between two runs of words: a line break between
+// them, or their being read in different elements (`enter`, `words`). passages.py reads
+// the same.
+/** @param {Segment} segment @param {Segment} previous */
+const spacedFrom = (segment, previous) =>
+  Boolean(segment.breakBefore) || segment.words !== previous.words;
 const COLLAPSIBLE = new RegExp(`^(?:${COLLAPSE.source})$`, "u");
 
 // The normalized reading and, when requested, one DOM span for each character in it.
@@ -1014,10 +1027,7 @@ function readSegments(segments, mapCharacters, visit, after) {
   };
   let previous = after;
   for (const seg of segments) {
-    if (
-      previous &&
-      (seg.breakBefore || segmentTextBlock(seg) !== segmentTextBlock(previous))
-    ) {
+    if (previous && spacedFrom(seg, previous)) {
       const point = { node: seg.node, offset: seg.start };
       push(" ", point, point);
     }
@@ -1790,8 +1800,7 @@ function readPage() {
       if (cell !== previousCell && (cell || previousCell)) fences.add(length);
       // A space where the reading reads one (`readSegments`), else an edge.
       const previous = /** @type {Segment} */ (segments[k - 1]);
-      const spaced =
-        seg.breakBefore || segmentTextBlock(seg) !== segmentTextBlock(previous);
+      const spaced = spacedFrom(seg, previous);
       parts.push(spaced ? " " : EDGE);
       length += 1;
     }
@@ -2039,6 +2048,7 @@ function changedSpan(was, now) {
     x.rawStart + by === y.rawStart &&
     x.block === y.block &&
     x.textBlock === y.textBlock &&
+    x.words === y.words &&
     x.gen === y.gen;
   let from = 0;
   while (from < shorter && a.charCodeAt(from) === b.charCodeAt(from)) from++;

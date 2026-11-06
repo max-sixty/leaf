@@ -6327,6 +6327,83 @@ def test_page_search_finds_words_two_spans_run_together_outside_a_text_block(
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_page_search_finds_words_an_output_runs_into(engine, request, serve):
+    """Page search finds the one word an `<output>` and the words beside it show, with
+    nothing between them, as the page draws it and the browser's own find finds it."""
+    url = serve(
+        leaf_page(
+            "Output",
+            '<div id="joined">alpha<output>beta</output>gamma</div>'
+            + "<p>More.</p>" * 4,
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("alphabetagamma")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_page_search_reads_two_staged_widgets_side_by_side_apart(
+    engine, request, serve
+):
+    """Two widgets side by side, each staging its words in a shadow tree, read apart, as
+    they did before they staged and as the file's reading reads them: page search
+    finds their words with a space between them."""
+    url = serve(
+        leaf_page(
+            "Two stages",
+            '<div id="pair"><lf-late-stage id="one"><span>alpha</span></lf-late-stage>'
+            '<lf-late-stage id="two"><span>beta</span></lf-late-stage></div>'
+            + "<p>More.</p>"
+            * 4,
+        ),
+        layer_registry={"lf-late-stage": VERBATIM_STAGE},
+        layer_widgets={"lf-late-stage.js": STAGED_ON_CONNECT},
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function("() => document.getElementById('two')?.shadowRoot")
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("alpha beta")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_page_search_reads_a_said_label_apart_from_its_elements_words(
+    engine, request, serve
+):
+    """A declared `x-says` label, drawn as its element's caption, reads apart from the
+    words the element holds, as the file's reading reads it: page search finds the two
+    with a space between them."""
+    url = serve(
+        leaf_page(
+            "Said label",
+            '<div id="pair"><lf-said-label id="said" label="Head">body words'
+            "</lf-said-label></div>" + "<p>More.</p>" * 4,
+        ),
+        layer_registry={
+            "lf-said-label": {
+                "description": "Words with a label the runtime says before them.",
+                "type": "object",
+                "properties": {"id": {"type": "string"}, "label": {"type": "string"}},
+                "required": ["id"],
+                "additionalProperties": False,
+                "x-content": "markup",
+                "x-upgrade": False,
+                "x-says": {"label": "before"},
+                "x-example": '<lf-said-label id="example" label="Head">Words.'
+                "</lf-said-label>",
+            }
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function("() => document.querySelector('#said > [data-lf-said]')")
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("Head body")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+
+
 # A thread's quote inside a staged widget, scoped to the element around the widget.
 STAGED_QUOTE = (
     '<div id="around"><p>Before the widget.</p><lf-late-stage id="late">'

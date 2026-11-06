@@ -321,6 +321,23 @@ test("a line break assigned to a shadow slot separates its words", () => {
   assert.equal(pageText().raw, "Alpha Beta");
 });
 
+// What a slot takes is drawn among the words around the slot, so it runs into them as the
+// words of a span would; a widget's own words stand apart from those beside it.
+test("words a slot draws run into the words around the slot", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "passage-slotted-words" },
+  });
+  document.body.innerHTML = "<main><p>Before<lf-staged></lf-staged>after</p></main>";
+  const host = document.querySelector("lf-staged");
+  const staged = document.createElement("template");
+  staged.innerHTML = "<span>alpha<slot></slot>gamma</span>";
+  shadowStage(host, [...staged.content.childNodes]);
+  host.innerHTML = "<em>beta</em>";
+  assert.equal(says(host.shadowRoot), "alphabetagamma");
+  assert.equal(pageText().raw.replaceAll("\u0000", ""), "Before alphabetagamma after");
+});
+
 test("a selection in nested slots keeps exactly the rendered words it covers", () => {
   Object.assign(registry, {
     "lf-staged": { "x-shadow": true },

@@ -231,8 +231,9 @@ playable").
   every key that presses it, each as a key chip. Every preview wears one face, its name
   and key chips on the first line and its detail under them. It stands over the page
   beside what it previews, clear of the target's focus ring and inside the surface the
-  target stands in, moves nothing around it ("The page holds still under the user's
-  aim") and holds no control. Revealing a block's own controls, as Copy appears on a
+  target stands in, covering none of the targets beside it, moves nothing around it
+  ("The page holds still under the user's aim") and holds no control. The pointer can
+  cross onto it and read it there (WCAG 1.4.13). Revealing a block's own controls, as Copy appears on a
   code block, is no preview and stays its block's.
   A thread's words and its margin entry read one preview, made from the reading every
   surface paints the thread from (`threadPreview`), and an age reads its clock time in
@@ -240,7 +241,9 @@ playable").
   `test_a_thread_previews_where_it_stands_from_its_words_and_its_entry`,
   `test_an_age_previews_its_clock_time_in_the_reader_s_zone`.
 - **Every route reads it.** A resting pointer reads it after a short dwell, keyboard
-  focus at once, and a finger by holding the press, whose release still presses; where
+  focus the user moved there themselves at once, by Tab or a key that steps between
+  items, but not focus a surface places as it opens or hands back as it closes, and a
+  finger by holding the press, whose release still presses; where
   a surface can't take a hold, it says the words at rest, as a panel row's cut words
   stand whole. So no fact is said to hover alone. A `title` is an element's words like
   any other: the browser's tooltip off Leaf, and on Leaf the preview's, on every route,

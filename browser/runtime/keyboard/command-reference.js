@@ -762,11 +762,13 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
     aria-selected=${String(selected)}
     aria-labelledby=${titleId}
     aria-describedby=${describedBy}
-    title=${
-      [entry.description, entry.available ? "" : entry.unavailableMessage]
-        .filter(Boolean)
-        .join("\n") || nothing
-    }
+    .lfPreview=${() => {
+      const detail = [
+        entry.description,
+        entry.available ? "" : entry.unavailableMessage,
+      ].filter(Boolean);
+      return detail.length ? { detail } : null;
+    }}
     ?hidden=${!shown}
     @click=${() => activateCommandEntry(entry)}
   >

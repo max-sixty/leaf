@@ -202,6 +202,9 @@ def test_a_margin_entry_label_starts_at_its_settled_place(browser, serve):
             page.wait_for_function(
                 "Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean)"
             )
+            # The keyboard moves focus there: a key is down as it lands, which is the
+            # user's own move, not a surface placing them (preview.js, `aimed`).
+            page.keyboard.down("Shift")
             reading = control.evaluate(
                 """async control => {
                   const label = document.getElementById('lf-preview');
@@ -226,6 +229,7 @@ def test_a_margin_entry_label_starts_at_its_settled_place(browser, serve):
                   return {frames, posture};
                 }"""
             )
+            page.keyboard.up("Shift")
             assert len(reading["frames"]) >= 2, reading
             assert all(frame == reading["frames"][0] for frame in reading["frames"]), (
                 reading

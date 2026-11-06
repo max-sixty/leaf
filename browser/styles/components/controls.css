@@ -322,27 +322,18 @@ svg[data-lf-icon] {
    standing beside it over the page, in one face whatever it previews: the tooltip's
    ground and ink (`--tip-*`, tokens.css), its name on the first line at the face's
    weight with the key chips that press it, then each line of detail in the same type,
-   a step dimmer. Its anchor is its target. It stands below the target with its end
-   edge in line with the target's, so a control at a card's edge keeps its preview
-   inside the card; at the start edge where the window has no room the other way, and
-   above where there is none below. Its gap clears the target's focus ring by the face's
-   own spacing, and a finger holding the target sees it higher, where the fingertip
-   doesn't reach. It goes with its target out of view, takes no pointer, holds no
-   control and moves nothing, and fades in where it stands for a pointer or a finger,
-   as a word that rose into place would move under nobody's input; under the
-   keyboard's focus it is there at once. A preview that quotes a block of the page,
-   such as the place a link opens, takes the excerpt room: the same face, wider. */
+   a step dimmer. Where it stands is the owner's one rule, written as insets
+   (`stand`, preview.js). It goes with its target out of view, holds no control and
+   moves nothing. A pointer's preview takes the pointer, so the pointer can cross onto
+   it and read it there (WCAG 1.4.13, "Hoverable"); a focus's or a finger's takes none.
+   It fades in where it stands for a pointer or a finger, as a word that rose into place
+   would move under nobody's input; under the keyboard's focus it is there at once. A
+   preview that quotes a block of the page, such as the place a link opens, takes the
+   excerpt room: the same face, wider. */
 .lf-preview {
-  --lf-preview-gap: calc(var(--focus-ring-room) + 6px);
   position: fixed;
   inset: auto;
-  margin: var(--lf-preview-gap) 0;
-  position-area: block-end span-inline-start;
-  position-try-fallbacks:
-    flip-inline,
-    flip-block,
-    flip-block flip-inline;
-  position-visibility: anchors-visible;
+  margin: 0;
   box-sizing: border-box;
   width: max-content;
   max-width: min(320px, calc(100vw - 16px));
@@ -364,33 +355,14 @@ svg[data-lf-icon] {
     opacity: 0;
   }
 }
-.lf-preview[data-lf-route="hold"] {
-  --lf-preview-gap: calc(var(--focus-ring-room) + 22px);
-  position-area: block-start span-inline-start;
-}
-/* Above a point inside its target, as a chart's tip stands over its point and leaves
-   the axis below it in view. */
-.lf-preview[data-lf-at="point"] {
-  position-area: block-start;
-}
-/* What a preview stands by where its target is no box the document names, or where it
-   names a box inside itself: an anchor of its own over that box, which draws nothing. */
-.lf-preview-at {
-  position: fixed;
-  margin: 0;
-  pointer-events: none;
+.lf-preview[data-lf-route="pointer"] {
+  pointer-events: auto;
 }
 .lf-preview[data-lf-route="focus"] {
   transition: none;
 }
 .lf-preview[data-lf-face="excerpt"] {
   max-width: min(26rem, calc(100vw - 16px));
-}
-/* A range's preview stands by insets its owner measures, beside the line pointed at. */
-.lf-preview[data-lf-at="range"] {
-  position-area: none;
-  position-try-fallbacks: none;
-  margin: 0;
 }
 .lf-preview-name {
   display: flex;

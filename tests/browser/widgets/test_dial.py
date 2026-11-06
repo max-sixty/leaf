@@ -151,7 +151,8 @@ def test_a_folded_block_that_sets_its_own_height_takes_no_room(browser, serve):
 def test_a_section_without_a_gist_folds_whole(browser, serve):
     """Skim kept every heading, so a section the author gave no gist still showed its
     heading over nothing. A heading stands only for a lede or gist it heads, in a
-    `section` or in flat markup, so such a section folds whole behind its ⋯."""
+    `section`, in flat markup or inside a `header`, so such a section folds whole
+    behind its ⋯."""
     page = open_page(
         browser,
         serve(
@@ -165,6 +166,9 @@ def test_a_section_without_a_gist_folds_whole(browser, serve):
                 '<p id="detail-0">How the key changed.</p></section></section>'
                 '<section id="method"><h2 id="method-heading">Method</h2>'
                 '<p id="method-0">How we measured.</p></section>'
+                '<section id="impact"><header><h2 id="impact-heading">Impact</h2>'
+                '<p id="impact-byline">By the on-call team.</p></header>'
+                '<p class="gist">Checkout slowed.</p></section>'
                 '<h2 id="fix-heading">Fix</h2><p class="gist">Roll back.</p>'
                 '<h3 id="steps-heading">Steps</h3><p id="steps-0">First this.</p>'
                 '<h2 id="appendix-heading">Appendix</h2><p id="appendix-0">Raw.</p>',
@@ -172,12 +176,19 @@ def test_a_section_without_a_gist_folds_whole(browser, serve):
         ),
     )
     depth(page, "Skim")
-    for kept in ("#title h1", "#cause h2", "#cause-gist", "#fix-heading"):
+    for kept in (
+        "#title h1",
+        "#cause h2",
+        "#cause-gist",
+        "#impact-heading",
+        "#fix-heading",
+    ):
         expect(page.locator(kept)).to_be_visible()
     for folded in (
         "#detail-heading",
         "#method-heading",
         "#method-0",
+        "#impact-byline",
         "#steps-heading",
         "#appendix-heading",
         "#appendix-0",

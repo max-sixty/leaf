@@ -12,9 +12,9 @@
  * walk and travel to a comment still reach folded text and open the run holding it
  * (`beforematch`, `lf-reveal`). Folding walks the dial's document (the view or `main`
  * holding it, as `lf-toc`'s outline does) and descends only into plain structure that
- * holds the lede or a gist. A heading stands at Skim when a lede or gist follows it
- * before the next heading of its rank or above, so a section the author gave no gist
- * folds whole, heading included, behind its ⋯. Keeping every heading was rejected: it
+ * holds the lede, a gist or a heading that stands. A heading stands at Skim when a lede
+ * or gist follows it in document order before the next heading of its rank or above,
+ * so a section the author gave no gist folds whole, heading included, behind its ⋯. Keeping every heading was rejected: it
  * made Skim a fixed cut of every section, whether or not one had anything for a
  * skimmer. A Leaf element is folded or kept whole, never entered, since its children
  * are its own. Each run of folded blocks gets a quiet ⋯ after the block it follows,
@@ -81,14 +81,29 @@ const rank = (heading) =>
     (heading.matches(RANKED) ? heading : heading.querySelector(RANKED))?.localName[1] ??
       7,
   );
-// Whether a lede or gist follows a heading before the next heading of its rank or above.
-/** @param {Element} heading */
-const heads = (heading) => {
+// Whether a lede or gist follows a heading in `scope`, in document order, before the
+// next heading of its rank or above. Reading past the heading's parent lets a heading
+// inside a `header` or other wrapper head the section it opens.
+/** @param {Element} heading @param {Element} scope */
+const heads = (heading, scope) => {
   const own = rank(heading);
-  for (let next = heading.nextElementSibling; next; next = next.nextElementSibling) {
-    if (next.matches(STANDS)) continue;
-    if (next.matches(HEADING) && rank(next) <= own) return false;
-    if (next.matches(SUMMARY) || next.querySelector(SUMMARY)) return true;
+  const walker = heading.ownerDocument.createTreeWalker(
+    scope,
+    NodeFilter.SHOW_ELEMENT,
+    (node) =>
+      /** @type {Element} */ (node).matches(STANDS)
+        ? NodeFilter.FILTER_REJECT
+        : NodeFilter.FILTER_ACCEPT,
+  );
+  walker.currentNode = heading;
+  // Step past the heading's own content.
+  while (!walker.nextSibling()) if (!walker.parentNode()) return false;
+  /** @type {Node | null} */
+  let node = walker.currentNode;
+  for (; node; node = walker.nextNode()) {
+    const element = /** @type {Element} */ (node);
+    if (element.matches(SUMMARY)) return true;
+    if (element.matches(RANKED) && rank(element) <= own) return false;
   }
   return false;
 };
@@ -242,13 +257,22 @@ customElements.define(
       return (
         child === this ||
         child.matches(SUMMARY) ||
-        (child.matches(HEADING) && heads(child))
+        (child.matches(HEADING) && this.#heads(child))
       );
     }
     /** @param {Element} child */
     #holds(child) {
       if (isLeafElement(child)) return Boolean(child.querySelector(".gist"));
-      return child.contains(this) || Boolean(child.querySelector(SUMMARY));
+      return (
+        child.contains(this) ||
+        Boolean(child.querySelector(SUMMARY)) ||
+        [...child.querySelectorAll(HEADING)].some((heading) => this.#heads(heading))
+      );
+    }
+    /** @param {Element} heading */
+    #heads(heading) {
+      const scope = this.#scope;
+      return scope ? heads(heading, scope) : false;
     }
 
     // The blocks the dial lays out: each child of the document, and the children of

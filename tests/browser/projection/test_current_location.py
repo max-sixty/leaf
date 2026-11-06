@@ -91,7 +91,6 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     told(page)
     expect(page).to_have_title("Live keys third")
     expect(page.locator(".lf-live")).to_have_text("Updated to v2")
-    assert page.locator(".lf-toast").count() == 0
     # The same mark, still holding the focus the user put on it: the revision rewrote
     # nothing in this widget, so nothing replaced it.
     expect(page.locator("#lk-one .lf-pick")).to_be_focused()

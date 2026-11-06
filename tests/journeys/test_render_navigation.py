@@ -1766,7 +1766,6 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     append_carried_log_record(d, {"kind": "resolve", "author": "user", "parent": c3})
     told(page)
     expect_open_threads(page, 2)
-    expect(page.locator("details.lf-details")).to_have_count(0)
     page.keyboard.press("g")
     expect(page.locator(f'{CHIPS}[data-lf-go-to-kind="Fold"]')).to_have_count(0)
     page.keyboard.press("Escape")

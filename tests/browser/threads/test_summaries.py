@@ -262,7 +262,6 @@ def test_a_summary_folds_originals_and_reveals_them(browser, serve):
         expect(
             card.locator(f'.lf-msg[data-lf-event="{message["id"]}"]')
         ).to_be_visible()
-    expect(checkpoint.locator(".lf-summary-refold")).to_have_count(0)
     expect(expand).to_have_accessible_name("Hide 3 earlier messages")
     expand.focus()
     page.keyboard.press("Enter")

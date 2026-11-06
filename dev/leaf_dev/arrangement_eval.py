@@ -82,8 +82,8 @@ from leaf_dev.leaf_assets import pinned_copy
 TASKS = ROOT / "evals"
 DEFINITION = definition("arrangement_eval")
 PREFERENCE = DEFINITION["preference"]
-# Content out of view is reachable through a labeled control, as both judges count
-# it.
+# Content out of view is reachable through a labeled control, as the pairwise judge
+# counts it (`regrade.yaml`).
 REACHABLE = DEFINITION["reachable"]
 # How long a session that has answered stays quiet before the next phase, and how
 # long the harness waits for a turn to start before calling a phase undelivered.

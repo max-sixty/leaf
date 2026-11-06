@@ -7,22 +7,22 @@
 
    Python derives both halves from the log and the revisions (src/leaf/provenance.py),
    whose header says how a revision is tied to messages and how far the tie holds:
-   `message_waits` in every reading, each message's wait from when it was sent until
-   the agent answered it or the user resolved its thread, and what each revision
-   changed with the comparison's base (`/api/view`), from which version.js keeps on
-   each change the revisions that made it (`madeBy`). This module selects from those
-   readings (`provenanceOf`): the messages waiting when each revision was written, each
-   read off its thread as the page now shows it; and the versions, by the first stamp at
-   or after each revision, else Draft.
+   `message_waits` in every reading, each message's wait as places in the log, from its
+   own until the agent's answer or the user's resolution of its thread, and with the
+   comparison's base (`/api/view`) what each revision changed and where in the log it
+   went live, from which version.js keeps on each change the revisions that made it
+   (`madeBy`). This module selects from those readings (`provenanceOf`): the messages
+   waiting when each revision went live, each read off its thread as the page now shows
+   it; and the versions, by the first stamp at or after each revision, else Draft.
 
    The tie is one of order, so the words state order: a change came after the comments
    it names while they waited, or with none of the user's comments waiting. They say
    neither that it answers a comment nor that no comment asked for it, since the log
    establishes neither: a revision made while one comment waited changed that comment's
    element in 71% of the cases measured, and one made after a quick answer to it no
-   more often than chance. The user chose on 5 November 2026 to
-   say what each change came from rather than only what it did; these words are the
-   part of that the log can back.
+   more often than chance. The user chose on 5 November 2026 to say what each change
+   came from rather than only what it did; these words are the part of that the log can
+   back.
 
    The revisions that made a change fall into groups, each saying one thing: those
    that came after the same messages, and those that came with none waiting. A change
@@ -83,22 +83,22 @@ function yours(messages) {
 
 /** What a change the revisions `revisions` made came after, from the readings it is
  * selected from: each message's wait (`message_waits`), the version each revision
- * landed in, and each message as its thread reads it, null for one no thread shows.
- * @param {readonly number[]} revisions @param {MessageWaits} waits
+ * landed in, and each message as its thread reads it, null for one no thread shows. A
+ * revision with no place in the log (`after` null) says nothing.
+ * @param {readonly import("./version.js").MadeBy[]} revisions @param {MessageWaits} waits
  * @param {(revision: number) => string} versionOf
  * @param {(named: {thread: string, message: string}) => NamedMessage | null} messageOf
  * @returns {ChangeProvenance | null} */
 export function provenanceOf(revisions, waits, versionOf, messageOf) {
-  if (!revisions.length) return null;
   /** @type {Map<string, {versions: Set<string>, messages: NamedMessage[]}>} */
   const groups = new Map();
-  for (const revision of revisions) {
-    // The messages waiting when it was written, each once, in the order sent.
+  for (const { revision, after } of revisions) {
+    if (after === null) continue;
+    // The messages waiting when it went live, each once, in the order sent.
     /** @type {Map<string, NamedMessage>} */
     const waiting = new Map();
     for (const wait of waits) {
-      if (wait.from >= revision || (wait.until !== null && wait.until < revision))
-        continue;
+      if (wait.from > after || (wait.until !== null && wait.until <= after)) continue;
       const message = waiting.has(wait.message) ? null : messageOf(wait);
       if (message) waiting.set(wait.message, message);
     }
@@ -108,6 +108,7 @@ export function provenanceOf(revisions, waits, versionOf, messageOf) {
     group.versions.add(versionOf(revision));
     groups.set(key, group);
   }
+  if (!groups.size) return null;
   /** @type {ChangeProvenance["lines"][number][]} */
   const lines = [];
   let quoted = 0;

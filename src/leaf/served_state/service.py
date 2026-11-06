@@ -12,7 +12,7 @@ from collections.abc import Mapping
 from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 from types import MappingProxyType
-from typing import Protocol
+from typing import Protocol, cast
 
 from .. import presence as presence_model
 from ..data import read_data, read_source
@@ -27,7 +27,13 @@ from ..files import (
 from ..passages import SourceReading
 from ..provenance import revision_changes
 from ..registry.storage import require_registry
-from ..revision_artifact import Resource, RevisionArtifact, read_artifact, read_revision
+from ..revision_artifact import (
+    Resource,
+    RevisionArtifact,
+    RevisionReading,
+    read_artifact,
+    read_revision,
+)
 from ..revisioning import Activation, activate_source, held_activation
 from ..service import PageTransaction
 from . import browser as served_browser
@@ -275,6 +281,8 @@ class PageStateService:
                 context.revision,
                 context.revisions,
                 view_revision,
-                lambda revision: context.descriptor(revision)["url"],
+                lambda revision: (
+                    cast(RevisionReading, context.revision(revision)).activated_after
+                ),
             )
         return {"browser": view, "changed": changed}

@@ -25,6 +25,13 @@ and publishes this marker only after all dependent transitions are durable.
 `revisioning.finish_publications` completes that sequence before transaction
 consumers read the page.
 
+Beside its marker, a revision's activation record (`ACTIVATION`) says where in the
+log it went live: the seq of the last event admitted before it. A revision a tab's
+read activates names no event, and an event names the revision its writer saw, which
+a tab still showing an older one gets wrong, so only this record orders a revision
+against the log. Activation runs in a page transaction, which serializes with every
+append, and the record is written before the marker, so every revision has one.
+
 Every reader of a stored revision takes `read_revision`: one held reading per
 revision, owning its manifest, captured vocabulary, parsed document, and passage
 readings. `read_artifact` holds immutable resource files without loading their
@@ -64,7 +71,7 @@ from leaf.registry.contract import is_element_name
 from leaf.registry.storage import revision_inputs, revision_vocabulary, selected
 from leaf.resource_urls import ReferenceError, resource_reference
 from leaf.schema import CONTENT_TYPES, kernel_registry
-from leaf.state import fsync_parents
+from leaf.state import Record, described, fsync_parents, object_schema
 from leaf.structure import (
     SourceDocument,
     annotation_mode,
@@ -1069,6 +1076,26 @@ def _capture_artifact(
     )
 
 
+ACTIVATION = Record(
+    "revision-activation",
+    described(
+        "Where in the log one revision went live, in `revisions/rN-H.json` beside its "
+        "marker: every event at or before `after` came before it, and every later "
+        "one with or after it.",
+        object_schema(
+            {
+                "after": described(
+                    "The seq of the last event the log held as the revision "
+                    "activated, before any event of its own publication; 0 for none.",
+                    {"type": "integer", "minimum": 0},
+                )
+            }
+        ),
+    ),
+    since=42,
+)
+
+
 def artifact_name(revision: int, artifact: RevisionArtifact) -> str:
     return f"r{revision}-{artifact.digest.removeprefix('sha256:')[:16]}"
 
@@ -1127,9 +1154,9 @@ def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
     return name
 
 
-def _write(target: Path, data: bytes, durable: bool) -> Path:
+def _write(target: Path, data: bytes, durable: bool, *, mode: str = "xb") -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
-    with target.open("xb") as stream:
+    with target.open(mode) as stream:
         stream.write(data)
         if durable:
             stream.flush()
@@ -1165,12 +1192,25 @@ def staged_reading(page_dir: Path, name: str) -> SourceReading:
     )
 
 
-def publish_artifact(page_dir: Path, name: str, reading: SourceReading) -> Path:
-    """Commit a staged bundle only after its dependent log transitions are durable."""
+def publish_artifact(
+    page_dir: Path, name: str, reading: SourceReading, after: int
+) -> Path:
+    """Commit a staged bundle only after its dependent log transitions are durable,
+    with its activation record, `after` the seq of the last event before it
+    (`ACTIVATION`)."""
     destination = page_dir / "revisions" / name
     marker = destination.with_name(f"{name}.html")
+    durable = not memo(page_dir, Disposable).held
+    # No reader looks for the record before its marker exists, so an activation
+    # interrupted before the marker leaves one that the next attempt writes over.
+    _write(
+        destination.with_name(f"{name}.json"),
+        ACTIVATION.encode({"after": after}),
+        durable,
+        mode="wb",
+    )
     os.link(destination / "index.html", marker)
-    if not memo(page_dir, Disposable).held:
+    if durable:
         fsync_parents([marker])
     marker = marker.absolute()
     memo(page_dir, _Readings).hold(
@@ -1180,11 +1220,15 @@ def publish_artifact(page_dir: Path, name: str, reading: SourceReading) -> Path:
 
 
 def write_artifact(
-    page_dir: Path, revision: int, artifact: RevisionArtifact, reading: SourceReading
+    page_dir: Path,
+    revision: int,
+    artifact: RevisionArtifact,
+    reading: SourceReading,
+    after: int,
 ) -> Path:
     """Publish a complete bundle whose revision has no prerequisite log transitions."""
     return publish_artifact(
-        page_dir, stage_artifact(page_dir, revision, artifact), reading
+        page_dir, stage_artifact(page_dir, revision, artifact), reading, after
     )
 
 
@@ -1270,6 +1314,13 @@ class RevisionReading(SourceReading):
     def activated_at(self) -> str:
         """The immutable marker's publication date, shared by every delivery."""
         return datetime.fromtimestamp(self.marker.stat().st_mtime, UTC).isoformat()
+
+    @cached_property
+    def activated_after(self) -> int | None:
+        """The seq of the last event before this revision went live (`ACTIVATION`),
+        or None where it has no activation record."""
+        record = ACTIVATION.read(self.marker.with_suffix(".json"))
+        return record["after"] if record is not None else None
 
     @cached_property
     def document(self) -> SourceDocument:

@@ -2,26 +2,25 @@
 each revision changed: what a change since a version can say about why it was made.
 
 **What a revision came after.** The log links an agent's answer to the user's messages
-it settles (`events.settlements`) and to the revision live when it was written, the
-source it checked and published (`thread.post_reply`). It names no revision a save
-made: a tab reading the page activates a saved source as a revision of its own, with
-no event naming it (`revisioning.py`), so `publication`, the field naming a revision a
-reply made, is on the rare reply whose own check found the save first: 7 of the 184
-answers in the page logs under `~/.tmp` written in the 30 days to 5 November 2026.
-What the log does order is each event against the revisions it had named by then. So
-each message the user sent waits (`message_waits`) from the newest revision named when
-it was sent until the newest named when the agent answered it or the user resolved
-its thread, whichever came first, and a revision written in that interval came after
-it. A revision's messages are a fact about its past: no later event adds one or takes
-one away, so a gesture changes only the waits it ends or starts, and the reading is
-linear in the log. A thread reopened after a resolution keeps its earlier messages'
-waits ended, and a reply that reopens it starts a wait of its own. The user's messages
-are thread messages, a rewrite of one waiting again as the message; a message the
-user took back waits nowhere; widget actions, which a stamped version takes in, are
-not here.
+it settles (`events.settlements`), and no event names a revision a tab's read
+activated, while one a user writes names the revision their tab showed, which may be
+an older one. So the log alone can't order a revision against the messages: each
+revision records where in the log it went live, the seq of the last event before it
+(`revision_artifact.ACTIVATION`), and each message waits (`message_waits`) from its own
+seq until the seq of the agent's answer to it or of the user's resolution of its
+thread, whichever came first. A revision that went live in that interval was written
+while the message waited, and came after it. Both ends are places in the log, which
+no later event or revision moves, so a revision's messages are a fact about its past,
+a gesture sends only the waits it ends or starts, and the reading is linear in the
+log. A thread reopened after a resolution keeps its earlier messages' waits ended, and
+a reply that reopens it starts a wait of its own. The user's messages are thread
+messages, a rewrite of one waiting again as the message; a message the user took back
+waits nowhere; widget actions, which a stamped version takes in, are not here.
 
 That is an order, not a cause, and what reads it says it as one ("after your
-comment", change-provenance.js). On the 39 pages with pickups among those logs (1,885
+comment", change-provenance.js). The page logs under `~/.tmp` written in the 30 days to
+5 November 2026 predate the activation record, so the rule was measured there with
+each revision placed by the events that name it: on the 39 pages with pickups (1,885
 revisions), of the revisions with one message waiting and changed words that the
 message was an anchored comment on (116), 71% changed the commented element, one
 inside it or one around it, against 17% for every pair of a revision and a comment
@@ -48,17 +47,22 @@ waiting, either of which is true of it, and the pickups decide nothing here.
 ones directly in it (`SourceReading.own_words`), with `""` naming the words in no such
 element, so a revision changed the units whose own words differ from the revision's
 before it. The browser's comparison marks blocks of what the page shows, which only it
-can read, so it narrows each change to its blocks itself (`madeBy` in
-`browser/runtime/version.js`): these units name the revisions that may have made a
-change, and where they name several, the comparison reads those revisions' documents
-to find which one wrote each block's words. A change in markup the words don't show,
-such as an image's source, changes no unit, so no revision is given it.
+can read, and gives each change the revisions that changed a unit its blocks stand in
+(`madeBy` in `browser/runtime/version.js`). A block without an id of its own shares its
+element's unit, so a change also names each revision that wrote only a block beside
+it. On the same pages, comparing each version with the one before it, as `v` does (567
+comparisons, 8,411 changed blocks), that gave 28.5% of changed blocks a revision that
+wrote only another surviving block of their unit, but the extra revision changed what
+the label says for 2.2% of them, in 10 comparisons, since it was mostly written while
+the same messages waited and landed in the same version. Comparing the first version
+with the newest (34 comparisons, 5,059 blocks), the label changed for 46.3%. A change
+in markup the words don't show, such as an image's source, changes no unit, so no
+revision is given it.
 
 `message_waits` is part of every browser reading, where it costs one pass over the
 log and the threads, an entry a message. `revision_changes` is read for a comparison's
-base alone (`/api/view`), with each revision's document address, since it reads each
-revision's words: about 5 ms a revision on a 120,000-character page, kept with the
-revision's reading for later comparisons.
+base alone (`/api/view`), since it reads each revision's words: about 5 ms a revision
+on a 120,000-character page, kept with the revision's reading for later comparisons.
 """
 
 from bisect import bisect_right
@@ -69,48 +73,33 @@ from .events import settlements
 from .passages import SourceReading
 
 
-def message_waits(
-    events: list, threads: dict, withdrawn: set, latest: int
-) -> list[dict]:
+def message_waits(events: list, threads: dict, withdrawn: set) -> list[dict]:
     """Each message the user sent, in the order they sent them: its turn's `id` (a
-    rewrite's is its edit's), the `thread` and `message` it shows as, `from`, the newest
-    revision the log had named when it was sent, and `until`, where the agent answered
-    it or the user resolved its thread, whichever came first, or null while it waits. A
-    revision came after it where it is newer than `from` and `until` is null or no
-    older. An answer names the revision live when it was written, which ends the wait
-    there. A resolution names none, so the wait it ends runs to the newest revision the
-    log names next after it, or to `latest`, the page's newest, while none has: a
-    revision the log can't place before or after a resolution counts as before it,
-    since "after your comment" stays true of it either way."""
-    named, newest = {}, 0
-    for event in events:
-        newest = max(newest, event.get("revision") or 0)
-        named[event["id"]] = newest
-    # The newest revision named as of the next event after each that names one.
-    following, upcoming = {}, latest
-    for event in reversed(events):
-        following[event["id"]] = upcoming
-        if event.get("revision"):
-            upcoming = named[event["id"]]
+    rewrite's is its edit's), the `thread` and `message` it shows as, and how long it
+    waited for the agent, as places in the log: `from`, its own seq, and `until`, the
+    seq of the agent's answer to it or of the user's resolution of its thread,
+    whichever came first, or null while it waits. A revision was written while it
+    waited where the revision went live at or after `from` and before `until`, by the
+    revision's own place in the log (`revision_artifact.ACTIVATION`)."""
     thread_of = {
         message["id"]: thread["id"]
         for thread in threads.values()
         for message in thread["msgs"]
     }
-    # Each thread's resolutions, as the events' places in the log, in order.
-    resolutions: dict[str, list[tuple[int, str]]] = {}
+    # Each thread's resolutions, as places in the log, in order.
+    resolutions: dict[str, list[int]] = {}
     for event in events:
         if (
             event["kind"] == "resolve"
             and event["id"] not in withdrawn
             and (thread := thread_of.get(event["parent"]))
         ):
-            resolutions.setdefault(thread, []).append((event["seq"], event["id"]))
+            resolutions.setdefault(thread, []).append(event["seq"])
 
     waits = []
     for thread in threads.values():
         answered = {
-            turn["id"]: named[settlement.answer["id"]]
+            turn["id"]: settlement.answer["seq"]
             for settlement in settlements(thread)
             for turn in settlement.turns
         }
@@ -125,21 +114,18 @@ def message_waits(
             ):
                 continue
             ends = [answered[turn["id"]]] if turn["id"] in answered else []
-            if (after := bisect_right(resolves, (turn["seq"], ""))) < len(resolves):
-                ends.append(following[resolves[after][1]])
+            if (after := bisect_right(resolves, turn["seq"])) < len(resolves):
+                ends.append(resolves[after])
             waits.append(
-                (
-                    turn["seq"],
-                    {
-                        "id": turn["id"],
-                        "thread": thread["id"],
-                        "message": message,
-                        "from": named[turn["id"]],
-                        "until": min(ends) if ends else None,
-                    },
-                )
+                {
+                    "id": turn["id"],
+                    "thread": thread["id"],
+                    "message": message,
+                    "from": turn["seq"],
+                    "until": min(ends) if ends else None,
+                }
             )
-    return [wait for _seq, wait in sorted(waits, key=lambda item: item[0])]
+    return sorted(waits, key=lambda wait: wait["from"])
 
 
 def changed_units(before: SourceReading | None, after: SourceReading) -> list[str]:
@@ -156,16 +142,17 @@ def revision_changes(
     read: Callable[[int], SourceReading],
     revisions: Iterable[int],
     since: int,
-    address: Callable[[int], str],
+    place: Callable[[int], int | None],
 ) -> dict[str, dict]:
     """For each revision after `since`, by revision: the `units` it changed from the
-    revision before it, and the `url` of its document."""
+    revision before it, and `after`, where in the log it went live (`place`,
+    `revision_artifact.ACTIVATION`)."""
     ordered = sorted(revisions)
     return {
-        str(after): {
-            "units": changed_units(read(before), read(after)),
-            "url": address(after),
+        str(later): {
+            "units": changed_units(read(earlier), read(later)),
+            "after": place(later),
         }
-        for before, after in pairwise(ordered)
-        if after > since
+        for earlier, later in pairwise(ordered)
+        if later > since
     }

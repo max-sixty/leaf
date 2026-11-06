@@ -32,6 +32,11 @@ stages the revision's files, appends the event naming the staged bundle in
 `publication`, and writes the revision marker last. If that is interrupted, the next
 `PageTransaction` finishes it (`finish_publications`) before anyone else reads or
 writes the page.
+
+Every activation records, before the marker, where in the log the revision went live
+(`revision_artifact.ACTIVATION`): after the last event the log held when the
+transaction began, so the events of its own publication, such as the reply that
+published it, come with it, after that place.
 """
 
 from contextlib import nullcontext
@@ -192,13 +197,16 @@ def finish_publications(page: PageTransaction, publications: list[dict]) -> None
                 page.page_dir, revision, reading, event["publication"]
             ),
         )
-        publish_artifact(page.page_dir, event["publication"], reading)
+        # The prerequisite is the first event of the publication.
+        publish_artifact(page.page_dir, event["publication"], reading, event["seq"] - 1)
 
 
 def _publish_checked_source(page, checked, event=None):
     activation = planned_activation(page.page_dir, checked)
     if activation.error:
         return activation, None
+    # Where in the log the revision goes live: before the events of its publication.
+    after = page.events[-1]["seq"] if page.events else 0
     revision = activation.revision
     assert revision is not None
     moves = checked.reanchors or {}
@@ -246,7 +254,7 @@ def _publish_checked_source(page, checked, event=None):
         publication=publication if event is None else None,
     )
     if publication:
-        publish_artifact(page.page_dir, publication, checked.reading)
+        publish_artifact(page.page_dir, publication, checked.reading, after)
     return activation, accepted
 
 

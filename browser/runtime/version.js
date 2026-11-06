@@ -19,9 +19,9 @@
  * run of changed blocks and the base blocks it took out (`changeRuns`), which a reader
  * counts and visits; `changeCard` / `toggleChangeCard` open what one replaced on
  * request. Each change carries the revisions that made it (`madeBy`), from what the
- * base's view answer says each later revision changed and, where several changed its
- * units, from their documents, and change-provenance.js says from them what it came
- * after. A base is a stamped version, the one a Compare or `v` names.
+ * base's view answer says each later revision changed, and change-provenance.js says
+ * from them what it came after. A base is a stamped version, the one a Compare or `v`
+ * names.
  * `changesSince` counts a comparison's changes without marking them.
  * `comparisonBase` names the current base.
  * `comparisonChanges(owner)` selects the changes inside `owner` from the same comparison
@@ -610,10 +610,11 @@ const diffMarked = new Set();
  * blocks in page order, none where it only took blocks out; `removed` the base blocks it
  * took out; `at` where it stands, its first block, or for one that only took blocks out,
  * the element its gap stands before, after or in, as `gap` says (`changedSince`);
- * `revisions` the revisions after the base, through the one shown, that wrote its
- * blocks' words or took its base blocks out, oldest first (`madeBy`), which say what it
- * came after (change-provenance.js).
- * @typedef {Readonly<{blocks: readonly Element[], removed: readonly Removed[], at: Element, gap: "before" | "after" | "in" | null, revisions: readonly number[]}>} Change */
+ * `revisions` the revisions after the base, through the one shown, that changed the
+ * words of a unit it stands in, oldest first, each with where in the log it went live,
+ * `after` (`madeBy`), which say what it came after (change-provenance.js).
+ * @typedef {Readonly<{revision: number, after: number | null}>} MadeBy
+ * @typedef {Readonly<{blocks: readonly Element[], removed: readonly Removed[], at: Element, gap: "before" | "after" | "in" | null, revisions: readonly MadeBy[]}>} Change */
 /** @type {readonly Change[]} */
 let diffChanges = [];
 // Where each block a change took out stood among the base version's blocks, so its card
@@ -741,15 +742,17 @@ async function baseReading(baseRevision, throughSeq) {
   if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
   return await res.json();
 }
-// The revisions that may have made a change: each revision after the base, through the
-// one shown, that changed the words of a unit the change stands in (provenance.py,
+// The revisions that made a change: each revision after the base, through the one
+// shown, that changed the words of a unit the change stands in (provenance.py,
 // `revision_changes`). A unit is an element with an id, its words those directly in it,
 // and "" the words in none, so a block stands in its nearest element with an id and in
 // each one inside it, and a block taken out in its own id, or, with none, in the element
-// its gap stands in. `madeBy` narrows them to the change's blocks.
+// its gap stands in. A change of state alone, such as a pick, changes no unit. Blocks
+// with no id of their own share their element's unit, so a change can name a revision
+// that wrote only a block beside it; provenance.py's header says how often that shows.
 /** @param {Omit<Change, "revisions">} change @param {Document} doc the shown source
- * @param {ReadonlyMap<number, ReadonlySet<string>>} changed */
-function unitRevisions(change, doc, changed) {
+ * @param {ReadonlyMap<number, {units: ReadonlySet<string>, after: number | null}>} changed */
+function madeBy(change, doc, changed) {
   const authoredId = (/** @type {Element} */ node) =>
     node.id && doc.getElementById(node.id) ? node.id : null;
   const unitOf = (/** @type {Element} */ node) => {
@@ -773,86 +776,9 @@ function unitRevisions(change, doc, changed) {
     units.add(unitOf(gapHolder(change)));
   return Object.freeze(
     [...changed]
-      .filter(([, ids]) => [...units].some((unit) => ids.has(unit)))
-      .map(([revision]) => revision),
+      .filter(([, made]) => [...units].some((unit) => made.units.has(unit)))
+      .map(([revision, { after }]) => Object.freeze({ revision, after })),
   );
-}
-// The revisions that made each change, at the comparison's own grain: of those that
-// changed a unit it stands in (`unitRevisions`), the one that wrote each of its
-// blocks' words, as the comparison keys them (`diffBlocks`), and the one that took out
-// each base block it took out. Units without ids hold every block in their element, so
-// where several revisions changed a change's units, the comparison reads their
-// documents, painted as the page now paints, and a block's words were written by the
-// newest of them whose predecessor lacked them; the revisions between them changed
-// none of those units, so their documents can't differ there. One revision needs no
-// document (`documentsNeeded`). A block marked for its state alone, such as a pick, was
-// made by none, and a block whose words more than one version holds, or a document
-// that failed to load, leaves the change its unit revisions.
-/** @param {ReturnType<typeof diffWith>} diff
- * @param {ReadonlyMap<number, ReadonlySet<string>>} keysAt each read document's keys */
-function madeBy({ changes, blockKeys, keys }, keysAt) {
-  return changes.map((change) => {
-    const candidates = change.revisions;
-    // Each unit revision with the keys of the documents before and after it.
-    const read = candidates.slice(0, -1).map((revision) => keysAt.get(revision));
-    const steps = candidates.map((revision, i) => ({
-      revision,
-      before: i === 0 ? keys.base : read[i - 1],
-      after: i === candidates.length - 1 ? keys.shown : read[i],
-    }));
-    /** @type {Set<number>} */
-    const made = new Set();
-    const { written, taken } = blockKeys(change);
-    let narrowed = candidates.length > 0;
-    /** @param {ReadonlySet<string> | undefined} held @param {string} key */
-    const lacks = (held, key) => {
-      if (!held) narrowed = false;
-      return held !== undefined && !held.has(key);
-    };
-    for (const key of written) {
-      const step = steps.findLast(({ before }) => lacks(before, key));
-      if (step) made.add(step.revision);
-      else narrowed = false;
-    }
-    for (const key of taken) {
-      const step = steps.find(({ after }) => lacks(after, key));
-      if (step) made.add(step.revision);
-      else narrowed = false;
-    }
-    const revisions = narrowed
-      ? candidates.filter((revision) => made.has(revision))
-      : candidates;
-    return Object.freeze({ ...change, revisions: Object.freeze(revisions) });
-  });
-}
-// The revisions whose documents `madeBy` reads: each change's unit revisions but its
-// newest, whose keys there are the shown version's.
-/** @param {ReturnType<typeof diffWith>} diff */
-const documentsNeeded = ({ changes }) =>
-  new Set(changes.flatMap(({ revisions }) => revisions.slice(0, -1)));
-// The keys of each revision's blocks, as `diffBlocks` reads its document painted with
-// the state the page shows now; a revision whose document fails to load is left out.
-/** @param {ReadonlySet<number>} revisions
- * @param {import("../types/contract.js").ServedViewAnswer["changed"]} changed */
-async function revisionKeys(revisions, changed) {
-  /** @type {Map<number, ReadonlySet<string>>} */
-  const keysAt = new Map();
-  await Promise.all(
-    [...revisions].map(async (revision) => {
-      const url = changed[String(revision)]?.url;
-      if (!url) return;
-      try {
-        const source = pageDocument(await revisionDocument({ revision, url }));
-        if (!source) return;
-        await loadDeclaredMarkdown(source);
-        const { root } = paintedSource(source, readApplication().effective.widgets);
-        keysAt.set(revision, new Set(diffBlocks(root).map(([, key]) => key)));
-      } catch {
-        // The changes this document would narrow keep their unit revisions.
-      }
-    }),
-  );
-  return keysAt;
 }
 // The longest run of `after` that keeps the order `before` gave the same units:
 // the units that did not move.
@@ -1039,8 +965,6 @@ function changedSince(base, current = currentSource()) {
       for (const key of part.value) removed.set(key, (removed.get(key) ?? 0) + 1);
   /** @type {Set<Element>} */
   const changed = new Set();
-  /** @type {Map<Element, string>} */
-  const keyOf = new Map();
   /** @type {Set<Element>} */
   const kept = new Set();
   /** @type {Map<string, number>} */
@@ -1142,10 +1066,7 @@ function changedSince(base, current = currentSource()) {
         removed.set(key, (removed.get(key) ?? 0) - 1);
         moved.set(key, (moved.get(key) ?? 0) + 1);
         continue;
-      } else {
-        changed.add(block);
-        keyOf.set(block, key);
-      }
+      } else changed.add(block);
       const placed = { live: block, source, was };
       flush(last, placed);
       last = placed;
@@ -1175,10 +1096,6 @@ function changedSince(base, current = currentSource()) {
     gapAfter: taken(gapAfter),
     gapIn: taken(gapIn),
     order: new Map(baseBlocks.map(([block], i) => [block, i])),
-    // Each changed live block's key and each base block's, and every key either
-    // version holds, which say which revision wrote a block's words (`madeBy`).
-    keyOf: new Map([...baseBlocks, ...keyOf]),
-    keys: { base: new Set(before), shown: new Set(after.map(([, key]) => key)) },
   };
 }
 // The view a block stands in, which shows and hides as one: the nearest `details`
@@ -1330,8 +1247,10 @@ function diffWith(
     throw new Error("A comparison revision must contain its authored document");
   const base = paintedSource(source, baseWidgets);
   const current = currentSource();
-  const { changed, kept, gapBefore, gapAfter, gapIn, order, keyOf, keys } =
-    changedSince(base, current);
+  const { changed, kept, gapBefore, gapAfter, gapIn, order } = changedSince(
+    base,
+    current,
+  );
   for (const block of changed) mark(block);
   // The state half: block keys catch words, and a pure state change — a card
   // in a different column, a pick on a different option — has no text of its
@@ -1412,8 +1331,6 @@ function diffWith(
       is: is ? comparisonWords(is, opaque) : null,
     });
   }
-  /** @type {Map<Removed, string>} */
-  const removedKeys = new Map();
   // What each base block a hunk took out said, read while its source is in hand.
   const takenOut = (/** @type {Element[]} */ blocks) =>
     blocks.map((block) => {
@@ -1424,8 +1341,6 @@ function diffWith(
         words: block.matches(opaque) ? "" : comparisonWords(block, opaque),
       });
       stoodAt.set(record, /** @type {number} */ (order.get(block)));
-      const key = keyOf.get(block);
-      if (key !== undefined) removedKeys.set(record, key);
       return record;
     });
   /** @param {Map<Element, {at: Element, gone: Element[]}>} gaps */
@@ -1433,19 +1348,18 @@ function diffWith(
     new Map(
       [...gaps].map(([block, { at, gone }]) => [block, { at, gone: takenOut(gone) }]),
     );
-  // What each revision through the one shown changed, oldest first.
+  // What each revision through the one shown changed, and where it went live in the
+  // log, oldest first.
   const shown = runtime.currentRevision ?? Infinity;
   const revisionsChanged = new Map(
     Object.entries(revisionChanges)
       .map(
-        ([revision, { units }]) =>
-          /** @type {const} */ ([Number(revision), new Set(units)]),
+        ([revision, { units, after }]) =>
+          /** @type {const} */ ([Number(revision), { units: new Set(units), after }]),
       )
       .filter(([revision]) => revision <= shown)
       .sort(([a], [b]) => a - b),
   );
-  // Each change with the revisions that changed a unit it stands in, which `madeBy`
-  // narrows to those that wrote its blocks' words.
   /** @type {readonly Change[]} */
   const changes = changeRuns(marked, kept, {
     gapBefore: read(gapBefore),
@@ -1454,15 +1368,10 @@ function diffWith(
   }).map((change) =>
     Object.freeze({
       ...change,
-      revisions: unitRevisions(change, current.doc, revisionsChanged),
+      revisions: madeBy(change, current.doc, revisionsChanged),
     }),
   );
-  /** @param {Change} change */
-  const blockKeys = (change) => ({
-    written: change.blocks.flatMap((block) => keyOf.get(block) ?? []),
-    taken: change.removed.flatMap((record) => removedKeys.get(record) ?? []),
-  });
-  return { marked, paired, words, changes, blockKeys, keys };
+  return { marked, paired, words, changes };
 }
 // Put a comparison's reading on the page, which `setDiff(false)` cleared before it.
 /** @param {ReturnType<typeof diffWith>} diff */
@@ -1659,7 +1568,7 @@ function setDiff(on, base = null, pendingBase = null) {
 // The one way a comparison starts, from a row's Compare, from `v`, or from an
 // activation putting back the one it dropped. It states a base rather than toggling
 // one — the toggle is each press's own reading of it. Everything touching the live page
-// happens in one synchronous stretch after the last await: presses can ask for a
+// happens in one synchronous stretch after the single await: presses can ask for a
 // comparison faster than one arrives, and a marking pass that could interleave with the
 // next one's would leave two bases' marks in place under a picker naming one of them.
 /** @param {ComparisonBase} base */
@@ -1683,18 +1592,8 @@ export async function showComparison(base) {
     return;
   }
   if (!loaded || !wanted()) return;
-  let diff = diffWith(loaded.doc, loaded.baseAuthored, base, loaded.reading);
-  // The documents that say which revision made each change. While they arrive the page
-  // may move, so the comparison is read again in the stretch that marks it.
-  const needed = documentsNeeded(diff);
-  /** @type {ReadonlyMap<number, ReadonlySet<string>>} */
-  let keysAt = new Map();
-  if (needed.size) {
-    keysAt = await revisionKeys(needed, loaded.reading.changed);
-    if (!wanted()) return;
-    diff = diffWith(loaded.doc, loaded.baseAuthored, base, loaded.reading);
-  }
-  commitDiff({ ...diff, changes: madeBy(diff, keysAt) });
+  const diff = diffWith(loaded.doc, loaded.baseAuthored, base, loaded.reading);
+  commitDiff(diff);
   setDiff(true, base);
   const n = diff.changes.length;
   notice(
@@ -1803,7 +1702,7 @@ async function authoredDocument(url) {
 // Repeated comparisons of the same immutable revision share its document fetch.
 /** @type {Map<number, Promise<Document>>} */
 const revisionDocuments = new Map();
-/** @param {Pick<import("../types/contract.js").ServedRevision, "revision" | "url">} revision */
+/** @param {import("../types/contract.js").ServedRevision} revision */
 function revisionDocument(revision) {
   const saved = revisionDocuments.get(revision.revision);
   if (saved) return saved;

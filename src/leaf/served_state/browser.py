@@ -243,12 +243,7 @@ def browser_state(
             for event in events
             if event["kind"] == "note"
         },
-        "message_waits": message_waits(
-            events,
-            threads,
-            withdrawn,
-            max(revision_ids if revision_ids is not None else readings),
-        ),
+        "message_waits": message_waits(events, threads, withdrawn),
     }
     return wire, BrowserReading(threads, durable.thread, documents)
 

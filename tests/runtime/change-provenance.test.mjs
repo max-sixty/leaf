@@ -17,7 +17,7 @@ const messages = {
 };
 const messageOf = ({ message }) => messages[message] ?? null;
 const said = (provenance) => provenance.lines.map((line) => wordsText(line));
-// A message's wait: sent on `from`, ended on `until`, or waiting still.
+// A message's wait as places in the log: sent at `from`, ended at `until`, or waiting.
 const wait = (id, from, until = null) => ({
   id,
   thread: messages[id].thread,
@@ -25,30 +25,42 @@ const wait = (id, from, until = null) => ({
   from,
   until,
 });
+// A revision that went live after the log's event `after`.
+const made = (revision, after) => ({ revision, after });
 
-test("a change says, for each set of messages waiting while the revisions that made it were written, where they landed and which", () => {
-  const waits = [wait("stall", 0, 2), wait("rollout", 3, 6), wait("reply", 3, 4)];
-  // Revisions written while the same messages waited share their line, whichever
-  // versions they landed in.
-  assert.deepEqual(said(provenanceOf([1, 2], waits, versionOf, messageOf)), [
-    "In v2, after your comment:",
-    "“Why ship with that?”",
-  ]);
-  // A revision written with none waiting says so; messages of both kinds are the
-  // user's updates; a wait that has ended names no revision after it.
-  assert.deepEqual(said(provenanceOf([3, 4, 6], waits, versionOf, messageOf)), [
-    "In v3, with none of your comments waiting",
-    "In v3, after your 2 updates:",
-    "“What decides going past 5%?”",
-    "“Past 5%, I mean.”",
-    "In Draft, after your comment:",
-    "“What decides going past 5%?”",
-  ]);
-  // Past three quoted lines, the rest is a count; a wait still open names every
+test("a change says, for each set of messages waiting as the revisions that made it went live, where they landed and which", () => {
+  const waits = [wait("stall", 1, 20), wait("rollout", 30, 60), wait("reply", 31, 40)];
+  // Revisions that went live while the same messages waited share their line, whichever
+  // versions they landed in; a message's own place counts as before the revision.
+  assert.deepEqual(
+    said(provenanceOf([made(1, 1), made(2, 19)], waits, versionOf, messageOf)),
+    ["In v2, after your comment:", "“Why ship with that?”"],
+  );
+  // A revision that went live with none waiting says so, a wait's end included;
+  // messages of both kinds are the user's updates.
+  assert.deepEqual(
+    said(
+      provenanceOf(
+        [made(3, 20), made(4, 35), made(6, 45)],
+        waits,
+        versionOf,
+        messageOf,
+      ),
+    ),
+    [
+      "In v3, with none of your comments waiting",
+      "In v3, after your 2 updates:",
+      "“What decides going past 5%?”",
+      "“Past 5%, I mean.”",
+      "In Draft, after your comment:",
+      "“What decides going past 5%?”",
+    ],
+  );
+  // Past three quoted lines, the rest is a count; a wait still open spans every
   // revision after it.
   const many = provenanceOf(
-    [2, 4, 9],
-    [wait("stall", 1), wait("rollout", 1), wait("reply", 1, 4)],
+    [made(2, 5), made(4, 9), made(9, 90)],
+    [wait("stall", 1), wait("rollout", 1), wait("reply", 1, 10)],
     versionOf,
     messageOf,
   );
@@ -60,6 +72,8 @@ test("a change says, for each set of messages waiting while the revisions that m
     "In Draft, after your 2 comments:",
     "and 2 more",
   ]);
-  // A change no revision made, as a pick is, has no provenance.
+  // A change no revision made, as a pick is, and one only revisions with no place in
+  // the log made, say nothing.
   assert.equal(provenanceOf([], waits, versionOf, messageOf), null);
+  assert.equal(provenanceOf([made(2, null)], waits, versionOf, messageOf), null);
 });

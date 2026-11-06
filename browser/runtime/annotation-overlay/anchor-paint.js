@@ -310,7 +310,7 @@ export function createAnchorPaint({
   // under: an unseen passage shows no hand and opens nothing.
   /** @param {number} x @param {number} y @param {Element | null} [under] the element
    * under the point, where the caller has hit-tested it already
-   * @returns {{id: string, where: Mark, threads: string[]} | null} */
+   * @returns {{id: string, where: Mark, alike: readonly Findable[]} | null} */
   function markHit(x, y, under = elementFromPointAcross(x, y)) {
     if (annotationsHidden() || !under || !pageWords(under)) return null;
     /** @type {Findable[]} */
@@ -342,9 +342,7 @@ export function createAnchorPaint({
         alike = marks;
       }
     }
-    if (!hit) return null;
-    const threads = [...alike].sort((a, b) => a.order - b.order).map(({ id }) => id);
-    return { id: hit.id, where: hit.where, threads };
+    return hit && { id: hit.id, where: hit.where, alike };
   }
   // Whether the point lies over the character at `at` in a text node.
   /** @param {Node} node @param {number} at @param {number} x @param {number} y */
@@ -409,32 +407,50 @@ export function createAnchorPaint({
   // on them, so the preview stands once by the line first pointed at as the pointer
   // crosses the pieces an inline element or a shadow root splits a passage into
   // (preview.js, `pointRange`). One range from the first piece to the last collapsed
-  // where a passage ran into a shadow tree (passages.js, `rangeOf`).
-  /** @type {{id: string, where: Mark} | null} */
+  // where a passage ran into a shadow tree (passages.js, `rangeOf`). The owner reads a
+  // standing preview again each time it is told its range, so it is told again only
+  // when the threads under the pointer change: telling it on each move drew 512
+  // threads' lines on every move over a word 512 threads mark.
+  /** @type {{id: string, where: Mark, piece: Range} | null} */
   let standing = null;
-  /** @param {{id: string, where: Mark, threads: string[]} | null} hit
+  /** @type {Set<string> | null} */
+  let told = null;
+  /** @param {{id: string, where: Mark, alike: readonly Findable[]} | null} hit
    * @param {{x: number, y: number}} at */
   function pointMark(hit, at) {
     const id = resting && hit ? hit.id : null;
     if (!hit || !id) {
       standing = null;
+      told = null;
       pointed = false;
       return void pointRange(null);
     }
-    if (standing?.id !== id || !marksFor(id).includes(standing.where)) standing = hit;
+    if (standing?.id !== id || !marksFor(id).includes(standing.where)) {
+      const { where } = hit;
+      const piece = where instanceof Range ? where : document.createRange();
+      if (!(where instanceof Range)) piece.selectNode(where);
+      standing = { id, where, piece };
+      told = null;
+    }
     pointed = true;
-    const { where } = standing;
-    const piece = where instanceof Range ? where : document.createRange();
-    if (!(where instanceof Range)) piece.selectNode(where);
+    const { alike } = hit;
+    if (told?.size === alike.length && alike.every((mark) => told?.has(mark.id)))
+      return;
+    told = new Set(alike.map((mark) => mark.id));
     // A thread the user is in is in front of them already, as an entry standing open
-    // previews nothing (preview.js).
-    const { threads } = hit;
+    // previews nothing (preview.js). The threads are put in reading order as the
+    // preview reads them.
+    const { piece } = standing;
     pointRange(
       piece,
       () => {
         const here = currentLocationThreadId();
-        if (here && threads.includes(here)) return null;
-        return threadPreview(threads.flatMap((name) => threadNamed(name) ?? []));
+        if (here && alike.some((mark) => mark.id === here)) return null;
+        return threadPreview(
+          [...alike]
+            .sort((a, b) => a.order - b.order)
+            .flatMap((mark) => threadNamed(mark.id) ?? []),
+        );
       },
       at,
     );
@@ -612,6 +628,7 @@ export function createAnchorPaint({
     if (pointed) pointRange(null);
     pointed = false;
     standing = null;
+    told = null;
     if (hoverFrame) cancelRender(hoverFrame);
     hoverFrame = 0;
     const before = outlined();

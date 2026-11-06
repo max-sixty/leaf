@@ -1199,12 +1199,14 @@ export function segmentsBox(segments) {
 // getting wrong. The converse is not true: where the quote runs two words together the
 // page may not, or a short quote starts matching inside longer words — "never" finding the
 // tail of "on every", in a different paragraph.
-// So a gap has to match *something* that separates words. Whitespace is one; an element
-// boundary is the other, and it leaves no character behind, which is why the raw text is
-// built with one standing in for it. Between the characters of a single word only a
-// boundary may fall — `<strong>bold</strong>text` reads as one word and is quoted as one —
-// and without that floor a gap could match nothing at all, so "set up" would find "setup"
-// in an earlier sentence and anchor there for good.
+// So a gap has to match whitespace: the page's own, or the space the reading reads
+// where a block ends or a line breaks (`quoteFrom`), which the raw text holds as one.
+// An inline element's boundary is not a gap — `<span>one</span><span>two</span>` reads
+// `onetwo`, as the file's reading does — but it leaves no character behind and may fall
+// anywhere, so the raw text holds an edge for it, which a gap may run through and which
+// may fall between the characters of a single word: `<strong>bold</strong>text` reads as
+// one word and is quoted as one. Without that floor a gap could match nothing at all,
+// so "set up" would find "setup" in an earlier sentence and anchor there for good.
 const EDGE = "\u0000"; // no document holds one, so it can't collide with page text
 // A quote names text, not a place, and a page is free to say the same thing twice. Where it
 // does, the words on either side decide which occurrence was meant. A unified diff holds
@@ -1590,11 +1592,14 @@ function heardChanges(records) {
   const ids = new Set();
   /** @type {Set<Element>} */
   const renamed = new Set();
+  // The ids an element and what it holds bear, in its light tree and the declared
+  // shadow trees an id is looked for in (`elementById`).
   /** @param {Node} node */
   const idsUnder = (node) => {
     if (!isElement(node)) return;
     if (node.id) ids.add(node.id);
-    for (const named of node.querySelectorAll("[id]")) ids.add(named.id);
+    for (const scope of [node, ...shadowRootsIn(node)])
+      for (const named of scope.querySelectorAll("[id]")) ids.add(named.id);
   };
   for (const record of records) {
     const { target } = record;
@@ -1769,7 +1774,11 @@ function readPage() {
       if (cell) fences.add(0);
     } else {
       if (cell !== previousCell && (cell || previousCell)) fences.add(length);
-      parts.push(seg.breakBefore ? " " : EDGE);
+      // A space where the reading reads one (`readSegments`), else an edge.
+      const previous = /** @type {Segment} */ (segments[k - 1]);
+      const spaced =
+        seg.breakBefore || segmentTextBlock(seg) !== segmentTextBlock(previous);
+      parts.push(spaced ? " " : EDGE);
       length += 1;
     }
     indexed.push({ ...seg, rawStart: length });
@@ -1828,10 +1837,10 @@ const withinCell = (text, from, to) => fenceEdge(text, from + 1, false) >= to;
 
 // Where a quote's words stand. Its letters are its words' characters without the gaps
 // between them, and a copy of the quote starts wherever the page's letters start as its
-// do, read against the page from there (`matchAt`). The letters are found by hashing:
-// any run of the page's letters hashes in two reads (`sliceHash`), so one pass over the
-// page finds every copy of every quote the page's threads name, which a pattern apiece
-// searched the whole page for, as many times as there were threads.
+// do, read against the page from there (`matchAt`). The letters are found by an
+// automaton over every quote's (`automatonOf`), so one pass over the page finds every
+// copy of every quote the page's threads name, which a pattern apiece searched the
+// whole page for, as many times as there were threads.
 //
 // Whether raw[i] separates words: an edge, or whitespace by the rule a quote is split
 // into words by. Each code unit is put to the rule once.
@@ -1843,17 +1852,17 @@ function gapAt(raw, i) {
     gapKinds[code] = raw[i] === EDGE || /\s/.test(raw.charAt(i)) ? 1 : 2;
   return gapKinds[code] === 1;
 }
-// Where a quote's words, read from `at`, end, by the rules they are quoted by: any run of
-// whitespace or edges between two words, and at least one, an edge free to fall between
-// two characters of one. -1 where the text stops saying them.
+// Where a quote's words, read from `at`, end, by the rules they are quoted by: between
+// two words a run of whitespace and edges holding some whitespace, an edge free to fall
+// between two characters of one. -1 where the text stops saying them.
 /** @param {string} raw @param {number} at @param {readonly string[]} words */
 function matchAt(raw, at, words) {
   let i = at;
   for (const [n, word] of words.entries()) {
     if (n) {
-      const gap = i;
-      while (i < raw.length && gapAt(raw, i)) i++;
-      if (i === gap) return -1; // two words the text runs together are not these two
+      let spaced = false;
+      for (; i < raw.length && gapAt(raw, i); i++) spaced ||= raw[i] !== EDGE;
+      if (!spaced) return -1; // two words the text runs together are not these two
     }
     let inside = false;
     for (const ch of word) {
@@ -1865,86 +1874,86 @@ function matchAt(raw, at, words) {
   }
   return i;
 }
-const HASH_BASE = 0x01000193;
-/** @type {number[]} */
-const powers = [1];
-/** @param {number} n */
-function power(n) {
-  for (let last = /** @type {number} */ (powers.at(-1)); powers.length <= n;)
-    powers.push((last = Math.imul(last, HASH_BASE)));
-  return /** @type {number} */ (powers[n]);
-}
-// The hash of each prefix of a run of code units, so any slice's is two reads.
-/** @param {number} length @param {(t: number) => number} codeAt */
-function prefixHashes(length, codeAt) {
-  const sums = new Int32Array(length + 1);
-  for (let t = 0; t < length; t++)
-    sums[t + 1] =
-      (Math.imul(/** @type {number} */ (sums[t]), HASH_BASE) + codeAt(t)) | 0;
-  return sums;
-}
-/** @param {Int32Array} sums @param {number} t @param {number} n */
-const sliceHash = (sums, t, n) =>
-  ((sums[t + n] ?? 0) - Math.imul(sums[t] ?? 0, power(n))) | 0;
-// A string's keys: the hash of its first few code units, which a pass asks of each place
-// it reads, and of all of them, asked only where the first matches, for each length the
-// strings starting so have. Strings that start alike, as rows of a list do, then part by
-// a hash, whatever they share before they differ: a place costs a hash for each such
-// length, never a reading of each string that starts so.
-const FIRST_KEY = 16;
-/** @typedef {{first: number, firstHash: number, length: number, wholeHash: number}} Key */
-/** @template {Key} K
- * @typedef {{keys: Map<number, Map<number, Map<number, Map<number, K[]>>>>,
- * widest: number}} KeyTable */
-/** @param {string} letters @returns {Key} */
-function keyOf(letters) {
-  const sums = prefixHashes(letters.length, (t) => letters.charCodeAt(t));
-  const first = Math.min(letters.length, FIRST_KEY);
-  return {
-    first,
-    firstHash: sliceHash(sums, 0, first),
-    length: letters.length,
-    wholeHash: sliceHash(sums, 0, letters.length),
-  };
-}
-/** @template K, V @param {Map<K, V>} map @param {K} key @param {() => V} make */
-function slot(map, key, make) {
-  let value = map.get(key);
-  if (value === undefined) map.set(key, (value = make()));
-  return value;
-}
-/** @template {Key} K @param {Iterable<K>} entries @returns {KeyTable<K>} */
-function tableOf(entries) {
-  /** @type {KeyTable<K>["keys"]} */
-  const keys = new Map();
+// An automaton over a set of strings (Aho–Corasick): a trie of their code units, each
+// state's longest proper suffix that is also a state (`fail`), and the nearest such
+// suffix at which a string ends (`link`). One pass over a run of code units then hears
+// every place each string ends in it, copies that overlap included, in time with the
+// run, the strings' total length and the places found, however many of the strings
+// share a start or how many lengths they come in.
+/** @template E @typedef {{edges: Map<number, number>, fail: number[], link: number[],
+ * ends: (E[] | null)[], widest: number}} Automaton */
+// A state's transitions are keyed in one map by the state and the code unit together.
+/** @param {number} state @param {number} code */
+const edgeKey = (state, code) => state * 0x10000 + code;
+/** @template E @param {Iterable<readonly [string, E]>} strings @returns {Automaton<E>} */
+function automatonOf(strings) {
+  /** @type {Map<number, number>} */
+  const edges = new Map();
+  const [fail, link, parent, code, depth] = [[0], [0], [0], [0], [0]];
+  /** @type {(E[] | null)[]} */
+  const ends = [null];
   let widest = 0;
-  for (const entry of entries) {
-    const byFirst = slot(keys, entry.first, () => new Map());
-    const byLength = slot(byFirst, entry.firstHash, () => new Map());
-    slot(
-      slot(byLength, entry.length, () => new Map()),
-      entry.wholeHash,
-      () => /** @type {K[]} */ ([]),
-    ).push(entry);
-    widest = Math.max(widest, entry.length);
+  for (const [string, entry] of strings) {
+    let state = 0;
+    for (let t = 0; t < string.length; t++) {
+      const unit = string.charCodeAt(t);
+      let next = edges.get(edgeKey(state, unit));
+      if (next === undefined) {
+        next = fail.length;
+        edges.set(edgeKey(state, unit), next);
+        fail.push(0);
+        link.push(0);
+        ends.push(null);
+        parent.push(state);
+        code.push(unit);
+        depth.push(/** @type {number} */ (depth[state]) + 1);
+      }
+      state = next;
+    }
+    (ends[state] ??= []).push(entry);
+    widest = Math.max(widest, string.length);
   }
-  return { keys, widest };
-}
-// Each place before `until` in a run of code units where one of a table's strings
-// starts, by the hashes of its code units: the string's entry and the place, for the
-// caller to read against its own rule.
-/** @template {Key} K @param {number} length @param {(t: number) => number} codeAt
- * @param {KeyTable<K>} table @param {number} until @param {(entry: K, t: number) => void} take */
-function keyStarts(length, codeAt, table, until, take) {
-  const sums = prefixHashes(length, codeAt);
-  for (let t = 0; t < until; t++)
-    for (const [first, byFirst] of table.keys) {
-      if (t + first > length) continue;
-      for (const [whole, byHash] of byFirst.get(sliceHash(sums, t, first)) ?? []) {
-        if (t + whole > length) continue;
-        for (const entry of byHash.get(sliceHash(sums, t, whole)) ?? []) take(entry, t);
+  // Each state's suffix links from those of the states above it, shallowest first.
+  const states = [...fail.keys()].slice(1);
+  states.sort(
+    (a, b) => /** @type {number} */ (depth[a]) - /** @type {number} */ (depth[b]),
+  );
+  for (const state of states) {
+    const unit = /** @type {number} */ (code[state]);
+    let suffix = 0;
+    for (let at = /** @type {number} */ (parent[state]); at !== 0;) {
+      at = /** @type {number} */ (fail[at]);
+      const next = edges.get(edgeKey(at, unit));
+      if (next !== undefined) {
+        suffix = next;
+        break;
       }
     }
+    fail[state] = suffix;
+    link[state] = ends[suffix] ? suffix : /** @type {number} */ (link[suffix]);
+  }
+  return { edges, fail, link, ends, widest };
+}
+// Every place in a run of code units where one of an automaton's strings ends: its
+// entry, and the place just past its last code unit.
+/** @template E @param {Automaton<E>} automaton @param {number} length
+ * @param {(t: number) => number} codeAt @param {(entry: E, end: number) => void} take */
+function runAutomaton({ edges, fail, link, ends }, length, codeAt, take) {
+  let state = 0;
+  for (let t = 0; t < length; t++) {
+    const unit = codeAt(t);
+    for (;;) {
+      const next = edges.get(edgeKey(state, unit));
+      if (next !== undefined) {
+        state = next;
+        break;
+      }
+      if (state === 0) break;
+      state = /** @type {number} */ (fail[state]);
+    }
+    for (let at = ends[state] ? state : link[state]; at; at = link[at])
+      for (const entry of ends[at] ?? []) take(entry, t + 1);
+  }
 }
 // Every place each of `strings` starts in `text`, copies that overlap included, found by
 // one pass over the text for all of them.
@@ -1952,55 +1961,55 @@ function keyStarts(length, codeAt, table, until, take) {
 export function findEach(text, strings) {
   /** @type {Map<string, number[]>} */
   const found = new Map();
-  /** @type {(Key & {string: string})[]} */
-  const entries = [];
-  for (const string of strings) {
-    if (found.has(string)) continue;
-    found.set(string, []);
-    if (string) entries.push({ ...keyOf(string), string });
-  }
-  const table = tableOf(entries);
-  keyStarts(
+  for (const string of strings) found.set(string, []);
+  const automaton = automatonOf(
+    [...found.keys()]
+      .filter(Boolean)
+      .map((string) => /** @type {const} */ ([string, string])),
+  );
+  runAutomaton(
+    automaton,
     text.length,
     (t) => text.charCodeAt(t),
-    table,
-    text.length,
-    (entry, t) => {
-      if (text.startsWith(entry.string, t)) found.get(entry.string)?.push(t);
-    },
+    (string, end) => found.get(string)?.push(end - string.length),
   );
   return found;
 }
 /** @typedef {{from: number, to: number, fenced: boolean, near: [number, number] | null}} Copy */
-/** @typedef {Key & {quote: string, words: string[], copies: Copy[], changedAt: number}} QuoteEntry */
+/** @typedef {{quote: string, words: string[], letters: string, copies: Copy[],
+ * changedAt: number}} QuoteEntry */
 /** @param {string} quote @returns {QuoteEntry | null} */
 function quoteEntry(quote) {
   const words = quote.trim().split(/\s+/).filter(Boolean);
   if (!words.length) return null;
-  return { ...keyOf(words.join("")), quote, words, copies: [], changedAt: 0 };
+  return { quote, words, letters: words.join(""), copies: [], changedAt: 0 };
 }
-// Every copy of a table's quotes that starts in raw[lo..hi): each place the page's
-// letters start as a quote's do, read against the quote's words, and whether a fence
-// parts it.
-/** @param {PageReading} reading @param {KeyTable<QuoteEntry>} table @param {number} lo @param {number} hi
- * @param {(entry: QuoteEntry, copy: Copy) => void} take */
-function scan(reading, table, lo, hi, take) {
+/** @param {Iterable<QuoteEntry>} entries @returns {Automaton<QuoteEntry>} */
+const quotesAutomaton = (entries) =>
+  automatonOf(
+    [...entries].map((entry) => /** @type {const} */ ([entry.letters, entry])),
+  );
+// Every copy of an automaton's quotes that starts in raw[lo..hi): each place the page's
+// letters spell a quote's, read against the quote's words, and whether a fence parts
+// it.
+/** @param {PageReading} reading @param {Automaton<QuoteEntry>} automaton @param {number} lo
+ * @param {number} hi @param {(entry: QuoteEntry, copy: Copy) => void} take */
+function scan(reading, automaton, lo, hi, take) {
   const { raw } = reading;
   /** @type {number[]} */
   const codes = [];
   /** @type {number[]} */
   const places = [];
-  let starts = 0;
   for (let i = lo, past = 0; i < raw.length; i++) {
     if (gapAt(raw, i)) continue;
-    if (i >= hi && ++past > table.widest) break;
-    if (i < hi) starts += 1;
+    if (i >= hi && ++past > automaton.widest) break;
     codes.push(raw.charCodeAt(i));
     places.push(i);
   }
   const codeAt = (/** @type {number} */ t) => /** @type {number} */ (codes[t]);
-  keyStarts(codes.length, codeAt, table, starts, (entry, t) => {
-    const from = /** @type {number} */ (places[t]);
+  runAutomaton(automaton, codes.length, codeAt, (entry, end) => {
+    const from = /** @type {number} */ (places[end - entry.letters.length]);
+    if (from >= hi) return;
     const to = matchAt(raw, from, entry.words);
     if (to !== -1)
       take(entry, { from, to, fenced: !withinCell(reading, from, to), near: null });
@@ -2103,8 +2112,9 @@ const index = {
   reading: null,
   /** @type {Map<string, QuoteEntry>} */
   entries: new Map(),
-  /** @type {KeyTable<QuoteEntry>} */
-  table: tableOf([]),
+  // Built for the quotes the index keeps when a search first needs it.
+  /** @type {Automaton<QuoteEntry> | null} */
+  automaton: null,
   version: 0,
 };
 // The text nodes changes wrote or took out since the index's reading (`tellHearers`),
@@ -2161,8 +2171,9 @@ function carry(now) {
     entry.copies = copies;
     if (changed) moved.add(entry);
   }
-  const lo = lettersBefore(now.raw, from, index.table.widest);
-  scan(now, index.table, lo, span.now, (entry, copy) => {
+  const automaton = (index.automaton ??= quotesAutomaton(index.entries.values()));
+  const lo = lettersBefore(now.raw, from, automaton.widest);
+  scan(now, automaton, lo, span.now, (entry, copy) => {
     if (copy.to <= from) return; // standing before the change, as it stood
     entry.copies.push(copy);
     moved.add(entry);
@@ -2191,9 +2202,9 @@ export function trackQuotes(quotes) {
   carry(now);
   for (const quote of gone) index.entries.delete(quote);
   for (const entry of fresh) index.entries.set(entry.quote, entry);
-  index.table = tableOf(index.entries.values());
+  index.automaton = null;
   if (fresh.length)
-    scan(now, tableOf(fresh), 0, now.raw.length, (entry, copy) =>
+    scan(now, quotesAutomaton(fresh), 0, now.raw.length, (entry, copy) =>
       entry.copies.push(copy),
     );
 }
@@ -2227,7 +2238,7 @@ function copiesOf(text, quote) {
   if (asked.has(quote)) return asked.get(quote) ?? null;
   const entry = quoteEntry(quote);
   if (entry)
-    scan(text, tableOf([entry]), 0, text.raw.length, (_, copy) =>
+    scan(text, quotesAutomaton([entry]), 0, text.raw.length, (_, copy) =>
       entry.copies.push(copy),
     );
   asked.set(quote, entry);
@@ -2316,14 +2327,17 @@ function searchableWords() {
 // Every occurrence of a user's search, as passages in the page reading. This is not
 // anchor resolution: a search is allowed to find repeated words, while a stored anchor
 // must identify one occurrence or detach. It does keep the passage reader's other rules —
-// elastic whitespace and element edges, and no match crossing an opaque passage fence —
-// so choosing a result produces exactly the kind of segments capture and resolution use.
+// elastic whitespace, edges free to fall inside words and in a gap but never one by
+// themselves (`matchAt`), and no match crossing an opaque passage fence — so choosing a
+// result produces exactly the kind of segments capture and resolution use.
 /** @param {PageReading} text @param {string} query */
 export function findText(text, query) {
   const words = query.trim().split(/\s+/u).filter(Boolean);
   if (!words.length) return [];
   const pattern = new RegExp(
-    words.map((w) => [...w].map(escape).join(`${EDGE}*`)).join(`[\\s${EDGE}]+`),
+    words
+      .map((w) => [...w].map(escape).join(`${EDGE}*`))
+      .join(`${EDGE}*\\s[\\s${EDGE}]*`),
     "giu",
   );
   const out = [];

@@ -6191,6 +6191,123 @@ def test_a_quote_follows_its_section_s_id_to_another_element(engine, request, se
     page.wait_for_function(f"() => ({marked})() === 'a'", timeout=2000)
 
 
+PENDING = "() => [...(CSS.highlights.get('lf-pending') ?? [])].map(String).join('|')"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_draft_s_passage_keeps_its_mark_when_a_script_rewrites_around_it(
+    engine, request, serve
+):
+    """A script that rewrites a paragraph while the user comments on a sentence in it,
+    keeping the sentence, keeps the draft's mark on the sentence, on a page that holds
+    no thread yet: the draft's passage stands where its words still are."""
+    url = serve(
+        leaf_page(
+            "Draft placement",
+            '<p id="words">A marked phrase belongs here.</p>' + "<p>More.</p>" * 3,
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    box = page.locator("#words").bounding_box()
+    page.mouse.click(box["x"] + 25, box["y"] + box["height"] / 2, click_count=3)
+    page.keyboard.press("c")
+    page.wait_for_function(f"() => ({PENDING})().includes('A marked phrase')")
+    before = page.evaluate(PENDING)
+    page.evaluate(
+        """() => {
+          document.getElementById('words').textContent =
+            'Prefix A marked phrase belongs here.';
+        }"""
+    )
+    page.wait_for_timeout(300)
+    # Read once: a later presentation reads the draft again and would hide the fault.
+    assert page.evaluate(PENDING) == before
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_section_staged_again_in_a_new_widget_keeps_its_thread(
+    engine, request, serve
+):
+    """A script that stages a section in a new widget's shadow tree and then puts the
+    widget in place of the one whose shadow tree held the section moves the section's
+    thread to the new one: the pointer finds the thread's mark on the new section, as
+    reading the page again finds."""
+    url = serve(
+        leaf_page(
+            "Staged again",
+            '<lf-late-stage id="late"><p id="inner">The staged section.</p>'
+            "</lf-late-stage>" + "<p>After.</p>" * 4,
+        ),
+        layer_registry={"lf-late-stage": LATE_STAGE},
+        layer_widgets={"lf-late-stage.js": LATE_STAGE_MODULE},
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About the section?",
+            "anchor": {"section": "inner"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.evaluate("() => document.getElementById('late').stage()")
+    inner = "() => document.getElementById('late').shadowRoot.getElementById('inner')"
+    page.wait_for_function(f"() => ({inner})()?.classList.contains('lf-mark-el')")
+    page.evaluate(
+        """async () => {
+          const host = document.createElement('lf-late-stage');
+          host.innerHTML = '<p id="inner">The staged section.</p>';
+          host.stage();
+          await new Promise(requestAnimationFrame);
+          host.id = 'late';
+          document.getElementById('late').replaceWith(host);
+        }"""
+    )
+    box = page.evaluate(f"() => ({inner})().getBoundingClientRect().toJSON()")
+    assert _rest_on(page, box)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_a_script_sets_in_elements_of_their_own_run_together(
+    engine, request, serve
+):
+    """A script that sets a marked phrase's two words in inline elements of their own,
+    with nothing between them, leaves the page saying one word where the thread quotes
+    two: the pointer finds no mark on it, and once it has asked, nothing is marked, as
+    the file's reading of the same words finds (tests/quote_cases.json)."""
+    url = serve(
+        leaf_page(
+            "Run together",
+            '<p id="pair">Before one two after.</p>' + "<p>More.</p>" * 4,
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About these?",
+            "anchor": {"section": "pair", "quote": "one two"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function(f"() => ({MARKED})() === 'one two'")
+    page.evaluate(
+        """() => {
+          document.getElementById('pair').innerHTML =
+            'Before <span>one</span><span>two</span> after.';
+        }"""
+    )
+    box = page.locator("#pair span").first.bounding_box()
+    assert not _rest_on(
+        page, {"left": box["x"], "top": box["y"], "height": box["height"]}
+    )
+    page.wait_for_function(f"() => ({MARKED})() === ''", timeout=2000)
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_search_match_whose_end_shows_is_brought_to_its_start(engine, request, serve):
     """A page search's match whose end stands in the window while its start stands

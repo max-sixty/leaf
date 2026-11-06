@@ -86,12 +86,12 @@ const sameSegments = (a, b) =>
       segment.end === other.end
     );
   });
-/** @param {Placement | undefined} a @param {Placement | undefined} b */
+/** @param {Partial<Placement> | undefined} a @param {Partial<Placement> | undefined} b */
 const samePlacement = (a, b) =>
   a?.kind === b?.kind &&
   (a?.kind !== "passage" ||
     b?.kind !== "passage" ||
-    (a.ranges === b.ranges && sameSegments(a.segments, b.segments))) &&
+    (a.ranges === b.ranges && sameSegments(a.segments ?? [], b.segments ?? []))) &&
   a?.status === b?.status &&
   a?.exact === b?.exact &&
   a?.datumElement === b?.datumElement &&
@@ -138,6 +138,10 @@ function liveRanges(was, segments) {
   return stand && ranges ? ranges : segments.map((segment) => rangeOf([segment]));
 }
 
+// The key the draft's anchor is kept under beside the threads', which no thread's id is.
+const DRAFT = "\u0000draft";
+/** @typedef {{threads: readonly string[], pending: boolean}} Placed */
+
 export function createAnchorPlacement() {
   /** @type {Map<string, Placement>} */
   const placed = new Map();
@@ -149,10 +153,11 @@ export function createAnchorPlacement() {
   /** @type {Map<string, Thread>} */
   let names = new Map();
   // The threads the last reading placed: all of them, by id, by each quote their anchors
-  // name and by each section; for each text node a placed passage's segment stands in,
-  // its threads; whether the page's words or ids changed since placement last read
-  // them (`stale`), and which ids and which elements' own ids; the threads placed again
-  // whose hearers are still to hear it; and those who hear which threads were.
+  // name and by each section, the draft's anchor among them (`DRAFT`); for each text
+  // node a placed passage's segment stands in, its threads; whether the page's words or
+  // ids changed since placement last read them (`stale`), and which ids and which
+  // elements' own ids; the threads placed again whose hearers are still to hear it; and
+  // those who hear which threads were.
   /** @type {readonly Thread[]} */
   let threads = [];
   /** @type {Map<string, Thread>} */
@@ -172,9 +177,9 @@ export function createAnchorPlacement() {
   const renamedElements = new Set();
   /** @type {Set<string>} */
   const unheard = new Set();
-  /** @type {Set<(ids: readonly string[]) => void>} */
+  /** @type {Set<(placed: Placed) => void>} */
   const hearers = new Set();
-  /** @param {string} id @param {Placement | undefined} placement @param {boolean} on */
+  /** @param {string} id @param {ResolvedTarget | null | undefined} placement @param {boolean} on */
   const note = (id, placement, on) => {
     if (placement?.kind !== "passage") return;
     for (const { node } of placement.segments) {
@@ -241,7 +246,8 @@ export function createAnchorPlacement() {
     byId = new Map(all.map((thread) => [thread.id, thread]));
     byQuote = new Map();
     bySection = new Map();
-    for (const { id, anchor } of all) {
+    pendingAnchor = draft.open ? draft.anchor : null;
+    for (const { id, anchor } of [...all, { id: DRAFT, anchor: pendingAnchor }]) {
       if (anchor?.quote) file(byQuote, anchor.quote, id);
       if (anchor?.section) file(bySection, anchor.section, id);
     }
@@ -273,9 +279,9 @@ export function createAnchorPlacement() {
           pointWords: point.words,
         });
     }
-    pendingAnchor = draft.open ? draft.anchor : null;
     const resolvedDraft = pendingAnchor ? resolveAnchor(pendingAnchor) : null;
     pendingPlaced = resolvedDraft;
+    note(DRAFT, resolvedDraft, true);
     const active = draft.open ? null : actionAnchor;
     const action = active && !active.quote ? resolveAnchor(active) : null;
     // This reading placed every anchor, those changes touched before it included.
@@ -319,6 +325,15 @@ export function createAnchorPlacement() {
       renamedIds.clear();
       renamedElements.clear();
       for (const id of ids) {
+        if (id === DRAFT) {
+          const was = pendingPlaced;
+          note(DRAFT, was, false);
+          pendingPlaced = pendingAnchor ? resolveAnchor(pendingAnchor) : null;
+          note(DRAFT, pendingPlaced, true);
+          if (!samePlacement(was ?? undefined, pendingPlaced ?? undefined))
+            unheard.add(DRAFT);
+          continue;
+        }
         const thread = byId.get(id);
         if (!thread?.anchor) continue;
         const was = placed.get(id);
@@ -333,22 +348,22 @@ export function createAnchorPlacement() {
         note(id, placement, true);
         if (!samePlacement(was, placement)) unheard.add(id);
       }
-      if (pendingAnchor) pendingPlaced = resolveAnchor(pendingAnchor);
       if (unheard.size && !heardNow) afterScript(tell);
     }
     if (heardNow) tell();
   }
   function tell() {
     if (!unheard.size) return;
-    const changed = [...unheard];
+    const pending = unheard.delete(DRAFT);
+    const change = { threads: [...unheard], pending };
     unheard.clear();
     tick(version);
-    for (const hear of hearers) hear(changed);
+    for (const hear of hearers) hear(change);
   }
   return Object.freeze({
     read,
     settle,
-    /** @param {(ids: readonly string[]) => void} hear */
+    /** @param {(placed: Placed) => void} hear */
     hearPlaced: (hear) => {
       hearers.add(hear);
       return () => void hearers.delete(hear);

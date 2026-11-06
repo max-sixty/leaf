@@ -99,6 +99,7 @@ function piecesAt(tree, at) {
  * rowThread: (under: Element | null) => string | null, threadRow: (id: string) => Element | null,
  * marginThread: () => string | null,
  * placedAt: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["placedAt"],
+ * pendingAt: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["pendingAt"],
  * settle: () => void}} capabilities */
 export function createAnchorPaint({
   targetPaint,
@@ -109,6 +110,7 @@ export function createAnchorPaint({
   threadRow,
   marginThread,
   placedAt,
+  pendingAt,
   settle,
 }) {
   /** @type {Map<string, Mark[]>} */
@@ -416,6 +418,25 @@ export function createAnchorPaint({
       }
     });
   }
+  // The draft's marks: its passage's words, or the element it stands on, unless the
+  // draft draws (`draftDraws`) or its anchor stands on an outdated datum.
+  let draftDraws = false;
+  /** @param {ReturnType<typeof pendingAt>} resolved */
+  function paintPending(resolved) {
+    const marked = Boolean(resolved && resolved.status !== "outdated") && !draftDraws;
+    pendingOutline = marked && targetElement(resolved) ? targetParts(resolved) : [];
+    const ranges = marked
+      ? targetSegments(resolved).map(
+          /** @param {Parameters<typeof rangeOf>[0][number]} segment */ (segment) =>
+            rangeOf([segment]),
+        )
+      : [];
+    if (resolved) rememberVisual(resolved);
+    CSS.highlights.set(
+      PENDING,
+      Object.assign(new Highlight(...ranges), { priority: 3 }),
+    );
+  }
   // Placement read again the threads `ids` a change to the page's words touched
   // (anchor-placement.js, `settle`): their passages' marks are its new ranges, painted
   // in place of the old ones, and the index reads again only the text nodes they left
@@ -424,8 +445,14 @@ export function createAnchorPaint({
   // so is one placed where the last paint marked nothing for it and chose not to mark it
   // for nothing, as a resolved thread, since only a paint of the page knows where it
   // falls among the marks.
-  /** @param {readonly string[]} ids */
-  function replace(ids) {
+  /** @param {import("../anchor-placement.js").Placed} placed */
+  function replace({ threads: ids, pending }) {
+    if (pending) {
+      const before = outlined();
+      paintPending(pendingAt());
+      paintOutlines(before);
+      paintVisualStates();
+    }
     const arrived = ids.some((id) => {
       if (passages.has(id) || reacted.has(id) || unmarked.has(id)) return false;
       const found = placedAt(id);
@@ -651,20 +678,8 @@ export function createAnchorPaint({
       marked.size !== last.size ||
       [...marked].some(([id, marks], at) => order[at] !== id || last.get(id) !== marks);
     if (remarked) index();
-    const resolvedDraft = draft.resolved;
-    const draftMarked = Boolean(resolvedDraft && resolvedDraft.status !== "outdated");
-    pendingOutline =
-      draftMarked && !draft.drawing && targetElement(resolvedDraft)
-        ? targetParts(resolvedDraft)
-        : [];
-    const pending =
-      draftMarked && !draft.drawing
-        ? targetSegments(resolvedDraft).map(
-            /** @param {Parameters<typeof rangeOf>[0][number]} segment */ (segment) =>
-              rangeOf([segment]),
-          )
-        : [];
-    if (resolvedDraft) rememberVisual(resolvedDraft);
+    draftDraws = Boolean(draft.drawing);
+    paintPending(draft.resolved);
 
     actionOutline = targetElement(action) ? targetParts(action) : [];
     if (action) rememberVisual(action);
@@ -672,10 +687,6 @@ export function createAnchorPaint({
 
     if (remarked) CSS.highlights.set(MARK, new Highlight(...posted));
     CSS.highlights.set(REACT, new Highlight(...reactions));
-    CSS.highlights.set(
-      PENDING,
-      Object.assign(new Highlight(...pending), { priority: 3 }),
-    );
     paintCurrentLocation(false);
     // A pass that made new marks rebinds the hover to them even when the semantic id
     // did not change, then updates the shared visual projection once.

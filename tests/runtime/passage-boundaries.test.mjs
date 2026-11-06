@@ -536,16 +536,17 @@ test("a reading rooted at a shadow tree reads in its host's block", () => {
   assert.equal(says(root), "12%");
 });
 
-// Every position in the reading leads back to the character it came from, and the edges
-// between text nodes, which hold none, lead nowhere.
+// Every position in the reading leads back to the character it came from, and what
+// stands between text nodes, which holds none of theirs, leads nowhere: an edge between
+// inline elements, or the space a block's end reads as.
 test("a reading's positions lead back to their nodes", () => {
   document.body.innerHTML = "<main><p>Al<em></em><b>pha</b></p><p>beta</p></main>";
   document.querySelector("em").append(document.createTextNode(""));
   const reading = pageText();
-  assert.equal(reading.raw, "Al\u0000\u0000pha\u0000beta");
+  assert.equal(reading.raw, "Al\u0000\u0000pha beta");
   for (let i = 0; i < reading.raw.length; i++) {
     const at = pointAt(reading, i);
-    const edge = reading.raw[i] === "\u0000";
+    const edge = reading.raw[i] === "\u0000" || i === "Al\u0000\u0000pha".length;
     assert.equal(at === null, edge, `${edge ? "edge" : "character"} at ${i}`);
     if (!edge)
       assert.equal(at.node.data[at.offset], reading.raw[i], `character at ${i}`);
@@ -719,34 +720,48 @@ test("one pass over a text finds every place each string starts", () => {
   assert.deepEqual(found.get("aa"), [0, 1, 2, 8]);
 });
 
-// Strings that share a long start, as quotes of a list's rows do, part by the hash of
-// their whole length, so each place the shared start stands is read against the one
-// string standing there, not against every string that starts so.
-test("strings sharing a long start are each read only where they stand", () => {
+// Strings that share a long start, as quotes of a list's rows do, whether they share a
+// length or come in as many lengths as there are strings, are found by one pass over the
+// text whose work grows with the text and the strings' total length, not with how many
+// strings start alike: each step of the pass is a lookup or two of the automaton's
+// transitions, counted here.
+test("strings sharing a long start cost the text and their own length", () => {
   const shared = "Row of a long list that every quote here starts with alike, ".repeat(
     5,
   );
-  const strings = Array.from(
-    { length: 400 },
-    (_, n) => `${shared}${String(n).padStart(3, "0")}`,
-  );
-  const text = strings.join(" ");
-  const native = String.prototype.startsWith;
-  let reads = 0;
-  String.prototype.startsWith = function (...args) {
-    reads += 1;
-    return native.apply(this, /** @type {[string, number]} */ (args));
+  const shapes = {
+    "one length": Array.from(
+      { length: 400 },
+      (_, n) => `${shared}${String(n).padStart(3, "0")}`,
+    ),
+    "a length each": Array.from(
+      { length: 400 },
+      (_, n) => `${"x".repeat(16 + n)}${String(n).padStart(4, "0")}!`,
+    ),
   };
-  try {
-    const found = findEach(text, strings);
+  const get = Map.prototype.get;
+  for (const [shape, strings] of Object.entries(shapes)) {
+    const text = strings.join(" ");
+    let lookups = 0;
+    Map.prototype.get = function (key) {
+      lookups += 1;
+      return get.call(this, key);
+    };
+    /** @type {Map<string, number[]>} */
+    let found;
+    try {
+      found = findEach(text, strings);
+    } finally {
+      Map.prototype.get = get;
+    }
     assert.deepEqual(
       strings.map((string) => found.get(string)),
       strings.map((string) => [text.indexOf(string)]),
+      shape,
     );
-  } finally {
-    String.prototype.startsWith = native;
+    const letters = strings.reduce((sum, string) => sum + string.length, 0);
+    assert.ok(lookups <= 4 * (text.length + letters), `${shape}: ${lookups} lookups`);
   }
-  assert.ok(reads <= 2 * strings.length, `${reads} reads for ${strings.length} copies`);
 });
 
 // A repeated quote's copies are told apart by the words beside them, so a change there is

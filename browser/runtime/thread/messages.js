@@ -75,7 +75,6 @@ import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
 import { importWidgets, rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../keeps.js";
-import { sizeObserver } from "../rendering.js";
 import { showsContents } from "../geometry.js";
 import { flashDuration, motion } from "../motion.js";
 import { agentName, pageClaimed } from "../semantic-state.js";
@@ -223,79 +222,6 @@ const authorName = (message) => (message.author === "agent" ? message.agent : "M
 // The characters of a thread's name or a message's opening line a preview keeps,
 // which wrap within its width.
 const PREVIEWED_LINE = 120;
-// A preview of several threads lists every thread's line, and the face, which the
-// preview owner holds to the room it stands in, clips them rather than scrolling
-// (controls.css). The lines that fit stand first, then "and N more threads", and the
-// rest after it, out of sight and still laid out, so the face stays as tall as the room
-// and grows with it as the window does. Its size is the browser's to report: a
-// ResizeObserver on the face and on the list counts the lines that fit again as either
-// changes, where a count read from the window's height once stayed as the window
-// shrank under it.
-// The list is drawn before it stands in its face, so its first size names the face to
-// observe.
-/** @type {HTMLElement | null} */
-let fittedList = null;
-/** @type {Element | null} */
-let fittedFace = null;
-const fitting = sizeObserver(
-  () => {
-    if (!fittedList) return;
-    const face = fittedList.closest(".lf-preview");
-    if (face !== fittedFace) {
-      if (fittedFace) fitting.unobserve(fittedFace);
-      fittedFace = face;
-      if (face) fitting.observe(face);
-    }
-    fitLines(fittedList);
-  },
-  { counted: false },
-);
-/** @param {Element | undefined} list */
-function fitThreads(list) {
-  if (list === fittedList) return;
-  if (fittedList) fitting.unobserve(fittedList);
-  if (fittedFace) fitting.unobserve(fittedFace);
-  fittedFace = null;
-  fittedList = list instanceof HTMLElement ? list : null;
-  if (fittedList) fitting.observe(fittedList);
-}
-/** @param {HTMLElement} list */
-function fitLines(list) {
-  const face = list.closest(".lf-preview");
-  const more = list.querySelector(":scope > .lf-preview-more");
-  const lines = [...list.querySelectorAll(":scope > .lf-preview-thread")];
-  // A face put away has no room to fit, and counting none in it would write the count
-  // into the observer's own delivery.
-  if (!face || !more || !lines.length || !list.checkVisibility()) return;
-  const style = getComputedStyle(face);
-  const room =
-    face.getBoundingClientRect().bottom -
-    parseFloat(style.paddingBlockEnd) -
-    parseFloat(style.borderBlockEndWidth) -
-    list.getBoundingClientRect().top;
-  const gap = parseFloat(getComputedStyle(list).rowGap) || 0;
-  const heights = lines.map((line) => line.getBoundingClientRect().height);
-  const rest = (/** @type {number} */ n) =>
-    `and ${counted(n, "more thread", "more threads")}`;
-  /** @param {string} text */
-  const say = (text) => {
-    if (more.textContent !== text) more.textContent = text;
-  };
-  let shown = lines.length;
-  if (heights.reduce((sum, height) => sum + height + gap, -gap) > room + 0.5) {
-    // The count stands, for the height it takes, saying the most it could where it
-    // says nothing yet.
-    if (!more.textContent) say(rest(lines.length));
-    let used = more.getBoundingClientRect().height;
-    for (shown = 0; shown < lines.length; shown++) {
-      used += gap + (heights[shown] ?? 0);
-      if (used > room + 0.5) break;
-    }
-  }
-  lines.forEach((line, at) => keeps(line, "data-lf-past", at < shown ? null : ""));
-  say(shown < lines.length ? rest(lines.length - shown) : "");
-}
-
 // Where a thread stands, as its preview says it (`threadPreview`): its word
 // (`threadAttention`) and the agent's line on the work in hand, what it holds unread
 // and how many messages it holds, each said by whoever says it, less the part `said`,
@@ -325,14 +251,12 @@ function threadStands(thread, said) {
  * thread stands: "Your turn · 1 unread · 5 messages". An untitled thread's name is its
  * opening words, so a thread whose last message is its first says them once. A target
  * holding several threads is named by their count, as the card a press opens lists
- * them, and gives each a line, its name and where it stands, as many as its face holds
- * in the room it stands in (`fitLines`); past those its last line says how many more,
- * which a press still reaches: the card it opens steps through every thread, and on a
- * window too narrow for the card, the thread it opens in the panel goes back to the
- * panel's list of them, where each row previews its thread. Seven, the most the
- * example and page logs hold on one target, fit a window 400 px tall. Rejected: a face
- * that scrolls its lines, which only a pointer resting on it could scroll. A line in
- * the user's turn wears the turn's mark (`data-lf-turn`). Where the preview describes something that already says one
+ * them, and lists each, its name and where it stands, which the preview owner fits to
+ * the room its face stands in (preview.js, `fitList`), saying how many more past those:
+ * a press still reaches them, as the card it opens steps through every thread, and on
+ * a window too narrow for the card, the thread it opens in the panel goes back to the
+ * panel's list of them, where each row previews its thread. A line in the user's turn
+ * wears the turn's mark (`data-lf-turn`). Where the preview describes something that already says one
  * thread's word, as a margin entry's name does to the keyboard, `said` is that word,
  * which its line leaves out, so a screen reader hears it once.
  * @param {readonly import("./workflow.js").ThreadRecord[]} threads
@@ -361,19 +285,16 @@ export function threadPreview(threads, said = null) {
   }
   return {
     name: counted(threads.length, "thread"),
-    detail: [
-      html`<span class="lf-preview-threads" ${ref(fitThreads)}
-        >${threads.map(
-          (thread) =>
-            html`<span class="lf-preview-thread"
-              >${standing(
-                threadStands(thread, null),
-                `${excerptWords(threadName(thread), 60)} · `,
-              )}</span
-            >`,
-        )}<span class="lf-preview-more" data-lf-voice="leaf"></span
-      ></span>`,
-    ],
+    list: {
+      items: threads.map((thread) =>
+        standing(
+          threadStands(thread, null),
+          `${excerptWords(threadName(thread), 60)} · `,
+        ),
+      ),
+      more: (count) =>
+        voiced(leafSays(`and ${counted(count, "more thread", "more threads")}`)),
+    },
   };
 }
 

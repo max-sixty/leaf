@@ -9,7 +9,6 @@ import { progressFace, workflowWord } from "./thread/workflow.js";
 import { agentSays, saidBy, voiced } from "./voice.js";
 import { agentName } from "./semantic-state.js";
 import { elementDirective, offerActionElement } from "./widget-elements.js";
-import { titleWords } from "./element-markers.js";
 import { keeps, inlineStyle } from "./keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { currentLocationIn, focusDestination, nativeFocusTarget } from "./focus.js";
@@ -208,7 +207,7 @@ function agentWorkflowDescription(control) {
   if (!reading) {
     reading = {
       description: control.getAttribute("aria-description"),
-      title: titleWords(control),
+      title: control.getAttribute("title"),
       stage: null,
       word: null,
       detail: null,

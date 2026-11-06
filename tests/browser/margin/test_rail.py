@@ -15,6 +15,7 @@ from render_harness import (
     resized,
     round_trip,
     sending,
+    tab_onto,
     told,
     undo,
 )
@@ -576,7 +577,7 @@ def test_new_rail_keeps_a_pin_reachable(browser, serve, subtests):
     for focused in (False, True):
         with subtests.test(focused=focused):
             if focused:
-                marker.evaluate("node => node.focus({focusVisible: true})")
+                tab_onto(marker)
                 expect(page.locator(PREVIEW)).to_be_visible()
                 label_before = page.locator(PREVIEW).bounding_box()
             else:
@@ -642,7 +643,7 @@ def test_new_pin_keeps_a_rail_reachable(browser, serve, subtests):
     for focused in (False, True):
         with subtests.test(focused=focused):
             if focused:
-                control.evaluate("node => node.focus({focusVisible: true})")
+                tab_onto(control)
                 expect(page.locator(PREVIEW)).to_be_visible()
                 label_before = page.locator(PREVIEW).bounding_box()
             else:

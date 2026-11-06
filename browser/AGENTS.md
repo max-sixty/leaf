@@ -230,8 +230,9 @@ playable").
   at, what caused a change or the time behind an age; a control's says its word and
   every key that presses it, each as a key chip. Every preview wears one face, its name
   and key chips on the first line and its detail under them. It stands over the page
-  beside what it previews, clear of the target's focus ring and inside the surface the
-  target stands in, covering none of the targets beside it, moves nothing around it
+  beside what it previews, where the browser keeps it as the target moves, clear of
+  the target's focus ring and inside the window, covering none of the targets beside
+  it where a side is free of them, moves nothing around it
   ("The page holds still under the user's aim") and holds no control. The pointer can
   cross onto it and read it there (WCAG 1.4.13). Revealing a block's own controls, as Copy appears on a
   code block, is no preview and stays its block's.
@@ -241,14 +242,15 @@ playable").
   `test_a_thread_previews_where_it_stands_from_its_words_and_its_entry`,
   `test_an_age_previews_its_clock_time_in_the_reader_s_zone`.
 - **Every route reads it.** A resting pointer reads it after a short dwell, keyboard
-  focus the user moved there themselves at once, by Tab or a key that steps between
-  items, but not focus a surface places as it opens or hands back as it closes, and a
-  finger by holding the press, whose release still presses; where
+  focus the user moved there themselves at once, by Tab or a keyboard walk, as whoever
+  moved focus says, but not focus a surface places as it opens or hands back as it
+  closes, and a finger by holding the press, whose release still presses; where
   a surface can't take a hold, it says the words at rest, as a panel row's cut words
-  stand whole. So no fact is said to hover alone. A `title` is an element's words like
-  any other: the browser's tooltip off Leaf, and on Leaf the preview's, on every route,
-  which takes the attribute off the first time the pointer comes, so two tooltips never
-  stand together.
+  stand whole. So no fact is said to hover alone. A preview the user put away stays
+  away until they aim again, whatever the element declares meanwhile. A `title` is its
+  writer's: the browser's tooltip shows it to a pointer, and Leaf's preview to focus
+  and a finger, so two tooltips never stand together. Leaf's own controls declare
+  their words to the preview and write no title on Leaf.
 - **One owner shows every preview.** An element adds to what pointing at it reads
   (`lfPreview`, `../skills/leaf/references/module-input.md`, "Previews"), a control's
   word and keys come from its name and the register, and a range's owner says where

@@ -2761,19 +2761,26 @@ LANDING_TOP = "(await window.__lfCheckApi()).landingBand(document.scrollingEleme
 PREVIEW = "#lf-preview"
 
 
+def tab_onto(target):
+    """Step onto `target` with the keyboard, as the user does: Shift+Tab off it and Tab
+    back, a move the user made themselves, which a focus preview reads (preview.js),
+    where a script's focus reads nothing."""
+    target.focus()
+    target.page.keyboard.press("Shift+Tab")
+    target.page.keyboard.press("Tab")
+    expect(target).to_be_focused()
+
+
 def preview_parts(target, route="pointer"):
     """What `target`'s preview shows a pointer resting on it (runtime/preview.js), or
-    with `route="focus"` the keyboard moving onto it: its name, then each line of
-    detail, as the face draws them, key chips left out: of a list of threads, each line
-    it shows and the count of the rest. The pointer leaves it again after, so the next
-    reading is a new one."""
+    with `route="focus"` the keyboard stepping onto it: its name, then each line of
+    detail, as the face draws them, key chips left out: of a list, the items it
+    shows and the words for the rest. The pointer leaves it again after, so the
+    next reading is a new one."""
     page = target.page
     tip = page.locator("#lf-preview")
     if route == "focus":
-        # A key is down as focus lands, the user's own move (preview.js, `aimed`).
-        page.keyboard.down("Shift")
-        target.focus()
-        page.keyboard.up("Shift")
+        tab_onto(target)
     else:
         # From somewhere else: a pointer already resting where the target now stands
         # reads nothing there until it moves (preview.js).
@@ -2782,9 +2789,9 @@ def preview_parts(target, route="pointer"):
     expect(tip).to_be_visible()
     expect(tip).to_have_attribute("data-lf-route", route)
     parts = tip.evaluate(
-        """(tip) => [...tip.querySelectorAll(`.lf-preview-word,
-            .lf-preview-detail:not(:has(.lf-preview-thread)),
-            .lf-preview-thread:not([data-lf-past]), .lf-preview-more:not(:empty)`)]
+        """(tip) => [...tip.querySelectorAll(
+            '.lf-preview-word, .lf-preview-detail, .lf-preview-more')]
+          .filter((part) => part.checkVisibility({visibilityProperty: true}))
           .map((part) => part.textContent)"""
     )
     if route == "pointer":

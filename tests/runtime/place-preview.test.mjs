@@ -276,6 +276,18 @@ test("a place with no name of its own is named by the part it stands in, as On m
     "Deployment",
     "heading",
   );
+  // A line's leading <strong> names the line itself, and makes no part.
+  named(
+    `<h2>Suggestions</h2><p><span><strong>Replace.</strong> The meeting starts
+    at <em id="it">ten</em>.</span></p>`,
+    "Suggestions",
+    "heading",
+  );
+  assert.equal(
+    previewed(`<p><span id="it"><strong>Replace.</strong> The meeting starts
+    at ten.</span></p>`).parts[0]?.join(":"),
+    "name:Replace.",
+  );
   // What Leaf generates in the page names nothing, whatever it is labelled.
   named(
     `<h2>Real part</h2><div data-lf-gen="1" aria-label="Leaf's own"><p id="it">Words

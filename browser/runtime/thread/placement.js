@@ -120,11 +120,13 @@ export function headingAfter(heading) {
 // From the node's innermost container out, the nearest part wins: in each, the last
 // heading the reading met before the node that heads that container (passages.js,
 // `headed`), else the container's own name by the contract: its declared name, its
-// leading title (a heading, a disclosure's summary, a titled member's <strong>), its
-// caption, or the `aria-label` or <label> its author gave it. So a <section> the author
-// wrote names what stands in it before its heading, a sub-heading inside it heads what
-// follows the sub-heading, a captioned figure or table names what it holds, and a region
-// the author labelled is a part. The contract stops short of the document the node
+// leading heading or disclosure's summary, its caption, or the `aria-label` or <label>
+// its author gave it. So a <section> the author wrote names what stands in it before
+// its heading, a sub-heading inside it heads what follows the sub-heading, a captioned
+// figure or table names what it holds, and a region the author labelled is a part. A
+// run-in title, a line's or a titled member's leading <strong>, names its own element
+// and makes no part: a bold label opening a line is no place a reader groups by, so
+// On me's bands and a preview's name go on to the part holding the line. The contract stops short of the document the node
 // stands in and the page's column, whose leading heading titles the page, and passes a
 // slot, whose own children are the fallback its assignment replaces, and what Leaf
 // generates in the document, whose labels are Leaf's. A heading in a `header` or
@@ -138,8 +140,7 @@ export function headingAfter(heading) {
 // their titles in headers and their last sections untitled, the container alone sent
 // every item to the corpus's own title.
 //
-// Replaced: a run-in title, a paragraph's leading <strong>, named its paragraph and no
-// part, and only a declared name or a leading heading named a container, while the
+// Replaced: only a declared name or a leading heading named a container, while the
 // preview named a place by its nearest named holder first (`holderNaming`). The two
 // rules disagreed under a sub-heading inside a titled section, the preview saying the
 // section and On me the sub-heading; one rule now says the sub-heading for both.
@@ -165,7 +166,7 @@ export function partOver(node) {
     // A heading that titles its container heads what the container holds; any other
     // name makes the container the part.
     if (!("by" in naming)) return container;
-    if (naming.by === node) continue;
+    if (naming.by === node || naming.by.localName === "strong") continue;
     return naming.by.matches(HEADING) ? naming.by : container;
   }
   return null;

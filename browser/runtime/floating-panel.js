@@ -1888,19 +1888,37 @@ export function createFloatingPanel({
   // menu's Undo comes. No control in the panel means anything by a second click, so a
   // click that goes on a run of clicks begun on another control presses nothing and
   // takes no focus, and a double-click on ‹ goes back once. Clicks repeated on one
-  // control, as Next match, each press it.
+  // control, as Next match, each press it. The run is the browser's, which counts every
+  // press into it, a finger's hold whose release its preview took included (preview.js),
+  // so the panel follows it by each press as it begins rather than by the clicks it
+  // receives: a tap on the row a finger just held goes on a run begun there.
+  /** @param {Event} event */
+  const pressed = (event) =>
+    event.target instanceof Element ? event.target.closest("button") : null;
+  // The control the run of presses is on, and the one it was on before this press.
   /** @type {WeakRef<Element> | null} */
-  let clicked = null;
+  let run = null;
+  /** @type {WeakRef<Element> | null} */
+  let before = null;
+  host.addEventListener(
+    "pointerdown",
+    (event) => {
+      before = run;
+      const control = pressed(event);
+      run = control && new WeakRef(control);
+    },
+    { capture: true },
+  );
   /** @param {MouseEvent} event */
   const runOfClicks = (event) => {
-    const control =
-      event.target instanceof Element ? event.target.closest("button") : null;
-    if (event.detail > 1 && control && control !== clicked?.deref()) {
+    const control = pressed(event);
+    if (event.detail > 1 && control && control !== before?.deref()) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      return;
+      // The run stays on the control it began on, so the next click on it, a triple
+      // click's third, presses nothing either.
+      run = before;
     }
-    if (event.type === "click") clicked = control && new WeakRef(control);
   };
   host.addEventListener("mousedown", runOfClicks, { capture: true });
   host.addEventListener("click", runOfClicks, { capture: true });

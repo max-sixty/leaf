@@ -4574,8 +4574,8 @@ def test_a_list_the_menu_leads_to_opens_over_it_and_goes_back(browser, serve):
 
 def test_a_double_click_on_the_way_back_goes_back_once(browser, serve):
     """The menu is taller than a list over it, so the ‹ at the list's head stands where
-    one of the menu's rows comes; the second click of a double-click on it presses
-    nothing there, Undo included, nor takes focus from the row the list came from, so
+    one of the menu's rows comes; a triple click's second and third clicks on it press
+    nothing there, Undo included, nor take focus from the row the list came from, so
     the next Enter can't undo either, and the user's choice stands."""
     page = floating(browser, serve(UNDO_PAGE))
     with sending(page, "the pick"):
@@ -4583,7 +4583,7 @@ def test_a_double_click_on_the_way_back_goes_back_once(browser, serve):
     panel_menu(page, "annotate")
     box = page.locator(".lf-fp-head .lf-fp-back").bounding_box()
     point = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    page.mouse.dblclick(*point)
+    page.mouse.click(*point, click_count=3)
     panel_settled(page, view="menu")
     assert page.evaluate(
         "([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest('.lf-fp-item'))",

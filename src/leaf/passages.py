@@ -331,7 +331,7 @@ class _PassageParser:
         self.bearing = (
             set()
         )  # ids still showing something: text under them, or a surviving child
-        self.stack = []  # [{"tag", "id", "ids", "skip", "sub", "opaque", "editable", "fenced", "retired_by", "block", "tb", "tail"}]
+        self.stack = []  # [{"tag", "key", "id", "ids", "skip", "sub", "opaque", "editable", "fenced", "retired_by", "block", "tb", "tail"}]
         self._uid = 0
         self._block = None  # the block the last character came from
         self._space = False  # a separator waiting for a character to follow it
@@ -352,9 +352,9 @@ class _PassageParser:
     ) -> None:
         """Text into the collapsed run, one space per whitespace run and none leading,
         and an edge where it runs on from the last text in its block with none. The edge
-        shows as a space, a soft one, where `holder`, the element holding the text, is
-        not the one that held the last text and neither stands in prose (a text block):
-        the runtime's `shownApart`."""
+        shows as a space, a soft one, where `holder`, the key of the element holding the
+        text, is not the one that held the last text and neither stands in prose (a text
+        block): the runtime's `shownApart`."""
         if data.strip():
             self.bearing.update(ids)
         edge = bool(self.chars) and block == self._block
@@ -408,7 +408,7 @@ class _PassageParser:
                 value,
                 frame["block"],
                 frame["ids"],
-                ("said", id(frame), at),
+                ("said", frame["key"], at),
                 frame["tb"],
             )
 
@@ -537,6 +537,10 @@ class _PassageParser:
         sub = self.rewrites.get(attrs_d.get("id")) if not silenced else None
         frame = {
             "tag": tag,
+            # The element's identity for this whole reading, which `_write` compares
+            # long after the element closed: a parser frame dies with its element,
+            # and Python reuses a dead object's `id()`.
+            "key": self._fresh(),
             "id": attrs_d.get("id"),
             "added": "data-lf-added" in attrs_d,
             "ids": ids,
@@ -588,7 +592,7 @@ class _PassageParser:
                 frame["skip"] = True
             else:
                 self._write(
-                    their_text, frame["block"], frame["ids"], id(frame), frame["tb"]
+                    their_text, frame["block"], frame["ids"], frame["key"], frame["tb"]
                 )
 
     def handle_data(self, data):
@@ -599,7 +603,7 @@ class _PassageParser:
             data, self.registry.get(frame["tag"], {}), added=frame["added"]
         )
         if not frame["skip"]:
-            self._write(data, frame["block"], frame["ids"], id(frame), frame["tb"])
+            self._write(data, frame["block"], frame["ids"], frame["key"], frame["tb"])
 
     def handle_endtag(self, tag):
         # Every caller walks a parsed tree or replays a declared child, so ends arrive

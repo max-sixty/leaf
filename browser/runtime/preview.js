@@ -1399,7 +1399,9 @@ const sameRange = (a, b) =>
  * times its owner makes it, and its latest read is the one a standing preview says. A
  * target inside the range under the pointer, as a link in a thread's passage, is the
  * innermost and wins, as it does for the keyboard and a finger. A finger holding a
- * press holds the range it rests on (`holdRange`); one that only moved reads none.
+ * press holds the range it rests on (`holdRange`); one that only moved reads none. A
+ * pointer that left the range for its preview is on neither the range nor any other, and
+ * keeps the preview as one on an element's does (WCAG 1.4.13, "Hoverable").
  * @param {Range | null} range @param {Read} [read] @param {{x: number, y: number}} [at] */
 export function pointRange(range, read, at) {
   if (hold) holdRange(hold, range, read, at);
@@ -1421,7 +1423,7 @@ export function pointRange(range, read, at) {
     if (pointing && isElement(pointing) && holder && renderedUnder(pointing, holder))
       return;
     point(range, read, at);
-  } else if (pointing instanceof Range) point(null);
+  } else if (pointing instanceof Range && !under(beneath, tip)) point(null);
 }
 
 // A finger's hold rests on a range or on none, unless it holds an element, which

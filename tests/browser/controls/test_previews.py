@@ -225,7 +225,8 @@ def test_a_thread_previews_where_it_stands_from_its_words_and_its_entry(
     from the reading every surface paints the thread from: the thread's name, who wrote
     its last message and when, that message's opening line, and the thread's word, what
     it holds unread and how many messages. A resting pointer reads it beside the line it
-    rests on, the keyboard on the entry reads it at once, which a screen reader hears as
+    rests on and keeps it as it moves onto it, as it would an element's (WCAG 1.4.13),
+    the keyboard on the entry reads it at once, which a screen reader hears as
     the entry's description, less the thread's word its name already says, and a press
     on the words still opens the card (thread/messages.js, `threadPreview`)."""
     page = open_page(request.getfixturevalue(engine), _thread_on_a_passage(serve))
@@ -240,6 +241,12 @@ def test_a_thread_previews_where_it_stands_from_its_words_and_its_entry(
     tip = preview.bounding_box()
     assert tip["y"] >= line["bottom"] and tip["x"] == line["left"], (tip, line)
     said = preview.inner_text()
+    page.mouse.move(tip["x"] + 10, tip["y"] + tip["height"] / 2, steps=3)
+    page.wait_for_timeout(400)
+    assert preview.is_visible(), "the pointer moving onto the preview put it away"
+    assert preview.inner_text() == said
+    page.mouse.move(0, 0)
+    expect(preview).to_be_hidden()
 
     entry = page.locator('[data-lf-margin-for="passage"] > .lf-margin-marker')
     entry.hover()
@@ -1105,6 +1112,45 @@ def test_a_threads_row_previews_its_thread(engine, request, serve):
     assert pointed[0] == "Question two on the lede?", pointed
     assert pointed[1].startswith("Me · "), pointed
     assert pointed[-1] == f"{state} · 1 message", pointed
+
+
+def test_a_tap_after_a_finger_read_a_threads_row_opens_its_thread(browser, serve):
+    """A finger's hold on a row reads its thread, and the tap that follows opens it.
+    The hold's release presses nothing, but Chromium counts it into a run of clicks
+    with the tap, a run begun on the row the tap presses."""
+    url = serve(PANEL_PAGE)
+    for n in ("one", "two"):
+        panel_comment(serve.page_dir, f"Question {n} on the lede?", {"section": "lede"})
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    cdp = context.new_cdp_session(page)
+    tip = page.locator(PREVIEW)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
+    row = page.locator(".lf-fp-thread[data-lf-key]").first
+    expect(row).to_be_visible()
+    box = row.bounding_box()
+    point = {"x": box["x"] + 20, "y": box["y"] + box["height"] / 2}
+
+    def touch(kind):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {"type": kind, "touchPoints": [point] if kind != "touchEnd" else []},
+        )
+
+    touch("touchStart")
+    page.wait_for_timeout(600)
+    assert long_press(page, point) is False, "the platform's menu opened"
+    expect(tip.locator(".lf-preview-word")).to_have_text("Question one on the lede?")
+    touch("touchEnd")
+    rendered(page)
+    expect(page.locator(".lf-fp-view[data-lf-route=thread]")).to_be_hidden()
+    touch("touchStart")
+    touch("touchEnd")
+    expect(page.locator(".lf-fp-view[data-lf-route=thread]")).to_be_visible()
+    expect(tip).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

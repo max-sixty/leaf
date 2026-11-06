@@ -614,6 +614,40 @@ def test_reply_replacement_precedes_automatic_fallback_for_other_threads(page_di
     assert [e["thread"] for e in moves] == [roots[1]["id"]]
 
 
+def test_a_revision_moves_a_comment_on_a_formatted_label_to_its_section(page_dir):
+    """The browser captures a passage's context as the page shows it, a chip's label
+    apart from the formatted title beside it, so the file reads the revision's
+    predecessor the same way and sees the passage leave."""
+    from leaf.revisioning import activate_source
+
+    labels = (
+        '<div id="labels"><small>MARK</small><strong><em>one</em></strong>'
+        " <small>MARK</small><strong><em>two</em></strong></div>"
+    )
+    original = PAGE.replace("<h2>Plan</h2>", f"<h2>Plan</h2>{labels}")
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    root = append_command(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {
+                "section": "labels",
+                "quote": "MARK",
+                "prefix": "Plan",
+                "suffix": "one MARK two",
+            },
+            "text": "Rename this one.",
+        },
+    )
+    (page_dir / "index.html").write_text(original.replace("MARK", "TERM"))
+    assert activate_source(page_dir).created
+    threads = build_threads(events_model.read_events(page_dir), {})
+    assert threads[root["id"]]["anchor"] == {"section": "labels"}
+
+
 def test_a_reply_names_the_threads_a_save_already_moved(page_dir):
     """The server activates a valid save before anyone checks it, so the moves are
     in the log by then. `page check` still names every thread the active revision

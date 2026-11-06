@@ -328,6 +328,16 @@
         "quote": "recommendedDrop"
       },
       "before": 0
+    },
+    {
+      "id": "a context reads formatted labels apart where the page shows them apart",
+      "markup": "<div id=\"s\"><small>MARK</small><strong><em>one</em></strong> <small>MARK</small><strong><em>two</em></strong></div>",
+      "anchor": {
+        "section": "s",
+        "quote": "MARK",
+        "suffix": "one MARK two"
+      },
+      "before": 0
     }
   ]
 }

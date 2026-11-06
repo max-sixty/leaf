@@ -410,9 +410,12 @@
   }
   /* A flow shares the room of the column's flow it stands in, at any depth; one in
    * any other box has none to share. A widget that draws no box of its own around its
-   * blocks declares itself one (`x-flow`), so its blocks need no class of the author's. */
-  :not(.layout-column, .layout-flow, [data-lf-flow])
-    > :is(.layout-flow, [data-lf-flow]) {
+   * blocks declares itself one (`x-flow`), so its blocks need no class of the author's.
+   * Only a block standing directly in a column or flow reads the room, so every other
+   * box sets it back to zero. Inherited, the room's percentage reaches every box under
+   * the column, and Chromium 156 restyled all 2,500 of them, for 20 to 30 ms, when one
+   * element was inserted into a box among them. */
+  :not(.layout-column, .layout-flow, [data-lf-flow]) > * {
     --lf-free-start: 0px;
     --lf-free-end: 0px;
   }

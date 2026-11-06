@@ -900,10 +900,10 @@ class _Family:
     __slots__ = (
         "always",
         "coordinate",
-        "count",
         "current",
         "floors",
         "ids",
+        "members",
         "node",
         "owner",
         "revisions",
@@ -918,14 +918,30 @@ class _Family:
         # (-floor, element) for each restated element it has rested on, the highest
         # still in force its threshold (`InForce._threshold`).
         self.floors: list[tuple[int, str]] = []
-        # Its actions at their places, in log order, None where one has left, and how
-        # many have not.
+        # Its actions at their places, in log order, None where one has left, and those
+        # still kept, in log order.
         self.ids: list[str | None] = []
-        self.count = 0
+        self.members: dict[str, None] = {}
         # Each action's revision at its place in `ids`.
         self.revisions = _Latest()
         # Its latest action in force, which competes for the coordinate.
         self.current: str | None = None
+
+
+class _Holders(dict):
+    """A containment's holders of each element as a set, each read once from its chain
+    of holders where a step first asks: `_holds` reads it as it reads a containment."""
+
+    __slots__ = ("within",)
+
+    def __init__(self, within: dict):
+        super().__init__()
+        self.within = within
+
+    def get(self, element, default=()):
+        if (held := dict.get(self, element)) is None:
+            held = self[element] = frozenset(self.within.get(element, default))
+        return held
 
 
 class _Node:
@@ -1015,7 +1031,9 @@ class InForce:
         # of the empty set.
         self._rank: dict[str, int] = {}
         self._roots: dict[tuple, _Node] = {}
-        self._families: list[_Family] = []
+        # Every family with an action kept: one whose last leaves is dropped
+        # (`_drop`), and its node takes a new one if an action comes back.
+        self._families: dict[_Family, None] = {}
         # element → the families resting on it, whether or not their owner holds it,
         # and element → owner → those naming it for that owner to hold: the restated
         # elements a containment can judge otherwise.
@@ -1024,6 +1042,8 @@ class InForce:
         # coordinate → its families' current actions as (-order, id), the latest
         # still current its winner.
         self._leaders: dict[tuple, list[tuple[int, str]]] = {}
+        # The holders of each element the walk has asked of under `within`.
+        self._holders = _Holders(within)
 
     @property
     def within(self) -> dict:
@@ -1031,6 +1051,12 @@ class InForce:
         if self._reading is not None:
             self._within, self._reading = self._reading(), None
         return self._within
+
+    def _holding(self) -> _Holders:
+        """The holders of each element under `within`, read once each."""
+        if self._holders.within is not (within := self.within):
+            self._holders = _Holders(within)
+        return self._holders
 
     def winner(self, coordinate: tuple) -> dict | None:
         leaders = self._leaders.get(coordinate)
@@ -1056,8 +1082,8 @@ class InForce:
             identity
             for family in self._families
             for threshold in [self._threshold(family)]
-            for identity in family.ids
-            if identity is not None and self._actions[identity]["revision"] >= threshold
+            for identity in family.members
+            if self._actions[identity]["revision"] >= threshold
         )
 
     def admit(self, action: dict) -> Change | None:
@@ -1107,7 +1133,10 @@ class InForce:
         del self._family[identity], self._actions[identity], self._order[identity]
         for element in self._named.pop(identity):
             del self._naming[element][identity]
-        self._refresh(family)
+        if family.members:
+            self._refresh(family)
+        else:
+            self._drop(family)
         after = self.winner(family.coordinate)
         return Change(family.coordinate, before, after) if after is not before else None
 
@@ -1169,15 +1198,17 @@ class InForce:
                 else [element for element in watched if element in changed]
             )
         # Each family whose owner gained or lost an element it names, with those
-        # it gained.
+        # it gained, and the holders read of each element compared.
         shifted: dict[_Family, list[str]] = {}
+        holders = _Holders(now)
         for element in compared:
             chained, chain = was.get(element, ()), now.get(element, ())
             if chained == chain:
                 continue
             # The owners that gained or lost the element, found once from its two
             # chains of holders (`_holds`), and of those, the ones families watch.
-            held, holds = set(chained), set(chain)
+            held = frozenset(chained)
+            holds = holders[element] = frozenset(chain)
             owners = watched[element]
             for owner in dict.fromkeys([*chained, *chain]):
                 gained = owner in holds
@@ -1190,7 +1221,7 @@ class InForce:
         before = {
             family.coordinate: self.winner(family.coordinate) for family in shifted
         }
-        self._within = now
+        self._within, self._holders = now, holders
         for family, gained in shifted.items():
             for element in gained:
                 self._raise(family, element)
@@ -1208,17 +1239,11 @@ class InForce:
         for family, gaining in moving.items():
             self._before(family, before)
             node, child = family.node, family.node.child(element)
-            if 2 * len(gaining) >= family.count:
+            if 2 * len(gaining) >= len(family.members):
                 gains = set(gaining)
-                staying = (
-                    [
-                        identity
-                        for identity in family.ids
-                        if identity is not None and identity not in gains
-                    ]
-                    if len(gaining) < family.count
-                    else []
-                )
+                staying = [
+                    identity for identity in family.members if identity not in gains
+                ]
                 node.family, child.family, family.node = None, family, child
                 self._register(family, element)
                 if staying:
@@ -1243,7 +1268,7 @@ class InForce:
         """A new family at `node`, resting on what it always rests on and on the
         restated elements `node` names."""
         family = node.family = _Family(coordinate, always, node)
-        self._families.append(family)
+        self._families[family] = None
         for element in always:
             self._resting.setdefault(element, {})[family] = None
             self._raise(family, element)
@@ -1258,6 +1283,28 @@ class InForce:
             None
         )
 
+    def _drop(self, family: _Family) -> None:
+        """Forget a family whose last action has left, so no step judges it again."""
+        del self._families[family]
+        if family.node.family is family:
+            family.node.family = None
+        for element in family.always:
+            self._unrest(element, family)
+        for element in family.node.elements():
+            self._unrest(element, family)
+            watching = self._watching[element]
+            del watching[family.owner][family]
+            if not watching[family.owner]:
+                del watching[family.owner]
+                if not watching:
+                    del self._watching[element]
+
+    def _unrest(self, element: str, family: _Family) -> None:
+        resting = self._resting[element]
+        del resting[family]
+        if not resting:
+            del self._resting[element]
+
     def _join(self, family: _Family, identities: list[str]) -> None:
         """Place each action, in log order, after every other in the family."""
         for identity in identities:
@@ -1266,17 +1313,19 @@ class InForce:
                 self._actions[identity]["revision"]
             )
             family.ids.append(identity)
-        family.count += len(identities)
+            family.members[identity] = None
 
     def _leave(self, family: _Family, identities: list[str]) -> None:
         for identity in identities:
             place = self._place.pop(identity)
             family.revisions.set(place, -1)
             family.ids[place] = None
-        family.count -= len(identities)
+            del family.members[identity]
 
     def _rests(self, family: _Family, element: str) -> bool:
-        return element in family.always or _holds(family.owner, element, self.within)
+        return element in family.always or _holds(
+            family.owner, element, self._holding()
+        )
 
     def _raise(self, family: _Family, element: str) -> None:
         """Count the floor of `element` toward the family's threshold, where a

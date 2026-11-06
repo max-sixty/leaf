@@ -51,8 +51,17 @@ def waited(message, said=None, thread=None):
     return {"thread": thread or message, "message": message, "said": said or message}
 
 
-def saved_after(events, base, shown, documents=PAGE, registry=None):
+def line(events, base, shown, documents=PAGE, registry=None):
+    """The answer's line whole: each message with the words it had then."""
     return served_view(documents, events, base, shown, registry=registry)["saved_after"]
+
+
+def saved_after(events, base, shown, documents=PAGE, registry=None):
+    """Which messages the line names, and the event whose words each had."""
+    named = line(events, base, shown, documents, registry)
+    return named and [
+        {key: item[key] for key in ("thread", "message", "said")} for item in named
+    ]
 
 
 def test_a_version_names_what_waited_as_it_read_then_and_nothing_later_moves_it():
@@ -70,6 +79,13 @@ def test_a_version_names_what_waited_as_it_read_then_and_nothing_later_moves_it(
         {"kind": "undo", "undoes": "e2"},
     ]
     assert saved_after(taken_back, 1, 2) == [waited("e2", "e3")]
+    # The words it had then travel with it, though no thread shows them now.
+    assert line(taken_back, 1, 2)[0]["text"] == "Make it red"
+    rewrite_taken_back = [*saved, {"kind": "undo", "undoes": "e3"}]
+    assert line(rewrite_taken_back, 1, 2)[0]["text"] == "Make it red"
+    assert line(
+        [live(1), comment, rewrite, {"kind": "undo", "undoes": "e3"}, live(2)], 1, 2
+    )[0]["text"] == ("Make it **blue**\nfor the header")
     assert saved_after(
         [live(1), comment, rewrite, {"kind": "undo", "undoes": "e3"}, live(2)], 1, 2
     ) == [waited("e2")]
@@ -360,6 +376,9 @@ def folded_at_each_revision(log, within, base, shown):
                         "thread": thread["id"],
                         "message": message["id"],
                         "said": (message.get("edited") or message)["id"],
+                        **({"text": message["text"]} if "text" in message else {}),
+                        **({"suggestion": True} if message.get("suggestion") else {}),
+                        **({"drawn": True} if message.get("drawing") else {}),
                     },
                 )
     return [entry for _seq, entry in sorted(found.values(), key=itemgetter(0))]
@@ -421,7 +440,7 @@ def test_a_choice_stays_conditional_beside_a_creation_of_the_same_option():
     ]:
         log.append(admit(page, log, step))
     within = {r: enclosing_ids(document) for r, document in page.documents.items()}
-    asked = [waited("e2")]
+    asked = [{**waited("e2"), "text": "Which one?"}]
     assert folded_at_each_revision(log, within, 3, 5) == asked
     assert read_line(log, page.documents, 3, 5) == asked
 

@@ -4,6 +4,7 @@ same by every fold and its membership."""
 import itertools
 import json
 import random
+import sys
 from copy import deepcopy
 
 import model_folds as model
@@ -886,3 +887,113 @@ def test_a_containment_reads_each_moved_element_once_however_deep_it_sits():
         return Chain.read
 
     assert reads(80) <= 5 * reads(20)
+
+    def taken(depth):
+        """A restated element chosen by an owner at every depth of its chain, then
+        moved under an unrelated chain as deep, out of every owner."""
+        owners = [f"a{level}" for level in range(depth)]
+        walk = event_folds_model.InForce({"x": Chain((*owners, "x"))})
+        for owner in owners:
+            walk.admit(
+                {
+                    "id": owner,
+                    "widget": owner,
+                    "action": "choose",
+                    "revision": 1,
+                    "meaning": {"unit": owner, "depends": ["x"]},
+                }
+            )
+        walk.restate({"revision": 2, "restated": ["x"]})
+        assert walk.winners() == {}
+        elsewhere = {"x": Chain((*(f"b{level}" for level in range(depth)), "x"))}
+        Chain.read = 0
+        walk.contain(lambda: elsewhere, lambda: frozenset({"x"}))
+        assert len(walk.winners()) == depth
+        return Chain.read
+
+    assert taken(80) <= 5 * taken(20)
+
+
+def test_a_split_reads_the_choices_still_in_force_not_those_taken_back():
+    """Choices taken back at a coordinate leave nothing a later split reads: one that
+    moves a choice naming a newly restated option from the one beside it reads as much
+    after ten undone choices as after a hundred."""
+
+    def steps(undone):
+        options = [f"o{index}" for index in range(8)]
+        walk = event_folds_model.InForce({option: ("g",) for option in options})
+
+        def choose(identity, depends):
+            walk.admit(
+                {
+                    "id": identity,
+                    "widget": "g",
+                    "action": "choose",
+                    "revision": 1,
+                    "meaning": {"unit": "g", "depends": depends},
+                }
+            )
+
+        choose("all", options)
+        for index in range(undone):
+            choose(f"empty{index}", [])
+            walk.withdraw(f"empty{index}")
+        counted = []
+
+        def trace(frame, event, _arg):
+            if frame.f_code.co_name == "_regroup":
+                return lambda _frame, event, _arg: counted.append(event) or None
+            return None
+
+        for index, option in enumerate(options[1:], 1):
+            choose(f"prefix{index}", options[:index])
+            sys.settrace(trace)
+            try:
+                walk.restate({"revision": index + 1, "restated": [option]})
+            finally:
+                sys.settrace(None)
+        return len(counted)
+
+    assert steps(10) == steps(100)
+
+
+def test_choices_all_taken_back_leave_nothing_a_move_judges(monkeypatch):
+    """Once every choice naming a restated element is taken back, moving that element
+    between owners judges nothing, however many choices there were."""
+    judged = []
+    holds = event_folds_model._holds
+
+    def counted(*args):
+        judged.append(args)
+        return holds(*args)
+
+    monkeypatch.setattr(event_folds_model, "_holds", counted)
+
+    def judgments(choices):
+        held = {"x": ("g",), **{f"o{index}": ("g",) for index in range(choices)}}
+        walk = event_folds_model.InForce(held)
+        for index in range(choices):
+            walk.admit(
+                {
+                    "id": f"a{index}",
+                    "widget": "g",
+                    "action": "choose",
+                    "revision": 1,
+                    "meaning": {"unit": "g", "depends": ["x", f"o{index}"]},
+                }
+            )
+        walk.restate(
+            {
+                "revision": 2,
+                "restated": ["x", *(f"o{index}" for index in range(choices))],
+            }
+        )
+        for index in range(choices):
+            walk.withdraw(f"a{index}")
+        judged.clear()
+        for step in range(20):
+            within = held if step % 2 else {**held, "x": ("h",)}
+            walk.contain(lambda within=within: within, lambda: frozenset({"x"}))
+        return len(judged)
+
+    assert judgments(10) == judgments(100) == 0

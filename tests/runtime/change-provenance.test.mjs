@@ -54,50 +54,27 @@ test("a version says which of the user's messages waited while it was saved", ()
   ]);
 });
 
-test("a waiting message is quoted as its thread shows the words that stood", async () => {
+test("a waiting message is quoted in the words the server sends, as a thread reads them", async () => {
   await loadMarkdown();
-  // Messages as their thread holds them (thread/model.js): each with its body, and the
-  // thread's rewrites with the words each replaced.
-  const prose = (id, text, more = {}) => ({
-    id,
-    text,
-    body: { kind: more.suggestion ? "suggestion" : "prose", text },
-    ...more,
-  });
-  const thread = {
-    id: "fence",
-    msgs: [
-      prose("fence", "```first words\nsecond words\n```"),
-      prose("opening", "```first words\n```"),
-      prose("stars", "**literal stars**", { suggestion: true }),
-      prose("blue", "Make it _red_", { edited: { id: "red" } }),
-      { ...prose("drawn", ""), drawing: { strokes: [] } },
-      {
-        id: "picked",
-        text: "Choose:",
-        markup: "<lf-options></lf-options>",
-        body: { kind: "authored", text: "Choose:\nKeep this result\nDrop this result" },
-      },
-    ],
-    revisions: [
-      { id: "red", message: "blue", text: "Make it _red_", was: "Make it **blue**" },
-    ],
-  };
-  const quote = (message, said = message) => waitedWords(thread, { message, said });
+  // The server sends each message with the words it had where it waited, whatever
+  // the threads show now: here none is in any thread the page holds.
+  const quote = (message, more = {}) =>
+    waitedWords({ thread: message, message, said: message, ...more });
   // A fence's opening line shows its words, as the thread's Markdown draws it.
-  assert.match(quote("fence"), /first words/);
-  assert.match(quote("fence"), /second words/);
-  assert.equal(quote("opening"), "first words");
+  const fence = quote("fence", { text: "```first words\nsecond words\n```" });
+  assert.match(fence, /first words/);
+  assert.match(fence, /second words/);
+  assert.equal(quote("opening", { text: "```first words\n```" }), "first words");
   // A suggestion reads literally, its stars included.
-  assert.equal(quote("stars"), "**literal stars**");
-  // A message reads as the event the server names: itself as it was sent, or the
-  // rewrite then standing, under the message's own kind.
-  assert.equal(quote("blue"), "Make it blue");
-  assert.equal(quote("blue", "red"), "Make it red");
-  assert.equal(quote("drawn"), "Drawing");
-  // A message holding a widget reads with the widget's words: the thread's reading of
-  // the whole message.
-  assert.equal(quote("picked"), "Choose: Keep this result Drop this result");
+  assert.equal(
+    quote("stars", { text: "**literal stars**", suggestion: true }),
+    "**literal stars**",
+  );
+  // A message reads in the words of the event the server names: as sent, or as the
+  // rewrite then standing had them.
+  assert.equal(quote("blue", { text: "Make it **blue**" }), "Make it blue");
+  assert.equal(quote("blue", { said: "red", text: "Make it _red_" }), "Make it red");
+  assert.equal(quote("drawn", { drawn: true }), "Drawing");
 });
 
 test("with no comparison showing, the line reads nothing of the page's log", () => {

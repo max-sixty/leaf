@@ -31,9 +31,11 @@ history (``revisions``) less the rewrites taken back by then: not as it reads no
 when the version went live, since a rewrite made after it stopped waiting never waited
 across the version. Where it waited at two in different words, the later wording
 stands: the user's rewrite restates what they asked for, and the version's later
-revisions were made with it waiting. The browser quotes those words as the thread
-shows a message (change-provenance.js), so no reading of a message's text lives here.
-It is computed when a tab asks, with the base's document
+revisions were made with it waiting. The answer carries those words as the user
+wrote them, since the threads as they read now may no longer show them, the message or
+a rewrite since taken back, and the browser reads them as a thread reads a message
+(change-provenance.js), so no reading of a message's text lives here. It is computed
+when a tab asks, with the base's document
 (`served_state.service.PageStateService.page_comparison`), and nothing of it is kept
 or served otherwise.
 
@@ -97,7 +99,9 @@ def saved_after(
     saved, compared with the version before it at `base`: each a message that waited
     at the place of any revision after `base` through `shown`, as `thread` and
     `message`, in the order they were sent, with `said`, the event whose words it had
-    at the latest of those, the message itself or a rewrite of it. None where a
+    at the latest of those, the message itself or a rewrite of it, and what the
+    browser reads those words from as a thread reads a message: `said`'s `text`, and
+    whether the message is a `suggestion` or `drawn`. None where a
     revision `stamped` with a version stands between the two; every revision between
     them has a place among `places`. `reading` reads a revision (`read_revision`).
 
@@ -166,23 +170,31 @@ def saved_after(
     for thread in threads.values():
         for rewrite in thread["revisions"]:
             rewrites.setdefault(rewrite["message"], []).append(rewrite)
-    return [
-        {
-            "thread": thread["id"],
-            "message": message["id"],
-            "said": next(
-                (
-                    rewrite["id"]
-                    for rewrite in reversed(rewrites.get(message["id"], []))
-                    if rewrite["seq"] < place and undone.get(rewrite["id"], inf) > place
-                ),
-                message["id"],
+    # Each message as it was sent, the words it had before any rewrite.
+    sent = {event["id"]: event for event in prefix if event["id"] in found}
+    waited = []
+    for message, thread, place in sorted(
+        found.values(), key=lambda each: each[0]["seq"]
+    ):
+        said = next(
+            (
+                rewrite
+                for rewrite in reversed(rewrites.get(message["id"], []))
+                if rewrite["seq"] < place and undone.get(rewrite["id"], inf) > place
             ),
-        }
-        for message, thread, place in sorted(
-            found.values(), key=lambda each: each[0]["seq"]
+            sent[message["id"]],
         )
-    ]
+        waited.append(
+            {
+                "thread": thread["id"],
+                "message": message["id"],
+                "said": said["id"],
+                **({"text": said["text"]} if "text" in said else {}),
+                **({"suggestion": True} if message.get("suggestion") else {}),
+                **({"drawn": True} if message.get("drawing") else {}),
+            }
+        )
+    return waited
 
 
 def _within(reading: "Callable[[int], SourceReading]", revision: int) -> dict:

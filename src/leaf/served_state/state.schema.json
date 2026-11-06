@@ -1683,6 +1683,18 @@
                   "said": {
                     "description": "The event whose words the message had at the latest of the version's revisions it waited at: the message itself, or the rewrite of it then standing.",
                     "type": "string"
+                  },
+                  "text": {
+                    "description": "The words `said` gave the message, as the user wrote them, which the browser reads as a thread reads a message (`thread/messages.js`, `messageWords`); absent for a drawing with none.",
+                    "type": "string"
+                  },
+                  "suggestion": {
+                    "description": "Present where the message suggests replacement words, which read literally.",
+                    "const": true
+                  },
+                  "drawn": {
+                    "description": "Present where the message carries a drawing.",
+                    "const": true
                   }
                 },
                 "required": ["thread", "message", "said"],

@@ -686,6 +686,28 @@ def test_a_version_quotes_each_waiting_message_as_its_thread_shows_it(browser, s
     ]
 
 
+def test_a_version_quotes_a_comment_taken_back_since_in_the_words_it_had(
+    browser, serve
+):
+    """A comment the user took back after a version went live waited while it was
+    saved all the same, and the line quotes the words it had then, which no thread
+    shows any longer."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    asked = _comment_on(d, "b", "Beta reads one way.", text="Is Beta right?")
+    revise(d, BETA)
+    append_command(d, {"kind": "undo", "author": "user", "undoes": asked["id"]})
+    page = open_page(browser, url)
+    wait_for_revision(page, 2)
+    entries = page.locator('[data-lf-kinds~="change"]')
+    page.keyboard.press("v")
+    expect(entries).to_have_count(1)
+    assert preview_parts(entries.first)[-2:] == [
+        "Draft saved while your comment waited:",
+        "“Is Beta right?”",
+    ]
+
+
 def _comment_on(d, section, words, revision=1, text="Say which way?"):
     return append_command(
         d,

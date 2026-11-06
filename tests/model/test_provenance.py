@@ -73,6 +73,31 @@ def test_a_version_names_what_waited_as_it_read_then_and_nothing_later_moves_it(
     assert saved_after([live(1), comment, answered, live(2)], 1, 2) == []
 
 
+def test_a_message_reads_as_it_did_at_the_latest_revision_it_waited_at():
+    """A comment that waited across one of a version's revisions, was answered, then
+    rewritten and answered again before the version's last revision went live, is
+    quoted as it read where it waited, not as it read when the version went live.
+    One that waited at two of the version's revisions in different words is quoted
+    in the later."""
+    comment = {"kind": "comment", "text": "Make it blue"}
+    rewrite = {"kind": "edit", "message": "e1", "text": "Make it red"}
+
+    def answer(turn):
+        return {
+            "kind": "reply",
+            "parent": "e1",
+            "responds": turn,
+            "text": "Done.",
+            **AGENT,
+        }
+
+    answered_twice = [comment, live(2), answer("e1"), rewrite, answer("e4"), live(3)]
+    assert saved_after(answered_twice, 1, 3) == [waited("e1", "Make it blue")]
+    waited_twice = [comment, live(2), rewrite, live(3)]
+    assert saved_after(waited_twice, 1, 3) == [waited("e1", "Make it red")]
+    assert saved_after(waited_twice, 1, 2) == [waited("e1", "Make it blue")]
+
+
 def test_a_message_waited_where_its_thread_stood_open_at_any_of_the_versions_revisions():
     """A version whose revisions went live while a message waited at any of them names
     it, though it was resolved before the last. Accepting a suggestion closes its

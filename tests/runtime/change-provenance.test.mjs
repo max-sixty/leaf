@@ -12,13 +12,13 @@ test("a version says which of the user's messages waited while it was saved", ()
     "v4 saved while your comment waited:",
     "“Make it blue”",
   ]);
-  // Messages of both kinds are the user's updates, and past three quotes the rest is a
-  // count.
+  // Messages of both kinds are the user's updates, and past the three the server read
+  // words for (provenance.py, `QUOTED`) the rest is a count.
   const four = [
     waited("stall", "Actually make it red"),
     waited("rollout", "What decides going past 5%?"),
     waited("reply", "Past 5%, I mean.", "rollout"),
-    waited("title", "Is the title right?"),
+    { thread: "title", message: "title" },
   ];
   assert.deepEqual(said(savedAfter("Draft", four.slice(0, 3))), [
     "Draft saved while your 3 updates waited:",

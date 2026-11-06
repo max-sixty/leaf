@@ -19,7 +19,13 @@ the user taking back the comment or its rewrite, reaches it, and what was taken 
 before it was taken back. A message waited at a revision's place where it had been
 sent, had no answer yet, and its thread stood open there, which the thread's closure
 history says (``closures``); the reply or note that answered it may itself have
-published the revision. It is computed when a tab asks, with the base's reading
+published the revision. Each message is quoted in the words it had at the latest of
+the version's revisions it waited at, from the thread's rewrite history
+(``revisions``), not as it reads now or when the version went live, since a rewrite
+made after it stopped waiting never waited across the version. Where it waited at
+two in different words, the later wording is the one quoted: the user's rewrite
+restates what they asked for, and the version's later revisions were made with it
+waiting. It is computed when a tab asks, with the base's reading
 (`served_state.service.PageStateService.page_browser_view`), and nothing of it is
 kept or served otherwise.
 
@@ -52,6 +58,9 @@ from .events import build_threads, settlements, taken_back
 from .passages import collapse, shown_words
 
 MARKDOWN = {"x-text-format": "markdown"}
+# The most messages a version's line quotes; it counts the rest (change-provenance.js).
+# Only those are read into words, which is most of the answer's cost where many wait.
+QUOTED = 3
 
 
 def revision_places(events: list) -> dict[int, int]:
@@ -76,17 +85,19 @@ def saved_after(
 ) -> list[dict] | None:
     """The user's messages that waited while the version at revision `shown` was
     saved, compared with the version before it at `base`: each a message any of the
-    revisions after `base` through `shown` went live while it waited, as `thread`,
-    `message` and `words`, its opening line when `shown` went live (`opening_words`),
-    in the order they were sent. None where this can't be said: where a revision
-    `stamped` with a version stands between the two, or where one of those revisions
-    has no place among `places`.
+    revisions after `base` through `shown` went live while it waited, as `thread` and
+    `message`, in the order they were sent, the first `QUOTED` with `words`, its
+    opening line as it read at the latest of those it waited at (`opening_words`).
+    None where this can't be said: where a revision `stamped` with a version stands
+    between the two, or where one of those revisions has no place among `places`.
 
     The threads are read from the log before `shown` went live, by the fold every
     reading of them takes (`events.build_threads`), so nothing written since reaches
     the answer. A message waited at a place where it had been sent and not yet answered
     and its thread stood open there (``closures``); the reply or note that answered it
-    stands at its end."""
+    stands at its end. Its words there are those of its latest rewrite before that
+    place, from the thread's rewrite history (``revisions``), else those it was sent
+    with."""
     if any(base < revision < shown for revision in stamped):
         return None
     span = [revision for revision in revisions if base < revision <= shown]
@@ -95,7 +106,8 @@ def saved_after(
     at = sorted(places[revision] for revision in span)
     prefix = events[: bisect_left(events, at[-1], key=itemgetter("seq"))]
     withdrawn = taken_back(prefix)
-    found: dict[str, dict] = {}
+    # Each message that waited: its reading, its thread, the latest place it waited.
+    found: dict[str, tuple[dict, dict, int]] = {}
     for thread in build_threads(prefix, within, withdrawn=withdrawn).values():
         open_at = _open_at(thread["closures"], at)
         if not open_at:
@@ -105,7 +117,8 @@ def saved_after(
             for settlement in settlements(thread)
             for turn in settlement.turns
         }
-        said = {message["id"]: message for message in thread["msgs"]}
+        # The latest place each message waited at.
+        latest: dict[str, int] = {}
         for turn in thread["turns"]:
             message = turn.get("message", turn["id"])
             if (
@@ -113,22 +126,41 @@ def saved_after(
                 or "undoes" in turn
                 or turn["id"] in withdrawn
                 or message in withdrawn
-                or message in found
             ):
                 continue
             first = bisect_right(open_at, turn["seq"])
             answer = answered.get(turn["id"])
-            if first < len(open_at) and (answer is None or open_at[first] <= answer):
-                found[message] = {
-                    "thread": thread["id"],
-                    "message": message,
-                    "words": opening_words(said[message]),
-                    "seq": said[message]["seq"],
-                }
+            last = len(open_at) if answer is None else bisect_right(open_at, answer)
+            if first < last:
+                latest[message] = max(latest.get(message, 0), open_at[last - 1])
+        said = {message["id"]: message for message in thread["msgs"]}
+        for message, place in latest.items():
+            found[message] = (said[message], thread, place)
+    waited = sorted(found.values(), key=lambda each: each[0]["seq"])
     return [
-        {key: value for key, value in entry.items() if key != "seq"}
-        for entry in sorted(found.values(), key=itemgetter("seq"))
+        {
+            "thread": thread["id"],
+            "message": message["id"],
+            **(
+                {"words": opening_words(_as_it_read(message, thread, place))}
+                if index < QUOTED
+                else {}
+            ),
+        }
+        for index, (message, thread, place) in enumerate(waited)
     ]
+
+
+def _as_it_read(message: dict, thread: dict, place: int) -> dict:
+    """`message` as it read at `place`: in the words of its latest rewrite in
+    `thread` before it, else those it was sent with, which its first rewrite kept."""
+    rewrites = [
+        each for each in thread["revisions"] if each["message"] == message["id"]
+    ]
+    if not rewrites:
+        return message
+    before = [each for each in rewrites if each["seq"] < place]
+    return {**message, "text": before[-1]["text"] if before else rewrites[0]["was"]}
 
 
 def _open_at(closures: list[dict], places: list[int]) -> list[int]:

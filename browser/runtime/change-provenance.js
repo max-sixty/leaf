@@ -21,8 +21,8 @@
    `versionProvenance` is the one value a surface that describes a change reads, the ⇄
    entry's label (annotation-inventory.js), reading it once for every change. Its
    `lines` are the words a surface shows, each in its speaker's face: the heading in
-   Leaf's voice ("v4 saved while your comment waited:"), then each message's opening
-   line when the version went live, in quotes, the user's own words. */
+   Leaf's voice ("v4 saved while your comment waited:"), then each quoted message's
+   opening line as it read where it waited, in quotes, the user's own words. */
 import { runtime } from "./context.js";
 import { comparisonSavedAfter } from "./version.js";
 import { leafSays } from "./voice.js";
@@ -34,8 +34,6 @@ import { counted, quotedWords } from "./words.js";
  * of words in their speakers' faces (voice.js).
  * @typedef {Readonly<{version: string, lines: readonly (readonly (string | import("./voice.js").Said)[])[]}>} VersionProvenance */
 
-// The quoted lines a version's provenance shows at most before saying how many more.
-const QUOTED = 3;
 // The characters a quoted line keeps.
 const QUOTE_CAP = 90;
 
@@ -59,11 +57,15 @@ function yours(messages) {
 }
 
 /** What the version `version` says it was saved after `messages`, in the order they
- * were sent: a heading, up to three quotes, and how many more.
+ * were sent: a heading, the quotes the server read words for (provenance.py,
+ * `QUOTED`), and how many more, which takes the last quote's line where there are.
  * @param {string} version @param {readonly WaitedMessage[]} messages
  * @returns {VersionProvenance} */
 export function savedAfter(version, messages) {
-  const shown = messages.slice(0, messages.length > QUOTED ? QUOTED - 1 : QUOTED);
+  const quotable = messages.flatMap(({ words }) =>
+    words === undefined ? [] : [words],
+  );
+  const shown = messages.length > quotable.length ? quotable.slice(0, -1) : quotable;
   return Object.freeze({
     version,
     lines: Object.freeze([
@@ -74,7 +76,7 @@ export function savedAfter(version, messages) {
             : `${version} saved with none of your comments waiting`,
         ),
       ]),
-      ...shown.map(({ words }) => Object.freeze([quotedWords(words, QUOTE_CAP)])),
+      ...shown.map((words) => Object.freeze([quotedWords(words, QUOTE_CAP)])),
       ...(messages.length > shown.length
         ? [Object.freeze([leafSays(`and ${messages.length - shown.length} more`)])]
         : []),

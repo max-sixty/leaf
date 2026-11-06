@@ -1832,7 +1832,7 @@ test("page command scopes share native activation and hand removed controls back
   document.body.append(control);
   let available = true;
   let runs = 0;
-  const remove = pageScope("versions", {
+  const remove = pageScope("thread", {
     rows: [
       {
         id: "probe.page",

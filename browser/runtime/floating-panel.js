@@ -393,7 +393,7 @@ function passing() {
 }
 function navigationWords() {
   const { goTo, walk } = statusContextReading();
-  return goTo ?? (walk?.shown ? walk.text : "");
+  return goTo ?? walk?.text ?? "";
 }
 /** @param {number} at */
 const clock = (at) =>
@@ -1044,7 +1044,7 @@ export function createFloatingPanel({
     if (fieldReading(key, input).says !== "turn") return "";
     const thread = threadByKey(key);
     const { walk } = statusContextReading();
-    const position = !walk?.shown
+    const position = !walk
       ? ""
       : walk.kind === "thread" && walk.target === thread?.id
         ? `${walk.position} of ${walk.total}`
@@ -3184,7 +3184,7 @@ export function createFloatingPanel({
   // the list follows the walk rather than standing where it was.
   const walkedStop = () => {
     const { walk } = statusContextReading();
-    return walk?.shown && walk.kind === "queue" ? walk.target : null;
+    return walk?.kind === "queue" ? walk.target : null;
   };
   /** @type {unknown} */
   let walkedLanded = null;

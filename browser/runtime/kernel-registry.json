@@ -71,7 +71,7 @@
       "figcaption",
       "summary"
     ],
-    "why-blocks": "The browser treats a text block as the unit of prose a reader is in, and a version diff compares blocks. None is phrasing, so a text block's words stand apart from the words beside it (`why-apart`): `<p>a</p><p>b</p>` reads \"a b\".",
+    "why-blocks": "The browser treats a text block as the unit of prose a reader is in, and a version diff compares blocks. None is phrasing, so a text block's words stand apart from the words beside it (`why-phrasing`): `<p>a</p><p>b</p>` reads \"a b\".",
     "phrasing": [
       "a",
       "abbr",
@@ -130,23 +130,7 @@
       "video",
       "wbr"
     ],
-    "why-phrasing": "HTML's phrasing content, the elements a line of words runs through, less the autonomous custom elements, which stand in a line only where their widget declares `x-inline`. A leading `<strong>` that authored words follow before a `<br>` or an element outside this set runs into its line and makes no part of the page (`thread/placement.js`, `partOver`); a suggestion's slot holding an element outside it is a block (`base.css`, held to this list by `build/registry.test.mjs`). The browser alone reads it, and it decides no text the log keeps, so a change to it bumps nothing.",
-    "apart": {
-      "audio": "Draws a player; the words it holds are fallback no one sees where it plays.",
-      "button": "A control drawn as a box of its own; its label is not a word of the line.",
-      "canvas": "Draws a picture; the words it holds are fallback for where it can't.",
-      "datalist": "Lists an input's suggestions, and is never drawn among the words.",
-      "iframe": "Draws another document; the words it holds are never drawn.",
-      "meter": "Draws a gauge; the words it holds are fallback for where it can't.",
-      "object": "Draws what it embeds; the words it holds are fallback for where it can't.",
-      "picture": "Draws one of its images, and holds no words of the line.",
-      "progress": "Draws a bar; the words it holds are fallback for where it can't.",
-      "select": "A control drawn as a box of its own, showing one option of those it holds.",
-      "svg": "Draws a picture, whose words stand where it places them, not in the line.",
-      "textarea": "A control drawn as a box of its own, its value no word of the line.",
-      "video": "Draws a player; the words it holds are fallback no one sees where it plays."
-    },
-    "why-apart": "The phrasing elements whose words are not the line's: controls and embedded content, drawn as boxes of their own. Every other element of `phrasing` (an inline widget's too) stands in its line, so its words run into the words beside it with no space unless the page writes one: `<span>one</span><span>two</span>` reads \"onetwo\", as do `output`, `label`, `slot` and a ruby's base. An element outside `phrasing`, a text block or a widget among them, starts words of its own, parted from those around it by a space, and so does each of these; a `<br>` is a space wherever it stands. Both readings read it (`passages.py`, and `enter` in passages.js, which carries it down the reading walk), so it decides how a quote resolves.",
+    "why-phrasing": "HTML's phrasing content, the elements a line of words runs through, less the autonomous custom elements, which stand in a line only where their widget declares `x-inline`. A leading `<strong>` that authored words follow before a `<br>` or an element outside this set runs into its line and makes no part of the page (`thread/placement.js`, `partOver`); a suggestion's slot holding an element outside it is a block (`base.css`, held to this list by `build/registry.test.mjs`). Both readings read it (`enter` in passages.js, `passages.py`): an element outside it, a text block or a widget among them, starts words of its own, parted from those around it by a space, while two runs of words that meet where an element in it starts or ends meet at an edge, a place a word may end, so `<span>one</span><span>two</span>` reads as one word or as two. It decides no text the log keeps, so a change to it bumps nothing.",
     "context": 24,
     "why-context": "How many characters of context a captured anchor keeps on each side of its quote. A quote read from the file must be unique. The browser knows which occurrence the user selected, and widens the context until the shared resolver finds that one."
   },

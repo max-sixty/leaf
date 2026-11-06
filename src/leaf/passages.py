@@ -256,14 +256,13 @@ class _OwnedWords:
         return self.parts
 
 
-# The elements whose words run into the words beside them: HTML's phrasing content less
-# those drawn as boxes of their own (`$passages.apart`), as the runtime's `enter` reads
-# it. Every other element, a text block among them, and a widget unless it is declared
-# `x-inline`, reads its words apart from those around it: one space goes between two
-# runs of words read in different elements and none between runs read in one.
-JOINS_WORDS_TAGS = frozenset(kernel_passages()["phrasing"]) - frozenset(
-    kernel_passages()["apart"]
-)
+# The elements a line of words runs through (`$passages.phrasing`), as the runtime's
+# `enter` reads it. Every other element, a text block among them, and a widget unless
+# it is declared `x-inline`, reads its words apart from those around it: one space goes
+# between two runs of words read in different elements. Between two runs read in one
+# goes an edge (`edges`), a place a word may end, since only the page's CSS says whether
+# `<strong>Status</strong><span>Ready</span>` shows one word or two.
+JOINS_WORDS_TAGS = frozenset(kernel_passages()["phrasing"])
 # Text no anchor can reach: executable/style content and native field defaults.
 # head is outside the browser's tree altogether, which starts at document.body —
 # without it a page's <title> would be quotable and land nowhere.
@@ -308,6 +307,9 @@ class _PassageParser:
         self.owner = []  # per character: the tuple of enclosing ids
         self.spans = {}  # id → [first, end): the characters it holds
         self.fences = set()  # indices a quote may not span
+        self.edges = (
+            set()
+        )  # indices where one run of words meets the next with no space
         self.breaks = set()  # indices of the spaces that end one block's words
         self.retired = {}  # id under a retired slot → the suggestion whose decision did it
         self.gone = {}  # decided id whose decision left it empty → the outcome that did it
@@ -334,9 +336,11 @@ class _PassageParser:
         return self._uid
 
     def _write(self, data: str, block: int, ids: tuple) -> None:
-        """Text into the collapsed run, one space per whitespace run and none leading."""
+        """Text into the collapsed run, one space per whitespace run and none leading,
+        and an edge where it runs on from the last text in its block with none."""
         if data.strip():
             self.bearing.update(ids)
+        edge = bool(self.chars) and block == self._block
         if self.chars and block != self._block:
             self._space = self._break = True
         self._block = block
@@ -351,6 +355,9 @@ class _PassageParser:
                 self.chars.append(" ")
                 self.owner.append(ids)
                 self._space = self._break = False
+            elif edge:
+                self.edges.add(len(self.chars))
+            edge = False
             self.chars.append(ch)
             self.owner.append(ids)
         if (end := len(self.chars)) > start:
@@ -370,11 +377,9 @@ class _PassageParser:
         self.fences.add(len(self.chars))
 
     def _said(self, frame: dict, values: list) -> None:
-        # renderSaid puts each value in a <span> of its own, drawn as its element's
-        # caption, label or popover rather than among its words, so each reads apart, as
-        # the runtime's `enter` reads a `SAID` span.
+        # renderSaid puts each value in a <span> of its own, among its element's words.
         for value in values:
-            self._write(value, self._fresh(), frame["ids"])
+            self._write(value, frame["block"], frame["ids"])
 
     def _close(self, frame: dict) -> None:
         """Everything an element's end does, whether it was written or inferred — an
@@ -580,6 +585,9 @@ class Passages(NamedTuple):
     enclosing: dict  # id → the ids enclosing it, outermost first, itself last
     verbatim: dict  # source provenance → compositional words with upgraded descendants as boundaries
     breaks: set  # indices of the spaces that end one block's words and start the next's
+    # Indices where one run of words meets the next with no space between: where two
+    # inline elements meet, a place a word may end (`anchor_capture.occurrences`).
+    edges: frozenset
     # id → the half-open range of characters inside it, for each id with text in it.
     # An element is contiguous in document order, so its characters are too, which
     # is what lets a search be scoped by slicing.
@@ -631,6 +639,7 @@ def page_passages(
         parser.enclosing,
         {wid: reading.reading() for wid, reading in parser.verbatim.items()},
         parser.breaks,
+        frozenset(parser.edges),
         {wid: (lo, hi) for wid, (lo, hi) in parser.spans.items()},
     )
 

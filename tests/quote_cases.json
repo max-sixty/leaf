@@ -85,13 +85,13 @@
       "before": 0
     },
     {
-      "id": "an inline element's edge is no gap between words",
+      "id": "an inline element's edge may part two words",
       "markup": "<p id=\"s\"><span>one</span><span>two</span></p>",
       "anchor": {
         "section": "s",
         "quote": "one two"
       },
-      "before": null
+      "before": 0
     },
     {
       "id": "an inline element's edge falls inside a word",
@@ -130,13 +130,13 @@
       "before": 0
     },
     {
-      "id": "spans side by side outside a text block have no gap between them",
+      "id": "spans side by side outside a text block may read as two words",
       "markup": "<div id=\"s\"><span>alpha</span><span>beta</span></div>",
       "anchor": {
         "section": "s",
         "quote": "alpha beta"
       },
-      "before": null
+      "before": 0
     },
     {
       "id": "a table cell's end is a gap",
@@ -299,6 +299,33 @@
       "anchor": {
         "section": "s",
         "quote": "alphabetagamma"
+      },
+      "before": 0
+    },
+    {
+      "id": "a flex row's label and value may read as two words",
+      "markup": "<div id=\"s\" style=\"display: flex\"><strong>Status</strong><span>Ready</span></div>",
+      "anchor": {
+        "section": "s",
+        "quote": "Status Ready"
+      },
+      "before": 0
+    },
+    {
+      "id": "an option's chip and title may read as two words",
+      "markup": "<lf-options id=\"s\"><lf-option id=\"o\"><small class=\"tag ok\">recommended</small><strong>Drop the oldest</strong> Editing continues.</lf-option></lf-options>",
+      "anchor": {
+        "section": "s",
+        "quote": "recommended Drop"
+      },
+      "before": 0
+    },
+    {
+      "id": "an option's chip and title may read as one word",
+      "markup": "<lf-options id=\"s\"><lf-option id=\"o\"><small class=\"tag ok\">recommended</small><strong>Drop the oldest</strong> Editing continues.</lf-option></lf-options>",
+      "anchor": {
+        "section": "s",
+        "quote": "recommendedDrop"
       },
       "before": 0
     }

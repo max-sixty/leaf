@@ -504,13 +504,12 @@ const isEditing = (el) => el !== null && isHTML(el) && el.isContentEditable;
 // links and wrappers — hands its parent's context down unchanged.
 //
 // `words` is the element the words under it are read in: the nearest one whose words
-// are not the words beside it, which every element is but those that join them
-// (`JOINS_WORDS`, a widget declared `x-inline`). Two runs of words read in different
-// elements are parted by a space; in one, by none, so `<span>one</span><span>two</span>`
-// reads "onetwo" wherever it stands, and two widgets side by side read apart, whatever
-// tree their words are drawn in. A said value (`SAID`) reads apart too, though its
-// element is a <span>: it is drawn as its element's caption, label or popover, never
-// among the element's words, and the file reads it so (`_said` in passages.py).
+// are not the words beside it, which every element is but those a line of words runs
+// through (`JOINS_WORDS`, a widget declared `x-inline`). Two runs of words read in
+// different elements are parted by a space, so two widgets side by side read apart,
+// whatever tree their words are drawn in. Two read in one meet at an edge, a place a
+// word may end (`scan`): only the page's CSS says whether `<span>one</span><span>two</span>`
+// shows one word or two, so a quote finds it either way.
 /** @param {ReadingContext} ctx @param {Element} el @param {boolean} [inFrame] @returns {ReadingContext} */
 function enter(ctx, el, inFrame = true) {
   const marked = el.hasAttributes() && el.matches(MARKS);
@@ -519,9 +518,7 @@ function enter(ctx, el, inFrame = true) {
   const editing = editingBoundary(el);
   const cell = opaque(el) || editing || (marked && el.matches(GEN) && unmodelled(el));
   const silent = !ctx.silenced && silences(el);
-  const apart =
-    (!JOINS_WORDS.has(el.localName) && !registry[el.localName]?.["x-inline"]) ||
-    (marked && el.matches(SAID));
+  const apart = !JOINS_WORDS.has(el.localName) && !registry[el.localName]?.["x-inline"];
   if (!marked && !block && !cell && !silent && !apart) return ctx;
   const chrome = (marked && inFrame ? chromeMark(el) : null) ?? ctx.chrome;
   const generated = ctx.generated || (marked && inFrame && el.matches(GENERATED));
@@ -1861,14 +1858,16 @@ const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** @param {PageReading} text @param {number} from @param {number} to */
 const withinCell = (text, from, to) => fenceEdge(text, from + 1, false) >= to;
 
-// Where a quote's words stand. Its spelling is its words with one gap between each
-// (`GAP`), and the page is spelled alike: each character but whitespace and edges, a gap
-// for each run of them that holds whitespace, and nothing for a run of edges alone, which
-// falls inside a word. A copy of the quote stands wherever the page spells it, which an
-// automaton over every quote's spelling (`automatonOf`) finds in one pass over the page:
-// the rules a quote is matched by are in the spelling, so a copy found is a copy, with
-// nothing read again. What the automaton costs to build is its quotes' spellings: 1,600
-// quotes of 640 letters each, a million characters, take about 120 ms.
+// Where a quote's words stand. Its spelling is its letters, its words run together, and
+// the page is spelled alike: each character but whitespace and edges. A copy of the
+// quote stands wherever the page spells it and parts its letters as the quote does: a
+// space or an edge where the quote has a space, and nothing or an edge where it has
+// none. An edge is where two inline elements meet, and only the page's CSS says whether
+// a word ends there, so it reads either way, as `occurrences` (anchor_capture.py)
+// reads one too. An automaton over every quote's spelling (`automatonOf`) finds the
+// places in one pass over the page, and each is held to its quote's spaces there. What
+// the automaton costs to build is its quotes' spellings: 1,600 quotes of 640 letters
+// each, a million characters, take about 120 ms.
 //
 // Whether raw[i] separates words: an edge, or whitespace by the rule a quote is split
 // into words by. Each code unit is put to the rule once.
@@ -1880,8 +1879,6 @@ function gapAt(raw, i) {
     gapKinds[code] = raw[i] === EDGE || /\s/.test(raw.charAt(i)) ? 1 : 2;
   return gapKinds[code] === 1;
 }
-// A gap in a spelling: the edge's code unit, which no word holds.
-const GAP = EDGE;
 // An automaton over a set of strings (Aho–Corasick): a trie of their code units, each
 // state's longest proper suffix that is also a state (`fail`), and the nearest such
 // suffix at which a string ends (`link`). One pass over a run of code units then hears
@@ -1984,12 +1981,18 @@ export function findEach(text, strings) {
   return found;
 }
 /** @typedef {{from: number, to: number, fenced: boolean, near: [number, number] | null}} Copy */
-/** @typedef {{quote: string, spelling: string, copies: Copy[], changedAt: number}} QuoteEntry */
+/** @typedef {{quote: string, spelling: string, spaced: Uint8Array, copies: Copy[],
+ * changedAt: number}} QuoteEntry */
+// A quote's spelling, and which of its letters a space stands before.
 /** @param {string} quote @returns {QuoteEntry | null} */
 function quoteEntry(quote) {
   const words = quote.trim().split(/\s+/).filter(Boolean);
   if (!words.length) return null;
-  return { quote, spelling: words.join(GAP), copies: [], changedAt: 0 };
+  const spelling = words.join("");
+  const spaced = new Uint8Array(spelling.length);
+  let at = 0;
+  for (const word of words.slice(0, -1)) spaced[(at += word.length)] = 1;
+  return { quote, spelling, spaced, copies: [], changedAt: 0 };
 }
 /** @param {Iterable<QuoteEntry>} entries @returns {Automaton<QuoteEntry>} */
 const quotesAutomaton = (entries) =>
@@ -1997,7 +2000,7 @@ const quotesAutomaton = (entries) =>
     [...entries].map((entry) => /** @type {const} */ ([entry.spelling, entry])),
   );
 // Every copy of an automaton's quotes that starts in raw[lo..hi): each place the page
-// spells a quote, and whether a fence parts it.
+// spells a quote and parts its letters as the quote does, and whether a fence parts it.
 /** @param {PageReading} reading @param {Automaton<QuoteEntry>} automaton @param {number} lo
  * @param {number} hi @param {(entry: QuoteEntry, copy: Copy) => void} take */
 function scan(reading, automaton, lo, hi, take) {
@@ -2006,25 +2009,27 @@ function scan(reading, automaton, lo, hi, take) {
   const codes = [];
   /** @type {number[]} */
   const places = [];
-  // Whether the run of separators since the last character holds whitespace.
-  let spaced = false;
+  // What parts each letter from the one before: 0 nothing, 1 an edge, 2 whitespace.
+  /** @type {number[]} */
+  const parted = [];
+  let since = 0;
   for (let i = lo, past = 0; i < raw.length; i++) {
     if (gapAt(raw, i)) {
-      spaced ||= raw[i] !== EDGE;
+      since = Math.max(since, raw[i] === EDGE ? 1 : 2);
       continue;
     }
     if (i >= hi && ++past > automaton.widest) break;
-    if (spaced && codes.length) {
-      codes.push(GAP.charCodeAt(0));
-      places.push(i);
-    }
-    spaced = false;
+    parted.push(since);
+    since = 0;
     codes.push(raw.charCodeAt(i));
     places.push(i);
   }
   const codeAt = (/** @type {number} */ t) => /** @type {number} */ (codes[t]);
   runAutomaton(automaton, codes.length, codeAt, (entry, end) => {
-    const from = /** @type {number} */ (places[end - entry.spelling.length]);
+    const start = end - entry.spelling.length;
+    for (let j = 1; j < entry.spelling.length; j++)
+      if (parted[start + j] === (entry.spaced[j] ? 0 : 2)) return;
+    const from = /** @type {number} */ (places[start]);
     if (from >= hi) return;
     const to = /** @type {number} */ (places[end - 1]) + 1;
     take(entry, { from, to, fenced: !withinCell(reading, from, to), near: null });
@@ -2343,17 +2348,15 @@ function searchableWords() {
 // Every occurrence of a user's search, as passages in the page reading. This is not
 // anchor resolution: a search is allowed to find repeated words, while a stored anchor
 // must identify one occurrence or detach. It does keep the passage reader's other rules —
-// elastic whitespace, edges free to fall inside words and in a gap but never one by
-// themselves (`scan`'s spelling), and no match crossing an opaque passage fence — so choosing a
-// result produces exactly the kind of segments capture and resolution use.
+// elastic whitespace, an edge read inside a word or as a gap between two (`scan`), and
+// no match crossing an opaque passage fence — so choosing a result produces exactly the
+// kind of segments capture and resolution use.
 /** @param {PageReading} text @param {string} query */
 export function findText(text, query) {
   const words = query.trim().split(/\s+/u).filter(Boolean);
   if (!words.length) return [];
   const pattern = new RegExp(
-    words
-      .map((w) => [...w].map(escape).join(`${EDGE}*`))
-      .join(`${EDGE}*\\s[\\s${EDGE}]*`),
+    words.map((w) => [...w].map(escape).join(`${EDGE}*`)).join(`[\\s${EDGE}]+`),
     "giu",
   );
   const out = [];

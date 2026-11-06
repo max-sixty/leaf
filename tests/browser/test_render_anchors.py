@@ -6270,13 +6270,14 @@ def test_a_section_staged_again_in_a_new_widget_keeps_its_thread(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_words_a_script_sets_in_elements_of_their_own_run_together(
+def test_words_a_script_sets_in_elements_of_their_own_keep_their_thread(
     engine, request, serve
 ):
     """A script that sets a marked phrase's two words in inline elements of their own,
-    with nothing between them, leaves the page saying one word where the thread quotes
-    two: the pointer finds no mark on it, and once it has asked, nothing is marked, as
-    the file's reading of the same words finds (tests/quote_cases.json)."""
+    with nothing between them, leaves the thread on them: where two inline elements
+    meet is a place a word may end, so the quote "one two" still names them, the pointer
+    finds the mark there, and the file's reading finds them too
+    (tests/quote_cases.json)."""
     url = serve(
         leaf_page(
             "Run together",
@@ -6302,10 +6303,10 @@ def test_words_a_script_sets_in_elements_of_their_own_run_together(
         }"""
     )
     box = page.locator("#pair span").first.bounding_box()
-    assert not _rest_on(
-        page, {"left": box["x"], "top": box["y"], "height": box["height"]}
+    assert _rest_on(page, {"left": box["x"], "top": box["y"], "height": box["height"]})
+    page.wait_for_function(
+        f"() => ({MARKED})().replace(/[|\\s]/g, '') === 'onetwo'", timeout=2000
     )
-    page.wait_for_function(f"() => ({MARKED})() === ''", timeout=2000)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -6366,6 +6367,38 @@ def test_page_search_reads_two_staged_widgets_side_by_side_apart(
     page.wait_for_function("() => document.getElementById('two')?.shadowRoot")
     page.keyboard.press("/")
     page.get_by_role("searchbox", name="Search page text").fill("alpha beta")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize(
+    ("markup", "words"),
+    [
+        (
+            '<div id="row" style="display: flex; gap: 8px"><strong>Status</strong>'
+            "<span>Ready</span></div>",
+            "Status Ready",
+        ),
+        (
+            '<lf-options id="pick"><lf-option id="drop"><small class="tag ok">'
+            "recommended</small><strong>Drop the oldest documents</strong> Editing "
+            'continues.</lf-option><lf-option id="pause"><strong>Pause editing'
+            "</strong> Nothing leaves.</lf-option></lf-options>",
+            "recommended Drop",
+        ),
+    ],
+    ids=["flex row", "option chip"],
+)
+def test_page_search_finds_words_css_draws_apart_with_nothing_between_them(
+    engine, markup, words, request, serve
+):
+    """Two inline elements with nothing between them read as one word or as two, since
+    only the page's CSS says which: a flex row's label and value, or an option's chip
+    and title, are found with a space between them, as they show."""
+    url = serve(leaf_page("Apart by CSS", markup + "<p>More.</p>" * 4))
+    page = open_page(request.getfixturevalue(engine), url)
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill(words)
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
 
 

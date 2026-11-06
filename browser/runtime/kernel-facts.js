@@ -15,7 +15,7 @@
    read it here. */
 import kernel from "./kernel-registry.json" with { type: "json" };
 
-const { collapse, blocks, context, phrasing, apart } = kernel.$passages;
+const { collapse, blocks, context, phrasing } = kernel.$passages;
 // How a page turns into text (`leaf/passages.py`): a run of these characters is one
 // space, each of these tags is one block, and an anchor starts with this much context
 // on each side of its quote. Escaped, since a character class gives `]`, `\`, `^` and
@@ -26,9 +26,9 @@ const escaped = collapse
   .join("");
 export const COLLAPSE = new RegExp(`[${escaped}]+`, "g");
 export const TEXT_BLOCK = blocks.join(",");
-// The elements of a line of words (`$passages.phrasing`) whose words run into the words
-// beside them (`$passages.apart` says why the rest don't).
-export const JOINS_WORDS = new Set(phrasing.filter((tag) => !(tag in apart)));
+// The elements a line of words runs through (`$passages.phrasing`), whose edges are
+// places a word may end rather than gaps between words.
+export const JOINS_WORDS = new Set(phrasing);
 export const CONTEXT = context;
 
 // A widget's tag, which tells a widget declaration from an idiom selector.

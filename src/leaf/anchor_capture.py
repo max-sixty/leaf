@@ -1,5 +1,10 @@
 """Capture authored anchor requests against the file-side passage reading."""
 
+import bisect
+import functools
+import itertools
+from typing import NamedTuple
+
 from .passages import collapse, page_passages
 from .registry.contract import visual_parts
 from .registry.kernel import kernel_passages
@@ -23,18 +28,59 @@ def enclosing_section(owner: list, lo: int, hi: int):
     return first[shared - 1] if shared else None
 
 
-def occurrences(text: str, quote: str, lo: int, hi: int, fences=frozenset()) -> list:
-    """Where `quote` sits in text[lo:hi], as absolute indices. A match that runs across a
-    fence is not one: the page has words there that this text doesn't. An empty quote
-    names no passage, as in the browser's `findQuote`."""
-    if not quote:
+class _Letters(NamedTuple):
+    """A reading's text without its spaces: each letter, where it stands in the text,
+    and what parts it from the letter before (0 nothing, 1 an edge, 2 a space)."""
+
+    letters: str
+    places: list
+    parted: bytes
+
+
+@functools.lru_cache(maxsize=16)
+def _letters(text: str, edges: frozenset) -> _Letters:
+    letters, places, parted = [], [], bytearray()
+    for i, ch in enumerate(text):
+        if ch.isspace():
+            continue
+        parted.append(
+            0 if not places else 2 if i > places[-1] + 1 else 1 if i in edges else 0
+        )
+        letters.append(ch)
+        places.append(i)
+    return _Letters("".join(letters), places, bytes(parted))
+
+
+def occurrences(passages, quote: str, lo: int, hi: int) -> list[tuple[int, int]]:
+    """Where `quote` stands in the reading's text[lo:hi], as absolute [start, end)
+    spans, in order: its letters, a space or an edge between two of them where the quote
+    has a space, and nothing or an edge where it has none. An edge is where two inline
+    elements meet, and only the page's CSS says whether a word ends there, so either
+    reading of it matches: the file side of `passages.js.scan`. A copy past a fence is
+    no copy, since the page has words there this text doesn't, but it takes its place
+    in order: the next copy starts past it. An empty quote names no passage, as in the
+    browser's `findQuote`."""
+    words = quote.split()
+    if not words:
         return []
+    letters = "".join(words)
+    gaps = set(itertools.accumulate(len(word) for word in words[:-1]))
+    view = _letters(passages.text, passages.edges)
+    first = bisect.bisect_left(view.places, lo)
+    stop = bisect.bisect_left(view.places, hi)
     found = []
-    at = text.find(quote, lo, hi)
+    at = view.letters.find(letters, first, stop)
     while at != -1:
-        if not any(at < f < at + len(quote) for f in fences):
-            found.append(at)
-        at = text.find(quote, at + len(quote), hi)
+        if all(
+            (view.parted[at + j] != 0) if j in gaps else (view.parted[at + j] != 2)
+            for j in range(1, len(letters))
+        ):
+            start, end = view.places[at], view.places[at + len(letters) - 1] + 1
+            if not any(start < f < end for f in passages.fences):
+                found.append((start, end))
+            at = view.letters.find(letters, at + len(letters), stop)
+        else:
+            at = view.letters.find(letters, at + 1, stop)
     return found
 
 
@@ -65,18 +111,18 @@ def resolve_quote(passages, anchor: dict) -> int | None:
         if span is None:
             return None
         lo, hi = span
-    hits = occurrences(passages.text, quote, lo, hi, passages.fences)
+    hits = occurrences(passages, quote, lo, hi)
     exact = []
-    for at in hits:
-        before, after = _context(passages, at, at + len(quote))
+    for start, end in hits:
+        before, after = _context(passages, start, end)
         prefix, suffix = anchor.get("prefix", ""), anchor.get("suffix", "")
         if (before.endswith(prefix) if prefix else not before) and (
             after.startswith(suffix) if suffix else not after
         ):
-            exact.append(at)
+            exact.append(start)
     if len(exact) == 1:
         return exact[0]
-    return hits[0] if not exact and len(hits) == 1 else None
+    return hits[0][0] if not exact and len(hits) == 1 else None
 
 
 def capture_anchor(
@@ -109,7 +155,6 @@ def capture_anchor(
     passages = page_passages(document, registry, decided, rewrites, additions)
     text = passages.text
     owner = passages.owner
-    fences = passages.fences
     retired = passages.retired
     gone = passages.gone
     enclosing = passages.enclosing
@@ -156,7 +201,7 @@ def capture_anchor(
             )
         lo_bound, hi_bound = span
     where = "the page" if not section else f"§ {section}"
-    hits = occurrences(text, wanted, lo_bound, hi_bound, fences)
+    hits = occurrences(passages, wanted, lo_bound, hi_bound)
     if not hits:
         raise ValueError(
             f"{where} doesn't say {wanted!r}; quote the words this version shows, "
@@ -164,8 +209,8 @@ def capture_anchor(
         )
     if len(hits) > 1:
         around = [
-            f"  - …{text[max(lo_bound, at - 30) : at + len(wanted) + 30]}…"
-            for at in hits[:4]
+            f"  - …{text[max(lo_bound, start - 30) : end + 30]}…"
+            for start, end in hits[:4]
         ]
         if len(hits) > len(around):
             around.append(f"  - …and {len(hits) - len(around)} more")
@@ -175,8 +220,7 @@ def capture_anchor(
             "in:\n" + "\n".join(around)
         )
 
-    lo = hits[0]
-    hi = lo + len(wanted)
+    lo, hi = hits[0]
     section = section or enclosing_section(owner, lo, hi)
     # The neighbours come from the whole reading, as the browser's do — the section
     # filters where the search may land, never what surrounds a passage — so a passage

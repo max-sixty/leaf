@@ -2079,21 +2079,37 @@ export class Trace extends LeafElement {
               : action.method === "keyboardUp"
                 ? `${action.input.key}↑`
                 : action.input.key,
-          title: `${this.#inputLabel(action)} · call ${span(action)}${send === null ? "" : ` · Action checkpoint ${this.#time(send, action.stream)}, just before it is sent`}`,
+          tip: {
+            name: this.#inputLabel(action),
+            detail: [
+              `Call ${span(action)}`,
+              ...(send === null
+                ? []
+                : [
+                    `Action checkpoint ${this.#time(send, action.stream)}, just before it is sent`,
+                  ]),
+            ],
+          },
         });
       } else
         calls.push({
           ...mark,
           label: action.method,
           error: !!action.error,
-          title: `${action.title} · ${span(action)}${action.error ? ` · ${action.error}` : ""}`,
+          tip: {
+            name: action.title,
+            detail: [span(action), ...(action.error ? [action.error] : [])],
+          },
         });
     }
     const moments = this.#scopeMoments().map((moment) => ({
       id: String(moment.number),
       number: moment.number,
       time: moment.time - origin,
-      title: `${moment.number} · ${moment.label} · ${this.#time(moment.time, moment.stream)}`,
+      tip: {
+        name: moment.label ?? `Moment ${moment.number}`,
+        detail: [`Moment ${moment.number} · ${this.#time(moment.time, moment.stream)}`],
+      },
       current: this.#momentSelected(moment),
     }));
     const captures = this.#items().map((item) => ({

@@ -301,6 +301,14 @@ be a second tooltip, so a control carries none. A finger's release after a hold 
 the element, so a widget that answers a click answers the hold too. Off Leaf nothing
 reads `lfPreview`.
 
+A value at one point inside an element, such as a chart's point, answers
+`{words, at}` (or `{popover, at}`), where `at` is the box, in client coordinates, that
+the preview stands above, as `lf-chart` gives its point's ring. Where the reader's aim
+moves inside the element to another value, as a pointer, a finger or the element's own
+arrow keys do, the widget finds the value itself and calls `previewChanged(element)`
+from `portable-api.js`. Leaf then reads `lfPreview` again on the route already reading
+the element, or after the pointer's dwell, and redraws the preview where it stands.
+
 ### Pointer presses
 
 A handler that takes over a click, such as a link that opens a source line, acts only on

@@ -18,6 +18,12 @@
    - A range with no element of its own, as a passage mark is, is its owner's to hit
      test, so the owner says where the pointer rests (`pointRange`) and this module does
      the rest, placing the preview by the line the pointer is on.
+   - A value at one point inside an element, as a chart's point is, is the element's
+     to find: its preview names the box it stands by (`{words, at}`), and the element
+     says when what it previews changes (`previewChanged`, widget-upgrade.js), as the
+     pointer, a key or a finger brings it to another point. Each change is a new reading,
+     whatever put the last one away, and it reads on the route already reading the
+     element, or, for a resting pointer, after the dwell as any target does.
 
    Nothing standing open (`aria-expanded="true"`) previews, since what pressing it opens
    is already in front of the user, and the search goes on outward from it, as it does
@@ -30,10 +36,14 @@
    hint closes no popover the user opened. It takes no pointer and holds no control, so
    it is no layer the keyboard tiers its scopes over (layer-stack.js). It stands beside
    its target by CSS anchor positioning, the target named by css-anchors.js: centred
-   below it, above where the window has no room below, and above a finger that holds it,
-   which covers what lies below. The browser carries it through every scroll that moves
-   its target, and nothing around the target moves. A range's preview stands by insets
-   from the element holding the range, measured when it shows.
+   below it, above where the window has no room below, above a finger that holds it,
+   which covers what lies below, and above a point inside its target, as a chart's tip
+   stands over its point and leaves the axis below it in view. The browser carries it
+   through every scroll that moves its target, and nothing around the target moves. A
+   range's preview stands by insets from the element holding the range, measured when it
+   shows. A box an element names is an anchor of its own (`place`), standing by the same
+   insets from the element, so its preview stands by it as by any target: an SVG shape
+   has no CSS box to anchor to.
 
    Its routes:
 
@@ -46,10 +56,12 @@
      and nor does one a pointer reaches while it carries a press, as in a drag. A tab the
      user leaves takes its preview away.
    - Keyboard focus the browser shows (`:focus-visible`) shows its target's preview at
-     once, and leaving the target hides it. A screen reader hears a declared preview as
-     the focused target's description (`ariaDescribedByElements`) while it stands; a
-     control's preview says what its accessible name and `aria-keyshortcuts` already do,
-     and a proxy describes what it stands for with its own markup, as a gloss's does.
+     once, and leaving the target hides it. A change a key brings to the focused target
+     reads on this route too, where a pointer gave it focus and Firefox shows none. A
+     screen reader hears a declared preview as the focused target's description
+     (`ariaDescribedByElements`) while it stands; a control's preview says what its
+     accessible name and `aria-keyshortcuts` already do, and a proxy describes what it
+     stands for with its own markup, as a gloss's does.
    - A finger held on a target for `DWELL` shows its preview, and the finger reads its
      neighbours by sliding onto them: one of the same parent shows its own instead.
      Releasing after the preview showed presses the target it ends on, or none when it
@@ -99,13 +111,15 @@ import {
   typesText,
 } from "./focus.js";
 import { plainPress } from "./pointer.js";
-import { isElement, renderedParent } from "./shadow-tree.js";
+import { isElement, renderedParent, under } from "./shadow-tree.js";
+import { PREVIEW } from "./widget-upgrade.js";
 import { keeps } from "./keeps.js";
 import { watchOwner } from "./arrivals.js";
 import { actionClass } from "./control-faces.js";
 
 /** @typedef {string | Node | import("/vendor/lit.js").TemplateResult} Words
- * @typedef {Words | {popover: Words}} Preview
+ * @typedef {{left: number, top: number, right: number, bottom: number}} Box
+ * @typedef {Words | {popover: Words, at?: Box} | {words: Words, at?: Box}} Preview
  * @typedef {() => Preview | null | undefined} Read
  * @typedef {Element | Range} Target
  * @typedef {"pointer" | "focus" | "hold"} Route
@@ -123,6 +137,10 @@ tip.className = "lf-ui lf-preview";
 tip.id = "lf-preview";
 tip.setAttribute("popover", "hint");
 tip.setAttribute("role", "tooltip");
+// The anchor a preview stands by where its target names a box inside itself.
+const place = document.createElement("div");
+place.className = "lf-ui lf-preview-at";
+const PLACE = "--lf-preview-at";
 
 /** A control's word and the presses that reach it, each its steps as key chips: the
  * preview every control shows, and one a control whose key another owner answers
@@ -198,12 +216,32 @@ let quiet = null;
 /** @type {Hold | null} */
 let hold = null;
 // Where the pointer last stood, which tells a target the user moved onto from one
-// that arrived under a still pointer.
+// that arrived under a still pointer, and what it stands over.
 let rest = { x: NaN, y: NaN };
+/** @type {Node | null} */
+let beneath = null;
+// Whether a key is down, which makes a change it brings to the focused element the
+// keyboard's to read: Firefox shows no focus a key lands on after a pointer gave it.
+let keying = false;
 
-/** @param {Preview} preview */
-const popoverFace = (preview) =>
-  typeof preview === "object" && preview !== null && "popover" in preview;
+// Draws a preview's words in its face, and stands an element's preview by the element,
+// or by the box inside it the preview names.
+/** @param {Preview} preview @param {Element} anchor */
+function paint(preview, anchor) {
+  const named =
+    typeof preview === "object" &&
+    preview !== null &&
+    ("popover" in preview || "words" in preview);
+  const popover = named && "popover" in preview;
+  keeps(tip, "class", popover ? "lf-ui lf-preview lf-popover" : "lf-ui lf-preview");
+  render(
+    named ? ("popover" in preview ? preview.popover : preview.words) : preview,
+    tip,
+  );
+  const at = named ? preview.at : undefined;
+  if (at) anchorAt(place, anchor, at, undefined, "anchors-visible");
+  return at ? PLACE : anchorName(anchor);
+}
 
 /** @param {Target} target @param {Read} read @param {Route} route @param {{x: number, y: number}} [at] */
 function show(target, read, route, at) {
@@ -217,22 +255,24 @@ function show(target, read, route, at) {
       : target;
   const preview = holder?.isConnected ? read() : null;
   if (!holder || !preview) return;
-  const popover = popoverFace(preview);
-  keeps(tip, "class", popover ? "lf-ui lf-preview lf-popover" : "lf-ui lf-preview");
-  render(popover ? /** @type {{popover: Words}} */ (preview).popover : preview, tip);
+  const anchor = anchorElement(holder);
+  const by = paint(preview, anchor);
   /** @type {Shown} */
   const record = { target, holder, route, stop: () => {}, described: null };
   // A target that leaves the page, as a re-render replaces it, takes its preview along.
   record.stop = watchOwner(holder, { disconnect: () => shown === record && hide() });
   shown = record;
-  const anchor = anchorElement(holder);
   keeps(tip, "data-lf-route", route);
-  keeps(tip, "data-lf-at", target instanceof Range ? "range" : null);
+  keeps(
+    tip,
+    "data-lf-at",
+    target instanceof Range ? "range" : by === PLACE ? "point" : null,
+  );
   if (target instanceof Range) tip.style.removeProperty("position-anchor");
   else {
     for (const inset of ["position", "left", "top", "position-visibility"])
       tip.style.removeProperty(inset);
-    tip.style.setProperty("position-anchor", anchorName(anchor));
+    tip.style.setProperty("position-anchor", by);
   }
   if (route === "hold") keeps(holder, "data-lf-held", "");
   showNativeLayer(tip);
@@ -314,9 +354,48 @@ export function pointRange(range, read, at) {
   else if (pointing instanceof Range) point(null);
 }
 
+// What `node` previews changed: the preview standing for it reads it again where it
+// stands, with no dwell and no fade, and otherwise the route reading it now shows it:
+// a finger holding it, focus the browser shows or a key acts on, or a pointer over it.
+/** @param {Element} node */
+function changed(node) {
+  if (quiet === node) quiet = null;
+  const read = readerOf(node);
+  if (shown?.target === node) {
+    const preview = read?.();
+    if (!preview) return hide();
+    const by = paint(preview, anchorElement(node));
+    keeps(tip, "data-lf-at", by === PLACE ? "point" : null);
+    tip.style.setProperty("position-anchor", by);
+  } else if (!read) return;
+  // A finger that slid off its target onto nothing reads a neighbour it now aims at,
+  // as one it slid onto.
+  else if (
+    hold &&
+    (hold.target === node || (!hold.target && hold.parent === node.parentElement))
+  ) {
+    hold.target = node;
+    hold.read = read;
+    if (hold.shown) show(node, read, "hold");
+  } else if (focused() === node && (keying || node.matches(":focus-visible")))
+    show(node, read, "focus");
+  else if (under(beneath, node)) {
+    pointing = null;
+    point(node, read);
+  }
+}
+
 /** @param {HTMLElement} home */
 export function mountPreviews(home) {
-  home.append(tip);
+  home.append(place, tip);
+  document.addEventListener(
+    PREVIEW,
+    (event) => {
+      const [node] = event.composedPath();
+      if (isElement(node)) changed(node);
+    },
+    { capture: true },
+  );
   // The platform hides a hint as another popover opens over it, or as a press lands
   // elsewhere, and the record goes with it.
   tip.addEventListener("toggle", (event) => {
@@ -331,7 +410,9 @@ export function mountPreviews(home) {
       // press, as a drag does, is acting, not reading.
       const still = event.clientX === rest.x && event.clientY === rest.y;
       rest = { x: event.clientX, y: event.clientY };
-      const found = previewing(event.composedPath());
+      const path = event.composedPath();
+      beneath = isElement(path[0]) ? path[0] : null;
+      const found = previewing(path);
       if (still || event.buttons) {
         pointing = found?.target ?? null;
         clearTimeout(dwell);
@@ -351,7 +432,8 @@ export function mountPreviews(home) {
   document.addEventListener(
     "pointerout",
     (event) => {
-      if (event.pointerType !== "touch" && event.relatedTarget === null) point(null);
+      if (event.pointerType !== "touch" && event.relatedTarget === null)
+        (point(null), (beneath = null));
     },
     { capture: true, passive: true },
   );
@@ -372,10 +454,12 @@ export function mountPreviews(home) {
   document.addEventListener(
     "keydown",
     (event) => {
+      keying = true;
       if (event.key === "Escape" || shown?.route === "pointer") quieten();
     },
     { capture: true },
   );
+  document.addEventListener("keyup", () => (keying = false), { capture: true });
   document.addEventListener(
     "pointerdown",
     (event) => {
@@ -450,7 +534,8 @@ export function mountPreviews(home) {
   );
   // A tab the user leaves ends what they were reading in it.
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") (point(null), quieten(), endHold());
+    if (document.visibilityState === "hidden")
+      (point(null), quieten(), endHold(), (keying = false));
   });
   document.addEventListener(
     "contextmenu",

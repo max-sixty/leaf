@@ -632,3 +632,165 @@ def test_a_chart_in_a_shut_tab_draws_when_the_tab_opens(browser, serve):
 
     page.get_by_role("tab", name="Numbers").click()
     expect(page.locator("#tab-chart svg[role=img]")).to_be_visible()
+
+
+# A chart's values, which a chart says to the pointer, the keyboard and a finger
+# (lf-chart.js, chart-points.js). Two series stacked in two weeks, so a step runs along
+# a series and across to the other, and a stack's share is what a segment measures.
+HOURS = chart_markup(
+    "hours",
+    """{
+  ariaLabel: "Hours by week: features 21 and 18, fixes 9 and 14",
+  y: {label: "hours"},
+  color: {range: ["var(--series-1)", "var(--series-2)"]},
+  marks: [
+    Plot.barY(
+      [
+        {week: "w1", kind: "features", hours: 21},
+        {week: "w2", kind: "features", hours: 18},
+        {week: "w1", kind: "fixes", hours: 9},
+        {week: "w2", kind: "fixes", hours: 14},
+      ],
+      {x: "week", y: "hours", fill: "kind"},
+    ),
+  ],
+}""",
+)
+VALUES_PAGE = leaf_page(
+    "chart values", f'<h1 id="t">Hours</h1><button id="before">Before</button>{HOURS}'
+)
+PREVIEW = "#lf-preview"
+
+
+def said(page):
+    """What the preview says, its name line and its detail lines, or None while it is
+    put away."""
+    preview = page.locator(PREVIEW)
+    if not preview.evaluate("tip => tip.matches(':popover-open')"):
+        return None
+    return [
+        preview.locator(".lf-preview-word").inner_text(),
+        *preview.locator(".lf-preview-more").all_inner_texts(),
+    ]
+
+
+def column(page, chart, week, height=0.15):
+    """A point over `week`'s column of `chart`, `height` of the way down its drawing."""
+    ticks = page.locator(f"#{chart} [data-lf-part='x-axis tick label'] text")
+    box = ticks.get_by_text(week, exact=True).bounding_box()
+    drawing = page.locator(f"#{chart} svg[role=img]").bounding_box()
+    return box["x"] + box["width"] / 2, drawing["y"] + drawing["height"] * height
+
+
+def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(browser, serve):
+    """A resting pointer reads the point nearest it, standing above the ring on that
+    point, and moving along the drawing reads each point it comes to at once; leaving
+    the drawing puts both away. Focus the browser shows lands on the first point, the
+    arrows step along a series and across to the other, Home and End reach a series'
+    ends, and Escape puts the preview away while still taking its own step."""
+    page = open_page(browser, serve(VALUES_PAGE))
+    chart = page.locator("#hours")
+    preview = page.locator(PREVIEW)
+    ring = chart.locator(".lf-chart-at circle")
+    expect(chart.locator("svg[role=img]")).to_be_visible()
+
+    page.mouse.move(*column(page, "hours", "w2", 0.2))
+    page.mouse.move(*column(page, "hours", "w2", 0.15))
+    expect(preview).to_be_visible()
+    assert said(page) == ["w2 · fixes", "14 hours"]
+    expect(preview).to_have_attribute("data-lf-route", "pointer")
+    tip, at = preview.bounding_box(), ring.bounding_box()
+    assert tip["y"] + tip["height"] <= at["y"], (tip, at)
+    page.mouse.move(*column(page, "hours", "w1", 0.85))
+    expect(preview.locator(".lf-preview-word")).to_have_text("w1 · features")
+    page.mouse.move(2, 2)
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
+
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(chart).to_be_focused()
+    expect(preview).to_have_attribute("data-lf-route", "focus")
+    assert said(page) == ["w1 · features", "21 hours"]
+    for key, words in (
+        ("ArrowRight", ["w2 · features", "18 hours"]),
+        ("ArrowDown", ["w2 · fixes", "14 hours"]),
+        ("Home", ["w1 · fixes", "9 hours"]),
+        ("ArrowUp", ["w1 · features", "21 hours"]),
+        ("End", ["w2 · features", "18 hours"]),
+    ):
+        page.keyboard.press(key)
+        expect(preview.locator(".lf-preview-word")).to_have_text(words[0])
+        assert said(page) == words, key
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    expect(chart).not_to_be_focused()
+
+
+def test_a_finger_held_on_a_chart_reads_the_point_under_it(browser, serve):
+    """A finger held on the drawing reads the point under it above the finger, reads
+    each point it slides across to, and puts the preview away as it lifts."""
+    context = browser.new_context(has_touch=True)
+    page = open_page(browser, serve(VALUES_PAGE), context=context)
+    preview = page.locator(PREVIEW)
+    expect(page.locator("#hours svg[role=img]")).to_be_visible()
+    cdp = context.new_cdp_session(page)
+
+    def touch(kind, at=None):
+        points = [{"x": at[0], "y": at[1]}] if at else []
+        cdp.send("Input.dispatchTouchEvent", {"type": kind, "touchPoints": points})
+
+    start = column(page, "hours", "w2")
+    touch("touchStart", start)
+    expect(preview).to_be_visible()
+    expect(preview).to_have_attribute("data-lf-route", "hold")
+    assert said(page) == ["w2 · fixes", "14 hours"]
+    assert preview.bounding_box()["y"] < start[1]
+    # The slide crosses the gap between the columns, where no point is near enough to
+    # read, so the preview goes and comes back on the next column.
+    end = column(page, "hours", "w1")
+    for step in range(1, 7):
+        touch("touchMove", (start[0] + (end[0] - start[0]) * step / 6, start[1]))
+    expect(preview).to_be_visible()
+    assert said(page) == ["w1 · fixes", "9 hours"]
+    touch("touchEnd")
+    expect(preview).to_be_hidden()
+
+
+def test_a_chart_s_author_picks_which_marks_say_their_values_and_their_words(
+    browser, serve
+):
+    """Where an author gives some marks Plot's `tip`, only those say their values, and
+    a mark's `title` channel says its own words, its first line as the name and the rest
+    beneath, with no platform tooltip beside them."""
+    picked = chart_markup(
+        "picked",
+        """{
+  ariaLabel: "Hours by week: 21, 18 and 30, the third the release",
+  marks: [
+    Plot.lineY(
+      [{week: "w1", hours: 21}, {week: "w2", hours: 18}, {week: "w3", hours: 30}],
+      {x: "week", y: "hours"},
+    ),
+    Plot.dot([{week: "w3", hours: 30}], {
+      x: "week",
+      y: "hours",
+      tip: true,
+      title: (d) => `Release ${d.week}\\nshipped on time`,
+    }),
+  ],
+}""",
+    )
+    page = open_page(
+        browser, serve(leaf_page("picked", f'<h1 id="t">Hours</h1>{picked}'))
+    )
+    preview = page.locator(PREVIEW)
+    expect(page.locator("#picked svg[role=img]")).to_be_visible()
+    expect(page.locator("#picked title")).to_have_count(0)
+    page.mouse.move(*column(page, "picked", "w3", 0.3))
+    page.mouse.move(*column(page, "picked", "w3", 0.25))
+    expect(preview).to_be_visible()
+    assert said(page) == ["Release w3", "shipped on time"]
+    page.mouse.move(*column(page, "picked", "w1", 0.25))
+    expect(preview).to_be_hidden()
+    expect(page.locator("#picked .lf-chart-at")).to_be_hidden()

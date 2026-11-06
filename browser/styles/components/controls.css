@@ -364,8 +364,18 @@ svg[data-lf-icon] {
   padding: 10px 13px 11px;
   font: var(--font-message);
 }
-.lf-preview[data-lf-route="hold"] {
+/* Above a finger holding its target, which covers what lies below, and above a point
+   inside its target, as a chart's tip stands over its point and leaves the axis below
+   it in view. */
+.lf-preview:is([data-lf-route="hold"], [data-lf-at="point"]) {
   position-area: block-start;
+}
+/* The box inside a target its preview stands by, such as a chart's point, which the
+   owner places over it as an anchor of its own. It draws nothing. */
+.lf-preview-at {
+  position: fixed;
+  anchor-name: --lf-preview-at;
+  pointer-events: none;
 }
 /* A range's preview stands by insets its owner measures, beside the line pointed at. */
 .lf-preview[data-lf-at="range"] {

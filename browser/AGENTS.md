@@ -242,7 +242,8 @@ playable").
 - **One owner shows every preview.** An element declares what pointing at it reads
   (`lfPreview`, `../skills/leaf/references/module-input.md`, "Previews"), a control's
   word and keys come from its name and the register, and a range's owner says where
-  the pointer rests on it. `runtime/preview.js` shows one at a time on every route and
+  the pointer rests on it. An element holding many values, as a chart does, names the
+  point it stands by and says when the aim moves to another (`previewChanged`). `runtime/preview.js` shows one at a time on every route and
   puts it away on leave, blur, a press or Escape, which still takes its own step. Check:
   `test_a_control_previews_its_word_and_every_key_that_presses_it`.
 

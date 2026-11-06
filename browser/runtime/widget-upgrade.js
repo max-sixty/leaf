@@ -19,7 +19,10 @@
    widget says it set or changed with `lf-commands` (`commandsChanged`): Leaf reads them
    then and binds them (keyboard/scopes.js), and a plain page, reading nothing, binds no
    key and advertises none. Words for a listener are `lf-announce` (`announce`), which a
-   Leaf page says in its live region (notifications.js) and a plain page leaves unsaid. */
+   Leaf page says in its live region (notifications.js) and a plain page leaves unsaid.
+   What pointing at an element reads is data on it too, `lfPreview`, which the widget
+   says changed with `lf-preview` (`previewChanged`) when the user's aim moves inside it,
+   as from one of a chart's points to the next: Leaf reads it again (preview.js). */
 import { describeFailure, exceptionError } from "./exception.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
@@ -103,6 +106,13 @@ export const ANNOUNCE = "lf-announce";
 /** @param {import("./voice.js").Words} words */
 export const announce = (words) =>
   window.dispatchEvent(new CustomEvent(ANNOUNCE, { detail: words }));
+
+// That what pointing at an element reads, its `lfPreview`, changed.
+export const PREVIEW = "lf-preview";
+/** @param {Element} el */
+export const previewChanged = (el) => {
+  el.dispatchEvent(new Event(PREVIEW, { bubbles: true, composed: true }));
+};
 
 // The element a `commandsChanged` event names, and the refusal its reader hands back.
 /** @param {CommandsChangedEvent} event */

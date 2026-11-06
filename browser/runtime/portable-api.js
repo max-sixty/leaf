@@ -5,8 +5,9 @@
    Leaf page the same widget gets Leaf's features through what Leaf reads from outside
    it, rather than through calls into Leaf: the events it dispatches (widget-upgrade.js),
    the keys it declares as `lfCommands`, what pointing at an element reads
-   (`lfPreview`, preview.js), the words it asks a listener to hear (`announce`), the
-   inventory of Comment targets it registers (`registerVisualParts`, visual-parts.js),
+   (`lfPreview`, preview.js, and `previewChanged` as it changes), the words it asks a
+   listener to hear (`announce`), the inventory of Comment targets it registers
+   (`registerVisualParts`, visual-parts.js),
    and the parts it marks for Leaf to dress, a block's Copy control (`data-lf-copy`,
    code-copy.js) and a quiet word (`data-lf-quiet`, declared-words.js).
    A page without Leaf reads none of them, so there the widget binds no key, shows no
@@ -52,6 +53,7 @@ export {
   layoutChanged,
   once,
   placesFailure,
+  previewChanged,
   reportFailure,
 } from "./widget-upgrade.js";
 export { measure } from "./shown-box.js";

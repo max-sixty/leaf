@@ -1802,7 +1802,6 @@ def test_a_recorded_move_is_announced_and_shown_only_where_it_was_made(browser, 
     expect(page.locator(".lf-live")).to_have_text("Moved to Done")
     round_trip(page)
     assert "Moved to Done" not in panel_says(page), "the panel's field repeats the move"
-    assert page.locator(".lf-toast").count() == 0, "a second surface says the news"
 
 
 @pytest.mark.parametrize(

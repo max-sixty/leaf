@@ -396,7 +396,7 @@ function passing() {
 }
 function navigationWords() {
   const { goTo, walk } = statusContextReading();
-  return goTo ?? (walk?.shown ? walk.text : "");
+  return goTo ?? walk?.text ?? "";
 }
 /** @param {number} at */
 const clock = (at) =>
@@ -1061,7 +1061,7 @@ export function createFloatingPanel({
     if (fieldReading(key, input).says !== "turn") return "";
     const thread = threadByKey(key);
     const { walk } = statusContextReading();
-    const position = !walk?.shown
+    const position = !walk
       ? ""
       : walk.kind === "thread" && walk.target === thread?.id
         ? `${walk.position} of ${walk.total}`
@@ -3205,7 +3205,7 @@ export function createFloatingPanel({
   // the list follows the walk rather than standing where it was.
   const walkedStop = () => {
     const { walk } = statusContextReading();
-    return walk?.shown && walk.kind === "queue" ? walk.target : null;
+    return walk?.kind === "queue" ? walk.target : null;
   };
   /** @type {unknown} */
   let walkedLanded = null;
@@ -3488,7 +3488,7 @@ export function createFloatingPanel({
     // thread about it, so an answer about a decision rides on the decision. Each reads
     // as its message, as a question asked in words does above.
     const carried = (also ?? []).flatMap((id) => {
-      const other = readObligations().all.find((candidate) => candidate.id === id);
+      const other = readObligations().byId.get(id);
       if (!other) return [];
       const where = other.thread ? threadByKey(other.thread) : null;
       if (!where) return [];
@@ -3836,7 +3836,7 @@ export function createFloatingPanel({
       const id = under(node, stage)
         ? closestAcross(node, ON_CARD)?.getAttribute("data-lf-obligation-id")
         : null;
-      const record = id && readObligations().all.find((item) => item.id === id);
+      const record = id ? readObligations().byId.get(id) : null;
       return record ? obligationPlace(record).node : null;
     },
     { beside: true },

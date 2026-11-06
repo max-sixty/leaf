@@ -656,7 +656,6 @@ export function createReactionController({
   return {
     registerReactSurface,
     buildReactBar,
-    hasReactionTarget,
     syncReactLayout,
     setReact,
     isReactArmed,

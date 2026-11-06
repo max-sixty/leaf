@@ -26,9 +26,8 @@ const escaped = collapse
   .join("");
 export const COLLAPSE = new RegExp(`[${escaped}]+`, "g");
 export const TEXT_BLOCK = blocks.join(",");
-// The elements a line of words runs through (`$passages.phrasing`), whose edges are
-// places a word may end rather than gaps between words.
-export const JOINS_WORDS = new Set(phrasing);
+// The elements a line of words runs through (`$passages.phrasing`).
+export const PHRASING = new Set(phrasing);
 export const CONTEXT = context;
 
 // A widget's tag, which tells a widget declaration from an idiom selector.

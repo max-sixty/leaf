@@ -18,12 +18,15 @@ import "/runtime/stage-integration.js";
 import { programmaticSelection, selectEnds } from "/runtime/native-selection.js";
 import assert from "node:assert/strict";
 import test from "node:test";
+import v8 from "node:v8";
+import vm from "node:vm";
 
 import { registry } from "/runtime/registry.js";
 import {
   blockAt,
   closestAcross,
   contextAround,
+  documentOutline,
   elementReading,
   fencedAt,
   fencePassageParts,
@@ -31,6 +34,7 @@ import {
   findQuote,
   inChrome,
   neighbourhood,
+  pageReadingVersion,
   pageText,
   pageBlocks,
   pageWords,
@@ -38,16 +42,41 @@ import {
   quoteFrom,
   quotesChanged,
   refuseBareText,
+  runsIntoLine,
   says,
   segmentsIn,
   trackQuotes,
 } from "/runtime/passages.js";
 import { declaredRoot, upFrom } from "/runtime/shadow.js";
-import { shadowStage } from "/runtime/shadow-stage.js";
+import { adoptShadowStage, shadowStage } from "/runtime/shadow-stage.js";
 
 test("no node means no passage location, rather than a runtime error", () => {
   assert.equal(closestAcross(null, "main"), null);
   assert.equal(closestAcross(undefined, "main"), null);
+});
+
+test("a title's line and a quote across its end read one phrasing rule", () => {
+  // Where a title meets the next words inside an element a line runs through, it runs
+  // into that line (`runsIntoLine`), and a quote across the edge reads with a space or
+  // without (`scan`); where the next words stand in an element outside phrasing, the
+  // title ends its line and the edge is a gap a quote must keep.
+  document.body.innerHTML =
+    '<main><p id="inline"><strong>Title</strong><span>words follow</span></p>' +
+    '<div id="block"><strong>Heading</strong><div>words below</div></div></main>';
+  const inline = /** @type {Element} */ (document.getElementById("inline"));
+  const block = /** @type {Element} */ (document.getElementById("block"));
+  const title = (/** @type {Element} */ el) =>
+    /** @type {Element} */ (el.querySelector("strong"));
+  assert.equal(runsIntoLine(title(inline), inline), true);
+  assert.equal(runsIntoLine(title(block), block), false);
+  const reading = pageText();
+  for (const quote of ["Title words", "Titlewords"])
+    assert.equal(quoteFrom(findQuote(reading, quote, {}, inline)), "Titlewords", quote);
+  assert.equal(
+    quoteFrom(findQuote(reading, "Heading words", {}, block)),
+    "Heading words",
+  );
+  assert.deepEqual(findQuote(reading, "Headingwords", {}, block), []);
 });
 
 test("a text node answers from the element holding it", () => {
@@ -110,6 +139,14 @@ test("a node in a declared tree stands where its host stands", () => {
   assert.equal(inChrome(inside), true);
   assert.equal(pageWords(inside), false);
   assert.equal(pageWords(document.querySelector("main p")), true);
+});
+
+test("a root handed in reads as it would inside the walk: a slot its assignment", () => {
+  document.body.innerHTML = '<main><div id="host"><p>Assigned words</p></div></main>';
+  const host = document.querySelector("#host");
+  host.attachShadow({ mode: "open" }).innerHTML =
+    "<h2>Title</h2><slot>Fallback words</slot>";
+  assert.equal(says(host.shadowRoot.querySelector("slot")), "Assigned words");
 });
 
 test("header and footer passages belong to the page while runtime surfaces do not", () => {
@@ -264,6 +301,58 @@ test("a declared shadow tree's words are read, and its changes are seen", () => 
   // And the door leaves the tree watched, rather than forgetting the reading once.
   root.querySelector("p").textContent = "Gamma";
   assert.match(pageText().raw, /Alpha.*Gamma/s);
+});
+
+test("each document's reading is forgotten alone: the page's and a reply's", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "passage-documents" },
+  });
+  document.body.innerHTML = "<main><p>Alpha</p></main>";
+  const chrome = document.createElement("div");
+  chrome.className = "lf-chrome";
+  chrome.innerHTML = `<div class="lf-msg lf-ui" data-lf-gen="1"><div class="lf-msg-body">
+    <lf-staged></lf-staged></div></div>`;
+  document.documentElement.append(chrome);
+  try {
+    const root = shadowStage(chrome.querySelector("lf-staged"), [
+      Object.assign(document.createElement("p"), { textContent: "Reply words." }),
+    ]);
+    const page = pageText();
+    // A reply is a document of its own, so its widget redrawing is no change to the page.
+    root.querySelector("p").textContent = "Reply changed.";
+    assert.equal(pageText(), page);
+    // A root the watcher already sees reports its own changes, as a reply's diff is
+    // adopted again when its module loads.
+    adoptShadowStage(root);
+    assert.equal(pageText(), page);
+    // And the page changing is no change to the reply, whose own change is.
+    const body = chrome.querySelector(".lf-msg-body");
+    const outline = documentOutline(body);
+    document.querySelector("main p").textContent = "Beta";
+    assert.equal(documentOutline(body), outline);
+    root.querySelector("p").textContent = "Reply changed again.";
+    assert.notEqual(documentOutline(body), outline);
+  } finally {
+    chrome.remove();
+  }
+});
+
+// A key naming a reading, and what a reader kept about an element still on the page,
+// outlive the reading they were taken under, so they hold nothing of it: a session that
+// reads its page again and again would otherwise keep every reading it forgot.
+test("a forgotten reading is held by no key or kept answer that outlives it", async () => {
+  v8.setFlagsFromString("--expose-gc");
+  const collect = vm.runInNewContext("gc");
+  document.body.innerHTML = '<main><p id="kept">Alpha</p><p id="other">Beta</p></main>';
+  const forgotten = new WeakRef(pageText());
+  const version = pageReadingVersion();
+  assert.equal(elementReading(document.getElementById("kept")), "Alpha");
+  /** @type {HTMLElement} */ (document.getElementById("other")).textContent = "Gamma";
+  assert.notEqual(pageReadingVersion(), version);
+  await new Promise((done) => setTimeout(done));
+  collect();
+  assert.equal(forgotten.deref(), undefined);
 });
 
 // Startup refuses a module's bare text before anything reads the page, so it has to
@@ -854,6 +943,24 @@ test("a change beside a kept quote's copy, where it was told apart, changes the 
 
 // `says` and `wrote` are two answers for one element, and a kept reading must not hand
 // back the other one's.
+test("a message's body reads as its own document: the markup and the text alike", () => {
+  // The panel draws a reply in generated chrome; the markup its author sent stands in
+  // its body beside the text the runtime renders from its words, and both are its
+  // writer's.
+  document.body.innerHTML = `<main><div class="lf-msg lf-ui" data-lf-gen="1">
+    <div class="lf-msg-body"><div class="lf-msg-text"><p id="text">Rendered words.</p></div>
+    <section id="markup"><h2>Sent heading</h2><p>Sent words.</p></section>
+    </div></div></main>`;
+  const markup = document.getElementById("markup");
+  assert.equal(elementReading(markup, "wrote"), "Sent heading Sent words.");
+  assert.equal(elementReading(markup), "Sent heading Sent words.");
+  assert.equal(
+    elementReading(document.getElementById("text"), "wrote"),
+    "Rendered words.",
+  );
+  assert.equal(elementReading(document.getElementById("text")), "Rendered words.");
+});
+
 test("one element's two readings are kept apart", () => {
   document.body.innerHTML =
     '<main><p id="line">Words <span data-lf-gen="">generated</span></p></main>';

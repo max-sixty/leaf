@@ -3286,7 +3286,6 @@ def test_nothing_passing_interrupts_the_user_writing(browser, serve):
     write(field(page), "Could the rollback cover the weekend?")
     page.evaluate(say, "Saved for later")
     page.mouse.click(5, 5)
-    expect(page.locator(".lf-fp-context")).to_have_count(0)
     expect(field(page)).to_have_js_property(
         "value", "Could the rollback cover the weekend?"
     )

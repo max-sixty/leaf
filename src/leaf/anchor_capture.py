@@ -38,14 +38,20 @@ class _Letters(NamedTuple):
 
 
 @functools.lru_cache(maxsize=16)
-def _letters(text: str, edges: frozenset) -> _Letters:
+def _letters(text: str, edges: frozenset, soft: frozenset) -> _Letters:
     letters, places, parted = [], [], bytearray()
     for i, ch in enumerate(text):
         if ch.isspace():
             continue
-        parted.append(
-            0 if not places else 2 if i > places[-1] + 1 else 1 if i in edges else 0
-        )
+        if not places:
+            kind = 0
+        elif i > places[-1] + 1:
+            # A space parts them, unless every space between is one an edge shows as.
+            between = range(places[-1] + 1, i)
+            kind = 1 if all(at in soft for at in between) else 2
+        else:
+            kind = 1 if i in edges else 0
+        parted.append(kind)
         letters.append(ch)
         places.append(i)
     return _Letters("".join(letters), places, bytes(parted))
@@ -65,7 +71,7 @@ def occurrences(passages, quote: str, lo: int, hi: int) -> list[tuple[int, int]]
         return []
     letters = "".join(words)
     gaps = set(itertools.accumulate(len(word) for word in words[:-1]))
-    view = _letters(passages.text, passages.edges)
+    view = _letters(passages.text, passages.edges, passages.soft)
     first = bisect.bisect_left(view.places, lo)
     stop = bisect.bisect_left(view.places, hi)
     found = []

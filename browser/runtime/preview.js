@@ -52,6 +52,8 @@
      test, so the owner says where the pointer rests (`pointRange`), as often as it
      likes, and this module does the rest, placing the preview by the line the pointer
      is on.
+   - A link an author wrote into the page previews the place it names, and what that
+     place holds (place-preview.js), since that is what pressing it opens.
 
    Nothing standing open (`aria-expanded="true"`) previews, since what pressing it opens
    is already in front of the user, and the search goes on outward from it, as it does
@@ -240,6 +242,7 @@ import { watchOwner } from "./arrivals.js";
 import { actionClass } from "./control-faces.js";
 import { WORKS } from "./control-selectors.js";
 import { shownParts, shownWindow, visualViewport } from "./geometry.js";
+import { linkPreview } from "./place-preview.js";
 
 /** @typedef {string | Node | import("/vendor/lit.js").TemplateResult} Word
  * @typedef {Word | readonly Word[]} Words
@@ -566,7 +569,8 @@ function lines(declared, own) {
 /** @param {Element} node @param {Route} route @returns {Reading | null | false} */
 function readingOf(node, route) {
   if (node.getAttribute("aria-expanded") === "true" || node.matches(PROXY)) return null;
-  const declared = declaration(node, route);
+  // A link into the page declares the place it opens, as its own declaration would.
+  const declared = declaration(node, route) ?? linkPreview(node);
   if (declared === false) return false;
   const title = titleOf(node);
   if (!(node.matches(CONTROL) && !typesText(node)))

@@ -16,6 +16,7 @@ from render_harness import (
     long_press,
     margins_laid_out,
     open_page,
+    post_event,
     preview_parts,
     preview_text,
     told,
@@ -455,6 +456,530 @@ def test_a_preview_shown_on_focus_describes_what_focus_is_on(engine, request, se
     page.keyboard.press("Tab")
     expect(entry).not_to_be_focused()
     assert entry.get_attribute("aria-describedby") is None
+
+
+LINKS_PAGE = leaf_page(
+    "Links into the page",
+    """
+<p id="lede">The patch decision is <a id="to-decision" href="#decision">below</a>,
+after <a id="to-stall" href="#stall">the reconnect stall</a>; the vendor's notes are
+<a id="to-site" href="https://example.com/notes">on their site</a>; the group meets
+at <a id="to-meeting" href="#meeting">the settled meeting point</a>, and support
+has <a id="to-support" href="#support">its own heading</a>.</p>
+<section id="stall"><p class="eyebrow">offline editing</p><h2>iOS reconnect stall</h2>
+<p id="stall-detail">One reconnect in about 40 stalls until the app is backgrounded.</p>
+</section>
+<lf-ask id="decision"><h3>Patch decision</h3>
+<lf-options id="decision-options" choose>
+  <lf-option id="decision-ship" chosen>Ship with the resend.</lf-option>
+  <lf-option id="decision-hold">Hold the patch.</lf-option>
+</lf-options></lf-ask>
+<lf-ask id="meeting"><h3>Where should the group meet?</h3>
+<lf-options id="meeting-options" choose settled>
+  <lf-option id="meeting-door">At the door</lf-option>
+  <lf-option id="meeting-desk" chosen>At reception</lf-option>
+</lf-options></lf-ask>
+<h2 id="support">Support</h2>
+<p id="support-playbook">The playbook covers the spinner.</p>
+<h2 id="first-sibling">First section</h2><p>First words.</p>
+<h2 id="second-sibling">Second section</h2><p>Second words.</p>
+<p><a id="to-first" href="#first-sibling">first</a>,
+<a id="to-second" href="#second-sibling">second</a></p>
+"""
+    + "<p>More of the page.</p>" * 30,
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_link_into_the_page_previews_where_it_points(engine, request, serve):
+    """A link into the page previews the place it names: its heading and first lines
+    as the page reads them, a question's answer from the reading the page holds, the
+    pick of a question authored settled, and the conversations about it or anything in
+    it, with whose turn one is: for a heading, about the part of the page it heads. It holds only words, so no id or control of the place is
+    repeated. A resting pointer and the keyboard's focus read it, and a press still
+    follows the link. A finger held on the link reads it at the platform's long press,
+    and letting go presses nothing: the card stands until a tap follows the link. By
+    touch in Chromium, and in Firefox, which takes no held touch from a test, by the
+    pointer events a finger sends. A link to another site previews nothing."""
+    url = serve(LINKS_PAGE)
+    question = panel_comment(
+        serve.page_dir,
+        "Should this wait for the vendor's release?",
+        {"section": "stall"},
+        author="agent",
+        obligation=True,
+    )
+    panel_comment(
+        serve.page_dir,
+        "Does backgrounding always clear it?",
+        {"section": "stall-detail"},
+    )
+    panel_comment(
+        serve.page_dir, "Does it cover queued edits?", {"section": "support-playbook"}
+    )
+    panel_comment(
+        serve.page_dir, "Is this the right title?", {"section": "second-sibling"}
+    )
+    browser = request.getfixturevalue(engine)
+    page = open_page(browser, url)
+    preview = page.locator(PREVIEW)
+    name = preview.locator(".lf-preview-name")
+
+    page.locator("#to-stall").hover()
+    expect(name).to_have_text("iOS reconnect stall")
+    expect(preview).to_have_attribute("data-lf-face", "excerpt")
+    expect(preview.locator(".lf-place-text")).to_have_text(
+        "One reconnect in about 40 stalls until the app is backgrounded."
+    )
+    expect(preview).not_to_contain_text("offline editing")
+    expect(preview.locator(".lf-place-foot")).to_have_text("2 threadsYour turn")
+    assert (
+        preview.locator("[id], a, button, input, [tabindex], lf-options").count() == 0
+    )
+    # Answering the question turns its thread to the agent: the standing preview says
+    # so with the thread reading that says it.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": question,
+            "revision": 1,
+            "text": "Hold it until then.",
+        },
+    )
+    told(page)
+    expect(preview.locator(".lf-place-foot")).to_have_text("2 threads")
+
+    page.locator("#to-decision").hover()
+    expect(name).to_have_text("Patch decision")
+    expect(preview.locator(".lf-place-state")).to_have_text(
+        "Answered: Ship with the resend."
+    )
+    page.locator("#to-support").hover()
+    expect(name).to_have_text("Support")
+    expect(preview.locator(".lf-place-text").first).to_have_text(
+        "The playbook covers the spinner."
+    )
+    expect(preview.locator(".lf-place-foot")).to_have_text("1 thread")
+    # A conversation about a heading is its own part's, not the part before it.
+    page.locator("#to-second").hover()
+    expect(name).to_have_text("Second section")
+    expect(preview.locator(".lf-place-foot")).to_have_text("1 thread")
+    page.locator("#to-first").hover()
+    expect(name).to_have_text("First section")
+    expect(preview.locator(".lf-place-foot")).to_have_count(0)
+
+    page.locator("#to-meeting").hover()
+    expect(name).to_have_text("Where should the group meet?")
+    expect(preview.locator(".lf-place-item[data-lf-chosen]")).to_have_text(
+        "At reception"
+    )
+    expect(preview.locator(".lf-place-item:not([data-lf-chosen])")).to_have_text(
+        "At the door"
+    )
+    page.locator("#to-site").hover()
+    expect(preview).to_be_hidden()
+
+    # The keyboard's focus reads it at once, and Enter follows the link.
+    page.locator("#to-site").focus()
+    page.keyboard.press("Shift+Tab")
+    expect(page.locator("#to-stall")).to_be_focused()
+    expect(name).to_have_text("iOS reconnect stall")
+    page.keyboard.press("Enter")
+    expect(preview).to_be_hidden()
+    page.wait_for_function("location.hash === '#stall'")
+
+    # A held finger reads the preview, letting go presses nothing, and a tap follows.
+    chromium = engine == "browser"
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=chromium
+    )
+    phone = open_page(browser, url, context=context)
+    box = phone.locator("#to-decision").bounding_box()
+    point = {"x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2}
+    cdp = context.new_cdp_session(phone) if chromium else None
+    finger = """([type, x, y]) => document.elementFromPoint(x, y).dispatchEvent(
+      new PointerEvent(type, {pointerId: 7, pointerType: 'touch', isPrimary: true,
+        bubbles: true, cancelable: true, composed: true, button: 0,
+        buttons: type === 'pointerup' ? 0 : 1, clientX: x, clientY: y}))"""
+
+    def touch(start):
+        if cdp:
+            cdp.send(
+                "Input.dispatchTouchEvent",
+                {
+                    "type": "touchStart" if start else "touchEnd",
+                    "touchPoints": [point] if start else [],
+                },
+            )
+        else:
+            kind = "pointerdown" if start else "pointerup"
+            phone.evaluate(finger, [kind, point["x"], point["y"]])
+
+    touch(True)
+    assert long_press(phone, point) is False, "the platform's menu opened"
+    held = phone.locator(PREVIEW)
+    expect(held.locator(".lf-preview-name")).to_have_text("Patch decision")
+    touch(False)
+    rendered(phone)
+    assert phone.evaluate("location.hash") == "", "the held link was followed"
+    expect(held).to_be_visible()
+    if cdp:
+        touch(True)
+        touch(False)
+    else:
+        phone.locator("#to-decision").click()
+    phone.wait_for_function("location.hash === '#decision'")
+    expect(held).to_be_hidden()
+
+
+# Places longer than a card shows: a log of long lines, a paragraph and a list whose first
+# item each run past what a card holds.
+LONG_LINE = "x" * 300
+CUT_PAGE = leaf_page(
+    "Places that run on",
+    """
+<p><a id="to-log" href="#log">the log</a>, <a id="to-prose" href="#prose">the prose</a>
+and <a id="to-items" href="#items">the items</a></p>
+<pre id="log">"""
+    + "\n".join(f"L{n} {LONG_LINE}" for n in range(1, 41))
+    + """</pre>
+<p id="prose">"""
+    + " ".join(["The reconnect stalls until the app is backgrounded."] * 30)
+    + """</p>
+<ul id="items"><li>"""
+    + " ".join(["A first item that runs on and on."] * 30)
+    + """</li><li>Second.</li></ul>
+""",
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_card_cut_short_says_so_with_an_ellipsis(engine, request, serve):
+    """A card reads no more of a place than it shows, and says so where the place runs
+    on: a log of long lines shows its first four lines whole and then an ellipsis, and a
+    paragraph and a list's first item longer than the card holds end in one."""
+    page = open_page(request.getfixturevalue(engine), serve(CUT_PAGE))
+    preview = page.locator(PREVIEW)
+
+    def card(link):
+        page.mouse.move(0, 0)
+        expect(preview).to_be_hidden()
+        page.locator(link).hover()
+        expect(preview).to_be_visible()
+
+    card("#to-log")
+    lines = preview.locator(".lf-place-code").inner_text().split("\n")
+    assert [line[:3] for line in lines] == ["L1 ", "L2 ", "L3 ", "L4 "], lines
+    assert all(LONG_LINE in line for line in lines), lines
+    assert lines[-1].endswith("…"), lines[-1][-20:]
+    card("#to-prose")
+    assert preview.locator(".lf-place-text").inner_text().endswith("…")
+    card("#to-items")
+    assert preview.locator(".lf-place-item").first.inner_text().endswith("…")
+
+
+DRAWN_PAGE = leaf_page(
+    "What a place draws",
+    """
+<p id="lede"><a id="to-closed" href="#closed">a closed disclosure</a>,
+<a id="to-held" href="#held">a block holding one</a>,
+<a id="to-spans" href="#spans">a paragraph with hidden words</a>,
+<a id="to-titled" href="#titled">a section with a hidden word in its title</a>,
+<a id="to-skipped" href="#skipped">a block skipping its rest</a>,
+<a id="to-shown" href="#shown">words shown inside hidden ones</a>,
+<a id="to-contents" href="#contents">a block that makes no box</a>,
+<a id="to-untitled" href="#untitled">a section whose title is hidden</a>,
+<a id="to-code" href="#code">code with hidden words and a control</a>,
+<a id="to-broken" href="#broken">a line broken before hidden words</a>,
+<a id="to-skipping" href="#skipping">a block skipping its own words</a>,
+<a id="to-folded" href="#folded">a folded panel</a>,
+<a id="to-far" href="#far">words out of view</a> and
+<a id="to-joined" href="#joined">code joined over a hidden break</a>.</p>
+<details id="closed"><summary>Method</summary>Secret text<p>Hidden paragraph.</p></details>
+<div id="held">Intro <details><summary>More</summary><p>Hidden words.</p></details></div>
+<p id="spans">Before <span style="display: none">Gone</span> <span hidden>Attr</span>
+After<script type="application/json">{"secret": 1}</script></p>
+<section id="titled"><h2>Public <span hidden>SECRET</span></h2><p>Body words.</p></section>
+<div id="skipped"><p>Shown words.</p>
+<div style="content-visibility: hidden"><p>Skipped words.</p></div></div>
+<p id="shown">Plain <span style="visibility: hidden">masked
+<b style="visibility: visible">Shown</b> masked</span> words.</p>
+<div id="contents" style="display: contents"><p>Boxed <span style="display: none">Gone</span>
+words.</p></div>
+<section id="untitled"><h2 style="display: none">SECRET TITLE</h2><p>Visible body.</p>
+</section>
+<pre id="code">one <span style="display: none">HIDDEN</span>
+two
+three
+four
+five</pre>
+<p id="broken">first<br><span hidden>HIDDEN</span>second</p>
+<div id="skipping"><p>Shown words.</p><div style="content-visibility: hidden">SECRET
+CV</div><div hidden="until-found">SECRET FOUND</div></div>
+<section id="folded" hidden="until-found"><h3>Folded title</h3><p>Folded body.</p>
+</section>
+<pre id="joined"><code>con<br hidden>st value = 1;</code></pre>
+"""
+    + "<p>More of the page.</p>" * 40
+    + """<div style="content-visibility: auto; contain-intrinsic-size: auto 40px">
+<p id="far">Far <span style="visibility: hidden">SECRET VISIBILITY</span>
+<span style="display: none">SECRET DISPLAY</span> words.</p></div>""",
+)
+
+
+LEAD_IN_PAGE = leaf_page(
+    "Lead-ins",
+    """
+<h2>Outer</h2>
+<p><a id="to-folded" href="#folded">folded words</a>,
+<a id="to-kept" href="#kept">words after a kept newline</a>,
+<a id="to-drawn" href="#drawn">words after a drawn title</a>,
+<a id="to-slotted" href="#slotted">words after a slotted title</a> and
+<a id="to-tallied" href="#tallied">words after a tally</a></p>
+<details id="fold"><summary>Disclosure</summary><div><strong>Group</strong>
+<span hidden>words</span><p id="folded">Folded words.</p></div></details>
+<div style="white-space: pre-line"><strong>Kept</strong>
+<span id="kept">Kept words.</span></div>
+<p><strong><span id="drawn-title">Group</span></strong> runs on
+<span id="drawn">Drawn words.</span></p>
+<p><span id="slot-words"><strong>Slotted</strong> continues
+<span id="slotted">Slotted words.</span></span></p>
+<p><strong>Tallied</strong><lf-tally id="lead-tally" for="fold"></lf-tally> after
+<span id="tallied">Tallied words.</span></p>
+<p id="elsewhere">Words elsewhere.</p>
+""",
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_bold_lead_in_runs_on_by_its_markup_whatever_draws_it(engine, request, serve):
+    """Whether a bold title runs into its line, and so makes no part, is a fact about
+    the markup, so the name a card gives what follows it stands while the page draws it
+    differently: with the disclosure around it closed or open and after an edit
+    elsewhere, a title followed by words the page hides runs into them; a newline the
+    whitespace keeps is no break; a title whose words a widget's declared tree draws
+    runs into the words after it, as one a declared tree's slot draws does; and a widget
+    set among the words, whose tree holds Leaf's own apparatus, is no break either."""
+    page = open_page(request.getfixturevalue(engine), serve(LEAD_IN_PAGE))
+    page.evaluate(
+        """async () => {
+          const {registry} = await import('/runtime/registry.js');
+          const {shadowStage} = await import('/runtime/shadow-stage.js');
+          registry['lf-staged-title'] = {'x-shadow': true};
+          // The title's words move into a widget's declared tree, drawn where they stood.
+          const words = document.getElementById('drawn-title');
+          const host = document.createElement('lf-staged-title');
+          words.replaceWith(host);
+          shadowStage(host, [words]);
+          // A title and its words assigned to a slot inside a declared tree's span.
+          registry['lf-slot-host'] = {'x-shadow': true};
+          const held = document.getElementById('slot-words');
+          const slotHost = document.createElement('lf-slot-host');
+          held.replaceWith(slotHost);
+          const line = document.createElement('span');
+          line.append(document.createElement('slot'));
+          shadowStage(slotHost, [line]);
+          slotHost.append(...held.childNodes);
+        }"""
+    )
+    preview = page.locator(PREVIEW)
+
+    def named(link, name):
+        page.mouse.move(0, 0)
+        expect(preview).to_be_hidden()
+        page.locator(link).hover()
+        expect(preview.locator(".lf-preview-word")).to_have_text(name)
+
+    named("#to-folded", "Disclosure")
+    page.locator("#fold > summary").click()
+    expect(page.locator("#folded")).to_be_visible()
+    named("#to-folded", "Disclosure")
+    page.evaluate(
+        "() => { document.getElementById('elsewhere').firstChild.data = 'Other words.'; }"
+    )
+    named("#to-folded", "Disclosure")
+    named("#to-kept", "Outer")
+    named("#to-drawn", "Outer")
+    named("#to-slotted", "Outer")
+    named("#to-tallied", "Outer")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_link_s_preview_shows_only_what_the_page_draws(engine, request, serve):
+    """A place's preview says what the page draws of it now, word by word as the
+    browser computes it, in its name, its parts and its code alike: a closed disclosure
+    its summary, words `display: none` or `hidden` and a script's text nothing, a title
+    without its hidden word, a skipped subtree nothing, a word drawn inside a hidden
+    one, a block with no box what it holds draws, a section whose title is hidden its
+    body and not the title, code its lines without a hidden word or Leaf's control, a
+    break before hidden words still a break, words a block's `content-visibility` skips
+    nothing, a folded panel, which draws none of what it holds, all of it, and words a
+    `content-visibility: auto` box skips out of view as they will draw: without what
+    their own styles hide. Code cut short ends in an ellipsis, as cut prose does, and a
+    hidden break joins the line it would have split."""
+    page = open_page(request.getfixturevalue(engine), serve(DRAWN_PAGE))
+    # Words Leaf writes into a block, as the paint pass writes a comment's count.
+    page.evaluate(
+        """() => {
+          const words = document.createElement('span');
+          words.className = 'lf-ui';
+          words.textContent = 'COPY CONTROL';
+          document.querySelector('#code > span').after(words);
+        }"""
+    )
+    preview = page.locator(PREVIEW)
+    parts = preview.locator(".lf-preview-detail")
+    for link, name, said in (
+        ("#to-closed", "Method", None),
+        ("#to-held", None, "Intro More"),
+        ("#to-spans", None, "Before After"),
+        ("#to-titled", "Public", "Body words."),
+        ("#to-skipped", None, "Shown words."),
+        ("#to-shown", None, "Plain Shown words."),
+        ("#to-contents", None, "Boxed words."),
+        ("#to-untitled", None, "Visible body."),
+        ("#to-code", None, "one two three four…"),
+        ("#to-broken", None, "first second"),
+        ("#to-skipping", None, "Shown words."),
+        ("#to-folded", "Folded title", "Folded body."),
+        ("#to-far", None, "Far words."),
+        ("#to-joined", None, "const value = 1;"),
+    ):
+        page.mouse.move(0, 0)
+        expect(preview).to_be_hidden()
+        page.locator(link).hover()
+        expect(preview).to_be_visible()
+        if name:
+            expect(preview.locator(".lf-preview-word")).to_have_text(name)
+        if said:
+            assert " ".join(" ".join(parts.all_inner_texts()).split()) == said, link
+        else:
+            expect(parts).to_have_count(0)
+        assert not {"SECRET", "HIDDEN", "CONTROL"} & set(preview.inner_text().split())
+
+
+def test_a_message_s_parts_follow_its_accepted_edit(browser, serve):
+    """A message's markup is outlined as the page is, and an edit the log accepts
+    outlines it again: the paragraph after a heading the edit changed stands under the
+    new heading."""
+    url = serve(PANEL_PAGE)
+    thread = panel_comment(
+        serve.page_dir, "## Original heading\n\nWords after the heading."
+    )
+    page = open_page(browser, url)
+    view = open_panel_thread(page, thread)
+    part = """async () => {
+      const {partOver} = await import('/runtime/thread/placement.js');
+      const words = [...document.querySelectorAll('.lf-msg-body p')]
+        .find((p) => p.textContent.includes('Words after the heading'));
+      return partOver(words)?.textContent.trim() ?? null;
+    }"""
+    expect(view.locator("h2")).to_have_text("Original heading")
+    assert page.evaluate(part) == "Original heading"
+    view.locator(".lf-msg-text").dblclick()
+    expect(view.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("### Changed heading")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("Words after the heading.")
+    page.keyboard.press("Enter")
+    expect(view.locator(".lf-msg-editor")).to_have_count(0)
+    expect(view.locator(".lf-edited")).to_have_text("edited")
+    told(page)
+    expect(view.locator("h3")).to_have_text("Changed heading")
+    assert page.evaluate(part) == "Changed heading"
+
+
+SECTION_PAGE = leaf_page(
+    "A thread on a section",
+    """
+<h2>Link previews</h2>
+<p><a id="to-stall" href="#stall">the reconnect stall</a></p>
+<section id="stall"><h3>iOS reconnect stall</h3>
+<p>One reconnect in about 40 stalls until the app is backgrounded.</p></section>
+"""
+    + "<p>More of the page.</p>" * 20,
+)
+
+
+def test_a_thread_on_a_whole_section_stands_where_the_section_stands(browser, serve):
+    """A link to a section previews it by its own name, and On me groups a thread on
+    the whole section under the part the section stands in: the preview says what a
+    place is, On me where it is."""
+    url = serve(SECTION_PAGE)
+    panel_comment(
+        serve.page_dir,
+        "Should this wait for the vendor's release?",
+        {"section": "stall"},
+        author="agent",
+        obligation=True,
+    )
+    page = open_page(browser, url)
+    page.locator("#to-stall").hover()
+    expect(page.locator(PREVIEW).locator(".lf-preview-name")).to_have_text(
+        "iOS reconnect stall"
+    )
+    page.mouse.move(1, 1)
+    page.evaluate("() => window.lfStorage.userStore.set('lf-on-me-grouping', 'place')")
+    page.locator(".lf-fp-on-user").click()
+    band = page.locator(".lf-rows-group").filter(
+        has_text="Should this wait for the vendor's release?"
+    )
+    expect(band.locator(".lf-row-main")).to_have_text("Link previews")
+
+
+def test_a_message_s_parts_follow_an_edit_the_card_held_as_news(browser, serve):
+    """An edit arriving while a card holds the message back as news outlines the
+    message once the card shows it, not before: the old words stand under their old
+    heading while held, and the new under the new once shown, which names them."""
+    url = serve(LINKS_PAGE)
+    thread = panel_comment(
+        serve.page_dir,
+        "## Original heading\n\nOriginal paragraph.",
+        {"section": "stall"},
+    )
+    page = open_page(browser, url)
+    page.locator('[data-lf-margin-for="stall"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    expect(card.locator(".lf-msg-body")).to_contain_text("Original paragraph.")
+    part = """async (words) => {
+      const {partOver} = await import('/runtime/thread/placement.js');
+      const said = [...document.querySelectorAll('.lf-margin-preview .lf-msg-body p')]
+        .find((p) => p.textContent.includes(words));
+      const over = partOver(said);
+      return over?.isConnected ? over.textContent.trim() : null;
+    }"""
+    assert page.evaluate(part, "Original paragraph.") == "Original heading"
+    post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "edit",
+            "message": thread,
+            "base": thread,
+            "text": "### Changed heading\n\nChanged paragraph.",
+        },
+    )
+    told(page)
+    news = card.locator(".lf-thread-news")
+    expect(news).to_be_visible()
+    assert page.evaluate(part, "Original paragraph.") == "Original heading"
+    news.click()
+    expect(card.locator(".lf-msg-body")).to_contain_text("Changed paragraph.")
+    assert page.evaluate(part, "Changed paragraph.") == "Changed heading"
+    # A place in the message's text is named as the message reads: by its heading.
+    named = page.evaluate(
+        """async () => {
+          const {placePreview} = await import('/runtime/place-preview.js');
+          const said = [...document.querySelectorAll('.lf-margin-preview .lf-msg-body p')]
+            .find((p) => p.textContent.includes('Changed paragraph.'));
+          return placePreview(said)?.name ?? null;
+        }"""
+    )
+    assert named == "Changed heading"
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

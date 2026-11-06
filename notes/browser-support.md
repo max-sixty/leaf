@@ -635,6 +635,29 @@ scroller when a horizontal strip's edge extended just beyond its band.
 Recheck a partly clipped strip's inner and outer scroll offsets before
 replacing Leaf's bounded walk with native reveal.
 
+### A repeated reveal of an anchored fixed box in Chromium
+
+Chromium and WebKit reveal a caret in a `position: fixed` box anchored to page
+content by scrolling the page, which carries the box, and Chromium reveals the
+box itself the same way (`scrollIntoView`, focus). Playwright Chromium
+156.0.8078.4 (build 1248), on 2026-11-05, scrolled the page again for each such
+reveal made before the next frame, as if the first had not moved the box. Give
+a 4000px body an absolutely positioned anchor at `top: 2000px`, a 20px fixed
+box at `top: anchor(top)` through `position-anchor`, and the root
+`scroll-padding-bottom: 100px`; scroll the anchor 830px down an 860px window
+and call `scrollIntoView({block: "nearest"})` on the box. One call scrolled
+90px, two 180px and three 270px. Typing four keys back to back into such a
+box's contenteditable at the window's foot scrolled 240px where one key
+scrolled 60px. Playwright WebKit 27.2 (build 2370) scrolled 0px for the calls
+and 60px for the keys, however many; Playwright Firefox 157 (build 1555)
+reveals no fixed box through the page.
+
+In Leaf the root drops its scroll padding while the user writes in a floating
+box (`base.css`, `data-lf-floating-editor`), so only a caret outside the window
+is revealed, and each key that lands in the same frame adds another reveal's
+scroll; #5417 accepted that overshoot. Recheck the three calls in Chromium; a
+90px scroll means the gap has closed.
+
 ### `calc()` in `overflow-clip-margin` in Chromium
 
 Playwright Chromium 153.0.8010.12 rejected `overflow-clip-margin: calc(2px + 5px)`

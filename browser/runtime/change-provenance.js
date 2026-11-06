@@ -23,11 +23,12 @@
    `lines` are the words a surface shows, each in its speaker's face: the heading in
    Leaf's voice ("v4 saved while your comment waited:"), then each quoted message in
    the words it had where it waited (`waitedWords`), in quotes, the user's own words.
-   The server sends those words with the message, since the threads as they read now
-   may no longer show them, and this reads them as a thread reads a whole message
-   (thread/messages.js, `messageWords`), so no second reading of a message's words
-   exists. It reads nothing while no comparison stands, and nothing of the log or the
-   threads while one does. */
+   The server sends each message as its thread held it there
+   (`event_facts.EventFacts.message_at`), since the threads as they read now may no
+   longer show it so, and this reads it as a thread reads a whole message
+   (thread/messages.js, `messageWords`), deleted included, so no second reading of a
+   message exists. It reads nothing while no comparison stands, and nothing of the log
+   or the threads while one does. */
 import { runtime } from "./context.js";
 import { markdownReady } from "./markdown.js";
 import { messageWords } from "./thread/messages.js";
@@ -52,7 +53,9 @@ const QUOTE_CAP = 90;
  * @param {readonly WaitedMessage[]} messages */
 function yours(messages) {
   const kinds = new Set(
-    messages.map(({ thread, message }) => (message === thread ? "comment" : "reply")),
+    messages.map(({ thread, message }) =>
+      message.id === thread ? "comment" : "reply",
+    ),
   );
   const [one, many] =
     kinds.size > 1
@@ -93,16 +96,12 @@ export function savedAfter(version, messages, wordsOf) {
   });
 }
 
-/** The words a message had where it waited, as the server sends them, read as a
- * thread reads a whole message (thread/messages.js, `messageWords`).
+/** The words a message had where it waited: the message as its thread then held it,
+ * read as a thread reads a whole message (thread/messages.js, `messageWords`), under a
+ * name of its own beside the thread's reading of it now.
  * @param {WaitedMessage} waited */
-export const waitedWords = ({ message, said, text, suggestion, drawn }) =>
-  messageWords({
-    id: `${message}@${said}`,
-    text,
-    suggestion: Boolean(suggestion),
-    drawing: drawn,
-  });
+export const waitedWords = ({ message }) =>
+  messageWords({ ...message, id: `${message.id}@${message.edited?.id ?? ""}` });
 
 // The last reading `versionProvenance` made, and what it was made from.
 /** @type {{inputs: readonly unknown[], value: VersionProvenance | null} | null} */

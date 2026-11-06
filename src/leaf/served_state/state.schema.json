@@ -1424,6 +1424,29 @@
         { "$ref": "leaf:event/reanchor#/properties/anchor" }
       ]
     },
+    "MessageEdited": {
+      "description": "The user's latest rewrite of a message, and the words it replaced (`events.rewritten`).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "seq": { "type": "integer" },
+        "ts": { "type": "string" },
+        "was": { "type": "string" }
+      },
+      "required": ["id", "seq", "ts", "was"],
+      "additionalProperties": false
+    },
+    "MessageWithdrawn": {
+      "description": "The undo that took a message back while something still stood on it, and what it said; the message keeps its place with no words and no mark (`events.message_reading`).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ts": { "type": "string" },
+        "was": { "type": "string" }
+      },
+      "required": ["id", "ts", "was"],
+      "additionalProperties": false
+    },
     "Message": {
       "description": "A message as a served thread holds it.",
       "anyOf": [
@@ -1441,29 +1464,8 @@
               "description": "The ordinary or provisional reply that supersedes this progress message. Hide it only while that reply is presented.",
               "type": "string"
             },
-            "edited": {
-              "description": "The user's latest rewrite, and the words it replaced.",
-              "type": "object",
-              "properties": {
-                "id": { "type": "string" },
-                "seq": { "type": "integer" },
-                "ts": { "type": "string" },
-                "was": { "type": "string" }
-              },
-              "required": ["id", "seq", "ts", "was"],
-              "additionalProperties": false
-            },
-            "withdrawn": {
-              "description": "The undo that took the message back while something still stood on it, and what it said; the message keeps its place with no words and no mark (`events.build_threads`).",
-              "type": "object",
-              "properties": {
-                "id": { "type": "string" },
-                "ts": { "type": "string" },
-                "was": { "type": "string" }
-              },
-              "required": ["id", "ts", "was"],
-              "additionalProperties": false
-            }
+            "edited": { "$ref": "#/$defs/MessageEdited" },
+            "withdrawn": { "$ref": "#/$defs/MessageWithdrawn" }
           },
           "required": ["content_version"],
           "unevaluatedProperties": false
@@ -1679,25 +1681,20 @@
                 "type": "object",
                 "properties": {
                   "thread": { "type": "string" },
-                  "message": { "type": "string" },
-                  "said": {
-                    "description": "The event whose words the message had at the latest of the version's revisions it waited at: the message itself, or the rewrite of it then standing.",
-                    "type": "string"
-                  },
-                  "text": {
-                    "description": "The words `said` gave the message, as the user wrote them, which the browser reads as a thread reads a message (`thread/messages.js`, `messageWords`); absent for a drawing with none.",
-                    "type": "string"
-                  },
-                  "suggestion": {
-                    "description": "Present where the message suggests replacement words, which read literally.",
-                    "const": true
-                  },
-                  "drawn": {
-                    "description": "Present where the message carries a drawing.",
-                    "const": true
+                  "message": {
+                    "description": "The message as its thread held it at the latest of the version's revisions it waited at (`event_facts.EventFacts.message_at`), which the browser reads as a thread reads a message (`thread/messages.js`, `messageWords`): its words then, `edited` by the rewrite then standing.",
+                    "anyOf": [
+                      { "$ref": "leaf:message/comment" },
+                      { "$ref": "leaf:message/reply" }
+                    ],
+                    "properties": {
+                      "edited": { "$ref": "#/$defs/MessageEdited" },
+                      "withdrawn": { "$ref": "#/$defs/MessageWithdrawn" }
+                    },
+                    "unevaluatedProperties": false
                   }
                 },
-                "required": ["thread", "message", "said"],
+                "required": ["thread", "message"],
                 "additionalProperties": false
               }
             },

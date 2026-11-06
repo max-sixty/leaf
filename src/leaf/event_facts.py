@@ -25,6 +25,10 @@ delivery's own.
 a later version that moves a playground's preview out of the playground changes
 what an earlier message about the preview was about.
 
+A message as its thread held it at an earlier place in the log (`message_at`) is
+read here too, for a reader that reports the message as it was then: the line saying
+which messages a version was saved after (`provenance.saved_after`).
+
 `_DELIVERED_EVENT` in `delivery.py` declares each field. A page whose registry
 doesn't load still has its events reported, without the facts that need the
 registry: `says`, `names` and `unsent`.
@@ -34,7 +38,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any
 
-from .events import build_threads
+from .events import build_threads, message_reading, rewritten
 from .gesture_words import GestureWords, revisions_on_disk
 from .read_state import content_version
 from .registry.kernel import verb_writers
@@ -106,6 +110,42 @@ class EventFacts:
             for thread in build_threads(self.events, self.within).values()
             for revision in thread["revisions"]
         }
+
+    @cached_property
+    def _rewrites(self) -> dict[str, list[dict]]:
+        """Each message's rewrites, in log order."""
+        found: dict[str, list[dict]] = {}
+        for event in self.events:
+            if event["kind"] == "edit":
+                found.setdefault(event["message"], []).append(event)
+        return found
+
+    @cached_property
+    def _undos(self) -> dict[str, dict]:
+        """Each gesture taken back, and the undo that took it."""
+        return {event["undoes"]: event for event in self.events if event.get("undoes")}
+
+    def message_at(self, message: str, place: int) -> dict:
+        """The message `message` as its thread held it just before the log's `place`
+        (`events.message_reading`): taken back, if it was by then, else as sent with
+        each rewrite of it made before that place and not taken back by then
+        (`events.rewritten`), a rewrite to no words leaving it deleted. Whatever came
+        of it since, its thread reads it so there, as a fold of the log up to that
+        place does (`events.build_threads`)."""
+
+        def before(identity: str) -> dict | None:
+            undo = self._undos.get(identity)
+            return undo if undo is not None and undo["seq"] < place else None
+
+        if (undo := before(message)) is not None:
+            return message_reading(self.by_id[message], undo)
+        reading = message_reading(self.by_id[message], None)
+        for edit in self._rewrites.get(message, ()):
+            if edit["seq"] >= place:
+                break
+            if before(edit["id"]) is None:
+                reading |= rewritten(reading, edit)
+        return reading
 
     @cached_property
     def _words(self) -> GestureWords | None:

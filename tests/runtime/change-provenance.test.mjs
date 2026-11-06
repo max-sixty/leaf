@@ -11,7 +11,11 @@ import { wordsText } from "/runtime/voice.js";
 
 const said = (provenance) => provenance.lines.map((line) => wordsText(line));
 // A message the server names, in the thread `thread`: a comment where it opened it.
-const waited = (message, words, thread = message) => ({ thread, message, words });
+const waited = (message, words, thread = message) => ({
+  thread,
+  message: { id: message },
+  words,
+});
 const wordsOf = ({ words }) => words;
 
 test("a version says which of the user's messages waited while it was saved", () => {
@@ -54,12 +58,13 @@ test("a version says which of the user's messages waited while it was saved", ()
   ]);
 });
 
-test("a waiting message is quoted in the words the server sends, as a thread reads them", async () => {
+test("a waiting message is quoted as its thread held it, as a thread reads one", async () => {
   await loadMarkdown();
-  // The server sends each message with the words it had where it waited, whatever
+  // The server sends each message as its thread held it where it waited, whatever
   // the threads show now: here none is in any thread the page holds.
-  const quote = (message, more = {}) =>
-    waitedWords({ thread: message, message, said: message, ...more });
+  const quote = (id, held = {}) =>
+    waitedWords({ thread: id, message: { id, ...held } });
+  const rewrite = (id, was) => ({ id, seq: 9, ts: "2026-11-06T00:00:00Z", was });
   // A fence's opening line shows its words, as the thread's Markdown draws it.
   const fence = quote("fence", { text: "```first words\nsecond words\n```" });
   assert.match(fence, /first words/);
@@ -70,11 +75,26 @@ test("a waiting message is quoted in the words the server sends, as a thread rea
     quote("stars", { text: "**literal stars**", suggestion: true }),
     "**literal stars**",
   );
-  // A message reads in the words of the event the server names: as sent, or as the
-  // rewrite then standing had them.
+  // A message reads in the words it had: as sent, or as the rewrite then standing
+  // left them, and deleted where that rewrite left none.
   assert.equal(quote("blue", { text: "Make it **blue**" }), "Make it blue");
-  assert.equal(quote("blue", { said: "red", text: "Make it _red_" }), "Make it red");
-  assert.equal(quote("drawn", { drawn: true }), "Drawing");
+  assert.equal(
+    quote("blue", {
+      text: "Make it _red_",
+      edited: rewrite("red", "Make it **blue**"),
+    }),
+    "Make it red",
+  );
+  assert.equal(
+    quote("gone", { text: "", edited: rewrite("cleared", "Is Beta right?") }),
+    "Deleted message",
+  );
+  assert.equal(
+    quote("drawn", {
+      drawing: { strokes: [], box: {}, viewport: {}, scheme: "light" },
+    }),
+    "Drawing",
+  );
 });
 
 test("with no comparison showing, the line reads nothing of the page's log", () => {

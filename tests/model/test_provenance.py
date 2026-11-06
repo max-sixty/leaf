@@ -5,6 +5,7 @@ it was saved after."""
 import random
 from copy import deepcopy
 from operator import itemgetter
+from pathlib import Path
 
 from click.testing import CliRunner
 from interact_support import ModelPage, append_command, model_layer, response_reference
@@ -13,6 +14,7 @@ from model_folds import NOW, leaf_page, served_view
 from leaf import cli as cli_model
 from leaf import event_log as event_log_model
 from leaf.event_contracts import admitted_event
+from leaf.event_facts import EventFacts
 from leaf.event_log import EventRefused
 from leaf.events import build_threads, spoken_turns, taken_back, unanswered_turns
 from leaf.passages import SourceReading, enclosing_ids
@@ -52,15 +54,24 @@ def waited(message, said=None, thread=None):
 
 
 def line(events, base, shown, documents=PAGE, registry=None):
-    """The answer's line whole: each message with the words it had then."""
+    """The answer's line whole: each message as its thread held it then."""
     return served_view(documents, events, base, shown, registry=registry)["saved_after"]
 
 
 def saved_after(events, base, shown, documents=PAGE, registry=None):
     """Which messages the line names, and the event whose words each had."""
-    named = line(events, base, shown, documents, registry)
-    return named and [
-        {key: item[key] for key in ("thread", "message", "said")} for item in named
+    return named(line(events, base, shown, documents, registry))
+
+
+def named(waits):
+    """Each message a line names, and the event whose words it had."""
+    return waits and [
+        {
+            "thread": item["thread"],
+            "message": item["message"]["id"],
+            "said": (item["message"].get("edited") or item["message"])["id"],
+        }
+        for item in waits
     ]
 
 
@@ -80,12 +91,23 @@ def test_a_version_names_what_waited_as_it_read_then_and_nothing_later_moves_it(
     ]
     assert saved_after(taken_back, 1, 2) == [waited("e2", "e3")]
     # The words it had then travel with it, though no thread shows them now.
-    assert line(taken_back, 1, 2)[0]["text"] == "Make it red"
+    assert line(taken_back, 1, 2)[0]["message"]["text"] == "Make it red"
     rewrite_taken_back = [*saved, {"kind": "undo", "undoes": "e3"}]
-    assert line(rewrite_taken_back, 1, 2)[0]["text"] == "Make it red"
+    assert line(rewrite_taken_back, 1, 2)[0]["message"]["text"] == "Make it red"
     assert line(
         [live(1), comment, rewrite, {"kind": "undo", "undoes": "e3"}, live(2)], 1, 2
-    )[0]["text"] == ("Make it **blue**\nfor the header")
+    )[0]["message"]["text"] == ("Make it **blue**\nfor the header")
+    # A rewrite to no words leaves the message deleted where it waited, as its thread
+    # then read it, though the user took the deletion back since.
+    deleted = [
+        live(1),
+        comment,
+        {"kind": "edit", "message": "e2", "text": ""},
+        live(2),
+        {"kind": "undo", "undoes": "e3"},
+    ]
+    waited_deleted = line(deleted, 1, 2)[0]["message"]
+    assert (waited_deleted["text"], waited_deleted["edited"]["id"]) == ("", "e3")
     assert saved_after(
         [live(1), comment, rewrite, {"kind": "undo", "undoes": "e3"}, live(2)], 1, 2
     ) == [waited("e2")]
@@ -372,14 +394,7 @@ def folded_at_each_revision(log, within, base, shown):
                 message = said[turn.get("message", turn["id"])]
                 found[message["id"]] = (
                     message["seq"],
-                    {
-                        "thread": thread["id"],
-                        "message": message["id"],
-                        "said": (message.get("edited") or message)["id"],
-                        **({"text": message["text"]} if "text" in message else {}),
-                        **({"suggestion": True} if message.get("suggestion") else {}),
-                        **({"drawn": True} if message.get("drawing") else {}),
-                    },
+                    {"thread": thread["id"], "message": message},
                 )
     return [entry for _seq, entry in sorted(found.values(), key=itemgetter(0))]
 
@@ -388,7 +403,7 @@ def read_line(log, documents, base, shown):
     """The line `saved_after` reads, each revision read as a server holds it."""
     readings = {r: SourceReading(document, {}) for r, document in documents.items()}
     return line_of(
-        log,
+        EventFacts(Path(), log, None),
         readings.__getitem__,
         revision_places(log),
         range(1, max(readings) + 1),
@@ -440,9 +455,11 @@ def test_a_choice_stays_conditional_beside_a_creation_of_the_same_option():
     ]:
         log.append(admit(page, log, step))
     within = {r: enclosing_ids(document) for r, document in page.documents.items()}
-    asked = [{**waited("e2"), "text": "Which one?"}]
-    assert folded_at_each_revision(log, within, 3, 5) == asked
-    assert read_line(log, page.documents, 3, 5) == asked
+    asked = [waited("e2")]
+    assert named(folded_at_each_revision(log, within, 3, 5)) == asked
+    assert read_line(log, page.documents, 3, 5) == folded_at_each_revision(
+        log, within, 3, 5
+    )
 
 
 def test_the_line_reads_each_revision_as_a_fold_up_to_it_would():

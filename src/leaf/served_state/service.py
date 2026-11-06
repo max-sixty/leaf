@@ -16,6 +16,7 @@ from typing import Protocol
 
 from .. import presence as presence_model
 from ..data import read_data, read_source
+from ..event_facts import EventFacts
 from ..event_log import read_events
 from ..files import (
     latest_revision,
@@ -282,7 +283,7 @@ class PageStateService:
                 None
                 if shown is None
                 else saved_after(
-                    read.events,
+                    EventFacts(self.page_dir, read.events, read.registry),
                     read.revision,
                     revision_places(read.events),
                     read.revisions,

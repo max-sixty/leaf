@@ -708,6 +708,30 @@ def test_a_version_quotes_a_comment_taken_back_since_in_the_words_it_had(
     ]
 
 
+def test_a_version_saved_while_a_deletion_waited_says_the_message_was_deleted(
+    browser, serve
+):
+    """A comment the user deleted by rewriting it to nothing waits in its deletion,
+    and a version saved meanwhile says the message as its thread then read it:
+    deleted."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    asked = _comment_on(d, "b", "Beta reads one way.", text="Is Beta right?")
+    append_command(
+        d, {"kind": "edit", "author": "user", "message": asked["id"], "text": ""}
+    )
+    revise(d, BETA)
+    page = open_page(browser, url)
+    wait_for_revision(page, 2)
+    entries = page.locator('[data-lf-kinds~="change"]')
+    page.keyboard.press("v")
+    expect(entries).to_have_count(1)
+    assert preview_parts(entries.first)[-2:] == [
+        "Draft saved while your comment waited:",
+        "“Deleted message”",
+    ]
+
+
 def _comment_on(d, section, words, revision=1, text="Say which way?"):
     return append_command(
         d,

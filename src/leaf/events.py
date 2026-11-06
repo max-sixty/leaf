@@ -393,14 +393,7 @@ def build_threads(
                 if e["author"] != "agent":
                     thread = thread_for[e["message"]]
                     thread["revisions"].append({**e, "was": message["text"]})
-                # The message says when it was last rewritten, and what it said before,
-                # so a reader of the thread alone sees which answers were about other
-                # words.
-                message["edited"] = {
-                    **{key: e[key] for key in ("id", "seq", "ts")},
-                    "was": message["text"],
-                }
-                message["text"] = e["text"]
+                message.update(rewritten(message, e))
             continue
         if e["kind"] == "reply":
             thread = thread_for[e["parent"]]
@@ -496,6 +489,20 @@ def _turn(event: dict) -> dict | None:
 # What a message says: its words, its reaction's mark and its drawing, and whether its
 # words suggest a rewrite of the page.
 SAID = ("text", "token", "drawing", "suggestion")
+
+
+def rewritten(message: dict, edit: dict) -> dict:
+    """What a rewrite changes of a message as a thread holds it (`message_reading`):
+    its words, and `edited`, when it was last rewritten and what it said before, so a
+    reader of the thread alone sees which answers were about other words. A rewrite to
+    no words deletes the message (`deleted` in thread/model.js)."""
+    return {
+        "text": edit["text"],
+        "edited": {
+            **{key: edit[key] for key in ("id", "seq", "ts")},
+            "was": message["text"],
+        },
+    }
 
 
 def message_reading(event: dict, undo: dict | None) -> dict:

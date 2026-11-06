@@ -25,17 +25,15 @@ the work grows with the log and the turns, not with the threads times the
 revisions. The reply or note that answered a message may itself have published the
 revision, and stands at its end.
 
-Each message is named with the event whose words it had at the latest of the
-version's revisions it waited at, itself or a rewrite of it, from the thread's rewrite
-history (``revisions``) less the rewrites taken back by then: not as it reads now or
-when the version went live, since a rewrite made after it stopped waiting never waited
-across the version. Where it waited at two in different words, the later wording
-stands: the user's rewrite restates what they asked for, and the version's later
-revisions were made with it waiting. The answer carries those words as the user
-wrote them, since the threads as they read now may no longer show them, the message or
-a rewrite since taken back, and the browser reads them as a thread reads a message
-(change-provenance.js), so no reading of a message's text lives here. It is computed
-when a tab asks, with the base's document
+Each message is sent as its thread held it at the latest of the version's revisions
+it waited at (`EventFacts.message_at`): with its latest rewrite before that place not
+taken back by then, or deleted where that rewrite left no words, and not as it reads
+now or when the version went live, since a rewrite made after it stopped waiting never
+waited across the version, and one taken back since did. Where it waited at two in
+different words, the later wording stands: the user's rewrite restates what they asked
+for, and the version's later revisions were made with it waiting. The browser reads
+that message as a thread reads one (change-provenance.js), so no reading of a
+message's text lives here. It is computed when a tab asks, with the base's document
 (`served_state.service.PageStateService.page_comparison`), and nothing of it is kept
 or served otherwise.
 
@@ -72,6 +70,7 @@ from typing import TYPE_CHECKING
 from .events import build_threads, settlements
 
 if TYPE_CHECKING:
+    from .event_facts import EventFacts
     from .passages import SourceReading
 
 
@@ -87,7 +86,7 @@ def revision_places(events: list) -> dict[int, int]:
 
 
 def saved_after(
-    events: list,
+    facts: "EventFacts",
     reading: "Callable[[int], SourceReading]",
     places: dict[int, int],
     revisions,
@@ -97,13 +96,12 @@ def saved_after(
 ) -> list[dict] | None:
     """The user's messages that waited while the version at revision `shown` was
     saved, compared with the version before it at `base`: each a message that waited
-    at the place of any revision after `base` through `shown`, as `thread` and
-    `message`, in the order they were sent, with `said`, the event whose words it had
-    at the latest of those, the message itself or a rewrite of it, and what the
-    browser reads those words from as a thread reads a message: `said`'s `text`, and
-    whether the message is a `suggestion` or `drawn`. None where a
-    revision `stamped` with a version stands between the two; every revision between
-    them has a place among `places`. `reading` reads a revision (`read_revision`).
+    at the place of any revision after `base` through `shown`, in the order they were
+    sent, as its `thread` and the `message` as that thread held it at the latest of
+    those places (`EventFacts.message_at`), which the browser reads as a thread reads
+    a message. None where a revision `stamped` with a version stands between the two;
+    every revision between them has a place among `places`. `facts` reads the page's
+    log, and `reading` a revision (`read_revision`).
 
     One fold of the log before `shown` went live (`events.build_threads`) reads every
     message as it was said, none taken back, with each of those revisions'
@@ -112,8 +110,7 @@ def saved_after(
     beside the place each gesture was taken back. A message waited at a revision's
     place where, by the log before it, it had been sent and not taken back, had no
     answer yet, and its thread stood open; the reply or note that answered it stands at
-    its end. Its words there are those of its latest rewrite before that place not yet
-    taken back, else those it was sent with. A revision's containment is read only
+    its end. A revision's containment is read only
     where a decision could rest otherwise under it, and from the second on, only the
     elements whose holders it moved since the one before are compared
     (`events.InForce.contain`, `SourceReading.moved_since`)."""
@@ -127,6 +124,7 @@ def saved_after(
     if not span:
         return None
     at = [place for place, _revision in span]
+    events = facts.events
     prefix = events[: bisect_left(events, at[-1], key=itemgetter("seq"))]
     undone = {event["undoes"]: event["seq"] for event in prefix if "undoes" in event}
     threads = build_threads(
@@ -166,35 +164,12 @@ def saved_after(
             place = latest_open(turn["seq"], end)
             if place is not None and place > found.get(message, ({}, {}, 0))[2]:
                 found[message] = (said[message], thread, place)
-    rewrites: dict[str, list[dict]] = {}
-    for thread in threads.values():
-        for rewrite in thread["revisions"]:
-            rewrites.setdefault(rewrite["message"], []).append(rewrite)
-    # Each message as it was sent, the words it had before any rewrite.
-    sent = {event["id"]: event for event in prefix if event["id"] in found}
-    waited = []
-    for message, thread, place in sorted(
-        found.values(), key=lambda each: each[0]["seq"]
-    ):
-        said = next(
-            (
-                rewrite
-                for rewrite in reversed(rewrites.get(message["id"], []))
-                if rewrite["seq"] < place and undone.get(rewrite["id"], inf) > place
-            ),
-            sent[message["id"]],
+    return [
+        {"thread": thread["id"], "message": facts.message_at(message["id"], place)}
+        for message, thread, place in sorted(
+            found.values(), key=lambda each: each[0]["seq"]
         )
-        waited.append(
-            {
-                "thread": thread["id"],
-                "message": message["id"],
-                "said": said["id"],
-                **({"text": said["text"]} if "text" in said else {}),
-                **({"suggestion": True} if message.get("suggestion") else {}),
-                **({"drawn": True} if message.get("drawing") else {}),
-            }
-        )
-    return waited
+    ]
 
 
 def _within(reading: "Callable[[int], SourceReading]", revision: int) -> dict:

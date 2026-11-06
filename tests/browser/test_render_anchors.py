@@ -3555,8 +3555,7 @@ def test_a_change_opens_what_it_replaced_in_a_card_over_it(browser, serve):
     )
     expect(rewritten).to_have_attribute("aria-expanded", "false")
     expect(rewritten).to_have_attribute("aria-controls", "lf-change-card")
-    # A disclosure says what it holds: what the change did, in blocks, on the line
-    # over what it came after (change-provenance.js).
+    # A disclosure says what it holds: what the change did, in blocks.
     assert preview_parts(rewritten)[1:2] == ["1 paragraph edited, 1 added since v1"]
 
     # Page Map carries the same account on each change's row, with the versions its

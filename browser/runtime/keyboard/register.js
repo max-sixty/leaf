@@ -56,7 +56,6 @@ const STACK = [
   // Among inner scopes the order is moot, since the modes and the Page Map stand it down
   // themselves.
   "current-location",
-  "versions",
   "composer",
   "text entry",
   "thread",

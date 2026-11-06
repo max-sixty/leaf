@@ -839,15 +839,6 @@ test("historical view projection uses the publisher's captured document contract
   );
 });
 
-test("filtered widget state is selected inside the publisher", () => {
-  const app = setup();
-  const accepted = { ...action("first"), id: "e1", seq: 1 };
-  app.adopt(state(2, [accepted]));
-  assert.equal(outcomeOf(app.selectWidgets([]).get("choice").state), null);
-  assert.equal(outcomeOf(app.selectWidgets(["e1"]).get("choice").state), "accept");
-  assert.equal(outcomeOf(app.selectWidgets(null).get("choice").state), "accept");
-});
-
 test("admitted edits, a raced undo refusal, and revisions share one sequence", () => {
   const sequence = servedGestureSequence();
   for (const refusalFirst of [false, true]) {

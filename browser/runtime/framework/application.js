@@ -14,7 +14,6 @@ import {
   coordinateOf,
   foldProjection,
   foldedValue,
-  foldWidgetStates,
   widgetStateReader,
   obligationValue,
   isProjectionEntry,
@@ -352,7 +351,7 @@ const NO_OBLIGATIONS = {
  * visible before its POST settles the obligation. */
 /**
  * @param {PageView | null} view
- * @param {ReturnType<typeof foldWidgetStates>} widgets
+ * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
  * @param {SemanticDocument} document
  * @param {ReturnType<typeof foldProjection>} projection
  * @returns {ObligationLists}
@@ -412,7 +411,7 @@ const NO_QUEUES = { on_user: [], on_agent: [], done: [] };
  * supply additional members to their creator without becoming widget owners. */
 /**
  * @param {SemanticDocument} document
- * @param {ReturnType<typeof foldWidgetStates>} widgets
+ * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
  * @param {ReturnType<typeof foldProjection>} projection
  */
 function currentWidgetRelations(document, widgets, projection) {
@@ -1351,24 +1350,9 @@ export function createSemanticApplication({ presentation } = {}) {
         pendingEntries: [],
       });
     },
-    // Render checks compare authored, carried, and current states. The event filter is
-    // a semantic selection of the same root, not a presentation-owned partial fold.
-    /** @param {readonly string[] | null} [eventIds] */
-    selectWidgets(eventIds = null) {
-      if (eventIds === null) return widgetsPart.read();
-      const wanted = new Set(eventIds);
-      return publisher
-        .select((root) =>
-          foldWidgetStates(root.document.authored, {
-            ...root.effective.projection,
-            desired: new Map(
-              [...root.effective.projection.desired].filter(([, entry]) =>
-                wanted.has(entry.e.id),
-              ),
-            ),
-          }),
-        )
-        .read();
+    // Every widget's current state, which the replay render check reads.
+    selectWidgets() {
+      return widgetsPart.read();
     },
     // A widget's reading, recomputed only when one of the parts it draws moves, so a
     // publication about another widget or a thread costs each widget a comparison.

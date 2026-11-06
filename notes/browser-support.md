@@ -813,74 +813,41 @@ and Firefox. To recheck, intercept a traversal with `scroll: "manual"`, scroll i
 handler, and read the offset after `popstate`; once Firefox keeps the handler's offset
 and neither engine reveals or scrolls to the target, that step can go.
 
-### A popover's last implicit anchor in Firefox
+### A popover's implicit anchor after a hide and show in one task in Firefox
 
-On 2026-11-05, Playwright Firefox 157 (build 1555, macOS) stood a hint popover
-shown with `showPopover({source: b})` by the source it was last shown with, `a`,
-on a Leaf page, where nothing about the popover itself had changed since: its
-words, its `position-area`, a custom property its layout reads, or its place
-among its parent's children. Any of those changes, made before the second show,
-stood it by `b`, as did inserting it again or a manual popover in its place.
-Chromium 156.0.8078.4 (headless shell build 1248) stood it by `b` every time. A
-page with no Leaf in it did not reproduce it, nor did one with 3,000 rules, a
-`:has()` rule, a container or `@starting-style` added; on the Leaf page,
-disabling `theme.css` or any one of the runtime's four adopted sheets made it
-go, and disabling a two-rule inline sheet did not, so no single rule is named.
-The preview (`browser/runtime/preview.js`, `open`) is one popover shown by many
-sources, so two targets with the same words in turn would stand the second
-preview by the first target. Where a new source comes with the words the last
-one had, it moves the preview to the other side of its sibling, the place, which
-the page's write watch reads as a change, as a re-insertion at the same place it
-would not. To recheck, run this on any example in Firefox; once it prints 0, drop
-the move in `open`:
-
-```
-uv run leaf-dev probe release-notes --browser firefox --js "async () => { const f = () => new Promise(requestAnimationFrame); const s = document.createElement('style'); s.textContent = '.t { position: fixed; inset: auto; margin: 0; position-anchor: auto; position-area: block-end span-inline-end } .b { position: fixed }'; document.head.append(s); const mk = (l, t) => Object.assign(document.body.appendChild(document.createElement('button')), {className: 'b', textContent: 'B', style: \`left: \${l}px; top: \${t}px\`}); const a = mk(20, 20), b = mk(400, 200); const t = Object.assign(document.body.appendChild(document.createElement('div')), {className: 't', textContent: 'Words'}); t.popover = 'hint'; t.showPopover({source: a}); await f(); await f(); t.hidePopover(); t.showPopover({source: b}); await f(); await f(); return Math.round(t.getBoundingClientRect().left - b.getBoundingClientRect().left); }"
-```
-
-### Only five `position-try-fallbacks` in Chromium
-
-On 2026-11-05, Playwright's Chromium headless shell 156.0.8078.4 (build 1248,
-macOS) tried no more than five `position-try-fallbacks` entries: a popover whose
-only fitting option was its sixth or seventh fallback stood at the base
-position, overflowing the window, while the same option as its fifth or earlier
-was taken. Firefox 157 (build 1555) took the fitting option at every place in a
-list of seven. The preview's list (`browser/styles/components/controls.css`,
-`.lf-preview`) holds five, with the room-bounded options last, so a tall preview
-is held inside the window in both engines; no package adds to that list. This
-page, with no Leaf in it, reproduces it in an 800 × 250 window:
+Firefox bug. On 2026-11-05, Playwright Firefox 157 (build 1555, macOS), in a fresh
+context with no Leaf code, stood a popover by the source it was last shown with when it
+was hidden and shown again by another source in one task
+(`showPopover({source: b})`): it stood by `a`. A frame between the hide and the show
+stood it by `b`, as did any change to the popover itself before the show, such as its
+words. Chromium 156.0.8078.4 (headless shell build 1248) stood it by `b` every time. On
+this page the manual and auto popovers stand 380 px off and the hint one, there, did not;
+on a Leaf page the hint one does:
 
 ```html
 <style>
-  #tip {
-    position: fixed;
-    inset: auto;
-    margin: 0;
-    margin-block: 11px 8px;
-    width: 200px;
-    overflow: auto;
-    position-anchor: auto;
-    position-area: block-end span-inline-end;
-  }
-  @position-try --under {
-    position-area: block-end span-all;
-  }
-  @position-try --over {
-    position-area: block-start span-all;
-  }
-  @position-try --held-under {
-    position-area: block-end span-all;
-    margin-block: 11px 8px;
-    max-block-size: calc(100% - 19px);
-  }
+  .tip { position: fixed; inset: auto; margin: 0; position-anchor: auto;
+    position-area: block-end span-inline-end; }
+  button { position: fixed; }
 </style>
-<button id="anchor" style="position: fixed; left: 40px; top: 60px">Anchor</button>
-<div id="tip" popover="manual"><!-- 30 lines of words, taller than the window --></div>
-<!-- Shown with source #anchor in a 250 px window: held with
-     `flip-inline, flip-block, flip-block flip-inline, --under, --held-under`;
-     not held with `flip-inline, flip-block, flip-block flip-inline, --under,
-     --over, --held-under` in Chromium 156, held in Firefox 157. -->
+<button id="a" style="left: 20px; top: 20px">A</button>
+<button id="b" style="left: 400px; top: 200px">B</button>
+<div class="tip" popover="manual">Words</div>
+<script type="module">
+  const tip = document.querySelector(".tip");
+  tip.showPopover({ source: a });
+  await new Promise(requestAnimationFrame);
+  tip.hidePopover();
+  tip.showPopover({ source: b }); // with a frame before this line, it stands by B
+  await new Promise(requestAnimationFrame);
+  console.log(tip.getBoundingClientRect().left - b.getBoundingClientRect().left);
+</script>
 ```
 
-Recheck by running the page in Chromium: once the six-entry list holds the
-popover, a list may grow past five.
+The preview (`browser/runtime/preview.js`, `open`) is one popover a warm switch hides
+and shows again by its next target in one task, so two targets with the same words in
+turn would stand the second preview by the first. Where a new source comes with the
+words the last one had, it moves the preview to the other side of a sibling, its
+stage's mark, which re-lays it out and which the page's write watch reads as a change,
+as a re-insertion at the same place it would not. To recheck, run the page in Firefox;
+once it logs 0, drop the move in `open`.

@@ -75,27 +75,36 @@
    there; leaving it puts it away after a dwell, and reaching another target from it
    shows that one at once (WCAG 1.4.13, "Hoverable").
 
-   Where it stands is decided once, here (`stand`), and drawn by the browser from that
-   decision alone, with no fallback of its own to disagree with it. It is shown with an
-   element as its source (`showPopover({source})`), whose box is its implicit anchor
-   (`position-anchor: auto`): the target, or a range's line by the element holding the
-   range, a declared box by the declaring element and a shape by its drawing's HTML
-   host, each box at its offsets inside that element. So the browser carries it with
-   the element through every scroll, a shadow tree's included, and this module places
-   it again as the element or the window resizes; a hover writes nothing on the
-   target, which observers of the page's boxes would hear. Its side is the first that
-   holds it whole inside the window, leaves what it is about in view (the box it
-   stands by and the declaration's `about`), and covers no other target, tested every
-   23 px across the box it will draw, so no target as large as WCAG's least escapes: below,
+   Where it stands is one decision (`stand`), made again whenever what it rests on may
+   have changed, and drawn by the browser from that decision alone, with no fallback of
+   its own to disagree with it. It is shown with an element as its source
+   (`showPopover({source})`), whose box is its implicit anchor (`position-anchor:
+   auto`): the target, or a range's line by the element holding the range, a declared
+   box by the declaring element and a shape by its drawing's HTML host, each box at its
+   offsets inside that element. So the browser carries it with the element through
+   every scroll, a shadow tree's included, and this module decides again as its words
+   or the box they stand by change, as a box holding the element scrolls, and as the
+   window resizes or a pinch or an on-screen keyboard changes what it shows; a hover
+   writes nothing on the target, which observers of the page's boxes would hear. Its
+   side is the first that holds it whole inside the part of the window the user sees,
+   leaves what it is about in view (the box it stands by and the declaration's
+   `about`), and covers no other target, tested every 23 px across the box it will draw.
+   Where it stands now comes first, its top corner on the edge it stands by at the same
+   offsets from the box it stands by, so new words for the same target don't move it:
+   it stays while it holds the preview whole and what it is about clear, and lets the
+   pointer through to a target it has come to cover rather than move under the user's
+   aim (browser/AGENTS.md, "The page holds still under the user's aim"). Then below,
    then above, from the box's start edge and then its end edge, so a right-to-left
    target's starts at its right edge; beside, toward the nearer window edge first; then
-   centred across the window. A finger's and a point's try above first. Where every one
-   covers a target, the first that holds it stands and takes no pointer, so the pointer
-   reaches what it covers; where none holds it whole, the one with the most room stands
-   and the preview fits its lines to that room. A redraw of the same subject, as new
-   words for the same target, keeps the corner its words start at, so they don't move,
-   while it still fits there; a new aim, as a chart's next point (`previewChanged` with
-   `aim`), places it afresh.
+   centred across the window.
+   A finger's and a point's try above first. A new aim, as a chart's next point
+   (`previewChanged` with `aim`), tries no place first. Where every one covers a
+   target, the first that holds it stands and takes no pointer, so the pointer reaches
+   what it covers; where none holds it whole, the one with the most room stands and the
+   preview fits its lines to that room. A target smaller than the grid's step can stand
+   under it unseen: Leaf's own targets meet WCAG's least, 24 px, and no sampling proves
+   an arbitrary target absent, so that is the grid's stated limit, as the holder's own
+   box, which it doesn't test, is its bound on cost.
 
    Its routes:
 
@@ -192,6 +201,7 @@ import {
   carryChromeStyles,
   closeNativeLayer,
   nativeLayers,
+  openedThisInput,
   showNativeLayer,
 } from "./keyboard/layer-stack.js";
 import { controlKeys } from "./keyboard/control-keys.js";
@@ -204,18 +214,17 @@ import { plainPress } from "./pointer.js";
 import {
   isElement,
   isHTML,
-  isNativeLayer,
   renderedParent,
   renderedUnder,
   under,
 } from "./shadow-tree.js";
 import { PREVIEW, PREVIEW_ENDED } from "./widget-upgrade.js";
 import { keeps, layoutPx } from "./keeps.js";
-import { sizeObserver } from "./rendering.js";
+import { nextRender, sizeObserver } from "./rendering.js";
 import { atClock, clockNow } from "./presence.js";
 import { watchOwner } from "./arrivals.js";
 import { actionClass } from "./control-faces.js";
-import { shownParts } from "./geometry.js";
+import { shownParts, shownWindow, visualViewport } from "./geometry.js";
 
 /** @typedef {string | Node | import("/vendor/lit.js").TemplateResult} Word
  * @typedef {Word | readonly Word[]} Words
@@ -229,7 +238,7 @@ import { shownParts } from "./geometry.js";
  * @typedef {{name: Words | null, keys: Presses, detail: Words[], list: List | null, at: Element | import("./rect.js").Box | null, about: Element | null, excerpt: boolean, restates: boolean}} Reading
  * @typedef {import("./rect.js").Box} Box
  * @typedef {Element | Range} Target
- * @typedef {{from: Target, target: Target, holder: Element, route: Route, read: Read | null, at: {x: number, y: number} | undefined, clock: number, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
+ * @typedef {{from: Target, target: Target, holder: Element, route: Route, read: Read | null, at: {x: number, y: number} | undefined, line?: number, reading: Reading, clock: number, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
  * @typedef {{pointerId: number, parent: Element | null, target: Element | null, armed: boolean, read: boolean, timer: ReturnType<typeof setTimeout>}} Hold */
 
 const DWELL = 200;
@@ -284,12 +293,15 @@ const face = ({ name, keys, detail, list }) => [
     : []),
 ];
 
-// A preview longer than the room it stands in shows the lines that fit: the rest stay
-// laid out, unseen and unheard (`visibility: hidden`), so what it shows changes nothing
-// about its size, and the line before them ends in an ellipsis (`data-lf-cut`), where a
-// list says instead, in its place at the foot, the words its declaration gives for how
-// many more there are. No preview scrolls: what pressing its target opens says the rest.
-// Each place is written once, with its final value.
+// A preview longer than the room it stands in shows the lines that fit: the block the room
+// ends in keeps the lines the browser wraps it to that fit there, its last ending in an
+// ellipsis (`data-lf-clamp`, a line clamp), and the blocks after it stay laid out, unseen
+// and unheard (`visibility: hidden`), so what it shows changes nothing about its size.
+// Where the room ends between two blocks, the one before ends in an ellipsis
+// (`data-lf-cut`). A list's items go whole, and its count, at the foot in their place,
+// says how many more there are in the words its declaration gives. No preview scrolls:
+// what pressing its target opens says the rest. Each place is written once, with its
+// final value, so the lines a past fit clamped are read as they lay out whole.
 /** @param {Reading} reading */
 function fit(reading) {
   const lines = /** @type {HTMLElement[]} */ ([
@@ -299,8 +311,13 @@ function fit(reading) {
     body.querySelector(":scope > .lf-preview-more")
   );
   const { list } = reading;
+  const was = clampedNow();
+  const extra = was ? was.scrollHeight - was.clientHeight : 0;
+  const holding = was ? lines.findIndex((line) => line.contains(was)) : -1;
+  // The blocks from the clamped one on read as much higher as its clamp holds back.
+  const after = holding < 0 ? Infinity : holding;
   let end = Infinity;
-  if (body.scrollHeight > body.clientHeight + 1) {
+  if (wholeHeight() > body.clientHeight + 1) {
     if (list && more) {
       // The count line measures before it says anything, its first words those for all
       // the items, the longest it can say.
@@ -312,21 +329,58 @@ function fit(reading) {
         parseFloat(getComputedStyle(body).paddingBlockEnd);
   }
   const over = lines.findIndex(
-    (line) => line.getBoundingClientRect().bottom > end + 0.5,
+    (line, at) =>
+      line.getBoundingClientRect().bottom + (at >= after ? extra : 0) > end + 0.5,
   );
-  const kept = over < 0 ? lines.length : Math.max(1, over);
+  // The block the room ends in, cut by line where it holds words, not a list's item.
+  /** @type {{el: HTMLElement, lines: number} | null} */
+  let clamp = null;
+  const block = lines[over];
+  if (block && !block.classList.contains("lf-preview-item")) {
+    const el = /** @type {HTMLElement} */ (
+      block.querySelector(":scope > .lf-preview-word") ?? block
+    );
+    const top = el.getBoundingClientRect().top + (over > after ? extra : 0);
+    const line = parseFloat(getComputedStyle(el).lineHeight);
+    const whole = Math.round((el === was ? el.scrollHeight : el.offsetHeight) / line);
+    const fits = Math.floor((end - top + 0.5) / line);
+    if (fits < whole && (fits >= 1 || over === 0))
+      clamp = { el, lines: Math.max(1, fits) };
+  }
+  const kept = over < 0 ? lines.length : clamp ? over + 1 : Math.max(1, over);
+  if (was && was !== clamp?.el) {
+    keeps(was, "data-lf-clamp", null);
+    was.style.removeProperty("--lf-preview-lines");
+  }
+  if (clamp) {
+    keeps(clamp.el, "data-lf-clamp", "");
+    clamp.el.style.setProperty("--lf-preview-lines", String(clamp.lines));
+  }
   lines.forEach((line, at) => {
     line.style.visibility = at < kept ? "" : "hidden";
     keeps(
       line,
       "data-lf-cut",
-      !list && at === kept - 1 && kept < lines.length ? "" : null,
+      !list && !clamp && at === kept - 1 && kept < lines.length ? "" : null,
     );
   });
   if (!list || !more) return;
   const hidden = lines.length - kept;
   if (hidden) render(list.more(Math.min(hidden, list.items.length)), more);
   more.style.visibility = hidden ? "" : "hidden";
+}
+// The block a past fit clamped to the lines that fit, if any.
+const clampedNow = () =>
+  /** @type {HTMLElement | null} */ (body.querySelector("[data-lf-clamp]"));
+// The face's whole height, laid out unclamped and unheld, whatever room it was last held
+// to: its drawn height where it is whole, which is fractional where scrollHeight rounds,
+// and what a past fit's clamp holds back added in.
+function wholeHeight() {
+  const was = clampedNow();
+  if (was) return body.scrollHeight + was.scrollHeight - was.clientHeight;
+  return body.scrollHeight > body.clientHeight + 1
+    ? body.scrollHeight
+    : body.getBoundingClientRect().height;
 }
 
 const CONTROL = 'button, summary, a[href], [role="button"], [data-lf-offer]';
@@ -546,22 +600,27 @@ function readFrom(from, route, read) {
   return holder && reading ? { target: from, holder, reading } : null;
 }
 
-// Show what `from` previews on `route`, and say whether one shows. Shown `again` for
-// the preview standing, it draws what its target says now where it stands, with no
-// fade.
+// Show what `from` previews on `route`, and say whether one shows. It reads first, and
+// only a new reading replaces the standing preview: an aim at what says nothing there,
+// as empty space inside a chart, leaves it standing, as plain text does, and a preview
+// shown `again` for what it stands for goes once that says nothing. Shown `again`, it
+// draws what its target says now where it stands, with no fade.
 /** @param {Target} from @param {Route} route @param {Read | null} [read] @param {{x: number, y: number}} [at] @param {boolean} [again] @param {boolean} [fresh] */
 function show(from, route, read = null, at, again = false, fresh = false) {
   if (!again && shown?.from === from && shown.route === route) return true;
   const found = readFrom(from, route, read);
-  const standing = again && found && shown?.from === from ? shown : null;
+  const standing = again && shown?.from === from ? shown : null;
+  if (!found) {
+    if (standing) hide();
+    return false;
+  }
   // Ending the standing record's watch can run its disconnect, which hides whatever
   // `shown` names, so the record stops being the one shown first.
   if (standing) {
     shown = null;
     standing.stop();
-    if (standing.target !== found?.target) ended(standing);
+    if (standing.target !== found.target) ended(standing);
   } else hide();
-  if (!found) return false;
   const { target, holder, reading } = found;
   render(face(reading), body);
   /** @type {Shown} */
@@ -572,6 +631,7 @@ function show(from, route, read = null, at, again = false, fresh = false) {
     route,
     read,
     at,
+    reading,
     clock: clockNow(),
     stop: () => {},
     described: null,
@@ -610,22 +670,23 @@ function show(from, route, read = null, at, again = false, fresh = false) {
 // and drawn by the browser from that decision alone, with no fallback of its own. Its
 // anchor is an element: the target or the declared element, a range's line by the element
 // holding the range, and a declared box by the declaring element, each box held at its
-// offsets inside its element (`--lf-preview-inset-*`), so the browser carries the preview
-// with the element through every scroll and resize (`anchor()`, chrome.css), and this
-// module places it again as that element or the window resizes (`following`). Its side is
-// the first of: below, then above, each from the box's start edge and then its end edge;
-// beside, toward the nearer window edge and then the other; centred across the window
-// below, then above; that holds the whole preview inside the window and covers no other
-// target, by a hit test every `REACH` across the box it would draw, so no target as large
-// as WCAG's least, 24 px, escapes. A finger's and a point's try above first, since the
-// finger covers what lies below and a point's axis stands under it. Where every one that
-// holds it covers a target, the first stands and lets the pointer through to what it
-// covers (`data-lf-covers`); where none holds it whole, the one with the most room stands,
-// held to that room, and the preview fits its lines to it (`fit`).
+// offsets inside its element, so the browser carries the preview with the element
+// through every scroll and resize (`anchor()`, chrome.css). Its edges stand at offsets
+// from that element's (`--lf-preview-{top,bottom,left,right}`), its top or its bottom and
+// its left or its right, or, centred, at the left the window gives it, as its side says
+// (`data-lf-y`, `data-lf-x`). Its side is the
+// first of: where it stands now; below, then above, each from the box's start edge and
+// then its end edge; beside, toward the nearer window edge and then the other; centred
+// across the window below, then above; that holds the whole preview inside the part of
+// the window the user sees and covers no other target, by a hit test every `REACH` across
+// the box it would draw. A finger's and a point's try above first, since the finger
+// covers what lies below and a point's axis stands under it. Where every one that holds
+// it covers a target, the first stands and lets the pointer through to what it covers
+// (`data-lf-covers`); where none holds it whole, the one with the most room stands, held
+// to that room, and the preview fits its lines to it (`fit`).
 const EDGE = 8;
 const GAP = { line: 6, box: 11, hold: 27 };
 const REACH = 23;
-tip.style.setProperty("--lf-preview-edge", `${EDGE}px`);
 
 /** @param {Box} box @param {number} x @param {number} y */
 const holds = (box, x, y) =>
@@ -643,6 +704,11 @@ function boxed(el) {
   return null;
 }
 
+// A declared box at the offsets inside its element it was declared at, which the
+// element carries as the page moves, so a decision made again later, as a scroll's,
+// reads it where it stands then.
+/** @type {WeakMap<Box, Box>} */
+const declaredWithin = new WeakMap();
 // What the preview stands by: its anchor element and the box inside it, in client
 // coordinates, the anchor's own where it stands for itself.
 /** @param {Shown} record @param {Reading} reading @returns {{source: HTMLElement, box: Box} | null} */
@@ -650,7 +716,12 @@ function anchorOf(record, reading) {
   const { target, holder, at } = record;
   if (target instanceof Range) {
     const lines = [...target.getClientRects()];
-    const line = lines.find((box) => at && holds(box, at.x, at.y)) ?? lines[0];
+    // The line pointed at as it showed, which it stands by as the page moves after.
+    record.line ??= Math.max(
+      0,
+      lines.findIndex((box) => at && holds(box, at.x, at.y)),
+    );
+    const line = lines[record.line] ?? lines[0];
     const common = target.commonAncestorContainer;
     const around = isElement(common) ? common : common.parentElement;
     const source = around && boxed(around);
@@ -659,7 +730,28 @@ function anchorOf(record, reading) {
   const declared = reading.at;
   if (declared && !isElement(declared)) {
     const source = boxed(holder);
-    return source ? { source, box: declared } : null;
+    if (!source) return null;
+    const by = source.getBoundingClientRect();
+    let within = declaredWithin.get(declared);
+    if (!within)
+      declaredWithin.set(
+        declared,
+        (within = {
+          top: declared.top - by.top,
+          right: by.right - declared.right,
+          bottom: by.bottom - declared.bottom,
+          left: declared.left - by.left,
+        }),
+      );
+    return {
+      source,
+      box: {
+        top: by.top + within.top,
+        right: by.right - within.right,
+        bottom: by.bottom - within.bottom,
+        left: by.left + within.left,
+      },
+    };
   }
   const el = declared?.isConnected ? declared : holder;
   const source = boxed(el);
@@ -712,12 +804,18 @@ function open(source, standing, moved) {
   showNativeLayer(tip, { source });
 }
 
-// The element the standing preview stands by, which resizing places it again. Its first
-// reading, as observing it starts, is the size it was placed at, so it moves nothing.
+// The element the standing preview stands by, whose resizing reads it again, words and
+// place (`refresh`), as the window's resizing does, since what a target previews may
+// follow the width it is given. Its first reading, as observing it starts, is the size
+// it was placed at, so it moves nothing. A scroll of a box holding it decides its place
+// again (`replace`), heard at the document and at each shadow root around it, since a
+// scroll inside a shadow tree is heard no further than its root.
 /** @type {Element | null} */
 let followed = null;
 /** @type {{width: number, height: number} | null} */
 let followedSize = null;
+/** @type {ShadowRoot[]} */
+let followedRoots = [];
 const following = sizeObserver(
   (entries) => {
     const entry = entries.at(-1);
@@ -734,28 +832,57 @@ const following = sizeObserver(
 function follow(source) {
   if (source === followed) return;
   if (followed) following.unobserve(followed);
+  for (const root of followedRoots) root.removeEventListener("scroll", scrolled, true);
   followed = source;
   followedSize = null;
-  if (source) following.observe(source);
+  followedRoots = [];
+  if (!source) return;
+  following.observe(source);
+  for (
+    let root = source.getRootNode();
+    root instanceof ShadowRoot;
+    root = root.host.getRootNode()
+  ) {
+    root.addEventListener("scroll", scrolled, { capture: true, passive: true });
+    followedRoots.push(root);
+  }
+}
+/** @param {Event} event */
+function scrolled(event) {
+  const box = event.target;
+  if (
+    followed &&
+    (box === document || (isElement(box) && renderedUnder(followed, box)))
+  )
+    replace();
+}
+// Decide the standing preview's place again in the next frame, once however many of its
+// grounds changed in this one.
+let replacing = 0;
+function replace() {
+  if (!shown || replacing) return;
+  replacing = nextRender(() => {
+    replacing = 0;
+    if (shown) stand(shown, shown.reading, true, true);
+  });
 }
 
 /** @typedef {{y: "below" | "above" | "top", x: "left" | "right" | "after" | "before" | "center", box: Box, room: number}} Placement */
-// Where the standing preview stands, and its start corner as offsets from the element it
-// stands by, which a redraw of the same subject keeps.
-/** @type {(Placement & {source: Element, corner: {x: number, y: number}}) | null} */
+// The target the standing preview stands for, the edge across it stands by, left or
+// right, and its top corner on that edge as offsets from the box it stands by, which the
+// next decision for that target tries first.
+/** @type {{target: Target, x: "left" | "right", corner: {x: number, y: number}} | null} */
 let placed = null;
 
 /** @param {Box} a @param {Box} b */
 const meets = (a, b) =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
-// Stand the preview by its anchor on its side, and say whether it stands. A redraw of
-// the subject it stands for, as new words for the same target, keeps the corner its
-// words start at, so they don't move (`placed`), while it still fits there and covers
-// none of what it is about; a new aim, or a redraw that no longer fits, places it
-// afresh.
-/** @param {Shown} record @param {Reading} reading @param {boolean} standing @param {boolean} redraw */
-function stand(record, reading, standing, redraw) {
+// Stand the preview by its anchor, and say whether it stands: the one decision of where
+// it stands, made `again` for the target it already stands for, which tries the place it
+// stands at now first, and afresh for a new target or a new aim.
+/** @param {Shown} record @param {Reading} reading @param {boolean} standing @param {boolean} again */
+function stand(record, reading, standing, again) {
   const moved = seat();
   const anchor = anchorOf(record, reading);
   if (!anchor) return false;
@@ -767,19 +894,16 @@ function stand(record, reading, standing, redraw) {
     target instanceof Range ? GAP.line : route === "hold" ? GAP.hold : GAP.box;
   const rtl = getComputedStyle(holder).direction === "rtl";
   keeps(tip, "dir", rtl ? "rtl" : "ltr");
-  tip.style.setProperty("--lf-preview-gap", `${gap}px`);
-  const by = source.getBoundingClientRect();
-  const same = redraw && placed?.source === source ? placed : null;
   open(source, standing, moved);
   follow(source);
+  // The part of the window the user sees, which a pinch or an on-screen keyboard makes
+  // smaller than the layout viewport, and which nothing the chrome covers takes from,
+  // since the preview stands over all of it; its width bounds the preview's.
+  const room = shownWindow({ gap: EDGE, item: tip });
+  tip.style.setProperty("--lf-preview-span", layoutPx(room.width));
+  const by = source.getBoundingClientRect();
   const width = tip.getBoundingClientRect().width;
-  // Its whole height, whatever room it was last held to: its drawn height where it is
-  // whole, which is fractional where scrollHeight rounds.
-  const height =
-    body.scrollHeight > body.clientHeight + 1
-      ? body.scrollHeight
-      : body.getBoundingClientRect().height;
-  const room = { width: document.documentElement.clientWidth, height: innerHeight };
+  const height = wholeHeight();
   // What it is about stays in view: the box it stands by, and what its declaration
   // names (`about`), as a margin entry's passage or a time's message.
   const about = reading.about?.isConnected
@@ -789,120 +913,113 @@ function stand(record, reading, standing, redraw) {
   const clear = (at) => !meets(at.box, box) && !(about && meets(at.box, about));
   /** @param {Placement} at */
   const inside = (at) =>
-    at.box.left >= EDGE - 0.5 &&
-    at.box.right <= room.width - EDGE + 0.5 &&
-    at.box.top >= EDGE - 0.5;
+    at.box.left >= room.left - 0.5 &&
+    at.box.right <= room.right + 0.5 &&
+    at.box.top >= room.top - 0.5;
+  /** @param {Placement["y"]} y */
+  const rowRoom = (y) =>
+    y === "below"
+      ? room.bottom - (box.bottom + gap)
+      : y === "above"
+        ? box.top - gap - room.top
+        : room.bottom - box.top;
+  /** @param {Placement["x"]} x */
+  const leftOf = (x) =>
+    x === "left"
+      ? box.left
+      : x === "right"
+        ? box.right - width
+        : x === "after"
+          ? box.right + gap
+          : x === "before"
+            ? box.left - gap - width
+            : room.left + (room.width - width) / 2;
+  /** @param {Placement["y"]} y @param {Placement["x"]} x @returns {Placement} */
+  const placement = (y, x) => {
+    const space = rowRoom(y);
+    const tall = Math.min(height, Math.max(space, 0));
+    const left = leftOf(x);
+    const top =
+      y === "below" ? box.bottom + gap : y === "above" ? box.top - gap - tall : box.top;
+    return {
+      y,
+      x,
+      box: { left, top, right: left + width, bottom: top + tall },
+      room: space,
+    };
+  };
+  const [start, end] = rtl
+    ? /** @type {const} */ (["right", "left"])
+    : /** @type {const} */ (["left", "right"]);
+  /** @type {Placement[]} */
+  const placements = [];
+  // Where it stands now: its top corner on the edge it stands by at the same offsets
+  // from the box it stands by.
+  const was = again && placed?.target === target ? placed : null;
   /** @type {Placement | null} */
-  let chosen = null;
-  let free = true;
-  if (same) {
-    const top = by.top + same.corner.y;
-    const left = rtl ? by.right - same.corner.x - width : by.left + same.corner.x;
-    /** @type {Placement} */
-    const kept = {
+  let now = null;
+  if (was) {
+    const left =
+      was.x === "right" ? box.right - was.corner.x - width : box.left + was.corner.x;
+    const top = box.top + was.corner.y;
+    now = {
       y: "top",
-      x: rtl ? "right" : "left",
+      x: was.x,
       box: { left, top, right: left + width, bottom: top + height },
-      room: room.height - EDGE - top,
+      room: room.bottom - top,
     };
-    if (inside(kept) && kept.room >= height && clear(kept)) chosen = kept;
+    placements.push(now);
   }
-  if (!chosen) {
-    /** @param {Placement["y"]} y */
-    const rowRoom = (y) =>
-      y === "below"
-        ? room.height - EDGE - (box.bottom + gap)
-        : y === "above"
-          ? box.top - gap - EDGE
-          : room.height - EDGE - box.top;
-    /** @param {Placement["x"]} x */
-    const leftOf = (x) =>
-      x === "left"
-        ? box.left
-        : x === "right"
-          ? box.right - width
-          : x === "after"
-            ? box.right + gap
-            : x === "before"
-              ? box.left - gap - width
-              : EDGE + (room.width - 2 * EDGE - width) / 2;
-    /** @param {Placement["y"]} y @param {Placement["x"]} x @returns {Placement} */
-    const placement = (y, x) => {
-      const space = rowRoom(y);
-      const tall = Math.min(height, Math.max(space, 0));
-      const left = leftOf(x);
-      const top =
-        y === "below"
-          ? box.bottom + gap
-          : y === "above"
-            ? box.top - gap - tall
-            : box.top;
-      return {
-        y,
-        x,
-        box: { left, top, right: left + width, bottom: top + tall },
-        room: space,
-      };
-    };
-    const [start, end] = rtl
-      ? /** @type {const} */ (["right", "left"])
-      : /** @type {const} */ (["left", "right"]);
-    /** @type {Placement["y"][]} */
-    const rows = route === "hold" || point ? ["above", "below"] : ["below", "above"];
-    /** @type {Placement[]} */
-    const placements = rows.flatMap((y) => [placement(y, start), placement(y, end)]);
-    if (!(target instanceof Range)) {
-      const toward =
-        box.left + box.right > room.width ? ["after", "before"] : ["before", "after"];
-      placements.push(
-        ...toward.map((x) => placement("top", /** @type {Placement["x"]} */ (x))),
-      );
-    }
-    placements.push(...rows.map((y) => placement(y, "center")));
-    // Only where none keeps what it is about clear may it cover that.
-    const clearOnes = placements.filter(clear);
-    const pool = clearOnes.length ? clearOnes : placements;
-    const whole = pool.filter((at) => inside(at) && at.room >= height);
-    const uncovered = whole.find((at) => !covers(at.box, holder));
-    free = Boolean(uncovered);
-    chosen =
-      uncovered ??
-      whole[0] ??
-      pool
-        .filter(inside)
-        .reduce(
-          (most, at) => (!most || at.room > most.room ? at : most),
-          /** @type {Placement | null} */ (null),
-        ) ??
-      placement(rows[0] ?? "below", "center");
-    if (!free) free = !covers(chosen.box, holder);
+  /** @type {Placement["y"][]} */
+  const rows = route === "hold" || point ? ["above", "below"] : ["below", "above"];
+  placements.push(...rows.flatMap((y) => [placement(y, start), placement(y, end)]));
+  if (!(target instanceof Range)) {
+    const toward =
+      box.left + box.right > room.left + room.right
+        ? /** @type {const} */ (["after", "before"])
+        : /** @type {const} */ (["before", "after"]);
+    placements.push(...toward.map((x) => placement("top", x)));
   }
-  // The box sits at its offsets inside its element, or, kept, at its start corner's.
-  const insets =
-    chosen === null ||
-    chosen.y !== "top" ||
-    !same ||
-    chosen.x !== (rtl ? "right" : "left")
-      ? {
-          top: box.top - by.top,
-          right: by.right - box.right,
-          bottom: by.bottom - box.bottom,
-          left: box.left - by.left,
-        }
-      : {
-          top: same.corner.y,
-          right: rtl ? same.corner.x : by.right - box.right,
-          bottom: by.bottom - box.bottom,
-          left: rtl ? box.left - by.left : same.corner.x,
-        };
-  for (const [edge, length] of Object.entries(insets))
-    tip.style.setProperty(`--lf-preview-inset-${edge}`, layoutPx(length));
+  placements.push(...rows.map((y) => placement(y, "center")));
+  // Only where none keeps what it is about clear may it cover that.
+  const clearOnes = placements.filter(clear);
+  const pool = clearOnes.length ? clearOnes : placements;
+  const whole = pool.filter((at) => inside(at) && at.room >= height);
+  // Where it stands now holds while it holds it whole and what it is about clear, and
+  // there it lets the pointer through to a target it has come to cover rather than move
+  // under the user's aim; a fresh decision takes the first place that covers none.
+  const stays = now && whole.includes(now) ? now : null;
+  const uncovered = stays ? null : whole.find((at) => !covers(at.box, holder));
+  const chosen =
+    stays ??
+    uncovered ??
+    whole[0] ??
+    pool
+      .filter(inside)
+      .reduce(
+        (most, at) => (!most || at.room > most.room ? at : most),
+        /** @type {Placement | null} */ (null),
+      ) ??
+    placement(rows[0] ?? "below", "center");
+  const free = chosen === uncovered || !covers(chosen.box, holder);
+  // Its edges at their offsets from the element it stands by: its top, or, above, its
+  // bottom, and its left, or its right where it stands from the box's right edge; centred,
+  // its left stands where the window puts it, whatever the element does across.
+  const edges = {
+    top: chosen.box.top - by.top,
+    bottom: chosen.box.bottom - by.top,
+    left: chosen.box.left - (chosen.x === "center" ? 0 : by.left),
+    right: by.right - chosen.box.right,
+  };
+  for (const [edge, length] of Object.entries(edges))
+    tip.style.setProperty(`--lf-preview-${edge}`, layoutPx(length));
+  const right = chosen.x === "right" || chosen.x === "before";
   placed = {
-    ...chosen,
-    source,
+    target,
+    x: right ? "right" : "left",
     corner: {
-      x: rtl ? by.right - chosen.box.right : chosen.box.left - by.left,
-      y: chosen.box.top - by.top,
+      x: right ? box.right - chosen.box.right : chosen.box.left - box.left,
+      y: chosen.box.top - box.top,
     },
   };
   keeps(tip, "data-lf-y", chosen.y);
@@ -916,10 +1033,12 @@ function stand(record, reading, standing, redraw) {
   return true;
 }
 // Whether a preview drawn in `at` covers a target other than `holder`: a hit test every
-// `REACH` across it, through the preview where it stands now, so a target too small to
-// hold a test point is smaller than any a pointer is asked to reach. A point inside the
-// holder's own box finds the holder or what it holds, which are no other target, so it
-// is not tested, as most of a preview standing over a chart is not.
+// `REACH` across it, through the preview where it stands now. A target too small to hold
+// a test point is smaller than any Leaf asks a pointer to reach, WCAG's least, 24 px; an
+// author's smaller one can stand unseen between the points, since no sampling proves a
+// target absent, which is the grid's limit. A point inside the holder's own box finds the
+// holder or what it holds, which are no other target, so it is not tested, as most of a
+// preview standing over a chart is not, which bounds its cost.
 /** @param {Box} at @param {Element} holder */
 function covers(at, holder) {
   const own = holder.getBoundingClientRect();
@@ -1060,34 +1179,32 @@ export function pointRange(range, read, at) {
 // a redraw. Where the user aimed at something new inside it (`aim`), as a chart's next
 // point, the aim is a new target: whatever put the last preview away, the route reading
 // the element shows it, focus included.
+// What changed is the element that supplied the reading, its owner, which may stand
+// around what the route aims at, as a widget declares for the control in it that holds
+// focus.
 /** @param {Element} node @param {boolean} aim */
 function changed(node, aim) {
-  if (aim && quiet === node) quiet = null;
-  if (shown && shown.from === node) {
-    show(node, shown.route, null, undefined, true, aim);
+  /** @param {Target | null | undefined} at */
+  const within = (at) => isElement(at) && renderedUnder(at, node);
+  if (aim && within(quiet)) quiet = null;
+  if (shown && (shown.target === node || shown.from === node)) {
+    show(shown.from, shown.route, shown.read, shown.at, true, aim);
     return;
   }
+  const on = focused();
   if (hold?.armed) {
-    if (hold.target === node || (!hold.target && hold.parent === node.parentElement)) {
+    if (within(hold.target)) show(/** @type {Element} */ (hold.target), "hold");
+    else if (!hold.target && hold.parent === node.parentElement) {
       hold.target = node;
       show(node, "hold");
     }
-  } else if (aim && focused() === node) showFocus(node);
-  else if (beneath && under(beneath, node) && quiet !== node) {
+  } else if (aim && on && within(on)) showFocus(on);
+  else if (beneath && under(beneath, node) && !within(quiet)) {
     pointing = null;
     point(node);
   }
 }
 
-// Whether focus moving from `left` to `node` enters a surface it wasn't in, a native
-// layer or a dialog, which is the surface placing the user as it opens.
-/** @param {Element} node @param {Element | null} left */
-function entersSurface(node, left) {
-  for (let at = /** @type {Element | null} */ (node); at; at = renderedParent(at))
-    if (isNativeLayer(at) || at.getAttribute("role") === "dialog")
-      return !(left && renderedUnder(left, at));
-  return false;
-}
 // Focus the user moved to `node` shows its preview once the task that moved it has
 // done, which may be opening a popover the platform lets no other open inside, where
 // the browser shows that focus, and not where they put this preview away.
@@ -1114,8 +1231,7 @@ function refresh() {
   if (found.target !== record.target)
     return void show(record.from, record.route, record.read, record.at, true, true);
   render(face(found.reading), body);
-  // Where it stands is read again with what it says: a declaration's `at` may move to
-  // another element or box under the same words, and the room the window leaves changes.
+  record.reading = found.reading;
   stand(record, found.reading, true, true);
 }
 let refreshing = false;
@@ -1139,6 +1255,9 @@ export function mountPreviews(chrome) {
   };
   watchPresentation(presented);
   window.addEventListener("resize", () => shown && refresh(), { passive: true });
+  document.addEventListener("scroll", scrolled, { capture: true, passive: true });
+  visualViewport.addEventListener("resize", replace, { passive: true });
+  visualViewport.addEventListener("scroll", replace, { passive: true });
 
   document.addEventListener(
     PREVIEW,
@@ -1205,11 +1324,12 @@ export function mountPreviews(chrome) {
   // focus leaving takes its preview along. It shows where the user moved it, as whoever
   // moved it says (focus.js, `focusDestination`): a Tab, Shift+Tab or a placement
   // standing in for one (`step`), and a move to a place, as a walk lands (`move`), but
-  // not one that enters a surface as it opens.
-  onCurrentLocation((node, cause, left) => {
+  // not one into a surface that opened since the user's last input, which is the
+  // surface placing them as it opens (layer-stack.js, `openedThisInput`).
+  onCurrentLocation((node, cause) => {
     quiet = null;
     if (shown?.route === "focus" && shown.from !== node) hide();
-    if (node && (cause === "step" || (cause === "move" && !entersSurface(node, left))))
+    if (node && (cause === "step" || (cause === "move" && !openedThisInput(node))))
       showFocus(node);
   });
   // Escape is the preview's own step while one stands, ahead of every other, which

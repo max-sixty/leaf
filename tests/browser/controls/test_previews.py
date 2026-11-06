@@ -920,3 +920,350 @@ def test_a_finger_s_hold_reads_and_its_release_presses_nothing(browser, serve):
     down, up = page.evaluate("window.lfHeld")
     assert up - down < 450, f"the machine held the finger {up - down:.0f} ms"
     expect(tip).to_be_hidden()
+
+
+# Where the preview stands against `id`'s box, and whether a press at that box's centre
+# reaches it.
+AGAINST = """(id) => {
+  const tip = document.getElementById('lf-preview').getBoundingClientRect();
+  const el = document.getElementById(id);
+  const box = el.getBoundingClientRect();
+  const x = box.left + box.width / 2;
+  const y = box.top + box.height / 2;
+  return {left: Math.round(tip.left), top: Math.round(tip.top),
+    bottom: Math.round(tip.bottom), window: innerHeight,
+    meets: box.left < tip.right && tip.left < box.right && box.top < tip.bottom
+      && tip.top < box.bottom,
+    reached: document.elementFromPoint(x, y) === el};
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_standing_preview_takes_its_place_again_as_what_holds_it_changes(
+    engine, request, serve
+):
+    """Where a standing preview stands is decided again whenever what it was decided
+    from changes, its own place the first tried: words that grow over a neighbour leave
+    it where it stands, under the user's aim, and the pointer through to the neighbour,
+    which a press then reaches; a declared point that moves inside its element takes the
+    preview with it; and a scroll that carries its target to where its side no longer
+    holds it puts it on a side that does."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(leaf_page("Standing again", "<p>Words.</p>")),
+    )
+    page.set_viewport_size({"width": 1200, "height": 700})
+    page.evaluate(
+        """() => {
+          const aim = document.createElement('button');
+          aim.id = 'aim';
+          aim.textContent = 'A';
+          aim.style = 'position: fixed; left: 300px; top: 200px; width: 80px;'
+            + ' height: 40px; padding: 0';
+          aim.lfPreview = () => ({name: 'Preview words'});
+          const next = document.createElement('button');
+          next.id = 'next';
+          next.textContent = 'Neighbour';
+          next.style = 'position: fixed; left: 310px; top: 285px; width: 90px;'
+            + ' height: 30px; padding: 0';
+          window.pressed = 0;
+          next.onclick = () => window.pressed++;
+          document.body.append(aim, next);
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(2, 2)
+    page.locator("#aim").hover()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Preview words")
+    short = page.evaluate(AGAINST, "next")
+    assert not short["meets"], short
+    page.evaluate(
+        """async () => {
+          const {previewChanged} = await window.__lfWidgetApi();
+          const aim = document.getElementById('aim');
+          aim.lfPreview = () => ({name: 'Preview words', detail: [1, 2, 3, 4]
+            .map((n) => `Additional detail on line ${n}`)});
+          previewChanged(aim);
+        }"""
+    )
+    expect(tip.locator(".lf-preview-detail")).to_have_count(4)
+    rendered(page)
+    grown = page.evaluate(AGAINST, "next")
+    assert grown["top"] == short["top"] and grown["reached"], grown
+    expect(tip).to_have_attribute("data-lf-covers", "")
+    box = page.locator("#next").bounding_box()
+    page.mouse.click(box["x"] + 45, box["y"] + 15)
+    assert page.evaluate("window.pressed") == 1
+
+    page.mouse.move(2, 2)
+    expect(tip).to_be_hidden()
+    page.evaluate(
+        """async () => {
+          const {previewChanged} = await window.__lfWidgetApi();
+          for (const id of ['aim', 'next']) document.getElementById(id).remove();
+          const chart = document.createElement('div');
+          chart.id = 'chart';
+          chart.style = 'position: fixed; left: 300px; top: 150px; width: 600px;'
+            + ' height: 300px';
+          chart.tabIndex = 0;
+          window.pointX = 320;
+          chart.lfPreview = () => ({name: 'Point value', at: {left: window.pointX,
+            right: window.pointX + 10, top: 250, bottom: 260}});
+          // A key the chart takes redraws it with its point moved and the same words.
+          chart.addEventListener('keydown', (event) => {
+            if (event.key !== 'F10') return;
+            window.pointX = 700;
+            previewChanged(chart);
+          });
+          const toChart = document.createElement('button');
+          toChart.id = 'to-chart';
+          toChart.textContent = 'To the chart';
+          document.body.append(toChart, chart);
+        }"""
+    )
+    page.locator("#to-chart").focus()
+    page.keyboard.press("Tab")
+    expect(tip.locator(".lf-preview-word")).to_have_text("Point value")
+    assert abs(page.evaluate(AGAINST, "chart")["left"] - 320) <= 1
+    page.keyboard.press("F10")
+    page.wait_for_function("window.pointX === 700")
+    rendered(page)
+    assert abs(page.evaluate(AGAINST, "chart")["left"] - 700) <= 1, "it stayed behind"
+
+    page.keyboard.press("Escape")
+    expect(tip).to_be_hidden()
+    page.set_viewport_size({"width": 900, "height": 400})
+    page.evaluate(
+        """() => {
+          for (const id of ['chart', 'to-chart']) document.getElementById(id).remove();
+          const aim = document.createElement('button');
+          aim.id = 'held';
+          aim.textContent = 'Held';
+          const scroller = document.createElement('div');
+          scroller.id = 'scroller';
+          scroller.style = 'position: fixed; left: 200px; top: 0; width: 500px;'
+            + ' height: 380px; overflow: auto';
+          const inner = document.createElement('div');
+          inner.style = 'padding-top: 250px; height: 800px';
+          const before = document.createElement('button');
+          before.id = 'before';
+          before.textContent = 'Before';
+          inner.append(before, aim);
+          scroller.append(inner);
+          document.body.append(scroller);
+          aim.style = 'width: 80px; height: 40px; padding: 0';
+          aim.lfPreview = () => ({name: 'Scrolled value',
+            detail: Array.from({length: 7}, (_, n) => `Detail ${n}`)});
+        }"""
+    )
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(tip.locator(".lf-preview-word")).to_have_text("Scrolled value")
+    page.locator("#scroller").evaluate("el => { el.scrollTop = 200; }")
+    rendered(page)
+    scrolled = page.evaluate(AGAINST, "held")
+    assert scrolled["top"] >= 0 and scrolled["bottom"] <= scrolled["window"], scrolled
+
+
+def test_a_pinch_zoomed_window_holds_its_preview_in_what_it_shows(browser, serve):
+    """Zoomed in by a pinch, the window shows part of the page, and a preview stands
+    whole inside that part. Chromium alone: Playwright pinches no other engine."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Pinched",
+                '<p><button id="before">Before</button></p>'
+                '<button id="aim" style="position: absolute; left: 500px; top: 200px"'
+                ' aria-label="A control whose name runs on long enough to need room">'
+                "⚙</button>",
+            )
+        ),
+    )
+    page.set_viewport_size({"width": 1440, "height": 900})
+    cdp = page.context.new_cdp_session(page)
+    cdp.send("Emulation.setPageScaleFactor", {"pageScaleFactor": 2})
+    page.wait_for_function("visualViewport.scale === 2")
+    tip = page.locator(PREVIEW)
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(tip.locator(".lf-preview-word")).to_contain_text("A control whose name")
+    rendered(page)
+    held = page.evaluate(
+        """() => {
+          const tip = document.getElementById('lf-preview').getBoundingClientRect();
+          const v = visualViewport;
+          return {left: tip.left - v.offsetLeft, right: v.offsetLeft + v.width - tip.right,
+            top: tip.top - v.offsetTop, bottom: v.offsetTop + v.height - tip.bottom};
+        }"""
+    )
+    assert min(held.values()) >= 0, held
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_name_longer_than_its_room_ends_in_an_ellipsis(engine, request, serve):
+    """A name that wraps to more lines than the room holds shows the lines that fit,
+    the last ending in an ellipsis, as a long title one span holds: none is cut through
+    by the face's edge."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Long name",
+                '<p><button id="before">Before</button></p>'
+                '<p><button id="aim">Aim</button></p>',
+            )
+        ),
+    )
+    page.evaluate(
+        """() => { document.getElementById('aim').lfPreview = () => ({name:
+          Array.from({length: 80}, (_, n) => `word${n}`).join(' ')}); }"""
+    )
+    page.set_viewport_size({"width": 900, "height": 180})
+    tip = page.locator(PREVIEW)
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(tip.locator(".lf-preview-word")).to_contain_text("word0")
+    rendered(page)
+    held = page.evaluate(
+        """() => {
+          const face = document.querySelector('#lf-preview .lf-preview-face');
+          const word = face.querySelector('.lf-preview-word');
+          return {face: face.getBoundingClientRect().bottom,
+            word: word.getBoundingClientRect().bottom,
+            clamp: getComputedStyle(word).webkitLineClamp, window: innerHeight};
+        }"""
+    )
+    assert held["word"] <= held["face"] + 0.5, held
+    assert held["clamp"] not in ("none", ""), held
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_widget_s_new_aim_reads_again_whichever_child_holds_focus(
+    engine, request, serve
+):
+    """A widget that declares its preview while a control inside it holds focus says
+    the user aimed at something new (`previewChanged` with `aim`): the preview reads
+    the widget again, and after Escape put it away the next aim shows it again."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Owner",
+                '<div id="host"><button id="inner">Item one</button></div>',
+            )
+        ),
+    )
+    page.evaluate(
+        """async () => {
+          window.lfApi = await window.__lfWidgetApi();
+          window.label = 'First item detail';
+          document.getElementById('host').lfPreview = () => ({name: window.label});
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    aim = """(words) => {
+      window.label = words;
+      window.lfApi.previewChanged(document.getElementById('host'), {aim: true});
+    }"""
+    page.keyboard.press("Shift")
+    page.evaluate(
+        "() => window.lfApi.focusDestination(document.getElementById('inner'), 'move')"
+    )
+    expect(tip.locator(".lf-preview-word")).to_have_text("First item detail")
+    page.evaluate(aim, "Second item detail")
+    expect(tip.locator(".lf-preview-word")).to_have_text("Second item detail")
+    page.keyboard.press("Escape")
+    expect(tip).to_be_hidden()
+    page.evaluate(aim, "Third item detail")
+    expect(tip).to_be_visible()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Third item detail")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_focus_moved_into_a_dialog_already_open_previews(engine, request, serve):
+    """A move into a dialog that already stands is the user's, as one beside it is, so
+    the control it lands on previews; only a surface placing focus as it opens shows
+    none."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Open dialog",
+                '<button id="outside">Outside</button><div role="dialog" id="open"'
+                ' aria-label="Standing"><button id="inside">I</button></div>',
+            )
+        ),
+    )
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfWidgetApi();
+          for (const id of ['outside', 'inside'])
+            document.getElementById(id).lfPreview = () => ({name: `${id} detail`});
+          // A key that moves the user to a place, as a command's walk does.
+          const to = {F9: 'outside', F10: 'inside'};
+          addEventListener('keydown', (event) => {
+            if (!to[event.key]) return;
+            event.preventDefault();
+            api.focusDestination(document.getElementById(to[event.key]), 'move');
+          }, true);
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.keyboard.press("F9")
+    expect(tip.locator(".lf-preview-word")).to_have_text("outside detail")
+    page.keyboard.press("F10")
+    expect(tip.locator(".lf-preview-word")).to_have_text("inside detail")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_an_aim_at_what_says_nothing_leaves_the_standing_preview(
+    engine, request, serve
+):
+    """Only a new reading replaces a standing preview: an aim at an element that says
+    nothing there leaves it standing, as plain text does. Keyboard focus reads one
+    element while the pointer rests on another, which then says it changed and now says
+    nothing, as a chart does as its point's ring comes off; then the pointer crosses
+    that element where it says nothing, as empty space inside a chart."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Nothing to say",
+                '<p><button id="before">Before</button></p>'
+                '<p><span id="focused" tabindex="0">Focused</span></p>'
+                '<div id="pointed" style="width: 320px; height: 120px">Pointed</div>',
+            )
+        ),
+    )
+    page.evaluate(
+        """async () => {
+          window.lfApi = await window.__lfWidgetApi();
+          window.lfSays = true;
+          document.getElementById('focused').lfPreview = () => ({name: 'Focus reads'});
+          document.getElementById('pointed').lfPreview = () =>
+            window.lfSays ? {name: 'Pointer reads'} : null;
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    word = tip.locator(".lf-preview-word")
+    page.mouse.move(2, 2)
+    page.locator("#pointed").hover()
+    expect(word).to_have_text("Pointer reads")
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(word).to_have_text("Focus reads")
+    page.evaluate(
+        """() => {
+          window.lfSays = false;
+          window.lfApi.previewChanged(document.getElementById('pointed'));
+        }"""
+    )
+    page.wait_for_timeout(400)
+    expect(tip).to_be_visible()
+    expect(word).to_have_text("Focus reads")
+    box = page.locator("#pointed").bounding_box()
+    page.mouse.move(box["x"] + 300, box["y"] + 100, steps=6)
+    page.wait_for_timeout(400)
+    expect(tip).to_be_visible()
+    expect(word).to_have_text("Focus reads")

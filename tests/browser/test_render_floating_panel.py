@@ -3063,6 +3063,10 @@ def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     leaf.click()
     expect(peek).to_be_hidden()
     panel_settled(page, open=False)
+    # The leaf travels to where the expanded row stands once its layout has settled, and
+    # a preview stands by it on its way, so the keyboard reads it once it has arrived.
+    rendered(page)
+    panel_settled(page, open=False)
     # Tab back onto the expanded leaf: keyboard focus must not repeat the status.
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")

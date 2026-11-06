@@ -131,6 +131,7 @@ import { declareOffFlowSurface } from "../off-flow.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { boxMotion } from "../box-motion.js";
 import { paintKeysWithin } from "../keyboard/scopes.js";
+import { surfaceOpened } from "../keyboard/layer-stack.js";
 import { closestAcross } from "../passages.js";
 import { drawnThreadsWithId } from "../thread/selectors.js";
 import { threadIdNamed } from "../thread/state.js";
@@ -1227,6 +1228,7 @@ export function createThreadPreview({
     }
     keepsHidden(preview, false);
     keeps(preview, "inert", null);
+    surfaceOpened(preview);
     buildThreadCard(entry, choice, session, selected.id);
     const positioned = placedThreadPreview(session);
     paintKeysWithin(preview);

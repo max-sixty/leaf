@@ -1194,13 +1194,15 @@ html[data-lf-region-capture]
 
      The owner decides where it stands and how tall, from the box the browser will
      draw, and the browser draws exactly that, with no fallback of its own: below its
-     anchor's box (`data-lf-y`), above, or level with its top beside it, by the gap that
-     clears the box's ring (`--lf-preview-gap`), from the box's left or right edge
-     (`data-lf-x`), beside it, or centred across the window, held to the room the owner
-     measured (`--lf-preview-room`). The anchor is the element the preview was shown by
-     (`showPopover({source})`, `position-anchor: auto`), and the box sits at its insets
-     inside that element (`--lf-preview-inset-*`), so the preview goes with the element
-     through every scroll and resize, and out of view with it. No preview scrolls: one
+     anchor's box (`data-lf-y`), above, or level with its top, from the box's left or
+     right edge (`data-lf-x`), beside it, or centred across the part of the window the
+     user sees, held to the room the owner measured (`--lf-preview-room`) and no wider
+     than that part (`--lf-preview-span`). The anchor is the element the preview was
+     shown by (`showPopover({source})`, `position-anchor: auto`), and its edges stand
+     at offsets from that element's (`--lf-preview-{top,bottom,left,right}`), its top
+     or, above, its bottom, and its left or its right, or, centred, at the left the
+     window gives it, so the preview goes with the element through every scroll and
+     resize, and out of view with it. No preview scrolls: one
      longer than its room shows the lines that fit (`fit`, preview.js), the last ending in
      an ellipsis, or a list's count at the foot. A pointer's preview takes the pointer,
      so the pointer can cross onto it and read it there (WCAG 1.4.13, "Hoverable"),
@@ -1217,7 +1219,7 @@ html[data-lf-region-capture]
     position-visibility: anchors-visible;
     box-sizing: border-box;
     width: max-content;
-    max-width: min(320px, calc(100vw - 16px));
+    max-width: min(320px, var(--lf-preview-span));
     padding: 0;
     border: 0;
     background: none;
@@ -1246,31 +1248,20 @@ html[data-lf-region-capture]
       opacity: 0;
     }
   }
-  .lf-preview[data-lf-y="below"] {
-    top: calc(anchor(bottom) - var(--lf-preview-inset-bottom) + var(--lf-preview-gap));
+  .lf-preview:is([data-lf-y="below"], [data-lf-y="top"]) {
+    top: calc(anchor(top) + var(--lf-preview-top));
   }
   .lf-preview[data-lf-y="above"] {
-    bottom: calc(anchor(top) - var(--lf-preview-inset-top) + var(--lf-preview-gap));
+    bottom: calc(anchor(top) - var(--lf-preview-bottom));
   }
-  .lf-preview[data-lf-y="top"] {
-    top: calc(anchor(top) + var(--lf-preview-inset-top));
-  }
-  .lf-preview[data-lf-x="left"] {
-    left: calc(anchor(left) + var(--lf-preview-inset-left));
-  }
-  .lf-preview[data-lf-x="right"] {
-    right: calc(anchor(right) + var(--lf-preview-inset-right));
-  }
-  .lf-preview[data-lf-x="after"] {
-    left: calc(anchor(right) - var(--lf-preview-inset-right) + var(--lf-preview-gap));
-  }
-  .lf-preview[data-lf-x="before"] {
-    right: calc(anchor(left) - var(--lf-preview-inset-left) + var(--lf-preview-gap));
+  .lf-preview:is([data-lf-x="left"], [data-lf-x="after"]) {
+    left: calc(anchor(left) + var(--lf-preview-left));
   }
   .lf-preview[data-lf-x="center"] {
-    left: var(--lf-preview-edge);
-    right: var(--lf-preview-edge);
-    margin-inline: auto;
+    left: var(--lf-preview-left);
+  }
+  .lf-preview:is([data-lf-x="right"], [data-lf-x="before"]) {
+    right: calc(anchor(right) + var(--lf-preview-right));
   }
   .lf-preview[data-lf-route="pointer"]:not([data-lf-covers]) {
     pointer-events: auto;
@@ -1279,7 +1270,7 @@ html[data-lf-region-capture]
     transition: none;
   }
   .lf-preview[data-lf-face="excerpt"] {
-    max-width: min(26rem, calc(100vw - 16px));
+    max-width: min(26rem, var(--lf-preview-span));
   }
   .lf-preview-name {
     display: flex;
@@ -1304,9 +1295,17 @@ html[data-lf-region-capture]
     margin-block-start: 2px;
     color: color-mix(in srgb, var(--tip-ink) 76%, transparent);
   }
-  /* The last line a preview held to its room keeps says there is more. */
+  /* The last line a preview held to its room keeps says there is more: the block the
+     room ends in by a line clamp's own ellipsis, and a block before the room's end by
+     one after its words. */
   .lf-preview [data-lf-cut]::after {
     content: "…";
+  }
+  .lf-preview [data-lf-clamp] {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: var(--lf-preview-lines);
+    overflow: hidden;
   }
   /* A list's count of the items its room leaves out, at the face's foot. */
   .lf-preview-more {

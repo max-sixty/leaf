@@ -745,21 +745,21 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
     page.mouse.move(*column(page, "hours", "w2", 0.2))
     page.mouse.move(*column(page, "hours", "w2", 0.15))
     expect(preview).to_be_visible()
-    assert said(page) == ["week w2", "kind fixes", "14 hours"]
+    assert said(page) == ["week w2", "kind fixes", "hours 14"]
     expect(preview).to_have_attribute("data-lf-route", "pointer")
     tip, at = preview.bounding_box(), ring.bounding_box()
     assert tip["y"] + tip["height"] <= at["y"], (tip, at)
     # The pointer may cross onto the preview to read it, which keeps the point.
     page.mouse.move(tip["x"] + tip["width"] / 2, tip["y"] + tip["height"] / 2)
     page.wait_for_timeout(300)
-    assert said(page) == ["week w2", "kind fixes", "14 hours"]
+    assert said(page) == ["week w2", "kind fixes", "hours 14"]
     expect(ring).to_be_visible()
     page.mouse.move(*column(page, "hours", "w1", 0.85))
     expect(preview.locator(".lf-preview-detail")).to_have_text(
-        ["kind features", "21 hours"]
+        ["kind features", "hours 21"]
     )
     # Redrawn where it stands, never put away between the points.
-    assert said(page) == ["week w1", "kind features", "21 hours"]
+    assert said(page) == ["week w1", "kind features", "hours 21"]
     page.mouse.move(2, 2)
     expect(preview).to_be_hidden()
     expect(ring).to_be_hidden()
@@ -768,13 +768,13 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
     page.keyboard.press("Tab")
     expect(chart).to_be_focused()
     expect(preview).to_have_attribute("data-lf-route", "focus")
-    assert said(page) == ["week w1", "kind features", "21 hours"]
+    assert said(page) == ["week w1", "kind features", "hours 21"]
     for key, words in (
-        ("ArrowRight", ["week w2", "kind features", "18 hours"]),
-        ("ArrowDown", ["week w2", "kind fixes", "14 hours"]),
-        ("Home", ["week w1", "kind fixes", "9 hours"]),
-        ("ArrowUp", ["week w1", "kind features", "21 hours"]),
-        ("End", ["week w2", "kind features", "18 hours"]),
+        ("ArrowRight", ["week w2", "kind features", "hours 18"]),
+        ("ArrowDown", ["week w2", "kind fixes", "hours 14"]),
+        ("Home", ["week w1", "kind fixes", "hours 9"]),
+        ("ArrowUp", ["week w1", "kind features", "hours 21"]),
+        ("End", ["week w2", "kind features", "hours 18"]),
     ):
         page.keyboard.press(key)
         expect(preview.locator(".lf-preview-detail")).to_have_text(words[1:])
@@ -787,16 +787,16 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
     page.mouse.move(*column(page, "hours", "w2", 0.2))
     page.mouse.move(*column(page, "hours", "w2", 0.15))
     expect(preview.locator(".lf-preview-detail")).to_have_text(
-        ["kind fixes", "14 hours"]
+        ["kind fixes", "hours 14"]
     )
     page.keyboard.press("Tab")
     expect(chart).to_be_focused()
     page.mouse.move(2, 2)
     expect(preview).to_have_attribute("data-lf-route", "focus")
-    assert said(page) == ["week w2", "kind fixes", "14 hours"]
+    assert said(page) == ["week w2", "kind fixes", "hours 14"]
     page.keyboard.press("ArrowLeft")
     expect(preview.locator(".lf-preview-detail")).to_have_text(
-        ["kind fixes", "9 hours"]
+        ["kind fixes", "hours 9"]
     )
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
@@ -816,7 +816,7 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
     page.keyboard.press("ArrowRight")
     expect(preview).to_be_visible()
     expect(ring).to_be_visible()
-    assert said(page) == ["week w2", "kind fixes", "14 hours"]
+    assert said(page) == ["week w2", "kind fixes", "hours 14"]
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
     page.keyboard.press("Escape")
@@ -856,7 +856,7 @@ def test_a_finger_held_on_a_chart_reads_the_point_under_it(browser, serve):
     touch("touchStart", start)
     expect(preview).to_be_visible()
     expect(preview).to_have_attribute("data-lf-route", "hold")
-    assert said(page) == ["week w2", "kind fixes", "14 hours"]
+    assert said(page) == ["week w2", "kind fixes", "hours 14"]
     assert preview.bounding_box()["y"] < start[1]
     # The slide crosses the gap between the columns, where no point is near enough to
     # read, so the preview goes and comes back on the next column.
@@ -864,7 +864,7 @@ def test_a_finger_held_on_a_chart_reads_the_point_under_it(browser, serve):
     for step in range(1, 7):
         touch("touchMove", (start[0] + (end[0] - start[0]) * step / 6, start[1]))
     expect(preview).to_be_visible()
-    assert said(page) == ["week w1", "kind fixes", "9 hours"]
+    assert said(page) == ["week w1", "kind fixes", "hours 9"]
     touch("touchEnd")
     expect(preview).to_be_hidden()
 
@@ -1009,6 +1009,11 @@ POINTER_CASES = {
                 "Plot.dot([{a: 1, b: 2}, {a: 6, b: 8}],"
                 ' {x: "a", y: "b", fill: "a", tip: true})'
             ),
+            # A format that gives a value nothing, which Plot's tip leaves at its label.
+            "blank-value": (
+                "Plot.dot([{x: 1, y: 2}, {x: 6, y: 8}],"
+                ' {x: "x", y: "y", tip: {format: {y: () => null}}})'
+            ),
             # Two rows whose values read the same, each still its own line.
             "same-values": (
                 'Plot.dot([{district: "A", team: "A", sales: 2},'
@@ -1074,15 +1079,14 @@ PICKED = """(svg) => {
 
 
 def _says_plot_s_rows(lines, rows):
-    """Whether a reading's lines are Plot's rows, one line for each: its label and its
-    value, either way round, or its value alone where it has no label. A line
-    pairing a value with another row's label, a row left unsaid, or a line Plot has
-    no row for, fails."""
+    """Whether a reading's lines are Plot's rows, one line for each, as Plot's tip
+    draws it: its label, then its value, either alone where the other is empty. A line
+    pairing a value with another row's label, a row left unsaid, or a line Plot has no
+    row for, fails."""
     unsaid = list(lines)
-    for label, value in rows:
-        said = {value} if not label else {f"{label} {value}", f"{value} {label}"}
-        line = next((line for line in unsaid if line in said), None)
-        if line is None:
+    for row in rows:
+        line = " ".join(part for part in row if part)
+        if line not in unsaid:
             return False
         unsaid.remove(line)
     return not unsaid
@@ -1106,8 +1110,9 @@ def test_a_chart_picks_the_point_plot_s_own_pointer_picks(engine, request, serve
     whose pick stands nearer; of one data drawn twice, by either mark's own rule and
     reach; by a tip's own px, on a scale that transforms it too; and on a stacked
     segment, at the middle of its extent. It says each row Plot's tip says there, a
-    line for each, with the row's own label and the value a tip's format gives it. A mark its offsets moved is read where
-    Plot draws it, which Plot's own pointer misses."""
+    line for each as Plot's tip draws it: the row's own label, then the value a tip's
+    format gives it, or none where the format gives nothing. A mark its offsets moved
+    is read where Plot draws it, which Plot's own pointer misses."""
     page = open_page(request.getfixturevalue(engine), serve(POINTER_PAGE))
     steps = [(n / 11, m / 7) for n in range(1, 11) for m in range(1, 7)]
     for name, (_, alone) in POINTER_CASES.items():

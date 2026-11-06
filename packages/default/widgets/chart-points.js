@@ -48,17 +48,21 @@
  * takes a tip off a mark or gives one to a rule.
  *
  * What a point says: the rows Plot's tip says (`tipSources` and `tipRows`, Plot's
- * `getSourceChannels` and `formatChannels`), a line each, with Plot's label and Plot's
- * pairing of label and value, each label said once as Plot's tip says it. Where the
- * point stands comes first, its facets, then the axis it stands along and the series
- * it is drawn in, each reading after its label ("week 6", "team backend"); then what it
- * measures, a number on a scale it doesn't stand at, reading before its label ("8,412
- * offline sessions"), a stacked one the datum's own share of the stack. Where both
- * axes measure, as in a scatter, x is where it stands. A mark's `title` channel says
- * something else: its first line as the name, the rest beneath. A channel the tip's
- * `format` words reads as that format, which Plot turns into a function as it does
- * for its own tip; the others read as a reader says them, a time as a date rather than
- * Plot's ISO date. */
+ * `getSourceChannels` and `formatChannels`), a line each, its label then its value as
+ * Plot's tip draws it ("week 6", "offline sessions 8,412"), each label said once as
+ * Plot's tip says it. Where the point stands comes first, its facets, the axis it
+ * stands along and the series it is drawn in; then what it measures, a number on a
+ * scale it doesn't stand at, a stacked one the datum's own share of the stack. Where
+ * both axes measure, as in a scatter, x is where it stands. A mark's `title` channel
+ * says something else: its first line as the name, the rest beneath. A channel the
+ * tip's `format` words reads as that format, which Plot turns into a function as it
+ * does for its own tip; the others read as a reader says them, a time as a date rather
+ * than Plot's ISO date.
+ *
+ * Rejected: a measure's value before its label ("8,412 offline sessions"). A chart with
+ * generic labels then alternated "x 2" with "2 y", a long label such as "share of
+ * checkout traffic (%)" read awkwardly after its number, and the author had to label
+ * each axis by what it counts for the line to read at all. */
 
 // The scales a datum stands at rather than measures on.
 const PLACES = new Set(["band", "point", "ordinal", "utc", "time"]);
@@ -77,7 +81,7 @@ const SQUASH = 0.01;
  * @typedef {{marginLeft: number, marginRight: number, marginTop: number, marginBottom: number, width: number, height: number}} Dimensions
  * @typedef {{[key: string]: Channel | true | undefined}} Sources
  * @typedef {{[key: string]: unknown}} Format
- * @typedef {{key: string, label?: string, value?: string}} Row
+ * @typedef {{key: string, label?: string | null, value?: unknown}} Row
  * @typedef {{values: Values, scales: Scales, fx: unknown, fy: unknown, left: number, bottom: number, number: (value: number) => string | undefined, sources: Sources, format: Format, authored: Format, rows: (this: {format: Format}, i: number, index: {fx?: unknown, fy?: unknown}, sources: Sources, scales: Scales, values: Values) => Iterable<Row>}} Drawn
  * @typedef {{tx: number, ty: number, kx: number, ky: number, reach: number, frame: Dimensions, points: Point[]}} Frame
  * @typedef {{x: number, y: number, px: number, py: number, ax: number, ay: number, i: number, order: number, drawn: Drawn, series: number, n: number, said?: string, same?: Point}} Point
@@ -473,7 +477,7 @@ export function sayPoint({ i, drawn }) {
   const across = placed(scales.y) && !placed(scales.x);
   const [first, second] = across ? ["y", "x"] : ["x", "y"];
   // A row measures where it says a number on a scale it doesn't stand at; the axis a
-  // point stands along, its facets and its series name where it stands.
+  // point stands along, its facets and its series name where it stands, and come first.
   /** @param {Row} row */
   const measures = ({ key }) => {
     const axis = axisOf(key);
@@ -516,11 +520,14 @@ export function sayPoint({ i, drawn }) {
   ]
     .filter(({ label }) => !label || (!labelled.has(label) && labelled.add(label)))
     .sort((a, b) => rank(a) - rank(b))
-    .map((row) => {
-      const { label = "", value = "" } = row;
-      if (!label) return value;
-      return measures(row) ? `${value} ${label}` : `${label} ${value}`;
-    });
+    // A line as Plot's tip draws it: the label, then the value, a nullish one as none
+    // (its `renderLine`).
+    .map(({ label, value }) =>
+      [label, value]
+        .map((part) => String(part ?? ""))
+        .filter(Boolean)
+        .join(" "),
+    );
   const [name = "", ...detail] = lines;
   return { name, detail };
 }

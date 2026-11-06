@@ -599,8 +599,9 @@ export const authored = (root) => {
 // open shadow root (x-shadow) shows the user what its shadow tree holds, and a host's
 // own children stop rendering the moment it has one. A TreeWalker sees none of that — it
 // stops dead at the boundary — so the walk is written out, and it is the same walk in
-// both directions: a host's shadow root stands in for its children, a <slot> stands for
-// what was assigned to it, and everything else is the light DOM it always was. Nothing
+// both directions: a host's shadow root stands in for its children, a <slot> in a shadow
+// tree stands for what was assigned to it, and everything else is the light DOM it
+// always was. Nothing
 // here asks which widget it is looking at; a document with no shadow roots in it walks
 // exactly as it did before.
 //
@@ -636,7 +637,9 @@ function walk(root, onText, skip = null, onBreak = null, onElement = null) {
     const inner = enter(ctx, child);
     if (child.localName === "br") {
       onBreak?.(inner);
-    } else if (isHTML(child, "slot")) {
+    } else if (isHTML(child, "slot") && shadowHost(child.getRootNode())) {
+      // A slot draws what is assigned to it only in a shadow tree; anywhere else it is
+      // an ordinary element, and its children are what it draws.
       passed.set(child, inner);
       onElement?.(child, inner, true);
       // In its light context, but read among the words where the slot draws it.

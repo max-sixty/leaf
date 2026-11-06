@@ -6370,6 +6370,41 @@ def test_page_search_reads_two_staged_widgets_side_by_side_apart(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_page_search_finds_a_shipped_options_chip_and_title_apart(
+    engine, request, serve
+):
+    """The default package's lf-ask example, as shipped, puts a chip and the option's
+    title it stands beside apart, as the theme draws them: page search finds
+    "recommended Drop"."""
+    registry = json.loads(
+        (Path(__file__).parents[2] / "packages/default/registry.json").read_text()
+    )
+    url = serve(leaf_page("Ask", registry["lf-ask"]["x-example"]))
+    page = open_page(request.getfixturevalue(engine), url)
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("recommended Drop")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_page_search_finds_the_words_a_slot_outside_a_shadow_tree_holds(
+    engine, request, serve
+):
+    """A `<slot>` in no shadow tree is an ordinary element, which draws its children, so
+    page search finds its words among the words beside it, as the file reads them."""
+    url = serve(
+        leaf_page(
+            "Light slot",
+            '<p id="slotted">alpha<slot>beta</slot>gamma</p>' + "<p>More.</p>" * 4,
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("alphabetagamma")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_page_search_reads_a_said_label_apart_from_its_elements_words(
     engine, request, serve
 ):

@@ -292,6 +292,15 @@
         "quote": "gloss Tip"
       },
       "before": 4
+    },
+    {
+      "id": "a slot outside any shadow tree draws its own children",
+      "markup": "<p id=\"s\">alpha<slot>beta</slot>gamma</p>",
+      "anchor": {
+        "section": "s",
+        "quote": "alphabetagamma"
+      },
+      "before": 0
     }
   ]
 }

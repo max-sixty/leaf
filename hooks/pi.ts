@@ -47,8 +47,8 @@ import { WatchOwner } from "./watch.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const LEAF = path.join(ROOT, "bin", "leaf");
-// The prompt and Stop hooks' timeout (`HOOK_TIMEOUT_S` in `hook_transport.py`, which
-// a test holds this to), and SessionEnd's (`hooks.json`).
+// The prompt and Stop hooks' timeout (`HOOK_TIMEOUT_S` in `harness.py`, which a test
+// holds this to), and SessionEnd's (`hooks.json`).
 const HOOK_TIMEOUT_MS = 20_000;
 const SESSION_END_TIMEOUT_MS = 3_000;
 const CUSTOM_TYPE = "leaf";

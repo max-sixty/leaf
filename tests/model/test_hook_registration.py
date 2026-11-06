@@ -31,7 +31,6 @@ from interact_support import (
 )
 
 from leaf import harness as harness_model
-from leaf import hook_transport as hook_transport_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -162,10 +161,10 @@ def _registered_hook_command(harness, event):
 
 
 def test_claude_code_runs_the_start_hook_only_after_a_compaction():
-    """Outside a compaction, Leaf's start hook adds only a reconnect notice, which
-    the prompt hook hands the same first turn, while Claude Code holds a resumed
-    session's first reply until its start hooks end. After a compaction it tells
-    the agent to read the leaf skill again (`hooks.reload_skill`) before it
+    """Outside a compaction, Leaf's start hook has nothing to add, while Claude Code
+    holds a resumed session's first reply until its start hooks end; the prompt
+    hook serves the session's pages again (`reconnect`). After a compaction it
+    tells the agent to read the leaf skill again (`hooks.reload_skill`) before it
     replies, which nothing else does."""
     [registration] = _registrations("claude-code")["SessionStart"]
     assert registration["matcher"] == "compact"
@@ -235,7 +234,7 @@ def test_every_carrying_hook_has_the_timeout_leaf_counts_on():
                 for hook in registration["hooks"]
                 if not hook.get("asyncRewake")
             ]
-            assert hook["timeout"] == hook_transport_model.HOOK_TIMEOUT_S, (
+            assert hook["timeout"] == harness_model.HOOK_TIMEOUT_S, (
                 harness,
                 event,
             )
@@ -245,7 +244,7 @@ def test_every_carrying_hook_has_the_timeout_leaf_counts_on():
         (PLUGIN_ROOT / "hooks" / "pi.ts").read_text(),
         re.MULTILINE,
     )
-    assert int(timeout.replace("_", "")) == hook_transport_model.HOOK_TIMEOUT_S * 1000
+    assert int(timeout.replace("_", "")) == harness_model.HOOK_TIMEOUT_S * 1000
 
 
 def test_the_registered_watch_hook_wakes_the_session(claimed, tmp_path):

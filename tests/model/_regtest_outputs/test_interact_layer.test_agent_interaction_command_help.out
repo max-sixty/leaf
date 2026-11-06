@@ -211,10 +211,11 @@ Usage: leaf task end [OPTIONS] PAGE ID {done|failed|dropped}
   the version or reply holding it, or why there is none.
 
   For a message obligation (`message:<id>`) or a question widget answered in
-  words (`widget:<id>`), done records that the user answered elsewhere, --text
-  saying where; dropped withdraws the question. These outcomes record no answer
-  from the user. A widget answered through its controls ends through its state
-  or an authored withdrawal.
+  words (`widget:<id>`), done records that the user answered elsewhere, or that
+  you saw a step's effect, --text saying where or what you saw; dropped
+  withdraws the question. These outcomes record no answer from the user. A
+  widget answered through its controls ends through its state or an authored
+  withdrawal.
 
 Options:
   --text TEXT  where the result is, or why there is none

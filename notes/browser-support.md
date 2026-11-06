@@ -89,16 +89,6 @@ The Chromium behavior and interruption contract are covered by
 `test_pointer_tab_underline_moves_without_delaying_the_view` in
 `tests/browser/widgets/test_tabs.py`.
 
-### Scroll-state containers
-
-Firefox 157 and Playwright Firefox and WebKit 26.6 lacked CSS scroll-state
-containers on 2026-10-14. `browser/layouts.css` declares `normal` before
-`scroll-state` so breakout tables keep their intended width in those engines;
-other tables keep the `inline-size` container from
-`browser/styles/components/reading.css`. Recheck table width with
-`test_a_table_of_prose_wraps_inside_its_box_in_every_engine` in
-`tests/browser/test_render_pages.py` before removing the fallback.
-
 ### Baseline content-alignment
 
 Option cards laid across align their titles with `align-content: first baseline`
@@ -236,6 +226,33 @@ closures on 2026-10-21; Firefox 155 closed immediately. Firefox's intrinsic
 interpolation is not near ("Intrinsic block retirement motion" has the bugs,
 checked 2026-10-25). Recheck both capabilities and keyboard access when
 changing this enhancement.
+
+### A short name in a table's first column
+
+`browser/styles/components/reading.css` keeps code in a row's first cell on one
+line up to 20ch or a quarter of its container, with `calc-size()` behind
+`@supports`. Engines without `calc-size()` keep the name breakable anywhere, so
+in a column of short option names beside a column of sentences, `--output-dir`
+reads as `--output-` over `dir`. The table still fits and every name stays
+readable, so this is an accepted visual difference. No fallback caps the
+minimum the same way, since `min()` takes no `max-content`.
+
+On 2026-11-06, Playwright 1.64.1's Firefox 157.0 (build 1555) and WebKit
+(Safari 27.2, build 2370) on Linux reported no `calc-size()` support. On the
+three-row table in the test below, the names `--plugin`, `--dry-run` and
+`--output-dir` took 1, 2 and 3 lines in Firefox at 1600 and 800px and 2, 2
+and 3 at 420px, and 2, 2 and 3 lines in WebKit at all three widths. The Chromium
+headless shell 156.0.8078.4 (build 1248) kept each on one line. Firefox tracks
+`calc-size()` in
+[bug 1896734](https://bugzilla.mozilla.org/show_bug.cgi?id=1896734)
+("Intrinsic block retirement motion" has its status), and WebKit in
+[bug 274177](https://bugs.webkit.org/show_bug.cgi?id=274177).
+
+Recheck by running
+`test_a_short_name_in_a_rows_first_cell_stays_on_one_line` in
+`tests/browser/test_render_gate.py` with `firefox_browser` or `webkit_browser`
+in place of `browser`; it fails while the gap holds. When both engines pass,
+parametrize the test over them.
 
 ### Browser dictation in comment boxes
 
@@ -644,6 +661,29 @@ an item without moving the containing page. On 2026-10-14, Playwright Firefox
 scroller when a horizontal strip's edge extended just beyond its band.
 Recheck a partly clipped strip's inner and outer scroll offsets before
 replacing Leaf's bounded walk with native reveal.
+
+### A repeated reveal of an anchored fixed box in Chromium
+
+Chromium and WebKit reveal a caret in a `position: fixed` box anchored to page
+content by scrolling the page, which carries the box, and Chromium reveals the
+box itself the same way (`scrollIntoView`, focus). Playwright Chromium
+156.0.8078.4 (build 1248), on 2026-11-05, scrolled the page again for each such
+reveal made before the next frame, as if the first had not moved the box. Give
+a 4000px body an absolutely positioned anchor at `top: 2000px`, a 20px fixed
+box at `top: anchor(top)` through `position-anchor`, and the root
+`scroll-padding-bottom: 100px`; scroll the anchor 830px down an 860px window
+and call `scrollIntoView({block: "nearest"})` on the box. One call scrolled
+90px, two 180px and three 270px. Typing four keys back to back into such a
+box's contenteditable at the window's foot scrolled 240px where one key
+scrolled 60px. Playwright WebKit 27.2 (build 2370) scrolled 0px for the calls
+and 60px for the keys, however many; Playwright Firefox 157 (build 1555)
+reveals no fixed box through the page.
+
+In Leaf the root drops its scroll padding while the user writes in a floating
+box (`base.css`, `data-lf-floating-editor`), so only a caret outside the window
+is revealed, and each key that lands in the same frame adds another reveal's
+scroll; #5417 accepted that overshoot. Recheck the three calls in Chromium; a
+90px scroll means the gap has closed.
 
 ### `calc()` in `overflow-clip-margin` in Chromium
 

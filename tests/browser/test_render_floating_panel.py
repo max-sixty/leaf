@@ -1629,6 +1629,53 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
     expect(rows.first).not_to_have_text(re.compile("Is the opening right?"))
 
 
+def test_a_pointer_press_on_the_joined_notice_lands_the_walk_on_its_row(browser, serve):
+    """A pointer's or a finger's press on the notice lands the list's walk on the first
+    row it names, as Enter on it does. Where the user stood on a row of the list, or on
+    the view itself, as Escape from Threads' search leaves them, focus goes with the
+    walk, since the arrows walk from focus there. Where the caret is in the panel's
+    field, the walk moves and the caret stays."""
+    url = serve(LONG_PAGE, comments=3)
+    page = floating(browser, url)
+    dev_browser.go_to_threads(page)
+    panel_settled(page, view="threads")
+    rows = page.locator(panel_view("threads")).locator(".lf-fp-thread")
+    expect(rows).to_have_count(3)
+    page.keyboard.press("ArrowDown")
+    stood = rows.nth(1)
+    expect(stood).to_be_focused()
+    notice = page.locator(".lf-fp-joined .lf-thread-news")
+
+    panel_comment(serve.page_dir, "Should the close name the rollout?", author="agent")
+    told(page)
+    expect(notice).to_have_attribute("title", "1 new thread")
+    notice.click()
+    joined = rows.filter(has_text="Should the close name the rollout?")
+    expect(joined).to_be_focused()
+    expect(joined).to_have_attribute("tabindex", "0")
+    expect(stood).to_have_attribute("tabindex", "-1")
+
+    page.keyboard.press("/")
+    page.keyboard.press("Escape")
+    expect(page.locator(panel_view("threads"))).to_be_focused()
+    panel_comment(serve.page_dir, "Is the retry window documented?", author="agent")
+    told(page)
+    expect(notice).to_have_attribute("title", "1 new thread")
+    notice.click()
+    searched = rows.filter(has_text="Is the retry window documented?")
+    expect(searched).to_be_focused()
+    expect(searched).to_have_attribute("tabindex", "0")
+
+    field(page).click()
+    panel_comment(serve.page_dir, "Does the summary need a date?", author="agent")
+    told(page)
+    expect(notice).to_have_attribute("title", "1 new thread")
+    notice.click()
+    later = rows.filter(has_text="Does the summary need a date?")
+    expect(later).to_have_attribute("tabindex", "0")
+    expect(field(page)).to_be_focused()
+
+
 def test_resolved_news_unfolds_resolved_to_land_on_its_row(browser, serve):
     """A thread resolved elsewhere while Threads stands with Resolved folded keeps its
     row in place behind the notice, with Open's band counting it out as the tab does,
@@ -5200,7 +5247,7 @@ def test_a_refused_page_comment_hands_its_words_back_to_the_field(browser, serve
 
 def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(browser, serve):
     """A thread about words the page no longer holds opens in the panel, where the
-    quotation it kept stands over its messages in three lines, led by the word that
+    quotation it kept stands over its messages in three lines, under the word that
     says the page has no place for it, which a finger reads as a pointer does; Full
     quote shows the rest, as a card's head does."""
     url = serve(LONG_PAGE)
@@ -5217,14 +5264,13 @@ def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(browser,
     expect(view.locator(".lf-msg")).to_contain_text("Does this still apply?")
     quote = view.locator(".lf-thread-quote")
     expect(quote).to_contain_text("FINAL WORDS")
-    expect(quote).to_have_attribute("data-lf-detached", "")
-    assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
-    status = quote.locator(".lf-anchor-status")
-    expect(status).to_have_text("Not found")
-    assert status.evaluate(
-        "s => s.getBoundingClientRect().bottom"
-        " <= s.closest('.lf-thread-quote').getBoundingClientRect().bottom"
+    expect(view.locator(".lf-thread-quote-head")).to_have_attribute(
+        "data-lf-detached", ""
     )
+    assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
+    status = view.locator(".lf-quote-label .lf-anchor-status")
+    expect(status).to_have_text("Not found")
+    expect(status).to_be_visible()
     disclosure = view.get_by_role("button", name="Full quote", exact=True)
     expect(disclosure).to_be_visible()
     disclosure.click()
@@ -6057,7 +6103,8 @@ def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     expect(page.locator(panel_view("thread"))).to_be_visible()
     expect(field(page)).to_be_focused()
     expect(field(page)).to_have_js_property("value", "Make it the weekend.")
-    page.wait_for_timeout(300)
+    # The resume has drawn whatever it decided, an error included.
+    rendered(page)
     expect(page.get_by_text("That writing place is unavailable")).to_have_count(0)
 
 

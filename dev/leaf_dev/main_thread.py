@@ -2,7 +2,7 @@
 
 The browser reports frames of at least 50 ms and their script entry points, including
 forced layout. This is a floor on work, not a CPU profile or proof which widget owns
-it. Probe splits startup from its input steps; bench-latency selects its goal window.
+it. Probe splits startup from its input steps; bench selects its goal window.
 """
 
 from pathlib import Path

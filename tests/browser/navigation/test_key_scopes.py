@@ -30,6 +30,7 @@ from render_harness import (
     available_commands,
     consume_browser_errors,
     draft_control,
+    expect_panel_says,
     hold_selection,
     is_problem,
     leaf_page,
@@ -39,11 +40,13 @@ from render_harness import (
     panel_field,
     panel_settled,
     panel_view,
+    refuse,
     resized,
     round_trip,
     scroll_settled,
     select_words,
     told,
+    watched,
     write,
 )
 
@@ -619,6 +622,53 @@ def test_a_dialog_shown_as_a_popover_stands_as_a_popover(browser, serve):
       return {popover, modal};
     }""")
     assert kinds == {"popover": ["popover"], "modal": ["modal"]}
+
+
+HOVER_CARD_PAGE = """<!doctype html>
+<html lang="en">
+  <head><title>Escape under a hover card</title></head>
+  <body>
+    <main>
+      <p id="para">
+        <span id="word">Hover this word</span>, or focus this
+        <a id="link" href="#para">link</a>.
+      </p>
+      <div id="card" popover="manual"><button id="in-card">In the card</button></div>
+    </main>
+  </body>
+</html>
+"""
+
+
+def test_escape_passes_a_manual_popover_the_user_is_not_in(browser, serve):
+    """A manual popover the user isn't in, such as a hover card, leaves Escape its steps
+    beneath it: the panel's comment field and a link let go under it as they do with no
+    card open. The browser never closes a manual popover on Escape, so standing the
+    steps down under one left every press dead until the card closed (#5582). Focus
+    inside the card makes it the user's layer again, and the page beneath stays out of
+    Escape's reach."""
+    page = open_page(browser, serve(HOVER_CARD_PAGE))
+    card = page.locator("#card")
+    link = page.locator("#link")
+    show = "() => document.getElementById('card').showPopover()"
+
+    link.focus()
+    page.evaluate(show)
+    page.keyboard.press("Escape")
+    expect(link).not_to_be_focused()
+    assert card.evaluate("c => c.matches(':popover-open')")
+
+    field = panel_field(page)
+    write(field, "words")
+    expect(field).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(field).not_to_be_focused()
+    assert card.evaluate("c => c.matches(':popover-open')")
+
+    page.locator("#in-card").focus()
+    page.keyboard.press("Escape")
+    expect(page.locator("#in-card")).to_be_focused()
+    assert card.evaluate("c => c.matches(':popover-open')")
 
 
 def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser, serve):
@@ -1393,6 +1443,55 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     expect(leaves).to_be_hidden()
     page.evaluate(press, ["l", False, True])  # the same event, answered
     expect(leaves).to_be_visible()
+
+
+def test_a_walk_with_nothing_to_step_through_says_so(browser, serve):
+    """Each page walk's letter is live on every page: on a page with no open thread,
+    nothing on the user, no comparison and no search, a press says so in the panel
+    rather than doing nothing (keyboard/AGENTS.md, "Page grammar"), and Shift's
+    reverse says the same."""
+    page = open_page(
+        browser, serve(leaf_page("Quiet", "<h1>Quiet</h1><p>Nothing to answer.</p>"))
+    )
+    for key, words in (
+        ("t", "No open threads"),
+        ("m", "Nothing waiting on me"),
+        ("h", "No changes marked"),
+        ("n", "No search to repeat"),
+        ("Shift+t", "No open threads"),
+    ):
+        page.keyboard.press(key)
+        expect_panel_says(page, words)
+
+
+def test_an_offline_walk_says_its_list_cannot_be_had(browser, serve):
+    """With the server's reading refused, an empty walk doesn't claim its list is
+    empty: the page's log holds an open thread `t` can't see, so `t`, and `m` with it,
+    say their lists can't be had, as the Threads view does."""
+    url = serve(
+        leaf_page("Offline", '<h1>Offline</h1><p id="said">Words to comment on.</p>'),
+        events=[
+            {
+                "id": "held-thread",
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Walk to me.",
+                "anchor": {"section": "said"},
+            }
+        ],
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    page.route("**/api/state*", refuse)
+    page.goto(url, wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    page.keyboard.press("t")
+    expect_panel_says(
+        page, "Current threads are unavailable while the server is offline"
+    )
+    page.keyboard.press("m")
+    expect_panel_says(page, "On me is unavailable while the server is offline")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

@@ -457,7 +457,7 @@ def test_a_thread_on_a_widget_an_agent_sent_stands_in_its_message(
 
     with subtests.test("a detached anchor stays detached"):
         thread = open_panel_thread(page, "c-lost")
-        expect(thread.locator(".lf-thread-quote")).to_have_attribute(
+        expect(thread.locator(".lf-thread-quote-head")).to_have_attribute(
             "data-lf-detached", ""
         )
         expect(
@@ -465,10 +465,10 @@ def test_a_thread_on_a_widget_an_agent_sent_stands_in_its_message(
         ).to_have_count(0)
 
     thread = open_panel_thread(page, "c-on-sent")
-    quote = thread.locator(".lf-thread-quote")
-    expect(quote).to_contain_text("Which store should I write up?")
-    assert "ps-decision-region" not in quote.inner_text()
-    expect(quote).not_to_have_attribute("data-lf-detached", "")
+    head = thread.locator(".lf-thread-quote-head")
+    expect(head).to_contain_text("Which store should I write up?")
+    assert "ps-decision-region" not in head.inner_text()
+    expect(head).not_to_have_attribute("data-lf-detached", "")
 
     page.locator(".lf-fp-aux").get_by_role(
         "button", name="Show in message", exact=True

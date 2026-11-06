@@ -355,6 +355,12 @@ it. A widget that wants Leaf's face for the pointer too, its key chips included,
 declares the words in `lfPreview` and writes no `title`. Off Leaf nothing reads
 `lfPreview`.
 
+A link an author wrote to a place on the page previews that place with no declaration.
+A link a widget draws previews nothing of the place unless the widget declares it,
+since only the widget knows whether its words already say what the place holds; to
+show the place, return `placePreview(element)`, the name, first lines, answer and
+threads Leaf shows for an authored link.
+
 ### Pointer presses
 
 A handler that takes over a click, such as a link that opens a source line, acts only on

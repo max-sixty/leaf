@@ -436,7 +436,7 @@ export function createObligationView({
   /** @param {string | null} item */
   function restoreCurrentLocation(item) {
     if (!item || currentLocationObligation()?.id === item) return;
-    const record = readObligations().all.find((candidate) => candidate.id === item);
+    const record = readObligations().byId.get(item);
     const target = record && arrivalFocus(record);
     if (target) focusForNavigation(target, "return");
   }

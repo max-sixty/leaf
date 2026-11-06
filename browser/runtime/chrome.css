@@ -1323,6 +1323,78 @@ html[data-lf-region-capture]
     background: var(--tip-bg);
     color: color-mix(in srgb, var(--tip-ink) 76%, transparent);
   }
+  /* A place's preview (place-preview.js), what a link into the page opens, in the
+     excerpt room: under the place's name, its first parts as the page reads them, each a
+     line of detail the face fits to its room (`fit`, preview.js), a list's items, a
+     table's cells and a code block's lines each cut to one, then the conversations about
+     it under a rule. The tooltip's ground is the page's ink, so its marks mix the
+     tooltip's own ink rather than the paper's colours. */
+  .lf-place-heading,
+  .lf-place-cell[data-lf-head] {
+    font-weight: 600;
+  }
+  .lf-place-list {
+    display: flex;
+    flex-direction: column;
+  }
+  .lf-place-item,
+  .lf-place-cell,
+  .lf-place-code {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lf-place-item::before {
+    content: "•";
+    margin-inline-end: 6px;
+    color: color-mix(in srgb, currentColor 72%, transparent);
+  }
+  /* A member the widget's answer picks, checked as paper marks a chosen option
+     (options.css). */
+  .lf-place-item[data-lf-chosen] {
+    font-weight: 600;
+  }
+  .lf-place-item[data-lf-chosen]::before {
+    content: "✓";
+    color: inherit;
+  }
+  .lf-place-table {
+    display: grid;
+    grid-template-columns: repeat(var(--lf-columns), minmax(0, auto));
+    gap: 2px 12px;
+  }
+  .lf-place-row {
+    display: contents;
+  }
+  .lf-place-more {
+    grid-column: 1 / -1;
+    color: color-mix(in srgb, currentColor 72%, transparent);
+  }
+  .lf-place-code {
+    display: block;
+    white-space: pre;
+    font: var(--font-code);
+  }
+  .lf-place-figure {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .lf-place-figure > img {
+    display: block;
+    max-width: 100%;
+    max-height: 8rem;
+    object-fit: contain;
+    object-position: left;
+  }
+  .lf-place-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 10px;
+    margin-block-start: 2px;
+    padding-block-start: 4px;
+    border-block-start: 1px solid color-mix(in srgb, currentColor 28%, transparent);
+  }
   @media (prefers-reduced-motion: reduce) {
     .lf-preview-face {
       transition: none;

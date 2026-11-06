@@ -742,7 +742,7 @@ def test_a_list_preview_shows_what_its_room_holds_and_counts_the_rest(
         more: counted ? more.textContent : null, inside: box.bottom <= innerHeight};
     }"""
     size = page.viewport_size
-    page.set_viewport_size({"width": size["width"], "height": 400})
+    page.set_viewport_size({"width": size["width"], "height": 260})
     page.locator("#before").focus()
     page.keyboard.press("Tab")
     expect(tip.locator(".lf-preview-word")).to_have_text("30 threads")
@@ -1555,3 +1555,86 @@ def test_a_count_on_a_control_s_face_names_nothing(engine, request, serve):
     cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
     rendered(phone)
     assert phone.evaluate("window.lfPressed") == 0
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_leaves_a_field_beside_it_reachable(engine, request, serve):
+    """A field is a control the user works, though it previews nothing, so a preview
+    stands clear of one beside its target, and a press on the field focuses it."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Field",
+                '<p style="margin-top: 200px"><button id="explain">Explain the'
+                ' calculation</button><br><input id="field" aria-label="Amount"'
+                ' style="width: 260px"></p>',
+            )
+        ),
+    )
+    page.set_viewport_size({"width": 1200, "height": 700})
+    page.evaluate(
+        """() => { document.getElementById('explain').lfPreview = () => ({name:
+          'How the total is worked out', detail: ['Each line is the price times the'
+          + ' quantity', 'The total adds every line']}); }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(2, 2)
+    page.locator("#explain").hover()
+    expect(tip.locator(".lf-preview-word")).to_have_text("How the total is worked out")
+    rendered(page)
+    assert page.evaluate(COVERS, ["field"]) == []
+    page.locator("#field").click()
+    expect(page.locator("#field")).to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_standing_preview_redrawn_over_a_control_that_arrived_moves_clear(
+    engine, request, serve
+):
+    """A control that arrives under a standing preview is found again as the preview
+    redraws, whatever it found clear before, so the preview leaves it whole and a press
+    on it reaches it."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(leaf_page("Arrived", "<p>Words.</p>")),
+    )
+    page.set_viewport_size({"width": 1200, "height": 700})
+    page.evaluate(
+        """() => {
+          const aim = document.createElement('button');
+          aim.id = 'aim';
+          aim.textContent = 'A';
+          aim.style = 'position: fixed; left: 300px; top: 200px; width: 80px;'
+            + ' height: 40px; padding: 0';
+          aim.lfPreview = () => ({name: 'Preview words',
+            detail: ['A second line', 'A third line']});
+          window.pressed = 0;
+          document.body.append(aim);
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(2, 2)
+    page.locator("#aim").hover()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Preview words")
+    rendered(page)
+    box = tip.bounding_box()
+    page.evaluate(
+        """async ([left, top]) => {
+          const next = document.createElement('button');
+          next.id = 'next';
+          next.textContent = 'Arrived';
+          next.style = `position: fixed; left: ${left}px; top: ${top}px; width: 100px;`
+            + ' height: 30px; padding: 0';
+          next.onclick = () => { window.pressed += 1; };
+          document.body.append(next);
+          const {previewChanged} = await window.__lfWidgetApi();
+          previewChanged(document.getElementById('aim'));
+        }""",
+        [box["x"] + 10, box["y"] + box["height"] / 2],
+    )
+    rendered(page)
+    assert page.evaluate(COVERS, ["next"]) == []
+    arrived = page.locator("#next").bounding_box()
+    page.mouse.click(arrived["x"] + 50, arrived["y"] + 15)
+    assert page.evaluate("window.pressed") == 1

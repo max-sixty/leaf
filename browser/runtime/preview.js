@@ -232,6 +232,7 @@ import { nextRender, sizeObserver } from "./rendering.js";
 import { atClock, clockNow } from "./presence.js";
 import { watchOwner } from "./arrivals.js";
 import { actionClass } from "./control-faces.js";
+import { WORKS } from "./control-selectors.js";
 import { shownParts, shownWindow, visualViewport } from "./geometry.js";
 
 /** @typedef {string | Node | import("/vendor/lit.js").TemplateResult} Word
@@ -888,8 +889,7 @@ const following = sizeObserver(
     const { width, height } = entry.target.getBoundingClientRect();
     const was = followedSize;
     followedSize = { width, height };
-    if (shown && was && (was.width !== width || was.height !== height))
-      decide(true, true);
+    if (shown && was && (was.width !== width || was.height !== height)) decide(true);
   },
   // A preview comes and goes for as long as the page plays.
   { counted: false },
@@ -920,7 +920,7 @@ function scrolled(event) {
     followed &&
     (box === document || (isElement(box) && renderedUnder(followed, box)))
   )
-    decide(false, true);
+    decide(false);
 }
 // Decide the standing preview again in the next frame, once however many of its grounds
 // changed in this one: its words and place (`refresh`) where what it says may have
@@ -928,13 +928,10 @@ function scrolled(event) {
 // stands by, and else its place alone, as a scroll's or the visible viewport's.
 let deciding = 0;
 let rereading = false;
-/** @param {boolean} reread @param {boolean} moved */
-function decide(reread, moved) {
+/** @param {boolean} reread */
+function decide(reread) {
   if (!shown) return;
   rereading ||= reread;
-  // What moved under or around it, a scroll's or a resize's, leaves nothing it was found
-  // clear of known.
-  if (moved && placed) [placed.clear, placed.hit] = [0, Infinity];
   if (deciding) return;
   // The request stands until the decision has run, so what the decision itself sets
   // going, as a presentation or a resize it causes, asks for none of its own.
@@ -949,18 +946,13 @@ function decide(reread, moved) {
   });
 }
 
-/** @typedef {{y: "below" | "above" | "top", x: "left" | "right" | "after" | "before" | "center", from: number, room: number, box: Box, hit?: number}} Placement */
+/** @typedef {{y: "below" | "above" | "top", x: "left" | "right" | "after" | "before" | "center", from: number, room: number, box: Box}} Placement */
 // The target the standing preview stands for, the edge across it stands by, left or
 // right, and its top corner on that edge as offsets from the box it stands by, which the
-// next decision for that target tries first.
-// The box it stood by then, the columns it stood across, how far down from that corner
-// it was found clear, and where it met another control (`hit`), if it did.
-/** @type {{target: Target, x: "left" | "right", corner: {x: number, y: number}, box: Box, across: {left: number, right: number}, clear: number, hit: number} | null} */
+// next decision for that target tries first. What stands around it is tested afresh
+// every time, since the page may have changed there whatever the target did.
+/** @type {{target: Target, x: "left" | "right", corner: {x: number, y: number}} | null} */
 let placed = null;
-
-/** @param {Box} a @param {Box} b */
-const sameBox = (a, b) =>
-  a.left === b.left && a.top === b.top && a.right === b.right && a.bottom === b.bottom;
 
 // Stand the preview by its anchor, and say whether it stands: the one decision of where
 // it stands, made `again` for the target it already stands for, which tries the place it
@@ -1084,21 +1076,7 @@ function stand(record, reading, standing, again) {
       Math.max(0, Math.min(height, at.room, towardSubject(at))),
     );
     if (reach < least) return reach;
-    // Where it stands now, its words redrawn over the same box no wider than they stood,
-    // the room it was found to hold clear is known, so only what they grew into is tested.
-    const known =
-      at === now &&
-      was &&
-      sameBox(was.box, box) &&
-      at.box.left >= was.across.left &&
-      at.box.right <= was.across.right
-        ? was
-        : null;
-    at.hit =
-      known && known.hit < Infinity
-        ? known.hit
-        : atLayoutPrecision(clearRoom(at, reach, holder, known?.clear ?? 0));
-    return Math.min(reach, at.hit);
+    return Math.min(reach, atLayoutPrecision(clearRoom(at, reach, holder)));
   };
   /** @type {Placement | null} */
   let chosen = null;
@@ -1174,10 +1152,6 @@ function stand(record, reading, standing, again) {
       x: right ? box.right - drawn.right : drawn.left - box.left,
       y: drawn.top - box.top,
     },
-    box: { left: box.left, top: box.top, right: box.right, bottom: box.bottom },
-    across: { left: drawn.left, right: drawn.right },
-    clear: covering ? 0 : tall,
-    hit: covering ? Infinity : (chosen.hit ?? Infinity),
   };
   keeps(tip, "data-lf-y", chosen.y);
   keeps(tip, "data-lf-x", chosen.x);
@@ -1212,25 +1186,23 @@ function stand(record, reading, standing, again) {
 }
 
 // How far a preview at `at` may run from the edge it grows from before it covers a
-// target other than `holder`, or Infinity where nothing stands within `reach`: hit tests
-// every `REACH` across its width, row by row out from that edge past what is `known`
-// clear, through the preview where it stands now, the first row that finds a target
-// ending the room at that target's near edge. A target too small to
-// hold a test point is smaller than any Leaf asks a pointer to reach, WCAG's least,
-// 24 px; an author's smaller one can stand unseen between the points, since no sampling
-// proves a target absent, which is the grid's limit. A point inside the holder's own box
-// finds the holder or what it holds, which are no other target, so it is not tested, as
-// most of a preview standing over a chart is not, which bounds its cost.
-/** @param {Placement} at @param {number} reach @param {Element} holder @param {number} known */
-function clearRoom(at, reach, holder, known) {
-  if (known >= reach) return Infinity;
+// control other than `holder` that must stay reachable, or Infinity where none stands
+// within `reach`: hit tests every `REACH` across its width, row by row out from that
+// edge, through the preview where it stands now, the first row that finds one ending
+// the room at its near edge. A control too small to hold a test point is smaller than
+// any Leaf asks a pointer to reach, WCAG's least, 24 px; an author's smaller one can
+// stand unseen between the points, since no sampling proves a control absent, which is
+// the grid's limit. A point inside the holder's own box finds the holder or what it
+// holds, which are no other control, so it is not tested, as most of a preview standing
+// over a chart is not, which bounds its cost.
+/** @param {Placement} at @param {number} reach @param {Element} holder */
+function clearRoom(at, reach, holder) {
   const own = holder.getBoundingClientRect();
   const down = at.y !== "above";
   const across = steps(at.box.left, at.box.right);
-  const span = reach - known;
-  const count = Math.max(1, Math.ceil((span - 2) / REACH));
+  const count = Math.max(1, Math.ceil((reach - 2) / REACH));
   for (let n = 0; n <= count; n++) {
-    const off = known + 1 + (Math.max(span - 2, 0) * n) / count;
+    const off = 1 + (Math.max(reach - 2, 0) * n) / count;
     const y = down ? at.from + off : at.from - off;
     let edge = Infinity;
     for (const x of across) {
@@ -1253,8 +1225,10 @@ function steps(from, to) {
     (_, n) => from + 1 + ((to - from - 2) * n) / count,
   );
 }
-// The target other than `holder`, or around or in it, at a point of the page beneath the
-// preview, through every shadow tree there.
+// The control other than `holder`, or around or in it, at a point of the page beneath
+// the preview, through every shadow tree there: what the user can work there, as a
+// field, a link or anything focusable (control-selectors.js, `WORKS`), or point at to
+// read, as whatever previews (`mayPreview`), the nearest around what the point finds.
 /** @param {number} x @param {number} y @param {Element} holder */
 function targetAt(x, y, holder) {
   let hit = document.elementsFromPoint(x, y).find((el) => !tip.contains(el)) ?? null;
@@ -1264,7 +1238,12 @@ function targetAt(x, y, holder) {
     inner = hit.shadowRoot?.elementFromPoint(x, y)
   )
     hit = inner;
-  const found = hit && candidate(climb(hit));
+  let found = null;
+  for (const at of hit ? climb(hit) : [])
+    if (at.matches(WORKS) || mayPreview(at)) {
+      found = at;
+      break;
+    }
   return found && !renderedUnder(found, holder) && !renderedUnder(holder, found)
     ? found
     : null;
@@ -1453,14 +1432,14 @@ export function mountPreviews(chrome) {
       .catch(() => {})
       .then(() => {
         refreshing = false;
-        decide(true, false);
+        decide(true);
       });
   };
   watchPresentation(presented);
-  window.addEventListener("resize", () => decide(true, true), { passive: true });
+  window.addEventListener("resize", () => decide(true), { passive: true });
   document.addEventListener("scroll", scrolled, { capture: true, passive: true });
   for (const type of ["resize", "scroll"])
-    visualViewport.addEventListener(type, () => decide(false, true), { passive: true });
+    visualViewport.addEventListener(type, () => decide(false), { passive: true });
 
   document.addEventListener(
     PREVIEW,

@@ -386,7 +386,7 @@ export function effectiveScroller(regionOrNode) {
 // panel's own list for a widget an agent put in a reply, which is scrolled by that and
 // by nothing else. A drag naming the wrong one sits at the edge waiting for a scroll
 // that never comes. The list answers here as any region does: the panel registers it as
-// its bounded reading region (`mountPanelReadingRegion`).
+// its bounded reading region (`registerReadingRegion`).
 /** @param {Node | null | undefined} el */
 export const scrollerFor = (el) => {
   const region = containingReadingRegionFor(el);

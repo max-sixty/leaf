@@ -118,6 +118,7 @@ import {
   markdownWords,
   offer,
   offerAction,
+  placePreview,
   pressIsKeyboardActivation,
   quoted,
   reachedForWords,
@@ -588,7 +589,8 @@ customElements.define(
     // The block this option is about. A pointer, not a voice: it names the block by the
     // name the chrome gives it (`addressableLabel`), else by its word, and by the id
     // only where no block in the option's document answers to it. After § a kind word
-    // such as "section" says nothing, so the name stands alone. It is chrome
+    // such as "section" says nothing, so the name stands alone, and pointing at it
+    // previews the block, as a link into the page does (`placePreview`). It is chrome
     // throughout — a thing to work and nothing else, so paper drops it.
     /** @param {Element} option */
     #reference(option) {
@@ -598,7 +600,10 @@ customElements.define(
       const label = `§ ${addressableLabel(block) || addressableWord(block) || target}`;
       const ref = offer("a", "lf-ref", label);
       ref.href = `#${target}`;
-      ref.title = `Jump to ${label}`;
+      ref.lfPreview = () => {
+        const named = elementById(target, authoredScope(this));
+        return named ? placePreview(named) : null;
+      };
       option.append(ref);
     }
 

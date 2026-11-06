@@ -605,6 +605,30 @@ def control_preview(page: Page) -> None:
     settle(page)
 
 
+def link_preview(page: Page) -> None:
+    """The gallery's link to its session table under a resting pointer, whose preview
+    shows the table's caption, its first rows and the thread about it
+    (place-preview.js). A runtime without link previews shows the link alone, once a
+    second has passed without one."""
+    page.locator("#bg-link-previews").evaluate(
+        "el => el.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    page.locator("#bg-link-table").hover()
+    page.evaluate(
+        """() => new Promise((done) => {
+          const tip = document.getElementById('lf-preview');
+          const until = performance.now() + 1000;
+          const look = () =>
+            !tip || tip.matches(':popover-open') || performance.now() > until
+              ? done()
+              : requestAnimationFrame(look);
+          look();
+        })"""
+    )
+    settle(page)
+
+
 def open_card(page: Page, marker: Locator) -> None:
     """The margin card `marker` opens, by a click on it. The margin is fixed to the
     window and anchored to the page, so Playwright's scroll into view leaves a marker
@@ -2933,6 +2957,7 @@ STATES = (
     State("page-map-turn", "ship-review", page_map, region=".lf-page-map-dialog"),
     State("plan-card", "review-a-plan", card_by_pointer),
     State("control-preview", "review-a-plan", control_preview),
+    State("link-preview", "feature-gallery", link_preview),
     State("reaction-palette", "ship-review", reaction_palette),
     State("reaction-pressed", "ship-review", reaction_pressed),
     State(

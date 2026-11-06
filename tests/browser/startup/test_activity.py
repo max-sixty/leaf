@@ -500,10 +500,7 @@ def test_the_tab_wears_what_the_leaf_says(browser, serve, tmp_path, dead_pid):
     runtime paints the element it declares in whatever colour the dot is wearing, so the
     tab and the leaf are one fact read twice: a palette written out again for the tab
     would be free to drift from the theme the day a project overrode a token, and drift
-    silently, since a tab nobody is watching closely is exactly the case this is for.
-
-    What a copy does with all of it is the export section's
-    (test_a_copy_wears_the_mark_and_claims_no_session)."""
+    silently, since a tab nobody is watching closely is exactly the case this is for."""
     page = open_page(browser, serve(LONG_PAGE))
     d = serve.page_dir
 

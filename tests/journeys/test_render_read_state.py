@@ -59,9 +59,9 @@ def _first_unread(page):
     page.keyboard.press("u")
 
 
-# What the panel's chrome says now: the line over the field and the leaf's peek.
+# What the panel's chrome says now: the leaf's peek.
 def _said(page):
-    return " ".join(page.locator(".lf-fp-context, .lf-fp-peek").all_text_contents())
+    return " ".join(page.locator(".lf-fp-peek").all_text_contents())
 
 
 def _thread_row(page, thread):

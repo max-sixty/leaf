@@ -19,7 +19,11 @@
    widget says it set or changed with `lf-commands` (`commandsChanged`): Leaf reads them
    then and binds them (keyboard/scopes.js), and a plain page, reading nothing, binds no
    key and advertises none. Words for a listener are `lf-announce` (`announce`), which a
-   Leaf page says in its live region (notifications.js) and a plain page leaves unsaid. */
+   Leaf page says in its live region (notifications.js) and a plain page leaves unsaid.
+   What pointing at an element reads is data on it too, `lfPreview`, and the widget says
+   when that changes with `lf-preview` (`previewChanged`), as the user's aim moves from
+   one of a chart's points to the next, or a grip's words stop being true once its card
+   is grabbed: Leaf reads it again (preview.js). */
 import { describeFailure, exceptionError } from "./exception.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
@@ -83,6 +87,12 @@ export const layoutChanged = (el) => {
 // window, so its event is dispatched there directly, carrying the element, as a failure's
 // is (`reportFailure`). A declaration Leaf refuses throws here, where the widget made
 // it, since a listener's exception never reaches the dispatcher.
+// That what pointing at an element reads, its `lfPreview`, changed.
+export const PREVIEW = "lf-preview";
+/** @param {Element} el */
+export const previewChanged = (el) => {
+  el.dispatchEvent(new Event(PREVIEW, { bubbles: true, composed: true }));
+};
 export const COMMANDS = "lf-commands";
 const CHANGED = Symbol("element whose commands changed");
 const REFUSED = Symbol("why Leaf refused the declaration");

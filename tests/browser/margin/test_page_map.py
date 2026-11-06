@@ -973,10 +973,14 @@ def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, ser
     )
     resized(page, 1440, 900)
     entries = page.locator(".lf-margin-entry")
+    # What each entry the margin shows says when pointed at; one folded into another's
+    # overflow shows nothing to point at.
     buttons = [
         {
             "name": entries.nth(index).get_attribute("aria-label"),
-            "word": " ".join(preview_parts(entries.nth(index))),
+            "word": " ".join(preview_parts(entries.nth(index)))
+            if entries.nth(index).is_visible()
+            else "",
         }
         for index in range(entries.count())
     ]

@@ -2170,7 +2170,9 @@ export class Trace extends LeafElement {
         ? `Image from ${this.#time(shown.timestamp, shown.stream)}`
         : "";
     keepsText(this.#nodes.selectionLabel, selection);
-    keeps(this.#nodes.selectionLabel, "title", selection || null);
+    // Cut to its line, it says itself whole when pointed at.
+    this.#nodes.selectionLabel.lfPreview = () =>
+      selection ? { name: selection } : null;
     this.#drawInput();
   }
 
@@ -2515,7 +2517,11 @@ export class Trace extends LeafElement {
           </div>
         </div>
         <div class="lf-trace-capture-footer" ?hidden=${!trace}>
-          <p class="lf-trace-caption" title=${caption || nothing} ?hidden=${!extent}>
+          <p
+            class="lf-trace-caption"
+            .lfPreview=${() => (caption ? { name: caption } : null)}
+            ?hidden=${!extent}
+          >
             ${caption}
           </p>
           <a

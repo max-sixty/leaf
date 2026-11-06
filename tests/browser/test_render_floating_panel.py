@@ -43,6 +43,7 @@ from render_harness import (
     panel_menu,
     panel_settled,
     panel_view,
+    preview_parts,
     resized,
     rgb_pixels,
     round_trip,
@@ -1247,7 +1248,7 @@ def test_copy_link_is_one_press_in_the_leaf_s_menu(browser, serve):
     menu = panel_menu(page)
     row = menu.locator('.lf-fp-item[data-lf-row="share"]')
     expect(row).to_have_text("Copy link")
-    expect(row).to_have_attribute("title", re.compile("^Grants access"))
+    assert preview_parts(row)[-1].startswith("Grants access")
     expect(menu.locator('.lf-fp-item[data-lf-row="inspection"]')).to_have_count(1)
     expect(menu.locator('.lf-fp-item[data-lf-row="layer"]')).to_have_count(0)
     row.click()

@@ -753,7 +753,10 @@ export class MessageView {
   /** @param {ReturnType<typeof messageReading>["body"]} body @param {string | null} edited */
   #body(body, edited) {
     if (body.kind === "deleted")
-      return html`<div class="lf-msg-text lf-msg-deleted" title=${edited ?? ""}>
+      return html`<div
+        class="lf-msg-text lf-msg-deleted"
+        .lfPreview=${() => (edited ? { name: edited } : null)}
+      >
         ${voiced(DELETED)}
       </div>`;
     if (body.kind === "reaction")

@@ -714,6 +714,23 @@ class BenchPage:
         """The arm's `leaf` with `args`, refusing a failed command; its output."""
         return self.served.leaf(*args).stdout
 
+    def delivery(self) -> dict:
+        """What `leaf wait` hands the agent, unacknowledged. A delivery too long for
+        one output comes in parts, whose texts join into the whole, read part by part
+        as its `next` commands say; a page seeded with many events delivers them all
+        with its first question."""
+        part = json.loads(self.leaf("wait", self.directory))
+        if "part" not in part:
+            return part
+        texts = [part["text"]]
+        while part["next"]:
+            number = str(part["part"] + 1)
+            part = json.loads(
+                self.leaf("delivery", "read", part["id"], "--part", number)
+            )
+            texts.append(part["text"])
+        return json.loads("".join(texts))
+
     def written(self, *args: str) -> float:
         """Run the arm's `leaf` with `args` and return when it first changed the
         page's log, in epoch milliseconds: the write itself, whatever the command
@@ -774,9 +791,9 @@ class Input(NamedTuple):
     mean of `count`, with `ready` before each where `each`, each in its own window,
     and otherwise once before a window over them all and a quiet after them; it waits
     for the input's painted goals where it has them, for the POST's answer where they
-    include the server's reading of its event (`delivered`), and then `after` ms. The paint pass times it `count` times, each after
-    `ready`, where it `paints`, and a page reads the input only where it holds
-    `needs`."""
+    include the server's reading of its event (`delivered`), and then `after` ms. The
+    paint pass times it `count` times, each after `ready`, where it `paints`, and a
+    page reads the input only where it holds `needs`."""
 
     act: Callable[[Tab], float | None]
     count: int = 1
@@ -942,9 +959,7 @@ def ask_agent(tab: Tab) -> Goals:
     tab.target = {
         "ref": next(
             event["answer"]["ref"]
-            for batch in json.loads(tab.bench.leaf("wait", tab.bench.directory))[
-                "batches"
-            ]
+            for batch in tab.bench.delivery()["batches"]
             for event in batch["events"]
             if event.get("text") == question
         )
@@ -1809,13 +1824,7 @@ def serving(name: str, n: int | None, arm_dir: Path, scratch: Path):
             seed = scratch / "seed.jsonl"
             seed.write_text("".join(json.dumps(event) + "\n" for event in events))
     with serving_source(arm_dir, source, scratch / "page", seed):
-        bench = BenchPage(served_page.get())
-        # The agent takes in what the page's log holds for it, as the session holding
-        # a page has, so a reply's delivery carries only the question it answers.
-        if json.loads(bench.leaf("page", "state", bench.directory)).get("pending"):
-            delivery = json.loads(bench.leaf("wait", bench.directory))
-            bench.leaf("delivery", "ack", delivery["id"])
-        yield bench
+        yield BenchPage(served_page.get())
 
 
 def measure_page(

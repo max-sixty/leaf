@@ -219,9 +219,9 @@ jobs:
   # sections, the size of the largest real pages, are charted on the `gh-pages`
   # branch's `dev/bench` page, and each run's comparison with the one before goes in
   # the job summary; the other readings, such as request counts and single paints,
-  # vary too much from run to run for an alert. A reading 50% above the run before comments
-  # on the commit. CI's runners vary from run to run, so tighten the threshold once the
-  # chart shows their spread. The action compares with the last reading of another
+  # vary too much from run to run for an alert. A reading 50% above the run before
+  # comments on the commit. CI's runners vary from run to run, so tighten the threshold
+  # once the chart shows their spread. The action compares with the last reading of another
   # commit, so a day with no merge compares with the day before it. GitHub Pages
   # doesn't serve the branch, so the chart is read from it directly. The action
   # switches the checkout to `gh-pages`, so it comes last.

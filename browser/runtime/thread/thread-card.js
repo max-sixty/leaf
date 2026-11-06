@@ -138,6 +138,7 @@ import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView, pinnedReply } from "./reply-landing.js";
 import { threadRewrites } from "./message-edit.js";
+import { authoredTitle } from "../tab-title.js";
 import { NEWS_ROOM, newsNotice, threadChange } from "./held-news.js";
 import { ReplyContinuity } from "./reply-continuity.js";
 import { Transcript } from "./transcript.js";
@@ -205,7 +206,7 @@ function quoteReading(thread, anchors) {
         ? partTrail(placement.place)
             .map(addressableLabel)
             .filter(Boolean)
-            .join(" › ") || document.title
+            .join(" › ") || authoredTitle()
         : "",
   });
 }

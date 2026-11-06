@@ -340,9 +340,15 @@ body {
      * padding goes while the user is in one (floating.js, `readFloatingEditor`). Only
      * the browser reads it: Leaf's landings read the band stated above and the one the
      * panel states (geometry.js, `landingInsets`), so one made while such an editor
-     * holds focus, as Resume writing's is, still clears the chrome. */
+     * holds focus, as Resume writing's is, still clears the chrome.
+     *
+     * The zero is a product of `--lf-landing-top` rather than a plain `0`: in Chromium
+     * 156, a root property that starts or stops reading a registered custom property
+     * restyles every element. A plain `0` took 174 ms of style at each entry to and
+     * exit from such an editor on the 256-section asks page of `leaf-dev scaling`;
+     * this takes 0.2 ms, as a change between two literals does. */
     &[data-lf-floating-editor] {
-      scroll-padding: 0 !important;
+      scroll-padding: calc(0 * var(--lf-landing-top)) !important;
     }
     /* The foot's room is the body's own end, where content growing above it only
      * lengthens the body: a box standing after the content would move with each growth.

@@ -621,6 +621,53 @@ def test_a_dialog_shown_as_a_popover_stands_as_a_popover(browser, serve):
     assert kinds == {"popover": ["popover"], "modal": ["modal"]}
 
 
+HOVER_CARD_PAGE = """<!doctype html>
+<html lang="en">
+  <head><title>Escape under a hover card</title></head>
+  <body>
+    <main>
+      <p id="para">
+        <span id="word">Hover this word</span>, or focus this
+        <a id="link" href="#para">link</a>.
+      </p>
+      <div id="card" popover="manual"><button id="in-card">In the card</button></div>
+    </main>
+  </body>
+</html>
+"""
+
+
+def test_escape_passes_a_manual_popover_the_user_is_not_in(browser, serve):
+    """A manual popover the user isn't in, such as a hover card, leaves Escape its steps
+    beneath it: the panel's comment field and a link let go under it as they do with no
+    card open. The browser never closes a manual popover on Escape, so standing the
+    steps down under one left every press dead until the card closed (#5582). Focus
+    inside the card makes it the user's layer again, and the page beneath stays out of
+    Escape's reach."""
+    page = open_page(browser, serve(HOVER_CARD_PAGE))
+    card = page.locator("#card")
+    link = page.locator("#link")
+    show = "() => document.getElementById('card').showPopover()"
+
+    link.focus()
+    page.evaluate(show)
+    page.keyboard.press("Escape")
+    expect(link).not_to_be_focused()
+    assert card.evaluate("c => c.matches(':popover-open')")
+
+    field = panel_field(page)
+    write(field, "words")
+    expect(field).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(field).not_to_be_focused()
+    assert card.evaluate("c => c.matches(':popover-open')")
+
+    page.locator("#in-card").focus()
+    page.keyboard.press("Escape")
+    expect(page.locator("#in-card")).to_be_focused()
+    assert card.evaluate("c => c.matches(':popover-open')")
+
+
 def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser, serve):
     """A control that opens a popover with `popovertarget` holds the user as it opens, so
     Escape hands them back to it. A script that opens a popover naming a control as its

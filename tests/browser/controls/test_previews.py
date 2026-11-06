@@ -1496,6 +1496,103 @@ def test_a_name_longer_than_its_room_ends_in_an_ellipsis(engine, request, serve)
     assert page.evaluate(clamped) == 0, "the clamp stayed as it showed again"
 
 
+# The lines a standing preview shows: each line block's box and visibility, and the
+# face's box less its padding, where a shown line must end.
+SHOWN_LINES = """() => {
+  const face = document.querySelector('#lf-preview .lf-preview-face');
+  const style = getComputedStyle(face);
+  const box = face.getBoundingClientRect();
+  const blocks = [...face.querySelectorAll(':scope > .lf-preview-name > .lf-preview-word,'
+    + ' :scope > .lf-preview-detail')];
+  return {
+    end: box.bottom - parseFloat(style.paddingBlockEnd),
+    line: parseFloat(getComputedStyle(blocks[1]).lineHeight),
+    // The line that says there is more, which a line clamp ends in its ellipsis.
+    cut: [...face.querySelectorAll('[data-lf-cut]')].map((el) => blocks.indexOf(el)),
+    clamped: getComputedStyle(face.querySelector('[data-lf-cut]') ?? face)
+      .webkitLineClamp,
+    shown: blocks.filter((el) => getComputedStyle(el).visibility !== 'hidden')
+      .map((el) => ({bottom: el.getBoundingClientRect().bottom,
+        height: el.getBoundingClientRect().height})),
+  };
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_line_that_ends_in_an_ellipsis_keeps_to_its_room(engine, request, serve):
+    """Where the room ends between two lines of detail, the last line kept says there is
+    more with an ellipsis, and the ellipsis stays on that line: a line that nearly fills
+    the face's width, which an ellipsis after its words would wrap, keeps one line and
+    ends inside the room, as it does when the page presents again and the preview is
+    fitted afresh."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Cut line",
+                '<span id="aim" tabindex="0" style="position: fixed; left: 8px;'
+                ' top: 40px; width: 300px; height: 24px">Aim</span>'
+                '<button id="bar" style="position: fixed; left: 0; top: 115px;'
+                ' width: 100%; height: 24px">Bar</button>',
+            )
+        ),
+    )
+    page.set_viewport_size({"width": 390, "height": 600})
+    # A first line of detail whose words fill all but less than an ellipsis of the
+    # widest line the face holds, measured in the face's own type.
+    page.evaluate(
+        """() => {
+          window.lfDetail = [Array.from({length: 40}, () => 'wide').join(' ')];
+          document.getElementById('aim').lfPreview = () =>
+            ({name: 'Name', detail: window.lfDetail});
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(2, 300)
+    page.locator("#aim").hover()
+    expect(tip.locator(".lf-preview-detail")).to_contain_text("wide")
+    rendered(page)
+    page.evaluate(
+        """async () => {
+          // The widest line the face holds, read from a line of detail that wraps.
+          const face = document.querySelector('#lf-preview .lf-preview-face');
+          const detail = face.querySelector('.lf-preview-detail');
+          const widest = detail.getBoundingClientRect().width;
+          const probe = document.createElement('span');
+          probe.style.cssText = `position: absolute; visibility: hidden; white-space: pre;
+            font: ${getComputedStyle(detail).font}`;
+          document.body.append(probe);
+          const width = (text) => { probe.textContent = text;
+            return probe.getBoundingClientRect().width; };
+          const ellipsis = width('…');
+          let text = 'The section opens with words';
+          while (width(`${text} more`) <= widest) text += ' more';
+          while (width(`${text}i`) <= widest) text += 'i';
+          const fills = width(text) + ellipsis > widest;
+          probe.remove();
+          if (!fills) throw new Error('no line fills the face');
+          window.lfDetail = [text, 'And the paragraph after it.'];
+          const {previewChanged} = await window.__lfWidgetApi();
+          previewChanged(document.getElementById('aim'));
+        }"""
+    )
+    expect(tip.locator(".lf-preview-detail").nth(1)).to_have_text(
+        "And the paragraph after it."
+    )
+    rendered(page)
+    for reading in ("as it shows", "fitted again"):
+        held = page.evaluate(SHOWN_LINES)
+        assert len(held["shown"]) == 2, (reading, held)
+        assert held["cut"] == [1] and held["clamped"] == "1", (reading, held)
+        cut = held["shown"][-1]
+        assert cut["height"] <= held["line"] + 0.5, (reading, held)
+        assert cut["bottom"] <= held["end"] + 0.5, (reading, held)
+        # The page presents again, which fits the standing preview afresh.
+        panel_comment(serve.page_dir, "News the page presents.")
+        told(page)
+        rendered(page)
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_widget_s_new_aim_reads_again_whichever_child_holds_focus(
     engine, request, serve

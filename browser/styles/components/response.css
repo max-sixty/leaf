@@ -130,7 +130,7 @@ leaf-composition-field {
   gap: 0.25em;
   overflow: visible;
 }
-.lf-compose-placeholder .lf-key-badge {
+:is(.lf-compose-placeholder, .lf-compose-press) .lf-key-badge {
   background: transparent;
   color: var(--muted);
 }

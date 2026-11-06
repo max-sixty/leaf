@@ -1521,7 +1521,18 @@ export function mountPreviews(chrome) {
     "pointermove",
     (event) => {
       rest = { x: event.clientX, y: event.clientY };
-      if (riding && !inTip()) point(null);
+      // On or off a preview that lets the pointer through is the pointer's place, so it
+      // is judged at every move: a pointer sliding into the preview over the element it
+      // was already on crosses no element's boundary. A pointer that has left its
+      // target for nothing is the only one whose entry needs judging.
+      if (riding) {
+        if (!inTip()) point(null);
+      } else if (
+        !pointing &&
+        event.pointerType !== "touch" &&
+        onPreview(event.composedPath())
+      )
+        ride();
     },
     { capture: true, passive: true },
   );

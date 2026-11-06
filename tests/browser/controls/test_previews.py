@@ -2129,6 +2129,63 @@ def test_a_covering_preview_stays_while_the_pointer_is_on_it_over_inert_words(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_covering_preview_holds_a_pointer_that_slides_onto_it_over_one_element(
+    engine, request, serve
+):
+    """The pointer leaves a control for inert words beside its covering preview, then
+    slides into the preview over the same words. No element boundary marks the entry,
+    and the preview stays, since the pointer is on it."""
+    fill = "position: fixed; left: 40px; top: 40px; width: calc(100vw - 80px);"
+    fill += " height: calc(100vh - 80px)"
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Beneath",
+                BENEATH["field"].format(fill)
+                + '<button id="reset" aria-label="Reset draft" style="position: fixed;'
+                ' left: 650px; top: 400px; z-index: 2">↺</button>',
+            )
+        ),
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(2, 2)
+    page.locator("#reset").hover()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Reset draft")
+    expect(tip).to_have_attribute("data-lf-covers", "")
+    box = tip.bounding_box()
+    y = box["y"] + box["height"] / 2
+    # The words reach past the preview's far side from the control, so they cover no
+    # part of the control.
+    if box["x"] >= page.locator("#reset").bounding_box()["x"]:
+        left, beside, inside = box["x"] + box["width"] - 30, 30, -10
+        edge = box["x"] + box["width"]
+    else:
+        left, beside, inside = box["x"] - 50, -30, 10
+        edge = box["x"]
+    page.evaluate(
+        """([x, y]) => {
+          const words = Object.assign(document.createElement('span'),
+            {id: 'plain', textContent: 'inert words'});
+          words.style.cssText = `position: fixed; left: ${x}px; top: ${y - 6}px;`
+            + ' width: 80px; height: 12px; z-index: 3; font-size: 10px';
+          document.querySelector('main').append(words);
+        }""",
+        [left, y],
+    )
+    beside, inside = (edge + beside, y), (edge + inside, y)
+    page.mouse.move(*beside)
+    page.mouse.move(*inside)
+    for at in (beside, inside):
+        assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", at) == (
+            "plain"
+        )
+    page.wait_for_timeout(500)
+    expect(tip).to_be_visible()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Reset draft")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_preview_leaves_a_field_beside_it_reachable(engine, request, serve):
     """A field is a control the user works, though it previews nothing, so a preview
     stands clear of one beside its target, and a press on the field focuses it."""

@@ -1311,6 +1311,54 @@ def test_a_reading_stays_over_words_its_chart_shares_a_box_with(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_reading_holds_a_pointer_that_slides_onto_it_over_one_paragraph(
+    engine, request, serve
+):
+    """The pointer leaves the chart for the paragraph above it, beside the high point's
+    reading, then slides sideways into the reading over the same paragraph. No element
+    boundary marks the entry, and the reading and its ring stay."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "tall",
+                '<h1 id="t">Tasks</h1><p id="words" style="height: 220px">Words above'
+                f" the chart, across the column.</p>{TALL}"
+                '<p style="height: 1200px">After.</p>',
+            )
+        ),
+    )
+    chart = page.locator("#tall")
+    preview = page.locator(PREVIEW)
+    ring = chart.locator(".lf-chart-at circle")
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+    box = dots.nth(1).bounding_box()
+    high = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.move(high[0] - 4, high[1])
+    page.mouse.move(*high)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
+    tip = preview.bounding_box()
+    drawing = chart.locator("svg[role=img]").bounding_box()
+    y = tip["y"] + 12
+    assert y < drawing["y"], (tip, drawing)
+    # Left along the drawing, where no point is in reach, then up out of it beside the
+    # reading, then sideways into it.
+    page.mouse.move(tip["x"] - 40, high[1])
+    beside, inside = (tip["x"] - 40, y), (tip["x"] + 12, y)
+    page.mouse.move(*beside)
+    page.mouse.move(*inside)
+    for at in (beside, inside):
+        assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", at) == (
+            "words"
+        )
+    page.wait_for_timeout(500)
+    assert said(page) == ["Higher", *(f"line {n}" for n in range(2, 7))]
+    expect(ring).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_titled_link_beneath_a_reading_takes_the_pointer_from_it(
     engine, request, serve
 ):

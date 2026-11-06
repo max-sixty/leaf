@@ -350,7 +350,7 @@ body {
      * The zero still reads `--lf-landing-top`: on Leaf's pages in Chromium 156, the root
      * ceasing or resuming to read that token restyled every element, 174 ms at each
      * entry to and exit from such an editor on the 256-section asks page of `leaf-dev
-     * scaling`, where this takes 0.2 ms
+     * bench`, where this takes 0.2 ms
      * (`test_entering_and_leaving_a_floating_comment_box_restyles_only_the_chrome`). */
     &[data-lf-floating-editor] {
       scroll-padding: calc(0 * var(--lf-landing-top)) !important;

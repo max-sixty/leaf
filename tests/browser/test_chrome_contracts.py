@@ -258,11 +258,9 @@ def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
     """A comment box on words low in the window stands over the chrome at its foot, the
     band the root's scroll padding keeps the page's own content clear of. Chromium and
     WebKit reveal a caret in a box anchored to the page by scrolling the page, counting
-    that padding, so the first key typed there moved the words beneath the box, 16 px
-    in Chromium 156 and 14 in WebKit 27.2, and each line that grew the box further down
-    moved them again. The padding goes while the user writes in such a box
-    (annotation-overlay/floating.js, `readFloatingEditor`; base.css). Firefox 157
-    reveals no caret through a fixed box."""
+    that padding, so the padding goes while the user writes in such a box
+    (annotation-overlay/floating.js, `readFloatingEditor`; base.css), and typing there
+    leaves the words beneath the box where they stood."""
     page = open_page(
         request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
     )

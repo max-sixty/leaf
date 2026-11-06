@@ -71,6 +71,7 @@ import {
   resolveAnchor,
   setAnchoringReady,
 } from "./runtime/anchor-resolution.js";
+import { refuseBareText } from "./runtime/passages.js";
 import { createPageGeometry } from "./runtime/page-geometry.js";
 import {
   aimLayer,
@@ -926,6 +927,7 @@ async function boot() {
       setAnchoringReady(false);
       throw error;
     }
+    refuseBareText();
     markPageUpgraded();
     // Restoring an editor requires a visible destination. Its placement certifies
     // drawn content, so it cannot be a prerequisite for revealing the page itself.

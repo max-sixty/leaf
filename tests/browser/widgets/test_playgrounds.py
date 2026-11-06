@@ -1209,6 +1209,18 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
     controls = playground.locator(".lf-playground-controls")
     assert controls.evaluate("el => el.scrollHeight > el.clientHeight + 1")
     expect(controls).to_have_attribute("data-lf-more-below", "")
+    # The cue fades whatever reaches the box's foot, and where a gap between two
+    # controls lands there depends on their leading, so the first control the box
+    # cuts off is scrolled up until its label sits under the cue.
+    controls.evaluate(
+        """el => {
+            const cut = [...el.children].find(
+                (c) => c.offsetTop + c.offsetHeight > el.scrollTop + el.clientHeight
+            );
+            el.scrollTop = Math.max(el.scrollTop, cut.offsetTop - el.clientHeight + 20);
+        }"""
+    )
+    expect(controls).to_have_attribute("data-lf-more-below", "")
     assert cue(page, controls) > 100
     # A control Tab reaches is not faded out under its own ring.
     slider = playground.get_by_role("slider", name="Concurrent release events")
@@ -1595,9 +1607,9 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     expect(page.locator("#target-reader-heading")).to_have_text(
         "Revised reader treatment"
     )
-    quote = open_panel_thread(page, event["id"]).locator(".lf-thread-quote")
-    expect(quote).to_contain_text("target-reader-heading")
-    expect(quote).not_to_have_attribute("data-lf-detached", "")
+    head = open_panel_thread(page, event["id"]).locator(".lf-thread-quote-head")
+    expect(head).to_contain_text("target-reader-heading")
+    expect(head).not_to_have_attribute("data-lf-detached", "")
 
 
 def test_a_press_in_flight_does_what_the_playground_button_says(browser, serve):

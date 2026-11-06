@@ -1081,8 +1081,8 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     if quote_anchor:
         # Its words are gone, so the thread stands nowhere on the page, and its head
         # says so.
-        quote = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote")
-        expect(quote).to_have_attribute("data-lf-detached", "")
+        head = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote-head")
+        expect(head).to_have_attribute("data-lf-detached", "")
         expect(page.locator(".lf-margin-marker")).to_have_count(0)
         return
     card = page.locator(".lf-margin-preview")

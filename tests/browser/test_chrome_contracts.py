@@ -35,6 +35,7 @@ from render_harness import (
     panel_view,
     primed,
     resized,
+    restyle_counts,
     round_trip,
     select,
     selection_field,
@@ -207,6 +208,86 @@ def test_a_compact_comment_keeps_no_room_for_send_under_a_mouse(browser, serve):
         + (parseFloat(style.getPropertyValue('--lf-field-end-room')) || 0)];
     }""")
     assert insets[1] == pytest.approx(insets[0], abs=0.1), insets
+
+
+def test_entering_and_leaving_a_floating_comment_box_restyles_only_the_chrome(
+    browser, serve
+):
+    """The root drops its scroll padding while the user writes in a box standing in a
+    plane (annotation-overlay/floating.js, `readFloatingEditor`), by a zero base.css
+    writes so that entering and leaving the box restyle only the chrome; its comment
+    says what a plain zero cost. Counted in the browser's own restyled elements,
+    against a restyle of the whole page."""
+    paragraphs = "".join(
+        f"<p id='p{i}'>Paragraph {i} of the page.</p>" for i in range(600)
+    )
+    page = open_page(
+        browser, serve(leaf_page("Floating editor", "<h1>Page</h1>" + paragraphs))
+    )
+    root = page.locator("html")
+
+    def restyled(move):
+        """The most elements one style recalc restyled while `move` ran."""
+        counts = restyle_counts(page, lambda: (move(), rendered(page)))
+        assert sum(counts), "the move must restyle something, or this proves nothing"
+        return max(counts)
+
+    # The control: a custom property changing on the root restyles every element
+    # (root-state.js).
+    whole = restyled(
+        lambda: root.evaluate("html => html.style.setProperty('--lf-test-probe', '1')")
+    )
+    page.locator("#p1").click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(root).to_have_attribute("data-lf-floating-editor", "")
+    # Tab leaves the field for the bar's next control.
+    leaving = restyled(lambda: page.keyboard.press("Tab"))
+    expect(field).not_to_be_focused()
+    expect(root).not_to_have_attribute("data-lf-floating-editor", "")
+    entering = restyled(field.click)
+    expect(root).to_have_attribute("data-lf-floating-editor", "")
+    moves = {"leaving": leaving, "entering": entering, "whole page": whole}
+    assert max(leaving, entering) < whole / 4, moves
+
+
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
+    request, serve, engine
+):
+    """A comment box on words low in the window stands over the chrome at its foot, the
+    band the root's scroll padding keeps the page's own content clear of. Chromium and
+    WebKit reveal a caret in a box anchored to the page by scrolling the page, counting
+    that padding, so the padding goes while the user writes in such a box
+    (annotation-overlay/floating.js, `readFloatingEditor`; base.css), and typing there
+    leaves the words beneath the box where they stood."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    resized(page, 1512, 860)
+    words = page.locator("#p40")
+    words.evaluate("n => scrollBy(0, n.getBoundingClientRect().top - 740)")
+    rendered(page)
+    words.click(modifiers=["Alt"], position={"x": 40, "y": 8})
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    rendered(page)
+    scrolled = page.evaluate("scrollY")
+    page.keyboard.type("Fine")
+    rendered(page)
+    assert page.evaluate("scrollY") == scrolled
+    # The band the panel states on the root, which the rule hides from the browser.
+    caret, band_top = field.evaluate(f"""box => {{{CARET_AT}
+      const caret = document.createRange();
+      caret.setStart(at, offset);
+      const band = parseFloat(document.documentElement.style.scrollPaddingBottom);
+      return [caret.getBoundingClientRect().bottom, innerHeight - band];
+    }}""")
+    assert caret > band_top, (
+        "the caret stands above the foot's band, so this proves nothing",
+        caret,
+        band_top,
+    )
 
 
 # The field's shadow root is closed, so the reading keeps each root as it is attached.

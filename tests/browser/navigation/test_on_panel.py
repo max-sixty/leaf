@@ -730,7 +730,7 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
 def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):
     """With On me open, `m` lands a suggestion the view would cover above the view,
     since every landing clears the panel's whole box rather than its row alone
-    (base.css, `--lf-panel-reach`). The suggestion ends a paragraph whose start the
+    (floating-panel.js, `followBox`). The suggestion ends a paragraph whose start the
     arrival aligns, as the feature gallery's "A pencil is useful too." does; the asks
     after it fill the list, so the view stands most of the window tall. Opened by a
     key, On me stands on its first row, the suggestion, so `m` steps on to the first

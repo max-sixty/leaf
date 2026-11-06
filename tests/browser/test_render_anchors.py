@@ -75,6 +75,7 @@ from render_harness import (
     post_event,
     reported_browser_errors,
     resized,
+    restyle_counts,
     scroll_settled,
     select,
     selection_field,
@@ -106,9 +107,10 @@ def comment_ids(page_dir):
     ]
 
 
-def thread_quote(page, thread_id):
-    """Open the thread in the panel, once the page reads it, and return the quote
-    heading its view."""
+def thread_head(page, thread_id):
+    """Open the thread in the panel, once the page reads it, and return the head of
+    its view, which names what the thread is about: the quoted words and a label of
+    where they stand."""
     page.evaluate(
         "async () => { window.__lfThreadsApi = await window.__lfWidgetApi(); }"
     )
@@ -117,7 +119,7 @@ def thread_quote(page, thread_id):
         arg=thread_id,
     )
     open_panel_thread(page, thread_id)
-    return page.locator(".lf-thread-quote")
+    return page.locator(".lf-thread-quote-head")
 
 
 def show_on_page(page, *, key=False):
@@ -141,7 +143,7 @@ def stranded_quotes(page):
     )
     stranded = []
     for thread_id in ids:
-        quote = thread_quote(page, thread_id)
+        quote = thread_head(page, thread_id)
         if quote.count() and quote.get_attribute("data-lf-detached") is not None:
             stranded.append(quote.inner_text())
     page.locator(".lf-fp-close").click()
@@ -248,7 +250,9 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
         page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
-    quote = thread_quote(page, comment_ids(serve.page_dir)[-1])
+    quote = thread_head(page, comment_ids(serve.page_dir)[-1]).locator(
+        ".lf-thread-quote"
+    )
     assert quote.text_content().strip() == "In flight"
 
     # A second version reworking one card's prose and nothing else. The page follows it,
@@ -401,7 +405,9 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
         roots.append(json.loads(result.output))
     page = open_page(browser, url)
     for root in roots:
-        expect(thread_quote(page, root["id"])).to_have_text(root["anchor"]["quote"])
+        expect(thread_head(page, root["id"]).locator(".lf-thread-quote")).to_have_text(
+            root["anchor"]["quote"]
+        )
     source = (serve.page_dir / "index.html").read_text()
     updated = source.replace(
         "The first draft uses an early estimate",
@@ -413,7 +419,7 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
         "The revised plan uses the current forecast for the rollout."
     )
     for root in roots:
-        quote = thread_quote(page, root["id"])
+        quote = thread_head(page, root["id"])
         expect(quote).to_contain_text(root["anchor"]["quote"])
         expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
         expect(quote).not_to_have_attribute("data-lf-detached", "")
@@ -544,8 +550,8 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     ][-1]
     assert actual == expected
     page.reload()
-    held = thread_quote(page, comment_ids(serve.page_dir)[-1])
-    expect(held).to_have_text(quote)
+    held = thread_head(page, comment_ids(serve.page_dir)[-1])
+    expect(held.locator(".lf-thread-quote")).to_have_text(quote)
     expect(held).not_to_have_attribute("data-lf-detached", "")
 
 
@@ -569,7 +575,7 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
         for e in before
         if e["kind"] == "comment" and (e.get("anchor") or {}).get("quote") == quote
     ]
-    expect(thread_quote(page, thread_id)).to_contain_text(quote)
+    expect(thread_head(page, thread_id)).to_contain_text(quote)
     show_on_page(page)
     expect(page.locator("#lp-check-finance")).to_be_in_viewport()
     # The panel stood over the region the comment is about, so the trip cleared it.
@@ -617,7 +623,9 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
         page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
-    quote = thread_quote(page, comment_ids(d := serve.page_dir)[-1])
+    quote = thread_head(page, comment_ids(d := serve.page_dir)[-1]).locator(
+        ".lf-thread-quote"
+    )
     assert quote.text_content().strip() == "Heated bird bath"
 
     # A second version reworking the other panel's prose and nothing else: the name the
@@ -964,7 +972,9 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     quoted = "Paragraph 3. Word024. Word025. Word026."
     page = open_page(browser, serve(unique_page, anchored=(("p3", quoted),)))
     resized(page, 1400, 900)
-    card = thread_quote(page, comment_ids(serve.page_dir)[-1])
+    card = thread_head(page, comment_ids(serve.page_dir)[-1]).locator(
+        ".lf-thread-quote"
+    )
     expect(card).to_be_visible()
     into = card.bounding_box()
     # A paragraph level with the thread's quoted words, so the overshoot is sideways:
@@ -1368,23 +1378,17 @@ def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve
     # Opening unrelated chrome must not restyle every code control. Compare the
     # browser's invalidated-element count at two populations, independent of time.
     def restyled_on_chrome_insertion():
-        browser.start_tracing(page=page, categories=["devtools.timeline"])
-        try:
-            page.evaluate("""() => {
+        restyled = restyle_counts(
+            page,
+            lambda: page.evaluate("""() => {
               const chrome = document.querySelector('.lf-chrome');
               const probe = document.createElement('div');
               chrome.append(probe);
               void probe.offsetWidth;
               probe.remove();
               void chrome.offsetWidth;
-            }""")
-        finally:
-            trace = json.loads(browser.stop_tracing())
-        restyled = [
-            event["args"]["elementCount"]
-            for event in trace["traceEvents"]
-            if event["name"] == "UpdateLayoutTree"
-        ]
+            }"""),
+        )
         assert restyled, "the chrome insertion must exercise style invalidation"
         return sum(restyled)
 
@@ -3145,13 +3149,15 @@ def test_the_pointer_stops_claiming_a_mark_it_scrolled_past(browser, serve):
     spot = page.evaluate("""() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
                                     return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }""")
     page.mouse.move(spot["x"], spot["y"])
-    page.wait_for_function("() => document.body.classList.contains('lf-over-mark')")
+    hand = "({x, y}) => getComputedStyle(document.elementFromPoint(x, y)).cursor"
+    page.wait_for_function(f"(spot) => ({hand})(spot) === 'pointer'", arg=spot)
     page.evaluate(
         "() => document.scrollingElement.scrollBy({top: 900, behavior: 'instant'})"
     )
     page.wait_for_function(
-        "() => !document.body.classList.contains('lf-over-mark')"
-        " && (CSS.highlights.get('lf-mark-hover')?.size ?? 0) === 0"
+        f"(spot) => ({hand})(spot) !== 'pointer'"
+        " && (CSS.highlights.get('lf-mark-hover')?.size ?? 0) === 0",
+        arg=spot,
     )
 
 
@@ -3223,7 +3229,7 @@ def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it
     assert reply["revision"] == 2 and reply["anchor"]["quote"] == revised_passage
     told(page)
 
-    quote = thread_quote(page, root["id"])
+    quote = thread_head(page, root["id"])
     expect(quote).not_to_have_attribute("data-lf-detached", "")
     expect(quote).to_contain_text(revised_passage)
     painted = page.evaluate(
@@ -3293,7 +3299,7 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
 
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-    quote = thread_quote(page, root["id"])
+    quote = thread_head(page, root["id"])
     expect(quote).to_contain_text("The version stamp never lands")
     expect(quote).to_have_attribute("data-lf-detached", "")
     expect(quote.locator(".lf-anchor-status")).to_have_text("Not in the latest version")
@@ -4163,7 +4169,7 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     expect(outlet.locator(".lf-page-thread leaf-text")).not_to_be_focused()
     expect(details).not_to_have_attribute("open", "")
     expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
-    expect(thread_quote(page, comments[0]["id"])).to_have_text("§ app.py · file")
+    expect(thread_head(page, comments[0]["id"])).to_have_text("§ app.py · file")
     expect(page.locator(PANEL_THREAD)).to_contain_text("Review this file as a whole.")
 
     # A thread on a line of the file still unloaded is named as its drawn row would be,
@@ -4187,8 +4193,7 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     expect_open_threads(page, 2)
     expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
     quotes = [
-        thread_quote(page, thread).inner_text()
-        for thread in comment_ids(serve.page_dir)
+        thread_head(page, thread).inner_text() for thread in comment_ids(serve.page_dir)
     ]
     assert sorted(" ".join(quote.split()) for quote in quotes) == [
         "§ app.py · file",
@@ -4374,7 +4379,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
     page = open_page(browser, url)
     patch_tab = page.locator("#patch-tab")
     expect(patch_tab).to_have_attribute("hidden", re.compile(".*"))
-    quote = thread_quote(page, comment_ids(serve.page_dir)[0])
+    quote = thread_head(page, comment_ids(serve.page_dir)[0])
     expect(quote).not_to_have_attribute("data-lf-detached", "")
 
     show_on_page(page)
@@ -4497,7 +4502,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     if activation == "keyboard":
         resized(page, 400, 900)
     [thread] = comment_ids(serve.page_dir)
-    quote = thread_quote(page, thread)
+    quote = thread_head(page, thread)
     expect(quote).not_to_have_attribute("data-lf-detached", "")
     show_on_page(page, key=activation == "keyboard")
     page.wait_for_function("typeof window.__leafReleaseDeferred === 'function'")
@@ -4525,7 +4530,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
 
     if superseded:
         expect(search).to_be_focused()
-        thread_quote(page, thread)
+        thread_head(page, thread)
         show_on_page(page)
     landed()
     expect(second).to_have_class(re.compile(r"\blf-mark-here\b"))
@@ -4536,7 +4541,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     details = page.locator("lf-diff .lf-diff-file > details").nth(1)
     details.evaluate("element => { element.open = false; }")
     expect(reply).to_have_count(0)
-    thread_quote(page, thread)
+    thread_head(page, thread)
     show_on_page(page, key=True)
     landed()
     assert page.evaluate("window.__leafDeferredRequests") == ["first.py", "second.py"]
@@ -4747,15 +4752,34 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
         route.fulfill(status=500, json={"error": "the patch is unavailable"})
 
     context = browser.new_context()
+    # A retry would wait on the page's clock, which the test runs forward.
+    context.clock.install()
     context.route("**/api/deferred*", refuse)
+    # The page counts its own loads: the route handler's count follows the request by
+    # a hop the driver doesn't order against the page.
+    context.add_init_script(
+        """
+        window.__lfDeferredLoads = 0;
+        const nativeFetch = window.fetch.bind(window);
+        window.fetch = (...args) => {
+          if (String(args[0]).includes("/api/deferred")) window.__lfDeferredLoads += 1;
+          return nativeFetch(...args);
+        };
+        """
+    )
     page = open_page(browser, url, context=context)
-    thread_quote(page, comment_ids(serve.page_dir)[0])
+    thread_head(page, comment_ids(serve.page_dir)[0])
     show_on_page(page)
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
         "the patch is unavailable"
     )
-    page.wait_for_timeout(250)
-    assert len(requests) == 1, "thread hydration retried without another user gesture"
+    # A minute of the page's clock, past any backoff a retry would wait out, then every
+    # update the failure queued, and with it any reload it asked for.
+    context.clock.run_for(60_000)
+    rendered(page)
+    assert page.evaluate("window.__lfDeferredLoads") == 1, (
+        "thread hydration retried without another user gesture"
+    )
     consume_browser_errors(page, http_error_console(500))
 
     summary = page.locator("lf-diff summary")

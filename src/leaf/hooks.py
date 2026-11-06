@@ -52,13 +52,12 @@ records the receipt of what its transcript shows entered the model's context
 (`delivery.confirm_entered`). Its hooks name the turn by `prompt_id`
 (`ClaudeCodeHarness.hook_payload`).
 
-Session-start and prompt hooks also inspect retained claims for disconnected pages
-(`reconnect`), including inactive ownership. That notice does not reclaim a
-page or reopen a turn at SessionStart, and it persists across session generations.
-A SessionStart after a compaction also has an agent holding a page read the leaf
-skill again (`reload_skill`). Claude Code runs Leaf's start hook only after a
-compaction (`hooks.json`): a resumed session's first reply waits for its start
-hooks, and the prompt hook hands that same turn the reconnect notice.
+Before it opens its turn, the prompt hook serves again each page the session still
+means to serve whose ownership or server is down, as a resumed session's are, and the
+turn hears only of a page that did not start (`reconnect`). A SessionStart opens no
+turn and claims nothing; after a compaction it has an agent holding a page read the
+leaf skill again (`reload_skill`). Claude Code runs Leaf's start hook only then
+(`hooks.json`), since a resumed session's first reply waits for its start hooks.
 
 Each harness's registrations name it (`--harness`) and its payload names the
 session; `harness.hook_harness` says why neither comes from the environment. A
@@ -70,7 +69,7 @@ import time
 
 from .leases import first_hook_for_tool, mark_hooks
 from .refusals import Refused
-from .service import claim_records, owned_pages
+from .service import owned_pages
 from .state import (
     advance_turn,
     close_session_turn,
@@ -121,7 +120,15 @@ def cmd_hook(harness: str, payload: dict) -> None:
 
             confirm_entered(hooked, payload)
         return
+    # What kept a page the session still means to serve from serving again.
+    unserved = []
     if event in {"UserPromptSubmit", "TurnStart"}:
+        if event == "UserPromptSubmit":
+            # Before the turn opens, which then joins the generation a claim
+            # starts where the session's last one ended or names another process.
+            from .reconnect import serve_again
+
+            unserved = serve_again(hooked)
         expected = prompt_turn(sid, turn_id)
         if expected is None or event == "TurnStart":
             return
@@ -129,16 +136,8 @@ def cmd_hook(harness: str, payload: dict) -> None:
         expected = session_record(sid)
     expected = hooked.reconcile_turn(payload, expected)
     if event == "SessionStart":
-        from .reconnect import notices
-
-        context = notices(harness, sid, expected)
-        if context is not None and payload.get("source") == "compact":
-            context += reload_skill(sid)
-        if context:
-            print(
-                json.dumps(hooked.hook_context(event, "\n\n".join(context))),
-                flush=True,
-            )
+        if payload.get("source") == "compact" and (context := reload_skill(sid)):
+            print(json.dumps(hooked.hook_context(event, context)), flush=True)
         return
     if turn_id and event != "UserPromptSubmit":
         # A first trusted step can identify an unknown session-scoped turn.
@@ -175,11 +174,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
         return
     if event == "PostToolUse":
         return
-    # Retained claims may need reconnecting after active ownership expired.
-    retained = event == "UserPromptSubmit" and any(
-        claim["harness"] == harness for claim in claim_records(sid)
-    )
-    if not retained and not owned_pages(sid):
+    if not unserved and not owned_pages(sid):
         if event == "Stop":
             close_session_turn(sid, turn_id, expected=expected)
         return
@@ -187,19 +182,13 @@ def cmd_hook(harness: str, payload: dict) -> None:
     from .hook_transport import carry_turn
 
     ended = carry_turn(
-        hooked,
-        event,
-        sid,
-        payload,
-        expected,
-        started=started,
-        reconnect_harness=harness if event == "UserPromptSubmit" else None,
+        hooked, event, sid, payload, expected, started=started, unserved=unserved
     )
     if ended:
         close_session_turn(sid, turn_id, expected=expected)
 
 
-def reload_skill(session_id: str) -> list[str]:
+def reload_skill(session_id: str) -> str | None:
     """What a compaction tells an agent holding pages: to read the leaf skill again,
     which the compaction may have dropped from its context.
 
@@ -213,14 +202,12 @@ def reload_skill(session_id: str) -> list[str]:
 
     pages = owned_pages(session_id)
     if not pages:
-        return []
-    return [
-        (
-            f"This session holds the Leaf page {', '.join(map(str, pages))}. A "
-            f"compaction may have dropped the leaf skill; read {SKILL_FILE} again "
-            "before you next reply or run a leaf command."
-        )
-    ]
+        return None
+    return (
+        f"This session holds the Leaf page {', '.join(map(str, pages))}. A "
+        f"compaction may have dropped the leaf skill; read {SKILL_FILE} again "
+        "before you next reply or run a leaf command."
+    )
 
 
 def cmd_watch(harness: str, payload: dict) -> str | None:

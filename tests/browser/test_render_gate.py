@@ -16,6 +16,7 @@ from interact_support import (
     COMMAND_HUB_PACKAGE,
     STATED_TIMEOUT,
     add_test_widget,
+    element_declaration,
     running_http_server,
 )
 from known_widget_findings import KNOWN, PACKAGES
@@ -184,6 +185,88 @@ def test_startup_shift_evidence_serializes_as_advice(browser, serve, monkeypatch
     movement = shift["values"]["entries"][1]["sources"][0]
     assert movement["node"] == "<p id=shifted>"
     assert (movement["before"]["y"], movement["after"]["y"]) == (10, 60)
+
+
+# A widget that draws 240px tall two frames after it upgrades, as a diagram draws once
+# its renderer loads. Page CSS keeps a stated height larger than the drawing, as the
+# diagram package's does.
+SKETCH_DECLARATION = {
+    **{
+        key: value
+        for key, value in element_declaration("lf-sketch", upgrade=True).items()
+        if key != "x-verbatim"
+    },
+    "x-height": True,
+}
+SKETCH_WIDGET = """
+import {PendingTaskEvent, once} from '/runtime/portable-api.js';
+customElements.define('lf-sketch', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    this.dispatchEvent(new PendingTaskEvent(new Promise((drawn) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const drawing = document.createElement('div');
+        drawing.style.blockSize = '240px';
+        this.replaceChildren(drawing);
+        this.classList.add('lf-rendered');
+        drawn();
+      })))));
+  }
+});
+"""
+
+
+def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serve):
+    """Advice gives a drawing's height wherever the box before it drew differed.
+
+    The boxes before drawing: nothing stated, a stated height too small and one too
+    large, beside a stated height that matches and an authored body that already
+    takes the drawing's height, as an inline diff's source text can.
+    """
+    findings, _, completed = render_gate_scheme._render_scheme(
+        browser,
+        serve(
+            leaf_page(
+                "Drawn heights",
+                """
+<h1>Drawn heights</h1>
+<lf-sketch id="unstated"></lf-sketch>
+<lf-sketch id="short" data-height="100"></lf-sketch>
+<lf-sketch id="tall" data-height="400"></lf-sketch>
+<lf-sketch id="exact" data-height="240"></lf-sketch>
+<lf-sketch id="authored"><div style="block-size: 240px"></div></lf-sketch>
+""",
+                head="<style>lf-sketch { display: block }"
+                " lf-sketch.lf-rendered"
+                " { min-block-size: attr(data-lf-height px, 0px) }</style>",
+            ),
+            layer_registry={"lf-sketch": SKETCH_DECLARATION},
+            layer_widgets={"lf-sketch.js": SKETCH_WIDGET},
+        ),
+        "light",
+        {"width": 1200, "height": 900},
+        3_000,
+        [],
+    )
+    assert completed, findings
+    drawn = {
+        finding.at: (finding.values, finding.severity)
+        for finding in findings
+        if finding.code == "drawn-height"
+    }
+    assert drawn == {
+        "<lf-sketch id=unstated>": ({"before": 0, "drawn": 240, "box": 240}, "advice"),
+        "<lf-sketch id=short>": ({"before": 100, "drawn": 240, "box": 240}, "advice"),
+        "<lf-sketch id=tall>": ({"before": 400, "drawn": 240, "box": 400}, "advice"),
+    }, findings
+    words = {
+        finding.at: str(finding)
+        for finding in findings
+        if finding.code == "drawn-height"
+    }
+    assert "moved down 140px" in words["<lf-sketch id=short>"], words
+    assert "leaving 160px blank" in words["<lf-sketch id=tall>"], words
+    assert 'data-height="240"' in words["<lf-sketch id=tall>"], words
 
 
 def _panel(name: str) -> str:
@@ -3714,7 +3797,45 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
     assert len(advice) == 5
     assert all(finding.severity == "advice" for finding in advice)
     assert 'class="layout-flow"' in str(advice[0])
-    assert "put data-width on that holder" in str(advice[0])
+    assert "put data-width on the frame" in str(advice[0])
+
+
+def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
+    browser, serve
+):
+    """A text block starts at its holder's edge, so a wrapper reaching before the prose
+    moves its words off the column, on a page the rest of which stands on it. A wide
+    wrapper keeps the prose's start edge, a caption belongs to its figure, and a
+    question takes no width at all."""
+    source = leaf_page(
+        "Words off the column",
+        """<h1>Words off the column</h1><p>Prose sets the column.</p>
+        <section id="words" data-width="available"><h2>Off</h2><p>Words.</p></section>
+        <details id="more" data-width="available" open><summary>More</summary>
+          <p>Words.</p></details>
+        <section id="flowing" class="layout-flow"><section id="inner" data-width="available">
+          <p>Words.</p></section></section>
+        <section id="wide" data-width="wide"><p>Keeps its start edge.</p></section>
+        <figure id="pictured" data-width="available"><div>Picture.</div>
+          <figcaption>Caption.</figcaption></figure>
+        <div id="exhibit" data-width="available"><table><tr><td>Cell</td></tr></table></div>
+        <lf-ask id="asked" data-width="available"><h2>Ship it?</h2><p>Words.</p>
+          <lf-options id="choice" choose><lf-option id="yes">Yes</lf-option></lf-options>
+        </lf-ask>""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    reading = render_checks_model.evaluate_probe(page, "geometryReading", [])
+    found = [
+        finding["at"]
+        for finding in reading["contained"]
+        if finding["code"] == "words-off-column"
+    ]
+    assert found == ["<section id=words>", "<details id=more>", "<section id=inner>"]
+    advice = render_gate_readings.swept_faults([(1440, reading)])
+    worded = [finding for finding in advice if finding.code == "words-off-column"]
+    assert all(finding.severity == "advice" for finding in worded) and len(worded) == 3
+    assert 'class="layout-flow"' in str(worded[0])
 
 
 def test_the_sweep_reads_each_width_as_a_load_there_shows_it(browser, serve):
@@ -3772,9 +3893,12 @@ def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, 
 
 
 def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
-    """An explicitly widened obligation keeps its evidence inside the ring. Boxes
-    pulled or sized past the actual page edge remain render-gate findings."""
-    item = """<lf-ask id="{id}" data-width="wide"><h2>Which one?</h2>
+    """An obligation holding a wide block keeps it inside the ring. Boxes pulled or
+    sized past the actual page edge remain render-gate findings: each is past the
+    column, and a box pulled off the leading edge, which no scroll reaches, is also
+    clipped out. A box sized past only the trailing edge is reached by the root's
+    sideways scroll, so it is not clipped out."""
+    item = """<lf-ask id="{id}"><h2>Which one?</h2>
   <figure data-width="wide"><p>Evidence the room holds.</p></figure>
   <lf-options id="{id}-o" choose><lf-option id="{id}-a">This one</lf-option></lf-options>
 </lf-ask>"""
@@ -3807,12 +3931,51 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     found = sorted((m["code"], m["at"]) for m in misplaced)
     assert found == [
         ("clipped-out", "<div id=bare>"),
-        ("clipped-out", "<div id=sized>"),
         ("clipped-out", "<div id=tinted>"),
         ("past-column", "<div id=bare>"),
         ("past-column", "<div id=sized>"),
         ("past-column", "<div id=tinted>"),
     ], misplaced
+
+
+def test_an_item_its_content_holds_past_the_column_is_told_to_drop_its_minimum(
+    browser, serve
+):
+    """A flex or grid item is no narrower than its content by default, so a box that
+    scrolls sideways inside one widens it past a phone's column, and the box beside it
+    with it. The finding on a flex or grid item whose minimum is still `auto` offers
+    `min-width: 0` first and keeps the other remedies after it; a box the page sized,
+    and an item whose minimum the page set, are offered only the other remedies."""
+    line = '<div style="overflow-x: auto"><span style="white-space: nowrap">' + (
+        "2026-11-05T13:04:22Z INFO worker-7 shipped batch 4412 to the export bucket"
+        "</span></div>"
+    )
+    source = leaf_page(
+        "Held out by their content",
+        f"""<h1>Held out by their content</h1>
+<div class="row"><div id="flexed"><h2>Log</h2>{line}</div><p id="beside">Beside it.</p></div>
+<div class="tracks"><div id="tracked">{line}</div><p id="track-beside">Beside it.</p></div>
+<div class="row"><div id="minimum">An item whose minimum the page set.</div></div>
+<div id="sized" style="width: 600px">A box the page sized past the column.</div>""",
+        head="<style>.row { display: flex; gap: 16px; }"
+        " .tracks { display: grid; grid-template-columns: auto 1fr; gap: 16px; }"
+        " #minimum { min-width: 600px; }</style>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 390, 844)
+    misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    past = {m["at"]: m for m in misplaced if m["code"] == "past-column"}
+    assert {at: m.get("item") for at, m in past.items()} == {
+        "<div id=flexed>": "flex",
+        "<p id=beside>": "flex",
+        "<div id=tracked>": "grid",
+        "<p id=track-beside>": "grid",
+        "<div id=minimum>": None,
+        "<div id=sized>": None,
+    }, misplaced
+    offered = str(Finding.read(past["<div id=flexed>"]))
+    assert offered.index("min-width: 0") < offered.index('data-width="wide"'), offered
+    assert "min-width: 0" not in str(Finding.read(past["<div id=sized>"]))
 
 
 def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):

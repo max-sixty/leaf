@@ -445,6 +445,9 @@ def mark_declared(
             )
             means = {"content": content, "declared": bool(declared)}
             authored = mark.get("authored")
+            # A flow takes no width of its own (`x-flow`), whatever its markup says.
+            if key == "x-space" and declaration.get("x-flow"):
+                continue
             if authored in attrs and means[mark["authored_on"]]:
                 value = attrs[authored]
             elif declared:

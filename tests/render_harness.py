@@ -85,6 +85,7 @@ from leaf_dev import browser as dev_browser
 from leaf_dev.browser import (
     ON_ME_MARK,
     PANEL,
+    chromium_metrics,
     panel_view,
     scroll_settled,
     slow_cpu,
@@ -2378,7 +2379,7 @@ BrowserContext.route = _arming_context
 Page.unroute_all = _disarming
 
 # A browser wait bounds a hang; it does not time the work it waits for (tests/AGENTS.md,
-# "Functional results do not depend on execution speed"). One that names no deadline
+# "Results do not depend on execution speed"). One that names no deadline
 # takes `SERVED_TIMEOUT_MS`, the bound on one probe or request: an `expect` assertion,
 # whose own default is five seconds, and every page action, wait and expectation on a
 # page `readable` prepares. A wait that spans a page handover names
@@ -2817,6 +2818,23 @@ def compositor_trace(page, categories=()):
     )
 
 
+def restyle_counts(page, act) -> list[int]:
+    """The elements each style recalc restyled while `act` ran, as Chromium's trace
+    counts them (`UpdateLayoutTree`), so a test bounds a change's restyle by its reach
+    rather than its time."""
+    browser = page.context.browser
+    browser.start_tracing(page=page, categories=["devtools.timeline"])
+    try:
+        act()
+    finally:
+        trace = json.loads(browser.stop_tracing())
+    return [
+        event["args"].get("elementCount", 0)
+        for event in trace["traceEvents"]
+        if event["name"] == "UpdateLayoutTree"
+    ]
+
+
 def rgb_pixel(image: Image.Image, point) -> tuple[int, int, int]:
     """Read one RGB pixel; Pillow's mode-dependent return type cannot express RGB."""
     assert image.mode == "RGB"
@@ -3171,15 +3189,10 @@ def live_counts(page):
     nodes, those in its documents, comments included, and every detached node something
     still retains, and its event listeners. A count that climbs across repetitions of one
     gesture is a leak whether what it counts piles up in the page or behind it."""
-    session = page.context.new_cdp_session(page)
-    try:
-        session.send("HeapProfiler.collectGarbage")
-        session.send("Performance.enable")
-        metrics = session.send("Performance.getMetrics")["metrics"]
-    finally:
-        session.detach()
-    counted = {"Nodes": "nodes", "JSEventListeners": "event listeners"}
-    return {counted[m["name"]]: m["value"] for m in metrics if m["name"] in counted}
+    with chromium_metrics(page) as metrics:
+        page.request_gc()
+        counts = metrics()
+    return {"nodes": counts["Nodes"], "event listeners": counts["JSEventListeners"]}
 
 
 def still_page(browser, url, width=1200):

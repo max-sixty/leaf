@@ -342,11 +342,11 @@ body {
      * panel states (geometry.js, `landingInsets`), so one made while such an editor
      * holds focus, as Resume writing's is, still clears the chrome.
      *
-     * The zero is a product of `--lf-landing-top` rather than a plain `0`: in Chromium
-     * 156, a root property that starts or stops reading a registered custom property
-     * restyles every element. A plain `0` took 174 ms of style at each entry to and
-     * exit from such an editor on the 256-section asks page of `leaf-dev scaling`;
-     * this takes 0.2 ms, as a change between two literals does. */
+     * The zero still reads `--lf-landing-top`: on Leaf's pages in Chromium 156, the root
+     * ceasing or resuming to read that token restyled every element, 174 ms at each
+     * entry to and exit from such an editor on the 256-section asks page of `leaf-dev
+     * scaling`, where this takes 0.2 ms
+     * (`test_entering_and_leaving_a_floating_comment_box_restyles_only_the_chrome`). */
     &[data-lf-floating-editor] {
       scroll-padding: calc(0 * var(--lf-landing-top)) !important;
     }

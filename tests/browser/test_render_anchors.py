@@ -75,6 +75,7 @@ from render_harness import (
     post_event,
     reported_browser_errors,
     resized,
+    restyle_counts,
     scroll_settled,
     select,
     selection_field,
@@ -1377,23 +1378,17 @@ def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve
     # Opening unrelated chrome must not restyle every code control. Compare the
     # browser's invalidated-element count at two populations, independent of time.
     def restyled_on_chrome_insertion():
-        browser.start_tracing(page=page, categories=["devtools.timeline"])
-        try:
-            page.evaluate("""() => {
+        restyled = restyle_counts(
+            page,
+            lambda: page.evaluate("""() => {
               const chrome = document.querySelector('.lf-chrome');
               const probe = document.createElement('div');
               chrome.append(probe);
               void probe.offsetWidth;
               probe.remove();
               void chrome.offsetWidth;
-            }""")
-        finally:
-            trace = json.loads(browser.stop_tracing())
-        restyled = [
-            event["args"]["elementCount"]
-            for event in trace["traceEvents"]
-            if event["name"] == "UpdateLayoutTree"
-        ]
+            }"""),
+        )
         assert restyled, "the chrome insertion must exercise style invalidation"
         return sum(restyled)
 

@@ -2818,6 +2818,23 @@ def compositor_trace(page, categories=()):
     )
 
 
+def restyle_counts(page, act) -> list[int]:
+    """The elements each style recalc restyled while `act` ran, as Chromium's trace
+    counts them (`UpdateLayoutTree`), so a test bounds a change's restyle by its reach
+    rather than its time."""
+    browser = page.context.browser
+    browser.start_tracing(page=page, categories=["devtools.timeline"])
+    try:
+        act()
+    finally:
+        trace = json.loads(browser.stop_tracing())
+    return [
+        event["args"].get("elementCount", 0)
+        for event in trace["traceEvents"]
+        if event["name"] == "UpdateLayoutTree"
+    ]
+
+
 def rgb_pixel(image: Image.Image, point) -> tuple[int, int, int]:
     """Read one RGB pixel; Pillow's mode-dependent return type cannot express RGB."""
     assert image.mode == "RGB"

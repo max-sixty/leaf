@@ -35,6 +35,7 @@ from render_harness import (
     panel_view,
     primed,
     resized,
+    restyle_counts,
     round_trip,
     select,
     selection_field,
@@ -213,12 +214,10 @@ def test_entering_and_leaving_a_floating_comment_box_restyles_only_the_chrome(
     browser, serve
 ):
     """The root drops its scroll padding while the user writes in a box standing in a
-    plane (annotation-overlay/floating.js, `readFloatingEditor`; base.css). In Chromium
-    a root property that starts or stops reading a registered custom property restyles
-    every element of the page, so a plain zero there restyled the whole page at each
-    entry to the comment box and each exit from it: 174 ms of style a move on the
-    256-section asks page of `leaf-dev scaling`, most of a comment's send. Counted in
-    the browser's own restyled elements, against a restyle of the whole page."""
+    plane (annotation-overlay/floating.js, `readFloatingEditor`), by a zero base.css
+    writes so that entering and leaving the box restyle only the chrome; its comment
+    says what a plain zero cost. Counted in the browser's own restyled elements,
+    against a restyle of the whole page."""
     paragraphs = "".join(
         f"<p id='p{i}'>Paragraph {i} of the page.</p>" for i in range(600)
     )
@@ -229,17 +228,7 @@ def test_entering_and_leaving_a_floating_comment_box_restyles_only_the_chrome(
 
     def restyled(move):
         """The most elements one style recalc restyled while `move` ran."""
-        browser.start_tracing(page=page, categories=["devtools.timeline"])
-        try:
-            move()
-            rendered(page)
-        finally:
-            trace = json.loads(browser.stop_tracing())
-        counts = [
-            event["args"].get("elementCount", 0)
-            for event in trace["traceEvents"]
-            if event["name"] == "UpdateLayoutTree"
-        ]
+        counts = restyle_counts(page, lambda: (move(), rendered(page)))
         assert sum(counts), "the move must restyle something, or this proves nothing"
         return max(counts)
 

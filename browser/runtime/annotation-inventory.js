@@ -104,7 +104,7 @@ export const annotationSelection = (root) => ({
   workflows: root.effective.workflows,
   revision: root.document.revision,
   todos: root.authoritative?.browser.todos ?? null,
-  cameAfter: root.authoritative?.browser.revision_messages ?? null,
+  waits: root.authoritative?.browser.message_waits ?? null,
 });
 
 /** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./obligations/view.js").createObligationView>["goToObligation"], scrollToElement: ScrollToElement}} dependencies */

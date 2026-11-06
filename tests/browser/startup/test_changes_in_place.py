@@ -598,6 +598,39 @@ def test_a_change_says_which_comment_it_came_after(browser, serve):
     )
 
 
+def test_a_change_names_only_the_revisions_that_wrote_its_own_blocks(browser, serve):
+    """Paragraphs with no ids of their own share their section's id, so a revision
+    that edited one of them changed the same unit as one that edited another; each
+    change still names only the revision that wrote its own words, and the comments
+    waiting when that revision was written (version.js, `madeBy`)."""
+    alpha = ("Alpha reads one way.", "Alpha reads another way.")
+    beta = ("Beta reads one way.", "Beta reads another way.")
+    page_html = leaf_page(
+        "Anonymous",
+        f'<section id="s"><h2 id="s-head">Plan</h2><p>{alpha[0]}</p>'
+        f"<p>Gamma stays as it was.</p><p>{beta[0]}</p></section>",
+    )
+    url = live_url(serve(page_html))
+    d = serve.page_dir
+    _comment_on(d, "s", alpha[0], text="Is Alpha right?")
+    stamp_page(d, revised(page_html, alpha), "rewrote Alpha")
+    _comment_on(d, "s", beta[0], revision=2, text="Is Beta right?")
+    revise(d, beta)
+    page = open_page(browser, url)
+    wait_for_revision(page, 3)
+    compare_with(page, 1)
+    page.keyboard.press("Escape")
+    labels = page.locator('[data-lf-kinds~="change"] .lf-margin-entry-label')
+    expect(labels).to_have_count(2)
+    expect(labels.nth(0)).to_contain_text(
+        "In v2, after your comment: “Is Alpha right?”"
+    )
+    expect(labels.nth(0)).not_to_contain_text("Beta")
+    expect(labels.nth(1)).to_contain_text(
+        "In Draft, after your 2 comments: “Is Alpha right?” “Is Beta right?”"
+    )
+
+
 def _comment_on(d, section, words, revision=1, text="Say which way?"):
     return append_command(
         d,

@@ -3,7 +3,7 @@ revision stands in the log (`provenance.py`, `revisioning.py`): what a version s
 it was saved after."""
 
 from click.testing import CliRunner
-from interact_support import append_command, response_reference
+from interact_support import append_command, model_layer, response_reference
 from model_folds import leaf_page, served_view
 
 from leaf import cli as cli_model
@@ -37,8 +37,8 @@ def waited(message, words, thread=None):
     return {"thread": thread or message, "message": message, "words": words}
 
 
-def saved_after(events, base, shown, documents=PAGE):
-    return served_view(documents, events, base, shown)["saved_after"]
+def saved_after(events, base, shown, documents=PAGE, registry=None):
+    return served_view(documents, events, base, shown, registry=registry)["saved_after"]
 
 
 def test_a_version_names_what_waited_as_it_read_then_and_nothing_later_moves_it():
@@ -155,6 +155,55 @@ def test_each_revision_is_judged_by_the_log_before_it():
         live(3),
     ]
     assert saved_after(undone_rewrite, 1, 3) == [waited("e1", "Make it red")]
+
+
+def test_each_revision_is_read_under_the_document_live_there():
+    """A choice closes a comment's thread; the next version restates the chosen
+    option, which reopens it, so the comment waits as the version after it goes live.
+    A later version moving the option into another group changes nothing an earlier
+    comparison says, since each revision's place is read under its own document."""
+    registry = model_layer()
+    registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
+    first = leaf_page(
+        "Options",
+        '<lf-options id="picks" choose resolves="e2">'
+        '<lf-option id="option-a">A</lf-option><lf-option id="option-b">B</lf-option>'
+        '</lf-options><lf-options id="other"><lf-option id="option-c">C</lf-option>'
+        "</lf-options>",
+    )
+    second = first.replace('id="option-a"', 'id="option-a" restated').replace(
+        ">A<", ">A reconsidered<"
+    )
+    third = second.replace(">A reconsidered<", ">A reconsidered again<")
+    moved = '<lf-option id="option-a" restated>A reconsidered again</lf-option>'
+    fourth = third.replace(moved, "").replace(
+        '<lf-options id="other">', f'<lf-options id="other">{moved}'
+    )
+    events = [
+        live(1),
+        {"kind": "comment", "text": "Please reconsider A"},
+        {
+            "kind": "action",
+            "widget": "picks",
+            "action": "choose",
+            "detail": {"value": ["option-a"]},
+        },
+        {
+            "kind": "note",
+            "revision": 2,
+            "version": 1,
+            "text": "Reconsider A",
+            "restated": ["option-a"],
+            **AGENT,
+        },
+        live(2),
+        live(3),
+    ]
+    asked = [waited("e2", "Please reconsider A")]
+    documents = {1: first, 2: second, 3: third}
+    assert saved_after(events, 2, 3, documents, registry) == asked
+    documents = {**documents, 4: fourth}
+    assert saved_after([*events, live(4)], 2, 3, documents, registry) == asked
 
 
 def test_a_comparison_across_a_stamped_version_says_nothing():

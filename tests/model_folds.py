@@ -171,10 +171,12 @@ def served_view(
     events: tuple[dict, ...] | list[dict],
     base: int,
     shown: int | None = None,
+    *,
+    registry: dict | None = None,
 ) -> dict:
     """The `/api/view` answer (`PageStateService.page_comparison`) for revision
     `base` at the end of the log `served_reading` would fold, compared with `shown`."""
-    folded = _fold(documents, events)
+    folded = _fold(documents, events, registry=registry)
     sent = PageStateService(Path(), source=_FoldedPage(folded)).page_comparison(
         base, len(folded.events), shown
     )

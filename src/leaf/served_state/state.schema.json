@@ -1680,12 +1680,12 @@
                 "properties": {
                   "thread": { "type": "string" },
                   "message": { "type": "string" },
-                  "words": {
-                    "description": "On the first `provenance.QUOTED` messages, the most the version's line quotes: the opening line as it read at the latest of the version's revisions it waited at, as its Markdown shows it (`provenance.opening_words`).",
+                  "said": {
+                    "description": "The event whose words the message had at the latest of the version's revisions it waited at: the message itself, or the rewrite of it then standing.",
                     "type": "string"
                   }
                 },
-                "required": ["thread", "message"],
+                "required": ["thread", "message", "said"],
                 "additionalProperties": false
               }
             },

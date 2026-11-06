@@ -643,6 +643,36 @@ def test_a_change_with_no_card_still_says_what_its_version_was_saved_after(
     ]
 
 
+def test_a_version_quotes_each_waiting_message_as_its_thread_shows_it(browser, serve):
+    """The line quotes a message as its thread draws it: a code block opening with
+    words shows both its lines, and a suggestion its words literally."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    _comment_on(d, "t", "Plan", text="```first words\nsecond words\n```")
+    append_command(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "**literal stars**",
+            "suggestion": True,
+            "anchor": {"section": "a", "quote": "Alpha stays as it was."},
+        },
+    )
+    revise(d, ('<h1 id="t">Plan</h1>', '<h1 id="t">Plan for spring</h1>'))
+    page = open_page(browser, url)
+    wait_for_revision(page, 2)
+    entries = page.locator('[data-lf-kinds~="change"]')
+    page.keyboard.press("v")
+    expect(entries).to_have_count(1)
+    assert preview_parts(entries.first)[-3:] == [
+        "Draft saved while your 2 comments waited:",
+        "“first words second words”",
+        "“**literal stars**”",
+    ]
+
+
 def _comment_on(d, section, words, revision=1, text="Say which way?"):
     return append_command(
         d,

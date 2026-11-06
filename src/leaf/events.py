@@ -1,7 +1,7 @@
 """Pure folds over the append-only event model."""
 
-from bisect import insort
-from collections import OrderedDict
+from bisect import bisect_left, insort
+from collections.abc import Callable, Iterable
 from math import inf
 from operator import itemgetter
 from typing import NamedTuple
@@ -200,7 +200,13 @@ def unshown(events: list, withdrawn: set) -> set:
     return withdrawn - standing_withdrawn(events, withdrawn)
 
 
-def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -> dict:
+def build_threads(
+    events: list,
+    within: dict,
+    *,
+    withdrawn: set | None = None,
+    containments: Iterable[tuple[int, Callable[[], dict]]] = (),
+) -> dict:
     """Fold threads using the admitted answer coordinate.
 
     Answer effects survive retirement of their source widget. An unrelated action
@@ -229,7 +235,10 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     the seq it ``closed`` at and the seq it ``reopened`` at, or null while it stands,
     so what a closure ended stayed ended until then (`provenance.saved_after`);
     only the server reads it. ``resolved`` is the closing that stands at the end of
-    the log, or null.
+    the log, or null. `containments` hands the fold, in order, each place where
+    another revision's containment takes hold and a reader of it, so the history at
+    each such place is the one a fold under that containment would read
+    (`InForce.contain`); the containment `within` stands until the first.
 
     Each thread is keyed by, and carries as ``id``, the id of the comment that
     opened it, its ``root``: the name every obligation, workflow, summary, and title
@@ -259,7 +268,32 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     # the message is taken back; and what has been taken back so far.
     rewrites: dict[str, list[str]] = {}
     undone: set[str] = set()
-    for e in events:
+
+    def moved(changes: Iterable[Change | None], put: list, out: list) -> None:
+        # What a winner moving takes out of force, and the closing of the thread its
+        # new winner answers, which it puts in.
+        for change in changes:
+            if change is None:
+                continue
+            if change.before is not None:
+                out.append(change.before["id"])
+            if change.after is not None and (
+                answered := threads.get(change.after["meaning"].get("answer"))
+            ):
+                put.append((answered, change.after, True))
+
+    # Each containment takes hold just before its place, so what it moves stands
+    # there and no event at the place has happened yet.
+    switches = iter(containments)
+    switch = next(switches, None)
+    for e in [*events, None]:
+        while switch is not None and (e is None or (e.get("seq") or inf) >= switch[0]):
+            put, out = [], []
+            moved(in_force.contain(switch[1]), put, out)
+            closures.step(switch[0] - 0.5, put, out)
+            switch = next(switches, None)
+        if e is None:
+            break
         # Every turn said in a thread stays in its history, and so does the user
         # taking one back, so what an answer settled stays settled
         # (`settled_through`).
@@ -283,15 +317,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             changes = [in_force.admit(e)]
         else:
             changes = in_force.restate(e) if kind == "note" else []
-        for change in changes:
-            if change is None:
-                continue
-            if change.before is not None:
-                out.append(change.before["id"])
-            if change.after is not None and (
-                answered := threads.get(change.after["meaning"].get("answer"))
-            ):
-                put.append((answered, change.after, True))
+        moved(changes, put, out)
         # A resolve naming a comment that opened a thread nothing else stands on
         # closes nothing once the user takes the comment back: the thread is gone.
         if kind in ("resolve", "unresolve") and (thread := thread_for.get(e["parent"])):
@@ -419,7 +445,7 @@ class _ClosureHistory:
         held = self._held.get(thread["id"])
         return held[-1][3] if held and held[-1][2] else None
 
-    def step(self, at: int | None, put: list, out: list) -> None:
+    def step(self, at: float | None, put: list, out: list) -> None:
         """Take out of force each event `out` names, put each `(thread, event,
         closes)` in `put` into it, and record each thread that closed or reopened
         at `at`."""
@@ -753,29 +779,40 @@ def action_rests_on(event: dict, within: dict) -> list:
     """Declared direct identities under the document's current containment.
 
     The event keeps the identities the command named, not their ancestor path.
-    Moving a named element out of the owner therefore changes its applicability.
-    A child the action created (`meaning.creates`) is its fold unit, which it rests
-    on whether or not a document holds it yet. Literal detail values never acquire
-    identity by coinciding with an HTML id.
+    Moving a named element out of the owner therefore changes its applicability
+    (`_holds`). A child the action created (`meaning.creates`) is its fold unit,
+    which it rests on whether or not a document holds it yet (`_always_rests`).
+    Literal detail values never acquire identity by coinciding with an HTML id.
     """
-    widget = event["widget"]
+    owner, *created = _always_rests(event)
     return list(
         dict.fromkeys(
             [
-                widget,
+                owner,
                 *(
                     identity
                     for identity in event["meaning"]["depends"]
-                    if widget in within.get(identity, ())
+                    if _holds(event, identity, within)
                 ),
-                *(
-                    [event["meaning"]["unit"]]
-                    if event["meaning"].get("creates")
-                    else []
-                ),
+                *created,
             ]
         )
     )
+
+
+def _always_rests(event: dict) -> list:
+    """What an action rests on whatever a document holds: its owner, and the child
+    it created (`meaning.creates`), its fold unit."""
+    return [
+        event["widget"],
+        *([event["meaning"]["unit"]] if event["meaning"].get("creates") else []),
+    ]
+
+
+def _holds(event: dict, identity: str, within: dict) -> bool:
+    """Whether the action's owner holds `identity` under the containment `within`:
+    the condition on which an action rests on an element it names."""
+    return event["widget"] in within.get(identity, ())
 
 
 def action_retracted(event: dict, floors: dict, within: dict) -> bool:
@@ -815,88 +852,195 @@ class InForce:
     notes to `restate` where they fall (`thread_memberships`, `build_threads`). The
     two agree on where the walk ends.
 
+    What an action rests on depends on the document's containment where it names an
+    element its owner must hold (`action_rests_on`), so a reader of the page as each
+    revision stood hands each revision's containment to `contain` where it takes
+    hold, and every action, retracted or not, is judged again under it: the state
+    after `contain` is the one a walk under that containment from the start would
+    reach. So a retracted action is kept, with how many of the elements it rests on
+    a version has restated since it was made, and stands again where that falls to
+    none.
+
     A step reports a `Change` only where the winner moved: taking out an action
     that was not winning changes no coordinate's reading.
 
-    Each step costs what it touches: a note reaches the actions resting on what it
-    restates through an index of them, never every action in force, and a
-    coordinate's winner is the tail of a linked order, which taking actions out
-    leaves constant to reach. A walk is therefore linear in the log however many
-    actions one coordinate collects."""
+    Each step costs what it touches: a note reaches the actions naming what it
+    restates through an index of them, never every action; a containment reaches only
+    the actions whose owner gained or lost a restated element they name; and a
+    coordinate's winner is the last of its standing actions in log order. A walk is
+    therefore linear in the log however many actions one coordinate collects."""
 
     def __init__(self, within: dict, floors: dict | None = None, withdrawn=frozenset()):
         self.within = within
         self.floors = dict(floors or {})
         self.withdrawn = withdrawn
-        self._at: dict[tuple, OrderedDict[str, dict]] = {}
+        self._actions: dict[str, dict] = {}
         self._coordinate: dict[str, tuple] = {}
-        # identity → the actions in force resting on it, in log order.
-        self._resting: dict[str, OrderedDict[str, None]] = {}
+        # Each kept action's place in log order, which orders a coordinate's standing.
+        self._order: dict[str, int] = {}
+        self._admitted = 0
+        # Each kept action's elements it always rests on, and those it rests on only
+        # while its owner holds them (`_always_rests`, `_holds`).
+        self._always: dict[str, frozenset] = {}
+        self._named: dict[str, frozenset] = {}
+        # How many elements each kept action rests on that a version restated since.
+        self._retracting: dict[str, int] = {}
+        # coordinate → its standing actions, as (order, id), in log order.
+        self._standing: dict[tuple, list[tuple[int, str]]] = {}
+        # identity → the kept actions naming it, whether or not they rest on it.
+        self._naming: dict[str, dict[str, None]] = {}
+        # identity → owner → the kept actions that name it as an element their owner
+        # must hold, and rest on it only while it does.
+        self._held: dict[str, dict[str, dict[str, None]]] = {}
+        # The elements so named that a version has restated: all a containment
+        # can judge otherwise.
+        self._contested: set[str] = set()
 
     def winner(self, coordinate: tuple) -> dict | None:
-        actions = self._at.get(coordinate)
-        return actions[next(reversed(actions))] if actions else None
+        standing = self._standing.get(coordinate)
+        return self._actions[standing[-1][1]] if standing else None
 
     def winners(self) -> dict:
         """Coordinate → its winner, for every coordinate an action stands at."""
         return {
-            coordinate: actions[next(reversed(actions))]
-            for coordinate, actions in self._at.items()
-            if actions
+            coordinate: self._actions[standing[-1][1]]
+            for coordinate, standing in self._standing.items()
+            if standing
         }
 
     def ids(self) -> frozenset:
         """Every action in force."""
-        return frozenset(self._coordinate)
+        return frozenset(
+            identity for standing in self._standing.values() for _, identity in standing
+        )
 
     def admit(self, action: dict) -> Change | None:
-        """Stand `action` at its coordinate, unless it was withdrawn or a version had
-        already retracted it on arrival, as from a tab showing an older version."""
-        if action["id"] in self.withdrawn or action_retracted(
-            action, self.floors, self.within
-        ):
+        """Keep `action` at its coordinate, standing unless a version had already
+        retracted what it rests on, as from a tab showing an older version; an action
+        `withdrawn` is not kept."""
+        if action["id"] in self.withdrawn:
             return None
+        identity = action["id"]
         coordinate = event_coordinate(action)
+        self._actions[identity] = action
+        self._coordinate[identity] = coordinate
+        self._order[identity] = self._admitted
+        self._admitted += 1
+        self._retracting[identity] = sum(
+            self.floors.get(rested, 0) > action["revision"]
+            for rested in action_rests_on(action, self.within)
+        )
+        always = self._always[identity] = frozenset(_always_rests(action))
+        named = self._named[identity] = frozenset(action["meaning"]["depends"]) - always
+        for element in always | named:
+            self._naming.setdefault(element, {})[identity] = None
+        for element in named:
+            self._held.setdefault(element, {}).setdefault(action["widget"], {})[
+                identity
+            ] = None
+            if self.floors.get(element):
+                self._contested.add(element)
+        if self._retracting[identity]:
+            return None
         before = self.winner(coordinate)
-        self._at.setdefault(coordinate, OrderedDict())[action["id"]] = action
-        self._coordinate[action["id"]] = coordinate
-        for identity in action_rests_on(action, self.within):
-            self._resting.setdefault(identity, OrderedDict())[action["id"]] = None
+        self._stand(identity)
         return Change(coordinate, before, action)
 
     def withdraw(self, identity: str) -> Change | None:
         """Take the action `identity` names out, where it stands."""
-        coordinate = self._coordinate.get(identity)
-        if coordinate is None:
+        action = self._actions.get(identity)
+        if action is None:
             return None
+        coordinate = self._coordinate[identity]
         before = self.winner(coordinate)
-        self._remove(identity)
+        if not self._retracting[identity]:
+            self._fall(identity)
+        for element in self._always[identity] | self._named[identity]:
+            del self._naming[element][identity]
+        for element in self._named[identity]:
+            del self._held[element][action["widget"]][identity]
+        for kept in (
+            self._actions,
+            self._coordinate,
+            self._order,
+            self._retracting,
+            self._always,
+            self._named,
+        ):
+            del kept[identity]
         after = self.winner(coordinate)
         return Change(coordinate, before, after) if after is not before else None
 
     def restate(self, note: dict) -> list[Change]:
         """Retract what a version note restates from every action made on an
         earlier version, and raise its floors for actions admitted after it."""
-        restated = note.get("restated", [])
-        for identity in restated:
-            self.floors[identity] = max(self.floors.get(identity, 0), note["revision"])
-        hit: dict[tuple, dict[str, None]] = {}
-        for identity in restated:
-            for action_id in self._resting.get(identity, {}):
-                coordinate = self._coordinate[action_id]
-                if self._at[coordinate][action_id]["revision"] < note["revision"]:
-                    hit.setdefault(coordinate, {})[action_id] = None
-        changes = []
-        for coordinate, retracted in hit.items():
-            before = self.winner(coordinate)
-            for action_id in retracted:
-                self._remove(action_id)
-            if (after := self.winner(coordinate)) is not before:
-                changes.append(Change(coordinate, before, after))
-        return changes
+        moves: dict[str, int] = {}
+        for element in note.get("restated", []):
+            floor = self.floors.get(element, 0)
+            self.floors[element] = max(floor, note["revision"])
+            if element in self._held:
+                self._contested.add(element)
+            for identity in self._naming.get(element, {}):
+                action = self._actions[identity]
+                if floor <= action["revision"] < note["revision"] and (
+                    element in self._always[identity]
+                    or _holds(action, element, self.within)
+                ):
+                    moves[identity] = moves.get(identity, 0) + 1
+        return self._retract(moves)
 
-    def _remove(self, identity: str) -> None:
-        coordinate = self._coordinate.pop(identity)
-        action = self._at[coordinate].pop(identity)
-        for rested in action_rests_on(action, self.within):
-            self._resting[rested].pop(identity, None)
+    def contain(self, within: Callable[[], dict]) -> list[Change]:
+        """Judge every kept action again under the containment `within` reads, where
+        it differs from the one before for an element a version restated and an
+        action names as its owner's: its owner gaining that element retracts what
+        rests on it, and losing it lets that stand again. `within` is read only where
+        some action could be judged otherwise."""
+        if not self._contested:
+            return []
+        now = within()
+        if now is self.within:
+            return []
+        moves: dict[str, int] = {}
+        for element in self._contested:
+            was, holds = self.within.get(element, ()), now.get(element, ())
+            if was == holds:
+                continue
+            for owner in set(was).symmetric_difference(holds):
+                for identity in self._held[element].get(owner, {}):
+                    if self.floors[element] > self._actions[identity]["revision"]:
+                        step = 1 if owner in holds else -1
+                        moves[identity] = moves.get(identity, 0) + step
+        self.within = now
+        return self._retract(moves)
+
+    def _retract(self, moves: dict[str, int]) -> list[Change]:
+        """Move each action's count of restated elements it rests on by `moves`,
+        standing it where that falls to none and taking it out where it rises from
+        none, and report each coordinate whose winner moved."""
+        before: dict[tuple, dict | None] = {}
+        for identity, step in moves.items():
+            was = self._retracting[identity]
+            self._retracting[identity] = was + step
+            if bool(was) == bool(was + step):
+                continue
+            coordinate = self._coordinate[identity]
+            before.setdefault(coordinate, self.winner(coordinate))
+            if was:
+                self._stand(identity)
+            else:
+                self._fall(identity)
+        return [
+            Change(coordinate, winner, after)
+            for coordinate, winner in before.items()
+            if (after := self.winner(coordinate)) is not winner
+        ]
+
+    def _stand(self, identity: str) -> None:
+        insort(
+            self._standing.setdefault(self._coordinate[identity], []),
+            (self._order[identity], identity),
+        )
+
+    def _fall(self, identity: str) -> None:
+        standing = self._standing[self._coordinate[identity]]
+        del standing[bisect_left(standing, (self._order[identity], identity))]

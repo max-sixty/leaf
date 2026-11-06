@@ -21,12 +21,16 @@
    `versionProvenance` is the one value a surface that describes a change reads, the ⇄
    entry's label (annotation-inventory.js), reading it once for every change. Its
    `lines` are the words a surface shows, each in its speaker's face: the heading in
-   Leaf's voice ("v4 saved while your comment waited:"), then each quoted message's
-   opening line as it read where it waited, in quotes, the user's own words. */
+   Leaf's voice ("v4 saved while your comment waited:"), then each quoted message as
+   its thread shows the words it had where it waited (`waitedWords`), in quotes, the
+   user's own words: the server names the event whose words stood, and this reads them
+   as a thread reads a message, so no second reading of a message's text exists. */
 import { runtime } from "./context.js";
+import { markdownReady } from "./markdown.js";
+import { messageText } from "./thread/messages.js";
 import { comparisonSavedAfter } from "./version.js";
 import { leafSays } from "./voice.js";
-import { counted, quotedWords } from "./words.js";
+import { counted, labelWords, quotedWords } from "./words.js";
 
 /** One of the user's messages a version was saved after, as the server names it.
  * @typedef {NonNullable<import("../types/contract.js").ServedViewAnswer["saved_after"]>[number]} WaitedMessage */
@@ -34,6 +38,8 @@ import { counted, quotedWords } from "./words.js";
  * of words in their speakers' faces (voice.js).
  * @typedef {Readonly<{version: string, lines: readonly (readonly (string | import("./voice.js").Said)[])[]}>} VersionProvenance */
 
+// The quoted lines a version's provenance shows at most before saying how many more.
+const QUOTED = 3;
 // The characters a quoted line keeps.
 const QUOTE_CAP = 90;
 
@@ -57,15 +63,13 @@ function yours(messages) {
 }
 
 /** What the version `version` says it was saved after `messages`, in the order they
- * were sent: a heading, the quotes the server read words for (provenance.py,
- * `QUOTED`), and how many more, which takes the last quote's line where there are.
+ * were sent: a heading, up to three quotes, each in the words `wordsOf` gives the
+ * message, and past three how many more.
  * @param {string} version @param {readonly WaitedMessage[]} messages
+ * @param {(message: WaitedMessage) => string} wordsOf
  * @returns {VersionProvenance} */
-export function savedAfter(version, messages) {
-  const quotable = messages.flatMap(({ words }) =>
-    words === undefined ? [] : [words],
-  );
-  const shown = messages.length > quotable.length ? quotable.slice(0, -1) : quotable;
+export function savedAfter(version, messages, wordsOf) {
+  const shown = messages.slice(0, messages.length > QUOTED ? QUOTED - 1 : QUOTED);
   return Object.freeze({
     version,
     lines: Object.freeze([
@@ -76,12 +80,34 @@ export function savedAfter(version, messages) {
             : `${version} saved with none of your comments waiting`,
         ),
       ]),
-      ...shown.map((words) => Object.freeze([quotedWords(words, QUOTE_CAP)])),
+      ...shown.map((message) =>
+        Object.freeze([quotedWords(wordsOf(message), QUOTE_CAP)]),
+      ),
       ...(messages.length > shown.length
         ? [Object.freeze([leafSays(`and ${messages.length - shown.length} more`)])]
         : []),
     ]),
   });
+}
+
+/** The words a message had where it waited, as its thread shows a message
+ * (thread/messages.js, `messageText`): those of the event the server names as then
+ * standing, the message itself or a rewrite of it, read as the message's kind reads,
+ * or Drawing for a drawing with none.
+ * @param {ReadonlyMap<string, import("../types/contract.js").ServedEvent>} logged
+ * @param {WaitedMessage} waited */
+export function waitedWords(logged, { message, said }) {
+  const sent = /** @type {Record<string, any>} */ (logged.get(message) ?? {});
+  const then = /** @type {Record<string, any>} */ (logged.get(said) ?? sent);
+  const words = labelWords(
+    messageText({
+      id: `${message}@${said}`,
+      text: then.text,
+      token: sent.token,
+      suggestion: sent.suggestion,
+    }),
+  );
+  return words || (sent.drawing ? "Drawing" : "");
 }
 
 // The last reading `versionProvenance` made, and what it was made from.
@@ -93,11 +119,17 @@ let held = null;
 export function versionProvenance() {
   const messages = comparisonSavedAfter();
   const shown = runtime.currentRevision;
-  const { versions } = runtime;
-  const inputs = [messages, shown, versions];
+  const { versions, events } = runtime;
+  // A message's words read otherwise once the Markdown renderer has arrived.
+  const inputs = [messages, shown, versions, events, markdownReady()];
   if (held && held.inputs.every((input, at) => input === inputs[at])) return held.value;
   const stamp = versions.find(({ revision }) => revision === shown);
-  const value = messages && savedAfter(stamp ? `v${stamp.version}` : "Draft", messages);
+  const logged = new Map(events.map((event) => [event.id, event]));
+  const value =
+    messages &&
+    savedAfter(stamp ? `v${stamp.version}` : "Draft", messages, (message) =>
+      waitedWords(logged, message),
+    );
   held = { inputs, value };
   return value;
 }

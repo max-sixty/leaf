@@ -25,13 +25,15 @@ the work grows with the log and the turns, not with the threads times the
 revisions. The reply or note that answered a message may itself have published the
 revision, and stands at its end.
 
-Each message is quoted in the words it had at the latest of the version's revisions
-it waited at, from the thread's rewrite history (``revisions``) less the rewrites
-taken back by then, not as it reads now or when the version went live, since a
-rewrite made after it stopped waiting never waited across the version. Where it
-waited at two in different words, the later wording is the one quoted: the user's
-rewrite restates what they asked for, and the version's later revisions were made
-with it waiting. It is computed when a tab asks, with the base's document
+Each message is named with the event whose words it had at the latest of the
+version's revisions it waited at, itself or a rewrite of it, from the thread's rewrite
+history (``revisions``) less the rewrites taken back by then: not as it reads now or
+when the version went live, since a rewrite made after it stopped waiting never waited
+across the version. Where it waited at two in different words, the later wording
+stands: the user's rewrite restates what they asked for, and the version's later
+revisions were made with it waiting. The browser quotes those words as the thread
+shows a message (change-provenance.js), so no reading of a message's text lives here.
+It is computed when a tab asks, with the base's document
 (`served_state.service.PageStateService.page_comparison`), and nothing of it is kept
 or served otherwise.
 
@@ -60,15 +62,11 @@ changed the element a comment stands on need not have answered it.
 
 from bisect import bisect_left, bisect_right
 from collections.abc import Callable
+from functools import partial
 from math import inf
 from operator import itemgetter
 
-from .events import action_rests_on, build_threads, retractions, settlements
-from .passages import message_opening
-
-# The most messages a version's line quotes; it counts the rest (change-provenance.js).
-# Only those are read into words, which is most of the answer's cost where many wait.
-QUOTED = 3
+from .events import build_threads, settlements
 
 
 def revision_places(events: list) -> dict[int, int]:
@@ -94,30 +92,21 @@ def saved_after(
     """The user's messages that waited while the version at revision `shown` was
     saved, compared with the version before it at `base`: each a message that waited
     at the place of any revision after `base` through `shown`, as `thread` and
-    `message`, in the order they were sent, the first `QUOTED` with `words`, its
-    opening line as it read at the latest of those (`opening_words`). None where a
+    `message`, in the order they were sent, with `said`, the event whose words it had
+    at the latest of those, the message itself or a rewrite of it. None where a
     revision `stamped` with a version stands between the two; every revision between
     them has a place among `places`. `containment` reads a revision's (`within`).
 
-    A fold of the log before a revision went live (`events.build_threads`), under that
-    revision's containment, reads every message as it was said, none taken back, and
-    its histories keep the place of each turn, answer, closing, reopening and rewrite,
+    One fold of the log before `shown` went live (`events.build_threads`) reads every
+    message as it was said, none taken back, with each of those revisions'
+    containment taking hold at its place, so its histories keep, at each, what the
+    page read there: the place of each turn, answer, closing, reopening and rewrite,
     beside the place each gesture was taken back. A message waited at a revision's
     place where, by the log before it, it had been sent and not taken back, had no
-    answer yet, and its thread stood open; the reply or note that answered it stands
-    at its end. Its words there are those of its latest rewrite before that place not
-    yet taken back, else those it was sent with.
-
-    Containment reaches the fold only where a version retracts a decision: an action
-    stands until a note restates an identity it rests on (`events.action_retracted`),
-    and whether it rests on an element it names is the document's to say
-    (`events.action_rests_on`). So only each owner and element it names that a later
-    version restated is read under each revision; the revisions that agree on those
-    read alike, and one fold, to the last of them, serves them all: one for a page
-    whose versions retract nothing an earlier action names, one more for each reading
-    of them that differs. That costs a fold per save only where a version's saves move
-    a restated element through owners that earlier decisions named, each save another:
-    800 such saves took 1.7 s, against 5 ms for 1,600 saves that restate nothing."""
+    answer yet, and its thread stood open; the reply or note that answered it stands at
+    its end. Its words there are those of its latest rewrite before that place not yet
+    taken back, else those it was sent with. Containment is read only where a decision
+    could rest otherwise under it (`events.InForce.contain`)."""
     if any(base < revision < shown for revision in stamped):
         return None
     span = sorted(
@@ -127,62 +116,59 @@ def saved_after(
     )
     if not span:
         return None
-    prefix = events[: bisect_left(events, span[-1][0], key=itemgetter("seq"))]
+    at = [place for place, _revision in span]
+    prefix = events[: bisect_left(events, at[-1], key=itemgetter("seq"))]
     undone = {event["undoes"]: event["seq"] for event in prefix if "undoes" in event}
-    floors = retractions(prefix)
-    # Each owner and restated element it names, from an action made before the version
-    # that restated the element: the one question containment answers for the fold.
-    named = {
-        (event["widget"], identity): event
-        for event in prefix
-        if event["kind"] == "action"
-        for identity in event["meaning"]["depends"]
-        if floors.get(identity, 0) > event["revision"]
-    }
-    readings: dict[tuple, tuple[dict, list[int]]] = {}
-    for place, revision in span:
-        within = containment(revision) if named else {}
-        rests = tuple(
-            identity in action_rests_on(event, within)
-            for (_owner, identity), event in named.items()
-        )
-        readings.setdefault(rests, (within, []))[1].append(place)
+    threads = build_threads(
+        prefix,
+        {},
+        withdrawn=set(),
+        containments=[
+            (place, partial(containment, revision)) for place, revision in span
+        ],
+    )
     # Each message that waited: its reading, its thread, the latest place it waited.
     found: dict[str, tuple[dict, dict, int]] = {}
-    for within, at in readings.values():
-        cut = prefix[: bisect_left(prefix, at[-1], key=itemgetter("seq"))]
-        for thread in build_threads(cut, within, withdrawn=set()).values():
-            latest_open = _latest_open(thread["closures"], at)
-            answered = {
-                turn["id"]: settlement.answer["seq"]
-                for settlement in settlements(thread)
-                for turn in settlement.turns
-            }
-            said = {message["id"]: message for message in thread["msgs"]}
-            for turn in thread["turns"]:
-                if turn["author"] == "agent" or "undoes" in turn:
-                    continue
-                message = turn.get("message", turn["id"])
-                end = min(
-                    answered.get(turn["id"], inf),
-                    undone.get(turn["id"], inf),
-                    undone.get(message, inf),
-                )
-                place = latest_open(turn["seq"], end)
-                if place is not None and place > found.get(message, ({}, {}, 0))[2]:
-                    found[message] = (said[message], thread, place)
-    waited = sorted(found.values(), key=lambda each: each[0]["seq"])
+    for thread in threads.values():
+        latest_open = _latest_open(thread["closures"], at)
+        answered = {
+            turn["id"]: settlement.answer["seq"]
+            for settlement in settlements(thread)
+            for turn in settlement.turns
+        }
+        said = {message["id"]: message for message in thread["msgs"]}
+        for turn in thread["turns"]:
+            if turn["author"] == "agent" or "undoes" in turn:
+                continue
+            message = turn.get("message", turn["id"])
+            end = min(
+                answered.get(turn["id"], inf),
+                undone.get(turn["id"], inf),
+                undone.get(message, inf),
+            )
+            place = latest_open(turn["seq"], end)
+            if place is not None and place > found.get(message, ({}, {}, 0))[2]:
+                found[message] = (said[message], thread, place)
+    rewrites: dict[str, list[dict]] = {}
+    for thread in threads.values():
+        for rewrite in thread["revisions"]:
+            rewrites.setdefault(rewrite["message"], []).append(rewrite)
     return [
         {
             "thread": thread["id"],
             "message": message["id"],
-            **(
-                {"words": opening_words(_as_it_read(message, thread, place, undone))}
-                if index < QUOTED
-                else {}
+            "said": next(
+                (
+                    rewrite["id"]
+                    for rewrite in reversed(rewrites.get(message["id"], []))
+                    if rewrite["seq"] < place and undone.get(rewrite["id"], inf) > place
+                ),
+                message["id"],
             ),
         }
-        for index, (message, thread, place) in enumerate(waited)
+        for message, thread, place in sorted(
+            found.values(), key=lambda each: each[0]["seq"]
+        )
     ]
 
 
@@ -212,27 +198,3 @@ def _latest_open(
         return place if place is not None and place > start else None
 
     return latest
-
-
-def _as_it_read(message: dict, thread: dict, place: int, undone: dict) -> dict:
-    """`message` as it read at `place`: in the words of its latest rewrite in
-    `thread` before it and not taken back by then, else those it was sent with, which
-    its first rewrite kept."""
-    rewrites = [
-        each for each in thread["revisions"] if each["message"] == message["id"]
-    ]
-    if not rewrites:
-        return message
-    standing = [
-        each
-        for each in rewrites
-        if each["seq"] < place and undone.get(each["id"], inf) > place
-    ]
-    return {**message, "text": standing[-1]["text"] if standing else rewrites[0]["was"]}
-
-
-def opening_words(message: dict) -> str:
-    """A message's opening line as its thread shows it (`passages.message_opening`),
-    or Drawing for a drawing with no words."""
-    words = message_opening(message.get("text") or "")
-    return words or ("Drawing" if message.get("drawing") else "")

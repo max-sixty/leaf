@@ -407,7 +407,8 @@ def test_a_preview_shown_on_focus_describes_what_focus_is_on(engine, request, se
 def test_an_entry_holding_several_threads_says_each(engine, request, serve):
     """A margin entry holding several threads is named by their count and gives every
     thread a line of its name and where it stands, as the card a press opens lists
-    them all."""
+    them all. In a window too short for every line it gives the lines that fit, and
+    its last says how many more threads the press reaches, so it stays in the window."""
     url = serve(PANEL_PAGE)
     for n in range(1, 5):
         panel_comment(serve.page_dir, f"Question {n} on the lede?", {"section": "lede"})
@@ -418,6 +419,16 @@ def test_an_entry_holding_several_threads_says_each(engine, request, serve):
     assert [part.split(" · ")[0] for part in parts[1:]] == [
         f"Question {n} on the lede?" for n in range(1, 5)
     ], parts
+
+    tip = page.locator(PREVIEW)
+    expect(tip).to_be_hidden()
+    page.set_viewport_size({"width": page.viewport_size["width"], "height": 250})
+    page.mouse.move(2, 2)
+    entry.hover()
+    expect(tip.locator(".lf-preview-detail")).to_have_count(3)
+    expect(tip.locator(".lf-preview-detail").last).to_have_text("and 2 more threads")
+    box = tip.bounding_box()
+    assert box["y"] >= 0 and box["y"] + box["height"] <= 250, box
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

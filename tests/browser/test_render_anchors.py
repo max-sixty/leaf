@@ -5450,3 +5450,45 @@ def test_a_passage_staged_into_a_new_shadow_tree_keeps_its_mark(engine, request,
     page.mouse.move(box["left"] - 20, box["top"] - 20)
     page.mouse.move(box["left"] + 4, box["top"] + box["height"] / 2, steps=3)
     expect(page.locator("body")).to_have_attribute("data-lf-over-mark", "")
+
+
+def test_an_element_s_mark_is_under_the_pointer_only_over_the_element(browser, serve):
+    """A thread on an element is under the pointer wherever the platform's hit test puts
+    the pointer inside that element, as over an image, which holds no text to find, and
+    nowhere past it, as beside a marked word at a line's end, where the nearest
+    character is still the word's."""
+    box = (
+        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' "
+        "height='80'%3E%3Crect width='160' height='80' fill='%23a55'/%3E%3C/svg%3E"
+    )
+    url = serve(
+        leaf_page(
+            "Element marks",
+            f'<p id="holder"><img id="pic" alt="A red box" src="{box}" width="160" '
+            'height="80"> beside words.</p>'
+            '<p id="line">A short line ending in <strong id="bold">bold</strong></p>',
+        )
+    )
+    for section in ("pic", "bold"):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About {section}?",
+                "anchor": {"section": section},
+            },
+        )
+    page = open_page(browser, url)
+    body = page.locator("body")
+    pic = page.locator("#pic").bounding_box()
+    bold = page.locator("#bold").bounding_box()
+    middle = bold["y"] + bold["height"] / 2
+    page.mouse.move(pic["x"] + 40, pic["y"] + 40)
+    page.mouse.move(pic["x"] + 60, pic["y"] + 50, steps=2)
+    expect(body).to_have_attribute("data-lf-over-mark", "")
+    page.mouse.move(bold["x"] + bold["width"] + 35, middle, steps=2)
+    expect(body).not_to_have_attribute("data-lf-over-mark", "")
+    page.mouse.move(bold["x"] + bold["width"] / 2, middle, steps=2)
+    expect(body).to_have_attribute("data-lf-over-mark", "")

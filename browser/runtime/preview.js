@@ -147,7 +147,7 @@
    shown with; and a preview that follows its target by a script, which trails each
    scroll by a frame. */
 import { html, nothing, render } from "/runtime/framework.js";
-import { anchorAt, anchorElement } from "./css-anchors.js";
+import { anchorAt, anchorElement, anchorName } from "./css-anchors.js";
 import { placeHolder } from "./geometry.js";
 import { closeNativeLayer, showNativeLayer } from "./keyboard/layer-stack.js";
 import { controlKeys } from "./keyboard/control-keys.js";
@@ -814,6 +814,11 @@ let refreshing = false;
 /** @param {HTMLElement} home */
 export function mountPreviews(home) {
   home.append(tip);
+  // The page's root carries most previews (`carrier`), and naming it writes its style,
+  // which the margin hears as a restyle and lays out every row for: named as previews
+  // mount, before the margin hears the page (leaf.js), the session's first preview
+  // runs no pass over the rows, where it ran one at its first hover.
+  anchorName(anchorElement(document.documentElement));
   // Once for each new presentation, a revision's included, after it has painted, and
   // never for a pointer's move.
   const presented = () => {

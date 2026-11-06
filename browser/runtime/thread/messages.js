@@ -222,6 +222,12 @@ const authorName = (message) => (message.author === "agent" ? message.agent : "M
 // The characters of a thread's name or a message's opening line a preview keeps,
 // which wrap within its width.
 const PREVIEWED_LINE = 120;
+// The window's height a preview of several threads gives each thread's line: a name cut
+// at 60 characters and its state wrap to at most three of the face's lines at its
+// 320 px width, 16 px each with their spacing; and the height its frame, name and last
+// line take beside them, with the window's edges.
+const THREAD_LINE_PX = 48;
+const THREADS_FRAME_PX = 64;
 
 // Where a thread stands, as its preview says it (`threadPreview`): its word
 // (`threadAttention`) and the agent's line on the work in hand, what it holds unread
@@ -252,11 +258,17 @@ function threadStands(thread, said) {
  * thread stands: "Your turn · 1 unread · 5 messages". An untitled thread's name is its
  * opening words, so a thread whose last message is its first says them once. A target
  * holding several threads is named by their count, as the card a press opens lists
- * them, and gives each a line, its name and where it stands: seven, the most the
- * example and page logs hold on one target, fit the window. A line in the user's turn
- * wears the turn's mark (`data-lf-turn`). Where the preview describes something that
- * already says one thread's word, as a margin entry's name does to the keyboard,
- * `said` is that word, which its line leaves out, so a screen reader hears it once.
+ * them, and gives each a line, its name and where it stands, as many as the window
+ * holds; past those its last line says how many more, which a press still reaches: the
+ * card it opens steps through every thread, and on a window too narrow for the card,
+ * the thread it opens in the panel goes back to the panel's list of them. Seven, the
+ * most the example and page logs hold on one target, fit a window 400 px tall.
+ * Rejected: a preview listing every thread and scrolling past the window, whose work
+ * on a hover grows with the threads on one target, and whose lines past the window
+ * neither a keyboard nor a finger reaches. A line in the user's turn wears the turn's
+ * mark (`data-lf-turn`). Where the preview describes something that already says one
+ * thread's word, as a margin entry's name does to the keyboard, `said` is that word,
+ * which its line leaves out, so a screen reader hears it once.
  * @param {readonly import("./workflow.js").ThreadRecord[]} threads
  * @param {string | null} [said]
  * @returns {import("../preview.js").Preview | null} */
@@ -281,14 +293,24 @@ export function threadPreview(threads, said = null) {
       ],
     };
   }
+  const room = Math.max(
+    2,
+    Math.floor((innerHeight - THREADS_FRAME_PX) / THREAD_LINE_PX),
+  );
+  const shown = threads.length > room ? threads.slice(0, room - 1) : threads;
+  const more = threads.length - shown.length;
   return {
     name: counted(threads.length, "thread"),
-    detail: threads.map((thread) =>
-      standing(
-        threadStands(thread, null),
-        `${excerptWords(threadName(thread), 60)} · `,
+    detail: [
+      ...shown.map((thread) =>
+        standing(
+          threadStands(thread, null),
+          `${excerptWords(threadName(thread), 60)} · `,
+        ),
       ),
-    ),
+      more > 0 &&
+        voiced(leafSays(`and ${counted(more, "more thread", "more threads")}`)),
+    ],
   };
 }
 

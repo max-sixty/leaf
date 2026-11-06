@@ -355,6 +355,8 @@ const GROUPS = Object.freeze([
 ]);
 // Rows held elsewhere, so the menu and its groups leave them out: by the menu's foot.
 const FOLD = "panel.floating.fold";
+// A thread's row in Threads, which names the thread by its key.
+const THREAD_ROW = ".lf-fp-thread[data-lf-key]";
 const HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
 // A row the menu or a group lists: neither held elsewhere nor a stance's way out, at the
 // row's end.
@@ -5032,17 +5034,27 @@ export function createFloatingPanel({
     // `finishPlacement`).
     responseHome: responseSeat,
     revealResponse: clearRow,
-    // The thread whose row in Threads the pointer is on, and the row Threads draws for
-    // a thread, through which hover links a row and its passage both ways
-    // (anchor-paint.js, `markRow`).
-    hoveredThread: () => {
-      const row = threadRows().find((candidate) => candidate.matches(":hover"));
-      return row ? (threadByKey(row.dataset.lfKey)?.id ?? null) : null;
+    // The thread whose row in Threads holds `under`, the element under the pointer, and
+    // the row Threads draws for a thread, through which hover links a row and its
+    // passage both ways (anchor-paint.js, `markRow`). Each asks the rows' own markup, so
+    // a pointer move costs the same however many threads Threads lists.
+    /** @param {Element | null} under */
+    hoveredThread: (under) => {
+      const row = showing({ view: "threads" })
+        ? closestAcross(under, THREAD_ROW)
+        : null;
+      return row instanceof HTMLElement
+        ? (threadByKey(row.dataset.lfKey)?.id ?? null)
+        : null;
     },
     /** @param {string} id */
     threadRow: (id) => {
       const key = threadByKey(id)?.key;
-      return threadRows().find((row) => row.dataset.lfKey === key) ?? null;
+      return key && showing({ view: "threads" })
+        ? (shownView()?.querySelector(
+            `${THREAD_ROW}[data-lf-key="${CSS.escape(key)}"]`,
+          ) ?? null)
+        : null;
     },
   };
 }

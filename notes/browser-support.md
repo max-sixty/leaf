@@ -812,3 +812,28 @@ placement stood it; Firefox's blur still leaves focus on `body` after Back.
 and Firefox. To recheck, intercept a traversal with `scroll: "manual"`, scroll in the
 handler, and read the offset after `popstate`; once Firefox keeps the handler's offset
 and neither engine reveals or scrolls to the target, that step can go.
+
+### Highlight hit testing
+
+`CSS.highlights.highlightsFromPoint(x, y, {shadowRoots})` (CSS Custom Highlight API)
+names the highlights under a point and the ranges of each there, and Playwright's
+Chromium headless shell 156.0.8078.4, Firefox 157 and WebKit 27.2 all ship it. On
+2026-11-05 it answered correctly at a range's edges and inside a shadow tree passed in
+`shadowRoots`, which it needs in every engine. Two things keep a thread's passage
+marks from using it to say which mark the pointer is on
+(`browser/runtime/annotation-overlay/anchor-paint.js`, `markHit`):
+
+- Its cost grows with the ranges a highlight holds. At the last of a paragraph's
+  marks, one call took 20 µs at 32 and 320 µs at 512 in Chromium, and 15 µs and
+  100 µs in Firefox; `caretPositionFromPoint` took about 1 µs and 15 µs at both
+  sizes. A hover's work must not grow with the page (root `AGENTS.md`,
+  "Responsiveness").
+- Firefox and WebKit name a highlight under a box covering its words, as the chrome
+  over the page is; Chromium names none there.
+
+So `markHit` takes the caret lookup's text node and offset, reads the one or two
+characters' boxes around the offset, and finds the first mark covering that character
+in an index built as the marks paint. Recheck by timing `highlightsFromPoint` at the
+last of 32 and 512 marks in one paragraph, and at a point under a covering box; once
+its cost holds still and every engine names nothing under a cover, `markHit` can ask
+it instead of keeping its own index.

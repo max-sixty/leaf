@@ -272,7 +272,7 @@ async function boot() {
       pointer: pointerAt,
       currentLocationThreadId,
       currentLocationObligation: () => items.currentLocationIn(),
-      rowThread: () => floatingPanel?.hoveredThread() ?? null,
+      rowThread: (under) => floatingPanel?.hoveredThread(under) ?? null,
       threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
       marginThread: () => app?.overlay?.pointedThread() ?? null,
     });
@@ -697,6 +697,10 @@ async function boot() {
     restFab: responseSurface.restFab,
   };
 
+  // Exports keep previews too: a gloss or a timeline's marks say theirs there as well.
+  // Before the margin hears the page (`app.overlay.mount()`), so the name previews give
+  // the page's root as they mount is no restyle it lays out its rows again for.
+  mountPreviews(chromeRoot);
   if (!offlineInteractive) {
     document.adoptedStyleSheets = [
       ...document.adoptedStyleSheets,
@@ -773,8 +777,6 @@ async function boot() {
       reflectKeys,
     });
   }
-  // Exports keep previews too: a gloss or a timeline's marks say theirs there as well.
-  mountPreviews(chromeRoot);
 
   // Widget commands belong to interactive documents, including offline exports.
   // The register admits page and chrome commands only in a live document.

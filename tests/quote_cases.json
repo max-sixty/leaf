@@ -338,6 +338,25 @@
         "suffix": "one MARK two"
       },
       "before": 0
+    },
+    {
+      "id": "an empty inline widget's said values read apart from each other",
+      "markup": "<div id=\"s\"><lf-said-pair head=\"MARK\" tail=\"one\"></lf-said-pair> <lf-said-pair head=\"MARK\" tail=\"two\"></lf-said-pair></div>",
+      "registry": {
+        "lf-said-pair": {
+          "x-says": {
+            "head": "before",
+            "tail": "after"
+          },
+          "x-inline": true
+        }
+      },
+      "anchor": {
+        "section": "s",
+        "quote": "MARK",
+        "suffix": "one MARK two"
+      },
+      "before": 0
     }
   ]
 }

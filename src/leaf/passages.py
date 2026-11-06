@@ -336,7 +336,7 @@ class _PassageParser:
         self._block = None  # the block the last character came from
         self._space = False  # a separator waiting for a character to follow it
         self._break = False  # whether that separator ends a block
-        self._holder = None  # the element holding the last text written
+        self._holder = None  # the key of the node holding the last text written
 
     def _fresh(self) -> int:
         self._uid += 1
@@ -347,14 +347,14 @@ class _PassageParser:
         data: str,
         block: int,
         ids: tuple,
-        holder: object = None,
+        holder: int | None = None,
         prose: bool = False,
     ) -> None:
         """Text into the collapsed run, one space per whitespace run and none leading,
         and an edge where it runs on from the last text in its block with none. The edge
-        shows as a space, a soft one, where `holder`, the key of the element holding the
-        text, is not the one that held the last text and neither stands in prose (a text
-        block): the runtime's `shownApart`."""
+        shows as a space, a soft one, where `holder`, the key of the element or said
+        value's span holding the text, is not the one that held the last text and neither
+        stands in prose (a text block): the runtime's `shownApart`."""
         if data.strip():
             self.bearing.update(ids)
         edge = bool(self.chars) and block == self._block
@@ -402,15 +402,10 @@ class _PassageParser:
         self.fences.add(len(self.chars))
 
     def _said(self, frame: dict, values: list) -> None:
-        # renderSaid puts each value in a <span> of its own, among its element's words.
-        for at, value in enumerate(values):
-            self._write(
-                value,
-                frame["block"],
-                frame["ids"],
-                ("said", frame["key"], at),
-                frame["tb"],
-            )
+        # renderSaid puts each value in a <span> of its own, among its element's words,
+        # so each holds its text under a key of its own.
+        for value in values:
+            self._write(value, frame["block"], frame["ids"], self._fresh(), frame["tb"])
 
     def _close(self, frame: dict) -> None:
         """Everything an element's end does, whether it was written or inferred — an

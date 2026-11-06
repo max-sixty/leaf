@@ -1114,6 +1114,79 @@ def test_a_threads_row_previews_its_thread(engine, request, serve):
     assert pointed[-1] == f"{state} · 1 message", pointed
 
 
+def test_a_tap_beside_a_control_a_finger_read_presses_what_it_lands_on(browser, serve):
+    """A finger's hold on Threads' search reads it and changes nothing in the panel, so
+    the tap that follows on Close beside it, which Chromium counts into one run of
+    clicks with the hold, closes Threads: nothing the hold did put Close under it."""
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "Question one on the lede?", {"section": "lede"})
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    cdp = context.new_cdp_session(page)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
+    search = page.get_by_role("button", name="Find a thread or message", exact=True)
+    close = page.get_by_role("button", name="Close", exact=True)
+    expect(search).to_be_visible()
+    rendered(page)
+    held, beside = search.bounding_box(), close.bounding_box()
+    first = {"x": held["x"] + held["width"] - 2, "y": held["y"] + held["height"] / 2}
+    second = {"x": beside["x"] + 2, "y": beside["y"] + beside["height"] / 2}
+    assert abs(second["x"] - first["x"]) < 10, (first, second)
+
+    def touch(kind, at):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {"type": kind, "touchPoints": [at] if kind != "touchEnd" else []},
+        )
+
+    touch("touchStart", first)
+    page.wait_for_timeout(600)
+    assert long_press(page, first) is False, "the platform's menu opened"
+    expect(page.locator(PREVIEW)).to_have_text("Find a thread or message")
+    touch("touchEnd", first)
+    rendered(page)
+    touch("touchStart", second)
+    touch("touchEnd", second)
+    expect(page.locator(".lf-fp-view[data-lf-route=threads]")).to_be_hidden()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_the_row_back_from_a_thread_returns_focus_to_previews_nothing(
+    engine, request, serve
+):
+    """Back from a thread returns focus to the thread's row in Threads, which is the
+    user going back where they came from rather than aiming at the row, so the row
+    previews nothing until they step onto it again."""
+    url = serve(PANEL_PAGE)
+    for n in ("one", "two"):
+        panel_comment(serve.page_dir, f"Question {n} on the lede?", {"section": "lede"})
+    page = open_page(request.getfixturevalue(engine), url)
+    tip = page.locator(PREVIEW)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
+    rows = page.locator(".lf-fp-thread[data-lf-key]")
+    expect(rows.first).to_be_focused()
+    page.keyboard.press("Enter")
+    back = page.locator(".lf-fp-back")
+    expect(back).to_be_visible()
+    for _ in range(12):
+        page.keyboard.press("Shift+Tab")
+        if back.evaluate("(el) => document.activeElement === el"):
+            break
+    expect(back).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(rows.first).to_be_focused()
+    page.wait_for_timeout(400)
+    assert not tip.is_visible(), "the row focus came back to previewed"
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    expect(rows.first).to_be_focused()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Question one on the lede?")
+
+
 def test_a_tap_after_a_finger_read_a_threads_row_opens_its_thread(browser, serve):
     """A finger's hold on a row reads its thread, and the tap that follows opens it.
     The hold's release presses nothing, but Chromium counts it into a run of clicks

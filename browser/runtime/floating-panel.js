@@ -326,7 +326,7 @@ import {
   REPLY_HINT,
 } from "./words.js";
 import { coarsePointer } from "./pointer.js";
-import { holdRendering, nextRender, sizeObserver } from "./rendering.js";
+import { afterScript, holdRendering, nextRender, sizeObserver } from "./rendering.js";
 import { boxMotion } from "./box-motion.js";
 import { landedBox, scrollIntoView } from "./landing-scroll.js";
 import { gesturedOn, newsCount, newsNotice } from "./thread/held-news.js";
@@ -1869,7 +1869,10 @@ export function createFloatingPanel({
       const route = trail.value.at(-1);
       if (!press || !route?.thread) return;
       const view = openView();
-      if (holdThread(view?.getBoundingClientRect().height ?? null)) paint();
+      // Drawn once the script that made the press ends, still before the frame: a
+      // press that leaves the thread, as Back does, takes the hold with the view, so
+      // the hold never writes a height the leaving view would lose in the same script.
+      if (holdThread(view?.getBoundingClientRect().height ?? null)) afterScript(paint);
       if (press.closest(".lf-fp-news-outlet") && view)
         landing = {
           key: threadByKey(route.thread)?.key ?? route.thread,
@@ -1886,38 +1889,48 @@ export function createFloatingPanel({
   // A press that changes the view brings other controls under a pointer that hasn't
   // moved: the ‹ back to the menu, at the head of a shorter list, stands where the
   // menu's Undo comes. No control in the panel means anything by a second click, so a
-  // click that goes on a run of clicks begun on another control presses nothing and
-  // takes no focus, and a double-click on ‹ goes back once. Clicks repeated on one
-  // control, as Next match, each press it. The run is the browser's, which counts every
-  // press into it, a finger's hold whose release its preview took included (preview.js),
-  // so the panel follows it by each press as it begins rather than by the clicks it
-  // receives: a tap on the row a finger just held goes on a run begun there.
+  // click that goes on a run of clicks presses nothing and takes no focus where it lands
+  // on another control than the run's last press did and the panel has drawn since that
+  // press began: a double-click on ‹ goes back once. Clicks repeated on one control, as
+  // Next match, each press it. So does a tap on Close just after a finger's hold read
+  // Search beside it, which Chromium counts into the same run: the hold drew nothing in
+  // the panel, so nothing it did put Close there. The run is the browser's, which counts
+  // every press into it, a hold whose release its preview took included (preview.js), so
+  // the panel hears each press as it begins rather than the clicks it receives.
   /** @param {Event} event */
   const pressed = (event) =>
     event.target instanceof Element ? event.target.closest("button") : null;
-  // The control the run of presses is on, and the one it was on before this press.
-  /** @type {WeakRef<Element> | null} */
-  let run = null;
-  /** @type {WeakRef<Element> | null} */
-  let before = null;
+  // The control a press lands on and how many times the panel had drawn as it began
+  // (`draws`): this press's, and the last one's it pressed. A press refused leaves the
+  // run judged by the press before it, so a triple click's third presses nothing either.
+  /** @typedef {{control: WeakRef<Element> | null, draws: number, refused: boolean}} RunPress */
+  // How many times the panel has drawn (`paintPanel`).
+  let draws = 0;
+  /** @type {RunPress | null} */
+  let pressNow = null;
+  /** @type {RunPress | null} */
+  let pressBefore = null;
   host.addEventListener(
     "pointerdown",
     (event) => {
-      before = run;
+      if (pressNow && !pressNow.refused) pressBefore = pressNow;
       const control = pressed(event);
-      run = control && new WeakRef(control);
+      pressNow = { control: control && new WeakRef(control), draws, refused: false };
     },
     { capture: true },
   );
   /** @param {MouseEvent} event */
   const runOfClicks = (event) => {
     const control = pressed(event);
-    if (event.detail > 1 && control && control !== before?.deref()) {
+    if (
+      event.detail > 1 &&
+      control &&
+      control !== pressBefore?.control?.deref() &&
+      pressNow?.draws !== pressBefore?.draws
+    ) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      // The run stays on the control it began on, so the next click on it, a triple
-      // click's third, presses nothing either.
-      run = before;
+      if (pressNow) pressNow.refused = true;
     }
   };
   host.addEventListener("mousedown", runOfClicks, { capture: true });
@@ -2175,7 +2188,8 @@ export function createFloatingPanel({
       (pressLed()
         ? view
         : (at ?? rows[0] ?? view?.querySelector("button, input") ?? view));
-    if (target) focusDestination(target, "move");
+    // The row of the thread the user was in takes them back where they came from.
+    if (target) focusDestination(target, target === stoodRow ? "return" : "move");
     if (at) scrollIntoView(at, { block: "nearest", within: view });
   }
 
@@ -4356,6 +4370,7 @@ export function createFloatingPanel({
     }
   }
   function paintPanel() {
+    draws += 1;
     painting = true;
     try {
       // A thread's view draws a thread of the reading. One the reading no longer holds,

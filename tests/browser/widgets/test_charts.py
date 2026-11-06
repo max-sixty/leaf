@@ -1,6 +1,8 @@
 """Charts and drawn figures: axis labels, theme colors, drawing for the room a chart
 has, failed redraws, and inspecting a merge film by touch and keyboard."""
 
+from collections import Counter
+
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -962,6 +964,11 @@ POINTER_CASES = {
                 f'Plot.dot({LINKED_ROWS}, {{x: "x", y: "y", fill: "c", href: "u",'
                 ' tip: {format: {fill: true, href: true, y: ".1f", x: false}}})'
             ),
+            # Two channels under one label, which Plot's tip says once.
+            "one-label": (
+                "Plot.dot([{a: 1, b: 2}, {a: 6, b: 8}],"
+                ' {x: "a", y: "b", fill: "a", tip: true})'
+            ),
         }.items()
     },
 }
@@ -1018,10 +1025,19 @@ PICKED = """(svg) => {
 
 
 def _words(words):
-    """Each word a reading says: its lines' parts, as the preview joins them."""
-    return {
+    """Each word a reading says, as many times as it says it: its lines' parts, as the
+    preview joins them."""
+    return Counter(
         word for line in words for part in line.split(" · ") for word in part.split()
-    }
+    )
+
+
+def _says_as_plot_does(mine, plots):
+    """Whether a reading says each value of Plot's tip as often as Plot's tip does,
+    whatever labels it sets beside them."""
+    expected = _words(plots)
+    said = _words(mine)
+    return all(said[word] == count for word, count in expected.items())
 
 
 def _picked(page, svg, box, fx, fy):
@@ -1041,8 +1057,8 @@ def test_a_chart_picks_the_point_plot_s_own_pointer_picks(engine, request, serve
     the author named y; along x on bars, where no tip was named; of two marks, the one
     whose pick stands nearer; of one data drawn twice, by either mark's own rule and
     reach; by a tip's own px, on a scale that transforms it too; and on a stacked
-    segment, at the middle of its extent. It says every value Plot's tip says there,
-    in the words a tip's format gives them. A mark its offsets moved is read where
+    segment, at the middle of its extent. It says each value Plot's tip says there as
+    often as Plot's tip does, in the words a tip's format gives them. A mark its offsets moved is read where
     Plot draws it, which Plot's own pointer misses."""
     page = open_page(request.getfixturevalue(engine), serve(POINTER_PAGE))
     steps = [(n / 11, m / 7) for n in range(1, 11) for m in range(1, 7)]
@@ -1090,7 +1106,7 @@ def test_a_chart_picks_the_point_plot_s_own_pointer_picks(engine, request, serve
                 mine
                 and expected
                 and (
-                    not _words(expected["words"]) <= _words(mine["words"])
+                    not _says_as_plot_does(mine["words"], expected["words"])
                     or max(
                         abs(a - b)
                         for a, b in zip(mine["at"], expected["at"], strict=True)

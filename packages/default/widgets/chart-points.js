@@ -63,8 +63,6 @@
 // The scales a datum stands at rather than measures on.
 const PLACES = new Set(["band", "point", "ordinal", "utc", "time"]);
 const CATEGORIES = new Set(["ordinal", "categorical"]);
-// The channels a point says in their own way: its title, its facets and its position.
-const OWN = new Set(["title", "fx", "fy", "x", "x1", "x2", "y", "y1", "y2"]);
 // Plot's pointer: how far a point may stand from the aim, and how little the axis a tip
 // doesn't read along counts inside a frame.
 const RADIUS = 40;
@@ -79,7 +77,8 @@ const SQUASH = 0.01;
  * @typedef {{marginLeft: number, marginRight: number, marginTop: number, marginBottom: number, width: number, height: number}} Dimensions
  * @typedef {{[key: string]: Channel | true | undefined}} Sources
  * @typedef {{[key: string]: unknown}} Format
- * @typedef {{values: Values, scales: Scales, fx: unknown, fy: unknown, left: number, bottom: number, number: (value: number) => string | undefined, sources: Sources, format: Format, authored: Format}} Drawn
+ * @typedef {{key: string, label?: string, value?: string}} Row
+ * @typedef {{values: Values, scales: Scales, fx: unknown, fy: unknown, left: number, bottom: number, number: (value: number) => string | undefined, sources: Sources, format: Format, authored: Format, rows: (this: {format: Format}, i: number, index: {fx?: unknown, fy?: unknown}, sources: Sources, scales: Scales, values: Values) => Iterable<Row>}} Drawn
  * @typedef {{tx: number, ty: number, kx: number, ky: number, reach: number, frame: Dimensions, points: Point[]}} Frame
  * @typedef {{x: number, y: number, px: number, py: number, ax: number, ay: number, i: number, order: number, drawn: Drawn, series: number, n: number, said?: string, same?: Point}} Point
  * @typedef {{points: Point[], series: Point[][], frames: Frame[], axis: "x" | "y"}} Reading
@@ -141,7 +140,7 @@ function frameAnchored(anchor = "middle", dimensions) {
  * them, so the reading `done` returns holds their points once `Plot.plot` returns.
  * Plot draws no tip for them.
  * @param {PlotBundle} bundle @param {unknown} marks */
-export function readPoints({ Plot, tipSources }, marks) {
+export function readPoints({ Plot, tipSources, tipRows }, marks) {
   const all = [...marksIn(Plot, marks)];
   const asked = all.filter((mark) => mark.tip);
   const drawsData = [
@@ -253,6 +252,7 @@ export function readPoints({ Plot, tipSources }, marks) {
         ),
         format: this.format,
         authored,
+        rows: tipRows,
       };
       const kind = seriesOf(values, scales);
       for (const i of index) {
@@ -433,25 +433,16 @@ export function cross(reading, from, by) {
 export function sayPoint({ i, drawn }) {
   const { scales, sources, format, authored } = drawn;
   /** @param {string} key */
-  const source = (key) => {
-    const channel = sources[key];
-    return channel === true ? undefined : channel;
-  };
-  // The words the author's tip `format` gives a channel, as Plot made a function of
-  // them; an axis's two ends take the axis's.
+  const axisOf = (key) => /^([xy])[12]?$/.exec(key)?.[1];
+  // The scale a channel's value stands on: its axis's, its facet's or its own.
   /** @param {string} key */
-  const own = (key) => {
-    const given = authored[key] ?? authored[key.replace(/^([xy])[12]$/, "$1")];
-    const words = format[key];
-    return (typeof given === "string" || typeof given === "function") &&
-      typeof words === "function"
-      ? words
-      : null;
+  const scaleOf = (key) => {
+    const channel = sources[key];
+    const name = axisOf(key) ?? (channel === true ? key : channel?.scale);
+    return name ? scales[name] : undefined;
   };
-  /** @param {string} key @param {unknown} value @param {Scale} [scale] */
-  const say = (key, value, scale) => {
-    const given = own(key);
-    if (given) return String(given(value, i) ?? "");
+  /** @param {unknown} value @param {Scale} [scale] */
+  const say = (value, scale) => {
     const temporal = scale?.type === "utc" || scale?.type === "time";
     if (value instanceof Date || (temporal && value != null))
       return sayDate(new Date(/** @type {any} */ (value)), scale?.type !== "time");
@@ -459,57 +450,75 @@ export function sayPoint({ i, drawn }) {
     if (typeof value === "number" && !placed(scale)) return drawn.number(value) ?? "";
     return value == null ? "" : String(value);
   };
-  const title = source("title");
-  if (title) {
-    const [first = "", ...rest] = say("title", title.value[i]).split("\n");
+  // The words for each channel the tip says: those of the author's tip `format`, which
+  // Plot made a function of, an axis's two ends taking the axis's; else the reader's
+  // words above, a time as a reader says it rather than as Plot's ISO date.
+  /** @type {Format} */
+  const words = {};
+  for (const key of Object.keys(sources)) {
+    const given = authored[key] ?? authored[key.replace(/^([xy])[12]$/, "$1")];
+    const own = format[key];
+    words[key] =
+      (typeof given === "string" || typeof given === "function") &&
+      typeof own === "function"
+        ? own
+        : (/** @type {unknown} */ value) => say(value, scaleOf(key));
+  }
+  const title = sources.title;
+  if (title && title !== true) {
+    const said = /** @type {(value: unknown, i: number) => unknown} */ (words.title);
+    const [first = "", ...rest] = String(said(title.value[i], i) ?? "").split("\n");
     return { name: first, detail: rest };
   }
+  const across = placed(scales.y) && !placed(scales.x);
+  const [first, second] = across ? ["y", "x"] : ["x", "y"];
+  // Its facets, the axis it stands along and the other, then the rest in Plot's order.
+  /** @param {string} key */
+  const rank = (key) =>
+    key === "fx" || key === "fy"
+      ? 0
+      : axisOf(key) === first
+        ? 1
+        : axisOf(key) === second
+          ? 2
+          : 3;
+  // Plot's tip says each label once, as its drawing does.
+  /** @type {Set<string>} */
+  const labelled = new Set();
+  const rows = [
+    ...drawn.rows.call(
+      { format: words },
+      i,
+      { fx: drawn.fx, fy: drawn.fy },
+      sources,
+      scales,
+      drawn.values,
+    ),
+  ]
+    .filter(({ label }) => !label || (!labelled.has(label) && labelled.add(label)))
+    .sort((a, b) => rank(a.key) - rank(b.key));
   /** @type {Set<string>} */
   const places = new Set();
   /** @type {Set<string>} */
   const measures = new Set();
-  /** @param {string} words @param {string | null | undefined} label */
+  /** @param {string} words @param {string} label */
   const measured = (words, label) => (label ? `${words} ${label}` : words);
-  for (const [key, facet] of /** @type {const} */ ([
-    ["fx", drawn.fx],
-    ["fy", drawn.fy],
-  ]))
-    if (sources[key]) places.add(say(key, facet, scales[key]));
-  const across = placed(scales.y) && !placed(scales.x);
-  const [first, second] = across ? ["y", "x"] : ["x", "y"];
-  for (const axis of [first, second]) {
-    const scale = scales[axis];
-    const [one, low, high] = [axis, `${axis}1`, `${axis}2`].map(source);
-    const label = scale?.label ?? (one ?? high ?? low)?.label;
-    /** @type {string} */
-    let words;
-    if (low && high)
-      words = high.hint?.length
-        ? say(`${axis}2`, high.value[i] - low.value[i])
-        : `${say(`${axis}2`, low.value[i], scale)}–${say(`${axis}2`, high.value[i], scale)}`;
-    else if (one) words = say(axis, one.value[i], scale);
-    else if (low ?? high)
-      words = say(low ? `${axis}1` : `${axis}2`, (low ?? high)?.value[i], scale);
-    else continue;
-    if (placed(scale)) places.add(words);
-    else if (axis === first) places.add(label ? `${label} ${words}` : words);
-    else measures.add(measured(words, label));
-  }
-  for (const key of Object.keys(sources)) {
-    const channel = OWN.has(key) ? undefined : source(key);
-    if (!channel) continue;
-    const value = channel.value[i];
-    if (value == null && channel.scale == null) continue;
-    const scale = channel.scale ? scales[channel.scale] : undefined;
-    const words = say(key, value, scale);
-    if (
+  for (const { key, label = "", value = "" } of rows) {
+    const axis = axisOf(key);
+    const scale = scaleOf(key);
+    const channel = sources[key];
+    const raw = channel === true ? undefined : channel?.value[i];
+    if (key === "fx" || key === "fy" || (axis && placed(scale))) places.add(value);
+    else if (axis === first) places.add(label ? `${label} ${value}` : value);
+    else if (axis) measures.add(measured(value, label));
+    else if (
       key === "z" ||
       key === "symbol" ||
-      typeof value !== "number" ||
+      typeof raw !== "number" ||
       CATEGORIES.has(scale?.type ?? "")
     )
-      places.add(words);
-    else measures.add(measured(words, scale?.label ?? channel.label ?? key));
+      places.add(value);
+    else measures.add(measured(value, label));
   }
   places.delete("");
   measures.delete("");

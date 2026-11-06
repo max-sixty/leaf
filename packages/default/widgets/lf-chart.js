@@ -55,7 +55,6 @@ import {
   inBaseLayer,
   measure,
   once,
-  nextRender,
   previewChanged,
   sizeObserver,
 } from "/runtime/portable-api.js";
@@ -302,12 +301,11 @@ customElements.define(
     // height its swatches wrap to in the fonts they are set in, which only laying it out
     // says. So a drawing with a legend is watched while it shows, and whenever the
     // legend's height changes, with a new width or a font that arrives late, the chart
-    // draws again into the room the legend leaves; a chart with none reads nothing. The
-    // redraw waits for the next frame: its boxes stand as deep as the one the watch
-    // just measured, and an observer that starts watching them as they arrive, as the
-    // page's own do, is one the browser cannot deliver to in the frame it is
-    // delivering. The drawing settles once its legend has the room it measures, and a
-    // failed redraw fails as the drawing does. A hidden drawing measures nothing.
+    // draws again into the room the legend leaves, in the delivery that measured it, so
+    // the frame that shows the new legend shows the drawing fitted to it; a chart with
+    // none reads nothing. The drawing settles once its legend has the room it
+    // measures, and a failed redraw fails as the drawing does. A hidden drawing measures
+    // nothing.
     /** @param {number} width @returns {Promise<void>} */
     async paint(width) {
       const source = this.#source;
@@ -325,16 +323,11 @@ customElements.define(
         const watch = (this.#legendWatch = sizeObserver(([entry]) => {
           const height = entry?.contentRect.height;
           const legend = height ? Math.max(0, Math.round(height - room)) : this.#legend;
-          if (legend === this.#legend) return settled();
-          this.#legend = legend;
-          nextRender(() => {
-            // A drawing for a new width has replaced this one, and measures its own.
-            if (this.#legendWatch !== watch) return settled();
-            this.paint(width).then(settled, (err) => {
-              source.failed(err);
-              settled();
-            });
-          });
+          if (legend !== this.#legend) {
+            this.#legend = legend;
+            this.paint(width).catch(source.failed);
+          }
+          settled();
         }));
         watch.observe(drawn.built);
       });

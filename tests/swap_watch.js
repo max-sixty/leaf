@@ -165,7 +165,6 @@
   let departed = [];
   let written = new Set();
   let source = null;
-  let deliveringSizes = false;
   const observed = new WeakSet();
   const pending = new WeakSet();
   const flexRows = new WeakSet();
@@ -174,18 +173,22 @@
     const { display, flexDirection } = getComputedStyle(element);
     return display.endsWith("flex") && flexDirection.startsWith("row");
   };
+  // An element is watched from the next frame. An observation started while the
+  // browser delivers sizes asks for a notification at a depth it may have delivered
+  // already, a loop error, and the watch can't tell the page's own deliveries from
+  // the rest: it takes records in this watch's delivery, in the page's, as a chart
+  // redrawn for its legend's height dispatches events to listeners, and in the
+  // microtasks after them. Begun at the next frame, before its layout, the observation
+  // reports at the same frame one begun in a task does.
   const observeOnce = (element) => {
     if (!element || observed.has(element) || pending.has(element)) return;
-    if (deliveringSizes) {
-      pending.add(element);
-      frame(() => {
-        pending.delete(element);
-        if (element.isConnected) observeOnce(element);
-      });
-      return;
-    }
-    observed.add(element);
-    watch(element);
+    pending.add(element);
+    frame(() => {
+      pending.delete(element);
+      if (!element.isConnected || observed.has(element)) return;
+      observed.add(element);
+      watch(element);
+    });
   };
   const watchArrival = (element) => {
     // Leaf has not presented its first arrangement yet. Its widgets may still
@@ -380,17 +383,9 @@
     }
   };
   const resizes = new ResizeObserver((entries) => {
-    deliveringSizes = true;
-    try {
-      take(changes.takeRecords(), window.lfInputWork.current());
-      const now = new Map(entries.map((entry) => [entry.target, box(entry)]));
-      judge(
-        now,
-        (element) => now.get(element) ?? sizes.get(element) ?? measure(element),
-      );
-    } finally {
-      deliveringSizes = false;
-    }
+    take(changes.takeRecords(), window.lfInputWork.current());
+    const now = new Map(entries.map((entry) => [entry.target, box(entry)]));
+    judge(now, (element) => now.get(element) ?? sizes.get(element) ?? measure(element));
   });
   // Judging before the frame reads the layout as the observer would: the border box,
   // and nothing for an inline box, which the observer reports as empty. What changed

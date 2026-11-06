@@ -13,8 +13,18 @@
    admission and later descriptor paints never replay the cue.
    The fragment is captured inertly before its first upgrade; presentation waits for
    preparation before capturing typed authored state. */
-import { html, keyed, render, nothing, ref } from "/runtime/framework.js";
-import { generatedElement, offeredAction } from "../widget-elements.js";
+import {
+  Directive,
+  directive,
+  html,
+  keyed,
+  noChange,
+  nothing,
+  ref,
+  render,
+} from "/runtime/framework.js";
+import { setRenderedChildren } from "../dom-children.js";
+import { generatedElement, offeredAction, worksInside } from "../widget-elements.js";
 import {
   loadMarkdown,
   markdownReady,
@@ -22,7 +32,7 @@ import {
   renderedWords,
 } from "../markdown.js";
 import { reportPageError } from "../layer-client.js";
-import { editable, isReaction, lastMovedAt, messageKey } from "./model.js";
+import { deleted, editable, isReaction, lastMovedAt, messageKey } from "./model.js";
 import { labelWords } from "../words.js";
 import {
   MessageEditor,
@@ -46,7 +56,7 @@ import {
   workflowTitle,
   workflowWord,
 } from "./workflow.js";
-import { voiced } from "../voice.js";
+import { leafSays, voiced } from "../voice.js";
 import { markDeclared, renderQuiet, renderSaid } from "../declared-words.js";
 import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
@@ -61,6 +71,34 @@ import { showsContents } from "../geometry.js";
 import { flashDuration, motion } from "../motion.js";
 import { agentName, pageClaimed } from "../semantic-state.js";
 import { copyControl } from "../copy-control.js";
+
+// A message's words, drawn into the element the binding stands on and reconciled as a
+// revision reconciles authored markup (dom-children.js, `setRenderedChildren`): an
+// edit keeps every node it leaves alone and rewrites a changed paragraph's words in
+// place, so the browser's scroll anchoring still holds the paragraph a reader is in
+// when an edit grows one above it. A property binding to `innerHTML` replaced every
+// one, and neither engine anchors again on a node that replaces its anchor. An edit
+// rewriting nearly every paragraph of a long message is drawn whole again (`bounded`),
+// as that binding drew it, rather than diffed at the square of its length.
+const keptWords = directive(
+  class extends Directive {
+    /** @type {string | null} */
+    #drawn = null;
+    /** @param {string} _markup */
+    render(_markup) {
+      return noChange;
+    }
+    /** @param {import("/vendor/lit.js").ElementPart} part @param {[string]} markup */
+    update(part, [markup]) {
+      if (markup === this.#drawn) return noChange;
+      this.#drawn = markup;
+      const parsed = document.createElement("template");
+      parsed.innerHTML = markup;
+      setRenderedChildren(part.element, parsed.content.childNodes, { bounded: true });
+      return noChange;
+    }
+  },
+);
 
 export const loadMessageMarkdown = () =>
   loadMarkdown((error) => reportPageError(error, `markdown renderer failed to load`));
@@ -106,6 +144,9 @@ function proseReading(message) {
 
 // Authored messages hold the complete captured reading of prose and islands.
 // Other messages and summaries still need their prose rendered here.
+// What a deleted message reads in its place, in Leaf's voice, as what the user did.
+const DELETED = leafSays("Deleted");
+
 /** @param {{readonly id?: string, readonly attempt?: string, readonly text?: string | undefined, readonly token?: string, readonly suggestion?: boolean, readonly body?: {readonly kind: string, readonly text: string}, readonly edited?: {readonly id?: string} | null | undefined}} message @returns {string} */
 export function messageText(message) {
   if (message.body?.kind === "authored") return message.body.text;
@@ -125,7 +166,7 @@ export function threadName(thread) {
   if (thread.title != null) return thread.title;
   const { root } = thread;
   const words = labelWords(messageText(root));
-  return words || (root.drawing ? "Drawing" : "");
+  return words || (root.drawing ? "Drawing" : deleted(root) ? "Deleted message" : "");
 }
 
 // Whether a title is on its way to an untitled thread. Leaf asks the claimant's
@@ -302,21 +343,24 @@ export function authoredHolder(id) {
   return null;
 }
 /** @param {MessageRecord} message
- * @param {{authoredRank?: number, reactions: MessageRecord["reactions"],
+ * @param {{authoredRank?: number,
  * workflows: readonly import("../framework/application.js").Workflow[],
  * leaves?: import("../voice.js").Said | null}} options */
 export function messageReading(
   message,
-  { authoredRank = 0, reactions, workflows, leaves = null },
+  { authoredRank = 0, workflows, leaves = null },
 ) {
   const workflow = strongestWorkflow(workflows);
   const token = message.token ? tokenEntry(message.token) : null;
   const kind = isReaction(message)
     ? "reaction"
-    : message.suggestion
-      ? "suggestion"
-      : "prose";
+    : deleted(message)
+      ? "deleted"
+      : message.suggestion
+        ? "suggestion"
+        : "prose";
   const prose = kind === "prose" ? proseReading(message) : null;
+  const removal = message.withdrawn ?? message.edited;
   return Object.freeze({
     key: messageKey(message),
     id: message.id,
@@ -339,10 +383,10 @@ export function messageReading(
     by: message.author === "agent" ? message.agent : "Me",
     timestamp: message.ts,
     age: ago(message.ts),
-    // What the message said before its last rewrite is the edited mark's to tell, since
-    // answers above may have been about those words.
-    edited: message.edited
-      ? `Edited ${ago(message.edited.ts)}. Before, it said: “${message.edited.was}”`
+    // What the message said before its last rewrite is the edited mark's to tell, or a
+    // deleted message's, since answers above may have been about those words.
+    edited: removal
+      ? `${kind === "deleted" ? "Deleted" : "Edited"}${"ts" in removal ? ` ${ago(removal.ts)}` : ""}. Before, it said: “${removal.was}”`
       : null,
     editable: editable(message),
     failure: message.failure ?? null,
@@ -375,7 +419,7 @@ export function messageReading(
     // Where this drawing ranks among those that may hold the message's widgets
     // (`authoredHolders`); 0 for one that never does.
     authoredRank,
-    reactions,
+    reactions: message.reactions,
   });
 }
 
@@ -439,7 +483,7 @@ export class MessageView {
       this.node.classList.add("lf-msg");
       // Which message a node draws, for a presentation handing the user's place in a
       // thread to another, as the floating panel does to a page's own reader.
-      this.node.dataset.message = model.key;
+      this.node.dataset.lfMessage = model.key;
       this.node.classList.add("lf-ui");
       generatedElement(this.node, { says: false });
       this.node.dataset.lfOffer = "";
@@ -450,7 +494,8 @@ export class MessageView {
       this.node.addEventListener("dblclick", (event) => {
         if (
           event.target instanceof Element &&
-          event.target.closest(".lf-msg-editor, .lf-msg-controls, a[href]")
+          (event.target.closest(".lf-msg-editor, .lf-msg-controls") ||
+            worksInside(event.target, this.node))
         )
           return;
         if (!this.#model?.editable) return;
@@ -493,14 +538,12 @@ export class MessageView {
         if (keptRewrite(presentation.model.id) !== this.#kept)
           this.#commands.edit.paint(this.node);
       });
-    if (prior && prior.author !== model.author)
-      this.node.classList.toggle(prior.author, false);
-    this.node.classList.toggle(model.author, true);
-    keeps(this.node, "data-event", model.id);
+    keeps(this.node, "data-lf-author", model.author);
+    keeps(this.node, "data-lf-event", model.id);
     this.node.classList.toggle("lf-unread", Boolean(model.unread));
-    keeps(this.node, "data-attempt", model.attempt || null);
+    keeps(this.node, "data-lf-attempt", model.attempt || null);
     keeps(this.node, "aria-busy", model.pending ? "true" : null);
-    keeps(this.node, "data-failure", model.failure || null);
+    keeps(this.node, "data-lf-failure", model.failure || null);
     const authoredKey = model.attempt ?? model.id;
     const authored = model.body.authored ? authoredMessage(model).nodes : [];
     let displaced = null;
@@ -586,7 +629,7 @@ export class MessageView {
               : nothing
           }
           ${
-            model.edited
+            model.edited && model.body.kind !== "deleted"
               ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
               : nothing
           }
@@ -614,7 +657,7 @@ export class MessageView {
             if (body) this.#stopRead = this.#commands.read.observeMessage(body, model);
           })}
         >
-          ${editor ? editor.node : this.#body(model.body)}
+          ${editor ? editor.node : this.#body(model.body, model.edited)}
           ${
             model.body.drawing
               ? html`<span class="lf-drawing-reference">Drawing comment</span>`
@@ -708,15 +751,19 @@ export class MessageView {
     return this.#copy;
   }
 
-  /** @param {ReturnType<typeof messageReading>["body"]} body */
-  #body(body) {
+  /** @param {ReturnType<typeof messageReading>["body"]} body @param {string | null} edited */
+  #body(body, edited) {
+    if (body.kind === "deleted")
+      return html`<div class="lf-msg-text lf-msg-deleted" title=${edited ?? ""}>
+        ${voiced(DELETED)}
+      </div>`;
     if (body.kind === "reaction")
       return html`<div class="lf-msg-text">
         <span class="lf-react-said">${`${body.glyph} ${body.token}`.trim()}</span>
       </div>`;
     if (body.kind === "suggestion")
       return html`<div class="lf-msg-text" .textContent=${body.text}></div>`;
-    return html`<div class="lf-msg-text" .innerHTML=${body.html}></div>
+    return html`<div class="lf-msg-text" ${keptWords(body.html)}></div>
       ${
         body.mediaHtml
           ? html`<div class="lf-msg-media" .innerHTML=${body.mediaHtml}></div>`
@@ -772,17 +819,17 @@ export function messageHolding(id) {
 /** @param {string} id */
 const addressableAt = (id) => elementById(id) ?? messageHolding(id)?.element ?? null;
 
+// What a coordinate names besides any words it quotes: a design subject, a datum, a
+// drawing's part or a section. A passage is named by its words alone.
 /** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} about */
-function coordinateLabel(anchor, about) {
+function coordinatePlace(anchor, about) {
   if (about === "design") {
     const addressable = anchor?.section ? addressableAt(anchor.section) : null;
-    const name = addressable ? designName(addressable) : anchor?.section || "the page";
-    return anchor?.quote ? `${name} · “${anchor.quote}”` : name;
+    return addressable ? designName(addressable) : anchor?.section || "the page";
   }
   const datum = datumLabel(anchor);
-  if (datum) return anchor?.quote ? `${datum} · “${anchor.quote}”` : `§ ${datum}`;
-  if (anchor?.quote) return `“${anchor.quote}”`;
-  if (!anchor?.section) return "";
+  if (datum) return anchor?.quote ? datum : `§ ${datum}`;
+  if (anchor?.quote || !anchor?.section) return "";
   const addressable = addressableAt(anchor.section);
   if (anchor.visual) {
     const part = visualPartLabel(addressable, anchor.visual) ?? anchor.visual;
@@ -791,11 +838,28 @@ function coordinateLabel(anchor, about) {
   return `§ ${addressable ? sectionLabel(addressable) : anchor.section}`;
 }
 
-// A named control part belongs to the coordinate in every reading, not just Design.
+// The words a thread is about, as its head quotes them: those a version's rewrite took
+// from it (`rewritten_from`, events.md), else those it was detached from, else its
+// anchor.
+/** @param {Pick<import("../../types/domain.js").Thread, "rewritten_from" | "detached_from" | "anchor">} thread */
+export const threadPassage = (thread) =>
+  thread.rewritten_from ?? thread.detached_from ?? thread.anchor;
+
+// Where an anchor stands, apart from the words it quotes: "design · heading · t", or
+// "" for a passage, which its words name alone. A named control part belongs to the
+// place in every reading, not just Design.
 /** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} [about] */
-export function anchorLabel(anchor, about) {
-  const label = coordinateLabel(anchor, about);
-  return [about === "design" && "design", anchor?.part, label]
+export const anchorPlace = (anchor, about) =>
+  [about === "design" && "design", anchor?.part, coordinatePlace(anchor, about)]
     .filter(Boolean)
     .join(" · ");
-}
+
+// An anchor in running text, such as an accessible name or a feed's line: its place,
+// then the words it quotes, which only the marks set off from the words around them. A
+// surface that draws the two apart, as a thread's quote does (thread-card.js,
+// `quoteReading`), reads `anchorPlace` and the quote instead.
+/** @param {import("../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} [about] */
+export const anchorLabel = (anchor, about) =>
+  [anchorPlace(anchor, about), anchor?.quote && `“${anchor.quote}”`]
+    .filter(Boolean)
+    .join(" · ");

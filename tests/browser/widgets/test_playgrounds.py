@@ -2,16 +2,16 @@
 drafts, sending a choice, quoted playgrounds, and their layout in a workspace."""
 
 import io
+import itertools
 import re
 
 import pytest
-from interact_support import refused_on, wait_for
+from interact_support import wait_for
 from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_cases_navigation import actions
 from render_harness import (
-    ROOT,
     consume_browser_errors,
     displayed,
     holding,
@@ -37,6 +37,7 @@ from browser.widgets import (
 )
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -46,11 +47,11 @@ CONTRIBUTOR_PAGE = leaf_page(
     """
 <lf-ask id="query-ask"><h1>Choose the alert query</h1>
 <lf-playground id="query-config">
-  <lf-playground-control name="stream" label="Event stream" kind="choice" value="checkout">
-    <lf-playground-choice value="checkout" label="Checkout"></lf-playground-choice>
-    <lf-playground-choice value="billing" label="Billing"></lf-playground-choice>
+  <lf-playground-control id="stream" name="stream" label="Event stream" kind="choice" value="checkout">
+    <lf-playground-choice id="stream-checkout" value="checkout" label="Checkout"></lf-playground-choice>
+    <lf-playground-choice id="stream-billing" value="billing" label="Billing"></lf-playground-choice>
   </lf-playground-control>
-  <lf-playground-preset label="Checkout stream">
+  <lf-playground-preset id="preset-checkout-stream" label="Checkout stream">
     <lf-playground-setting for="stream" value="checkout"></lf-playground-setting>
   </lf-playground-preset>
   <lf-playground-preview>
@@ -152,7 +153,7 @@ def test_playground_controls_take_focus_from_editors_and_keep_candidate_focus(
     slider, rather than silently changing the contributor the user just left."""
     source = CONTRIBUTOR_PAGE.replace(
         "  <lf-playground-preview>",
-        """  <lf-playground-control name="limit" label="Maximum results"
+        """  <lf-playground-control id="limit" name="limit" label="Maximum results"
           kind="range" value="4" min="1" max="6" step="1"></lf-playground-control>
   <lf-playground-preview>""",
     ).replace(
@@ -247,7 +248,7 @@ def test_playground_range_preserves_preview_focus_without_cancelling_native_drag
 ):
     source = CONTRIBUTOR_PAGE.replace(
         "  <lf-playground-preview>",
-        """  <lf-playground-control name="limit" label="Maximum results"
+        """  <lf-playground-control id="limit" name="limit" label="Maximum results"
           kind="range" value="1" min="1" max="6" step="1"></lf-playground-control>
   <lf-playground-preview>""",
     ).replace(
@@ -369,7 +370,7 @@ def test_keyboard_can_take_a_range_while_the_preview_preserving_press_is_held(
                 """
 <lf-ask id="ring-ask"><h1>Choose a ring</h1>
 <lf-playground id="ring">
-  <lf-playground-control name="width" label="Width" kind="range"
+  <lf-playground-control id="width" name="width" label="Width" kind="range"
     value="2" min="1" max="4" step="1"></lf-playground-control>
   <lf-playground-preview>
     <label>Candidate<input value="Focus treatment"></label>
@@ -470,8 +471,8 @@ def test_playground_select_keeps_the_same_working_configuration(browser, serve):
     expect(stream).to_have_value("billing")
 
 
-def test_playground_authored_defaults_draw_before_its_behavior_loads(browser, serve):
-    """The control declaration owns first paint, including text and attribute CSS."""
+def test_playground_preview_stays_readable_until_its_controls_load(browser, serve):
+    """Authored content is readable while loading; upgrade applies control defaults."""
     page = browser.new_page(viewport={"width": 1280, "height": 900})
     held = []
     page.route("**/widgets/lf-playground.js", lambda route: held.append(route))
@@ -481,6 +482,11 @@ def test_playground_authored_defaults_draw_before_its_behavior_loads(browser, se
     assert held
     assert page.evaluate("() => !customElements.get('lf-playground')")
     card = page.locator("#playground-card")
+    expect(card).to_be_visible()
+    expect(card).to_contain_text("Card preview")
+    expect(card).to_contain_text("Open until dusk.")
+    held.pop().continue_()
+    wait_until_ready(page)
     expect(card).to_have_css("border-radius", "12px")
     expect(card).to_have_css("border-top-color", "rgb(79, 118, 111)")
     expect(page.locator("#card-playground")).to_have_attribute(
@@ -489,14 +495,6 @@ def test_playground_authored_defaults_draw_before_its_behavior_loads(browser, se
     assert (
         card.evaluate("e => getComputedStyle(e, '::before').content") == '"Field note"'
     )
-    inputs = page.locator("#card-playground input").element_handles()
-    assert inputs
-    held.pop().continue_()
-    wait_until_ready(page)
-    expect(card).to_have_css("border-radius", "12px")
-    # The live renderer takes the initial template's parts, preserving native fields.
-    assert page.locator("#card-playground input").count() == len(inputs)
-    assert page.evaluate("inputs => inputs.every(input => input.isConnected)", inputs)
 
 
 def test_a_playground_records_an_edit_made_while_loading_or_as_the_page_leaves(
@@ -551,20 +549,24 @@ def test_a_playground_records_an_edit_made_while_loading_or_as_the_page_leaves(
         },
     )
     assert response.ok
+    recorded = len(titles())
     radius = page.get_by_role("slider", name="Corner radius")
     expect(radius).to_have_value("12")
     for _ in range(2):
         page.reload()
         wait_until_ready(page)
         expect(radius).to_have_value("12")
-    # The old document's post on leaving arrives on its own schedule; a round trip from
-    # this one doesn't order it, so give it the time a leave post takes.
-    page.wait_for_timeout(1000)
-    assert [
-        event["detail"]["values"]["radius"]
-        for event in events_model.read_events(serve.page_dir)
-        if event.get("action") == "tune"
-    ][-1] == 40
+    # A leaving document posts as it hides, so an edit left for the next leave arrives
+    # after whatever the two reloads' leaving documents posted.
+    title.fill("Last note")
+    page.reload()
+    wait_until_ready(page)
+    wait_for(
+        titles,
+        lambda now: now[-1:] == ["Last note"],
+        failure="the edit left for the last leave was never recorded",
+    )
+    assert len(titles()) == recorded + 1, "leaving recorded more than its edit"
 
 
 def playground_values(page):
@@ -693,12 +695,12 @@ def test_narrow_playground_keeps_complete_preset_labels_operable(browser, serve)
         "Complete preset labels",
         f"""<h1>Tune alert policy</h1>
 <lf-playground id="policy">
-  <lf-playground-preset label="{label}">
+  <lf-playground-preset id="policy-preset" label="{label}">
     <lf-playground-setting for="threshold" value="6"></lf-playground-setting>
   </lf-playground-preset>
   <lf-playground-preview>
     <p>Six minutes catches the incident with time to act.</p>
-    <lf-playground-control name="threshold" label="Threshold" kind="range"
+    <lf-playground-control id="threshold" name="threshold" label="Threshold" kind="range"
       value="5" min="1" max="10"></lf-playground-control>
   </lf-playground-preview>
   <lf-playground-output>Use a <lf-playground-value for="threshold"></lf-playground-value> minute threshold.</lf-playground-output>
@@ -735,55 +737,119 @@ def test_narrow_playground_keeps_complete_preset_labels_operable(browser, serve)
     expect(page.get_by_role("slider", name="Threshold")).to_have_value("5")
 
 
-def test_plain_choices_wrap_between_whole_labels_until_the_author_sets_columns(
-    browser, serve
-):
-    """Plain label choices run in a row that breaks between labels, and
-    `--playground-choice-columns` arranges them, and rich choices, in the author's
-    columns instead."""
-    choices = "".join(
-        f'<lf-playground-choice value="{value}" label="{label}"></lf-playground-choice>'
-        for value, label in (
-            ("page", "Page on-call (today)"),
-            ("ticket", "Open a ticket"),
-            ("mute", "Mute"),
+def test_plain_choices_stand_one_per_line_until_the_author_sets_columns(browser, serve):
+    """Plain label choices stand one per line with their marks on the label's edge, so
+    in a page's own row of controls each is as wide as its longest label and no empty
+    column opens beside one. `--playground-choice-columns` arranges them, and rich
+    choices, in the author's columns instead."""
+
+    def group(name, labels):
+        choices = "".join(
+            f'<lf-playground-choice id="{name}-{index}" value="{index}"'
+            f' label="{label}"></lf-playground-choice>'
+            for index, label in enumerate(labels)
         )
-    )
+        return (
+            f'<lf-playground-control id="{name}" name="{name}" label="{name.title()}" kind="choice"'
+            f' value="0">{choices}</lf-playground-control>'
+        )
+
     source = leaf_page(
         "Choice arrangements",
         f"""<style>
-  .card {{ inline-size: 28rem; }}
-  #columned {{ --playground-choice-columns: repeat(2, minmax(0, 1fr)); }}
-  #stacked {{ inline-size: 60rem; --playground-choice-columns: minmax(0, 1fr); }}
+  #row {{
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, auto));
+    justify-content: start;
+    gap: 8px 24px;
+  }}
+  #columned {{ inline-size: 28rem; --playground-choice-columns: repeat(2, minmax(0, 1fr)); }}
+  #rich {{ inline-size: 60rem; --playground-choice-columns: minmax(0, 1fr); }}
 </style>
-<h1>Route the alert</h1>
-<lf-playground id="routes">
+<h1>Which thread view?</h1>
+<lf-playground id="views" data-width="available">
   <lf-playground-preview>
-    <div class="card"><lf-playground-control name="row" label="Row"
-      kind="choice" value="page">{choices}</lf-playground-control></div>
-    <div class="card" id="columned"><lf-playground-control name="columns"
-      label="Columns" kind="choice" value="page">{choices}</lf-playground-control></div>
-    <div id="stacked"><lf-playground-control name="rich" label="Layout"
-      kind="choice" value="list">
-      <lf-playground-choice value="list" label="List"><p>Rows</p></lf-playground-choice>
-      <lf-playground-choice value="grid" label="Grid"><p>Tiles</p></lf-playground-choice>
+    <div id="row">
+      {
+            group(
+                "controls",
+                ["Today: a row at the foot", "Top right; the foot's row goes"],
+            )
+        }
+      {
+            group(
+                "leaf",
+                [
+                    "Today: in the reply's row, 32px of words past it",
+                    "Outside the card; reply and thread share an edge",
+                ],
+            )
+        }
+      {
+            group(
+                "back",
+                [
+                    "Today: ‹ Threads, first in the presses",
+                    "‹ before the title",
+                    "Threads › before the title",
+                    "‹ hanging off the card, above the leaf",
+                    "None",
+                ],
+            )
+        }
+    </div>
+    <div id="columned">{
+            group("columns", ["Page on-call (today)", "Open a ticket", "Mute"])
+        }</div>
+    <div id="rich"><lf-playground-control id="views-rich" name="rich" label="Layout" kind="choice"
+      value="list">
+      <lf-playground-choice id="rich-list" value="list" label="List"><p>Rows</p></lf-playground-choice>
+      <lf-playground-choice id="rich-grid" value="grid" label="Grid"><p>Tiles</p></lf-playground-choice>
     </lf-playground-control></div>
   </lf-playground-preview>
-  <lf-playground-output>Route the alert.</lf-playground-output>
+  <lf-playground-output>Build the thread view.</lf-playground-output>
 </lf-playground>""",
     )
     page = open_page(browser, serve(source))
-    read = """control => [...control.querySelectorAll('label.choice')].map(face => {
-      const words = document.createRange();
-      words.selectNodeContents(face.querySelector('.lf-playground-choice-label'));
-      const box = face.getBoundingClientRect();
-      return {left: Math.round(box.left), top: Math.round(box.top),
-              lines: words.getClientRects().length};
-    })"""
-    row = page.locator('lf-playground-control[name="row"]').evaluate(read)
-    assert {face["top"] for face in row} == {row[0]["top"]}
-    assert [face["lines"] for face in row] == [1, 1, 1]
-    columns = page.locator('lf-playground-control[name="columns"]').evaluate(read)
+    resized(page, 1700, 1000)
+    read = """control => {
+      const box = node => node.getBoundingClientRect();
+      const faces = [...control.querySelectorAll('label.lf-choice')].map(face => {
+        const words = document.createRange();
+        words.selectNodeContents(face.querySelector('.lf-playground-choice-label'));
+        const edges = box(face);
+        return {left: Math.round(edges.left), top: Math.round(edges.top),
+                right: edges.right, lines: words.getClientRects().length};
+      });
+      return {
+        left: box(control).left, right: box(control).right, top: box(control).top,
+        faces,
+        labelLeft: box(control.querySelector('.lf-playground-control-label')).left,
+        markLeft: box(control.querySelector('label.lf-choice > input')).left,
+      };
+    }"""
+    controls = [
+        page.locator(f'lf-playground-control[name="{name}"]').evaluate(read)
+        for name in ("controls", "leaf", "back")
+    ]
+    assert len({round(control["top"]) for control in controls}) == 1
+    for control in controls:
+        faces = control["faces"]
+        assert len({face["left"] for face in faces}) == 1
+        assert [face["top"] for face in faces] == sorted(
+            {face["top"] for face in faces}
+        )
+        assert all(face["lines"] == 1 for face in faces)
+        assert control["right"] - max(face["right"] for face in faces) <= 1
+        assert control["markLeft"] == pytest.approx(control["labelLeft"], abs=1)
+    gaps = {
+        round(after["left"] - before["right"])
+        for before, after in itertools.pairwise(controls)
+    }
+    assert gaps == {24}
+    columns = page.locator('lf-playground-control[name="columns"]').evaluate(read)[
+        "faces"
+    ]
     assert columns[0]["left"] == columns[2]["left"] < columns[1]["left"]
     assert columns[0]["top"] == columns[1]["top"] < columns[2]["top"]
     # Rich choices take the author's columns over their own responsive grid.
@@ -997,32 +1063,34 @@ def test_a_playground_reports_a_contributor_view_that_cannot_draw_its_edit(
     consume_browser_errors(page, report)
 
 
+SHORT_WORKSPACE_PLAYGROUND = leaf_page(
+    "Short alert workspace",
+    "<header><h1>Tune alert policies</h1>"
+    "<p>Compare the last month of incidents before setting the latency window. "
+    "Keep every real incident visible while reducing unnecessary pages for the "
+    "on-call engineer.</p></header>"
+    '<lf-playground id="short-config" data-width="available">'
+    '<lf-playground-preset id="preset-suggested-window" label="Suggested window">'
+    '<lf-playground-setting for="latency" value="5"></lf-playground-setting>'
+    "</lf-playground-preset>"
+    "<lf-playground-preview><h2>Checkout latency</h2>"
+    "<p>The last incident lasted seven minutes. Tune its alert beside this evidence.</p>"
+    '<lf-playground-control id="latency" name="latency" label="Latency window" kind="range" '
+    'value="5" min="1" max="15" unit="min"></lf-playground-control>'
+    "</lf-playground-preview><lf-playground-output>"
+    + "Include alert evidence, validation, routing and deployment instructions. "
+    * 100
+    + '<span id="instruction-end">Finish with the rollback procedure.</span>'
+    "</lf-playground-output></lf-playground>",
+    layout="workspace",
+)
+
+
 def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, serve):
     """With its controls on the stage, a playground in a short workspace keeps at least
     half the window for the stage. Presets stay visible and Tab brings its actions
     above the floating panel; a long instruction scrolls inside its popover."""
-    source = leaf_page(
-        "Short alert workspace",
-        "<header><h1>Tune alert policies</h1>"
-        "<p>Compare the last month of incidents before setting the latency window. "
-        "Keep every real incident visible while reducing unnecessary pages for the "
-        "on-call engineer.</p></header>"
-        '<lf-playground id="short-config" data-width="available">'
-        '<lf-playground-preset label="Suggested window">'
-        '<lf-playground-setting for="latency" value="5"></lf-playground-setting>'
-        "</lf-playground-preset>"
-        "<lf-playground-preview><h2>Checkout latency</h2>"
-        "<p>The last incident lasted seven minutes. Tune its alert beside this evidence.</p>"
-        '<lf-playground-control name="latency" label="Latency window" kind="range" '
-        'value="5" min="1" max="15" unit="min"></lf-playground-control>'
-        "</lf-playground-preview><lf-playground-output>"
-        + "Include alert evidence, validation, routing and deployment instructions. "
-        * 100
-        + '<span id="instruction-end">Finish with the rollback procedure.</span>'
-        "</lf-playground-output></lf-playground>",
-        layout="workspace",
-    )
-    page = open_page(browser, serve(source))
+    page = open_page(browser, serve(SHORT_WORKSPACE_PLAYGROUND))
     resized(page, 900, 500)
     playground = page.locator("#short-config")
     preview = playground.locator(".lf-playground-preview-body")
@@ -1072,6 +1140,29 @@ def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, s
     }
 
 
+@pytest.mark.parametrize("over", ["stage", "presets"])
+def test_the_wheel_takes_a_short_workspace_to_its_playgrounds_send(
+    browser, serve, over
+):
+    """In a short workspace that scrolls to the playground's Send, a wheel over the
+    stage, once the stage is at its end, or over the presets scrolls the workspace and
+    brings Send into view. Chromium kept that wheel in the region under the pointer,
+    which left only a wheel over the premise to reach Send."""
+    page = open_page(browser, serve(SHORT_WORKSPACE_PLAYGROUND))
+    resized(page, 900, 500)
+    playground = page.locator("#short-config")
+    submit = playground.get_by_role("button", name="Use these settings")
+    expect(submit).not_to_be_in_viewport(ratio=1)
+    region = playground.locator(
+        ".lf-playground-preview-body" if over == "stage" else ".lf-playground-presets"
+    )
+    region.evaluate("body => { body.scrollTop = body.scrollHeight; }")
+    box = region.bounding_box()
+    page.mouse.move(box["x"] + box["width"] - 40, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, 400)
+    expect(submit).to_be_in_viewport(ratio=1)
+
+
 def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serve):
     """In a workspace too short for them, the preview and the controls scroll, and each
     shows over its own content that more is below: the preview's code cards fill it to
@@ -1093,7 +1184,7 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
         delta = rgb_pixels(ImageChops.difference(marked, bare))
         return sum(1 for pixel in delta if max(pixel) > 24)
 
-    page = open_page(browser, serve(ROOT / "examples" / "code-comparison.html"))
+    page = open_page(browser, serve(named_source("code-comparison")))
     resized(page, 1280, 540)
     preview = page.locator("#code-comparison-playground .lf-playground-preview-body")
     assert preview.evaluate("el => el.scrollHeight > el.clientHeight + 1")
@@ -1110,13 +1201,25 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
         titles.nth(1).bounding_box()["y"], abs=1
     )
 
-    page = open_page(browser, serve(ROOT / "examples" / "notification-playground.html"))
+    page = open_page(browser, serve(named_source("notification-playground")))
     # Without a Controls label or a Starting points label over them, the list fits
     # at 700px tall; 600 still runs it past the rail's foot.
     resized(page, 1100, 600)
     playground = page.locator("#notification-playground")
     controls = playground.locator(".lf-playground-controls")
     assert controls.evaluate("el => el.scrollHeight > el.clientHeight + 1")
+    expect(controls).to_have_attribute("data-lf-more-below", "")
+    # The cue fades whatever reaches the box's foot, and where a gap between two
+    # controls lands there depends on their leading, so the first control the box
+    # cuts off is scrolled up until its label sits under the cue.
+    controls.evaluate(
+        """el => {
+            const cut = [...el.children].find(
+                (c) => c.offsetTop + c.offsetHeight > el.scrollTop + el.clientHeight
+            );
+            el.scrollTop = Math.max(el.scrollTop, cut.offsetTop - el.clientHeight + 20);
+        }"""
+    )
     expect(controls).to_have_attribute("data-lf-more-below", "")
     assert cue(page, controls) > 100
     # A control Tab reaches is not faded out under its own ring.
@@ -1140,7 +1243,7 @@ def test_a_playground_followed_by_a_note_keeps_its_actions_off_the_note(browser,
         "<lf-playground-preview>"
         + "<p>Checkout latency fired seven times last month.</p>"
         * 12
-        + '<lf-playground-control name="latency" label="Latency window" kind="range" '
+        + '<lf-playground-control id="latency" name="latency" label="Latency window" kind="range" '
         'value="5" min="1" max="15" unit="min"></lf-playground-control>'
         "</lf-playground-preview><lf-playground-output>"
         "Apply the chosen latency window.</lf-playground-output></lf-playground>"
@@ -1167,9 +1270,9 @@ def test_a_small_playground_keeps_its_controls_next_to_its_content(browser, serv
     source = leaf_page(
         "Small configuration",
         '<lf-playground id="small-playground">'
-        '<lf-playground-control name="priority" label="Priority" kind="choice" value="normal">'
-        '<lf-playground-choice value="normal" label="Normal"></lf-playground-choice>'
-        '<lf-playground-choice value="urgent" label="Urgent"></lf-playground-choice>'
+        '<lf-playground-control id="priority" name="priority" label="Priority" kind="choice" value="normal">'
+        '<lf-playground-choice id="priority-normal" value="normal" label="Normal"></lf-playground-choice>'
+        '<lf-playground-choice id="priority-urgent" value="urgent" label="Urgent"></lf-playground-choice>'
         "</lf-playground-control><lf-playground-preview>"
         "<table><tbody><tr><th>Daily export</th><td>Ready</td></tr>"
         "<tr><th>Weekly digest</th><td>Ready</td></tr></tbody></table>"
@@ -1200,11 +1303,11 @@ def test_an_artifact_that_changes_height_leaves_the_stage_where_it_stands(
         "Stage",
         '<lf-ask id="stage-ask"><h1>Choose a density</h1>'
         '<lf-playground id="stage-playground">'
-        '<lf-playground-control name="rows" label="Rows" kind="range" value="4" '
+        '<lf-playground-control id="rows" name="rows" label="Rows" kind="range" value="4" '
         'min="1" max="8"></lf-playground-control>'
-        '<lf-playground-control name="mode" label="Mode" kind="choice" value="a">'
-        '<lf-playground-choice value="a" label="A"></lf-playground-choice>'
-        '<lf-playground-choice value="b" label="B"></lf-playground-choice>'
+        '<lf-playground-control id="mode" name="mode" label="Mode" kind="choice" value="a">'
+        '<lf-playground-choice id="mode-a" value="a" label="A"></lf-playground-choice>'
+        '<lf-playground-choice id="mode-b" value="b" label="B"></lf-playground-choice>'
         "</lf-playground-control>"
         '<lf-playground-preview><div id="first">First</div>'
         '<div id="artifact" style="height: 200px">Artifact</div></lf-playground-preview>'
@@ -1231,7 +1334,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     shorter than 480px keeps the rail beside the stage but doesn't hold it in view,
     since the rail would show a few lines and its actions only by scrolling inside it.
     Either way each is a named reading region."""
-    source = ROOT / "examples" / "notification-playground.html"
+    source = named_source("notification-playground")
     page = open_page(browser, serve(source))
     playground = page.locator("#notification-playground")
     controls = playground.locator(".lf-playground-controls")
@@ -1410,7 +1513,7 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
         '<button id="outside">Before playground</button>'
         '<lf-ask id="fold-ask"><h1>Choose a density</h1>'
         '<lf-playground id="fold-playground" data-width="available">'
-        '<lf-playground-control name="rows" label="Rows" kind="range" value="4" '
+        '<lf-playground-control id="rows" name="rows" label="Rows" kind="range" value="4" '
         'min="1" max="8"></lf-playground-control>'
         "<lf-playground-preview><p>Rows of the report.</p>"
         '<button id="preview-action">Preview action</button></lf-playground-preview>'
@@ -1460,68 +1563,13 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
     expect(instruction).to_be_hidden()
 
 
-def test_notification_playground_admits_only_its_exact_page_configuration(
-    browser, serve
-):
-    source = ROOT / "examples" / "notification-playground.html"
-    url = serve(source)
-    page = open_page(browser, url)
-    playground = page.locator("#notification-playground")
-    values = playground.evaluate("root => root.values")
-    assert set(values) == {
-        "accent",
-        "compact",
-        "events",
-        "format",
-        "radius",
-        "show-owner",
-        "title",
-        "tone",
-    }
-
-    refused = post_event(
-        page,
-        url.rsplit("/versions/", 1)[0] + "/api/event",
-        data={
-            "kind": "action",
-            "revision": 1,
-            "widget": "notification-playground",
-            "action": "choose",
-            "detail": {
-                "values": {**values, "unknown": "not part of this page"},
-                "instruction": "Build the notification.",
-            },
-        },
-    )
-    assert refused.status == 400
-    unknown = refused_on(refused.json())
-    assert (unknown.code, unknown.values["field"]) == ("invalid-detail", "/values")
-    off_step = post_event(
-        page,
-        url.rsplit("/versions/", 1)[0] + "/api/event",
-        data={
-            "kind": "action",
-            "revision": 1,
-            "widget": "notification-playground",
-            "action": "choose",
-            "detail": {
-                "values": {**values, "events": 2.5},
-                "instruction": "Build the notification.",
-            },
-        },
-    )
-    assert off_step.status == 400
-    assert refused_on(off_step.json()).values["field"] == "/values/events"
-    assert actions(serve.page_dir) == []
-
-
 def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     browser, serve
 ):
     """The shared comment loop carries a design request through a real reader revision.
     Design mode's keyboard and touch routes to a target are the aim tests'
     (`test_render_aim.py`); this picks the built reader's heading by pointer."""
-    source_path = ROOT / "examples" / "code-comparison.html"
+    source_path = named_source("code-comparison")
     source = source_path.read_text(encoding="utf-8")
     page = open_page(browser, live_url(serve(source_path)))
     page.get_by_role("tab", name="Comment on the reader").click()
@@ -1539,7 +1587,7 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
         corner["x"] + corner["width"] / 2, corner["y"] + corner["height"] / 2
     )
     expect(page.locator(".lf-fab-bar .lf-compose-field")).to_have_attribute(
-        "data-send-armed", ""
+        "data-lf-send-armed", ""
     )
     with sending(page, "the reader design comment"):
         send.click()
@@ -1559,9 +1607,9 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     expect(page.locator("#target-reader-heading")).to_have_text(
         "Revised reader treatment"
     )
-    quote = open_panel_thread(page, event["id"]).locator(".lf-fp-quote")
-    expect(quote).to_contain_text("target-reader-heading")
-    expect(quote).not_to_have_class(re.compile(r"detached"))
+    head = open_panel_thread(page, event["id"]).locator(".lf-thread-quote-head")
+    expect(head).to_contain_text("target-reader-heading")
+    expect(head).not_to_have_attribute("data-lf-detached", "")
 
 
 def test_a_press_in_flight_does_what_the_playground_button_says(browser, serve):
@@ -1637,7 +1685,7 @@ def test_a_playground_control_written_in_the_preview_stands_beside_its_item(
     replay, and the page budget as the playground's own child. The budget stands in the
     rail; each alert's controls are drawn where they are written, and a press there
     changes the playground's one configuration and the instruction it sends."""
-    source = ROOT / "examples" / "alert-thresholds.html"
+    source = named_source("alert-thresholds")
     page = open_page(browser, serve(source))
     playground = page.locator("#alert-playground")
     rail = playground.locator(".lf-playground-controls")
@@ -1677,31 +1725,6 @@ def test_a_playground_control_written_in_the_preview_stands_beside_its_item(
         playground.get_by_role("button", name="Apply these settings").click()
     action = events_model.read_events(serve.page_dir)[-1]
     assert action["detail"]["values"]["latency-route"] == "ticket"
-
-
-def test_undoing_a_playground_choice_leaves_the_controls_as_the_user_set_them(
-    browser, serve
-):
-    """Undo withdraws the decision and leaves the controls where the user left them,
-    to adjust and send again; Reset still returns them to the authored defaults."""
-    page = open_page(browser, serve(ROOT / "examples" / "alert-thresholds.html"))
-    playground = page.locator("#alert-playground")
-    budget = playground.get_by_role("slider", name="On-call page budget")
-    expect(budget).to_have_value("10")
-    budget.press("ArrowRight")
-    budget.press("ArrowRight")
-    with sending(page, "the alert settings"):
-        playground.get_by_role("button", name="Apply these settings").click()
-    choice = events_model.read_events(serve.page_dir)[-1]
-    assert choice["detail"]["values"]["budget"] == 12
-
-    undo(page)
-    assert events_model.read_events(serve.page_dir)[-1]["undoes"] == choice["id"]
-    expect(budget).to_have_value("12")
-    assert playground.evaluate("root => root.values.budget") == 12
-
-    playground.get_by_role("button", name="Reset", exact=True).click()
-    expect(budget).to_have_value("10")
 
 
 PAGE_ACTIONS_PAGE = leaf_page(
@@ -1807,7 +1830,7 @@ def test_a_page_drawn_preset_sets_its_whole_slice_as_one_gesture(browser, serve)
     slice. A press, by pointer or key, sets all three elevations at once and shows
     pressed; the playground records it as one gesture, so Undo restores the scale the
     preset replaced."""
-    page = open_page(browser, serve(ROOT / "examples" / "shadow-scale.html"))
+    page = open_page(browser, serve(named_source("shadow-scale")))
     playground = page.locator("#shadow-playground")
     presets = playground.get_by_role("group", name="Start from")
     soft, deep, flat = (
@@ -1856,7 +1879,7 @@ def test_a_playground_rail_stays_in_view_beside_a_tall_stage(browser, serve):
     sends what they set where they set it. In a window shorter than 480px the rail
     flows with the page, which scrolls to its submit button, and stacked at phone width
     its shared controls stay above the stage while the instruction follows it."""
-    page = open_page(browser, serve(ROOT / "examples" / "alert-thresholds.html"))
+    page = open_page(browser, serve(named_source("alert-thresholds")))
     resized(page, 1024, 768)
     playground = page.locator("#alert-playground")
     stage = playground.locator(".lf-playground-preview-region")
@@ -1903,75 +1926,6 @@ def test_a_playground_rail_stays_in_view_beside_a_tall_stage(browser, serve):
     expect(budget).to_have_value("12")
 
 
-def test_a_playground_initial_drawing_leaves_quoted_controls_alone(browser, serve):
-    """A quotation neither supplies controls nor yields its own value slots.
-
-    Admission refuses a bare quoted control, so collection is exercised directly.
-    Complete quoted playgrounds keep their own values as the surrounding one changes.
-    """
-    page = open_page(browser, serve(PLAYGROUND_PAGE))
-    drawing = page.evaluate(
-        """async source => {
-          const template = document.createElement('template');
-          template.innerHTML = source;
-          const host = template.content.querySelector('#card-playground');
-          host.id = 'quoted-controls-drawing';
-          const quote = document.createElement('lf-sample');
-          quote.setAttribute('data-lf-exhibit', '');
-          quote.innerHTML = `
-            <lf-playground-control name="tone" label="Quoted tone" kind="text"
-              value="quoted"></lf-playground-control>
-            <lf-playground-control name="quoted" label="Quoted toggle" kind="toggle"
-              value="true"></lf-playground-control>`;
-          host.querySelector('lf-playground-preview').append(quote);
-          const quotedOutput = document.createElement('lf-sample');
-          quotedOutput.setAttribute('data-lf-exhibit', '');
-          quotedOutput.innerHTML = `
-            <lf-playground id="quoted-output-drawing">
-              <lf-playground-control name="tone" label="Quoted tone" kind="text"
-                value="quoted"></lf-playground-control>
-              <lf-playground-control name="inner-tone" label="Inner tone" kind="text"
-                value="independent"></lf-playground-control>
-              <lf-playground-preview><p>Inner preview</p></lf-playground-preview>
-              <lf-playground-output><lf-playground-value for="tone"></lf-playground-value>
-                <lf-playground-value for="inner-tone"></lf-playground-value>
-              </lf-playground-output>
-            </lf-playground>`;
-          host.querySelector('lf-playground-output').append(quotedOutput);
-          const { createPlayground } = await import('/widgets/playground-view.js');
-          const { render } = await import('/vendor/lit.js');
-          const nested = quotedOutput.querySelector('lf-playground');
-          const nestedView = createPlayground(nested);
-          render(nestedView.render(), nested, {host: nested});
-          const initial = createPlayground(host);
-          render(initial.render({values: {...initial.defaults, tone: 'bold'}}), host, {host});
-          return {
-            controls: initial.controls.map(control => control.getAttribute('name')),
-            defaults: initial.defaults,
-            quotedInputs: quote.querySelectorAll('input').length,
-            outerTone: initial.output.querySelector(':scope > lf-playground-value[for="tone"]')
-              .textContent,
-            quotedValues: [...quotedOutput.querySelectorAll('lf-playground-value')]
-              .map(slot => slot.textContent),
-          };
-        }""",
-        PLAYGROUND_PAGE,
-    )
-    assert drawing == {
-        "controls": ["radius", "compact", "tone", "accent", "title"],
-        "defaults": {
-            "radius": 12,
-            "compact": False,
-            "tone": "quiet",
-            "accent": "#4f766f",
-            "title": "Field note",
-        },
-        "quotedInputs": 0,
-        "outerTone": "bold",
-        "quotedValues": ["quoted", "independent"],
-    }
-
-
 def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
     browser, serve
 ):
@@ -2005,7 +1959,7 @@ def test_a_quoted_playground_draws_no_box_its_preview_wrote_only_for_controls(
     of its own, so it goes with them rather than standing empty beside its alert;
     the rate box also held a sentence, which stays. The stage ends below its last
     alert without leaving the hidden controls' space empty under it."""
-    source = ROOT / "tests/fixtures/pages/quoted-playground.html"
+    source = named_source("quoted-playground")
     page = open_page(browser, serve(source))
     playground = page.locator("#quoted-alerts")
 
@@ -2090,20 +2044,95 @@ def test_playground_labels_can_be_selected_without_changing_the_controls(
     expect(toggle).not_to_be_checked()
 
 
+def test_a_comment_names_the_playground_member_it_points_at(browser, serve, subtests):
+    """A control, an option and a preset are each a target of their own, so the aim
+    takes one of them rather than the playground around it. An option in the rail is
+    its whole line, as far as the control's right edge, and an option in the preview
+    is its whole candidate. The comment records the id and names the member."""
+    source = leaf_page(
+        "Pick a word",
+        """<lf-ask id="word-ask"><h2>Which word should a box say?</h2>
+<lf-playground id="word-playground">
+  <lf-playground-preset id="start-today" label="Start from today">
+    <lf-playground-setting for="word" value="today"></lf-playground-setting>
+  </lf-playground-preset>
+  <lf-playground-control id="word" name="word" label="At rest" kind="choice" value="today">
+    <lf-playground-choice id="word-today" value="today"
+      label="Reply, and Comment beside a target"></lf-playground-choice>
+    <lf-playground-choice id="word-verb" value="verb"
+      label="Reply, Comment"></lf-playground-choice>
+  </lf-playground-control>
+  <lf-playground-preview>
+    <lf-playground-control id="shape" name="shape" label="Shape" kind="choice" value="round">
+      <lf-playground-choice id="shape-round" value="round" label="Round">
+        <p>A round box.</p>
+      </lf-playground-choice>
+      <lf-playground-choice id="shape-square" value="square" label="Square">
+        <p>A square box.</p>
+      </lf-playground-choice>
+    </lf-playground-control>
+  </lf-playground-preview>
+  <lf-playground-output>
+    Say <lf-playground-value for="word"></lf-playground-value>.
+  </lf-playground-output>
+</lf-playground></lf-ask>""",
+    )
+    page = open_page(browser, serve(source))
+    line = page.locator("#word-verb > .lf-choice")
+    aimed = page.locator("[data-lf-aimed]")
+    aimed_member = "element => element.closest('[id]').id"
+    page.keyboard.down("Alt")
+    for member, reach in (
+        ("word-verb", lambda: page.get_by_text("Reply, Comment", exact=True).hover()),
+        (
+            "word-verb",
+            lambda: line.hover(
+                position={"x": line.bounding_box()["width"] - 4, "y": 8}
+            ),
+        ),
+        ("shape-square", lambda: page.get_by_text("A square box.", exact=True).hover()),
+        ("word", lambda: page.get_by_text("At rest", exact=True).hover()),
+        ("start-today", lambda: page.locator("#start-today > button").hover()),
+    ):
+        with subtests.test(member=member):
+            reach()
+            expect(aimed).to_have_count(1)
+            assert aimed.evaluate(aimed_member) == member
+    page.keyboard.up("Alt")
+    # The line reaches past its words, or the second case above proved nothing.
+    words = page.get_by_text("Reply, Comment", exact=True).bounding_box()
+    box = line.bounding_box()
+    assert box["x"] + box["width"] - 4 > words["x"] + words["width"]
+
+    page.get_by_text("Reply, Comment", exact=True).hover()
+    page.keyboard.down("Alt")
+    page.mouse.down()
+    page.mouse.up()
+    page.keyboard.up("Alt")
+    field = page.get_by_role("textbox", name="Comment on option · Reply, Comment")
+    expect(field).to_be_focused()
+    page.keyboard.type("Could this say less?")
+    with sending(page, "the comment on the option"):
+        page.keyboard.press("Enter")
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert (sent["kind"], sent["anchor"]) == ("comment", {"section": "word-verb"})
+    expect(page.get_by_role("radio", name="Reply, Comment")).not_to_be_checked()
+
+
 def test_playground_candidates_keep_previews_operable_and_submit_one_choice(
     browser, serve
 ):
     source = leaf_page(
         "Choose the notification",
         """<lf-playground id="candidates">
-  <lf-playground-control name="radius" label="Corner radius" kind="range"
+  <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range"
     value="10" min="0" max="24"></lf-playground-control>
   <lf-playground-preview>
-    <lf-playground-control name="format" label="Notification" kind="choice" value="banner">
-      <lf-playground-choice value="banner" label="Banner">
+    <lf-playground-control id="format" name="format" label="Notification" kind="choice" value="banner">
+      <lf-playground-choice id="format-banner" value="banner" label="Banner">
         <p>Checkout deployed.</p>
       </lf-playground-choice>
-      <lf-playground-choice value="strip" label="Status strip">
+      <lf-playground-choice id="format-strip" value="strip" label="Status strip">
         <p>Checkout · deployed · 18 checks passed</p>
         <label>Preview title <input id="preview-title" value="Checkout"></label>
         <details><summary>Open preview</summary><p>Preview details</p></details>

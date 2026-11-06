@@ -5,8 +5,9 @@
  * floating panel's About rows look and answer alike. Its icons are Leaf's (icons.js),
  * its action's at rest and the check or cross for the result, since Web Awesome's glyphs fill
  * their box and stood larger than the icons beside them at one size.
- * A control wrapping a trigger of its own wears that trigger's face
- * instead of the icon. A failed copy remains an error after the control's transient
+ * A control around a trigger of its own (`trigger`) draws nothing itself: Web Awesome
+ * hides its button for it, and the trigger, a press built by its role, is the face. A
+ * failed copy remains an error after the control's transient
  * face changes again; Web Awesome announces the outcome itself. */
 import { offer, offerActionElement } from "./widget-elements.js";
 import { actionElement, iconElement } from "./icons.js";
@@ -18,6 +19,12 @@ import { nativeLayerHolding } from "./shadow-tree.js";
 // Plain HTTP on a machine name has no Clipboard API. A copy press can still use the
 // browser's selection command there. Embedded samples deliberately cannot write the
 // clipboard, so a frame never bypasses its own permission path.
+const copiesThroughSelection = () =>
+  !navigator.clipboard?.writeText && window === window.top;
+/** Whether a copy control can copy here, through the Clipboard API or the selection
+ * command; a surface that offers a copy only where one can work asks this. */
+export const canCopy = () =>
+  Boolean(navigator.clipboard?.writeText) || copiesThroughSelection();
 /** @param {string} value @param {Element} trigger */
 function copyThroughSelection(value, trigger) {
   if (!value) return false;
@@ -28,12 +35,18 @@ function copyThroughSelection(value, trigger) {
   const before = focused();
   const field = document.createElement("textarea");
   field.value = value;
-  field.style.cssText = "position: fixed; left: -9999px; top: 0";
+  // iOS Safari raises the keyboard for an editable field and zooms into one set
+  // smaller than 16px, and its `select()` can select nothing, so the field is read-only
+  // at 16px and selected by range, as clipboard.js and copy-text-to-clipboard do.
+  field.readOnly = true;
+  field.style.cssText = "position: fixed; left: -9999px; top: 0; font-size: 16px";
+  // Leaf's own, wherever it stands, so the moment it holds focus isn't the page's.
+  field.dataset.lfRuntime = "";
   // A modal makes the rest of the document inert, including a field at body level.
   (nativeLayerHolding(trigger) ?? document.body).append(field);
   try {
     focusDestination(field, "return");
-    field.select();
+    field.setSelectionRange(0, value.length);
     return document.execCommand("copy");
   } catch {
     return false;
@@ -45,16 +58,20 @@ function copyThroughSelection(value, trigger) {
   }
 }
 
-/** A copy control named `label`, drawn with `action`'s symbol, that says `success` or
- * `error` once pressed, wearing the face of `role` where one is given (`offerAction`).
- * Web Awesome draws the symbol from its slot and names the control from `copyLabel`,
- * so the role lends its face and the symbol in that slot.
+/** A copy control named `label` that says `success` or `error` once pressed. It wears
+ * the face of `role` (`offerAction`), drawn with `action`'s symbol, which Web Awesome
+ * takes from its slot as it names the control from `copyLabel`; or it is pressed
+ * through `trigger`, a press its caller built by role, which Web Awesome shows in its
+ * button's place. The caller may render the trigger itself, as the floating panel's
+ * rows are, and passes `trigger: true` to say it will.
  * @param {string} className
- * @param {{label?: string, success: string, error: string, action?: string, role?: LeafActionRole}} options */
+ * @param {{label?: string, success: string, error: string, action?: string, role?: LeafActionRole, trigger?: Element | boolean | null}} options */
 export function copyControl(
   className,
-  { label = "", success, error, action = "copy", role = undefined },
+  { label = "", success, error, action = "copy", role = undefined, trigger = null },
 ) {
+  if (Boolean(role) === Boolean(trigger))
+    throw new TypeError("A copy control wears a role's face or wraps a trigger");
   const copy = role
     ? offerActionElement(
         document.createElement("wa-copy-button"),
@@ -76,6 +93,7 @@ export function copyControl(
     [iconElement("cross", "lf-copy-icon"), "error-icon"],
   ];
   for (const [icon, slot] of icons) copy.append(Object.assign(icon, { slot }));
+  if (trigger instanceof Element) copy.append(trigger);
   if (label) copy.copyLabel = label;
   copy.successLabel = success;
   copy.errorLabel = error;
@@ -89,8 +107,7 @@ export function copyControl(
     copy.addEventListener(
       "click",
       (event) => {
-        if (window.isSecureContext || window !== window.top || navigator.clipboard)
-          return;
+        if (!copiesThroughSelection()) return;
         event.stopPropagation();
         if (event.defaultPrevented || copy.disabled || copy.isCopying) return;
         copy.isCopying = true;

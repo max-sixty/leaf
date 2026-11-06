@@ -5,7 +5,7 @@ import { isHTML } from "../shadow-tree.js";
    message's other controls at its head (messages.js), which draws `trigger`. */
 import { html, ref, render, repeat } from "/runtime/framework.js";
 import { HOLDS_WORD } from "../held-word.js";
-import { offered, offeredAction } from "../widget-elements.js";
+import { offeredAction } from "../widget-elements.js";
 
 /** @typedef {{registerSurface: ReturnType<typeof import("../reactions.js").createReactionController>["registerReactSurface"],
  * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "setReaction">,
@@ -25,7 +25,7 @@ export class ReactionStripView {
     this.node = document.createElement("div");
     this.node.classList.add("lf-react-strip", "lf-react-surface");
     this.#palette = document.createElement("span");
-    this.#palette.className = "lf-react-palette";
+    this.#palette.className = "lf-react-palette lf-popover";
     this.#palette.id = this.#paletteId;
     this.#palette.popover = "auto";
     this.#palette.setAttribute("role", "group");
@@ -43,8 +43,8 @@ export class ReactionStripView {
           (choice) => choice.name,
           (choice) =>
             html` <button
-              ${offered(`lf-react ${HOLDS_WORD}`)}
-              data-token=${choice.name}
+              ${offeredAction("reaction", `lf-react ${HOLDS_WORD}`)}
+              data-lf-token=${choice.name}
               title=${choice.label}
               aria-label=${choice.label}
               aria-pressed=${String(Boolean(choice.inForce))}
@@ -60,7 +60,8 @@ export class ReactionStripView {
   }
 
   // The list's trigger, which registers the strip with each button it draws: a reply
-  // whose reactions go and come back draws a new one.
+  // whose reactions go and come back draws a new one. Its `aria-expanded` is the layer
+  // stack's to keep as the list opens and closes (keyboard/layer-stack.js).
   trigger = html`<button
     ${offeredAction("symbol", "lf-msg-control lf-react-trigger", undefined, {
       action: "react",
@@ -85,7 +86,7 @@ export class ReactionStripView {
             .some(
               (node) =>
                 node instanceof HTMLButtonElement &&
-                node.matches(".lf-react[data-token]"),
+                node.matches(".lf-react[data-lf-token]"),
             )
         )
           return;

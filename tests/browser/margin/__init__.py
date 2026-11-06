@@ -193,6 +193,40 @@ LONG_THREAD_PAGE = leaf_page(
 )
 
 
+# A passage low on a page that scrolls, so a scroll stands the card or comment box
+# beside it with its foot anywhere against the window's.
+LOW_PASSAGE_PAGE = leaf_page(
+    "A box at the window's foot",
+    '<div style="height: 100vh"></div>'
+    '<p id="open">Review the open questions.</p>'
+    '<div style="height: 200vh"></div>',
+)
+
+
+# Whether the margin card's motion has ended (box-motion.js).
+CARD_AT_REST = (
+    "() => !document.querySelector('.lf-margin-preview').getAnimations({subtree: true})"
+    ".some(a => Number.isFinite(a.effect?.getComputedTiming().endTime))"
+)
+
+# Every motion held at its first frame is finished, until the card rests.
+CARD_RELEASED = (
+    "() => { window.__lfHeld.splice(0).forEach(motion => motion.finish());"
+    " return (" + CARD_AT_REST + ")(); }"
+)
+
+
+# The card's outline as its surface's ring is cut (box-motion.js): its top and its foot.
+CARD_OUTLINE = """card => {
+  const ring = card.querySelector('.lf-margin-preview-ground > .lf-box-ring');
+  const ground = card.querySelector('.lf-margin-preview-ground').getBoundingClientRect();
+  const [top, , bottom = top] = getComputedStyle(ring).clipPath
+    .match(/inset\\(([^)]*)\\)/)[1].split(' round')[0].trim().split(/\\s+/)
+    .map(Number.parseFloat);
+  return [ground.top + top, ground.bottom - bottom];
+}"""
+
+
 LONG_THREAD_ROOT = {
     "kind": "comment",
     "author": "user",

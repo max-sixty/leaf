@@ -8,12 +8,12 @@ import {
   generated,
   assignRows,
   axisTicks,
+  seconds,
   textWidth,
+  AXIS_EDGE as EDGE,
+  AXIS_LABEL_GAP as LABEL_GAP,
+  AXIS_LABEL_CHROME as LABEL_CHROME,
 } from "/runtime/portable-api.js";
-
-const EDGE = 12;
-const LABEL_GAP = 8;
-const LABEL_CHROME = 12;
 
 /** @typedef {{label: string, row: number}} TimelineRun */
 /** @typedef {{id: string, label: string, lane: TimelineLane, at: number, end: number | null, step: number}} TimelineEvent */
@@ -21,8 +21,6 @@ const LABEL_CHROME = 12;
 /** @typedef {{time: number, events: TimelineEvent[]}} TimelineStep */
 /** @param {string | null} value */
 const time = (value) => (value == null || value === "" ? null : Number(value));
-/** @param {number} ms */
-export const clock = (ms) => `${Number((ms / 1000).toFixed(3))} s`;
 /** @param {number} value */
 const fraction = (value) => Math.round(value * 1e5) / 1e5;
 
@@ -144,7 +142,7 @@ export function timelineLayout(model, width, font) {
     return 1 + Math.max(0, ...rowOf.values());
   });
   const ticks = axisTicks(0, model.duration, model.duration, span / model.duration);
-  return { rows, placed, ticks, span };
+  return { rows, placed, ticks };
 }
 
 /** @param {TimelineEvent} event @param {number} now */
@@ -171,7 +169,7 @@ export function render(host, current, model, layout) {
   const now = model.steps[current]?.time ?? 0;
   const along = (/** @type {number} */ ms) => fraction(ms / model.duration);
   const position = model.steps.length
-    ? `Step ${current + 1} of ${model.steps.length} · ${clock(now)}`
+    ? `Step ${current + 1} of ${model.steps.length} · ${seconds(now)}`
     : "No events";
   return html`<div class="lf-timeline-view" ${generated({ says: false })}>
     <div
@@ -187,7 +185,7 @@ export function render(host, current, model, layout) {
       class="lf-timeline-chart"
       aria-hidden="true"
       ${generated({ says: "echo" })}
-      style="--lf-timeline-bands: ${model.bands}; --lf-timeline-edge: ${EDGE}px"
+      style="--lf-timeline-bands: ${model.bands}; --lf-axis-edge: ${EDGE}px"
     >
       ${model.runs.map(
         (run) =>
@@ -203,7 +201,7 @@ export function render(host, current, model, layout) {
             >${lane.label}</span
           >`,
       )}
-      <div class="lf-timeline-ruler">
+      <div class="lf-timeline-ruler lf-axis-ruler">
         ${
           layout &&
           repeat(
@@ -211,23 +209,24 @@ export function render(host, current, model, layout) {
             (tick) => `${tick.step}:${tick.time}`,
             (tick) =>
               html`<span
-                class="lf-timeline-tick"
-                ?data-major=${tick.major}
-                ?data-flip=${tick.major && (tick.time / model.duration) * layout.span > layout.span - 36}
-                style="--lf-timeline-at: ${along(tick.time)}"
+                class="lf-axis-tick"
+                ?data-lf-major=${tick.major}
+                ?data-lf-flip=${tick.flip}
+                style="--lf-axis-at: ${along(tick.time)}"
                 >${tick.label ?? nothing}</span
               >`,
           )
         }
       </div>
-      <div class="lf-timeline-grid">
+      <div class="lf-timeline-grid lf-axis-grid">
         ${repeat(
           (layout?.ticks ?? []).filter((tick) => tick.major),
           (tick) => tick.time,
           (tick) =>
             html`<span
-              class="lf-timeline-gridline"
-              style="--lf-timeline-at: ${along(tick.time)}"
+              class="lf-axis-gridline"
+              ?data-lf-flip=${tick.flip}
+              style="--lf-axis-at: ${along(tick.time)}"
             ></span>`,
         )}
       </div>
@@ -245,20 +244,20 @@ export function render(host, current, model, layout) {
                 const { state, done } = stateAt(event, now);
                 return html`<div
                   class="lf-timeline-event"
-                  data-event=${event.id}
-                  data-step=${event.step}
-                  data-state=${state}
+                  data-lf-event=${event.id}
+                  data-lf-step=${event.step}
+                  data-lf-state=${state}
                 >
                   <span
-                    class="lf-timeline-label"
-                    data-place=${label?.place ?? "start"}
-                    style="--lf-timeline-row-index: ${label?.row ?? 0}; --lf-timeline-at: ${along(event.at)}"
+                    class="lf-timeline-label lf-on-axis"
+                    data-lf-place=${label?.place ?? "start"}
+                    style="--lf-timeline-row-index: ${label?.row ?? 0}; --lf-axis-at: ${along(event.at)}"
                     >${event.label}</span
                   >
                   <span
-                    class="lf-timeline-mark"
-                    data-kind=${event.end === null ? "instant" : "span"}
-                    style="--lf-timeline-at: ${along(
+                    class="lf-timeline-mark lf-on-axis"
+                    data-lf-kind=${event.end === null ? "instant" : "span"}
+                    style="--lf-axis-at: ${along(
                       event.at,
                     )}; --lf-timeline-span: ${along(
                       (event.end ?? event.at) - event.at,
@@ -271,8 +270,8 @@ export function render(host, current, model, layout) {
       )}
       <div class="lf-timeline-playhead">
         <span
-          class="lf-timeline-playhead-line"
-          style="--lf-timeline-at: ${along(now)}"
+          class="lf-timeline-playhead-line lf-on-axis"
+          style="--lf-axis-at: ${along(now)}"
         ></span>
       </div>
     </div>
@@ -286,11 +285,13 @@ export function render(host, current, model, layout) {
               ${selectableOffered("button", "lf-timeline-step", "row")}
               ${generated({ says: true })}
               tabindex="0"
-              data-step=${index}
+              data-lf-step=${index}
               aria-current=${index === current ? "step" : nothing}
-              ?data-past=${index < current}
+              ?data-lf-ahead=${index > current}
             >
-              <span class="lf-timeline-step-time lf-row-lead">${clock(step.time)}</span>
+              <span class="lf-timeline-step-time lf-row-lead"
+                >${seconds(step.time)}</span
+              >
               ${step.events.map((event, order) => {
                 // A row names each run once, before the first of its events.
                 const lane = event.lane;

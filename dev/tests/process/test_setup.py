@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from interact_support import STATED_TIMEOUT, wait_for
 
-INSTALLERS = {"assets", "browsers", "chrome", "pnpm-root"}
+INSTALLERS = {"browsers", "chrome", "pnpm-root"}
 if sys.platform == "linux":
     INSTALLERS.add("fonts")
 
@@ -17,6 +17,8 @@ if sys.platform == "linux":
 @pytest.fixture
 def setup_process(tmp_path, spawn):
     """Replace network/package installers, retaining CLI, processes and native locks.
+
+    Each checkout pins assets its cache already holds, so setup fetches none.
 
     Installers acknowledge entry before reading the worker-owned stdin pipe. A
     release byte lets one finish; worker death closes the pipe and frees all of
@@ -39,8 +41,6 @@ if tool == "pnpm":
     key = "pnpm-root"
 elif "fonts-dejavu" in args:
     key = "fonts"
-elif "fetch-assets" in args:
-    key = "assets"
 else:
     key = "chrome" if args[-1] == "chrome" else "browsers"
 events = Path(os.environ["SETUP_EVENTS"])
@@ -86,6 +86,14 @@ cli(["setup"])
         events.mkdir()
         checkout = checkout or tmp_path / "checkout"
         checkout.mkdir(exist_ok=True)
+        pins = {"revision": "media", "thread_snapshots_revision": "snapshots"}
+        (checkout / "leaf-assets.json").write_text(
+            json.dumps({"repository": "max-sixty/leaf-assets", **pins})
+        )
+        for revision in pins.values():
+            cached = checkout / ".tmp" / "leaf-assets" / revision
+            cached.mkdir(parents=True, exist_ok=True)
+            (cached / ".complete").write_text(revision)
         contended = events / "contended"
         process = spawn(
             [sys.executable, str(caller), str(checkout), str(contended)],
@@ -124,8 +132,8 @@ def completed(process, *, success=True):
 def test_foreground_setup_waits_for_background_install_in_another_checkout(
     tmp_path, setup_process
 ):
-    background, first = setup_process("background", hold="assets")
-    entered(first, "assets")
+    background, first = setup_process("background", hold="browsers")
+    entered(first, "browsers")
     foreground, second = setup_process("foreground", checkout=tmp_path / "other")
     wait_for(
         lambda: (second / "contended").exists(),
@@ -160,9 +168,7 @@ def test_setup_waits_for_dependency_installation(setup_process):
     }
 
 
-@pytest.mark.parametrize(
-    "installer", ["assets", "pnpm-root", *({"fonts"} & INSTALLERS)]
-)
+@pytest.mark.parametrize("installer", ["pnpm-root", *({"fonts"} & INSTALLERS)])
 def test_setup_reports_installer_failure_and_releases_lock_for_retry(
     setup_process, installer
 ):

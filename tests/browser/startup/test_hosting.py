@@ -8,7 +8,6 @@ import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import SHORT_SUGGESTION, live_url
 from render_harness import (
-    TOKEN,
     consume_browser_errors,
     holding,
     http_error_console,
@@ -22,6 +21,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf import server as server_model
 from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -88,40 +88,48 @@ window.authoredModuleRan = true;
     )
 
 
-def test_a_live_page_refuses_a_same_site_parent_at_another_port(browser, serve):
-    """SameSite cookies do not isolate ports, so a different origin can authenticate
-    the frame even without knowing its key. CSP blocks disguising its controls."""
+def test_a_live_page_admits_only_leaf_parents_under_its_key(browser, serve, live_leaf):
+    """SameSite cookies do not isolate ports, so any server on the host can
+    authenticate a frame of a live page without knowing its key. CSP keeps every
+    other origin from disguising its controls, and admits another live Leaf server
+    under the same key, whose page then shows the framed page live."""
+    child_url, _ = live_leaf("child", "Child")
+    parent_url, _ = live_leaf("parent", "Parent")
+    key = server_model.host_key()
     context = browser.new_context()
-    child = open_page(
+    # One keyed arrival earns the cookie every same-key frame below goes out under.
+    open_page(browser, f"{child_url}/?t={key}", context=context)
+    foreign = open_page(
         browser,
-        live_url(serve(leaf_page("Child", '<h1 id="h">Child</h1>'))),
+        live_url(serve(leaf_page("Foreign", '<h1 id="foreign">Foreign</h1>'))),
         context=context,
     )
-    child_url = child.url
-    parent_url = live_url(serve(leaf_page("Parent", '<h1 id="parent">Parent</h1>')))
-    assert urlparse(child_url).port != urlparse(parent_url).port
-    parent = open_page(browser, parent_url, context=context)
-    with parent.expect_response(child_url) as loaded:
-        parent.locator("body").evaluate(
-            """async (body, url) => {
-                const frame = document.createElement('iframe');
-                frame.id = 'blocked-leaf';
-                frame.src = url;
-                const loaded = new Promise(resolve => frame.addEventListener('load', resolve, {once: true}));
-                body.append(frame);
-                await loaded;
-            }""",
-            child_url,
-        )
-    response = loaded.value
-    assert response.status == 200
-    assert TOKEN in response.request.all_headers()["cookie"]
-    assert "t=" not in response.url
-    errors = consume_browser_errors(parent, "Content Security Policy")
+    leaf = open_page(browser, f"{parent_url}/?t={key}", context=context)
+    for parent in (foreign, leaf):
+        assert urlparse(parent.url).port != urlparse(child_url).port
+        with parent.expect_response(f"{child_url}/") as loaded:
+            parent.locator("body").evaluate(
+                """async (body, url) => {
+                    const frame = document.createElement('iframe');
+                    frame.id = 'framed-leaf';
+                    frame.src = url;
+                    const loaded = new Promise(resolve => frame.addEventListener('load', resolve, {once: true}));
+                    body.append(frame);
+                    await loaded;
+                }""",
+                f"{child_url}/",
+            )
+        response = loaded.value
+        assert response.status == 200
+        assert key in response.request.all_headers()["cookie"]
+    errors = consume_browser_errors(foreign, "Content Security Policy")
     assert any(is_problem(error, "frame-ancestors 'self'") for error in errors), errors
-    assert parent.locator("#blocked-leaf").evaluate(
+    assert foreign.locator("#framed-leaf").evaluate(
         "frame => frame.contentDocument === null"
     )
+    framed = leaf.frame_locator("#framed-leaf")
+    expect(framed.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(framed.locator("#t")).to_have_text("Long")
 
 
 @pytest.mark.parametrize("outcome", ["presented", "abandoned", "offline", "slow"])
@@ -264,18 +272,28 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
     page.route("**/api/state*", identify)
     page.goto(url, wait_until="load")
     wait_until_ready(page)
-    # The reference is no part of the status the panel's field says, and one press in
-    # the leaf's menu copies it.
+    # The reference is no part of the status the panel's field says; About this page
+    # shows it and copies it in one press.
     expect(panel_field(page)).not_to_have_attribute(
         "placeholder", re.compile("239383829012")
     )
-    reference = panel_control(page, "session")
-    expect(reference).to_have_text("Copy session reference")
-    reference.click()
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", re.compile("^Session reference copied")
+    about = about_this_page(page)
+    expect(about.get_by_label("Session reference", exact=True)).to_have_text(
+        "239383829012"
     )
-    assert page.evaluate("() => navigator.clipboard.readText()") == "239383829012"
+    about.get_by_role("button", name="Copy Session reference", exact=True).click()
+    page.wait_for_function(
+        "navigator.clipboard.readText().then(text => text === '239383829012')"
+    )
+
+
+def about_this_page(page):
+    """Open About this page from the leaf's menu and return the dialog; it alone shows
+    the session reference (page-about.js, the `about` group)."""
+    panel_control(page, "inspection").click()
+    about = page.get_by_role("dialog", name="About this page", exact=True)
+    expect(about).to_be_visible()
+    return about
 
 
 @pytest.mark.parametrize(
@@ -310,7 +328,9 @@ def test_a_website_session_reference_survives_a_failed_first_read(
         expect(panel_field(page)).to_have_attribute(
             "placeholder", re.compile(status_words)
         )
-        expect(panel_control(page, "session")).to_have_text("Copy session reference")
+        expect(
+            about_this_page(page).get_by_label("Session reference", exact=True)
+        ).to_have_text("239383829012")
     finally:
         page.close()
     # The route stands for the whole test and the page asks again every two seconds,
@@ -434,8 +454,8 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     inside it, its growth is theirs: a disclosure they open, and growth the child makes
     of its own accord afterwards, apply at once.
 
-    The inner window sample's document is held throughout, so the child is still
-    arriving at every step."""
+    The inner window sample keeps the child arriving until the final step, which
+    checks that completing arrival does not release later unsolicited growth."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     held = []
@@ -546,6 +566,10 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     # The reading resumes once the returning page's first refreshed reading lands.
     page.wait_for_function("continuity.readingReturn() === null")
 
+    page.unroute(SAMPLE_DOCUMENT)
+    for each in held:
+        each.continue_()
+    wait_until_ready(page)
     child_grows_unseen(1800)
     child.locator("#more > summary").click()
     expect(child.locator("#more")).to_have_attribute("open", "")

@@ -14,6 +14,7 @@ from render_harness import (
     open_page,
     panel_field,
     refuse,
+    reported_browser_errors,
     resized,
     restarting,
     round_trip,
@@ -36,6 +37,7 @@ from browser.drafts import (
     replace_editing_document,
 )
 from browser.threads import open_panel_thread
+from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import revisioning as revisioning_model
@@ -175,7 +177,7 @@ def test_an_untouched_and_an_emptied_reply_follow_live_revisions(browser, serve)
 
     sent = events_model.read_events(serve.page_dir)[-1]
     thread = page.locator(
-        f'.lf-margin-thread .lf-page-thread[data-thread="{sent["id"]}"]'
+        f'.lf-margin-thread .lf-page-thread[data-lf-thread="{sent["id"]}"]'
     )
     reply = thread.locator("leaf-text")
     expect(thread).to_be_focused()
@@ -350,6 +352,11 @@ def test_a_re_vendor_waits_for_the_reply_being_written(browser, serve):
         write(page.locator(".lf-composer leaf-text"), "An anchored root.")
         page.keyboard.press("Control+Enter")
         round_trip(page)
+        root = next(
+            event["id"]
+            for event in events_model.read_events(page_dir)
+            if event["kind"] == "comment"
+        )
         page.keyboard.press("c")
         editor = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
         words = "Half a thought the reload must not take"
@@ -393,7 +400,20 @@ def test_a_re_vendor_waits_for_the_reply_being_written(browser, serve):
     assert revised.revision is not None
     wait_for_revision(page, revised.revision)
     assert page.evaluate("performance.timeOrigin") != birth
-    assert events_model.read_events(page_dir)[-1]["text"] == words
+    # Bookkeeping may follow delivery; make that order deterministic.
+    accepted, _ = endpoint_model.accept_event(
+        page_dir,
+        {"kind": "seen", "revision": revised.revision},
+    )
+    assert accepted == 200
+    replies = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "reply" and event["parent"] == root
+    ]
+    assert len(replies) == 1
+    assert replies[0]["author"] == "user"
+    assert replies[0]["text"] == words
 
 
 @pytest.mark.parametrize("kind", ["edit", "first-message", "option"])
@@ -500,7 +520,13 @@ def test_a_mechanical_revision_failure_leaves_accepted_publication_ready(
             route for route in later_readings if route.request == requested.value
         )
         answer = first.fetch()
-        first_reading = answer.json()["reading"]
+        # The tab names the reading it holds, so the answer patches it
+        # (`served_state/tail.py`) and carries the new reading's name as a change.
+        first_reading = next(
+            change["value"]
+            for change in answer.json()["patch"]
+            if change["at"] == ["reading"]
+        )
         assert first_reading != before_reading
         later_readings.remove(first)
         first.fulfill(response=answer)
@@ -549,7 +575,7 @@ def test_a_fresh_revision_caret_failure_does_not_strand_deferred_arrivals(
     told(page)
     page.keyboard.press("Control+Alt+r")
     wait_for_revision(page, 2)
-    errors = consume_browser_errors(page, "fresh mechanical caret fixture failed")
+    errors = reported_browser_errors(page, "fresh mechanical caret fixture failed")
     assert page.evaluate("Boolean(window.__presentationDispatched)")
     page.wait_for_function("window.__deferredArrivalRan===true")
     assert len(errors) == 1, errors

@@ -1,5 +1,6 @@
 """Thread writes, addressed response admission, and provider reply reservations."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
@@ -25,14 +26,9 @@ from leaf.harness import message_identity
 from leaf.leases import contract_writer
 from leaf.obligations import local_obligation_entry, shown_in
 from leaf.passages import SourceReading
-from leaf.projection import (
-    generated_children,
-    page_reading,
-    retirement_outcomes,
-    rewritten_bodies,
-)
+from leaf.projection import page_reading
 from leaf.registry.contract import matches_when
-from leaf.registry.kernel import kinds_declaring
+from leaf.registry.kernel import kinds_declaring, title_limit
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
 from leaf.thread_context import thread_message, thread_names
@@ -52,6 +48,67 @@ def _messages(events: list) -> dict[str, dict]:
         for event in events
         if event["kind"] in kinds_declaring("message")
     }
+
+
+def asking_widget(fragment, registry: dict) -> dict | None:
+    """The first widget in a message's markup that waits on the user (`x-awaits`),
+    which makes it the message's request for an answer."""
+    return next(
+        (
+            rec
+            for rec in fragment.lf_elements
+            if local_obligation_entry(registry.get(rec["tag"]) or {})
+            and matches_when(rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when"))
+            and not shown_in(rec, registry)
+        ),
+        None,
+    )
+
+
+def unasked_widget(fragment, registry: dict) -> dict:
+    """The first widget in the markup that could wait on the user but whose
+    attributes keep it from asking, with the attributes it would ask with, so an
+    undeclared answer's refusal names what to add rather than only the flags."""
+    for rec in fragment.lf_elements:
+        entry = registry.get(rec["tag"]) or {}
+        if not local_obligation_entry(entry) or shown_in(rec, registry):
+            continue
+        when = entry["x-awaits"].get("when") or {}
+        needs = [
+            _attribute_written(attr, values)
+            for attr, values in when.items()
+            if not matches_when(rec["attrs"], {attr: values})
+        ]
+        return {
+            "tag": rec["tag"],
+            "id": rec["attrs"].get("id"),
+            "needs": " and ".join(needs),
+        }
+    return {}
+
+
+def _attribute_written(attr: str, values: list) -> str:
+    """How markup meets one `when` condition: a flag's presence or absence, or
+    the first value it allows."""
+    if True in values:
+        return f"`{attr}`"
+    if values == [False]:
+        return f"no `{attr}`"
+    return f'`{attr}="{values[0]}"`'
+
+
+def refuse_second_request(asking: dict | None) -> None:
+    """A message asks once. `--obligation` beside a widget that asks would stay on
+    On me after the user answers the widget, since only their words answer it."""
+    if asking is not None:
+        raise Rejected(
+            [
+                Finding(
+                    "obligation-beside-widget",
+                    values={"tag": asking["tag"], "id": asking["attrs"].get("id")},
+                )
+            ]
+        )
 
 
 def _unknown_message(page_dir: Path, events: list, name: str) -> Never:
@@ -193,18 +250,14 @@ def _capture_anchor(
     from leaf.anchor_capture import capture_anchor
 
     page = page_reading(reading, events, revision)
-    decided = retirement_outcomes(page.projection.actions)
-    edited = rewritten_bodies(page.projection.actions)
     try:
         anchor = capture_anchor(
             page.document,
             page.registry,
             quote,
             section,
-            decided,
-            edited,
-            part,
-            additions=generated_children(page.projection.desired, page.document.ids),
+            part=part,
+            **page.logged_words,
         )
     except ValueError as err:
         held = (
@@ -284,13 +337,12 @@ def open_thread(
         page_dir, events, quote, section, part, transaction=page
     )
     if markup:
-        check_markup(
-            page_dir,
-            "comment",
-            markup,
-            events,
-            publication=revision_publication(page_dir, revision),
+        publication = revision_publication(page_dir, revision)
+        fragment = check_markup(
+            page_dir, "comment", markup, events, publication=publication
         )
+        if obligation:
+            refuse_second_request(asking_widget(fragment, publication.registry))
     event = {
         "kind": "comment",
         "author": "agent",
@@ -337,11 +389,19 @@ class ProviderFinal:
 
 @dataclass(frozen=True)
 class Receipt:
-    """A harness's failure receipt: an update that no longer owes an answer takes
-    none. With `only_if_unclaimed`, an update some turn already picked up is left to
-    the writer following that turn."""
+    """A writer that answers only what is still owed: a harness's failure receipt,
+    or the reply of a fork of the agent's conversation (`forks`). An update that no
+    longer owes an answer takes none. With `only_if_unclaimed`, an update some turn
+    already picked up is left to the writer following that turn. With `fence`, the
+    receipt writes only while `fence` holds of the page under the lock its append
+    takes, as a fork's reply writes only while Leaf still holds its thread from the
+    session. A receipt's progress, such as the working line a fork posts as it hands
+    a thread to the session, takes nothing in hand: its writer is not the turn that
+    will answer, and a start would read as that turn's, renewing it and holding the
+    update at Working before the session has it."""
 
-    only_if_unclaimed: bool
+    only_if_unclaimed: bool = False
+    fence: Callable[[PageTransaction], bool] | None = None
 
 
 Settlement = Refuse | ProviderFinal | Receipt
@@ -373,7 +433,7 @@ def post_reply(
     validate_source: bool = False,
     todo: str | None = None,
     asks_back: bool = False,
-    obligation: bool = False,
+    obligation: bool | list[str] = False,
     ephemeral: bool = False,
     quote: str = "",
     section: str = "",
@@ -410,7 +470,7 @@ def post_reply(
     update in hand with its text as the line (`todos.start_reading`), which is why that
     text is one line: the update reads Working beside its thread and in the page's status, and
     the user's message gets the agent's first words and its Working line from one
-    write.
+    write. A `Receipt`'s progress takes nothing in hand.
     """
     text = checked_text(page_dir, text)
     if markup:
@@ -535,7 +595,7 @@ def _repeated_reply(
     ephemeral: bool,
     failed: bool,
     todo: str | None,
-    obligation: bool,
+    obligation: bool | list[str],
 ) -> dict | None:
     """The reply an earlier write with this `attempt` appended, or None; refuses an
     attempt that named another kind of write: progress, a failure receipt and an
@@ -559,7 +619,7 @@ def _repeated_reply(
         or not same_scope
     ):
         raise Rejected([Finding("attempt-conflict", values={"attempt": attempt})])
-    if existing.get("todo") != todo or bool(existing.get("obligation")) != obligation:
+    if existing.get("todo") != todo or existing.get("obligation", False) != obligation:
         # A repeat that promises differently would otherwise return the first
         # answer and drop what this one declares.
         raise Rejected(
@@ -618,7 +678,7 @@ def _resolve_obligation(
                         )
                     ]
                 )
-        elif ephemeral:
+        elif ephemeral and not isinstance(settlement, Receipt):
             in_hand = responds
         # The open reply reservation decides who may write, whatever the
         # captured `writer` hint or a caller-supplied retry key says.
@@ -660,10 +720,12 @@ def _resolve_obligation(
                     )
                 ]
             )
-    if (
-        isinstance(settlement, Receipt)
-        and settlement.only_if_unclaimed
-        and pickup_receipts(events, phase=None, input_id=responds)
+    if isinstance(settlement, Receipt) and (
+        (
+            settlement.only_if_unclaimed
+            and pickup_receipts(events, phase=None, input_id=responds)
+        )
+        or (settlement.fence is not None and not settlement.fence(page))
     ):
         return None
     return _Obligation(parent, thread_id, None if ephemeral else responds, in_hand)
@@ -681,7 +743,7 @@ def _compose_and_append(
     validate_source: bool,
     todo: str | None,
     asks_back: bool,
-    explicit_obligation: bool,
+    explicit_obligation: bool | list[str],
     ephemeral: bool,
     quote: str,
     section: str,
@@ -802,25 +864,14 @@ def _compose_and_append(
             publication=publication,
             thread=thread_id,
         )
+    asking = asking_widget(fragment, publication.registry) if markup else None
+    if explicit_obligation:
+        refuse_second_request(asking)
     # A markup-only answer must itself request input. Explicit obligations need
     # no widget: the message is their source.
-    if (
-        asks_back
-        and not explicit_obligation
-        and not (
-            markup
-            and any(
-                local_obligation_entry(publication.registry.get(rec["tag"]) or {})
-                and matches_when(
-                    rec["attrs"],
-                    publication.registry[rec["tag"]]["x-awaits"].get("when"),
-                )
-                and not shown_in(rec, publication.registry)
-                for rec in fragment.lf_elements
-            )
-        )
-    ):
-        raise Rejected([Finding("undeclared-answer")])
+    elif asks_back and asking is None:
+        unasked = unasked_widget(fragment, publication.registry) if markup else {}
+        raise Rejected([Finding("undeclared-answer", values=unasked)])
     if ephemeral:
         event["ephemeral"] = True
     if in_hand is not None:
@@ -835,7 +886,7 @@ def _compose_and_append(
             **({"turn": turn} if turn else {}),
         }
     if explicit_obligation:
-        event["obligation"] = True
+        event["obligation"] = explicit_obligation
     if todo is not None:
         event["todo"] = todo
     if markup:
@@ -987,6 +1038,18 @@ def _fail_markup_answer(
             return None
         [update] = [event for event in events if event["id"] == responds]
         return record_pickup(page, [update], phase="failed", failure=failure)
+
+
+def fit_title(words: str) -> str:
+    """`words` as a title a model wrote: on one line, and cut at a word to fit
+    `title_limit`, ending in an ellipsis where it was cut. A model can't count
+    characters, so Leaf fits its title rather than refusing it, which would leave
+    the thread untitled or drop the ask it names."""
+    title = " ".join(words.split())
+    limit = title_limit()
+    if len(title) <= limit:
+        return title
+    return title[: limit - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
 
 
 def title_event(thread: str, title: str, identity: dict | None = None) -> dict:

@@ -34,26 +34,24 @@
   white-space: nowrap;
 }
 /* A status control stands in the slot's line, so it takes no block aim floor of its
- * own, which would grow the header as a failure or a conflict arrived. Its press
- * spans the header's whole height instead, through the header's padding, without
- * reaching past it into the editor; the inline floor still holds. */
+ * own, which would grow the header as a failure or a conflict arrived: Retry is a
+ * symbol a line of the status tall, and the conflict an inline press in the
+ * warning's tone (controls.css). Its press spans the header's whole height instead,
+ * through the header's padding, without reaching past it into the editor; the inline
+ * floor still holds. */
+:host(lf-file-editor) .lf-file-editor-status {
+  --lf-icon-action-face: 1lh;
+}
 :host(lf-file-editor) :is(.lf-file-editor-retry, .lf-file-editor-conflict) {
-  position: relative;
+  /* On its edge (base.css, "Where it stands"): it fills the header's line. */
+  --lf-ring-at: 0;
+}
+:host(lf-file-editor) .lf-file-editor-conflict {
+  align-self: stretch;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 0.15rem;
-  align-self: stretch;
-  min-block-size: 0;
-  margin-inline: -0.3rem;
-  padding: 0 0.3rem;
-  border: 0;
-  border-radius: var(--r);
-  background: none;
-  font: inherit;
-  cursor: pointer;
-  /* On its edge (base.css, "Where it stands"): it fills the header's line. */
-  outline-offset: 0;
+  anchor-name: --lf-file-editor-conflict;
 }
 :host(lf-file-editor) :is(.lf-file-editor-retry, .lf-file-editor-conflict)::before {
   content: "";
@@ -64,31 +62,14 @@
 :host(lf-file-editor) :is(.lf-file-editor-retry, .lf-file-editor-conflict)[hidden] {
   display: none;
 }
-:host(lf-file-editor) .lf-file-editor-retry {
-  color: var(--accent);
-}
-:host(lf-file-editor) .lf-file-editor-retry:not([aria-disabled="true"]):hover {
-  background: var(--accent-tint);
-}
-/* The conflict is a state before it is a press, so it wears the warning tone rather
- * than the accent a link would, and a fill under the pointer rather than a rule. */
-:host(lf-file-editor) .lf-file-editor-conflict {
-  color: var(--warn-ink);
-  anchor-name: --lf-file-editor-conflict;
-}
-:host(lf-file-editor) .lf-file-editor-conflict:hover,
-:host(lf-file-editor)
-  .lf-file-editor-view:has(.lf-file-editor-choices:popover-open)
-  .lf-file-editor-conflict {
-  background: var(--warn-tint);
-}
 :host(lf-file-editor) .lf-file-editor-icon {
   inline-size: 1em;
   block-size: 1em;
 }
 /* The conflict's choices hang from the control that names them, inward from its edge,
  * and flip above it where the window has no room below. The other two sides are taken
- * back from the popover UA rule, which centres a popover with inset 0 and auto margins. */
+ * back from the popover UA rule, which centres a popover with inset 0 and auto margins.
+ * It wears the popover face (controls.css, `.lf-popover`). */
 :host(lf-file-editor) .lf-file-editor-choices {
   position-anchor: --lf-file-editor-conflict;
   top: anchor(bottom);
@@ -101,11 +82,6 @@
   flex-direction: column;
   gap: 1px;
   padding: 4px;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
-  color: var(--ink);
-  box-shadow: var(--raise-2);
   font: var(--font-ui);
 }
 :host(lf-file-editor) .lf-file-editor-choices:popover-open {
@@ -114,12 +90,9 @@
 :host(lf-file-editor) .lf-file-editor-choices .lf-btn {
   text-align: left;
 }
-:host(lf-file-editor) .lf-file-editor-choices .lf-btn[aria-checked="true"] {
-  color: var(--accent);
-}
 /* A row is packed against the menu's edge, so its ring is drawn inset. */
 :host(lf-file-editor) .lf-file-editor-choices .lf-btn {
-  outline-offset: var(--focus-ring-inset);
+  --lf-ring-at: var(--focus-ring-inset);
 }
 :host(lf-file-editor) .lf-file-editor-edit {
   min-width: 0;
@@ -132,7 +105,8 @@
   flex-direction: column;
   min-block-size: 0;
   padding: 0.75rem 1rem 1rem;
-  background: var(--paper);
+  --lf-ground: var(--paper);
+  background: var(--lf-ground);
   border-top: 1px solid var(--border-2);
 }
 :host(lf-file-editor) .lf-file-editor-compared[hidden] {
@@ -150,7 +124,7 @@
 }
 :host(lf-file-editor) .cm-editor {
   height: 100%;
-  font-size: var(--lf-file-editor-size);
+  font-size: var(--code-size);
 }
 /* The scrollport clips a content outline on every side. Carry its one shared
  * focus cue inside the editor frame, above the scroller's own stacking context

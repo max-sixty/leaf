@@ -4,7 +4,6 @@ import pytest
 from browser.test_render_application_boundary import (
     PAGE_MODULE,
     activation_page,
-    package_workspace,
 )
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -12,8 +11,10 @@ from render_cases_interaction import (
     LIVE_V1,
     LIVE_V2,
     live_url,
+    package_workspace,
 )
 from render_harness import (
+    before_landing_frame,
     holding,
     open_page,
     page_comment,
@@ -119,7 +120,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
     [
         (True, True, 200, False, False),
         (True, False, 200, False, False),
-        # Back interrupts the native trip before its first compositor frame.
+        # Back interrupts the trip before its first frame.
         (False, True, 1000, False, True),
         # A contextual card's travel, slowed until it crosses into the viewport.
         (False, True, 1000, True, False),
@@ -166,18 +167,13 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
         # contextual card travels into the viewport and changes placement plane.
         slow_cpu(page, 6)
     if back_before_frame:
-        page.evaluate("""() => {
-          const scrollTo = Element.prototype.scrollTo;
-          Element.prototype.scrollTo = function(options) {
-            const result = scrollTo.call(this, options);
-            if (this === document.scrollingElement && options.behavior === 'smooth') {
-              Element.prototype.scrollTo = scrollTo;
+        before_landing_frame(
+            page,
+            """() => {
               window.backRequestedAt = scrollY;
               queueMicrotask(() => history.back());
-            }
-            return result;
-          };
-        }""")
+            }""",
+        )
     entries = page.evaluate("history.length")
     assert page.evaluate(
         """async ({travel, primary}) => {
@@ -271,11 +267,10 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
             "Control+Enter"
         )
     expect(workspace.get_by_text("A shared draft", exact=True)).to_be_visible()
-    # One reply answers both questions; the separate proofread task remains due.
-    # Counts include them, while the compact answer summary names only widget
-    # choices instead of repeating words.
+    # One reply answers both questions. Counts include them, while the compact
+    # answer summary names only widget choices instead of repeating words.
     expect(workspace.locator(".counts")).to_have_text(
-        "1 waiting on me · 3 answered · Email"
+        "0 waiting on me · 3 answered · Email"
     )
     with sending(page, "create a real conversation from a package"):
         workspace.get_by_role("textbox", name="New conversation").fill(

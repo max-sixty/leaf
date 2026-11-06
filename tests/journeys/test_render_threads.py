@@ -4,6 +4,14 @@ import io
 import re
 
 import pytest
+from browser.threads import (
+    CHANGE_HEAD,
+    capture_page,
+    open_capture_area,
+    open_panel_thread,
+    paste_image,
+    pressed_send_surface,
+)
 from interact_support import (
     append_carried_log_record,
 )
@@ -14,13 +22,12 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_harness import (
-    EXAMPLES,
     LONG_PAGE,
-    PANEL_THREAD,
     consume_browser_errors,
     example_media,
     expect_panel_says,
     http_error_console,
+    leaf_page,
     open_page,
     panel_field,
     resized,
@@ -33,18 +40,11 @@ from render_harness import (
 
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-from browser.threads import (
-    CHANGE_HEAD,
-    capture_page,
-    open_capture_area,
-    open_panel_thread,
-    paste_image,
-    pressed_send_surface,
-)
-from render_harness import leaf_page
 
 # The same page with the change taken out of it, for the arm that carries the change
 # in a message instead: the two must differ in which document holds it and in nothing
@@ -66,9 +66,7 @@ CAPTURE_SAMPLE_PAGE = leaf_page(
 
 def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     """An attachment keeps its face and keyboard routes inside a widget tree."""
-    page = open_page(
-        browser, serve(next(p for p in EXAMPLES if p.stem == "pr-walkthrough"))
-    )
+    page = open_page(browser, serve(named_source("pr-walkthrough")))
     page.locator("#pr-exact-patch .lf-diff-file-comment").first.click()
     bar = page.locator('lf-diff .lf-fab-bar[data-lf-presentation="inline"]')
     field = bar.locator("leaf-text")
@@ -157,7 +155,7 @@ def test_a_phone_editor_inside_a_marked_widget_keeps_pointer_entry(browser, serv
     )
     page = open_page(
         browser,
-        serve(next(p for p in EXAMPLES if p.stem == "pr-walkthrough")),
+        serve(named_source("pr-walkthrough")),
         context=context,
     )
     comment = page.locator("#pr-exact-patch .lf-diff-file-comment").first
@@ -251,7 +249,7 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
         root,
         f"Fault is here\n\n{image_markdown}",
     )
-    image = thread.locator(".lf-msg.user .lf-msg-body img")
+    image = thread.locator(".lf-msg[data-lf-author=user] .lf-msg-body img")
     expect(image).to_have_attribute("src", "/media/051bee487bfb5d13.png")
     media_open = image.locator("xpath=..")
     expect(media_open).to_have_attribute(
@@ -311,6 +309,188 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     expect(viewer).to_be_hidden()
     expect(media_open).to_be_focused()
     assert (serve.page_dir / "media" / "051bee487bfb5d13.png").read_bytes() == pixels
+
+
+def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser, serve):
+    """The parent cannot read a sample's opaque frame, so a capture without the child's
+    own image showed a placeholder box where the user saw the practice page. An image
+    SnapDOM cannot read attaches the capture anyway, with a notice: SnapDOM draws the
+    whole element that holds the crop and cannot say whether the image fell inside
+    it. A capture
+    also leaves SnapDOM watching mutations, and a removed link's subtree once threw from
+    that observer as an uncaught page error."""
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, device_scale_factor=2
+    )
+    page = open_page(browser, serve(CAPTURE_SAMPLE_PAGE), context=context)
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    warnings = []
+    page.on("console", lambda message: warnings.append(message.text))
+    page.evaluate("document.querySelector('#capture-sample').ready")
+    # Another origin without CORS: visible to the reader, unreadable to SnapDOM.
+    page.evaluate("""() => new Promise(resolve => {
+        const image = document.createElement('img');
+        image.id = 'unreadable';
+        image.src = new URL('icon.svg', location.href).href
+            .replace('127.0.0.1', 'localhost');
+        image.onload = image.onerror = resolve;
+        document.querySelector('#capture-sample').before(image);
+    })""")
+    frame = page.locator("#capture-sample iframe").bounding_box()
+    # The area takes in the unreadable image above the sample, so the element the
+    # capture draws holds it (`captureRoot`, composing/page-image.js).
+    unreadable = page.locator("#unreadable").bounding_box()
+    surface = open_capture_area(page)
+    left, top = int(unreadable["x"]) + 1, int(unreadable["y"]) + 1
+    page.mouse.move(left, top)
+    page.mouse.down()
+    page.mouse.move(
+        int(frame["x"] + frame["width"]) - 1, int(frame["y"]) + 260, steps=5
+    )
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        page.mouse.up()
+    expect(surface).to_be_hidden()
+    media_url = page.locator(".lf-composer-media-item img").get_attribute("src")
+    image = Image.open(
+        io.BytesIO((serve.page_dir / media_url.lstrip("/")).read_bytes())
+    ).convert("RGB")
+    paint = page.locator("#capture-sample iframe").content_frame.locator("#child-paint")
+    inside = paint.bounding_box()
+    at = (round((inside["x"] + 20 - left) * 2), round((inside["y"] + 20 - top) * 2))
+    assert rgb_pixel(image, at) == (200, 40, 40)
+    assert not [text for text in warnings if "cross-origin iframe" in text]
+    expect_panel_says(page, "An image near this area could not be drawn")
+    consume_browser_errors(page, "localhost", "ERR_FAILED")
+
+    page.evaluate("""() => new Promise(resolve => {
+        const link = document.createElement('a');
+        link.href = 'http://127.0.0.1:9/elsewhere';
+        const label = link.appendChild(document.createElement('span'));
+        document.querySelector('main').append(link);
+        setTimeout(() => {
+            label.setAttribute('data-moved', '');
+            link.remove();
+            setTimeout(resolve, 50);
+        });
+    })""")
+    assert errors == []
+
+
+def test_a_rewrite_never_replaces_words_it_did_not_see(browser, serve):
+    """Another tab holding a message's old words behind its news notice opened a rewrite
+    on them, and its save silently took the place of the rewrite the first tab had made.
+    A rewrite opened before the words changed is refused, its words kept; opened again,
+    it shows the other's words on the message and is written over them."""
+    url = serve(THREAD_DIFF_PAGE)
+    mine = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "rewritten",
+            "author": "user",
+            "revision": 1,
+            "text": "Fit the north bracket.",
+            "anchor": {"section": "cd-q"},
+        },
+    )
+    context = browser.new_context()
+    tabs = []
+    for _ in range(2):
+        tab = open_page(browser, url, context=context)
+        resized(tab, 1200, 900)
+        open_panel_thread(tab, mine["id"])
+        tabs.append(tab)
+    a, b = tabs
+    in_a, in_b = (
+        tab.locator(f'{PANEL_THREAD} .lf-msg[data-lf-message="{mine["id"]}"]')
+        for tab in tabs
+    )
+    expect(in_a).to_be_visible()
+    expect(in_b).to_be_visible()
+    # B opens a rewrite before A's lands.
+    in_b.locator(".lf-msg-text").dblclick()
+    expect(in_b.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    a.bring_to_front()
+    in_a.locator(".lf-msg-text").dblclick()
+    a.keyboard.press("ControlOrMeta+a")
+    a.keyboard.type("Saved in A.")
+    a.keyboard.press("Enter")
+    round_trip(a)
+    b.bring_to_front()
+    in_b.locator(".lf-msg-editor leaf-text").focus()
+    b.keyboard.press("ControlOrMeta+a")
+    b.keyboard.type("Saved in B.")
+    b.keyboard.press("Enter")
+    round_trip(b)
+    consume_browser_errors(b, http_error_console(400))
+    # Refused, B's words wait as its rewrite.
+    expect(in_b.locator(".lf-msg-editor")).to_have_count(0)
+    expect(in_b.locator(".lf-msg-kept")).to_have_text("unsaved edit")
+    told(b)
+    edits = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "edit"]
+    assert [e["text"] for e in edits] == ["Saved in A."]
+    # Opened again, the rewrite shows A's words on the message and is written over them.
+    in_b.locator(".lf-msg-text").dblclick()
+    editor = in_b.locator(".lf-msg-editor leaf-text")
+    expect(editor).to_have_js_property("value", "Saved in B.")
+    expect(in_b.locator(".lf-edited")).to_have_attribute(
+        "title", re.compile("Before, it said: “Fit the north bracket.”")
+    )
+    b.keyboard.press("Enter")
+    round_trip(b)
+    edits = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "edit"]
+    assert [(e["text"], e["base"]) for e in edits] == [
+        ("Saved in A.", mine["id"]),
+        ("Saved in B.", edits[0]["id"]),
+    ]
+
+
+import pytest
+from browser.threads import (
+    CHANGE_HEAD,
+)
+from render_harness import (
+    leaf_page,
+)
+
+
+def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
+    browser, serve
+):
+    page = capture_page(browser, serve)
+    target = page.locator("#capture-target").bounding_box()
+    left, top = int(target["x"]) + 10, int(target["y"]) + 10
+    surface = open_capture_area(page)
+    page.mouse.move(left, top)
+    page.mouse.down()
+    page.mouse.move(left + 360, top + 180, steps=5)
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        page.mouse.up()
+    expect(surface).to_be_hidden()
+    attachment = page.locator(".lf-composer-media-item img")
+    expect(attachment).to_be_visible()
+    media_url = attachment.get_attribute("src")
+    pixels = (serve.page_dir / media_url.lstrip("/")).read_bytes()
+    image = Image.open(io.BytesIO(pixels)).convert("RGB")
+    assert image.size == (720, 360)
+    assert rgb_pixel(image, (40, 80)) == (30, 80, 240)
+    assert rgb_pixel(image, (440, 280)) == (10, 150, 30)
+    field = page.locator(".lf-fab-bar leaf-text")
+    expect(field).to_be_focused()
+    write(field, "Inspect this captured diagram.")
+    with sending(page, "the anchored screenshot comment"):
+        field.press("ControlOrMeta+Enter")
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert sent["kind"] == "comment"
+    assert sent["anchor"]["section"] == "capture-target"
+    assert media_url in sent["text"]
+    assert "Inspect this captured diagram." in sent["text"]
+    page.reload()
+    wait_until_ready(page)
+    thread = open_panel_thread(page, sent["id"])
+    expect(thread.locator(".lf-message-media img")).to_have_attribute("src", media_url)
+    assert (serve.page_dir / media_url.lstrip("/")).read_bytes() == pixels
 
 
 def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
@@ -407,176 +587,3 @@ def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
         <= 3  # Native JPEG rounding of otherwise uniform ground.
         for reading in fading
     ), fading
-
-
-def test_a_rewrite_never_replaces_words_it_did_not_see(browser, serve):
-    """Another tab holding a message's old words behind its news notice opened a rewrite
-    on them, and its save silently took the place of the rewrite the first tab had made.
-    A rewrite opened before the words changed is refused, its words kept; opened again,
-    it shows the other's words on the message and is written over them."""
-    url = serve(THREAD_DIFF_PAGE)
-    mine = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "rewritten",
-            "author": "user",
-            "revision": 1,
-            "text": "Fit the north bracket.",
-            "anchor": {"section": "cd-q"},
-        },
-    )
-    context = browser.new_context()
-    tabs = []
-    for _ in range(2):
-        tab = open_page(browser, url, context=context)
-        resized(tab, 1200, 900)
-        open_panel_thread(tab, mine["id"])
-        tabs.append(tab)
-    a, b = tabs
-    in_a, in_b = (
-        tab.locator(f'{PANEL_THREAD} .lf-msg[data-message="{mine["id"]}"]')
-        for tab in tabs
-    )
-    expect(in_a).to_be_visible()
-    expect(in_b).to_be_visible()
-    # B opens a rewrite before A's lands.
-    in_b.locator(".lf-msg-text").dblclick()
-    expect(in_b.locator(".lf-msg-editor leaf-text")).to_be_focused()
-    a.bring_to_front()
-    in_a.locator(".lf-msg-text").dblclick()
-    a.keyboard.press("ControlOrMeta+a")
-    a.keyboard.type("Saved in A.")
-    a.keyboard.press("Enter")
-    round_trip(a)
-    b.bring_to_front()
-    in_b.locator(".lf-msg-editor leaf-text").focus()
-    b.keyboard.press("ControlOrMeta+a")
-    b.keyboard.type("Saved in B.")
-    b.keyboard.press("Enter")
-    round_trip(b)
-    consume_browser_errors(b, http_error_console(400))
-    # Refused, B's words wait as its rewrite.
-    expect(in_b.locator(".lf-msg-editor")).to_have_count(0)
-    expect(in_b.locator(".lf-msg-kept")).to_have_text("unsaved edit")
-    told(b)
-    edits = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "edit"]
-    assert [e["text"] for e in edits] == ["Saved in A."]
-    # Opened again, the rewrite shows A's words on the message and is written over them.
-    in_b.locator(".lf-msg-text").dblclick()
-    editor = in_b.locator(".lf-msg-editor leaf-text")
-    expect(editor).to_have_js_property("value", "Saved in B.")
-    expect(in_b.locator(".lf-edited")).to_have_attribute(
-        "title", re.compile("Before, it said: “Fit the north bracket.”")
-    )
-    b.keyboard.press("Enter")
-    round_trip(b)
-    edits = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "edit"]
-    assert [(e["text"], e["base"]) for e in edits] == [
-        ("Saved in A.", mine["id"]),
-        ("Saved in B.", edits[0]["id"]),
-    ]
-
-
-def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
-    browser, serve
-):
-    page = capture_page(browser, serve)
-    target = page.locator("#capture-target").bounding_box()
-    left, top = int(target["x"]) + 10, int(target["y"]) + 10
-    surface = open_capture_area(page)
-    page.mouse.move(left, top)
-    page.mouse.down()
-    page.mouse.move(left + 360, top + 180, steps=5)
-    with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.mouse.up()
-    expect(surface).to_be_hidden()
-    attachment = page.locator(".lf-composer-media-item img")
-    expect(attachment).to_be_visible()
-    media_url = attachment.get_attribute("src")
-    pixels = (serve.page_dir / media_url.lstrip("/")).read_bytes()
-    image = Image.open(io.BytesIO(pixels)).convert("RGB")
-    assert image.size == (720, 360)
-    assert rgb_pixel(image, (40, 80)) == (30, 80, 240)
-    assert rgb_pixel(image, (440, 280)) == (10, 150, 30)
-    field = page.locator(".lf-fab-bar leaf-text")
-    expect(field).to_be_focused()
-    write(field, "Inspect this captured diagram.")
-    with sending(page, "the anchored screenshot comment"):
-        field.press("ControlOrMeta+Enter")
-    sent = events_model.read_events(serve.page_dir)[-1]
-    assert sent["kind"] == "comment"
-    assert sent["anchor"]["section"] == "capture-target"
-    assert media_url in sent["text"]
-    assert "Inspect this captured diagram." in sent["text"]
-    page.reload()
-    wait_until_ready(page)
-    thread = open_panel_thread(page, sent["id"])
-    expect(thread.locator(".lf-message-media img")).to_have_attribute("src", media_url)
-    assert (serve.page_dir / media_url.lstrip("/")).read_bytes() == pixels
-
-
-def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser, serve):
-    """The parent cannot read a sample's opaque frame, so a capture without the child's
-    own image showed a placeholder box where the user saw the practice page. An image
-    SnapDOM cannot read attaches the capture anyway, with a notice: SnapDOM draws the
-    whole element that holds the crop and cannot say whether the image fell inside
-    it. A capture
-    also leaves SnapDOM watching mutations, and a removed link's subtree once threw from
-    that observer as an uncaught page error."""
-    context = browser.new_context(
-        viewport={"width": 1200, "height": 900}, device_scale_factor=2
-    )
-    page = open_page(browser, serve(CAPTURE_SAMPLE_PAGE), context=context)
-    errors = []
-    page.on("pageerror", lambda error: errors.append(str(error)))
-    warnings = []
-    page.on("console", lambda message: warnings.append(message.text))
-    page.evaluate("document.querySelector('#capture-sample').ready")
-    # Another origin without CORS: visible to the reader, unreadable to SnapDOM.
-    page.evaluate("""() => new Promise(resolve => {
-        const image = document.createElement('img');
-        image.id = 'unreadable';
-        image.src = new URL('icon.svg', location.href).href
-            .replace('127.0.0.1', 'localhost');
-        image.onload = image.onerror = resolve;
-        document.querySelector('#capture-sample').before(image);
-    })""")
-    frame = page.locator("#capture-sample iframe").bounding_box()
-    # The area takes in the unreadable image above the sample, so the element the
-    # capture draws holds it (`captureRoot`, composing/page-image.js).
-    unreadable = page.locator("#unreadable").bounding_box()
-    surface = open_capture_area(page)
-    left, top = int(unreadable["x"]) + 1, int(unreadable["y"]) + 1
-    page.mouse.move(left, top)
-    page.mouse.down()
-    page.mouse.move(
-        int(frame["x"] + frame["width"]) - 1, int(frame["y"]) + 260, steps=5
-    )
-    with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.mouse.up()
-    expect(surface).to_be_hidden()
-    media_url = page.locator(".lf-composer-media-item img").get_attribute("src")
-    image = Image.open(
-        io.BytesIO((serve.page_dir / media_url.lstrip("/")).read_bytes())
-    ).convert("RGB")
-    paint = page.locator("#capture-sample iframe").content_frame.locator("#child-paint")
-    inside = paint.bounding_box()
-    at = (round((inside["x"] + 20 - left) * 2), round((inside["y"] + 20 - top) * 2))
-    assert rgb_pixel(image, at) == (200, 40, 40)
-    assert not [text for text in warnings if "cross-origin iframe" in text]
-    expect_panel_says(page, "An image near this area could not be drawn")
-    consume_browser_errors(page, "localhost", "ERR_FAILED")
-
-    page.evaluate("""() => new Promise(resolve => {
-        const link = document.createElement('a');
-        link.href = 'http://127.0.0.1:9/elsewhere';
-        const label = link.appendChild(document.createElement('span'));
-        document.querySelector('main').append(link);
-        setTimeout(() => {
-            label.setAttribute('data-moved', '');
-            link.remove();
-            setTimeout(resolve, 50);
-        });
-    })""")
-    assert errors == []

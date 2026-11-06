@@ -2,45 +2,8 @@
    document can load it, so a widget on a plain HTML page waits for its room as it does
    on a Leaf page (portable-api.js); geometry.js builds its readings of what the page
    shows on these. */
-import { renderedParent } from "./shadow-tree.js";
+import { skipped } from "./shadow-tree.js";
 import { sizeObserver } from "./rendering.js";
-
-// Whether `el` stands in content the browser skips: what a `content-visibility: hidden`
-// box holds, which a hidden tab's panel (`hidden="until-found"`) is, and a closed
-// disclosure's content. The browser leaves skipped content unstyled and unlaid, and one
-// question about any box inside — its computed style, its rect, its scroll offsets —
-// makes it style and lay out that whole subtree first to answer. On the corpus, whose
-// examples each stand in a hidden tab, those forced passes were most of a revision's
-// style time. So a reading that has nothing to say about a box on no screen — where it
-// stands, whether it scrolls, what room it takes — asks this first and leaves the box
-// out until a pass after it is drawn: revealing a panel or opening a disclosure resizes
-// what holds it, which brings those passes round. A reading that marks what the user
-// will see once it is drawn (an anchor's outline) still asks, and pays.
-//
-// Answered without forcing anything: `checkVisibility` reads the tree the browser has,
-// and is false for a box that is not drawn for any reason. The nearest drawn ancestor
-// says which reason — a box skipping what it holds, or `display: none`/`contents` on
-// the way down, which are not skipped and cheap to ask about — and it is drawn, so its
-// own style is not skipped either. A disclosure skips through a pseudo-element of its
-// own, so it is asked by its state rather than by its style.
-//
-/** @param {Element} element */
-export const skipped = (element) => {
-  if (element.checkVisibility({ contentVisibilityAuto: true })) return false;
-  // A boxed descendant can retain layout while its auto container skips drawing.
-  // Ask the native skip state before any geometry forces that content back.
-  if (element.checkVisibility()) return true;
-  let child = element;
-  let box = renderedParent(element);
-  while (box && !box.checkVisibility()) {
-    child = box;
-    box = renderedParent(box);
-  }
-  if (!box) return false;
-  if (box.localName === "details")
-    return !box.hasAttribute("open") && child.localName !== "summary";
-  return getComputedStyle(box).contentVisibility === "hidden";
-};
 
 // The box an element shows as. An element that generates none of its own — a
 // display: contents wrapper — shows as what its contents paint, so its bounds are

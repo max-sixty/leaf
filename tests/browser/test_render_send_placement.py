@@ -43,7 +43,6 @@ from PIL import Image, ImageDraw
 from playwright.sync_api import expect
 from render_harness import (
     FOLLOWER_MARK,
-    ROOT,
     SUBJECT_MARK,
     assert_follows_in_every_frame,
     compositor_trace,
@@ -66,6 +65,7 @@ from render_harness import (
 from browser.threads import append_agent_reply
 from leaf import event_log
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import named_source
 
 # One source line, so a phrase's offset in the source is its offset in the text node.
 LONG = (
@@ -196,18 +196,20 @@ TALL = Element("#long", from_foot=12)
 # take, and optionally how the case differs: `top`, the fraction of the window's height
 # its block's top is scrolled to, 0.4 unless it says; `again`, a thread already there,
 # so its margin row stands before the box opens). One case per placement the solver
-# chooses between, with passages and elements both represented.
+# chooses between, with passages and elements both represented, each on a window
+# with room for the rail: on one without, Send opens the thread in the floating
+# panel.
 CASES = {
     "column-passage-first-line": ((1440, 900), False, FIRST_LINE, "right"),
     "column-element": ((1440, 900), False, STEP, "right"),
     # Room right of the paragraph for the box's minimum but not the card's.
     "laptop-passage": ((1300, 900), False, FIRST_LINE, "below or above"),
-    "beside-element": ((900, 900), False, STEP, "below or above"),
+    "beside-element": ((1024, 900), False, STEP, "below or above"),
     # Touch also uses the room already shown; font wrapping may leave either side clear.
-    "phone-touch-passage": ((390, 844), True, FIRST_LINE, "below or above"),
+    "touch-passage": ((1024, 768), True, FIRST_LINE, "below or above"),
     # A block whose top the window has scrolled past.
     "beside-tall-element-clipped": (
-        (900, 500),
+        (1024, 500),
         False,
         TALL,
         "below or above",
@@ -333,9 +335,9 @@ def sent(browser, serve, name, shots):
     # rows around the editor. The glyph test below measures the painted words.
     box = page.evaluate(RECT, ".lf-fab-bar")
     words, block = on.line(page), page.evaluate(RECT, on.block)
-    phone_room = None
-    if name == "phone-touch-passage":
-        phone_room = page.evaluate("""async () => {
+    touch_room = None
+    if name == "touch-passage":
+        touch_room = page.evaluate("""async () => {
           const {commentBoundary, COMMENT_GAP} =
             await window.__lfOverlayApi();
           const {top, bottom, height} = commentBoundary();
@@ -344,7 +346,7 @@ def sent(browser, serve, name, shots):
     scrolled = page.evaluate("scrollY")
     before = page.screenshot()
 
-    # A phone's Return starts a new line, so a finger sends with the box's own button.
+    # A finger's Return starts a new line, so it sends with the box's own button.
     if touch:
         bar.get_by_role("button", name="Comment", exact=True).tap()
     else:
@@ -358,7 +360,7 @@ def sent(browser, serve, name, shots):
     card_side = card.get_attribute("data-lf-thread-placement")
     # A card that scrolled the page is read where it stands on the page the box stood on.
     carried = page.evaluate("scrollY") - scrolled
-    if phone_room is not None:
+    if touch_room is not None:
         assert carried == 0, (
             "The touch handoff must keep the page and its boundary still"
         )
@@ -380,7 +382,7 @@ def sent(browser, serve, name, shots):
         return expected if side in expected.split(" or ") else side
 
     def standing(side, rect):
-        if phone_room is None:
+        if touch_room is None:
             return stands(side, rect, words, block)
         assert side in ("above", "below"), side
         gap = (
@@ -392,9 +394,9 @@ def sent(browser, serve, name, shots):
             # Typing never scrolls the page to make room, so a box that outgrew the
             # room shown on its side slid over the block only as far as the window's
             # edge required.
-            limits = (block, rect, phone_room)
+            limits = (block, rect, touch_room)
             edge = "top" if side == "above" else "bottom"
-            assert rect[edge] == pytest.approx(phone_room[edge], abs=0.75), limits
+            assert rect[edge] == pytest.approx(touch_room[edge], abs=0.75), limits
         else:
             assert gap <= NEAR, (block, rect)
         return "clear or window-constrained"
@@ -419,7 +421,7 @@ def sent(browser, serve, name, shots):
     return reading
 
 
-@pytest.mark.parametrize(("route", "width"), [("pointer", 900), ("search", 1650)])
+@pytest.mark.parametrize(("route", "width"), [("pointer", 1000), ("search", 1650)])
 def test_a_quoted_passage_keeps_its_inline_attachment_before_and_after_send(
     browser, serve, width, route
 ):
@@ -496,7 +498,7 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
             )
         ),
     )
-    page.set_viewport_size({"width": 900, "height": 900})
+    page.set_viewport_size({"width": 1024, "height": 900})
     page.keyboard.press("/")
     page.keyboard.insert_text("Needle")
     page.keyboard.press("Enter")
@@ -635,7 +637,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             + f"""<style>
               #paint-code {{ display:block; width:420px; }}
               #paint-code > pre {{ height:240px; max-height:240px; overflow:auto; }}
-              .lf-code-line[data-line="6"] {{ background:{SUBJECT_MARK} !important; }}
+              .lf-code-line[data-lf-line="6"] {{ background:{SUBJECT_MARK} !important; }}
             </style>""",
         )
         size, wheel, scroller = (1200, 700), 900, "#paint-code > pre"
@@ -698,7 +700,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
     )
     resized(page, *size)
     target = page.locator(
-        '#paint-code .lf-code-line[data-line="6"]'
+        '#paint-code .lf-code-line[data-lf-line="6"]'
         if region == "code"
         else "#paint-target"
     )
@@ -1132,7 +1134,7 @@ def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
     the card, rather than scrolling inside a card the shot or the pane cuts short."""
     shot = None
     if subject.startswith("shot"):
-        page = open_page(browser, serve(ROOT / "examples/release-notes.html"))
+        page = open_page(browser, serve(named_source("release-notes")))
         resized(page, 1440, 900)
         shot = page.locator("#rn-console-shot")
         shot.scroll_into_view_if_needed()
@@ -1337,6 +1339,11 @@ def test_a_card_on_a_log_row_stands_beside_the_log_and_leaves_with_its_row(
     )
     scroll_settled(page, "#log")
     rendered(page)
+    # Placement follows the scroll a frame or more behind it, more under load.
+    page.wait_for_function(
+        "() => document.querySelector('.lf-margin-preview')"
+        ".style.getPropertyValue('--lf-cut-top') !== ''"
+    )
     cut = card.evaluate(
         "card => card.getBoundingClientRect().top"
         " + parseFloat(card.style.getPropertyValue('--lf-cut-top'))"
@@ -1477,7 +1484,7 @@ def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(
         page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_attribute("data-lf-thread-placement", re.compile(".+"))
-    messages = card.locator(".lf-msg.user")
+    messages = card.locator(".lf-msg[data-lf-author=user]")
     rendered(page)
     assert len(commented) > 1, "the comment never wrapped"
     assert messages.first.locator(".lf-msg-text").evaluate(WORD_LINES) == commented
@@ -1508,13 +1515,17 @@ def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(
     "size,at,long,touch,again,options,engine",
     [
         ((1440, 900), 0.4, False, False, False, False, "browser"),
-        ((900, 600), 0.75, False, False, False, False, "browser"),
-        ((390, 844), 0.12, False, False, False, False, "browser"),
-        ((900, 600), 0.4, True, False, False, False, "browser"),
-        ((900, 600), 0.4, "scrolled", False, False, False, "browser"),
+        ((1024, 600), 0.75, False, False, False, False, "browser"),
+        ((1024, 844), 0.12, False, False, False, False, "browser"),
+        # A draft that scrolls, read with its scrollbars shown: under the shared
+        # browser's `--hide-scrollbars` the box's `auto` bar takes no room while the
+        # card's `scrollbar-gutter: stable` still does, so the card wrapped narrower
+        # than the box on macOS, a pairing no user's browser makes.
+        ((1024, 600), 0.4, True, False, False, False, "scrollbar_browser"),
+        ((1024, 600), 0.4, "scrolled", False, False, False, "scrollbar_browser"),
         ((1440, 900), 0.4, "paragraphs", False, False, False, "browser"),
         ((1440, 900), 0.4, False, False, True, False, "browser"),
-        ((390, 844), 0.4, "passage", True, False, False, "browser"),
+        ((1440, 900), 0.4, "passage", True, False, False, "browser"),
         # Firefox sized this one-line comment's card 13px wider than its box.
         pytest.param(
             (1728, 999),
@@ -1527,7 +1538,7 @@ def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(
             id="line-firefox",
         ),
         pytest.param(
-            (900, 600),
+            (1024, 600),
             0.75,
             False,
             False,
@@ -1703,7 +1714,7 @@ def test_send_grows_thread_around_the_words(
     if not long and not touch and not again:
         card.locator('leaf-text[name="reply"]').click()
         page.keyboard.insert_text("The same placement works for a reply.")
-        check_reply_growth = size == (900, 600) and not options
+        check_reply_growth = size == (1024, 600) and not options
         if check_reply_growth:
             rendered(page)
             # Read the card's border box, not Layout Instability's attribution:
@@ -1771,11 +1782,11 @@ def test_send_grows_thread_around_the_words(
         edges = reading_edges()
         assert len(edges) == 5, edges
         assert edges == pytest.approx([edges[0]] * len(edges), abs=0.75), edges
-        if size == (390, 844) and at == 0.12:
-            # Reopening at a wider measure removes a line. Spend only the travel
-            # that fitted height needs, keeping both the page's words and the card.
+        if size == (1024, 844) and at == 0.12:
+            # Reopening on a shorter window spends only the travel that fitted height
+            # needs, keeping both the page's words and the card.
             card.locator(".lf-margin-preview-close").click()
-            resized(page, 900, 600)
+            resized(page, 1024, 600)
             page.locator(on.block).evaluate(
                 "el => scrollTo(0, el.getBoundingClientRect().top + scrollY - innerHeight * .4)"
             )

@@ -1,6 +1,8 @@
 """Run a selection of the suite in a checkout and read what each test did.
 
-`leaf-dev flake` and `leaf-dev bugback` run tests here.
+`leaf-dev flake` and `leaf-dev bugback` run tests here, each in a `checkout` of a
+`snapshot` of the working tree, and `leaf-dev suite-profile` reads a run's junit report
+through `junit_cases`.
 
 `collect` expands a selection of pytest node ids to the items it names and refuses one
 pytest would not run whole: piped or summarized, a selection that collects nothing
@@ -26,6 +28,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import click
+
+from leaf_dev import ROOT
+from leaf_dev.arms import copy_working
 
 # xdist's `loadgroup` appends `@<group>` to the node id of a test in an xdist_group.
 XDIST_GROUP = re.compile(r"@[^@\]]+$")
@@ -60,6 +65,55 @@ def pytest(root: Path, *args: str, out: Path) -> int:
             # The Ctrl-C reached pytest too; let it finish its teardowns.
             proc.wait()
             raise
+
+
+def clone(source: Path, dest: Path, *options: str) -> None:
+    """Clone `source` into `dest` for a command to remove when it ends. The clone
+    starts no background git work, which would go on writing into it after the
+    command began removing it: no maintenance after a commit (a commit graph, under
+    git 2.56) and no file-system monitor."""
+    subprocess.run(
+        ["git", "clone", "-q", *options, "-c", "maintenance.auto=false"]
+        + ["-c", "core.fsmonitor=false", source, dest],
+        check=True,
+    )
+
+
+def snapshot(dest: Path) -> None:
+    """Make `dest` a clone of this repository whose HEAD is a commit of the working
+    tree as it stands, uncommitted edits included (`arms.copy_working`), for the
+    checkouts a command runs the suite in (`checkout`). A run in one sees no edit made
+    after the snapshot, and git there can compare or restore its paths against
+    another commit."""
+    clone(ROOT, dest, "--no-checkout")
+    copy_working((".",), dest)
+    subprocess.run(["git", "-C", dest, "add", "--all"], check=True)
+    subprocess.run(
+        [
+            "git", "-C", dest, "-c", "core.hooksPath=/dev/null",
+            "-c", "commit.gpgsign=false", "-c", "user.name=Leaf snapshot",
+            "-c", "user.email=snapshot@localhost",
+            "commit", "-q", "--allow-empty", "-m", "Working tree snapshot",
+        ],
+        check=True,
+    )  # fmt: skip
+
+
+def checkout(snapshot: Path, dest: Path) -> None:
+    """Make `dest` a checkout of `snapshot` the suite can run in: a clone, with each of
+    this working tree's installed Node dependency directories (`node_modules`), which
+    git does not hold and the tests read, linked in as shared inputs."""
+    clone(snapshot, dest)
+    ignored = subprocess.run(
+        ["git", "-C", ROOT, "ls-files", "-z", "--others", "--ignored"]
+        + ["--directory", "--exclude-standard"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split("\0")
+    for name in ignored:
+        if (dependency := Path(name.rstrip("/"))).name == "node_modules":
+            (dest / dependency).symlink_to(ROOT / dependency, target_is_directory=True)
 
 
 def collect(root: Path, selection: tuple[str, ...], out: Path) -> list[str]:
@@ -98,11 +152,12 @@ def run(
     }
 
 
-def read_junit(report: Path) -> dict[str, Outcome]:
-    """Each test's outcome in a junit report, by pytest node id. The suite has no test
-    classes, so a case's dotted `classname` is its module's path; a collection error
-    has none, and is keyed by its module's path."""
-    outcomes: dict[str, Outcome] = {}
+def junit_cases(report: Path) -> dict[str, list[ET.Element]]:
+    """Each test in a junit report, by pytest node id, with its cases in report
+    order: one, or two where a failed call's teardown also failed. The suite has no
+    test classes, so a case's dotted `classname` is its module's path; a collection
+    error has none, and is keyed by its module's path."""
+    tests: dict[str, list[ET.Element]] = {}
     for case in ET.parse(report).iter("testcase"):
         classname, name = case.get("classname", ""), case.get("name", "")
         nodeid = (
@@ -110,18 +165,30 @@ def read_junit(report: Path) -> dict[str, Outcome]:
             if classname
             else f"{name.replace('.', '/')}.py"
         )
+        tests.setdefault(nodeid, []).append(case)
+    return tests
+
+
+def read_junit(report: Path) -> dict[str, Outcome]:
+    """Each test's outcome in a junit report, by pytest node id (`junit_cases`)."""
+    return {nodeid: outcome(cases) for nodeid, cases in junit_cases(report).items()}
+
+
+def outcome(cases: list[ET.Element]) -> Outcome:
+    """One test's outcome from its cases. Of a failed call and its teardown's error,
+    the call's reading stands; an error replaces only a pass or a skip."""
+    reading = Outcome("passed")
+    for case in cases:
+        if reading.result not in ("passed", "skipped"):
+            break
         if bad := [e for e in case if e.tag in ("failure", "error")]:
             result = "failed" if bad[0].tag == "failure" else "error"
-            outcome = Outcome(result, message(bad[0]))
+            reading = Outcome(result, message(bad[0]))
         elif case.find("skipped") is not None:
-            outcome = Outcome("skipped")
+            reading = Outcome("skipped")
         else:
-            outcome = Outcome("passed")
-        # A failed call's teardown error comes as a second case; the call's reading
-        # stands, and the error replaces only a pass or a skip.
-        if nodeid not in outcomes or outcomes[nodeid].result in ("passed", "skipped"):
-            outcomes[nodeid] = outcome
-    return outcomes
+            reading = Outcome("passed")
+    return reading
 
 
 def message(failure: ET.Element) -> str:

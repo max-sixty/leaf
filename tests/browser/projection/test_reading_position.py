@@ -384,7 +384,7 @@ def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, s
     view = page.evaluate(
         """() => {
           for (const key of Object.keys(sessionStorage))
-            if (key.endsWith('lf-view')) return JSON.parse(sessionStorage[key]);
+            if (key.endsWith('lf-view')) return JSON.parse(sessionStorage[key]).page;
           return null;
         }"""
     )
@@ -480,7 +480,7 @@ customElements.define("lf-shadow-reading", class extends HTMLElement {
     view = page.evaluate(
         """() => {
           for (const key of Object.keys(sessionStorage))
-            if (key.endsWith('lf-view')) return JSON.parse(sessionStorage[key]);
+            if (key.endsWith('lf-view')) return JSON.parse(sessionStorage[key]).page;
           return null;
         }"""
     )
@@ -839,7 +839,7 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
         "description": "A test-owned reading scroller.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
         },
         "required": ["id"],
         "additionalProperties": False,
@@ -959,7 +959,7 @@ def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser,
     page.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
     view = page.evaluate("""() => {
       for (const k of Object.keys(sessionStorage))
-        if (k.endsWith('lf-view')) return JSON.parse(sessionStorage[k]);
+        if (k.endsWith('lf-view')) return JSON.parse(sessionStorage[k]).page;
       return null; }""")
     assert view and view["section"] == "wrap", (
         f"the landmark was not the boxless wrapper: {view}"

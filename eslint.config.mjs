@@ -21,6 +21,8 @@ const runtimePrimitives = [
   "dom-move.js",
   "focus.js",
   "control-selectors.js",
+  "inputs.js",
+  "document-inputs.js",
   "shadow-tree.js",
   "keeps.js",
   "pointer.js",
@@ -111,6 +113,7 @@ const browserGlobals = Object.fromEntries(
     "SVGTextElement",
     "SVGUseElement",
     "ShadowRoot",
+    "StaticRange",
     "Text",
     "ToggleEvent",
     "URL",
@@ -707,6 +710,42 @@ const scrollWritesRule = {
   },
 };
 
+// The runtime hears a scroll's end through `watchScrollEnds` (runtime/arrivals.js),
+// which ends each box's scroll once however many frames a script writes it in; a
+// listener of its own hears every frame of a glide as a scroll that ended. The option
+// names the runtime files that may listen.
+const scrollEndsRule = {
+  meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
+  create(context) {
+    const file = path
+      .relative(repoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    if (
+      !file.startsWith("browser/runtime/") ||
+      (context.options[0] ?? []).includes(file)
+    )
+      return {};
+    return {
+      CallExpression(node) {
+        const [type] = node.arguments;
+        if (
+          node.callee.type === "MemberExpression" &&
+          !node.callee.computed &&
+          node.callee.property.name === "addEventListener" &&
+          type?.type === "Literal" &&
+          type.value === "scrollend"
+        )
+          context.report({
+            node,
+            message:
+              "Hear a scroll's end with watchScrollEnds (runtime/arrivals.js), which ends a glide once rather than on each of its frames.",
+          });
+      },
+    };
+  },
+};
+
 // A node that already stands somewhere moves through `move(parent, node, before)`
 // (runtime/dom-move.js), or `setChildren` beside it, which keeps the user's focus, caret
 // and native state in it; a plain insertion takes the node out first, which blurs it.
@@ -1023,6 +1062,7 @@ const architecturePlugin = {
     "current-location-listeners": currentLocationListenersRule,
     placements: placementsRule,
     "scroll-writes": scrollWritesRule,
+    "scroll-ends": scrollEndsRule,
     "current-location-reads": currentLocationReadsRule,
     "open-layers": openLayersRule,
     moves: movesRule,
@@ -1335,9 +1375,7 @@ export default [
     ignores: [
       ".tmp/**",
       ".venv/**",
-      "examples/corpus.html",
       "browser/vendor/**",
-      "dist/kernel/**",
       "packages/*/vendor/**",
       "evals/ui-review-detection/fixtures/**",
     ],
@@ -1351,6 +1389,9 @@ export default [
       "no-new-wrappers": "error",
       "no-unreachable-loop": "error",
       "no-unsafe-negation": ["error", { enforceForOrderingRelations: true }],
+      // A `let` declared ahead of the closures that read it, and assigned once after
+      // them, stays a `let`: as a `const` it would move below its readers.
+      "prefer-const": ["error", { ignoreReadBeforeAssign: true }],
     },
   },
   {
@@ -1383,8 +1424,8 @@ export default [
   {
     // Playwright's Node drivers also execute callbacks in the page's realm.
     files: [
+      "evals/ui-review-detection/hooks.mjs",
       "evals/ui-review-detection/provider.mjs",
-      "evals/widget-formats/interaction.mjs",
     ],
     languageOptions: { globals: browserGlobals },
   },
@@ -1399,6 +1440,7 @@ export default [
           "caretKeys",
           "clippingAxes",
           "renderedParent",
+          "skipped",
           "elementAxes",
           "scrollAxes",
           "nativePerformance",
@@ -1470,16 +1512,17 @@ export default [
     languageOptions: { globals: browserGlobals },
   },
   {
-    files: ["dev/leaf_dev/startup.js", "dev/leaf_dev/commands/bench_latency.js"],
+    files: [
+      "dev/leaf_dev/startup.js",
+      "dev/leaf_dev/painted.js",
+      "dev/leaf_dev/commands/stills_baselines.js",
+    ],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
   },
   {
     // Browser diagnostics resolve published runtime entries from the page under
     // test. Those scoped URLs are data rather than static dependency edges.
-    files: [
-      "dev/leaf_dev/commands/verify_site_browser.js",
-      "dev/leaf_dev/commands/bench_latency.js",
-    ],
+    files: ["dev/leaf_dev/commands/verify_site_browser.js", "dev/leaf_dev/painted.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: {
       "no-restricted-syntax": [
@@ -1642,6 +1685,13 @@ export default [
           "browser/runtime/shadow-tree.js",
         ],
       ],
+      "architecture/scroll-ends": [
+        "error",
+        [
+          // The one owner of a scroll's end.
+          "browser/runtime/arrivals.js",
+        ],
+      ],
       "architecture/scroll-writes": [
         "error",
         [
@@ -1763,7 +1813,7 @@ export default [
           patterns: [
             {
               regex:
-                "^(?!\\.\\./(?:anchor-coordinate|kernel-facts|semantic-state)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
+                "^(?!\\.\\./(?:anchor-coordinate|kept|kernel-facts|semantic-state)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
               message: "Thread readings depend only on pure record operations.",
             },
           ],

@@ -1,12 +1,11 @@
 """Where the reader's place stays as the window changes width, a script scrolls,
-find-in-page opens a fold, content settles or grows, and the reader pages through a
-landed section."""
+find-in-page scrolls to words or opens a fold, content settles or grows, and the reader
+pages through a landed section."""
 
 import pytest
 from playwright.sync_api import expect
 from render_harness import (
     LANDING_TOP,
-    ROOT,
     leaf_page,
     open_page,
     resized,
@@ -14,6 +13,7 @@ from render_harness import (
 )
 
 from leaf.render_checks import one_frame, rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -194,7 +194,7 @@ def test_a_page_read_from_its_top_stays_at_its_top_as_the_window_narrows(
     into the flow above it; the page stays at its top with the title in view, rather
     than scrolling to keep that section's first line where it stood. A page landed
     partway down still keeps the line it was read at across the same narrowing."""
-    page = open_page(browser, serve(ROOT / "tests/fixtures/pages/root-parts.html"))
+    page = open_page(browser, serve(named_source("root-parts")))
     title = page.locator("main > header h1")
     heading = (
         "async () => document.querySelector('#part-plan-stages h2')"
@@ -668,11 +668,41 @@ def test_words_found_in_a_closed_fold_become_the_readers_place(firefox_browser, 
     assert page.evaluate("window.find('Needle words')")
     scroll_settled(page)
     rendered(page)
-    read = page.evaluate(found)
-    assert 0 <= read < 800, "the find should bring the found words into view"
+    assert 0 <= page.evaluate(found) < 800, "the find should bring the words into view"
     resized(page, 600, 800)
     rendered(page)
-    assert page.evaluate(found) == pytest.approx(read, abs=40)
+    assert 0 <= page.evaluate(found) < 800, "the found words should stay in view"
+
+
+def test_words_found_on_screen_become_the_readers_place(browser, serve):
+    """Find-in-page scrolls to words the page already draws in one move, with no input
+    the page hears and no layout change behind it. That move is the reader's, so a width
+    change keeps the found words in view rather than returning the page to where it
+    stood before the find. Read as layout's, the move left the page's place at its top,
+    and the width change took the reader back there."""
+    filler = "".join(
+        f"<p>Paragraph {n} has words enough to rewrap as the window changes.</p>"
+        for n in range(60)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Found on screen", f'{filler}<h2 id="found">Needle words</h2>{filler}'
+            )
+        ),
+    )
+    resized(page, 1200, 800)
+    rendered(page)
+    found = """() => document.getElementById('found').getBoundingClientRect().top"""
+    assert page.evaluate(found) > 800, "the words should start below the window"
+    assert page.evaluate("window.find('Needle words')")
+    scroll_settled(page)
+    rendered(page)
+    assert 0 <= page.evaluate(found) < 800, "the find should bring the words into view"
+    resized(page, 600, 800)
+    rendered(page)
+    assert 0 <= page.evaluate(found) < 800, "the found words should stay in view"
 
 
 def test_paging_down_from_a_landed_section_keeps_the_paged_passage(browser, serve):

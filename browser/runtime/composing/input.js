@@ -42,6 +42,7 @@
 // retained as a Node part: rendering chrome never replaces its words, caret or history.
 // Local draft and dictation callbacks request Lit updates; shared readings subscribe
 // through SignalWatcher, including focus and errors, without a repaint registry.
+import { capitalized, counted } from "../words.js";
 import { describeFailure } from "../exception.js";
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeysWithin } from "../keyboard/scopes.js";
@@ -72,7 +73,7 @@ import { sizeObserver } from "../rendering.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { retainUserIntent } from "../user-intent.js";
 import { coarsePointer } from "../pointer.js";
-import { namedAction, offered, offeredAction } from "../widget-elements.js";
+import { offeredAction } from "../widget-elements.js";
 
 /** @typedef {import("./drawing-record.js").DraftDrawing} Drawing
  * @typedef {import("./text-field.js").LeafTextElement} TextField
@@ -81,12 +82,13 @@ import { namedAction, offered, offeredAction } from "../widget-elements.js";
  * @property {import("../keyboard/bindings.js").Cell<string>} hint
  * @property {(() => unknown) | null} [hintParts]
  * @property {() => unknown} [hintLead]
+ * @property {() => string} [enters]
  * @property {import("../keyboard/bindings.js").Cell<string> | null} [accessibleName]
  * @property {(value: string) => unknown} save
  * @property {Sender} send
  * @property {string} [sendClass]
  * @property {import("../keyboard/bindings.js").Cell<string>} sends
- * @property {string} [action]
+ * @property {import("../keyboard/bindings.js").Cell<string>} [action]
  * @property {string | null} [altLabel]
  * @property {Sender | null} [altSend]
  * @property {() => true | string} [allowsMedia]
@@ -150,9 +152,10 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
           <span class="lf-composer-media-item lf-composer-drawing">
             <button
               type="button"
-              class="lf-media-open lf-composer-media-open lf-media-frame"
+              ${offeredAction("picture", "lf-media-open lf-composer-media-open")}
+              data-lf-frame
               data-lf-media-canvas
-              aria-label=${`Inspect drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
+              aria-label=${`Inspect drawing, ${counted(strokes, "stroke")}`}
               title="Inspect drawing"
               @click=${
                 /** @param {MouseEvent & {currentTarget: HTMLButtonElement & {firstElementChild: HTMLCanvasElement}}} event */ (
@@ -187,12 +190,14 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
               })}
             </button>
             <button
-              ${offeredAction("mark", "lf-corner-mark lf-composer-drawing-undo", "Undo last stroke", { action: "undo" })}
+              ${offeredAction("mark", "lf-composer-drawing-undo", "Undo last stroke", { action: "undo" })}
+              data-lf-corner
               @mousedown=${/** @param {MouseEvent} event */ (event) => event.preventDefault()}
               @click=${drawing.undoStroke}
             ></button>
             <button
-              ${offeredAction("mark", "lf-corner-mark", "Remove drawing", { action: "remove" })}
+              ${offeredAction("mark", "", "Remove drawing", { action: "remove" })}
+              data-lf-corner
               @mousedown=${/** @param {MouseEvent} event */ (event) => event.preventDefault()}
               @click=${drawing.removeDrawing}
             ></button>
@@ -201,7 +206,8 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
       : null,
     media.map(({ index, url }) => {
       const remove = html`<button
-        ${offeredAction("mark", "lf-corner-mark lf-composer-media-remove", `Remove attached image ${index + 1}`, { action: "remove" })}
+        ${offeredAction("mark", "lf-composer-media-remove", `Remove attached image ${index + 1}`, { action: "remove" })}
+        data-lf-corner
         @click=${() => removeMedia(index)}
       ></button>`;
       // A sent message's picture is the one its message draws (markdown.js, the image
@@ -211,7 +217,7 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
         ? html`<p class="lf-composer-media-item">
             <button
               type="button"
-              class="lf-media-open lf-message-media"
+              ${offeredAction("picture", "lf-media-open lf-message-media")}
               data-lf-media-url=${url}
               aria-label=${`View attached image ${index + 1}`}
             >
@@ -221,7 +227,8 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
         : html`<span class="lf-composer-media-item">
             <button
               type="button"
-              class="lf-media-open lf-composer-media-open lf-media-frame"
+              ${offeredAction("picture", "lf-media-open lf-composer-media-open")}
+              data-lf-frame
               data-lf-media-url=${url}
               aria-label=${`View attached image ${index + 1}`}
             >
@@ -269,8 +276,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     hintedBox.value = hint?.box ?? null;
     hintLabel.value = hint?.label ?? "";
   };
-  // `sends` states the box's own submit action. Composers send by default; a caller whose
-  // action differs, such as adding an option, names that action.
+  // `sends` states the box's own submit action, and `action` the symbol its control
+  // shows. Composers send by default; a caller whose action differs, such as adding an
+  // option, names that action, and one whose action turns on what the box holds, as an
+  // emptied rewrite deletes its message, answers both as it stands.
   /** @param {WiredInput} ta @param {InputOptions} options */
   function wireInput(
     ta,
@@ -283,6 +292,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // send the hint and its key to the empty box's far end and move none of its
       // controls as they come and go.
       hintLead = () => "",
+      // What entering the box does, said with the key that enters it, where the box's
+      // own words at rest say something else, as the panel's status does. Those words
+      // stay first, and this word and its key stand after them, in a part of its own,
+      // so the words never move between parts as focus comes and goes.
+      enters = () => "",
       accessibleName = null,
       save,
       send,
@@ -339,8 +353,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     let composing = false;
     // Firefox lacks speech recognition; WebKit has it only under its prefix.
     const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+    const actionWord = () =>
+      typeof submitAction === "function" ? submitAction() : submitAction;
     const offersDictation = Boolean(
-      Recognition && submitAction === "send" && !submitIn,
+      Recognition && actionWord() === "send" && !submitIn,
     );
     /** @type {ReturnType<typeof import("./dictation.js").createDictation> | null} */
     let dictation = null;
@@ -392,11 +408,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         shelfSeen = { drawing: drawn, media: [...attachedMedia] };
         drawing.replace(drawn);
         const strokes = drawn?.strokes.length ?? 0;
-        announce(
-          strokes
-            ? `Drawing, ${strokes} stroke${strokes === 1 ? "" : "s"}.`
-            : "No drawing.",
-        );
+        announce(strokes ? `Drawing, ${counted(strokes, "stroke")}.` : "No drawing.");
       });
     /** @param {readonly string[]} media */
     const putMedia = (media) => {
@@ -460,10 +472,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const initialName = name();
     if (initialName) keeps(ta, "aria-label", initialName);
     const sendWord = () => (typeof sends === "function" ? sends() : sends);
-    const sendLabel = () => {
-      const word = sendWord();
-      return word.charAt(0).toUpperCase() + word.slice(1);
-    };
+    const sendLabel = () => capitalized(sendWord());
     // Once words reach Send's corner, Send shows there as the pointer comes to it, and
     // takes presses only once the pointer has rested on it (response.css), so a quick
     // press at the words' end places the caret. Typing, or a press on the words, puts
@@ -476,8 +485,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const unpoint = () => {
       clearTimeout(dwell);
       dwell = 0;
-      ta.parentElement?.removeAttribute("data-send-pointed");
-      ta.parentElement?.removeAttribute("data-send-armed");
+      ta.parentElement?.removeAttribute("data-lf-send-pointed");
+      ta.parentElement?.removeAttribute("data-lf-send-armed");
     };
     /** @param {PointerEvent & {currentTarget: HTMLElement}} event */
     const point = (event) => {
@@ -491,11 +500,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         event.clientY >= send.top &&
         event.clientY < send.bottom;
       if (!on) return unpoint();
-      if (box.hasAttribute("data-send-pointed")) return;
-      box.setAttribute("data-send-pointed", "");
+      if (box.hasAttribute("data-lf-send-pointed")) return;
+      box.setAttribute("data-lf-send-pointed", "");
       dwell = setTimeout(() => {
         dwell = 0;
-        box.setAttribute("data-send-armed", "");
+        box.setAttribute("data-lf-send-armed", "");
       }, SEND_DWELL);
     };
     let sending = false;
@@ -524,9 +533,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const lineKey =
         sendKeys === spell("Enter") && !oneLine ? spell("Shift+Enter") : "";
       const lineHint = focusedHere.value && !status ? lineKey : "";
+      const entering = suffix && !focusedHere.value && !status ? enters() : "";
       const placeholder =
         suffix && !status
-          ? `${word} ${suffix}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}`
+          ? `${word}${entering ? ` · ${entering}` : ""} ${suffix}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}`
           : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
       const ariaLabel = name();
@@ -539,6 +549,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           ? html` <span class="lf-compose-placeholder" slot="placeholder">
               <span class="lf-compose-placeholder-lead">${lead}</span
               ><span class="lf-compose-placeholder-words">${parts ?? word}</span
+              ><span class="lf-compose-placeholder-enters">${entering}</span
               ><kbd class="lf-key-badge">${suffix}</kbd>${
                 lineHint
                   ? html`<span class="lf-compose-placeholder-line"
@@ -575,11 +586,12 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
             : "Dictate";
       const submitControl = html`<button
         type="button"
-        ${offered(`${sendClass} lf-compose-submit`)}
-        ${namedAction(submitAction, {
-          label: action,
+        ${offeredAction("symbol", `${sendClass} lf-compose-submit`.trim(), action, {
+          action: actionWord(),
           title: sendKeys ? `${action} (${sendKeys})${newline}` : action,
         })}
+        ?data-lf-disc=${!submitIn}
+        data-lf-tone="accent"
         aria-disabled=${String(!canSend())}
         ?data-lf-empty=${!hasWords}
         ?hidden=${micShown}
@@ -606,7 +618,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         removeMedia,
       });
       const shelf = html`<div
-        class=${sentMedia ? "lf-msg-media" : "lf-composer-media scroll"}
+        class=${sentMedia ? "lf-msg-media" : "lf-composer-media"}
+        ?data-lf-scroll=${!sentMedia}
         role="group"
         aria-label="Attachments"
         ?hidden=${!drawn && attachedMedia.length === 0}
@@ -625,13 +638,14 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const dictationControl = offersDictation
         ? html`<button
             type="button"
-            ${offered("lf-compose-dictate")}
-            ?hidden=${!micShown}
-            data-dictation=${dictationState}
-            ${namedAction("dictate", {
-              label: micAction,
+            ${offeredAction("symbol", "lf-compose-dictate", micAction, {
+              action: "dictate",
               title: live || !status ? micAction : `${micAction} (${status})`,
             })}
+            ?hidden=${!micShown}
+            data-lf-disc
+            data-lf-tone=${dictationState === "failed" ? "negative" : nothing}
+            data-lf-dictation=${dictationState}
             aria-pressed=${String(live)}
             aria-description=${status || nothing}
             @mousedown=${/** @param {MouseEvent} event */ (event) => event.preventDefault()}
@@ -671,7 +685,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       return html`${sentMedia ? nothing : shelf}
         <div
           class="lf-compose-field"
-          ?data-words=${hasWords}
+          ?data-lf-words=${hasWords}
           @pointermove=${point}
           @pointerleave=${point}
           @pointerdown=${
@@ -982,7 +996,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     });
     // A press on a submit control is the send key pressed from the box, so it leaves the
     // user where Enter does: in the box, for a box that stays to take more, or wherever the
-    // send hands them on to, as a reply does to its thread (`landSent`), never on the
+    // send hands them on to, as a first message does to its thread (`landSent`), never on the
     // control, where the next letters would fall on nothing. A pointer press never takes
     // the focus (moving it is mousedown's default), so the box keeps it until the send
     // moves it. A keyboard press on the control, or a pointer press while the user was

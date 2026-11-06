@@ -69,7 +69,6 @@ from .event_log import jsonl_line
 from .harness import session_harness
 from .interaction_log import acting_on
 from .refusals import Refused
-from .registry.kernel import verb_writers
 from .service import (
     PageTransaction,
     may_receive,
@@ -99,6 +98,20 @@ _ANCHOR = {
         {"$ref": "leaf:event/reply#/properties/anchor"},
         {"$ref": "leaf:event/reanchor#/properties/anchor"},
     ]
+}
+# Widget gestures, unfolded (`thread_context.ACTION_FIELDS`).
+_GESTURES = {
+    "type": "array",
+    "items": object_schema(
+        {
+            "id": STRING,
+            "seq": _INTEGER,
+            "author": STRING,
+            "widget": STRING,
+            "action": STRING,
+            "detail": {"type": "object"},
+        }
+    ),
 }
 _THREAD_DIGEST = object_schema(
     {
@@ -152,6 +165,7 @@ _THREAD_DIGEST = object_schema(
                             "True where the comment is a suggestion.",
                             {"type": "boolean"},
                         ),
+                        "viewing": {"$ref": "leaf:event/comment#/properties/viewing"},
                         "edited": described(
                             "The user's latest rewrite, and the words it replaced.",
                             object_schema(
@@ -162,6 +176,12 @@ _THREAD_DIGEST = object_schema(
                                     "was": STRING,
                                 }
                             ),
+                        ),
+                        "withdrawn": described(
+                            "The user's undo of a message something still stood on, "
+                            "and what the message said; it keeps its place with "
+                            "nothing in it.",
+                            object_schema({"id": STRING, "ts": STRING, "was": STRING}),
                         ),
                     },
                 ),
@@ -204,19 +224,7 @@ _THREAD_DIGEST = object_schema(
         "actions": described(
             "Gestures in force on widgets sent in the thread, other than the "
             "batch's own (`thread_context.ACTION_FIELDS`).",
-            {
-                "type": "array",
-                "items": object_schema(
-                    {
-                        "id": STRING,
-                        "seq": _INTEGER,
-                        "author": STRING,
-                        "widget": STRING,
-                        "action": STRING,
-                        "detail": {"type": "object"},
-                    }
-                ),
-            },
+            _GESTURES,
         ),
     },
     {
@@ -301,16 +309,37 @@ _DELIVERED_EVENT = {
                 "replacement it proposes.",
                 {"type": "boolean"},
             ),
+            "unsent": described(
+                "On the user's message or edit about a widget, one their thread is "
+                "anchored in or was sent in, the work they had made there without "
+                "sending it (`$state.unsent`), as it stood when they wrote: what "
+                "the widget showed them (`thread_context.unsent_at_messages`). "
+                "Absent where none stood.",
+                _GESTURES,
+            ),
             "waiting": described(
-                "On a widget action, the obligations that still waited on the "
-                "user's words at capture in a thread about that widget's "
-                "obligations (`obligations.waiting_about`), which the action may "
-                "have settled: each obligation's `id` and the `text` that asked it.",
+                "The agent's questions the input may have answered though it "
+                "answers them by no rule: on a widget action, those still waiting "
+                "on the user's words in a thread about that widget's obligations "
+                "(`obligations.waiting_about`); on the user's message in a thread, "
+                "those still waiting on a pick on a widget frozen there "
+                "(`obligations.waiting_in_thread`). Each is the obligation's `id` "
+                "and the `text` that asked it.",
                 {
                     "type": "array",
                     "items": object_schema(
                         {"id": STRING, "text": {"type": ["string", "null"]}}
                     ),
+                },
+            ),
+            "settled": described(
+                "On the user's message in a thread, the agent's questions in words it "
+                "answered by rule, whatever it says, so they have left On me "
+                "(`obligations.settled_by_message`). Each is the obligation's `id` and "
+                "the `text` that asked it.",
+                {
+                    "type": "array",
+                    "items": object_schema({"id": STRING, "text": STRING}),
                 },
             ),
             "answer": described(
@@ -482,19 +511,6 @@ def _registry(page_dir: Path):
         return None
 
 
-def _subject(event: dict, threads: list[str], by_id: dict[str, dict]) -> dict:
-    """Name what one event changes without using prose as an identifier."""
-    if event["kind"] in verb_writers():
-        return {"kind": "widget", "id": event["widget"]}
-    if event["kind"] == "undo":
-        original = by_id.get(event["undoes"])
-        if original is not None:
-            return _subject(original, threads, by_id)
-    if threads:
-        return {"kind": "thread", "id": threads[0]}
-    return {"kind": "page"}
-
-
 def current_responses(
     page_dir: Path, events: list[dict], reading=None
 ) -> dict[str, dict]:
@@ -511,96 +527,98 @@ def current_responses(
     return {item["input"]: item["answer"] for item in reading.work.obligations}
 
 
+def _users_words_in_a_thread(event: dict) -> bool:
+    """The user's reply in words, which may answer a widget frozen up its thread."""
+    return (
+        event["kind"] == "reply"
+        and event.get("author") == "user"
+        and "token" not in event
+    )
+
+
 def batch_data(
     page_dir: Path, transaction, batch: list[dict], *, responses: dict | None = None
 ) -> dict:
     """Capture one complete ordered page batch, less what `freeze_delivery` writes
     for its transport: the address of a thread reply, and the `handling` that follows
     from it."""
-    from .events import build_threads
-    from .gesture_words import GestureWords, revisions_on_disk
-    from .obligations import waiting_about
-    from .revision_artifact import active_enclosing
+    from .event_facts import EventFacts
+    from .obligations import settled_by_message, waiting_about, waiting_in_thread
     from .served_state.context import read_page
-    from .thread_context import (
-        batch_threads,
-        thread_memberships,
-        thread_names,
-        thread_structure,
-        thread_widgets,
-    )
+    from .thread_context import batch_threads, thread_names
 
-    registry = _registry(page_dir)
     events = transaction.events
-    within = active_enclosing(page_dir)
-    names = thread_names(events)
-    memberships = thread_memberships(
-        events,
-        names,
-        thread_widgets(thread_structure(events), names),
-        within,
+    reader = EventFacts(page_dir, events, _registry(page_dir))
+    facts = reader(batch)
+    # The obligations are read only where an event can carry `waiting` or `settled`:
+    # an action, or the user's words in a thread where the agent's messages may ask.
+    replies = [event for event in batch if _users_words_in_a_thread(event)]
+    names = thread_names(events) if replies else {}
+    asking = {
+        names[event["id"]]
+        for event in events
+        if replies
+        and event.get("author") == "agent"
+        and (event.get("markup") or event.get("obligation"))
+    }
+    reads_obligations = any(event["kind"] == "action" for event in batch) or any(
+        asking.intersection(facts[event["id"]]["threads"]) for event in replies
     )
-    acted = any(event["kind"] == "action" for event in batch)
-    reading = read_page(page_dir, events) if responses is None or acted else None
+    reading = (
+        read_page(page_dir, events) if responses is None or reads_obligations else None
+    )
     if responses is None:
         responses = current_responses(page_dir, events, reading)
-    if acted:
+    if reads_obligations:
         assert reading is not None
-    durable = reading.work.durable if reading is not None and acted else None
-    revisions = {
-        revision["id"]: revision
-        for thread in build_threads(events, within).values()
-        for revision in thread["revisions"]
-    }
-    by_id = {event["id"]: event for event in events}
-    words = GestureWords(events, registry, revisions_on_disk(page_dir))
+    durable = (
+        reading.work.durable if reading is not None and reads_obligations else None
+    )
+    settled = (
+        settled_by_message(durable.all_obligations["all"])
+        if durable is not None
+        else {}
+    )
 
     captured = []
     for event in batch:
-        threads = memberships.get(event["id"], [])
-        entry = {
-            **event,
-            "subject": _subject(event, threads, by_id),
-            "threads": threads,
-        }
+        known = facts[event["id"]]
+        entry = {**event, **known}
         # The browser's retry key: the log keeps it to recognise a resent post, and
         # the agent has no use for it.
         entry.pop("attempt", None)
-        # What an element says is a registry's word, and a page whose active layer
-        # does not read is not read for its words at all.
-        if registry is not None and (says := words.says(event)):
-            entry["says"] = says
-            entry["names"] = {
-                identity: words.name(event, identity) for identity in says
-            }
-        if revision := revisions.get(event["id"]):
-            # The thread's digest already reads the new wording; the agent answering
-            # a revision needs to see what it replaced, and whether those words are a
-            # suggestion's exact replacement text.
-            entry["was"] = revision["was"]
-            if by_id[revision["message"]].get("suggestion"):
-                entry["suggestion"] = True
         if (answer := responses.get(event["id"])) is not None:
             entry["answer"] = answer
-        if (
-            durable is not None
-            and event["kind"] == "action"
-            and (
-                waiting := waiting_about(
-                    event["widget"],
+        if durable is not None and (
+            waiting := waiting_about(
+                event["widget"],
+                durable.all_obligations["all"],
+                durable.threads,
+                durable.within,
+            )
+            if event["kind"] == "action"
+            else [
+                question
+                for thread in known["threads"]
+                for question in waiting_in_thread(
+                    thread,
+                    event["seq"],
                     durable.all_obligations["all"],
                     durable.threads,
-                    durable.within,
                 )
-            )
+            ]
+            if _users_words_in_a_thread(event)
+            else None
         ):
             entry["waiting"] = waiting
+        if _users_words_in_a_thread(event) and event["id"] in settled:
+            entry["settled"] = settled[event["id"]]
         captured.append(entry)
     return {
         "page": str(page_dir),
         "claim": transaction.delivery_owner,
         "through_seq": max(event["seq"] for event in batch),
-        "threads": batch_threads(events, batch, within),
+        "threads": batch_threads(events, batch, reader.within),
         "events": captured,
     }
 
@@ -1121,15 +1139,26 @@ def deliverable(
     so input waits here only on a page whose renewal was refused, and the hooks name
     why (`hook_transport.remedies`).
 
+    Less, too, each waiting message of a thread a fork of the owner's conversation
+    is deciding on (`forks.held`), until the fork posts its line and hands it over
+    or the hold runs out, which keeps the watch from waking the session for it as
+    it arrives.
+
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. Codex's tool hook runs after every tool call, so it passes
     `received=False` and hands over only what the cursor has not passed, answered
     without loading the page's layer where nothing is pending; the adapter, or the
     Stop hook where no adapter runs, hands over the rest
-    (`harness.CodexHarness.offer_at_step`)."""
+    (`harness.CodexHarness.offer_at_step`). Claude Code's tool-boundary hook asks
+    the same before it folds its pages (`hook_transport.new_input`)."""
     pending = unacknowledged(page.events, page.cursor)
     if pending and (held := awaiting_receipt(page)):
         pending = [event for event in pending if event["id"] not in held]
+    if pending:
+        from .forks import held_inputs
+
+        if forked := held_inputs(page):
+            pending = [event for event in pending if event["id"] not in forked]
     owed = unreferenced(page, obligations) if received else []
     if not pending and not owed:
         return []

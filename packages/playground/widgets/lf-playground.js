@@ -27,7 +27,7 @@ import { createPlayground } from "./playground-view.js";
  * its sample roots.
  *
  * The working configuration is page state: the `tune` verb records it, and declares
- * `attention: false`, since it is what the user hasn't sent. So a reload, every tab,
+ * `unsent`, since it is what the user hasn't sent. So a reload, every tab,
  * another browser and the agent's page state all read the same settings, and a comment
  * on the preview names a configuration the log holds. The controls draw
  * `#values` at once and record them when a gesture ends: a press, a committed edit
@@ -46,7 +46,10 @@ import { createPlayground } from "./playground-view.js";
  * The submit control withdraws the current choice while its values and instruction
  * match the working configuration; editing either makes it submit a replacement. Its
  * face derives from that comparison, never from delivery timing or a separate saved
- * flag.
+ * flag. Each draw resolves a provider's instruction once; the view, command availability,
+ * copying and submission consume that same text. An external input the element cannot
+ * observe requests an update, as other inputs outside its reading do. Command reads
+ * never call page code that prepares its next presentation.
  *
  * Under `actions="page"` the page draws the submission and Reset, and
  * `registerActions` hands this playground the two buttons. They become the controls of
@@ -68,7 +71,6 @@ import {
   onCurrentLocation,
   onPress,
   isNativeLayer,
-  keeps,
   LeafElement,
   render,
   registerReadingRegion,
@@ -186,6 +188,8 @@ customElements.define(
     #pause = 0;
     /** @type {((configuration: Configuration) => string) | null} */
     #instructionProvider = null;
+    /** @type {{value: string | null} | {error: unknown}} */
+    #renderedInstruction = { value: null };
     get #preview() {
       return this.#view.preview;
     }
@@ -229,16 +233,16 @@ customElements.define(
         const stops = this.#regions.map((region) => registerReadingRegion(region));
         stops.push(onPress((start) => this.#holdRangePreview(start, signal)));
         // The narrow layout places shared controls above the stage. Their actual
-        // height is also the landing inset for its content and any sticky toolbar.
+        // height is also the landing inset for its content and any sticky toolbar. A
+        // quoted playground draws only its authored markup, with neither.
         const controls = this.#regions.find((region) => region.name === "controls");
         /** @type {HTMLElement | null} */
         const split = this.querySelector(":scope > .lf-playground-split");
-        if (!split) throw new Error("The playground needs its rendered split view");
         const observer = sizeObserver((entries) => {
           for (const entry of entries) {
             const box = entry.borderBoxSize[0];
             if (!box) continue;
-            split.style.setProperty(
+            split?.style.setProperty(
               "--playground-controls-height",
               `${box.blockSize}px`,
             );
@@ -378,7 +382,7 @@ customElements.define(
           if (!choice || choice.closest("lf-playground") !== this) return;
           if (reachedForWords(choice) || worksInside(target, choice)) return;
           /** @type {HTMLInputElement | null} */
-          const radio = choice.querySelector(":scope > .choice > input");
+          const radio = choice.querySelector(":scope > .lf-choice > input");
           if (!radio) throw new Error("A playground choice needs its rendered radio");
           focusDestination(radio, "press");
           radio.click();
@@ -403,16 +407,17 @@ customElements.define(
             });
             this.#draw();
           });
-        const { reveal, instruction } = initial;
+        const { instruction } = initial;
         // Leaf's copy control in the popover's head. A code block's (`copyBlock`) hides
         // while its block is away and came back a frame or more after the popover
         // opened, after a Tab had passed it by. A page that draws its own actions
         // shows the instruction where it was written, with no popover to copy from.
         if (instruction) {
-          const copy = copyControl("lf-quiet-action lf-playground-copy", {
+          const copy = copyControl("lf-playground-copy", {
             label: "Copy instruction",
             success: "Instruction copied",
             error: "Unable to copy instruction",
+            role: "symbol",
           });
           copy.addEventListener(
             "click",
@@ -422,14 +427,7 @@ customElements.define(
             { capture: true },
           );
           initial.copy = copy;
-          instruction.addEventListener("toggle", (event) => {
-            keeps(
-              reveal,
-              "aria-expanded",
-              event instanceof ToggleEvent && event.newState === "open",
-            );
-            commandsChanged(this);
-          });
+          instruction.addEventListener("toggle", () => commandsChanged(this));
         }
         this.addEventListener("mousedown", (event) => {
           const target = event.target;
@@ -678,8 +676,9 @@ customElements.define(
     }
 
     #instruction() {
-      const provided = this.#providedInstruction();
-      if (provided !== null) return provided;
+      if ("error" in this.#renderedInstruction) throw this.#renderedInstruction.error;
+      if (this.#renderedInstruction.value !== null)
+        return this.#renderedInstruction.value;
       return says(this.#view.output, { format: "lines" }).trim();
     }
 
@@ -742,9 +741,15 @@ customElements.define(
           ...Object.fromEntries(unsent),
         });
       }
+      try {
+        this.#renderedInstruction = { value: this.#providedInstruction() };
+      } catch (error) {
+        this.#renderedInstruction = { error };
+        throw error;
+      }
       const template = this.#view.render({
         values: this.#values,
-        instruction: this.#providedInstruction(),
+        instruction: this.#renderedInstruction.value,
         chosen: () => this.#chosen(),
       });
       this.#paint();

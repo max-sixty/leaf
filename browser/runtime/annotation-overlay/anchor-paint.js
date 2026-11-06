@@ -14,9 +14,17 @@ import {
   targetSegments,
   targetSurface,
 } from "../resolved-target.js";
-import { elementFromPointAcross, pageWords, rangeOf } from "../passages.js";
+import {
+  closestAcross,
+  elementFromPointAcross,
+  pageWords,
+  rangeOf,
+} from "../passages.js";
+import { WORKS } from "../control-selectors.js";
 import { bareReaction } from "../thread/model.js";
 import { under } from "../shadow.js";
+import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
+import { keepsOnOne } from "../keeps.js";
 import { annotationsHidden } from "./annotation-layer.js";
 
 const MARK = "lf-mark";
@@ -97,9 +105,9 @@ export function createAnchorPaint({
     // to an element after its draft (and thus its last annotation) has disappeared.
     const active = visibleFocus();
     // Page controls need the same cue whether or not an author gave them an id.
-    // Private controls and a face wearing another control's ring keep that paint, and
-    // so does an obligation the user arrived at: its location ring (chrome.css) is its
-    // focus cue, and a projected contour beside it drew a second line round it.
+    // Private controls and a face wearing another control's ring keep that paint. An
+    // obligation the user arrived at needs none: its location ring (target-paint.js) is
+    // its focus cue.
     // Read that owner's current location too: its reflected attribute may still
     // describe the previous location until the mechanical repaint.
     const obligation = currentLocationObligation();
@@ -231,6 +239,14 @@ export function createAnchorPaint({
     return null;
   }
 
+  // The hand over a mark is a paint on the document's element under the pointer (a
+  // shadow tree's host, whose cursor its tree inherits), which the margin's page
+  // observer does not hear (page-paint.js) and whose cursor reaches only what it holds.
+  // A class on `body` ran a margin pass at each change and restyled the whole body. It
+  // stands only where a press opens the thread: a control or editing region keeps its
+  // own press there (composing/surface.js, the page's click), and so its own cursor.
+  const paintHand = keepsOnOne(RUNTIME_PAINT_ATTRIBUTE.overMark);
+
   // Hover reads the pointer, and the rows and margin entries it is on, inside the
   // scheduled frame. Capturing a node at event time would leave reconciliation able to
   // replace it before paint.
@@ -240,7 +256,9 @@ export function createAnchorPaint({
       hoverFrame = 0;
       const at = pointer();
       const onMark = markAt(at.x, at.y);
-      document.body.classList.toggle("lf-over-mark", Boolean(onMark));
+      const presses =
+        onMark && !closestAcross(elementFromPointAcross(at.x, at.y), WORKS);
+      paintHand(presses ? document.elementFromPoint(at.x, at.y) : null);
       const row = rowThread();
       const id = row ?? onMark;
       if (id !== hovering || Boolean(row) !== hoverFromRow)
@@ -331,6 +349,7 @@ export function createAnchorPaint({
     mounted = false;
     if (hoverFrame) cancelRender(hoverFrame);
     hoverFrame = 0;
+    paintHand(null);
     const before = outlined();
     marked.clear();
     pendingOutline = [];

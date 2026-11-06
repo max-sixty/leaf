@@ -193,7 +193,7 @@ export const storedDraft = (ctx) => {
 };
 /** @param {string} attempt */
 const attemptAccepted = (attempt) =>
-  runtime.receipts.some((event) => event.attempt === attempt);
+  runtime.events.some((event) => event.attempt === attempt);
 /** @param {string} ctx @param {DraftRecord} record */
 const writeDraftRecord = (ctx, record) =>
   draftStore.set(DRAFT + ctx, JSON.stringify(record));
@@ -793,11 +793,16 @@ document.addEventListener("input", (event) => {
   });
   if (editor) rememberWriting(editorInput(editor));
 });
-document.addEventListener("keyup", (event) => {
-  // The gesture's end, not `selectionchange`, which fires on every typed character and
-  // every step of a drag: the place is stored once per gesture.
-  if (CARET_KEYS.includes(event.key) || selectsAll(event)) keepWritingCaret();
-});
+// In capture, since a key typed in the editor stops at it (field-keys.js).
+document.addEventListener(
+  "keyup",
+  (event) => {
+    // The gesture's end, not `selectionchange`, which fires on every typed character and
+    // every step of a drag: the place is stored once per gesture.
+    if (CARET_KEYS.includes(event.key) || selectsAll(event)) keepWritingCaret();
+  },
+  true,
+);
 document.addEventListener("pointerup", keepWritingCaret);
 
 /** @param {string} prefix @param {(ctx: string) => EditorDestination | null} reveal */
@@ -832,7 +837,8 @@ function moveToPage(ctx) {
 // written under still stands; any other draft is held by a route declared for its kind
 // or an editor registered for it, each for its owner's lifetime.
 /** @param {{revealInThread: (ctx: string, intent: ReturnType<typeof retainUserIntent>) => Promise<Element | null | undefined>,
- * arriveEditor: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["arriveEditor"], holdsThreadDraft: (ctx: string) => boolean}} options */
+ * arriveEditor: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["arriveEditor"], holdsThreadDraft: (ctx: string) => boolean}} options
+ * @returns {import("./keyboard/bindings.js").Command} */
 export function createWritingResume({
   revealInThread,
   arriveEditor,

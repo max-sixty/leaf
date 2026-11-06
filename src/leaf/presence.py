@@ -18,6 +18,7 @@ from .activity import (
     undeclared,
 )
 from .files import file_stamp
+from .forks import forked, lane_since
 from .harness import claim_harness
 from .leases import lock_is_held, wait_is_live, waiter_lease_path
 from .page_memory import memo
@@ -157,13 +158,15 @@ def other_leaves(page_dir: Path) -> list:
     return [entry for candidate, entry in live_leaves() if candidate != own]
 
 
-def live_leaves(among: set[Path] | None = None) -> list:
-    """Each live page that is not closed, by its directory, with its row entry, in
-    title order (`other_leaves` says what each costs and holds); only those `among`
-    resolved page directories, where given, whose leases alone it then checks."""
-    from .server_rows import read_row, row_path
+def live_servers(among: set[Path] | None = None):
+    """Each page a row names whose server holds its lease, by its directory, with
+    its row record and running service (`server.running_server`); only those
+    `among` resolved page directories, where given, whose leases alone it then
+    checks. Every such server serves with this state home's key
+    (`server.host_key`). The row of a page whose lease no process holds is deleted
+    here (`other_leaves`)."""
+    from .server_rows import row_path
 
-    leaves = []
     for candidate, record in neighbor_candidates():
         if among is not None and candidate not in among:
             continue
@@ -173,12 +176,23 @@ def live_leaves(among: set[Path] | None = None) -> list:
         # every open page's state read on the machine, blaming the page that asked.
         try:
             info = running_server(candidate)
-            if info is None:
-                if not lock_is_held(candidate / SERVER_LOCK):
-                    row_path(candidate).unlink(missing_ok=True)
-                continue
-            if record is None:
-                continue
+            if info is None and not lock_is_held(candidate / SERVER_LOCK):
+                row_path(candidate).unlink(missing_ok=True)
+        except Exception:
+            continue
+        if info is not None:
+            yield candidate, record, info
+
+
+def live_leaves(among: set[Path] | None = None) -> list:
+    """Each live page that is not closed, by its directory, with its row entry, in
+    title order (`other_leaves` says what each costs and holds); only those `among`
+    resolved page directories, where given, whose leases alone it then checks."""
+    from .server_rows import read_row
+
+    leaves = []
+    for candidate, record, info in live_servers(among):
+        try:
             row = read_row(candidate, info, record=record)
             if row is not None and row["activity"]["kind"] != "closed":
                 leaves.append(
@@ -258,11 +272,21 @@ def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> d
         "session_name": claim_harness(claim).session_name() if claim else None,
         # Whether a nudge would start the claimant's next turn (`Harness.input_wakes`).
         "input_wakes": bool(active and claim_harness(active).input_wakes()),
+        # When the claimant's fork lane came up, or None while none runs
+        # (`forks.lane_since`), which decides the threads a fork holds (`forked`).
+        "fork_lane": lane_since(active["id"]) if active else None,
     }
 
 
 # The keys `live_facts` returns.
-LIVE_FACTS = ("listening", "session_alive", "live_turn", "session_name", "input_wakes")
+LIVE_FACTS = (
+    "listening",
+    "session_alive",
+    "live_turn",
+    "session_name",
+    "input_wakes",
+    "fork_lane",
+)
 
 
 def page_agent(claim: dict | None, events: list) -> str:
@@ -316,6 +340,9 @@ def presence_with_activity(
         "status": status,
         **live_facts(page_dir, claim, process=process),
         "cursor": cursor,
+        # The user's waiting messages a fork of the claimant's conversation has taken
+        # on, which read On it while their delivery stands (`forks.forked`).
+        "forked": sorted(forked(page_dir, events, cursor, active)),
         # The user's number, not the watcher's: their own messages the agent
         # hasn't taken in. Reports ride the same cursor but are the agent's debt,
         # so the panel never tells a user that a worker's news is waiting on them.

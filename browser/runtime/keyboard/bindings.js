@@ -125,6 +125,7 @@
    `aria-keyshortcuts` and exposes the complete route through its title and the keyboard
    command reference. Call `paintKeys` when a state change moves row liveness so this projection
    and the visible surfaces change together. */
+export { PRESS, rowArrows } from "../control-keys.js";
 import { coarsePointer } from "../pointer.js";
 import { runtime } from "../context.js";
 
@@ -160,7 +161,7 @@ import { runtime } from "../context.js";
  * @property {boolean} [runFromCommandReference]
  * @property {boolean} [sequenceControl]
  * @property {() => boolean} [commandReferenceWhen]
- * @property {string} [menu]
+ * @property {import("../page-controls.js").PageControlGroup} [menu]
  * @property {keyof typeof import("../icon-paths.js").ACTIONS} [action]
  * @property {Cell<readonly CommandRoute[]>} [routes]
  * @typedef {CommandData & ({run?: (() => unknown) | undefined, runKey?: never} | {run?: never, runKey: (binding: string) => unknown})} Command
@@ -190,7 +191,7 @@ import { runtime } from "../context.js";
 
 // Which platform's spelling, and which modifier is the sequence's. Up here rather than beside
 // the text inputs because the spelling table below is the first thing that needs it.
-const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+export const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 // How a key is spelled, in one column. The line said "esc" where the overlay said "Esc"
 // for the same binding, and lf-options declared one pair of arrows twice, as "↑ / ↓" and
@@ -727,12 +728,6 @@ export function answers(binding, ev) {
 // canonical key spelling at registration. Computed titles and live conflicts are
 // validated when read, under the owner's current state. A title is mandatory;
 // bar wording defaults to it and additional reference detail is optional.
-/** Registration reads declared invocation capabilities, without evaluating live availability.
- * @param {Command} row @param {"run" | "runKey"} handler */
-export const declaresCommandHandler = (row, handler) =>
-  Boolean(Object.getOwnPropertyDescriptor(row, handler)?.get) ||
-  typeof row[handler] === "function";
-
 /** @template {readonly Command[]} T @param {T} rows @param {string} where @param {(() => boolean)} [ready] @returns {T} */
 export function checked(rows, where, ready) {
   declareCommandReadiness(rows, ready);
@@ -771,23 +766,19 @@ export function checked(rows, where, ready) {
   rows.forEach((row, i) => {
     if (!row) throw new TypeError(`${where}: row ${i + 1} is missing`);
     named(row);
-    // A live handler getter declares the capability even while its action is
-    // unavailable. Registration validates the declaration; dispatch reads it.
-    const declaresRun = declaresCommandHandler(row, "run");
-    const declaresRunKey = declaresCommandHandler(row, "runKey");
     if (row.decision && row.control == null)
       throw new Error(`leaf: ${row.id} is a Decision command with no control`);
     if (row.lands !== undefined && typeof row.lands !== "function")
       throw new TypeError(`leaf: ${row.id} lands must be a function`);
-    if (row.native && !declaresRun && !declaresRunKey)
+    if (row.native && !row.run && !row.runKey)
       throw new Error(
         `leaf: row ${i} of ${where} leaves the native press to the platform but runs no result`,
       );
-    if (row.exit && (!declaresRun || row.touch || row.routes))
+    if (row.exit && (!row.run || row.touch || row.routes))
       throw new Error(
         `leaf: ${row.id} is its stance's way out, which the panel's row offers in its own words, so it needs a run and no touch words or routes`,
       );
-    if (row.touch && (!declaresRun || row.routes))
+    if (row.touch && (!row.run || row.routes))
       throw new Error(
         `leaf: ${row.id} stands in for its keys under a finger, so it needs a run and makes one press, with no routes`,
       );
@@ -848,31 +839,6 @@ export function checked(rows, where, ready) {
   });
   return rows;
 }
-
-// What activates a focused button, stated once because it is the platform's fact and not
-// any one row's. Four rows spelled it by hand — the runtime's own control scope, a card
-// grip in each of its two states, and the version menu's row — and the fourth spelled it
-// short, naming Enter over a real <button> that answers Space too. A near-copy that has to
-// change whenever the original does is a primitive not yet extracted, and the drift here
-// was invisible: the key worked and the page under-promised it.
-//
-// A link is the case that keeps this honest. Enter follows an <a> and Space scrolls the
-// page, so All pages binds Enter alone and is right to — the shared fact is what a
-// button answers, not what a control does.
-export const PRESS = ["Enter", " "];
-
-// The arrows that step back and ahead along a row of controls, as `[back, ahead]`. Back
-// is the side the row's words run from: left in left-to-right text and right in
-// right-to-left text, where the first item stands at the right, as the ARIA tabs,
-// toolbar and slider patterns ask. Read from the directionality of the node the row
-// lays out in (`:dir()`), which the `dir` attributes around it decide, as the theme's
-// direction rules read it; a `direction` set in CSS alone moves neither. Key
-// availability asks this of every disclosure on the page, in the frame's pass after
-// other work has written to the document, so reading the computed `direction` made it
-// recalculate style for those writes, several times a comment on a page of diffs.
-/** @param {Element} node @returns {[string, string]} */
-export const rowArrows = (node) =>
-  node.matches(":dir(rtl)") ? ["ArrowRight", "ArrowLeft"] : ["ArrowLeft", "ArrowRight"];
 
 // The one-dimensional list policy. Every step inside the list clamps; a caller may name
 // the row where its own off-list arrival enters. A walk that comes round at its ends

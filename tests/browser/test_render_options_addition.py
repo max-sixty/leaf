@@ -18,7 +18,6 @@ from render_cases_layout import (
     token_colour,
 )
 from render_harness import (
-    EXAMPLES,
     consume_browser_errors,
     example_media,
     expect_error_waits_in_menu,
@@ -37,6 +36,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -466,7 +466,9 @@ def test_an_arrival_cannot_hide_an_obligation_draft(browser, serve):
     action = next(e for e in events_model.read_events(d) if e["kind"] == "action")
     assert action["detail"] == {"option": added.get_attribute("id"), "text": draft}
     open_threads(page)
-    expect(page.locator(f'.lf-fp-thread[data-key="{external["id"]}"]')).to_have_count(1)
+    expect(
+        page.locator(f'.lf-fp-thread[data-lf-key="{external["id"]}"]')
+    ).to_have_count(1)
 
 
 def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(browser, serve):
@@ -512,7 +514,7 @@ def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
     "Another option — add to select" to "Another option — ad…", which lost the verb.
     The hint says the same in words that fit, and the room it keeps is measured here
     rather than restated."""
-    example = next(p for p in EXAMPLES if p.stem == "alert-review")
+    example = named_source("alert-review")
     context = browser.new_context(
         viewport={"width": 360, "height": 740}, has_touch=True, is_mobile=True
     )
@@ -533,13 +535,23 @@ def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
 
 def test_a_closed_group_answers_only_from_its_options(browser, serve):
     """`closed` leaves out the field for an unlisted answer, so a page that draws its
-    own choice ends at its own options; the listed options still answer."""
+    own choice ends at its own options, holding no room for the field; the listed
+    options still answer."""
     page = open_page(
         browser, serve(OBLIGATION_PAGE.replace('id="jobs"', 'id="jobs" closed'))
     )
 
     expect(page.locator("#jobs > lf-option").first).to_be_visible()
     expect(page.locator("#jobs > .lf-another")).to_have_count(0)
+    expect(page.locator("#jobs > lf-options-done")).to_be_visible()
+    below_last_cell = page.locator("#jobs").evaluate(
+        """group => group.getBoundingClientRect().bottom - Math.max(
+          ...[...group.children].map((cell) => cell.getBoundingClientRect().bottom))"""
+    )
+    assert below_last_cell <= 2, below_last_cell
+    # Nor does it keep the field's number: Done takes the one after the last option.
+    page.keyboard.press("m")
+    expect(page.locator("#jobs > lf-options-done .lf-key-badge")).to_have_text("4")
 
 
 def test_another_option_becomes_a_real_option_without_starting_a_thread(browser, serve):
@@ -561,7 +573,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
         f"group={page.locator('#jobs').inner_html()}"
     )
     field = added.get_by_role("textbox", name="Another option", exact=True)
-    expect(field).to_have_attribute("placeholder", "Add another option")
+    expect(field).to_have_attribute("placeholder", "Add another option…")
     write(field, "Insulate the camera battery")
     add = added.get_by_role("button", name="Add and select option", exact=True)
     add.focus()

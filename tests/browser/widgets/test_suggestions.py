@@ -81,7 +81,9 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
         "second-change",
         "third-change",
     ], "reconnecting the first suggestion moved its controls after later source rows"
-    first_accept = page.locator("[data-lf-margin-for='first-change'] .lf-sug-accept")
+    first_accept = page.locator(
+        "[data-lf-margin-for='first-change'] [data-lf-margin-entry-key=accept]"
+    )
     first_accept.evaluate(
         """control => lfUnwatched(() => {
           control.disabled = true;
@@ -93,7 +95,9 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
         })"""
     )
     expect(first_accept).to_be_enabled()
-    page.locator("[data-lf-margin-for='first-change'] .lf-sug-accept").focus()
+    page.locator(
+        "[data-lf-margin-for='first-change'] [data-lf-margin-entry-key=accept]"
+    ).focus()
     walked = []
     for _ in range(3):
         walked.append(
@@ -113,19 +117,18 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
     assert walked == ["first-change", "second-change", "third-change"]
 
 
-@pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
-def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_motion):
+def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     """Suggestion chrome hangs in the page margin, so the prose keeps the full column
-    and reads as it will once the change is settled. The row is the column's own
-    child and takes its line from an anchor inside the change, so how deep the
+    and reads as it will once the change is settled. The row takes its line
+    from an anchor inside the change, so how deep the
     change sits costs it nothing: one inside a card — a positioned ancestor, which
     `left: 100%` used to resolve against, dropping the row back into the text —
     hangs in the rail beside its card like any other. What is left is a
     measurement no lint can make: where a row stands as a pin, it touches the change
     it decides, over none of the change's words, and stays on the page."""
     page = open_page(browser, serve(SUGGESTION_PAGE), init_script=HOLD_MOTION)
-    page.emulate_media(reduced_motion=reduced_motion)
-    column = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
+    # main includes the grid's margins; this paragraph fills its prose track.
+    column = page.locator("#replace").evaluate("el => el.getBoundingClientRect().right")
     box = "el => el.getBoundingClientRect()"
 
     margin_rows = page.locator(
@@ -266,7 +269,7 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
         card["top"] - 5 <= stands["top"] and stands["bottom"] <= card["bottom"] + 5
     ), "the row must travel with the moved card"
     assert card["left"] < stands["right"] <= card["right"] + 40, (stands, card)
-    row.locator(".lf-sug-accept").click()
+    row.locator("[data-lf-margin-entry-key=accept]").click()
     expect(page.locator("#sug-in-card lf-old")).to_be_hidden()
 
 
@@ -286,7 +289,9 @@ def test_an_undone_suggestion_stays_inline_among_the_words(browser, serve):
     form = "() => getComputedStyle(document.querySelector('#sug-store lf-new')).display"
     expect(page.locator("#replacement-name")).to_have_attribute("data-lf-inline", "")
     assert page.evaluate(form) == "inline"
-    page.locator("[data-lf-margin-for='sug-store'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-store'] [data-lf-margin-entry-key=accept]"
+    ).click()
     round_trip(page)
     expect(page.locator("#sug-store lf-old")).to_be_hidden()
     undo(page)
@@ -322,7 +327,7 @@ def test_a_row_waits_for_the_change_it_decides_to_be_on_screen(browser, serve):
     expect(waiting).to_be_visible()
     box = "el => el.getBoundingClientRect()"
     row = waiting.evaluate(box)
-    assert row["left"] > page.locator("main").evaluate(box)["right"], (
+    assert row["left"] > page.locator("#deferred").evaluate(box)["right"], (
         "the row must arrive in the margin, not over the prose that just opened"
     )
     assert (
@@ -349,7 +354,9 @@ def test_the_obligation_walk_lands_on_a_suggestion_the_reveal_just_opened(
     # control that answers it a thing the user can reach, which a display:none control
     # is not.
     expect(
-        page.locator("[data-lf-margin-for='sug-boxes'] .lf-sug-accept")
+        page.locator(
+            "[data-lf-margin-for='sug-boxes'] [data-lf-margin-entry-key=accept]"
+        )
     ).to_be_visible()
 
 
@@ -379,8 +386,8 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
         "an edited sentence must emphasize the words that moved, on both sides"
     )
     row = page.locator("[data-lf-margin-for='sug-refill']")
-    accept = row.locator(".lf-sug-accept")
-    reject = row.locator(".lf-sug-reject")
+    accept = row.locator("[data-lf-margin-entry-key=accept]")
+    reject = row.locator("[data-lf-margin-entry-key=reject]")
     assert accept.get_attribute("aria-label").startswith(
         "Accept the suggested change: Refill a feeder when"
     ), "the button names the proposal, not the text being replaced"
@@ -460,9 +467,9 @@ def test_a_pointer_decision_announces_without_needing_button_focus(browser, serv
     page = open_page(browser, serve(SUGGESTION_PAGE))
     assert page.evaluate("document.activeElement === document.body")
 
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").evaluate(
-        "button => button.click()"
-    )
+    page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).evaluate("button => button.click()")
 
     assert page.evaluate("document.activeElement === document.body")
     expect(page.locator(".lf-live")).to_have_text(
@@ -474,7 +481,9 @@ def test_a_pointer_decision_announces_without_needing_button_focus(browser, serv
 def test_a_settled_deletion_keeps_undo_on_the_containing_passage(browser, serve):
     """A pure deletion leaves no suggestion box, but Undo remains reachable."""
     page = open_page(browser, serve(PROPOSED_PAGE))
-    page.locator("[data-lf-margin-for='sug-delete'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-delete'] [data-lf-margin-entry-key=accept]"
+    ).click()
 
     expect(page.locator("#sug-delete")).to_be_hidden()
     undo = page.get_by_role("button", name=re.compile(r"^Undo accepting"))
@@ -495,7 +504,7 @@ def test_a_settled_boxless_suggestion_keeps_its_own_margin_identity(browser, ser
     item = page.locator("[data-lf-margin-for='sug']")
     assert item.evaluate("row => row.lfTarget.id") == "sug"
 
-    item.locator(".lf-sug-accept").click()
+    item.locator("[data-lf-margin-entry-key=accept]").click()
     expect(
         item.get_by_role("button", name=re.compile(r"^Undo accepting"))
     ).to_be_visible()
@@ -509,13 +518,13 @@ def test_a_refused_undo_keeps_the_outcome_and_its_undo(browser, serve):
     counter-decision."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
     row = page.locator("[data-lf-margin-for='sug']")
-    reject = row.locator(".lf-sug-reject")
+    reject = row.locator("[data-lf-margin-entry-key=reject]")
     with sending(page, "the decision to be withdrawn"):
         unfolded_button(reject).click()
     expect(reject).to_have_count(0)
     undo_button = row.get_by_role("button", name=re.compile(r"^Undo rejecting"))
     expect(undo_button).to_have_attribute("data-lf-margin-entry-primary", "")
-    expect(row.locator(".lf-sug-accept")).to_be_hidden()
+    expect(row.locator("[data-lf-margin-entry-key=accept]")).to_be_hidden()
     expect(row.locator(".lf-margin-receipt")).to_have_count(0)
     expect(row).not_to_contain_text("Rejected")
     decision = next(
@@ -554,7 +563,9 @@ def test_a_refused_undo_keeps_the_outcome_and_its_undo(browser, serve):
     expect(page.locator("#sug")).not_to_have_attribute(
         "data-lf-state", re.compile(".+")
     )
-    expect(page.locator("[data-lf-margin-for='sug'] .lf-sug-accept")).to_be_visible()
+    expect(
+        page.locator("[data-lf-margin-for='sug'] [data-lf-margin-entry-key=accept]")
+    ).to_be_visible()
     logged = events_model.read_events(serve.page_dir)
     assert [event["undoes"] for event in logged if event["kind"] == "undo"] == [
         decision["id"]
@@ -581,7 +592,9 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(browser, serve
         ("accept", "Accepted", False),
         ("reject", "Rejected", True),
     ):
-        control = page.locator(f"[data-lf-margin-for='sug'] .lf-sug-{outcome}")
+        control = page.locator(
+            f"[data-lf-margin-for='sug'] [data-lf-margin-entry-key={outcome}]"
+        )
         (unfolded_button(control) if folded else control).click()
         expect(page.locator(".lf-live")).to_have_text(
             f"{verb} suggested change: Retry three times."
@@ -632,7 +645,7 @@ def test_a_decided_change_folds_away_rather_than_vanishing(engine, request, serv
     assert tall > 0
     below = after.evaluate("el => el.getBoundingClientRect().top")
 
-    page.locator("[data-lf-margin-for='sug'] .lf-sug-accept").click()
+    page.locator("[data-lf-margin-for='sug'] [data-lf-margin-entry-key=accept]").click()
     # The state lands in the frame of the press. Its fold then carries the pixels toward
     # that already-current reading while the outbox carries it toward the log.
     expect(page.locator("#sug[data-lf-state='accept']")).to_have_count(1)
@@ -690,7 +703,7 @@ def test_a_decided_change_folds_away_rather_than_vanishing(engine, request, serv
     round_trip(page)
     undo(page)
     expect(old).to_be_visible()
-    page.locator("[data-lf-margin-for='sug'] .lf-sug-accept").click()
+    page.locator("[data-lf-margin-for='sug'] [data-lf-margin-entry-key=accept]").click()
     round_trip(page)
     page.evaluate(
         "() => { const m = window.__lfHeld.at(-1);"
@@ -718,7 +731,7 @@ def test_a_user_who_asked_for_less_motion_gets_the_collapse_at_once(browser, ser
     page = open_page(
         browser, serve(SHORT_SUGGESTION), context=context, init_script=HOLD_MOTION
     )
-    page.locator("[data-lf-margin-for='sug'] .lf-sug-accept").click()
+    page.locator("[data-lf-margin-for='sug'] [data-lf-margin-entry-key=accept]").click()
     expect(page.locator("#sug lf-old")).to_be_hidden()
     assert page.evaluate("() => window.__lfHeld.length") == 0, (
         "a user who asked for less motion was given a fold to sit through"
@@ -736,14 +749,16 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
 
     # A press after a semantic change resolves the current open inventory rather than
     # replaying the list from an earlier reading.
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).click()
     expect(
         page.locator("[data-lf-margin-for='sug-refill']").get_by_role(
             "button", name=re.compile(r"^Undo accepting")
         )
     ).to_be_enabled()
     expect_accept_all(page, 2)
-    panel_menu(page).locator('.lf-fp-item[data-row="blanket:accept"]').click()
+    panel_menu(page).locator('.lf-fp-item[data-lf-row="blanket:accept"]').click()
 
     for widget in ("sug-refill", "sug-thistle", "sug-in-card"):
         expect(page.locator(f"#{widget} lf-new")).to_be_visible()
@@ -787,7 +802,7 @@ def test_a_refused_decision_returns_to_pending(held_events, serve):
     browser, held = held_events
     page = open_page(browser, serve(SUGGESTION_PAGE))
     item = page.locator('[data-lf-margin-for="sug-refill"]')
-    item.locator(".lf-sug-accept").click()
+    item.locator("[data-lf-margin-entry-key=accept]").click()
 
     holding(page, held, 1, "the accepted suggestion")
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
@@ -807,7 +822,7 @@ def test_a_refused_decision_returns_to_pending(held_events, serve):
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
     assert page.locator("#sug-refill").get_attribute("data-lf-state") is None
     expect(item.locator(".lf-margin-receipt")).to_have_count(0)
-    expect(item.locator(".lf-sug-accept")).to_be_visible()
+    expect(item.locator("[data-lf-margin-entry-key=accept]")).to_be_visible()
     expect(page.locator("#sug-refill")).not_to_have_attribute("aria-busy", "true")
     # And the page's own count is derived from that, so it comes back too.
     expect_accept_all(page, 3)
@@ -817,7 +832,7 @@ def test_a_refused_decision_returns_to_pending(held_events, serve):
     assert actions(serve.page_dir) == []
 
     page.unroute("**/api/event")
-    item.locator(".lf-sug-accept").click()
+    item.locator("[data-lf-margin-entry-key=accept]").click()
     round_trip(page)
     logged = actions(serve.page_dir)
     assert [
@@ -850,7 +865,9 @@ def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
     # retry reuses the identity whose answer was lost.
     page.route("**/api/state*", refuse)
     page.route("**/api/event", lose_first_answer)
-    accept = page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept")
+    accept = page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    )
     with page.expect_event(
         "requestfailed", predicate=lambda request: "/api/event" in request.url
     ):
@@ -860,7 +877,9 @@ def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
 
     expect(accept).to_have_count(0)
     expect(
-        page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-reject")
+        page.locator(
+            "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=reject]"
+        )
     ).to_have_count(0)
     holding(page, requests, 2, "the retried decision")
     assert accepted == [200]
@@ -881,12 +900,12 @@ def test_an_optimistic_decision_stays_plain_while_delivery_waits(held_events, se
     browser, held = held_events
     page = open_page(browser, serve(SUGGESTION_PAGE))
     row = page.locator("[data-lf-margin-for='sug-refill']")
-    accept = row.locator(".lf-sug-accept")
+    accept = row.locator("[data-lf-margin-entry-key=accept]")
     resting = accept.bounding_box()
     accept.click()
     holding(page, held, 1, "the accepted suggestion")
-    expect(row.locator(".lf-sug-accept")).to_have_count(0)
-    expect(row.locator(".lf-sug-reject")).to_have_count(0)
+    expect(row.locator("[data-lf-margin-entry-key=accept]")).to_have_count(0)
+    expect(row.locator("[data-lf-margin-entry-key=reject]")).to_have_count(0)
     assert len(held) == 1
 
     suggestion = page.locator("#sug-refill")

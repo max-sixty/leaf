@@ -5,6 +5,7 @@
    that loops over tag names or repeats that traversal is a closed list in another form. CSS selectors
    follow the same rule: a list of framed widget tags is still a closed consumer. */
 
+import { installLanguagePaths } from "./language-paths.js";
 import { runtime } from "./context.js";
 import { isElementName } from "./registry-contract.js";
 
@@ -18,14 +19,31 @@ export const registry = runtime.registry;
 /** @param {string} name */
 export const tokenEntry = (name) => registry.$reactions?.tokens[name];
 
+// A reading of the vocabulary, kept until its generation says the vocabulary changed,
+// since a reader that asks for each command a page declares redoes it many times for
+// one input.
+/** @template T @param {() => T} read @returns {() => T} */
+export function perVocabulary(read) {
+  /** @type {{generation: string, value: T} | undefined} */
+  let kept;
+  return () => {
+    const generation = registry.$layer?.generation;
+    if (kept && kept.generation === generation) return kept.value;
+    const value = read();
+    if (generation) kept = { generation, value };
+    return value;
+  };
+}
+
 // Ordinary keys are the authoring vocabulary: exact custom-element names and CSS
 // selectors. Only exact names are widget declarations; `lf-options.selected` is
 // an idiom selector, by the `$names.widget` grammar Python reads too. Every widget
 // traversal goes through this owner rather than treating all vocabulary as widgets.
 /** @typedef {import("../types/contract.js").WidgetDeclaration} WidgetDeclaration */
-/** @returns {[string, WidgetDeclaration][]} */
-export const elementDeclarations = () =>
-  Object.entries(registry).filter(([tag]) => isElementName(tag));
+/** @type {() => readonly [string, WidgetDeclaration][]} */
+export const elementDeclarations = perVocabulary(() =>
+  Object.entries(registry).filter(([tag]) => isElementName(tag)),
+);
 
 // Take in the fetched vocabulary. A verb's writer is read from `$states`
 // (`registry-contract.js`), where composition stamped it.
@@ -36,6 +54,7 @@ export function adoptRegistry(declarations) {
   for (const [name, value] of Object.entries(declarations))
     if (name.startsWith("$")) freeze(value);
   Object.assign(registry, declarations);
+  if (declarations.$languages) installLanguagePaths(declarations.$languages.paths);
 }
 
 /** @param {unknown} value */

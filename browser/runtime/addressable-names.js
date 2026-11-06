@@ -6,7 +6,7 @@
  * reader, so generated chrome never names anything. */
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
-import { authoredScope, elementReading } from "./passages.js";
+import { authoredScope, elementReading, HEADING } from "./passages.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { uiInside, upFrom } from "./shadow.js";
 import { excerptWords } from "./words.js";
@@ -86,7 +86,7 @@ export function addressableSays(addressable) {
 // An element the contract gives no name answers "". The server names an obligation's
 // element by the same rule off the document (`gesture_words.element_name`), and
 // `tests/name_cases.json` holds both to the same cases.
-const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";
+const TITLES = `summary, ${HEADING}, strong`;
 /** The element whose words name `container` by that rule, or null. */
 /** @param {Element} container @returns {Element | null} */
 export function leadingTitle(container) {
@@ -159,7 +159,11 @@ export function addressableLabel(element) {
   if (own) return own;
   if (saysItself(element)) return excerptWords(addressableSays(element), LABEL_WORDS);
   const scope = authoredScope(element);
-  for (let at = upFrom(element); at && at !== scope; at = upFrom(at)) {
+  // The page's column is `main`, beside the body's other content; its leading heading
+  // titles the page, not each unnamed element in it.
+  const column = (/** @type {Element} */ at) =>
+    at.localName === "main" && at.parentElement === scope;
+  for (let at = upFrom(element); at && at !== scope && !column(at); at = upFrom(at)) {
     const name = ownName(at);
     if (name) return name;
   }

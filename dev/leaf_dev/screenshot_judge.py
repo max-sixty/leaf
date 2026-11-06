@@ -15,8 +15,8 @@ def screenshot_judge(screenshots: Path | None, login: Path) -> dict:
     """Prepare an isolated seed that keeps the host's login shared.
 
     The caller retires the seed with its run's temporary resources. Import the
-    current harness setup here, before UI review freezes its configuration, so a
-    staged helper's later calls depend only on the prepared seed and standard library.
+    harness setup here because the Promptfoo adapter runs this file as a script for
+    each judge call, where it needs only the prepared seed and the standard library.
     """
     from leaf_dev.arms import JUDGE_MODELS, codex_home, codex_program
 

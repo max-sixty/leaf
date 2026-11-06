@@ -2,9 +2,9 @@
 what is on the agent, and what each has finished (`done`).
 
 Every user row is an obligation record (`obligations.py`): a message request,
-a user task, a widget's input, or an update handed back for
-resending (`workflows.handed_over`). Each source owns completion: conversational
-requests take a reply, tasks take explicit Done, widgets take their declared answer.
+a widget's input, or an update handed back for resending (`workflows.handed_over`).
+Each source owns completion: conversational requests take a reply, widgets take their
+declared answer.
 A browser view serves these lists and `page state` prints them, so their counts and
 membership agree. The browser places its own unresolved sends against the served
 lists (`browser/runtime/framework/application.js`, `localQueues`); it never selects
@@ -24,15 +24,14 @@ That row joins the row of an open obligation on the page the thread is about
 while the thread awaits its word), since an obligation and the thread about it are one
 place: an answer about a decision rides on the decision's row. Each record still settles
 by its own rule, so a decision answered leaves the thread's records on a row of their own
-until the user replies or resolves the thread. A user's to-do keeps a row of its own,
-since it takes its own Done.
+until the user replies or resolves the thread.
 
 A row names its kind (its record's `source.kind`, or `todo`), its subject, the list it
 stands on (`owner`), the thread it stands in, the records it carries beside its own
 (`also`), and whether the agent has it in hand now (`live`): a to-do a start holds, or
 an update the agent is at work on whose work has not gone quiet or stopped. A row names
 its record by `id` and carries no copy of it: the view serves each obligation record in
-`obligations`; an agent to-do row instead reads the page's `todos`. The browser's publisher joins each row to its current record. On <agent>
+`obligations`; a to-do row instead reads the page's `todos`. The browser's publisher joins each row to its current record. On <agent>
 orders the updates by their strongest workflow (`work.served_workflows`), the order
 every surface showing one of several reads.
 
@@ -52,12 +51,12 @@ from ..registry.schema import aware_instant
 
 
 def _todo_item(todo: dict) -> dict:
-    """One to-do on the list of its `owner`. It names the to-do by `id`; the record is
-    the page's `todos` entry."""
+    """One to-do on the agent's list. It names the to-do by `id`; the record is the
+    page's `todos` entry."""
     return {
         "kind": "todo",
         "id": todo["id"],
-        "owner": todo["owner"],
+        "owner": "agent",
         "subject": todo["subject"],
         "thread": todo["thread"],
         "live": todo["running"] is not None,
@@ -67,7 +66,7 @@ def _todo_item(todo: dict) -> dict:
 def _subject(record: dict) -> dict:
     """What a record's row stands on: an update's own subject, a widget, or the page."""
     source = record["source"]
-    if source["kind"] in {"update", "todo"}:
+    if source["kind"] == "update":
         return source["subject"]
     if source["kind"] == "message":
         return {"kind": "thread", "id": record["thread"]}
@@ -91,8 +90,8 @@ def _record_row(record: dict, owner: str, live: bool = False) -> dict:
 
 
 def _on_user(records: list[dict], threads: dict, within: dict) -> list[dict]:
-    """On me's rows, one per place the user has a move at: requests and explicit tasks,
-    then the updates to send again."""
+    """On me's rows, one per place the user has a move at: requests, then the updates
+    to send again."""
     users = [record for record in records if record["next_actor"] == "user"]
     rows = []
     in_thread: dict[str, dict] = {}
@@ -139,8 +138,8 @@ def queues(
 ) -> dict:
     """Select records and to-dos once, by next actor.
 
-    `workflows` are served strongest first, `todos` are every to-do on either side,
-    open and ended, and `records` are the view's obligation records, the user's updates'
+    `workflows` are served strongest first, `todos` are every to-do, open and ended,
+    and `records` are the view's obligation records, the user's updates'
     included, in inventory order. `threads` are the page's threads by id and `within`
     the document's containment, which say what a thread is about."""
     open_todos = [todo for todo in todos if todo["state"] == "open"]
@@ -162,19 +161,13 @@ def queues(
         )
         for identity, held in serving.items()
     ]
-    on_agent += [_todo_item(todo) for todo in open_todos if todo["owner"] == "agent"]
+    on_agent += [_todo_item(todo) for todo in open_todos]
     done = [
         {
             **_record_row(
                 record, "agent" if record["source"]["kind"] == "update" else "user"
             ),
-            "state": "dropped"
-            if record["status"] == "withdrawn"
-            else (
-                record["answer"]["value"]
-                if record["source"]["kind"] == "todo"
-                else "done"
-            ),
+            "state": "dropped" if record["status"] == "withdrawn" else "done",
             "ended": ((record["end"] or record["answer"] or {}).get("event") or {}).get(
                 "ts"
             ),
@@ -191,7 +184,7 @@ def queues(
             "detail": (todo["outcome"] or {}).get("detail"),
         }
         for todo in todos
-        if todo["state"] != "open" and todo["owner"] == "agent"
+        if todo["state"] != "open"
     ]
     done.sort(
         key=lambda item: (

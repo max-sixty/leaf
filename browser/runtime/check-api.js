@@ -36,7 +36,8 @@ export {
   stackLevel,
   shownParts,
 } from "./geometry.js";
-export { skipped } from "./shown-box.js";
+export { skipped } from "./shadow-tree.js";
+export { windowHoldsRail } from "./content-layout.js";
 export { renderedParent, uiInside, upFrom } from "./shadow.js";
 export { authoredBody } from "./widget-elements.js";
 export {
@@ -52,6 +53,7 @@ export {
 export {
   layoutBox,
   pageDocument,
+  inPage,
   quoteFrom,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
@@ -75,7 +77,13 @@ export {
 } from "./keyboard/bindings.js";
 export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispatch.js";
 export { whereDraft, storedDraft, captureDraftEditing } from "./drafts.js";
-export { onCurrentLocation, releaseFocus, takesLetters, tabStops } from "./focus.js";
+export {
+  onCurrentLocation,
+  releaseFocus,
+  ringBox,
+  takesLetters,
+  tabStops,
+} from "./focus.js";
 export { selectionAnchor } from "./composing/capture.js";
 export { TEXT_BLOCK } from "./kernel-facts.js";
 export { renderingState } from "./rendering.js";
@@ -91,7 +99,7 @@ export { threadCounts } from "./thread/model.js";
 export { nativeLayers } from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
 export { fitsWhole, alreadyShown } from "./landing-scroll.js";
-export { scrollGlides, scrolling, watchScrollEnds } from "./arrivals.js";
+export { holdScroll, scrolling, watchScrollEnds } from "./arrivals.js";
 export { pageScopes } from "./keyboard/register.js";
 export {
   chromeSheet,
@@ -101,7 +109,6 @@ export {
   annotationMarkSheets,
 } from "./stylesheets.js";
 export { claimed } from "./thread/surfaces.js";
-export { runtimeRootState } from "./root-state.js";
 export { draftStore, userStore, PAGE_SCOPE } from "./storage.js";
 export { tabStore } from "./tab-store.js";
 export {

@@ -11,12 +11,13 @@ from render_harness import (
     open_page,
     open_threads,
     page_comment,
+    panel_menu,
     panel_settled,
     resized,
     write,
 )
 
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -181,6 +182,9 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     page.emulate_media(reduced_motion="no-preference")
     assert page.evaluate(reading) == {"reduced": False, "scroll": "smooth"}
 
+    # A glide shares a frame the page already asked for (rendering.js), so with none
+    # asked for, its frames are the ones held here.
+    rendered(page)
     page.evaluate(
         """() => {
           window.__lfFrames = [];
@@ -228,8 +232,7 @@ def test_coarse_pointer_panel_lists_give_humane_aims(browser, serve):
     humane(page.locator(".lf-fp-thread:visible"), "Threads row")
     page.locator(".lf-fp-close").tap()
     panel_settled(page, open=False)
-    page.locator(".lf-fp-leaf").tap()
-    humane(page.locator(".lf-fp-menu .lf-fp-item:visible"), "menu row")
+    humane(panel_menu(page, touch=True).locator(".lf-fp-item:visible"), "menu row")
 
 
 def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser, serve):
@@ -399,7 +402,7 @@ def test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink(
 
     Twenty-nine lifts once wrote fourteen geometries between them, so two menus beside
     each other stood at different heights for no reason anyone chose, and nothing kept
-    the next one from writing a fifteenth. The `--raise-*` tokens (base.css, beside
+    the next one from writing a fifteenth. The `--raise-*` tokens (tokens.css, beside
     --shade) are now the only declarations that write a blur; every other rule, a
     filter's drop-shadow() included, names one, with a hairline or ring beside it where
     its edge needs one.

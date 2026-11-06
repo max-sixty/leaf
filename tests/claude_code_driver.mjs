@@ -111,6 +111,9 @@ const $ = {
   env: {
     get: async (name) => options.env?.[name],
   },
+  clock: {
+    now: async () => Date.now(),
+  },
   ui: {
     // A line for Claude Code's debug log prints as `{"debug": <text>}`.
     log: (text, options) =>
@@ -191,6 +194,9 @@ function drawn(key, node = band.terminal) {
   }
 }
 
+// The events whose hooks stream, as Claude Code's declarations name them.
+const STREAMING = new Set(["turn.step"]);
+
 // The driver raises each event it is given, so a matcher selects nothing here but
 // a render hook's component, under which it files the hook: `ui.render:<component>`.
 await register((event, ...rest) => {
@@ -210,9 +216,24 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
     print({ flushed: true });
     continue;
   }
+  // A streaming event's hook is an async generator over the stream beneath, here
+  // one that yields nothing and returns the input it reached.
+  const streams = STREAMING.has(emit);
   const chain = (hooks.get(emit) ?? []).reduceRight(
     (next, hook) => (input) => hook($, input, next),
-    async (input) => input,
+    streams
+      ? async function* (input) {
+          yield* [];
+          return input;
+        }
+      : async (input) => input,
   );
-  print({ event: emit, result: (await chain(e)) ?? null });
+  let result = chain(e);
+  if (streams) {
+    let step;
+    do step = await result.next();
+    while (!step.done);
+    result = step.value;
+  }
+  print({ event: emit, result: (await result) ?? null });
 }

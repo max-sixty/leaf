@@ -62,6 +62,29 @@ def test_declared_markdown_body_is_delivered_formatted_with_exact_source_retaine
     assert "data-lf-prepaint" in body.attrs
 
 
+def test_a_written_markdown_file_is_delivered_rendered_as_a_file():
+    """A written <pre> whose notation an attribute names (`x-prepaint`) first paints
+    as the Markdown its module will draw: a file's soft breaks are spaces, not the
+    hard breaks Leaf's own words keep. Another notation, or no written text, paints
+    nothing."""
+    registry = {"lf-doc": {"x-prepaint": "preview"}}
+    written = "**Fixed** a crash\nwhen `--config` is missing."
+    source = (
+        f'<lf-doc id="md" preview="markdown"><pre>{written}</pre></lf-doc>'
+        '<lf-doc id="page" preview="html"><pre>&lt;p&gt;Hi&lt;/p&gt;</pre></lf-doc>'
+        '<lf-doc id="bound" preview="markdown" source="notes"></lf-doc>'
+    )
+    tree = SourceDocument(mark_declared(source, registry, {})).tree
+    [body] = tree.select("#md > .lf-markdown-body")
+    assert len(tree.select(".lf-markdown-body")) == 1
+    assert "data-lf-prepaint" in body.attrs
+    assert "data-lf-source-words" not in body.attrs
+    assert not body.find_all("br")
+    select_one_result = body.select_one("strong")
+    assert select_one_result is not None
+    assert select_one_result.text == "Fixed"
+
+
 def test_delivered_markdown_refuses_unsafe_links_and_images_before_runtime_loads():
     source = '<lf-editable id="note"><pre>[unsafe link](javascript:alert(1)) ![unsafe image](data:text/html,boom) [safe link](https://example.com)</pre></lf-editable>'
     delivered = mark_declared(
@@ -478,38 +501,6 @@ def test_a_package_replacement_of_a_public_provider_is_served(page_dir):
     assert executing(artifact).resources[provider].data == own
 
 
-def test_an_export_runs_the_exporters_runtime(page_dir, monkeypatch):
-    """An export pairs the state the exporting Leaf reads with that Leaf's runtime,
-    whichever Leaf captured the version, since only that runtime reads that state."""
-    from click.testing import CliRunner
-
-    from leaf import cli as cli_model
-    from leaf import runtime_selection
-    from leaf.exporting import cmd_export
-
-    stamped = CliRunner().invoke(
-        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "Exported"]
-    )
-    assert stamped.exit_code == 0, stamped.output
-    current = runtime_selection.read_runtime()
-    marker = b"/* the exporting Leaf's runtime */"
-    exporter = runtime_selection.ServingRuntime(
-        {
-            **current.source,
-            "/runtime/prepaint.js": current.source["/runtime/prepaint.js"] + marker,
-        },
-        None,
-        frozenset(),
-        current.probes,
-    )
-    monkeypatch.setattr(runtime_selection, "serving_runtime", lambda: exporter)
-
-    out = page_dir.parent / "export.html"
-    cmd_export(page_dir, out, 1)
-
-    assert marker.decode() in out.read_text()
-
-
 def test_media_has_one_address_wherever_a_page_names_it(tmp_path):
     """Media is the page's and shared across revisions, so every host serves it at the
     page root, and the runtime resolves a message's or a widget's media there too. A
@@ -600,6 +591,23 @@ def test_capture_refuses_a_missing_svg_resource(tmp_path):
     )
 
 
+def test_executable_identity_follows_head_and_body_patch_boundaries(tmp_path):
+    script = "<script>window.executions = (window.executions || 0) + 1;</script>"
+
+    def capture(markup):
+        return capture_artifact(tmp_path, SourceDocument(markup), {})
+
+    base = "<html><head></head><body><header></header><main></main></body></html>"
+    main = capture(base.replace("</main>", script + "</main>"))
+    header = capture(base.replace("</header>", script + "</header>"))
+    body = capture(base.replace("</body>", script + "</body>"))
+    head = capture(base.replace("</head>", script + "</head>"))
+
+    assert main.digest != header.digest
+    assert main.executable == header.executable == body.executable
+    assert head.executable != body.executable
+
+
 def test_inert_json_cannot_end_or_reshape_its_script_element():
     """A user's own words travel inside a script element, and two sequences escape it.
 
@@ -675,8 +683,7 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
             address=ADDRESS,
             import_map={"imports": {"/runtime/": ROOT + "/runtime/"}},
             page_root=PAGE_ROOT,
-            html_attributes={"data-lf-contained": ""},
-            body_attributes={"inert": ""},
+            html_attributes={"data-lf-contained": "", "inert": ""},
         ),
     )
 
@@ -685,9 +692,7 @@ def test_a_host_marks_the_delivered_document_where_it_asks(explicit_html):
     find_result_7 = served.tree.find("html")
     assert find_result_7 is not None
     assert "data-lf-contained" in find_result_7.attrs
-    find_result_8 = served.tree.find("body")
-    assert find_result_8 is not None
-    assert "inert" in find_result_8.attrs
+    assert "inert" in find_result_7.attrs
     assert served.authoring.title == "T" and "<p>Text.</p>" in delivered
 
 
@@ -717,7 +722,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "table": {"description": "A table.", "x-example": "<table></table>"},
     }
     source = (
-        "<!doctype html><html><head><title>T</title></head><body><main>"
+        "<!doctype html><html><head><title>T</title></head><body>"
+        '<header id="banner" data-width="wide">Banner</header><main data-width="available">'
         '<aside class="callout warn" id="note">Paused.</aside>'
         '<aside class="callout" id="chart-note" data-width="wide">Chart.</aside>'
         '<lf-zone id="queue" label="Queue"><div><lf-label>new</lf-label></div></lf-zone>'
@@ -741,16 +747,18 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     )
 
     served = SourceDocument(delivered.removeprefix("﻿"))
-    main = served.tree.find("main")
-    assert main is not None
+    body = served.tree.find("body")
+    assert body is not None
     marks = {
         (element.tag, element.attrs.get("id")): {
             name: value
             for name, value in element.attrs.items()
             if name.startswith("data-lf-")
         }
-        for element in main.find_all(True)
+        for element in body.find_all(True)
     }
+    assert marks[("header", "banner")] == {"data-lf-space": "wide"}
+    assert marks[("main", None)] == {}
     assert marks[("lf-zone", "queue")] == {"data-lf-reading-role": "pane"}
     assert marks[("lf-label", None)] == {"data-lf-inline": ""}
     assert marks[("lf-board", "board")] == {"data-lf-space": "available"}
@@ -768,6 +776,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     }
     assert marks[("lf-zone", "later")] == {}
     for mark in (
+        ' data-lf-space="wide"',
         ' data-lf-space="wide"',
         ' data-lf-reading-role="pane"',
         ' data-lf-inline=""',

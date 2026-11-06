@@ -7,7 +7,8 @@
  * its context identifies one occurrence.
  */
 
-import { anchorKey, fragmentId } from "./anchor-coordinate.js";
+import { labelWords } from "./words.js";
+import { anchorKey, fragmentId, fragmentKey } from "./anchor-coordinate.js";
 import { documentChanged } from "./semantic-state.js";
 import {
   resolvedElement,
@@ -33,6 +34,7 @@ import {
   closestAcross,
   cut,
   contextAround,
+  fencedAt,
   neighbourhood,
   pageText,
   readingFrom,
@@ -52,6 +54,7 @@ import {
   settledAway,
 } from "./passages.js";
 import { registry, tagsDeclaring } from "./registry.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { PRESSABLE } from "./widget-elements.js";
 import { PRESSES, WORKS } from "./control-selectors.js";
 import {
@@ -405,22 +408,24 @@ export function anchorForPassage(segments, node) {
     segments.every((seg) => closestAcross(seg.node, DATUM) === onlyDatum)
       ? onlyDatum
       : null;
-  // Identity is the context for projected data. Neighbouring display values may reorder
-  // or repeat, so storing their words as prefix/suffix would make incidental layout a
-  // second, conflicting answer to which datum the user selected.
-  if (datum) {
-    const anchor = anchorForDatum(datum, quote ? { quote } : {});
-    if (anchor) return anchor;
-  }
+  const projected = datum && anchorForDatum(datum);
+  if (projected && !quote) return projected;
   const section = closestAcross(holder, ADDRESSABLE)?.id ?? null;
   if (!quote) return section === null ? null : { section };
-  const reading = pageText();
-  const [start, stop] = spanIn(reading, segments);
+  const page = pageText();
+  // Identity is the context for projected data: the display values beside a datum may
+  // reorder or repeat, so their words would make incidental layout a second,
+  // conflicting answer to which datum the user selected. Its own words still tell
+  // repeats within it apart, as the lines around each copy tell apart a line a text
+  // document holds twice, so a datum's context stops at its edges.
+  const reading = datum && projected ? fencedAt(page, datum) : page;
+  const base = projected || { section };
+  const [start, stop] = spanIn(page, segments);
   for (let width = CONTEXT; ; width *= 2) {
     const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
     const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
     const anchor = {
-      section,
+      ...base,
       quote,
       ...(prefix && { prefix }),
       ...(suffix && { suffix }),
@@ -462,9 +467,8 @@ const controlName = (control) =>
     ? accessibleName(control)
     : ownName(control) ||
       (control.matches(PRESSES)
-        ? (control instanceof HTMLElement ? control.innerText : "")
-            ?.trim()
-            .replace(/\s+/g, " ") || addressableWord(control)
+        ? labelWords(control instanceof HTMLElement ? control.innerText : "") ||
+          addressableWord(control)
         : "");
 /** @param {Element & Partial<Pick<HTMLInputElement, "labels">>} control */
 const controlFaces = (control) => [control, ...(control.labels ?? [])];
@@ -766,6 +770,20 @@ export function resolveAnchor(anchor) {
           ? datums.length > 0 &&
             basis.getAttribute("data-lf-identity") === anchor.identity
           : basis.getAttribute("data-lf-source-revision") === anchor.source_revision));
+    // A widget that has yet to report a draw shows no revision at all, as a closed tab's
+    // document does until it draws after presentation (lf-text-document.js,
+    // `drawLater`), so an anchor on its data stands on the widget, not on earlier data.
+    if (
+      !basisMatches &&
+      source &&
+      !source.hasAttribute(PAGE_PAINT_ATTRIBUTE.drawReported)
+    )
+      return {
+        ...resolvedElement({ element: source }),
+        datumElement: null,
+        exact: false,
+        status: "fallback",
+      };
     if (!basisMatches) {
       const contextual = source?.lfDataDatum?.(anchor.datum, { outdated: true });
       const fallback =
@@ -781,7 +799,11 @@ export function resolveAnchor(anchor) {
       };
     }
     // A projection/key pair identifies exactly one current fact. Disappearance detaches
-    // and duplicates refuse to guess. Changed text falls back to the same datum element.
+    // and duplicates refuse to guess. Changed text falls back to the same datum element
+    // where the quote was all of the datum's words, so it named the datum, as a row's
+    // label does. A quote with datum words around it named a passage in the datum, such
+    // as a line of a text document, and once its words are gone it stands nowhere on the
+    // page, rather than at the top of the datum.
     if (datums.length > 1) return null;
     const [datum] = datums;
     if (!datum) {
@@ -803,6 +825,7 @@ export function resolveAnchor(anchor) {
       };
     const segments = findQuote(pageText(), anchor.quote, anchor, datum);
     const [first] = segments;
+    if (!first && (anchor.prefix || anchor.suffix)) return null;
     return first
       ? {
           ...resolvedPassage({
@@ -874,10 +897,37 @@ export function resolveAnchor(anchor) {
   });
 }
 
-// The page element a fragment names: the anchor `{section}` it spells, resolved as every
-// other anchor is, so an id in chrome, in a message's own markup, or on content a
-// revision settled away names nothing here. A fresh load's arrival, a followed link, and
-// a reply's reference all read their destination through this.
+/** @param {string} id */
+const pageElement = (id) => targetElement(resolveAnchor({ section: id }));
+
+// What a fragment names (anchor-coordinate.js, `fragmentKey`): the element whose id it
+// spells, read as the anchor `{section}` is, so an id in chrome, in a message's own
+// markup, or on content a revision settled away names nothing here. Failing that, a
+// widget and a key, whose `place` is the element the key addresses under the widget
+// (`addressedElements`) or null until the widget draws it (`revealAddressed`). A
+// fresh load's arrival, a followed link, Back and Forward, and a reply's reference all
+// read their destination through this.
+/** @param {string | null | undefined} fragment
+ * @returns {{element: Element, key: string | null, place: Element | null} | null} */
+export function fragmentAddress(fragment) {
+  if (!fragment) return null;
+  const named = pageElement(fragmentId(fragment));
+  if (named) return { element: named, key: null, place: named };
+  const keyed = fragmentKey(fragment);
+  const element = keyed && pageElement(keyed.id);
+  if (!keyed || !element) return null;
+  return {
+    element,
+    key: keyed.key,
+    place: addressedElements(element, keyed.key)[0] ?? null,
+  };
+}
+
+// The page element a fragment names: for a widget's key, the part the widget has drawn
+// for it, else the widget itself, so a reader that needs only an element lands on the
+// widget.
 /** @param {string | null | undefined} fragment */
-export const fragmentTarget = (fragment) =>
-  fragment ? targetElement(resolveAnchor({ section: fragmentId(fragment) })) : null;
+export function fragmentTarget(fragment) {
+  const address = fragmentAddress(fragment);
+  return address ? (address.place ?? address.element) : null;
+}

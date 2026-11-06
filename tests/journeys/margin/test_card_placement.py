@@ -1,11 +1,10 @@
-"Where an open margin thread card stands beside its target, and how it holds still\nthrough news, presses, reflows and scrolls, panes included."
+"Where an open margin thread card stands beside its target, and how it holds still\nthrough news, reflows and scrolls, panes included."
 
-from datetime import datetime, timedelta
+import json
 
 import pytest
-from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import HOLD_MOTION, PANEL_PAGE, panel_comment
+from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
     ROOT,
     leaf_page,
@@ -13,12 +12,12 @@ from render_harness import (
     regions_side_by_side,
     resized,
     scroll_settled,
-    ticked,
     told,
 )
 
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -98,7 +97,7 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
         "heading in both schemes.",
     )
     told(page)
-    expect(notice).to_contain_text("new reply")
+    expect(notice).to_contain_text("1 new")
     # It reads whole in the head row, before the card's actions.
     expect(
         preview.locator(".lf-margin-thread-controls .lf-thread-news")
@@ -121,113 +120,52 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
     assert editor.bounding_box()["y"] > held["editor"]["y"] + 20
 
 
-@pytest.mark.watch_shifts
-@pytest.mark.parametrize("how", ["press", "key"])
-def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
-    """What a press shows grows the card from where the user pressed, as a seat on
-    the page grows: opening pending progress, by pointer or key, grows the card up
-    past the disclosure, which stays where it was pressed. The hold ends with that
-    input, so a draft typed next grows the card down from its head row."""
-    url = serve(PANEL_PAGE)
-    root = panel_comment(
-        serve.page_dir, "Make the banner quieter", {"section": "h-how"}
-    )
-    address = {"parent": root, "responds": root}
-    for words in ("Comparing the banner.", "Checking both schemes.", "Measuring."):
-        thread_model.post_reply(serve.page_dir, address, words, ephemeral=True)
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "user",
-            "parent": root,
-            "text": "And check the dark scheme?",
-        },
-    )
-    page = open_page(browser, url)
-    resized(page, 1200, 900)
-    page.locator(".lf-margin-marker").first.click()
-    preview = page.locator(".lf-margin-preview")
-    disclosure = preview.locator(".lf-summary-expand")
-    expect(disclosure).to_have_text("Show 3 progress messages")
-    rendered(page)
-    pressed = disclosure.bounding_box()
-    compact = preview.bounding_box()
-    original_motion = page.evaluate_handle("() => Element.prototype.animate")
-    page.evaluate("() => {" + HOLD_MOTION + "}")
-
-    def expect_pressed_spot():
-        for progress in (0, 0.5, 1):
-            page.evaluate(
-                """progress => window.__lfHeld.forEach(m => {
-                  if (m.playState !== 'idle')
-                    m.currentTime = m.effect.getTiming().duration * progress;
-                })""",
-                progress,
-            )
-            box = disclosure.bounding_box()
-            assert (box["x"], box["y"]) == pytest.approx(
-                (pressed["x"], pressed["y"]), abs=0.5
-            ), progress
-        page.evaluate(
-            """() => window.__lfHeld.splice(0).forEach(m => {
-              if (m.playState !== 'idle') m.finish();
-            })"""
-        )
-
-    if how == "key":
-        disclosure.focus()
-        page.keyboard.press("Enter")
-    else:
-        disclosure.click()
-    expect(disclosure).to_have_text("Hide 3 progress messages")
-    expect(preview).to_contain_text("Checking both schemes")
-    rendered(page)
-    expect_pressed_spot()
-
-    expanded = preview.bounding_box()
-    assert expanded["height"] > compact["height"]
-    if how == "key":
-        page.keyboard.press("Enter")
-    else:
-        disclosure.click()
-    expect(disclosure).to_have_text("Show 3 progress messages")
-    rendered(page)
-    assert preview.bounding_box()["height"] == pytest.approx(compact["height"], abs=0.5)
-    expect(disclosure).to_be_focused()
-    expect_pressed_spot()
-    page.evaluate(
-        "original => { Element.prototype.animate = original; }", original_motion
-    )
-    original_motion.dispose()
-
-    close = preview.get_by_role("button", name="Dismiss thread view", exact=True)
-    head = close.bounding_box()
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
-    page.keyboard.type("Also check the dark scheme, " * 6, delay=0)
-    rendered(page)
-    assert close.bounding_box() == pytest.approx(head, abs=0.5)
-
-    if how == "press":
-        age = preview.locator(".lf-msg-meta time").last
-        timestamp = datetime.fromisoformat(age.get_attribute("datetime"))
-        page.clock.set_fixed_time(timestamp + timedelta(seconds=30))
-        ticked(page)
-        expect(age).to_have_text("just now")
-        before_tick = disclosure.bounding_box()
-        page.clock.set_fixed_time(timestamp + timedelta(seconds=60))
-        ticked(page)
-        expect(age).to_have_text("1m ago")
-        rendered(page)
-        assert disclosure.bounding_box()["x"] == pytest.approx(
-            before_tick["x"], abs=0.5
-        )
-
-
 # The sweep: one card per kind of place a commented row can stand in, each read in the
 # states a reader's scroll puts it in, against the rules every placement keeps
-# (comment-placement.js, the header). Each finding names its case, so one run reports
-# every rule a placement breaks rather than the first.
+# (placement-rules.json). Each finding names its case and the rule it breaks, so one run
+# reports every rule a placement breaks rather than the first.
+PLACEMENT_RULES = json.loads(
+    (ROOT / "browser/runtime/annotation-overlay/placement-rules.json").read_text()
+)
+# Each finding the sweep can report, by the one rule that names it (`swept`).
+SWEEP_RULE = {
+    finding: rule
+    for section in PLACEMENT_RULES["sections"]
+    for rule in section.get("rules", section.get("rows"))
+    for finding in rule.get("swept", [])
+}
+SWEEP_REPORTS = set()
+
+
+def swept(finding):
+    """The name of a finding the sweep reports, which a rule must name."""
+    assert finding in SWEEP_RULE, f"no rule in placement-rules.json sweeps {finding!r}"
+    SWEEP_REPORTS.add(finding)
+    return finding
+
+
+IN_WINDOW = swept("in-window")
+UNCUT = swept("uncut-while-shown")
+PAST_TOP = swept("leaves-past-top")
+PAST_FOOT = swept("leaves-past-foot")
+OVER_PANE = swept("over-another-pane")
+CAPPED = swept("capped")
+JUMPS = swept("jumps")
+SIDE_CHANGED = swept("side-changed")
+CLOSED = swept("closed")
+
+
+def sweep_report(findings):
+    """Each finding, under the rule it breaks."""
+    lines = []
+    for case in findings:
+        rule = SWEEP_RULE[case[4]]
+        lines.append(
+            f"{case}\n  breaks {rule['id']}: {rule.get('says', rule.get('cut'))}"
+        )
+    return "\n".join(lines)
+
+
 SWEEP_LEAD = "<p>The export copies each tenant into its own archive overnight.</p>" * 3
 SWEEP_ROWS = "".join(
     f'<p id="{{prefix}}-{n}">The export wrote tenant {n} to its archive.</p>'
@@ -271,7 +209,7 @@ SWEEP_PAGES = {
         ),
         ["find-20", "wlog-6", "wnote"],
     ),
-    "screenshot": (ROOT / "examples/release-notes.html", ["rn-console-shot"]),
+    "screenshot": (named_source("release-notes"), ["rn-console-shot"]),
 }
 
 # What the page shows of the row and the card, in client pixels: the row's box cut by
@@ -327,11 +265,10 @@ def sweep_area(rect):
 
 
 def sweep_findings(read):
-    """Each rule a reading breaks, by name, with the numbers that break it."""
+    """Each rule a reading breaks, by its finding, with the numbers that break it."""
     found = []
     shown, box, seen, win = read["shown"], read["box"], read["seen"], read["win"]
     whole = sweep_area(shown) >= sweep_area(read["row"]) - 1
-    # While its row shows whole, the card stands whole inside the window, uncut.
     if whole:
         if not (
             box["top"] >= win["top"] - 1
@@ -339,31 +276,28 @@ def sweep_findings(read):
             and box["left"] >= win["left"] - 1
             and box["right"] <= win["right"] + 1
         ):
-            found.append(("in-window", box))
+            found.append((IN_WINDOW, box))
         # Beside, its top stands a gap above the row's line, so it passes an edge a
         # gap before the line does, and the cut grows from nothing there.
         if read["cut"]["top"] > read["gap"] + 0.5 or any(
             read["cut"][edge] for edge in ("right", "bottom", "left")
         ):
-            found.append(("uncut-while-shown", read["cut"]))
-    # Nothing of the card shows past an edge of a box around its row that the row's
-    # line has crossed: it leaves with its row.
+            found.append((UNCUT, read["cut"]))
+    # The boxes around the row that clip it, each cutting the card once the row's line
+    # has crossed its edge.
     for edge in read["boxes"]:
         if sweep_area(seen) < 1:
             break
         if read["line"] < edge["top"] and seen["top"] < edge["top"] - 1:
-            found.append(("leaves-past-top", edge["id"], seen["top"], edge["top"]))
+            found.append((PAST_TOP, edge["id"], seen["top"], edge["top"]))
         if read["line"] > edge["bottom"] and seen["bottom"] > edge["bottom"] + 1:
-            found.append(
-                ("leaves-past-foot", edge["id"], seen["bottom"], edge["bottom"])
-            )
-    # A card on a row in a bounded workspace pane never stands over another pane.
+            found.append((PAST_FOOT, edge["id"], seen["bottom"], edge["bottom"]))
     if read["pane"] and any(
         p["id"] == read["pane"] and p["bounded"] for p in read["panes"]
     ):
         for other in read["panes"]:
             if other["id"] != read["pane"] and sweep_area(_meet(seen, other)) >= 1:
-                found.append(("over-another-pane", other["id"]))
+                found.append((OVER_PANE, other["id"]))
     return found
 
 
@@ -388,7 +322,7 @@ def sweep_room(read):
     foot = pane["bottom"] if pane else read["win"]["bottom"] - SWEEP_CHROME
     free = foot - read["box"]["bottom"]
     return (
-        [("capped", round(read["box"]["bottom"] - read["box"]["top"]), round(free))]
+        [(CAPPED, round(read["box"]["bottom"] - read["box"]["top"]), round(free))]
         if free > 24
         else []
     )
@@ -406,7 +340,7 @@ def sweep_motion(before, after):
         box["top"] <= win["top"] + 12 or box["bottom"] >= win["bottom"] - SWEEP_CHROME
     )
     moved = abs(card) > abs(row) + 1 if held else abs(card - row) > 1
-    return [("jumps", round(row, 1), round(card, 1))] if moved else []
+    return [(JUMPS, round(row, 1), round(card, 1))] if moved else []
 
 
 # The panel's row at the window's foot, which the room stops above.
@@ -455,19 +389,20 @@ SWEEP_AIM = """([id, where, outer]) => {
 }"""
 
 
-@pytest.mark.parametrize("width", [1440, 820])
+@pytest.mark.parametrize("width", [1440, 1000])
 @pytest.mark.parametrize("kind", ["column", "workspace", "screenshot"])
 def test_every_card_keeps_the_placement_rules(browser, serve, kind, width):
     """A sweep of the places a commented row stands in (the page's flow, a bounded log,
     a flowing pane, a log inside another, a workspace pane, a log inside one, a short
-    pane beside a long one, a screenshot)
-    at a width with the margin rail and one without, through the scrolls that carry the
-    row to the window's foot and out of the box that scrolls it. Each card keeps three
-    rules: while its row shows whole, it stands whole in the window, uncut; nothing of
-    it shows past an edge its row has crossed; on a row in a bounded workspace pane it
-    stands over no other pane; and beside its row it moves with the row, step for step,
-    as the row crosses an edge of the box that scrolls it. A card whose transcript scrolls while the window has
-    room is reported as well, by its card and room."""
+    pane beside a long one, a screenshot) at a wide window and at one just wide enough
+    for the margin rail, the narrowest that opens a card (a narrower one opens the
+    thread in the floating panel), through the scrolls that carry the row to the
+    window's foot and out of the box that scrolls it, against each rule
+    placement-rules.json says it sweeps."""
+    assert set(SWEEP_RULE) == SWEEP_REPORTS, (
+        "rules name findings the sweep never reports",
+        set(SWEEP_RULE) - SWEEP_REPORTS,
+    )
     source, targets = SWEEP_PAGES[kind]
     url = serve(source)
     roots = {}
@@ -524,12 +459,12 @@ def test_every_card_keeps_the_placement_rules(browser, serve, kind, width):
                 scrolled(target, state)
             read = page.evaluate(SWEEP_READ, target)
             if read is None:
-                findings.append((*case, state, "closed"))
+                findings.append((*case, state, CLOSED))
                 break
             findings += [(*case, state, *f) for f in sweep_findings(read)]
             if read["side"] != opened["side"]:
                 findings.append(
-                    (*case, state, "side-changed", opened["side"], read["side"])
+                    (*case, state, SIDE_CHANGED, opened["side"], read["side"])
                 )
         # Beside its row, the card moves with it a few pixels at a time as the row
         # crosses the top or the foot of the box that scrolls it.
@@ -541,11 +476,11 @@ def test_every_card_keeps_the_placement_rules(browser, serve, kind, width):
                 scrolled(target, step)
                 after = page.evaluate(SWEEP_READ, target)
                 if after is None or before is None:
-                    findings.append((*case, near, "closed"))
+                    findings.append((*case, near, CLOSED))
                     break
                 findings += [(*case, near, *f) for f in sweep_motion(before, after)]
                 before = after
         if page.evaluate(SWEEP_READ, target) is not None:
             page.keyboard.press("Escape")
             expect(card).to_be_hidden()
-    assert not findings, "\n".join(map(str, findings))
+    assert not findings, sweep_report(findings)

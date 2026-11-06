@@ -2,6 +2,7 @@
  * Images load before their sources enter the drawing; frames and controls survive
  * capture revisions. ShotView owns inspection state, retained nodes and fitting. */
 import {
+  actionClass,
   offerElement,
   offerActionElement,
   offeredAction,
@@ -9,14 +10,14 @@ import {
   keeps,
 } from "/runtime/widget-api.js";
 
-import { html, nothing, ref, styleMap } from "/vendor/lit.js";
+import { html, live, nothing, ref, styleMap } from "/vendor/lit.js";
 /** @typedef {import("./image-difference.js").Difference} Difference */
 /** @typedef {import("./image-difference.js").Rectangle} Rectangle */
 /** @typedef {import("./image-difference.js").Side} Side */
 /** @typedef {{pixelRatio?: number, captureWidth?: number, focus?: Rectangle | undefined, labels?: Record<Side, string>}} ShotMetadata */
 /** @typedef {{available: number, availableHeight?: number | undefined, screenHeight: number, labelHeight: number, sourceWidth?: number | undefined, sourceHeight?: number | undefined, focus?: Rectangle | undefined, full?: boolean, actual?: boolean, view?: string, gap: number}} ShotGeometryInput */
 /** @typedef {NonNullable<ReturnType<typeof fitShotGeometry>>} ShotGeometry */
-export const SHOT_VIEWS = {
+const SHOT_VIEWS = {
   flip: "Slider",
   compare: "Pair",
   pixels: "Pixels",
@@ -36,8 +37,9 @@ const differenceMark = (region, reading) =>
   ></span>`;
 
 // Fit uses the content box: the scrollport's padding keeps the image shadow visible.
-// In flow nothing bounds the stage's height, so a stacked Pair takes the screen's room
-// below the toolbar as its bound: the reader compares both frames in one view.
+// In flow nothing bounds the stage's height, so a single frame or a stacked Pair takes
+// the screen's room below the toolbar as its bound: the reader sees the whole
+// comparison in one view, and 100% shows a long capture at its own size.
 /** @param {HTMLElement} host @param {HTMLElement} stage @param {HTMLElement} toolbar */
 function shotAllocation(host, stage, toolbar) {
   const style = getComputedStyle(stage);
@@ -91,13 +93,14 @@ function fitShotGeometry({
     );
   // Pair takes whichever arrangement draws the captures larger, so short wide
   // captures stack and tall narrow ones sit side by side. Frames side by side share
-  // rows, so in flow the page's scrolling keeps them aligned; stacked frames must
-  // both fit the room.
+  // rows, so in flow the page's scrolling keeps them aligned; a single frame and
+  // stacked frames must fit the room.
+  const room = availableHeight ?? screenHeight;
   const side = fit(2, 1);
-  const stack = fit(1, 2, labelHeight, availableHeight ?? screenHeight);
+  const stack = fit(1, 2, labelHeight, room);
   const layout = side >= stack ? "side" : "stack";
   const pairScale = layout === "side" ? side : stack;
-  const fitScale = view === "compare" ? pairScale : fit(1, 1);
+  const fitScale = view === "compare" ? pairScale : fit(1, 1, 0, room);
   const scale = actual ? 1 : fitScale;
   // An image's scale and its viewing window are different dimensions. At actual
   // size each window uses its share of the allocation while both remain visible.
@@ -129,6 +132,7 @@ function fitShotGeometry({
       "frame-height": height * scale,
       "viewport-width": viewportWidth,
       "viewport-height": viewportHeight,
+      "canvas-width": columns * (viewportWidth + 2) + (columns - 1) * gap,
       "source-width": (sourceWidth || (focus ? focus.x + focus.width : width)) * scale,
       "source-height":
         (sourceHeight || (focus ? focus.y + focus.height : height)) * scale,
@@ -142,8 +146,8 @@ function fitShotGeometry({
   };
 }
 
-/** @param {HTMLElement} host @param {ShotGeometry} geometry @param {typeof import("/runtime/widget-api.js").keeps} keeps */
-function applyShotGeometry(host, geometry, keeps) {
+/** @param {HTMLElement} host @param {ShotGeometry} geometry */
+function applyShotGeometry(host, geometry) {
   for (const [name, value] of Object.entries(geometry.vars))
     host.style.setProperty(`--lf-shot-${name}`, `${Math.round(value * 64) / 64}px`);
   keeps(host, "data-lf-shot-layout", geometry.layout);
@@ -209,13 +213,15 @@ export class ShotView {
   pixels = false;
   /** @type {string | null} */
   pixelUrl = null;
+  /** @type {{color: string, scheme: string} | null} */
+  paper = null;
 
   /** @type {((view: string, label: string) => void) | undefined} */
   chooseView;
   /** @type {((scale: string) => void) | undefined} */
   chooseScale;
-  /** @type {((event: MouseEvent) => void) | undefined} */
-  toggleOptions;
+  /** @type {((event: ToggleEvent) => void) | undefined} */
+  optionsToggled;
   /** @type {(() => void) | undefined} */
   toggleOutlines;
   /** @type {((event: Event) => void) | undefined} */
@@ -227,8 +233,6 @@ export class ShotView {
 
     this.choiceRef = (/** @type {Element | undefined} */ node) =>
       node && offerActionElement(node, "word");
-    this.outlineRef = (/** @type {Element | undefined} */ node) =>
-      node && offerActionElement(node, "word", "lf-shot-outline");
 
     let optionsId;
     do optionsId = `lf-shot-options-${++nextOptionsId}`;
@@ -271,11 +275,11 @@ export class ShotView {
   render() {
     const { host, optionsId } = this;
 
-    /** @param {string} cls */
-    const offered = (cls) =>
+    /** @param {string} cls @param {boolean} [pressable] */
+    const offered = (cls, pressable = false) =>
       ref((node) => {
         if (!node) return;
-        offerElement(node, cls);
+        offerElement(node, cls, pressable);
       });
     const box = () =>
       ref((node) => {
@@ -307,33 +311,8 @@ export class ShotView {
         >${label}</span
       >`;
     };
-    /** @param {string} label @param {Record<string, string>} values @param {string} selected @param {((value: string, label: string) => void) | undefined} choose @param {string} [cls] */
-    const choices = (label, values, selected, choose, cls = "lf-shot-views") =>
-      html`<div ${offered(cls)} role="group" aria-label=${label}>
-        ${Object.entries(values).map(
-          ([value, text]) =>
-            html`<button
-              ${ref(this.choiceRef)}
-              type="button"
-              aria-pressed=${String(value === selected)}
-              ?disabled=${value === "pixels" && !this.reading}
-              title=${
-                value === "fit"
-                  ? this.geometry
-                    ? `Fit · ${Math.round(this.geometry.fitScale * 100)}%`
-                    : nothing
-                  : value === "actual"
-                    ? this.metadata.pixelRatio
-                      ? "Captured CSS size"
-                      : "One image pixel per CSS pixel"
-                    : nothing
-              }
-              @click=${() => choose?.(value, text)}
-            >
-              ${text}
-            </button>`,
-        )}
-      </div>`;
+    const scales = { fit: "Fit", actual: "100%" };
+    const scale = this.actual ? "actual" : "fit";
     /** @param {Side} state @param {number} index */
     const frame = (state, index) => {
       const alt = host.getAttribute("alt");
@@ -397,7 +376,35 @@ export class ShotView {
       <div ${offered("lf-shot-toolbar lf-ui")}>
         ${caption("before")}
         <div ${offered("lf-shot-actions")}>
-          ${choices("Comparison view", SHOT_VIEWS, this.view, this.chooseView)}
+          <wa-radio-group
+            ${offered("lf-shot-views lf-label-hidden")}
+            label="Comparison view"
+            name=${`${optionsId}-view`}
+            size="s"
+            orientation="horizontal"
+            .value=${live(this.view)}
+            @change=${(
+              /** @type {Event & {currentTarget: HTMLElementTagNameMap["wa-radio-group"]}} */ event,
+            ) => {
+              const view = String(event.currentTarget.value);
+              if (view in SHOT_VIEWS)
+                this.chooseView?.(
+                  view,
+                  SHOT_VIEWS[/** @type {keyof typeof SHOT_VIEWS} */ (view)],
+                );
+            }}
+          >
+            ${Object.entries(SHOT_VIEWS).map(
+              ([value, text]) =>
+                html`<wa-radio
+                  ${offered(actionClass("word", "lf-shot-view"), true)}
+                  appearance="button"
+                  value=${value}
+                  ?disabled=${value === "pixels" && this.images.length !== 2}
+                  >${text}</wa-radio
+                >`,
+            )}
+          </wa-radio-group>
           <div ${offered("lf-shot-tools")}>
             <button
               ${offeredAction("symbol", "lf-shot-scale", "Image options", {
@@ -405,34 +412,42 @@ export class ShotView {
               })}
               type="button"
               popovertarget=${optionsId}
-              @click=${this.toggleOptions ?? null}
+              aria-expanded="false"
             ></button>
-            <button
-              ${ref(this.outlineRef)}
-              type="button"
-              aria-label="Outline changes"
-              title="Outline changes"
-              aria-pressed=${String(this.outlines)}
-              aria-description=${this.description ?? nothing}
-              ?disabled=${this.view === "pixels" || !this.reading?.regions.length}
-              @click=${this.toggleOutlines ?? null}
-            >
-              Outline
-            </button>
             <div
-              ${offered("lf-shotoptions")}
+              ${offered("lf-shotoptions lf-popover")}
               id=${optionsId}
               popover="auto"
+              @toggle=${this.optionsToggled ?? null}
               role="group"
               aria-label="Image options"
             >
-              ${choices(
-                "Image scale",
-                { fit: "Fit", actual: "100%" },
-                this.actual ? "actual" : "fit",
-                this.chooseScale,
-                "lf-shot-scale-options",
-              )}
+              <div
+                ${offered("lf-shot-scale-options")}
+                role="group"
+                aria-label="Image scale"
+              >
+                ${Object.entries(scales).map(
+                  ([value, text]) =>
+                    html`<button
+                      ${ref(this.choiceRef)}
+                      type="button"
+                      aria-pressed=${String(value === scale)}
+                      title=${
+                        value === "actual"
+                          ? this.metadata.pixelRatio
+                            ? "Captured CSS size"
+                            : "One image pixel per CSS pixel"
+                          : this.geometry
+                            ? `Fit · ${Math.round(this.geometry.fitScale * 100)}%`
+                            : nothing
+                      }
+                      @click=${() => this.chooseScale?.(value)}
+                    >
+                      ${text}
+                    </button>`,
+                )}
+              </div>
               <label ${offered("choice lf-shotchoice")} ?hidden=${!this.metadata.focus}>
                 <input
                   ${offered("")}
@@ -441,6 +456,16 @@ export class ShotView {
                   @change=${this.changeFull ?? null}
                 />
                 <span ${offered("")}>Full frame</span>
+              </label>
+              <label ${offered("choice lf-shotchoice")}>
+                <input
+                  ${offered("lf-shot-outline")}
+                  type="checkbox"
+                  .checked=${this.outlines}
+                  ?disabled=${this.view === "pixels" || !this.reading?.regions.length}
+                  @change=${this.toggleOutlines ?? null}
+                />
+                <span ${offered("")}>Outline changes</span>
               </label>
               <div ${offered("lf-shot-pixel-key")}>
                 <span ${offered("lf-shot-key-swatch")} aria-hidden="true"></span>
@@ -456,6 +481,7 @@ export class ShotView {
         tabindex="0"
         role="region"
         aria-label=${`Screenshot comparison — ${host.getAttribute("alt")}`}
+        aria-description=${this.description ?? nothing}
         ${box()}
       >
         <div class="lf-shotcanvas" ${box()}>
@@ -468,7 +494,14 @@ export class ShotView {
                   aria-label=${`changed pixels: ${host.getAttribute("alt")}`}
                   ${box()}
                 >
-                  <div class="lf-shotplane" ${box()}>
+                  <div
+                    class="lf-shotplane"
+                    style=${styleMap({
+                      "--lf-shot-paper": this.paper?.color,
+                      "color-scheme": this.paper?.scheme,
+                    })}
+                    ${box()}
+                  >
                     <img alt="" src=${this.images[1]?.src || nothing} />
                     <span class="lf-shot-pixel-mask" style=${pixelStyle}></span>
                   </div>
@@ -505,7 +538,7 @@ export class ShotView {
     });
     if (geometry) {
       this.geometry = geometry;
-      applyShotGeometry(host, geometry, keeps);
+      applyShotGeometry(host, geometry);
     }
     return geometry;
   }

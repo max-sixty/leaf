@@ -2,10 +2,12 @@
 and their paths, the pinned file header, hunk landing, and print."""
 
 import json
+import re
 
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
+from render_cases_layout import MARK
 from render_cases_widgets import (
     DIFF_CLIPPING,
     DIFF_LANDING,
@@ -60,6 +62,33 @@ LONG_DIFF_PATCH = (
 
 def long_diff(id):
     return f'<lf-diff id="{id}"><pre>{LONG_DIFF_PATCH}</pre></lf-diff>'
+
+
+def test_an_unbound_diff_draws_and_clears_a_host_value(browser, serve):
+    page = open_page(browser, serve(leaf_page("Host value", long_diff("patch"))))
+    diff = page.locator("#patch")
+    expect(diff.locator(".lf-diff-file")).to_contain_text(LONG_DIFF_PATH)
+    replacement = LONG_DIFF_PATCH.replace(LONG_DIFF_PATH, "host.txt")
+    page.evaluate(
+        """async value => {
+          const diff = document.querySelector('#patch');
+          window.drawings = [];
+          diff.addEventListener('drawn', event => drawings.push({
+            value: event.detail.value,
+            marks: [...diff.shadowRoot.querySelectorAll('[data-lf-datum]')]
+              .map(node => node.dataset.lfDatum),
+          }));
+          diff.value = value;
+          await diff.updateComplete;
+        }""",
+        replacement,
+    )
+    assert "host.txt" in diff.locator(".lf-diff-file").inner_text()
+    drawn = page.evaluate("drawings.at(-1)")
+    assert drawn["value"] == replacement
+    assert drawn["marks"] and all("host.txt" in key for key in drawn["marks"])
+    page.evaluate("document.querySelector('#patch').value = null")
+    expect(diff.locator("[data-lf-datum]")).to_have_count(0)
 
 
 def test_a_rewrite_reads_its_deletions_above_its_additions(browser, serve):
@@ -211,6 +240,9 @@ def test_an_inline_patch_stays_readable_until_its_drawing_arrives(
             expect(source).to_be_visible()
             expect(source).to_contain_text("diff --git")
         expect(page.locator("#single > lf-diff-note")).to_be_visible()
+        note_width = page.locator("#single > lf-diff-note").evaluate(
+            "note => note.getBoundingClientRect().width"
+        )
         boot.pop().continue_()
         wait_until_ready(page)
         page.wait_for_function(
@@ -218,6 +250,9 @@ def test_an_inline_patch_stays_readable_until_its_drawing_arrives(
         )
         expect(page.locator("#code [data-line]").last).to_contain_text("z = 3")
         expect(page.locator("#single lf-diff-note")).to_be_visible()
+        assert page.locator("#single lf-diff-note").evaluate(
+            "note => note.getBoundingClientRect().width"
+        ) == pytest.approx(note_width)
         expect(page.locator("#folded details[open]")).to_have_count(0)
         expect(page.locator("#file-view [data-line]").last).to_contain_text(
             "The first file remains readable."
@@ -439,6 +474,37 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
     assert read["option"] == pytest.approx(read["top"], abs=1), read
 
 
+def test_a_file_s_comment_opens_inline_where_the_file_ends_below_the_window(
+    browser, serve
+):
+    """A file's Comment opens its box in the file's thread, at the file's end, even when
+    a long hunk leaves that end below the window: the box's focus brings it in. Only a
+    seat the chrome covers sends the box to its floating home."""
+    body = "".join(f"+line {n}\n" for n in range(80))
+    patch = (
+        "diff --git a/app.py b/app.py\n--- /dev/null\n+++ b/app.py\n"
+        f"@@ -0,0 +1,80 @@\n{body}"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Long file",
+                '<h1>Review</h1><lf-diff id="patch"><pre>' + patch + "</pre></lf-diff>",
+            )
+        ),
+    )
+    resized(page, 1200, 700)
+    page.locator("lf-diff .lf-diff-file-comment").click()
+    composer = page.locator(
+        'lf-diff .lf-fab-bar[data-lf-presentation="inline"] .lf-composer[data-lf-open]'
+    )
+    expect(composer).to_have_count(1)
+    field = composer.locator("leaf-text")
+    expect(field).to_be_focused()
+    expect(field).to_be_in_viewport()
+
+
 def test_inline_diff_lines_and_files_can_start_comments(browser, serve):
     patch = (
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
@@ -466,8 +532,21 @@ def test_inline_diff_lines_and_files_can_start_comments(browser, serve):
     with sending(page, "inline file comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     line.hover()
-    page.locator("lf-diff .lf-diff-line-comment").last.click()
+    press = page.locator("lf-diff .lf-diff-line-comment").last
+    press.click()
     expect(page.locator(".lf-composer")).to_be_visible()
+    # The line's draft wears its brackets one band inside the line's edges, and the
+    # press's + stands clear of that band, so the left bracket shows beside it.
+    expect(line).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
+    band = line.evaluate(MARK)
+    assert band and band["brackets"] and band["offset"] + band["width"] <= 0, band
+    plus = press.evaluate(
+        """press => {
+          const s = getComputedStyle(press, '::before');
+          return [s.left, s.top, s.bottom].map(parseFloat);
+        }"""
+    )
+    assert min(plus) >= -band["offset"], (plus, band)
     write(page.locator(".lf-composer leaf-text"), "Line note")
     with sending(page, "inline line comment"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -687,31 +766,28 @@ def diff_refresh_keeps_selection(page, serve, diff, source, value, edit):
     told(page)
     rendered(page)
     assert page.evaluate("() => getSelection().toString()") == before, diff
-    gutters = page.evaluate(
-        """diff => {
-      const widget = document.querySelector(diff);
-      const entry = widget.fileEntries[0];
-      return entry.lines.map(line => {
-        const row = line.node.parentElement;
-        const comment = row.querySelector('.lf-diff-line-comment');
-        const number = String(line.side === 'old' ? line.oldLine : line.newLine);
-        return {
-          datum: line.node.dataset.lfDatum,
-          commentInRow: comment.isConnected && comment.nextElementSibling === line.node,
-          label: comment.textContent,
-          expected: number,
-          lineTypeMatches: row.dataset.lineType === line.node.dataset.lineType,
-          commentCount: row.querySelectorAll('.lf-diff-line-comment').length,
-        };
-      });
-    }""",
-        diff,
+    # Each drawn row pairs its own numbered control with its source line: the
+    # number is the line's own in its datum (the new number for a context line).
+    gutters = page.locator(f"{diff} .lf-diff-line").evaluate_all(
+        """rows => rows.map(row => {
+      const comments = row.querySelectorAll('.lf-diff-line-comment');
+      const line = comments[0]?.nextElementSibling;
+      const datum = JSON.parse(line?.dataset.lfDatum ?? 'null');
+      return {
+        datum: line?.dataset.lfDatum,
+        commentCount: comments.length,
+        label: comments[0]?.textContent,
+        expected: datum && String(datum.at(-1)),
+        lineTypeMatches: row.dataset.lineType === line?.dataset.lineType,
+      };
+    })"""
     )
+    assert gutters, diff
     assert all(
-        gutter["commentInRow"]
+        gutter["commentCount"] == 1
+        and gutter["datum"]
         and gutter["label"] == gutter["expected"]
         and gutter["lineTypeMatches"]
-        and gutter["commentCount"] == 1
         for gutter in gutters
     ), gutters
 
@@ -866,7 +942,7 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
     told(page)
     rendered(page)
     head = page.locator("lf-diff .lf-diff-head").first
-    expect(head).to_have_attribute("data-path-cut", "")
+    expect(head).to_have_attribute("data-lf-path-cut", "")
     expect(head.locator(".lf-diff-path")).to_have_attribute("title", path)
 
     # A changed source path can retain exactly the old clipped width. Its title
@@ -1513,16 +1589,18 @@ def test_horizontal_wheel_reaches_the_diff_reader(
         '-return "The previous release remains available for inspection."\n'
         '+return "The current release remains available for inspection."\n'
     )
+    # Force the outer-scroll case past the layer's default 100% widget width cap.
     source = leaf_page(
         "Nested patch reader",
         "<h1>Review</h1>"
         + "".join(
-            f'<div id="reader-{host}" class="reader" data-bound="start">'
+            f'<div id="reader-{host}" class="reader">'
             f'<lf-diff id="patch-{host}"><pre>{patch}</pre></lf-diff></div>'
             for host in hosts
         ),
-        head="<style>.reader { width: 500px; }"
-        "#patch-wide { width: 1000px; } #patch-narrow { width: 300px; }</style>",
+        head="<style>.reader { width: 500px; overflow: auto; }"
+        "#patch-wide { width: 1000px; max-inline-size: none; }"
+        "#patch-narrow { width: 300px; }</style>",
     )
     page = open_page(request.getfixturevalue(engine), serve(source))
     resized(page, 1000, 900)
@@ -1559,7 +1637,7 @@ def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(
         '<lf-diff id="patch" source="review-patch"></lf-diff>'
         "</div>",
         head="<style>#sideways { width: 500px; overflow: auto; }"
-        "#patch { width: 1000px; }</style>",
+        "#patch { width: 1000px; max-inline-size: none; }</style>",
     )
     url = serve(source)
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)

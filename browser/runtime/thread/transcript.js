@@ -1,7 +1,7 @@
 /* A thread's messages as every reader of a whole thread draws them: a card on the page
-   or in the margin (thread-card.js), and the floating panel's view of a thread through
-   a primary reader's transcript part (primary-reader.js). The reader around it draws
-   the thread's head, controls and reply box; this owner draws only the transcript.
+   or in the margin, and the floating panel's view of a thread (thread-card.js). The
+   thread around it draws its head, controls and reply box; this owner draws only the
+   transcript.
 
    - Each turn is one MessageView, which shows whether its version is unread and
      reports its exposure to read tracking (read.js), so a reply counts as read the same
@@ -44,6 +44,7 @@
      reader finds a message by, until they have collapsed. Where no fold plays, under
      reduced motion, before presentation or in an engine without intrinsic-size
      interpolation, it goes in the same frame. */
+import { counted } from "../words.js";
 import { focusDestination, focused } from "../focus.js";
 import { html, render, nothing, repeat, ref } from "/runtime/framework.js";
 import { MessageView } from "./messages.js";
@@ -62,7 +63,7 @@ import { foldBlock, motionPlays } from "../motion.js";
 import { voiced } from "../voice.js";
 
 // The names a reader finds a drawn message by (messages.js), which a folding one gives up.
-const MESSAGE_NAMES = ["data-message", "data-event", "data-attempt"];
+const MESSAGE_NAMES = ["data-lf-message", "data-lf-event", "data-lf-attempt"];
 
 // A progress run's face: its latest step, drawn as a message is, with who wrote it and
 // when at its head, but dimmed, and under a passing sheen while it is the working
@@ -86,8 +87,11 @@ function workingView(working, controls = nothing, observe = null) {
                 working.timestamp
                   ? html`<time datetime=${working.timestamp}>${working.age}</time>`
                   : nothing
-              }
-              ${working.condition ? voiced(working.condition) : nothing}</span
+              }${
+                working.condition
+                  ? html`<span>${voiced(working.condition)}</span>`
+                  : nothing
+              }</span
             >`
           : nothing
       }
@@ -147,6 +151,8 @@ export class Transcript {
   #id = ++nextTranscriptId;
   // Counts the ids this transcript gives covered messages.
   #named = 0;
+  /** @type {unknown} */
+  #awaited = nothing;
 
   /**
    * @param {object} options
@@ -203,14 +209,18 @@ export class Transcript {
   // The checkpoint a summary stands in.
   /** @param {string} id */
   summaryNode(id) {
-    return this.node.querySelector(`:scope > [data-summary-id="${CSS.escape(id)}"]`);
+    return this.node.querySelector(`:scope > [data-lf-summary-id="${CSS.escape(id)}"]`);
   }
 
   // The last node the transcript shows. The messages a closed fold covers, progress
   // behind its run's face among them, stand in the transcript hidden, so the last
   // message alone may show nothing.
   get foot() {
-    return [...this.node.children].findLast((node) => showsContents(node)) ?? null;
+    return (
+      [...this.node.children].findLast(
+        (node) => !node.matches(".lf-awaited") && showsContents(node),
+      ) ?? null
+    );
   }
 
   // Whether the progress behind the working message stood open when last drawn, opened by
@@ -252,18 +262,16 @@ export class Transcript {
   }
 
   /**
-   * Draws `model`, a thread's reading (thread-card.js, `threadReading`). `appends`
-   * declares that it grows at its end inside the scroller holding it, as a margin
-   * card's does (`data-lf-reflow`, tests/shift_watch.js). `notice` is a node the reader
-   * stands at the head of the transcript's first message in sight, as a primary
-   * reader's thread notice (primary-reader.js). Returns the disclosure that took over
-   * the one the user was on, where this draw replaced it, as the answer's head takes
-   * progress over from the working message.
+   * Draws `model`, a thread's reading (thread-card.js, `threadReading`). Returns the
+   * disclosure that took over the one the user was on, where this draw replaced it, as
+   * the answer's head takes progress over from the working message.
    * @param {import("./thread-card.js").ThreadViewModel} model
-   * @param {{arrived?: boolean, appends?: boolean, notice?: Element | null}} [options]
+   * @param {{arrived?: boolean, awaited?: unknown}} [options] `awaited` is what the
+   *   reader says stands after the messages: New reply (thread-card.js).
    * @returns {HTMLElement | null}
    */
-  present(model, { arrived = false, appends = false, notice = null } = {}) {
+  present(model, { arrived = false, awaited = nothing } = {}) {
+    this.#awaited = awaited;
     const prior = this.#model;
     const currentLocation = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
@@ -373,10 +381,6 @@ export class Transcript {
       .filter((range) => range.summary.pending);
     const spoke = model.messages.findLastIndex(({ author }) => author === "user");
     this.#pendingOpen = pendingRanges.some((range) => range.expanded);
-    // The first message no fold holds, else the first.
-    const lead =
-      rangeState.find((range) => range.kind === "message")?.message ??
-      model.messages[0];
     // The working message stands after the range holding the last message said before
     // its words: as the face of that range where it is a progress run, else as a face
     // of its own.
@@ -404,11 +408,7 @@ export class Transcript {
     }
     for (const message of drawnMessages) {
       const view = message.view;
-      view.present(message.reading, {
-        arrived,
-        dated: dated.has(message.key),
-        headerControls: notice && message.key === lead?.key ? notice : nothing,
-      });
+      view.present(message.reading, { arrived, dated: dated.has(message.key) });
       // A reply still streaming at the thread's end grows at its foot as its words
       // come, as the working message does with each step (shift_watch.js).
       keeps(
@@ -443,7 +443,7 @@ export class Transcript {
         body: (tail) =>
           html`<div
             class="lf-thread-working"
-            data-face=${id}
+            data-lf-face=${id}
             aria-live="polite"
             data-lf-live=${reading.live ? "" : nothing}
             data-lf-append-tail=${tail ? "" : nothing}
@@ -512,7 +512,6 @@ export class Transcript {
       if (foot) node.style.setProperty("--lf-fold-foot", foot);
       else node.style.removeProperty("--lf-fold-foot");
     }
-    keeps(this.node, "data-lf-reflow", appends ? "append" : null);
     for (const row of transcript) row.tail = row === transcript.at(-1);
     this.#rows = this.#withFolds(transcript);
     this.#stopWorkingExposure?.();
@@ -520,7 +519,9 @@ export class Transcript {
     this.#paint();
     /** @param {Row} row */
     const faceNode = (row) =>
-      this.node.querySelector(`:scope > [data-face="${CSS.escape(row.key.slice(5))}"]`);
+      this.node.querySelector(
+        `:scope > [data-lf-face="${CSS.escape(row.key.slice(5))}"]`,
+      );
     this.#facing = new Map([...facing].map(([key, row]) => [key, faceNode(row)]));
     for (const [key, fold] of this.#folding) {
       if (fold.played) continue;
@@ -540,9 +541,9 @@ export class Transcript {
     /** @type {(id: string) => HTMLElement | null} */
     const toggleFor = (id) =>
       this.node.querySelector(
-        `.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`,
+        `.lf-summary-expand[data-lf-summary-toggle="${CSS.escape(id)}"]`,
       );
-    const succeeded = currentLocationToggle.dataset.summaryToggle;
+    const succeeded = currentLocationToggle.dataset.lfSummaryToggle;
     return (
       [
         ...(succeeded
@@ -592,11 +593,11 @@ export class Transcript {
 
   #paint() {
     render(
-      repeat(
+      html`${repeat(
         this.#rows,
         (row) => row.key,
         (row) => (typeof row.body === "function" ? row.body(!!row.tail) : row.body),
-      ),
+      )}${this.#awaited}`,
       this.node,
     );
   }
@@ -606,8 +607,8 @@ export class Transcript {
     const progress = Boolean(range.summary.pending);
     return html`<section
       class="lf-thread-checkpoint"
-      data-summary-id=${range.summary.id}
-      data-expanded=${range.expanded}
+      data-lf-summary-id=${range.summary.id}
+      data-lf-expanded=${range.expanded}
       ?hidden=${progress && !range.expanded}
       aria-owns=${covered.map(({ id }) => id).join(" ")}
       style=${`--lf-fold-head: ${anchor}; --lf-fold-foot: ${anchor}-foot;`}
@@ -652,7 +653,7 @@ export class Transcript {
     ];
     const expanded = ranges.every((range) => range.expanded);
     const count = ranges.reduce((total, range) => total + range.messages.length, 0);
-    const subject = `${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
+    const subject = counted(count, `${progress ? "progress" : "earlier"} message`);
     const label = `${expanded ? "Hide" : "Show"} ${subject}`;
     return html`<button
       type="button"
@@ -662,7 +663,7 @@ export class Transcript {
           progress ? " lf-progress-expand" : ""
         }`,
       )}
-      data-summary-toggle=${ids[0]}
+      data-lf-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ranges
         .flatMap((range) => range.messages.map(({ key }) => this.messageNode(key)?.id))
@@ -670,7 +671,7 @@ export class Transcript {
         .join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
-      <span data-room=${`Show ${subject}`}><span>${label}</span></span>
+      <span data-lf-room=${`Show ${subject}`}><span>${label}</span></span>
     </button>`;
   }
 
@@ -683,7 +684,7 @@ export class Transcript {
     this.#repaint();
     /** @type {HTMLButtonElement | null} */
     const toggle = this.node.querySelector(
-      `.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`,
+      `.lf-summary-expand[data-lf-summary-toggle="${CSS.escape(ids[0])}"]`,
     );
     if (toggle) {
       focusDestination(toggle, "return");

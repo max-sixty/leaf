@@ -9,7 +9,7 @@ import { HOLDS_WORD } from "./held-word.js";
 import { progressFace, workflowWord } from "./thread/workflow.js";
 import { agentSays, saidBy, voiced } from "./voice.js";
 import { agentName } from "./semantic-state.js";
-import { elementDirective, offer } from "./widget-elements.js";
+import { elementDirective, offerActionElement } from "./widget-elements.js";
 import { keeps, inlineStyle } from "./keeps.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { currentLocationIn, focusDestination, nativeFocusTarget } from "./focus.js";
@@ -157,13 +157,14 @@ const presented = new WeakMap();
 const records = new WeakMap();
 /** @type {WeakMap<Element, ContributionSource>} */
 const controlContributions = new WeakMap();
-/** @type {WeakMap<Element, string[]>} */
-const contributorClasses = new WeakMap();
 
 /** Create the native host for one generated margin entry reading. */
-/** @param {Entry} record @param {string} [className] */
-function createContributionControl(record, className = "") {
-  return offer(record.behavior === "status" ? "span" : "button", className);
+/** @param {Entry} record */
+function createContributionControl(record) {
+  return offerActionElement(
+    document.createElement(record.behavior === "status" ? "span" : "button"),
+    "entry",
+  );
 }
 
 /** @param {Element} control @param {Entry} record */
@@ -470,12 +471,6 @@ export function presentContributionEntry(control, offered, options = {}) {
   // Its label shows to a resting pointer and the keyboard, and to a finger holding it.
   control.classList.toggle("lf-margin-entry", true);
   control.classList.toggle(HOLDS_WORD, true);
-  const priorClasses = contributorClasses.get(control) ?? [];
-  const nextClasses = record.className?.split(/\s+/).filter(Boolean) ?? [];
-  for (const name of priorClasses)
-    if (!nextClasses.includes(name)) control.classList.toggle(name, false);
-  for (const name of nextClasses) control.classList.toggle(name, true);
-  contributorClasses.set(control, nextClasses);
   const visibleLabel = visibleContributionEntryLabel(record);
   const glyph = record.icon
     ? iconTemplate(record.icon)

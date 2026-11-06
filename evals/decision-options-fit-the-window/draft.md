@@ -98,8 +98,9 @@ handoff and save it.
           I took the expanded floating panel to be the panel with a thread's view open
           over its row, the view Threads opens and <em>Show on page</em> leaves
           (<code>floating-panel.js</code>, "Opened"). The panel also has an
-          <code>data-expanded</code> state, <em>More room to write</em>, which widens it
-          to 760&#8239;px for a long draft. Candidate C borrows that width for reading.
+          <code>data-lf-expanded</code> state, <em>More room to write</em>, which widens
+          it to 760&#8239;px for a long draft. Candidate C borrows that width for
+          reading.
         </p>
         <table id="room-table">
           <thead>
@@ -156,6 +157,7 @@ handoff and save it.
               value="b"
             >
               <lf-playground-choice
+                id="format-baseline"
                 value="baseline"
                 label="A. Keep Threads as the only way in"
               >
@@ -185,7 +187,11 @@ handoff and save it.
                   </figure>
                 </div>
               </lf-playground-choice>
-              <lf-playground-choice value="a" label="B. Add Open in panel to the card">
+              <lf-playground-choice
+                id="format-a"
+                value="a"
+                label="B. Add Open in panel to the card"
+              >
                 <p>
                   <small class="tag">one press</small>
                   <small class="tag">today's size</small> The view opens where Threads
@@ -214,6 +220,7 @@ handoff and save it.
                 </div>
               </lf-playground-choice>
               <lf-playground-choice
+                id="format-b"
                 value="b"
                 label="C. Add Open in panel, opening at reading size"
               >

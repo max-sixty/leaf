@@ -84,8 +84,8 @@ available skills before invoking one.
 ## Leave taste to the authoring agent
 
 Code enforces only what Leaf needs to work: a contract between modules, or a guarantee
-the user relies on, such as a gesture being recorded or a pressed control staying where
-it was (`browser/AGENTS.md`, "The page holds still under the user's aim"). Taste goes
+the user relies on, such as a gesture being recorded or a field staying still as the
+user types in it (`browser/AGENTS.md`, "The page holds still under the user's aim"). Taste goes
 in the shipped instructions as a
 goal with its reason, so the authoring agent weighs it against its own page. A CSS
 rule, validator or Layout that fixes how many tiles share a row overrides every page
@@ -189,7 +189,10 @@ To ask a page where an element sits, what style it computes, or what holds focus
 a key, run `uv run leaf-dev probe` rather than writing a Playwright script or a scratch
 test. It builds the page from this working tree, with `--log` adding threads and
 messages to its log, runs your input steps, and prints what a JavaScript expression
-returns, with `--base` for the merge base beside it (`leaf-dev probe --help`).
+returns, with `--base` for the merge base beside it and `--browser` for another engine
+(`leaf-dev probe --help`). To reach a surface a stills state reaches, open the state
+with `--state NAME`, which brings its page there in its window, rather than repeating
+its input as steps.
 
 When an interaction depends on a sequence of inputs or changes over time, record it
 with `leaf-dev probe --record .tmp/recordings/NAME` (its `--help` covers journeys and
@@ -201,12 +204,15 @@ returning from the input doesn't prove an asynchronous update finished.
 
 `uv run leaf-dev stills` crops each changed catalogue state into a before/after pair
 and lists the computed styles that differ in it, shadow trees included, with the
-declarations behind them (its module header covers committing first and
-`--authored`). For a change to where a rule sits,
+declarations behind them (its module header covers `--base`, `--authored` and
+`--browser`). For a change to where a rule sits,
 such as its sheet, layer or selector, read those lists, with the corpus states
 covering every composed page, rather than writing a computed-style sweep. Cover states
-reached by interaction, including focus states where layout can cover a focus ring,
-and add a missing state to `STATES` rather than driving it by hand.
+reached by interaction, including focus states where layout can cover a focus ring.
+Where no state reaches a surface the change touches, add one to `STATES`
+(`dev/leaf_dev/states.py`) rather than driving it by hand: one state per surface,
+never one per scheme, size or pointer, which a run chooses with `--scheme`,
+`--viewport` and `--touch` (the `states.py` header says when a state keeps its own).
 
 Hand off every difference a still can show as a Leaf page with an `lf-shot` of the
 crops and a sentence saying what changed, and link the page in the reply; a live
@@ -262,7 +268,8 @@ touches:
 - `claude-code` (`journey_claude_code.py`): after a change to `hooks/hooks.json`,
   `hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`, or the watch between turns
   in `session.py`. Add `--sandbox` after a change to `bridge.py`, the README's "Agent
-  sandboxes" settings, or what a `leaf` command needs from outside its page directory.
+  sandboxes" settings, or what a `leaf` command needs from outside its page directory,
+  and `--forks` after a change to `forks.py` or the module's `forkReply`.
 - `codex-app-server` and `codex-queue` (`journey_codex.py`), both: after a change to
   `codex.py`, `codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's turn
   in `service.py`. Add `--preview` for a change to preview startup or lifetime, and
@@ -392,8 +399,12 @@ there. Size says little: a two-line selector can reach every page.
 
 - **What it adds**: a mode, branch or special case; one more member of a set,
   allowlist or tolerance; a wait, retry or timer; a public option; room reserved for a
-  state that may not come; a second statement of a rule with an owner; a reliance on a
-  dependency's internals.
+  state that may not come; a reliance on a dependency's internals.
+- **What it repeats**: code the change writes may already exist under another name, in
+  another directory, language or package. Search for the question each new helper,
+  constant, selector, style rule or inline check answers, not for its name. A copy is a
+  second home even when a comment names its source. Where the change couldn't reach
+  the owner, export, move or generate the owner rather than copy it.
 - **What it buys**: a behavior a user sees, a request the maintainer made, or a
   measured cost. A green test buys what the test protects, so name that.
 - **Where its cost lands**: read the change's reach rather than its claim, such as a
@@ -428,7 +439,9 @@ makes Leaf harder to develop than it is worth:
   including Leaf's interface guarantees. Taking a feature away is the maintainer's
   call, so propose the removal with what users lose and what it deletes.
 - **Several implementations of one capability.** Consolidate them into one home and
-  move every caller to it (root `AGENTS.md`, "Fix the underlying issue").
+  move every caller to it (root `AGENTS.md`, "Fix the underlying issue"). The other
+  copies seldom sit beside the file you're reading, so search for them as **What it
+  repeats** says.
 - **A mechanism a dependency or the platform already provides.** Delegate it (root
   `AGENTS.md`, "Use dependencies").
 

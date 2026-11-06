@@ -1,18 +1,22 @@
 /* Display wording for an obligation's canonical answer. This is presentation only:
    membership, typed values and completion come from the application publication.
    A widget family formats answerWords(value, element); prose uses its typed text or token. */
+import { capitalized, labelWords } from "../words.js";
 import { widgetWord } from "../addressable-names.js";
 import { closestAcross, elementById } from "../passages.js";
-import { tagsDeclaring } from "../registry.js";
+import { perVocabulary, tagsDeclaring } from "../registry.js";
 import { answeredInWords } from "./model.js";
 import { leafSays } from "../voice.js";
 import { hasObligationSource } from "./source.js";
 
 /** @typedef {Exclude<import("../framework/application.js").ObligationRecord, {source: {kind: "update"}}>} AnswerableObligation */
 
+const awaitingWidgets = perVocabulary(() =>
+  tagsDeclaring((entry) => entry["x-awaits"]).join(","),
+);
 /** @param {Element} source @param {Element} commandSource */
 export function ownedObligationControl(source, commandSource) {
-  const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
+  const selector = awaitingWidgets();
   return !selector || closestAcross(commandSource, selector) === source;
 }
 
@@ -21,9 +25,7 @@ export function ownedObligationControl(source, commandSource) {
 /** @param {AnswerableObligation} item */
 export function obligationWord(item) {
   if (answeredInWords(item)) return "Reply";
-  if (hasObligationSource(item, "todo")) return "To-do";
-  const word = widgetWord(item.source.tag, elementById(item.source.id));
-  return word.charAt(0).toUpperCase() + word.slice(1);
+  return capitalized(widgetWord(item.source.tag, elementById(item.source.id)));
 }
 
 /** Answer text where the source supplies words or a widget formatter; other sources have none.
@@ -35,9 +37,7 @@ export function answerWords(item) {
   if (!hasObligationSource(item, "widget")) return "";
   const source = elementById(item.source.id);
   const formatter = customElements.get(item.source.tag)?.answerWords;
-  return String(source && formatter ? formatter(item.answer.value, source) : "")
-    .replace(/\s+/g, " ")
-    .trim();
+  return labelWords(source && formatter ? formatter(item.answer.value, source) : "");
 }
 
 /* How a finished obligation ended, in the words a Done row and the floating panel show:
@@ -46,14 +46,6 @@ export function answerWords(item) {
    user (voice.js); the answer itself is the user's value, in the interface's face. */
 /** @param {AnswerableObligation} item */
 export function obligationEnding(item) {
-  if (hasObligationSource(item, "todo"))
-    return leafSays(
-      item.status === "withdrawn"
-        ? "Dropped"
-        : item.answer?.value === "failed"
-          ? "Failed"
-          : "Done",
-    );
   if (item.status === "withdrawn") return leafSays("Withdrawn");
   if (item.status === "answered_elsewhere") return leafSays("Answered elsewhere");
   const words = answerWords(item);

@@ -23,6 +23,15 @@ layer. Each admitted state gesture records its operation and detail domain in
 `meaning.state`, so a decision the current domain still accepts keeps painting, and
 one outside it, or whose sender is gone, stays in history only.
 
+Reading a page's documents, state or instructions needs only its layer's
+vocabulary: the merged registry, the paths of the widget modules and the packages'
+instructions. Leaf validates the merged registry, and parses the layer's sheets and
+modules, only to serve, export, check or inspect the page, or to capture a revision
+whose markup names a file the layer serves. A package that stops composing after
+`page init`, as a copy edited in place or a registry or sheet a stricter Leaf
+refuses, is refused there: `page check` and `server start` refuse it, naming the
+repair, while hooks and reads of the page go on.
+
 The layer record holds the selection and two identities:
 
 - `packages` records content-package selections. `theme` is the separately selected
@@ -85,8 +94,9 @@ Code keeps a session on the plugin copy it loaded after its marketplace sweep in
 an update, until `/reload-plugins` or a restart, and a worktree's `bin/leaf` can take
 a page the session holds past that copy's protocol. So the copy the session loaded
 hands each hook, its watch and its bare `leaf` commands to the session's delivering
-Leaf: the checkout that last initialized one of its pages, or a preview's, while it
-exists, and otherwise the copy Claude Code installed since (`session_runtime.py`). An
+Leaf: the checkout that last claimed or initialized one of its pages, or a preview's,
+while it exists, and otherwise the copy Claude Code installed since
+(`session_runtime.py`). An
 update then reaches a session at its next hook; `hooks.json` and the hooks module,
 which Claude Code reads as it loads the plugin, still wait for a reload. Where a
 watch still can't read a page, as one started before this hand-off existed, its lease
@@ -134,7 +144,11 @@ Every composition, `page init`'s layer and a page's own declarations over it, st
 the facts the browser reads rather than derives (`registry/layer.stamp_composition`),
 overwriting any a layer declared: `$decisions`, each widget's deciding `x-state` verb
 and the member tags each of its outcomes retires, and `$states`, each verb's writer
-and the operation definition an admitted event records.
+and the operation definition an admitted event records. It also completes the
+attribute schemas validation reads: an attribute naming one of the layer's words,
+such as a tone, takes the layer's list as its `enum`, and an attribute holding a
+name Leaf looks up, such as an element id, takes that name's grammar as its
+`pattern`.
 
 The kernel registry, `browser/runtime/kernel-registry.json`, declares the other facts
 both runtimes read (`registry.layer.KERNEL_FACTS`, described in `registry/kernel.py`'s

@@ -10,25 +10,28 @@
      thread and the comment box makes when `c` enters it;
    - an edit in it, as a browser brings a field back into view for the caret: the words
      typed, deleted, or pasted into a box it holds;
-   - focus moving from one of its controls to another, as sequential navigation reveals
-     the control it reaches. Only a move within it: focus arriving from outside is a
-     landing, and a return (focus.js, `onCurrentLocation`), such as a node the runtime
-     replaced handing focus to its successor, is no move of the user's.
+   - Tab reaching one of its controls, or focus moving from one of its controls to
+     another, as sequential navigation reveals the control it reaches. Left unrevealed,
+     the next key would let go of a control the user can't see (keyboard/controller.js)
+     and land them where Tab reaches it again. Focus otherwise arriving from outside is
+     a landing, and a return (focus.js, `onCurrentLocation`), such as a node the runtime
+     replaced handing focus to its successor, is no move of the user's. Nor is a press:
+     the pointer found the control where it stands, so a click into a card's reply
+     leaves the page, and the box under the pointer, still. The first word typed
+     there is an edit, which brings the card back if the window doesn't show the box.
 
-   Each asks what the browser asks of an ordinary control: whether the window shows all of
-   it, above the floating panel's row. A surface waiting hidden for room to stand says so
-   (`away`), since its hidden box measures wherever it was left. A surface half under
-   the panel is as unseen there as one scrolled off altogether. The room is the chrome's
-   (`shownWindow`) rather than the landing band a landing aims for (`landingBand`): the
-   boundary holds a surface flush at the window's head, above that band's top, where it
-   is wholly seen and needs no bringing back. What a scroller inside the surface hides
-   is the browser's to reveal, so the control is measured within the surface's own box.
+   Each asks what the browser asks of an ordinary control: whether the user sees all of
+   it (geometry.js, `seenRect`), clear of the room the floating panel takes. A surface
+   waiting hidden for room to stand says so (`away`), since its hidden box measures
+   wherever it was left. A surface half under the panel is as unseen there as one
+   scrolled off altogether. What a scroller inside the surface hides is the browser's
+   to reveal, so the control is measured within the surface's own box.
 
    A surface hears no keys of its own. A key reaches it only as what the keyboard makes
    of it, so a page key such as `g` or `j` acts around a surface the user is still
    in, and one that lands in it or edits in it brings it back by doing so. What does not
    act there, a scroll or a turn arriving, leaves the surface where the page put it. */
-import { shownWindow } from "./geometry.js";
+import { seenRect } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
 import { under } from "./shadow.js";
 import { onCurrentLocation } from "./focus.js";
@@ -39,23 +42,16 @@ import { isElement } from "./shadow-tree.js";
 /** @type {Map<Element, OffFlowSurface>} */
 const surfaces = new Map();
 
-// The declared surface that owns a node's placement, if one floats over the page.
-/** @param {Node | null | undefined} node */
-export function offFlowSurfaceOf(node) {
-  for (const [surface, { floats }] of surfaces)
-    if (floats() && under(node, surface)) return surface;
-  return null;
-}
-
-// A pixel's slack, so a card the boundary holds flush at the window's head reads as shown.
+// A pixel's slack, so a card the boundary holds flush at the room's edge reads as shown.
 /** @param {Element} node @param {Element} surface */
 const unseen = (node, surface) => {
   const box = node.getBoundingClientRect();
   const bounds = surface.getBoundingClientRect();
-  const shown = shownWindow();
+  const seen = seenRect(surface, new Map());
   return (
-    Math.max(box.top, bounds.top) < shown.top - 1 ||
-    Math.min(box.bottom, bounds.bottom) > shown.bottom + 1
+    !seen ||
+    Math.max(box.top, bounds.top) < seen.top - 1 ||
+    Math.min(box.bottom, bounds.bottom) > seen.bottom + 1
   );
 };
 
@@ -80,12 +76,13 @@ export function declareOffFlowSurface(
     { capture: true },
   );
 }
-// A move within a surface, a widget's shadow tree inside it included.
+// A Tab reaching a surface, or a move within it, a widget's shadow tree inside it
+// included.
 onCurrentLocation((node, cause, left) => {
-  if (!node || !left || cause === "return") return;
+  if (!node || cause === "return" || cause === "press") return;
   for (const reading of surfaces.values()) {
     const { surface } = reading;
-    if (under(node, surface) && under(left, surface))
+    if (under(node, surface) && (cause === "step" || under(left, surface)))
       follow(reading, node, scrollBehavior());
   }
 });

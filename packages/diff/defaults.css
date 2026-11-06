@@ -136,8 +136,12 @@ lf-call-diff {
   text-overflow: ellipsis;
 }
 
+/* The count stands on the call's baseline, though set smaller and in the sans. */
+.lf-call-group-summary :is(.lf-call-body, .lf-call-group-count) {
+  align-self: baseline;
+}
+
 .lf-call-group-count {
-  align-self: center;
   grid-column: 4;
   grid-row: 1;
   margin-inline-start: var(--sp-4);
@@ -156,19 +160,19 @@ lf-call-diff {
   border-top: 0;
 }
 
-:is(.lf-call-line, .lf-call-root-location)[data-status="added"] {
+:is(.lf-call-line, .lf-call-root-location)[data-lf-status="added"] {
   background: var(--lf-code-add-fill);
 }
 
-:is(.lf-call-line, .lf-call-root-location)[data-status="removed"] {
+:is(.lf-call-line, .lf-call-root-location)[data-lf-status="removed"] {
   background: var(--lf-code-del-fill);
 }
 
-.lf-call-line[data-root] .lf-call-body {
+.lf-call-line[data-lf-root] .lf-call-body {
   font-weight: 600;
 }
 
-.lf-call-line[data-meta] {
+.lf-call-line[data-lf-meta] {
   grid-template-columns: 2rem minmax(0, 1fr);
   min-width: 0;
   padding-block: var(--sp-1);
@@ -177,7 +181,7 @@ lf-call-diff {
   white-space: normal;
 }
 
-.lf-call-line[data-meta] .lf-call-body {
+.lf-call-line[data-lf-meta] .lf-call-body {
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -189,11 +193,11 @@ lf-call-diff {
   user-select: none;
 }
 
-.lf-call-line[data-status="added"] .lf-call-marker {
+.lf-call-line[data-lf-status="added"] .lf-call-marker {
   color: var(--ok-ink);
 }
 
-.lf-call-line[data-status="removed"] .lf-call-marker {
+.lf-call-line[data-lf-status="removed"] .lf-call-marker {
   color: var(--danger-ink);
 }
 
@@ -223,10 +227,10 @@ lf-call-diff {
 
 @media print {
   lf-call-diff,
-  .lf-call-line[data-meta],
+  .lf-call-line[data-lf-meta],
   .lf-call-root-location,
-  .lf-call-line[data-status="added"],
-  .lf-call-line[data-status="removed"] {
+  .lf-call-line[data-lf-status="added"],
+  .lf-call-line[data-lf-status="removed"] {
     background: transparent;
   }
 

@@ -33,8 +33,19 @@
  * than answered by either (notes/browser-support.md, "A stuck sticky anchor in
  * Firefox" and "An anchor under a fixed box in WebKit"): Firefox ignores a sticky
  * anchor's stuck offset, and WebKit adds the root scroll to a box anchored under a
- * fixed ancestor. A third is answered once, where every inset is measured
- * (`anchorBox`): Firefox leaves an anchor's transforms out.
+ * fixed ancestor. A third is answered where every inset is measured (`anchorBox`):
+ * Firefox leaves an anchor's transforms out. A fourth gets the measuring script rejected
+ * above, once per scroll: inside a scaled box, Firefox 157 and WebKit 27.2 carry an
+ * anchored box by the scroll's layout pixels, not the smaller or larger distance the
+ * words move on screen (Firefox bug 2055371, which its own transform support still has).
+ * So the margin measures and places the rows that scroll carried again at that box's
+ * `scrollend` (`scrollMisplacesAnchors`, margin-layout.js), and they stand on their words
+ * a frame after it ends. While the scroll runs, the margin's once-a-frame reading of it
+ * finds a row whose words have left it and places it again (`subjectMoved`), which in
+ * Firefox, whose anchors `anchorBox` measures without their transforms, keeps the row a
+ * few pixels from its words; in WebKit the measured anchor moves with the words, so its
+ * rows drift until `scrollend`. Chromium 156 follows the words, so there the pass writes
+ * the insets the scroll left.
  *
  * A source keeps one name across those uses. Retained controls can observe whether its
  * source renders near the viewport before entering layout. That reading starts
@@ -368,7 +379,7 @@ function contentStart(scroller) {
 // The box whose scrolls carry `anchor`: the scroller a content start stands in, whose
 // own scroll carries it too, or the anchor itself.
 /** @param {Anchor} anchor */
-const anchorHolder = (anchor) => (isElement(anchor) ? anchor : anchor.scroller);
+export const anchorHolder = (anchor) => (isElement(anchor) ? anchor : anchor.scroller);
 
 // The name `el` answers to as an anchor, given it first where it has none.
 /** @param {Anchor} el */
@@ -376,14 +387,15 @@ export const anchorName = (el) => nameAnchor(anchorReading(el));
 
 // Where `anchor()` reads `anchor`'s box, in client coordinates, which every inset written
 // against it is measured from: its border box as a script reads it, transforms included,
-// as the spec has it. Firefox (155) leaves out the transforms on the anchor and its
-// ancestors, so a box written from the script's reading of a transformed anchor lands
-// off by the transform: a table granted room is translated into place (layouts.css),
-// and at 1728 px every pin, chip and comment box against one stood 300 px left of what
-// it marked (notes/browser-support.md, "An anchor's transforms in Firefox"). There the
-// reading takes off how far each translation on the anchor or an ancestor moves its box
-// (`translationOf`). A scale, rotation or zoom moves each point of a box differently,
-// and keeps the script's reading.
+// as the spec has it. Firefox (157) leaves out every transform on the anchor and its
+// ancestors, and reads the box where layout put it, so a box written from the script's
+// reading of a transformed anchor lands off by the transform: a table granted room is
+// translated into place (layouts.css), and at 1728 px every pin, chip and comment box
+// against one stood 300 px left of what it marked; a deck such as reveal.js translates
+// and scales its slides, and they stood hundreds of pixels below and right of the words
+// (notes/browser-support.md, "An anchor's transforms in Firefox"). There the reading is
+// that laid-out box (`laidOut`), whose size is what `anchor-size()` reads there too. A
+// zoom is layout, which Firefox's `anchor()` keeps.
 //
 // Rejected: a probe anchored to the same name, read for the corner `anchor()` resolves.
 // Firefox resolves it from where scrolls stood at its last anchor snapshot, so a probe
@@ -392,100 +404,112 @@ export const anchorName = (el) => nameAnchor(anchorReading(el));
 // no anchor in a native layer.
 /** @type {boolean | undefined} */
 let dropsTransforms;
-// Firefox lacks transforms in `anchor()`; read once whether this engine does.
+// Firefox lacks transforms in `anchor()`; read once whether this engine does. The probe
+// stands in a box with layout containment, which holds its anchor and the box anchored
+// to it: in the window's containing block, Chromium restyled every anchored element on
+// the page when they left, 200 ms on a page of 512 asks.
 function anchorDropsTransforms() {
   if (dropsTransforms !== undefined) return dropsTransforms;
+  const probe = document.createElement("div");
   const moved = document.createElement("div");
   const anchored = document.createElement("div");
+  probe.style.cssText = "position: fixed; left: 0; top: 0; contain: layout";
   moved.style.cssText =
     "position: fixed; left: 0; top: 0; translate: 8px 0; anchor-name: --lf-moved";
   anchored.style.cssText =
     "position: fixed; top: 0; position-anchor: --lf-moved; left: anchor(left, 8px)";
-  chromeRoot.append(moved, anchored);
+  probe.append(moved, anchored);
+  chromeRoot.append(probe);
   dropsTransforms = anchored.getBoundingClientRect().left < 4;
-  moved.remove();
-  anchored.remove();
+  probe.remove();
   return dropsTransforms;
 }
-// Where layout put `el`, in client coordinates, without its own transforms: its offset
-// from its offset parent's box, less the scrolls between, which offsets leave out. A
-// static body's offsets count from the document's corner, and a fixed box's from the
-// window's. Null where it has no offset to read.
-/** @param {HTMLElement} el */
-function laidOut(el) {
+// Whether `style` moves its box from where layout put it.
+/** @param {CSSStyleDeclaration} style */
+const moves = (style) =>
+  style.transform !== "none" ||
+  style.translate !== "none" ||
+  style.rotate !== "none" ||
+  style.scale !== "none" ||
+  style.offsetPath !== "none";
+// Where layout put `el`'s border box, in client coordinates, leaving out every transform
+// on it and its ancestors. `moved` holds the boxes a transform moves: the anchor and its
+// ancestors up to the outermost one with a transform. Any other box stands where a
+// script reads it. A moved box stands at its offset from its offset parent's laid-out
+// box, less the scrolls between, which offsets leave out. Offsets are whole pixels, so
+// each step can stray half a pixel. A static body's offsets count from the document's
+// corner, and a fixed box's from the window's. Null where a box on the way has no offset
+// to read, or a zoom scales its offsets.
+/** @param {Element} el @param {Set<Element>} moved @returns {DOMRect | null} */
+function laidOut(el, moved) {
+  if (!moved.has(el)) return el.getBoundingClientRect();
+  if (!isHTML(el) || el.currentCSSZoom !== 1) return null;
   const parent = el.offsetParent;
   let left = el.offsetLeft;
   let top = el.offsetTop;
-  if (!parent) {
-    if (getComputedStyle(el).position !== "fixed") return null;
-    return { left, top };
-  }
+  const box = () => new DOMRect(left, top, el.offsetWidth, el.offsetHeight);
+  if (!parent) return getComputedStyle(el).position === "fixed" ? box() : null;
   if (parent === document.body && getComputedStyle(parent).position === "static") {
     left -= scrollX;
     top -= scrollY;
   } else {
-    const from = parent.getBoundingClientRect();
+    const from = laidOut(parent, moved);
+    if (!from) return null;
     left += from.left + parent.clientLeft - parent.scrollLeft;
     top += from.top + parent.clientTop - parent.scrollTop;
   }
-  for (let box = renderedParent(el); box !== parent; box = renderedParent(box)) {
-    if (!isElement(box)) return null;
-    left -= box.scrollLeft;
-    top -= box.scrollTop;
+  for (let at = renderedParent(el); at !== parent; at = renderedParent(at)) {
+    if (!isElement(at)) return null;
+    left -= at.scrollLeft;
+    top -= at.scrollTop;
   }
-  return { left, top };
+  return box();
 }
-// Whether `style` moves its box at all, and whether only by a translation.
-/** @param {CSSStyleDeclaration} style */
-function movement(style) {
-  const matrix =
-    style.transform === "none" ? null : new window.DOMMatrixReadOnly(style.transform);
-  const moves =
-    Boolean(matrix) ||
-    style.translate !== "none" ||
-    style.rotate !== "none" ||
-    style.scale !== "none" ||
-    style.offsetPath !== "none";
-  const slides =
-    style.rotate === "none" &&
-    style.scale === "none" &&
-    (style.offsetPath === "none" || style.offsetRotate === "0deg") &&
-    (!matrix ||
-      (matrix.is2D &&
-        matrix.a === 1 &&
-        matrix.b === 0 &&
-        matrix.c === 0 &&
-        matrix.d === 1));
-  return { moves, slides };
-}
-// How far the translations on `el` and its ancestors move its box, or null where one of
-// them scales, rotates or zooms it, or has no offset to read.
-/** @param {Element} el */
-function translationOf(el) {
-  let x = 0;
-  let y = 0;
-  /** @type {Node | null} */
-  let at = el;
-  for (; isElement(at); at = renderedParent(at)) {
-    const { moves, slides } = movement(getComputedStyle(at));
-    if (!moves) continue;
-    if (!slides || !isHTML(at) || at.currentCSSZoom !== 1) return null;
-    const layout = laidOut(at);
-    if (!layout) return null;
-    const shown = at.getBoundingClientRect();
-    x += shown.left - layout.left;
-    y += shown.top - layout.top;
-  }
-  return { x, y };
+// Whether a scroll of `box` can carry what is anchored inside it away from what it marks:
+// where a layout pixel of `box` shows as more or less than a pixel on screen, as under a
+// scale on it or a box around it. A CSS zoom resizes layout itself, which anchors
+// follow, so its width counts the zoom. WebKit's Linux build (27.2) has no
+// `currentCSSZoom`, so there a zoomed box reads as scaled: it costs one pass at the
+// scroll's end, which leaves the rows where they stood. Offsets are whole pixels, so a
+// pixel's difference is rounding.
+/** @param {Element} box */
+export function scrollMisplacesAnchors(box) {
+  if (!isHTML(box) || !box.offsetWidth) return false;
+  const laid = box.offsetWidth * (box.currentCSSZoom ?? 1);
+  return Math.abs(box.getBoundingClientRect().width - laid) > 1;
 }
 /** @param {Anchor} anchor */
 export function anchorBox(anchor) {
   const box = anchor.getBoundingClientRect();
   if (!anchorDropsTransforms()) return box;
-  const shift = translationOf(anchorHolder(anchor));
-  return shift && (shift.x || shift.y)
-    ? new DOMRect(box.left - shift.x, box.top - shift.y, box.width, box.height)
-    : box;
+  /** @type {Element[]} */
+  const around = [];
+  let under = 0;
+  /** @type {Node | null} */
+  let at = anchorHolder(anchor);
+  for (; isElement(at); at = renderedParent(at)) {
+    around.push(at);
+    if (moves(getComputedStyle(at))) under = around.length;
+  }
+  if (!under) return box;
+  // A content start, or an anchor with no offsets such as a drawing, stands where the
+  // nearest HTML box around it would carry it: in proportion to that box, which holds
+  // for a translation or a scale.
+  const html = around.find((el) => isHTML(el));
+  const laid = html && laidOut(html, new Set(around.slice(0, under)));
+  if (!laid) return box;
+  if (html === anchor) return laid;
+  const shown = html.getBoundingClientRect();
+  /** @param {number} to @param {number} from */
+  const ratio = (to, from) => (to && from ? to / from : 1);
+  const x = ratio(laid.width, shown.width);
+  const y = ratio(laid.height, shown.height);
+  return new DOMRect(
+    laid.left + (box.left - shown.left) * x,
+    laid.top + (box.top - shown.top) * y,
+    box.width * x,
+    box.height * y,
+  );
 }
 // Writes `node` fixed over `box`, a client rectangle, or a point where `box` gives no
 // right edge and the node keeps its own size, as insets from where `anchor` stood (`at`,
@@ -527,12 +551,7 @@ const cutPath = ({ x, y }, band) => {
   const open = 100000;
   const width = band.right - band.left;
   const height = band.bottom - band.top;
-  // A mark may spend its band outside the band on each side its stand allows
-  // (target-paint-geometry.js, `standOver`); all other paint cuts exactly at it.
-  /** @param {number} value @param {string} side */
-  const edge = (value, side) =>
-    `calc(${layoutPx(value)} - var(--lf-paint-outset-${side}, 0px))`;
-  return `inset(${edge(y ? 0 : -open, "top")} ${edge(-width - (x ? 0 : open), "right")} ${edge(-height - (y ? 0 : open), "bottom")} ${edge(x ? 0 : -open, "left")})`;
+  return `inset(${layoutPx(y ? 0 : -open)} ${layoutPx(-width - (x ? 0 : open))} ${layoutPx(-height - (y ? 0 : open))} ${layoutPx(x ? 0 : -open)})`;
 };
 
 // The levels a box following `item` is cut at so that it passes under the sticky headers

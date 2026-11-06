@@ -26,15 +26,12 @@ from pathlib import Path
 import click
 
 from leaf.server import running_server
-from leaf.service import page_claim
 from leaf_dev import ROOT
-from leaf_dev.arms import claude_environment, claude_home
+from leaf_dev.arms import MODELS
 from leaf_dev.commands.journey import Isolation, stop_left_running
-from leaf_dev.journey_claude_code import ClaudeCode
-from leaf_dev.review_scenario import REQUEST, prepare
+from leaf_dev.journey_claude_code import ClaudeCode, claude_code_environment
+from leaf_dev.review_scenario import prepare
 
-# The model answers only setup and the developer's turns, so a fast one does.
-MODEL = "claude-sonnet-5-5"
 # Where the running session is recorded, for the next run and `--stop`.
 RECORD = ROOT / ".tmp" / "claude-code-session.json"
 
@@ -61,49 +58,18 @@ def claude_code_session(stopping: bool) -> None:
     # Outside any repository, so the session loads no project instructions; Claude
     # Code records trust by the resolved path.
     root = Path(tempfile.mkdtemp(prefix="leaf-claude-code-session-")).resolve()
-    place = Isolation(
-        root, root / "state", root / "work", root / "work" / "page", ROOT, root,
-    )  # fmt: skip
-    place.work.mkdir()
-    home = claude_home(root / "home")
-    (home / ".claude.json").write_text(
-        json.dumps(
-            {
-                "hasCompletedOnboarding": True,
-                "theme": "dark",
-                "projects": {str(place.work): {"hasTrustDialogAccepted": True}},
-            }
-        )
-    )
-    env = claude_environment(
-        home, XDG_STATE_HOME=str(place.state), TERM="tmux-256color"
-    )
+    place = Isolation.under(root, ROOT, root)
+    env = claude_code_environment(place)
     # This process reads the session's claim and Claude Code's record of its turns.
     os.environ.clear()
     os.environ.update(env)
     prepare(ROOT, place.state, place.page)
-    debug_log = root / "debug.log"
-    argv = [
-        "claude", "--model", MODEL,
-        "--plugin-dir", str(ROOT), "--strict-mcp-config",
-        "--permission-mode", "default", "--add-dir", str(ROOT),
-        "--allowedTools", "Bash Read Write Edit Glob Grep Skill",
-        "--debug-file", str(debug_log),
-    ]  # fmt: skip
-    cc = ClaudeCode(place, argv, env)
+    cc = ClaudeCode(place, env, model=MODELS["claude-code-session"])
     RECORD.parent.mkdir(exist_ok=True)
     RECORD.write_text(
         json.dumps({"pane": cc.pane, "root": str(root), "state": str(place.state)})
     )
-    cc.say(REQUEST)
-    cc.until(lambda: page_claim(place.page) is not None, "the page was not claimed")
-    claim = page_claim(place.page)
-    assert claim is not None
-    cc.session = claim["id"]
-    cc.until(
-        lambda: running_server(place.page) is not None and cc.idle(),
-        "the page was not served with the session idle",
-    )
+    cc.setup(place.page)
     server = running_server(place.page)
     assert server is not None
     click.echo(
@@ -114,7 +80,7 @@ def claude_code_session(stopping: bool) -> None:
                 "page": str(place.page),
                 "url": server["url"],
                 "state_home": str(place.state),
-                "debug_log": str(debug_log),
+                "debug_log": str(cc.debug),
             },
             indent=2,
         )

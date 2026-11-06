@@ -9,7 +9,7 @@ from interact_support import append_carried_log_record
 from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_cases_interaction import HOLD_MOTION, live_url
-from render_cases_layout import page_at_rest
+from render_cases_layout import MARK, page_at_rest, token_colour
 from render_cases_navigation import (
     COMMENTED_LIST_PAGE,
     DIFF_PAGE,
@@ -112,7 +112,7 @@ def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
         page.emulate_media(color_scheme=scheme)
         paint = row.evaluate("""row => {
           const names = ['lf-mark', 'lf-mark-hover', 'lf-mark-here',
-            'lf-pending', 'lf-react', 'lf-version-insert'];
+            'lf-pending', 'lf-react'];
           const token = row.querySelector('span');
           const read = (node, name) => {
             const style = getComputedStyle(node, `::highlight(${name})`);
@@ -122,8 +122,7 @@ def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
         }""")
         for name, style in paint.items():
             assert style["background"] != "rgba(0, 0, 0, 0)", (scheme, name, style)
-            if name != "lf-version-insert":
-                assert "underline" in style["decoration"], (scheme, name, style)
+            assert "underline" in style["decoration"], (scheme, name, style)
         backgrounds.append(paint["lf-mark"]["background"])
         page.evaluate("CSS.highlights.delete('lf-mark')")
         quiet = Image.open(io.BytesIO(row.screenshot())).convert("RGB")
@@ -324,20 +323,23 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
         if event["kind"] == "comment"
     )
     thread = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-thread="{first_id}"]'
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{first_id}"]'
     )
     second = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-thread="{second_id}"]'
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{second_id}"]'
     )
     reply = thread.locator("leaf-text")
 
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
 
-    expect(thread).to_be_focused()
+    # In its reply, and on the thread once Escape stands the user there.
+    expect(reply).to_be_focused()
     expect(reply).to_be_visible()
     wait_current_location(page, "bold text")
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(reply).to_be_visible()
@@ -460,14 +462,14 @@ def test_the_page_marks_the_comment_the_user_is_located_in(browser, serve):
     wait_current_location(page, "", ["fig"])
     # Past the last comment the walk comes round to the first, and back again.
     first = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
+        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[0]}"]'
     )
     page.keyboard.press("t")
     expect(first).to_be_focused()
     wait_current_location(page, "bold text")
     page.keyboard.press("Shift+t")
     expect(
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[2]}"]')
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[2]}"]')
     ).to_be_focused()
     wait_current_location(page, "", ["fig"])
     page.keyboard.press("Shift+t")
@@ -616,21 +618,24 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     page.evaluate("""() => {
         window.__lfNote = document.getElementById('p1').ariaDetailsElements[0];
     }""")
-    inline1 = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{c1}"]')
-    inline2 = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{c2}"]')
+    inline1 = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{c1}"]')
+    inline2 = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{c2}"]')
     expect(note).to_have_role("button")
     # Focused with the keyboard's modality, as a screen reader moving to it focuses it,
-    # the note shows and enters the first thread, and the walk goes on from there.
+    # the note shows nothing of its own: its block wears the focus ring, in view. The
+    # note enters the first thread, and the walk goes on from there.
+    page.locator("#p1").evaluate("p => { p.style.marginTop = '150vh'; }")
     page.keyboard.press("Tab")
     note.focus()
     expect(note).to_be_focused()
-    assert note.evaluate("el => el.getBoundingClientRect().width > 1"), (
-        "the comment path stayed invisible when a keyboard user reached it"
-    )
-    assert note.evaluate("el => getComputedStyle(el).opacity") == "1"
+    assert note.evaluate("el => getComputedStyle(el).opacity") == "0"
+    expect(page.locator("#p1")).to_be_in_viewport()
+    expect(page.locator("[data-lf-proxied]")).to_have_count(1)
+    assert _ring_round(page, "#p1")
+    page.locator("#p1").evaluate("p => { p.style.marginTop = ''; }")
     note.press("Enter")
     expect(inline1).to_be_focused()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     page.keyboard.press("t")
     expect(inline2).to_be_focused()
 
@@ -709,6 +714,143 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     expect_comment_notes(page, "#p2", 1)
     assert accessible_details(page, "#p1")[0].startswith("2 comments on ")
     assert accessible_details(page, "#p2")[0].startswith("1 comment on ")
+
+
+def _ring_round(page, selector):
+    """Whether the element `selector` names wears the proxy ring (`data-lf-proxied`), which
+    it draws whole round itself in the accent, outside its edge at its gap
+    (surfaces.css)."""
+    block = page.locator(selector)
+    expect(block).to_have_attribute("data-lf-proxied", "")
+    mark = block.evaluate(MARK)
+    return (
+        mark is not None
+        and mark["style"] == "solid"
+        and not mark["brackets"]
+        and mark["offset"] > 0
+        and mark["color"] == token_colour(page, "--accent")
+    )
+
+
+def test_any_focus_on_a_note_rings_its_block_and_follows_it_redrawn(browser, serve):
+    """A note takes no pointer, so only the keys or a screen reader reach it, and any
+    focus on it rings its block: after a click on the page, where the browser counts a
+    scripted focus as no keyboard focus, too. A block the page draws anew while the note
+    keeps focus takes the ring with it."""
+    url = serve(NOTED_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Sharpen this.",
+            "anchor": {"section": "p1"},
+        },
+    )
+    page = open_page(browser, url)
+    expect_comment_notes(page, "#p1", 1)
+    page.locator("#p2").click()
+    note = comment_note(page, "#p1")
+    note.evaluate("note => note.focus()")
+    expect(note).to_be_focused()
+    assert not note.evaluate("note => note.matches(':focus-visible')")
+    assert _ring_round(page, "#p1")
+    # From the keys, the block also wears the trace of the note's margin entry, whose
+    # grey the ring's accent outranks.
+    page.keyboard.press("Tab")
+    note.focus()
+    expect(page.locator("#p1")).to_have_attribute("data-lf-traced", "")
+    assert _ring_round(page, "#p1")
+
+    # The copy leaves the ring's class behind, so the ring on it is the runtime's doing.
+    page.locator("#p1").evaluate(
+        "p => { const copy = p.cloneNode(true); copy.dataset.redrawn = '';"
+        " copy.removeAttribute('data-lf-proxied'); p.replaceWith(copy); }"
+    )
+    expect_comment_notes(page, "#p1[data-redrawn]", 1)
+    expect(note).to_be_focused()
+    assert _ring_round(page, "#p1[data-redrawn]")
+
+
+def test_notes_of_one_passage_across_two_blocks_each_follow_their_block_redrawn(
+    browser, serve
+):
+    """A passage across two blocks gives each its note, both entering the same thread.
+    When the page draws both blocks anew in one task, each note goes to its own block's
+    copy: none is left on the shelf named by nothing, and the user on the first block's
+    note stays on it, ringed round the first block's copy."""
+    url = serve(NOTED_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Crosses the boundary.",
+            "anchor": {"quote": "to land in it. A short second"},
+        },
+    )
+    page = open_page(browser, url)
+    expect_comment_notes(page, "#p1", 1)
+    expect_comment_notes(page, "#p2", 1)
+    note = comment_note(page, "#p1")
+    note.evaluate("note => { window.__lfNote = note; note.focus(); }")
+    page.evaluate(
+        """() => {
+          for (const id of ["p1", "p2"]) {
+            const block = document.getElementById(id);
+            const copy = block.cloneNode(true);
+            copy.dataset.redrawn = "";
+            // Left behind, so the ring on the copy is the runtime's doing.
+            copy.removeAttribute("data-lf-proxied");
+            block.replaceWith(copy);
+          }
+        }"""
+    )
+    expect_comment_notes(page, "#p1[data-redrawn]", 1)
+    expect_comment_notes(page, "#p2[data-redrawn]", 1)
+    assert page.evaluate(
+        """() => [...document.querySelectorAll('.lf-mark-note')].map((note) =>
+          [...document.querySelectorAll('[aria-details]')].filter(
+            (block) => block.isConnected && block.ariaDetailsElements?.includes(note),
+          ).map((block) => block.id),
+        )"""
+    ) == [["p1"], ["p2"]]
+    assert page.evaluate(
+        """() => document.activeElement === window.__lfNote &&
+          document.getElementById('p1').ariaDetailsElements.includes(window.__lfNote)"""
+    )
+    assert _ring_round(page, "#p1[data-redrawn]")
+
+
+def test_a_focused_note_rings_its_block_where_the_page_draws_its_own_annotations(
+    browser, serve
+):
+    """The ring a focused note draws round its block is the chrome's own (target-paint.js),
+    not the annotation overlay's, so a page that presents its own annotations, which loads
+    no overlay, still shows a sighted screen reader user where they are."""
+    url = serve(NOTED_PAGE.replace("<body>", '<body data-annotations="page">', 1))
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Sharpen this.",
+            "anchor": {"section": "p1"},
+        },
+    )
+    page = open_page(browser, url)
+    expect_comment_notes(page, "#p1", 1)
+    note = comment_note(page, "#p1")
+    page.keyboard.press("Tab")
+    note.focus()
+    expect(note).to_be_focused()
+    assert _ring_round(page, "#p1")
+    # Leaving the note takes its ring down.
+    note.evaluate("note => note.blur()")
+    expect(page.locator("[data-lf-proxied]")).to_have_count(0)
 
 
 def test_a_revision_keeps_a_block_naming_its_comment_note(browser, serve):

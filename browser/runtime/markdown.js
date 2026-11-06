@@ -6,7 +6,9 @@ import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 import { elementsDeclaring, declarationFor } from "./registry.js";
 import { alignText } from "./text-alignment.js";
 import { dataBody } from "./widget-upgrade.js";
+import { generatedElement } from "./element-markers.js";
 import { isElement } from "./shadow-tree.js";
+import { offerContentElement } from "./element-markers.js";
 
 /** @typedef {import("markdown-it").Token} NativeToken
  * @typedef {import("markdown-it").MarkdownIt} MarkdownIt
@@ -31,21 +33,27 @@ const escapeHtml = (text) =>
 
 /** @param {string} text */
 const escapedSource = (text) => escapeHtml(text);
-/** @type {(text: string, breaks?: boolean) => string} */
+/** @type {(text: string, message?: boolean) => string} */
 let render = escapedSource;
-/** @type {(text: string, breaks?: boolean) => string} */
+/** @type {(text: string, message?: boolean) => string} */
 let renderInline = escapedSource;
-/** @type {((source: string) => NativeToken[]) | null} */
+/** @type {((source: string, message: boolean) => NativeToken[]) | null} */
 let tokenize = null;
 /** @type {Promise<void> | undefined} */
 let ready;
 
-// `breaks` reads a soft line break as a hard one, since a message keeps the breaks its
-// writer typed. A Markdown file's soft breaks are spaces, as CommonMark and GitHub
-// render a file: its lines wrap for its editor, not its reader. A Markdown body
-// (`paintMarkdown`), such as a draft, reads as a file.
-/** @param {string} text @param {boolean} [breaks] */
-export const renderMarkdown = (text, breaks = true) => render(text, breaks);
+// `message` picks the reading. A message keeps each line break its writer typed, and
+// reads neither a line's leading spaces as code nor a `---` under a line as a heading's
+// underline, since a person typing a message rarely means either; a fence is a
+// message's one way to write code, and the words on its opening line are that code's
+// first line, unless one word names the language of the code below (`fence_words`). A
+// Markdown file reads as CommonMark and GitHub
+// render a file: a soft line break is a space, since a file's lines wrap for its editor
+// rather than its reader, four spaces after a blank line open code, and a line of `=`
+// or `-` underlines a heading. A Markdown body (`paintMarkdown`), such as a draft,
+// reads as a file.
+/** @param {string} text @param {boolean} [message] */
+export const renderMarkdown = (text, message = true) => render(text, message);
 // The words a user sees in rendered Markdown, for a surface that shows them as plain
 // text: an excerpt, a label, a passage. Until the parser lands they are the source.
 /** @param {string} html @param {boolean} [imageAlt] */
@@ -66,17 +74,35 @@ function fragmentWords(fragment, imageAlt = false) {
       image.replaceWith(document.createTextNode(image.alt));
   return fragment.textContent;
 }
-/** @param {string} text */
-export const markdownWords = (text) => renderedWords(renderMarkdown(text));
-/** @param {string} text @param {boolean} [breaks] */
-export const renderInlineMarkdown = (text, breaks = true) => renderInline(text, breaks);
+/** @param {string} text @param {boolean} [message] the reading (`renderMarkdown`) */
+export const markdownWords = (text, message = true) =>
+  renderedWords(renderMarkdown(text, message));
+/** @param {string} text @param {boolean} [message] */
+export const renderInlineMarkdown = (text, message = true) =>
+  renderInline(text, message);
 // Passage readings recognize the fragment's semantic <br> as visible separation.
-/** @param {string} text @param {boolean} [breaks] */
-export function inlineMarkdownFragment(text, breaks = true) {
+/** @param {string} text @param {boolean} [message] */
+export function inlineMarkdownFragment(text, message = true) {
   const parsed = document.createElement("template");
-  parsed.innerHTML = renderInlineMarkdown(text, breaks);
+  parsed.innerHTML = renderInlineMarkdown(text, message);
   return parsed.content;
 }
+
+// The written files in `scope` whose `x-prepaint` attribute names Markdown and that
+// hold no rendering yet: a revision's or a message's, since delivery renders only the
+// first document's (`revision_delivery.mark_declared`).
+/** @param {Element | Document | DocumentFragment} scope */
+const unpaintedFiles = (scope) => {
+  const elements = elementsDeclaring(scope, "x-prepaint");
+  if (isElement(scope) && declarationFor(scope, "x-prepaint")) elements.unshift(scope);
+  return elements.filter(
+    (element) =>
+      element.getAttribute(String(declarationFor(element, "x-prepaint"))) ===
+        "markdown" &&
+      element.querySelector(":scope > pre") &&
+      !element.querySelector(":scope > [data-lf-prepaint]"),
+  );
+};
 
 // Registry text formatting belongs to the layer, so a package declaration cannot
 // make file-side passages read words the browser leaves as raw Markdown.
@@ -84,7 +110,8 @@ export function inlineMarkdownFragment(text, breaks = true) {
 export async function loadDeclaredMarkdown(scope) {
   if (
     !(isElement(scope) && declarationFor(scope, "x-text-format")) &&
-    !elementsDeclaring(scope, "x-text-format").length
+    !elementsDeclaring(scope, "x-text-format").length &&
+    !unpaintedFiles(scope).length
   )
     return;
   /** @type {unknown} */
@@ -133,11 +160,30 @@ export function formatDeclaredMarkdown(scope) {
     }
   }
 }
+// A written Markdown file first paints as its rendering beside the `<pre>` its module
+// reads, as delivery paints the first document's, so its box is the drawn preview's
+// before the module draws over both. Presentation arrivals, a revision's and a
+// message's, call this before connection, with the parser loaded. A version's painted
+// source leaves the rendering out, as its baseline does, since it is presentation.
+/** @param {Element | Document | DocumentFragment} scope */
+export function prepaintDeclaredFiles(scope) {
+  const files = unpaintedFiles(scope);
+  if (files.length && !tokenize)
+    throw new Error("leaf: Markdown prepaint requires its loaded renderer");
+  for (const file of files) {
+    const body = generatedElement(document.createElement("div"), { says: false });
+    body.className = "lf-markdown-body";
+    body.setAttribute("data-lf-prepaint", "");
+    body.innerHTML = renderMarkdown(dataBody(file), false);
+    file.prepend(body);
+  }
+}
+
 // Keep the exact source on its reading surface. Passage capture reads the rendered
 // children; revision comparison reads source, so formatting never becomes state. The
-// body reads as a Markdown file, its soft line breaks spaces, as the server's prepaint
-// draws it (`leaf.passages.markdown_markup`) and the field editing it in place draws
-// them (composing/field-editor.js, `joints`).
+// body reads as a Markdown file (`renderMarkdown`), as the server's prepaint draws it
+// (`leaf.passages.markdown_markup`) and the field editing it in place reads it
+// (composing/field-editor.js, `read`).
 /** @param {Element} element @param {string} source */
 export function paintMarkdown(element, source) {
   if (
@@ -220,9 +266,10 @@ const isBeforeJoinedInline = (token) => token.type === "inline";
  * @returns {placed is PlacedToken & BlockPlacement[K] & {token: NativeToken & {type: K}}} */
 export const isBlockPlacement = (placed, type) => placed.token.type === type;
 
-/** @param {string} source @returns {PlacedToken[]} */
-export function placedMarkdownTokens(source) {
-  const tokens = markdownTokens(source);
+/** @param {string} source @param {boolean} [message] the reading (`renderMarkdown`)
+ * @returns {PlacedToken[]} */
+export function placedMarkdownTokens(source, message = true) {
+  const tokens = markdownTokens(source, message);
   if (!tokens) return [];
   const starts = [0];
   for (let at = 0; at < source.length; at++) {
@@ -350,7 +397,7 @@ export function markdownSourceOffset(body, node, offset) {
   if (source === undefined) return null;
   let shownAt = 0;
   let sourceEnd = 0;
-  for (const placed of placedMarkdownTokens(source)) {
+  for (const placed of placedMarkdownTokens(source, false)) {
     const { token, from, to } = placed;
     if (token.nesting) continue;
     const words = placed.words;
@@ -414,8 +461,8 @@ function renderedElement(markup, tag) {
 
 // Native Markdown tokens are the editor's reading, too. Link admission annotates the
 // opening token before it reaches either renderer, so both draw the same safe label.
-/** @param {string} text */
-const markdownTokens = (text) => tokenize?.(text) ?? null;
+/** @param {string} text @param {boolean} message */
+const markdownTokens = (text, message) => tokenize?.(text, message) ?? null;
 
 // Source spans are recorded where the parser consumes them, before its presentation
 // passes join text tokens or recognize bare links. No second Markdown grammar lives
@@ -662,13 +709,35 @@ function sourcePositions(markdown) {
 }
 
 // The blocks the parser emits whole, with no opening and closing pair.
-const BLOCK_LEAVES = new Set(["fence", "hr"]);
+const BLOCK_LEAVES = new Set(["fence", "code_block", "hr"]);
 
-/** @param {typeof import("/vendor/markdown-it.esm.js")} module @param {boolean} breaks */
-export function makeMarkdown(module, breaks) {
-  const markdown = new module.MarkdownIt({ html: false, breaks, linkify: true })
-    .disable(["lheading", "code"])
-    .use(module.taskLists, { enabled: false });
+// The parser for a reading (`renderMarkdown`). passages.py reads the same two dialects,
+// short of `fence_words`, since it reads no fence in a message.
+/** @param {typeof import("/vendor/markdown-it.esm.js")} module @param {boolean} message */
+export function makeMarkdown(module, message) {
+  const markdown = new module.MarkdownIt({
+    html: false,
+    breaks: message,
+    linkify: true,
+  }).use(module.taskLists, { enabled: false });
+  if (message) {
+    markdown.disable(["lheading", "code"]);
+    // CommonMark takes all of a fence's opening line as its info string and shows none
+    // of it, so a person who typed or pasted code after the marks lost those words. Only
+    // one word over code below it stays a language. Rejected: a label on the box for
+    // every info string, which would caption each block an agent names a language for.
+    markdown.core.ruler.after("block", "fence_words", (state) => {
+      for (const token of state.tokens) {
+        const words = token.info.trim();
+        if (token.type !== "fence" || !words) continue;
+        if (token.content && !/\s/.test(words)) continue;
+        token.content = `${words}\n${token.content}`;
+        token.info = "";
+        const opening = token.lfSource?.markers?.[0];
+        if (opening) opening[2] = opening[1] + token.markup.length;
+      }
+    });
+  }
   // A bare domain is indistinguishable from a file name such as setup.py. Require
   // an explicit URL or Markdown link instead of inventing an external destination.
   markdown.linkify.set({ fuzzyLink: false });
@@ -752,10 +821,14 @@ export function makeMarkdown(module, breaks) {
     const image = renderedElement(markup, "img");
     const source = scopedMediaUrl(href);
     image.setAttribute("src", source);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "lf-media-open lf-message-media";
-    button.setAttribute("data-lf-offer", "button");
+    // Only this button's markup is kept. `image` belongs to the parser's inert template
+    // document, and a button from the live `document` would adopt it there, where the
+    // browser fetches its source for an element nobody sees.
+    const button = offerContentElement(
+      image.ownerDocument.createElement("button"),
+      "picture",
+      "lf-media-open lf-message-media",
+    );
     button.setAttribute("data-lf-said", "");
     button.setAttribute("data-lf-media-url", source);
     button.setAttribute("aria-label", `View ${alt || "Image"}`);
@@ -770,20 +843,22 @@ export function loadMarkdown(onError = null) {
   const attempt = (ready ??= import("/vendor/markdown-it.esm.js").then((module) => {
     const markdown = makeMarkdown(module, true);
     /** @type {MarkdownIt | undefined} */
-    let softBreaks;
-    /** @type {MarkdownIt | undefined} */
-    let positioned;
-    /** @param {boolean | undefined} breaks */
-    const dialect = (breaks) =>
-      breaks ? markdown : (softBreaks ??= makeMarkdown(module, false));
-    render = (text, breaks) => dialect(breaks).render(text);
-    renderInline = (text, breaks) => dialect(breaks).renderInline(text);
-    tokenize = (text) => {
-      if (!positioned) {
-        positioned = makeMarkdown(module, true);
-        sourcePositions(positioned);
+    let file;
+    /** @param {boolean | undefined} message */
+    const dialect = (message) =>
+      message ? markdown : (file ??= makeMarkdown(module, false));
+    render = (text, message) => dialect(message).render(text);
+    renderInline = (text, message) => dialect(message).renderInline(text);
+    /** @type {Map<boolean, MarkdownIt>} */
+    const positioned = new Map();
+    tokenize = (text, message) => {
+      let parser = positioned.get(message);
+      if (!parser) {
+        parser = makeMarkdown(module, message);
+        sourcePositions(parser);
+        positioned.set(message, parser);
       }
-      return positioned.parse(text, {});
+      return parser.parse(text, {});
     };
   }));
   return attempt

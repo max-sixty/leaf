@@ -5,6 +5,7 @@
  * here changes authored content, starts a website session, or polls for updates.
  * Page controls own identity values; copyable-text.js supplies every read-only text
  * block with its copy control. This module loads only when About opens. */
+import { capitalized } from "./words.js";
 import { describeFailure } from "./exception.js";
 import { html, nothing, render } from "/runtime/framework.js";
 import { chromeForeground } from "./chrome.js";
@@ -47,13 +48,13 @@ const dialog = el("dialog", "lf-ui lf-inspection-dialog");
 dialog.setAttribute("aria-label", "About this page");
 const head = el("div", "lf-dialog-head");
 head.append(el("strong", "lf-dialog-title", "About this page"));
+const copyLabel = offerAction("word", "", "Copy diagnostics");
 const copy = copyControl("", {
   label: "Copy diagnostics",
   success: "Diagnostics copied",
   error: "Diagnostics not copied. Select the report text to copy it manually.",
+  trigger: copyLabel,
 });
-const copyLabel = offerAction("word", "", "Copy diagnostics");
-copy.append(copyLabel);
 const close = closeControl({
   name: "Close about this page",
   title: "Close about this page (Esc)",
@@ -114,16 +115,10 @@ let destinations = new WeakMap();
 let navigationError = null;
 /** @param {number} value */
 const number = (value) => value.toLocaleString();
-/** @param {CssCounts} values */
-const metrics = (values) =>
-  html`<dl class="lf-inspection-metrics">
-    ${Object.entries({
-      "UTF-8 bytes": values.bytes,
-      "CSS rules": values.rules,
-      Declarations: values.declarations,
-      "Inline styles": values.inline_styles,
-      "!important": values.important,
-    }).map(
+/** @param {Record<string, number>} values */
+const counts = (values) =>
+  html`<dl class="lf-facts">
+    ${Object.entries(values).map(
       ([label, value]) =>
         html`<div>
           <dt>${label}</dt>
@@ -131,6 +126,15 @@ const metrics = (values) =>
         </div>`,
     )}
   </dl>`;
+/** @param {CssCounts} values */
+const metrics = (values) =>
+  counts({
+    "UTF-8 bytes": values.bytes,
+    "CSS rules": values.rules,
+    Declarations: values.declarations,
+    "Inline styles": values.inline_styles,
+    "!important": values.important,
+  });
 
 /** @param {CssReport} css @param {string} owner */
 const sourcesOf = (css, owner) =>
@@ -322,11 +326,11 @@ function present() {
         report.javascript
           ? html`<section aria-label="Authored JavaScript">
               <h2 class="lf-label">Authored JavaScript</h2>
-              <p>
-                ${number(report.javascript.page.bytes)} page-owned bytes ·
-                ${number(report.javascript.page.inline_scripts)} inline scripts ·
-                ${number(report.javascript.page.files)} files
-              </p>
+              ${counts({
+                "Page-owned bytes": report.javascript.page.bytes,
+                "Inline scripts": report.javascript.page.inline_scripts,
+                Files: report.javascript.page.files,
+              })}
               <details>
                 <summary>JavaScript sources</summary>
                 <dl>
@@ -449,10 +453,9 @@ export async function openPageInspection(intent) {
         .filter((entry) => entry.copies)
         .map(
           (entry) =>
-            html`${copyableText(
-              entry.label.charAt(0).toUpperCase() + entry.label.slice(1),
-              entry.copies,
-            )}${entry.title ? html`<p>${entry.title}</p>` : nothing}`,
+            html`${copyableText(capitalized(entry.label), entry.copies)}${
+              entry.title ? html`<p>${entry.title}</p>` : nothing
+            }`,
         )}`,
     identity,
   );

@@ -19,7 +19,7 @@ lf-visual-review {
   --lf-full-height: inherit;
   --lf-block-frame: 1;
   color: var(--ink);
-  font: var(--t-5)/1.5 var(--sans);
+  font: var(--font-widget);
 }
 .lf-vr-dashboard {
   display: grid;
@@ -102,7 +102,7 @@ lf-visual-review {
 .lf-vr-case-status {
   color: var(--ok-ink);
 }
-.lf-vr-case-status[data-approved="false"] {
+.lf-vr-case-status[data-lf-approved="false"] {
   visibility: hidden;
 }
 .lf-vr-detail {
@@ -162,62 +162,33 @@ lf-visual-review {
   flex-wrap: wrap;
   gap: 8px 12px;
 }
+/* A choice (controls.css) pads its ring room; the row hangs it by that padding into
+   the workspace's gap beside the queue, so the checkbox stands on the row's edge. The
+   stacked desk has no such gap (below). */
 .lf-vr-approval {
-  display: inline-flex;
-  align-items: center;
   gap: 7px;
-  min-block-size: var(--aim-floor);
+  margin-inline-start: calc(-1 * var(--choice-pad));
   font: var(--font-compact);
-  cursor: pointer;
-}
-.lf-vr-approval input {
-  margin: 0;
 }
 .lf-vr-inspect {
   anchor-name: --review-inspect;
 }
+/* Each popover hangs below the control that opens it, or above it where the window has
+   no room below, on the popover face (controls.css, `.lf-popover`). */
 .lf-vr-details,
 .lf-vr-thread-list {
   box-sizing: border-box;
   position: fixed;
-  inset: 0;
-  margin: auto;
+  position-anchor: --review-inspect;
+  position-area: bottom span-left;
+  position-try-fallbacks: flip-block;
+  inset: auto;
+  margin: 8px 0;
   inline-size: min(360px, calc(100vw - 32px));
   max-block-size: calc(100dvh - 100px);
   overflow: auto;
   padding: 20px;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--paper);
-  color: var(--ink);
-  box-shadow: var(--raise-2);
   font: var(--font-ui);
-}
-@supports (position-area: bottom) {
-  .lf-vr-details,
-  .lf-vr-thread-list {
-    position-anchor: --review-inspect;
-    position-area: bottom span-left;
-    inset: auto;
-    margin: 8px 0;
-    position-try-fallbacks: flip-block;
-  }
-}
-.lf-vr-details::backdrop {
-  background: transparent;
-}
-.lf-vr-provenance {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 20px;
-  font: var(--font-compact);
-}
-.lf-vr-provenance :is(dt, dd) {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-.lf-vr-provenance dt {
-  color: var(--muted);
 }
 .lf-vr-sources {
   display: flex;
@@ -229,7 +200,10 @@ lf-visual-review {
   display: grid;
   grid-template-rows: auto minmax(min-content, 1fr);
   --lf-full-height: inherit;
-  background: color-mix(in srgb, var(--ink) 3%, var(--paper));
+  /* The capture stands on a tint of the paper, between a header and a claim on the
+     paper itself; each is a solid surface naming its ground (package-themes.md). */
+  --lf-ground: color-mix(in srgb, var(--ink) 3%, var(--paper));
+  background: var(--lf-ground);
   border: 0;
   border-radius: 0;
 }
@@ -241,7 +215,8 @@ lf-visual-review {
   gap: 8px 16px;
   padding: 10px 12px;
   border-block-end: 1px solid var(--rule);
-  background: var(--paper);
+  --lf-ground: var(--paper);
+  background: var(--lf-ground);
 }
 .lf-vr-evidence-note {
   flex: 1 1 20rem;
@@ -311,6 +286,11 @@ lf-visual-review {
   }
   .lf-vr-caption {
     padding-block: 14px 8px;
+  }
+  /* The detail stands on the review's own edge, which clips once the review scrolls
+     in a full-height workspace, so the choice keeps its ring room inside the row. */
+  .lf-vr-approval {
+    margin-inline-start: 0;
   }
 }
 @container visual-review (max-width:28rem) {
@@ -390,7 +370,8 @@ lf-visual-review {
 
 .lf-vr-claim {
   padding: var(--sp-3);
-  background: var(--paper);
+  --lf-ground: var(--paper);
+  background: var(--lf-ground);
 }
 
 @container visual-review (max-width:58rem) {

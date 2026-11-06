@@ -69,12 +69,14 @@
    Its dependencies are structural vocabulary, rendering and writes; importing a
    gesture owner would cycle through its focus dependency. */
 import { afterScript, nextRender } from "./rendering.js";
+import { inputs } from "./inputs.js";
 import { signal } from "/vendor/signals-core.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import { eventSource, pressIsKeyboardActivation } from "./pointer.js";
 import {
   excludedByInert,
+  hostIn,
   isElement,
   isHTML,
   isNativeLayer,
@@ -383,15 +385,27 @@ function landLabelPress() {
 // the host of the shadow tree the user is in, for a reader comparing or containing
 // nodes of that tree. Every reading of focus outside this module asks here, so none
 // misses a label press or a shadow tree (eslint's `architecture/current-location-reads`).
-// Keyboard reflection follows this revision explicitly. Mechanical focus queries made
-// while rendering stay untracked, so restoring focus cannot subscribe a render to itself.
+// Mechanical focus queries made while rendering stay untracked, so restoring focus
+// cannot subscribe a render to itself. Keyboard reflection follows where the user is
+// through this revision, either explicitly or by reading inside `followingFocus`, where
+// asking `focused` subscribes the reading: a move then reads again only what asked.
 const currentLocation = signal(0);
 export const focusRevision = () => currentLocation.value;
+let following = 0;
+/** @template T @param {() => T} read @returns {T} */
+export function followingFocus(read) {
+  following += 1;
+  try {
+    return read();
+  } finally {
+    following -= 1;
+  }
+}
 /** @param {Node | null} [tree] */
 export const focused = (tree = null) => {
-  let at = heldByLabel() ?? deepFocus();
-  if (tree) while (at && at.getRootNode() !== tree) at = shadowHost(at.getRootNode());
-  return at;
+  if (following) focusRevision();
+  const at = heldByLabel() ?? deepFocus();
+  return tree ? hostIn(at, tree) : at;
 };
 
 // The selection the user drew in the tree containing `node`, where the browser keeps it.
@@ -820,6 +834,20 @@ export function watchCurrentLocationIn(root) {
 }
 watchCurrentLocationIn(document);
 watchCurrentLocationAround(deepFocus());
+// Focus the document took before this module loaded, as `autofocus` gives it, fired no
+// event it heard, so its paint starts from it. The platform's `:focus-visible` says
+// whether an element wears its ring, but never a frame, whose ring follows the input
+// that put the user there (`visibleFocus`), which this module did not hear. A frame
+// starts as a press into it leaves it (`inputInFrame`), without a ring the user may
+// not have asked for, and its next reported input decides.
+{
+  const at = deepFocus();
+  if (at && at !== document.body) {
+    if (isHTML(at, "iframe")) pressedPath = [new WeakRef(at)];
+    paintDestination = new WeakRef(at);
+    queueFocusPaint();
+  }
+}
 // Leaving for nowhere from a node still drawn is the user's own move, and so a
 // placement: body holds no stop, so a press on the page's words takes focus off the
 // control and puts it nowhere with no `focusin` to count, and a hold still waiting
@@ -917,7 +945,7 @@ addEventListener(
 // window losing focus, as find-in-page takes it. Delayed work compares the count it
 // began at (user-intent.js), as a hand-back waiting a frame for its target does. A scroll is none of these: the runtime's own landings fire
 // it, and each of the user's ways of scrolling begins with one that is.
-const inputs = window.lfInputs;
+
 export const inputCount = () => inputs.count;
 // Mechanical owners may stop motion at the input edge, before a command or drawing
 // handler consumes it. Observation adds no binding and never claims the event.
@@ -953,9 +981,19 @@ onUserInput((event) => {
 });
 
 // Which input last named a place to keep in a reflow: a pointer moving, pressing or
-// wheeling over an item, or the keyboard, whose arrivals name the item focus is on.
-// It chooses which visible item holds a reflow, and supersedes no delayed move.
+// wheeling over an item, or the keyboard, whose arrivals name the item focus is on. A
+// key pressed with nothing focused, or at focus the user has scrolled away from
+// (user-place.js, `focusPlace`), names nothing, so the column the pointer last named
+// stays the reader's for the command it runs and the let-go it starts with
+// (reading-place.js, `readingBlock`). It chooses which visible item holds a reflow, and
+// supersedes no delayed move.
 let placeInput = "focus";
+/** @type {() => unknown} */
+let focusIsPlace = () => true;
+/** @param {typeof focusIsPlace} read */
+export const declareFocusPlace = (read) => {
+  focusIsPlace = read;
+};
 for (const type of ["pointermove", "pointerdown", "wheel"])
   addEventListener(type, () => (placeInput = "pointer"), {
     capture: true,
@@ -1188,7 +1226,12 @@ export const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event) ?? n
 addEventListener(
   "keydown",
   (event) => {
-    placeInput = "focus";
+    const at = deepFocus();
+    // A field the user types in is theirs whatever it takes to see it, and a keystroke
+    // pays for no read of the page's geometry. Tab types nothing, so it lets go of a
+    // field the user can't see (keyboard/controller.js) and names nothing.
+    const typing = typesText(at) && event.key !== "Tab";
+    if (at !== document.body && (typing || focusIsPlace())) placeInput = "focus";
     const recovering = labelPress;
     if (!recovering || event.isComposing || MODIFIER_KEYS.includes(event.key)) return;
     const active = deepFocus();
@@ -1230,8 +1273,8 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
 // rather than the control declares it there, `--lf-wears-ring: 1` (base.css), as a
 // playground's choice rings its radio and words together; the nearest such box around
 // the control is the one. Anything else wears its own. Those rules ring the face of the
-// control the focus paint marks, so only that control has one. A landing in the
-// focus task reads the carrier from native focus before Leaf paints. Reading the
+// control the focus paint marks, so only that control has one, and a landing made in the
+// focus task finds it only after the paint (`rowWalk`, walk-position.js). Reading the
 // ring must not paint an intermediate focus destination: a return in the same
 // task would otherwise remove and restore the previous focus marks.
 /** @template {Element | Range} T @param {T} node @returns {T | Element} */
@@ -1283,7 +1326,7 @@ export function holdFocus(scope, { key = null } = {}) {
   const order = [keys[at], ...keys.slice(at + 1), ...keys.slice(0, at).reverse()];
   // In an item, the control like the one the user was on, as Remove for Remove, read
   // in the item's own tree, or the item itself where it holds none.
-  // Not shadow.js's `hostIn`, which answers null where the climb leaves the item's tree:
+  // Not shadow-tree.js's `hostIn`, which answers null where the climb leaves the item's tree:
   // this keeps the outermost host it reached.
   let control = node;
   while (control.getRootNode() !== item.getRootNode()) {
@@ -1556,14 +1599,16 @@ export const typesText = inputs.typesText;
 // Select options retain typeahead when an open custom list moves focus into an option.
 export const takesLetters = inputs.takesLetters;
 
-// Radio and range controls own their arrow navigation before a containing widget.
-// Custom controls expose the same role at their focused element as the native input.
+// Radio, range and select controls own their arrow navigation before a containing
+// widget. Custom controls expose the same role at their focused element as the native
+// input. A select steps its choice by a slider's keys, or opens its list on macOS; its
+// letters are typing (`takesLetters`).
 /** @param {Element | null} node */
 export function controlNavigationKeys(node) {
   if (node?.matches('input[type="radio"], [role="radio"]'))
     return ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
-  if (node?.matches('input[type="range"], [role="slider"]'))
-    // A slider's value steps, not control-selectors.js's CARET_KEYS: the same keys today.
+  if (node?.matches('select, input[type="range"], [role="slider"]'))
+    // A value's steps, not control-selectors.js's CARET_KEYS: the same keys today.
     return [
       "ArrowLeft",
       "ArrowRight",
@@ -1656,12 +1701,15 @@ export const onLetGo = (read) => {
 /** @param {Element | null} [from] */
 export function letGo(from = focused()) {
   letGoes++;
+  const held = /** @type {HTMLElement | null} */ (focused());
   const block = readingBlock(from);
   if (!block?.isConnected) releaseFocus();
   else {
     focusDestination(block, "move");
     block.blur();
   }
+  // A page an open modal holds inert takes no focus, so the landing above moved nothing.
+  held?.blur();
   if (from && from !== document.body) for (const read of letGoReaders) read(from);
 }
 

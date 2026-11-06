@@ -36,6 +36,8 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
     "| First | Second |\n| --- | --- |\n| other | **word300** |",
     "\\* literal, &amp; then word300 and *later*.",
     "```text\nword300\n```",
+    "Run:\n\n    make word300\n\tlint",
+    "Title **word300**\n===",
     "![word300](data:text/html,unsafe)",
     "- first\n\tcontinued **word300**",
     "1. first\n\tcontinued **word300**",
@@ -84,9 +86,14 @@ test("Markdown body readings share file dialect, safe destinations and native st
   const cases = JSON.parse(
     readFileSync(new URL("../markdown_body_cases.json", import.meta.url)),
   );
-  for (const { source, words, links } of cases) {
+  for (const { source, words, blocks, links } of cases) {
     const body = document.createElement("div");
     body.innerHTML = renderMarkdown(source, false);
+    assert.deepEqual(
+      [...body.children].map((block) => block.localName),
+      blocks,
+      source,
+    );
     assert.deepEqual(
       [...body.querySelectorAll("a")].map((link) => ({
         text: link.textContent,
@@ -102,11 +109,14 @@ test("Markdown body readings share file dialect, safe destinations and native st
     );
   }
   const body = document.createElement("div");
-  // A `---` under a line is a rule: Setext headings are off.
-  body.innerHTML = renderMarkdown("<div>\n**bold**\n</div>\n\n<div>\nHeading\n---");
+  // A message reads a `---` under a line as a rule and a line's leading spaces as
+  // typed, where a file reads a heading and code.
+  body.innerHTML = renderMarkdown(
+    "<div>\n**bold**\n</div>\n\n<div>\nHeading\n---\n\n    leading spaces",
+  );
   assert.equal(
     body.innerHTML,
-    '<p data-lf-gap="0">&lt;div&gt;<br><strong>bold</strong><br>&lt;/div&gt;</p>\n<p data-lf-gap="1">&lt;div&gt;<br>Heading</p>\n<hr data-lf-gap="0">\n',
+    '<p data-lf-gap="0">&lt;div&gt;<br><strong>bold</strong><br>&lt;/div&gt;</p>\n<p data-lf-gap="1">&lt;div&gt;<br>Heading</p>\n<hr data-lf-gap="0">\n<p data-lf-gap="1">leading spaces</p>\n',
   );
   body.innerHTML = renderMarkdown("- [x] Done\n- [ ] Todo");
   assert.deepEqual(
@@ -140,6 +150,21 @@ test("Markdown body readings share file dialect, safe destinations and native st
     assert.equal(renderInlineMarkdown(source), "first<br>second");
     assert.equal(renderedWords(renderInlineMarkdown(source)), "first\nsecond");
   }
+});
+
+test("a draft's answer reads its words as its body draws them, as a file", async () => {
+  const { loadMarkdown, paintMarkdown } = await import("/runtime/markdown.js");
+  assert.equal(await loadMarkdown(), true);
+  await import("../../packages/default/widgets/lf-draft.js");
+  const source = "Title\n=====\n\nRun:\n\n    make";
+  const body = document.createElement("div");
+  paintMarkdown(body, source);
+  const collapsed = (text) => text.replace(/\s+/g, " ").trim();
+  assert.equal(collapsed(body.textContent), "Title Run: make");
+  assert.equal(
+    collapsed(customElements.get("lf-draft").answerWords(source)),
+    collapsed(body.textContent),
+  );
 });
 
 test("bare file names in Markdown stay text while explicit links remain links", async () => {
@@ -265,6 +290,31 @@ test("editor tokens retain native constructs and exact source syntax after parse
   assert.equal(task.slice(box.from, box.to), "[x]");
 });
 
+test("a message's fence shows the words on its opening line, and a file's reads them as its info", async () => {
+  const { loadMarkdown, renderMarkdown } = await import("/runtime/markdown.js");
+  await loadMarkdown();
+  const code = (source, message) => {
+    const body = document.createElement("div");
+    body.innerHTML = renderMarkdown(source, message);
+    const block = body.querySelector("pre code");
+    return [block.className, block.textContent];
+  };
+  for (const [source, message, expected] of [
+    ["```py\nx\n```", true, ["language-py", "x\n"]],
+    ["```  py  \nx\n```", true, ["language-py", "x\n"]],
+    ["```read this\nx\n```", true, ["", "read this\nx\n"]],
+    ["```read this\nx", true, ["", "read this\nx"]],
+    ["> ```read this\n> x", true, ["", "read this\nx"]],
+    ["```read this", true, ["", "read this\n"]],
+    ["```word", true, ["", "word\n"]],
+    ["```word\n```", true, ["", "word\n"]],
+    ["```\nx\n```", true, ["", "x\n"]],
+    ["```read this\nx\n```", false, ["language-read", "x\n"]],
+    ["```word", false, ["language-word", ""]],
+  ])
+    assert.deepEqual(code(source, message), expected, source);
+});
+
 test("block markers retain native source spans inside containers and fences", async () => {
   const { loadMarkdown, placedMarkdownTokens } = await import("/runtime/markdown.js");
   await loadMarkdown();
@@ -286,6 +336,8 @@ test("block markers retain native source spans inside containers and fences", as
     ],
     ["````\n```\nbody\n````", [["fence", ["````", "````"]]]],
     ["~~~\n```\nbody\n~~~", [["fence", ["~~~", "~~~"]]]],
+    ["```py\nbody\n```", [["fence", ["```py", "```"]]]],
+    ["``` two words\nbody\n```", [["fence", ["```", "```"]]]],
     [
       "> 1. ~~~\n>    ```\n>    body",
       [
@@ -362,6 +414,39 @@ test("preloading an arriving Markdown widget preserves its exact authored body",
     );
   } finally {
     delete registry["lf-source-contract"];
+  }
+});
+
+test("an arriving written Markdown file first paints its rendering beside its exact source", async () => {
+  const { registry } = await import("/runtime/registry.js");
+  const { importWidgets } = await import("/runtime/widget-loader.js");
+  const { prepaintDeclaredFiles } = await import("/runtime/markdown.js");
+  registry["lf-file-contract"] = { "x-prepaint": "notation" };
+  try {
+    const scope = new DOMParser()
+      .parseFromString(
+        '<main><lf-file-contract notation="markdown"><pre>**Fixed** words\nwrap on.</pre></lf-file-contract>' +
+          '<lf-file-contract notation="html"><pre>&lt;b&gt;bold&lt;/b&gt;</pre></lf-file-contract></main>',
+        "text/html",
+      )
+      .querySelector("main");
+    // A message's markup takes this path; a revision's arrivals call the prepaint alone.
+    await importWidgets(scope);
+    const [file, frame] = scope.children;
+    const rendering = ":scope > .lf-markdown-body[data-lf-prepaint]";
+    assert.equal(file.querySelectorAll(rendering).length, 1);
+    prepaintDeclaredFiles(scope);
+    const bodies = file.querySelectorAll(rendering);
+    assert.equal(bodies.length, 1, "one rendering, however often arrival paints");
+    assert.equal(bodies[0].querySelector("strong")?.textContent, "Fixed");
+    assert.equal(bodies[0].querySelector("br"), null, "a file's soft break is a space");
+    assert.equal(
+      file.querySelector(":scope > pre")?.textContent,
+      "**Fixed** words\nwrap on.",
+    );
+    assert.equal(frame.querySelector("[data-lf-prepaint]"), null);
+  } finally {
+    delete registry["lf-file-contract"];
   }
 });
 

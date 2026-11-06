@@ -11,6 +11,8 @@ from journeys.test_render_controls import seen_stop
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_layout import (
+    MARK,
+    NAMED,
     current_location_ring,
     mark_edges,
     ring_faults,
@@ -19,7 +21,6 @@ from render_cases_layout import (
     token_colour,
 )
 from render_harness import (
-    EXAMPLES,
     LONG_PAGE,
     REPLAYED_PAGE,
     any_suggestion_control,
@@ -38,6 +39,7 @@ from browser.controls import (
 from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -354,7 +356,7 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
         rendered(page)
         pointer = carrier.evaluate(paint)
         assert pointer["style"] == "none", pointer
-        expect(page.locator(".lf-visual-mark-focus")).to_have_count(0)
+        expect(page.locator('[data-lf-mark~="focus"]')).to_have_count(0)
         drawn = rings_drawn(page)
         samples = [ring for ring in drawn if ring["sample"]]
         assert not samples, drawn
@@ -367,16 +369,9 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
         expect(control).to_be_focused()
         rendered(page)
         if control is button:
-            projected = page.locator(".lf-visual-mark-focus")
-            expect(projected).to_have_attribute("data-for", "focus-button")
-            assert (
-                projected.evaluate(
-                    "node => getComputedStyle(node, '::after').outlineStyle"
-                )
-                == "solid"
-            )
-        else:
-            assert carrier.evaluate(paint)["style"] == "solid"
+            # The target painter's focus state, which the button draws as its ring.
+            expect(button).to_have_attribute("data-lf-mark", re.compile(r"\bfocus\b"))
+        assert carrier.evaluate(paint)["style"] == "solid"
         drawn = rings_drawn(page)
         assert len([ring for ring in drawn if ring["sample"]]) == 1, drawn
         assert not ring_faults(drawn, "after keyboard arrival")
@@ -486,25 +481,41 @@ customElements.define('lf-button-pairs', class extends HTMLElement {
     )
 
 
-FACE = "el => getComputedStyle(el).backgroundColor"
+FACE = "el => { const s = getComputedStyle(el); return [s.backgroundColor, s.outlineStyle]; }"
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_pressed_quiet_action_looks_like_its_neighbour(request, serve, engine):
-    """A press leaves focus on a quiet action, as on any button, and leaves its face
-    alone: once the pointer goes, it matches the action beside it until a key moves
-    focus there, which wears the chip."""
+def test_a_quiet_action_keeps_its_face_and_a_toggle_shows_its_mode(
+    request, serve, subtests, engine
+):
+    """What quiet words and symbols wear under a press and at rest, on one page."""
     page = open_page(request.getfixturevalue(engine), _button_pairs(serve))
-    back, forward = page.locator("#quiet-back"), page.locator("#quiet-next")
-    forward.click()
-    page.mouse.move(0, 0)
-    expect(forward).to_be_focused()
-    rendered(page)
-    assert forward.evaluate(FACE) == back.evaluate(FACE)
-    page.keyboard.press("Shift+Tab")
-    expect(back).to_be_focused()
-    rendered(page)
-    assert back.evaluate(FACE) != forward.evaluate(FACE)
+
+    with subtests.test("a pressed quiet action looks like its neighbour"):
+        # A press leaves focus on a quiet action, as on any button, and leaves its face
+        # alone: once the pointer goes, it matches the action beside it until a key
+        # moves focus there, which wears the band.
+        back, forward = page.locator("#quiet-back"), page.locator("#quiet-next")
+        forward.click()
+        page.mouse.move(0, 0)
+        expect(forward).to_be_focused()
+        rendered(page)
+        assert forward.evaluate(FACE) == back.evaluate(FACE)
+        page.keyboard.press("Shift+Tab")
+        expect(back).to_be_focused()
+        rendered(page)
+        assert back.evaluate(FACE) != forward.evaluate(FACE)
+
+    with subtests.test("a quiet toggle still shows its chosen mode"):
+        # Words are quiet, with no frame at rest, so a mode toggle's chosen mode draws
+        # its own selected face: a frame and ground the unchosen word beside it lacks.
+        page.mouse.move(0, 0)
+        rendered(page)
+        face = "el => [getComputedStyle(el).borderTopColor, getComputedStyle(el).backgroundColor]"
+        chosen = page.locator("#mode-on").evaluate(face)
+        other = page.locator("#mode-off").evaluate(face)
+        assert other == page.locator("#plain-back").evaluate(face)
+        assert chosen[0] != other[0] and chosen[1] != other[1], (chosen, other)
 
 
 def test_a_tapped_button_looks_like_its_neighbour(browser, serve):
@@ -611,8 +622,12 @@ def test_a_marked_element_draws_nothing_under_the_pointer(browser, serve):
         box = target.bounding_box()
         inside = (box["x"] + 6, box["y"] + box["height"] / 2)
         page.mouse.move(*inside)
-        expect(page.locator("body")).to_have_class(re.compile(r"\blf-over-mark\b"))
-        expect(page.locator(f'.lf-visual-mark[data-for="{ident}"]')).to_have_count(0)
+        page.wait_for_function(
+            "([x, y]) => getComputedStyle(document.elementFromPoint(x, y)).cursor"
+            " === 'pointer'",
+            arg=inside,
+        )
+        expect(target).not_to_have_attribute("data-lf-mark", re.compile(".*"))
         rest = mark_edges(page, ident, ink)
         assert all(seen == {0} for seen in rest.values()), (
             f"the comment on #{ident} drew a contour under the pointer: {rest}"
@@ -625,8 +640,9 @@ def test_a_contour_stands_inside_a_target_its_clip_leaves_no_room_around(
 ):
     """A joined option group clips its cells to its frame, so the brackets of the thread
     the user is in, drawn flush outside a cell, lost their sides and left stubs across
-    the neighbouring cells. Inside the frame they stand just within the cell's edge; a
-    paragraph with room around it is the control that keeps them outside."""
+    the neighbouring cells. A cell states its marks one band inside its edge
+    (options.css), and the brackets stand there; a paragraph with room around it is the
+    control that keeps them outside."""
     url = serve(
         leaf_page(
             "Contours",
@@ -659,13 +675,12 @@ def test_a_contour_stands_inside_a_target_its_clip_leaves_no_room_around(
             "button", name="Show on page", exact=True
         ).click()
         panel_settled(page, open=False)
-        mark = page.locator(f'.lf-visual-mark-here[data-for="{ident}"]')
-        expect(mark).to_be_visible()
-        room = mark.evaluate(
-            "n => { const s = getComputedStyle(n, '::after');"
-            " return parseFloat(s.outlineOffset) + parseFloat(s.outlineWidth); }"
-        )
-        assert (room <= 0) is inside, (ident, room)
+        marked = page.locator(f"#{ident}")
+        expect(marked).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
+        mark = marked.evaluate(MARK)
+        assert mark and mark["brackets"], (ident, mark)
+        room = mark["offset"] + mark["width"]
+        assert (room <= 0) is inside, (ident, mark)
 
 
 # A page holding a paragraph and one control, for the readings below that plant the
@@ -698,7 +713,7 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
     they clip. The first case is the control: without it a reading that reported at every
     stop would pass the other three and prove nothing.
     """
-    example = next(e for e in EXAMPLES if e.stem == "release-notes")
+    example = named_source("release-notes")
     url = serve(example, comments=2, seed_log=False)
     page = open_page(browser, url)
     any_suggestion_control(page, "accept").first.focus()
@@ -750,25 +765,23 @@ def test_the_ring_reading_distinguishes_target_brackets_from_focus(browser, serv
     target = page.locator("#target")
     target.hover()
     page.keyboard.down("Alt")
-    aim = page.locator(".lf-aim")
-    expect(aim).to_have_attribute("data-for", "target")
-    assert (
-        aim.evaluate("node => getComputedStyle(node, '::before').outlineStyle")
-        == "solid"
-    )
-    assert not any("lf-aim" in seen["who"] for seen in rings_drawn(page))
+    expect(target).to_have_attribute("data-lf-aimed", "")
+    aim = target.evaluate(MARK)
+    assert aim and aim["style"] == "solid" and aim["brackets"], aim
+    aimed = target.evaluate(NAMED)
+    assert not any(seen["who"] == aimed for seen in rings_drawn(page))
     page.keyboard.up("Alt")
     page.keyboard.press("Tab")
     expect(target).to_be_focused()
     rendered(page)
     ring = current_location_ring(page)
-    assert ring and ring["here"] and ring["pseudo"] == "after", ring
-    assert "lf-visual-mark-focus" in ring["who"], ring
+    assert ring and ring["here"] and ring["pseudo"] is None, ring
+    assert ring["who"].startswith("button") and "[data-lf-mark]" in ring["rule"], ring
+    expect(target).to_have_attribute("data-lf-mark", re.compile(r"\bfocus\b"))
+    assert not target.evaluate(MARK)["brackets"]
     assert ring["cuts"] == ring["covers"] == [], ring
     assert seen_stop(page) is None
-    page.locator(".lf-visual-mark-focus").evaluate(
-        "node => node.style.setProperty('--lf-target-outline', 'none')"
-    )
+    target.evaluate("node => node.style.setProperty('outline', 'none', 'important')")
     assert seen_stop(page), (
         "the focused target has no ring, but the stop reading accepts it"
     )
@@ -1313,14 +1326,39 @@ def test_the_ring_reading_measures_a_displaced_pseudo_element(browser, serve):
     assert any("top edge is under" in c for c in current_location_ring(page)["covers"])
 
 
-def test_a_quiet_toggle_still_shows_its_chosen_mode(browser, serve):
-    """Words are quiet, with no frame at rest, so a mode toggle's chosen mode draws its
-    own selected face: a frame and ground the unchosen word beside it lacks."""
-    page = open_page(browser, _button_pairs(serve))
+def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, serve):
+    """A marker's quiet target trace cannot paint over the current obligation's ring."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Decision",
+                """
+      <lf-ask id="decision"><h2>Ready?</h2>
+        <p>Review the evidence before choosing.</p>
+        <lf-options id="answer" choose>
+          <lf-option id="yes">Approve</lf-option>
+          <lf-option id="no">Hold</lf-option>
+        </lf-options>
+      </lf-ask>
+    """,
+            )
+        ),
+    )
+    marker = page.locator('.lf-margin-entry[data-lf-kinds="on-me"]')
+    decision = page.locator("#decision")
+    marker.hover()
+    expect(decision).to_have_attribute("data-lf-traced", "")
     page.mouse.move(0, 0)
+    for _ in range(40):
+        page.keyboard.press("Tab")
+        if marker.evaluate("node => node === document.activeElement"):
+            break
+    else:
+        pytest.fail("Tab did not reach the obligation's margin marker")
     rendered(page)
-    face = "el => [getComputedStyle(el).borderTopColor, getComputedStyle(el).backgroundColor]"
-    chosen = page.locator("#mode-on").evaluate(face)
-    other = page.locator("#mode-off").evaluate(face)
-    assert other == page.locator("#plain-back").evaluate(face)
-    assert chosen[0] != other[0] and chosen[1] != other[1], (chosen, other)
+    expect(page.locator("[data-lf-traced]")).to_have_count(0)
+    expect(decision).to_have_attribute("data-lf-projected-location", "")
+    drawn = rings_drawn(page)
+    assert any(ring["who"] == decision.evaluate(NAMED) for ring in drawn), drawn
+    assert not ring_faults(drawn, "on the obligation's margin marker")

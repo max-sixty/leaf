@@ -1,8 +1,12 @@
-"""To-dos, the one kind of item on both lists, and the item the agent is working on.
+"""To-dos, the work the agent owes, and the item the agent is working on.
 
-A to-do is work someone owes. Its `owner` is the agent, whose to-dos are on its
-On <agent> list, or the user, whose to-dos are on their On me list. How a to-do ends
-follows from its owner and what it is on, so no field records that.
+A to-do is work the agent owes, on its On <agent> list. Nothing is a to-do on the
+user: everything On me is an obligation whose source says how the user answers it,
+a widget's own controls or a reply in a thread (`obligations`), so Leaf adds no Done
+of its own to any of them. The user chose this on 2026-11-03, reversing the to-do on
+the user that `leaf task create --on user` opened from 2026-10: the widget or thread
+an ask stands on is sovereign over how it is answered, and a step such as trying a
+build is asked in a thread, which the user's reply or settling reaction answers.
 
 An item on the agent's list is either an update it owes an answer, whose id is the
 update's event id (`workflows`), or a to-do it opened. `leaf task start` writes a
@@ -11,7 +15,7 @@ item is in hand from then on. An ephemeral reply to an owed update writes the sa
 start, with its text as the line (`take_in_hand`), so the thread and the Working
 line show the same words.
 
-The agent's to-do is on a thread, a page widget, an element, or the whole page.
+A to-do is on a thread, a page widget, an element, or the whole page.
 `leaf task create` writes a `todo` event. A reply that promises work it doesn't
 deliver carries the to-do's title as `todo`, which opens a to-do on the reply's
 thread under the reply's id (`todo_reading`), so one write answers the message and
@@ -24,12 +28,10 @@ answer settles. An open to-do keeps its thread `waiting` (`served_state.browser`
 counts under `queues.on_agent` in `page state`, and shows in the page's status.
 `../../skills/leaf/references/conversation-loop.md` tells the agent which work gets a to-do.
 
-A to-do on the user is a `todo` event opened with `--on user`, ended by the user's
-Done or by the agent. It publishes a canonical obligation (`obligations`) that the
-lists read directly. Its explicit completion remains owned by this fold. The agent's `todo_end` can also close an open
-question the user answers in words, a message sent with `--obligation`, by its obligation id:
-`done` when the user answered it elsewhere, `dropped` when it no longer applies,
-never `failed`. Neither records an answer from the user (`obligations.settle_by_words`).
+A `todo_end` can also close an open question an agent message asks, with
+`--obligation` or by a widget frozen in it, by its obligation id: `done` when the user
+answered it elsewhere, `dropped` when it no longer applies, never `failed`. Neither
+records an answer from the user (`obligations.end_question`).
 
 A start lasts until its item ends: the to-do's end, or for an update, the reply or
 stamped version that answers it (`workflows.handed_over`). It names the turn
@@ -41,7 +43,7 @@ that `leaf page open` and `leaf page close` write puts down every earlier start
 reads only the document and the log, sees it there. A start on a page declared
 `idle` reopens the page (`activity.declaration`).
 
-Only the session that wrote an agent to-do's latest start can end it, by `todo_end`
+Only the session that wrote a to-do's latest start can end it, by `todo_end`
 or a stamp's `--completes` (`TodoReading.completion_error`), and a later start from
 another session moves that right. Putting work down changes activity, not this
 right: neither a turn ending nor a change of claim gives it back to an earlier
@@ -49,11 +51,10 @@ session, and the same session can still end the to-do in a later turn. Before an
 start, any agent session can end it. Commands run outside a harness all share one
 empty session identity, so Leaf can't tell them apart.
 
-Admission (`todo_error`) accepts an agent's `todo` on the page, on any element, or
-on a live widget that declares `x-work` or holds an unsettled action
-(`work.widget_seat_error`), and a to-do on the user on a thread, any element or a widget
-with no open obligation. It accepts a `start` on an open agent to-do or an owed update, and
-a `todo_end` of an open to-do; the user ends only a to-do opened on them.
+Admission (`todo_error`) accepts a `todo` on a thread, the page, any element, or a
+live widget that declares `x-work` or holds an unsettled action
+(`work.widget_seat_error`). It accepts a `start` on an open to-do or an owed update,
+and a `todo_end` of an open to-do.
 `TodoReading` reads the log's to-dos, starts and ends, and `WorkReading.page_todos`
 adds their thread and activity readings.
 
@@ -68,9 +69,9 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
-from .events import note_settlements, taken_back
+from .events import note_settlements, taken_back, unshown
 from .findings import Finding, Rejected
-from .obligations import answered_in_words
+from .obligations import asked_in_a_message
 from .thread_context import thread_ids, thread_names
 
 # What `task create` takes for the page as a whole; any other id names a widget or an
@@ -89,7 +90,6 @@ def todo_reading(event: dict, threads: dict[str, str]) -> dict | None:
         return {
             **event,
             "kind": "todo",
-            "owner": "agent",
             "subject": {"kind": "thread", "id": threads[event["id"]]},
             "title": event["todo"],
         }
@@ -191,21 +191,15 @@ class TodoReading:
 
     @property
     def owed(self) -> list[dict]:
-        return [
-            todo
-            for todo in self.todos
-            if todo["state"] == "open" and todo["owner"] == "agent"
-        ]
+        return [todo for todo in self.todos if todo["state"] == "open"]
 
     def completion_error(self, event: dict, todo: dict) -> Finding | None:
-        """Whether the writer can end this agent to-do under its latest start.
+        """Whether the writer can end this to-do under its latest start.
 
         Read the log rather than `starts`, whose in-hand reading a `status`
         declaration clears. Admission alone checks authority; projections consume admitted
         endings without reclassifying them against later activity or claims.
         """
-        if todo["owner"] != "agent":
-            return None
         latest = next(
             (
                 start
@@ -236,7 +230,6 @@ def _todos(events: list, ends: dict, starts: dict) -> list[dict]:
         if opened := todo_reading(event, threads):
             todos[opened["id"]] = {
                 "id": opened["id"],
-                "owner": opened["owner"],
                 "subject": opened["subject"],
                 "title": opened["title"],
                 "state": "open",
@@ -274,36 +267,30 @@ def todo_error(
     *,
     seat_error,
     element_error,
-    user_widget_error,
     owed: set[str],
     items,
     registry: dict,
 ) -> Finding | None:
     """Why the append door refuses a to-do, start or completion, or None.
 
-    A to-do stands on an admitted thread, widget, page element or page.
-    Replies can also open agent work on their own thread (`todo_reading`). A start names an open agent to-do or an owed
-    update. Both completion carriers share `TodoReading.completion_error`.
-    Either side can end a to-do within its ownership rules. An agent end may
-    also end an open obligation the user answers in words (`obligations.answered_in_words`) by its id,
-    while an obligation its widget's state answers stays owned by that state.
+    A to-do stands on an admitted thread, widget, page element or page. Replies can
+    also open work on their own thread (`todo_reading`). A start names an open to-do or
+    an owed update. Both completion carriers share `TodoReading.completion_error`. An
+    end may also end an open question an agent message asks
+    (`obligations.asked_in_a_message`) by its id, while a page widget's obligation
+    stays owned by its state.
     """
     kind = event["kind"]
     if kind == "todo":
         subject = event["subject"]
         if subject["kind"] == "thread":
-            if (
-                subject["id"] not in thread_ids(log.events)
-                or subject["id"] in log.withdrawn
+            if subject["id"] not in thread_ids(log.events) or subject["id"] in unshown(
+                log.events, log.withdrawn
             ):
                 return Finding("missing-thread", values={"thread": subject["id"]})
             return None
         if subject["kind"] == "widget":
-            return (
-                seat_error(subject["id"])
-                if event["owner"] == "agent"
-                else user_widget_error(subject["id"])
-            )
+            return seat_error(subject["id"])
         if subject["kind"] == "element":
             return element_error(subject["id"])
         return None
@@ -329,10 +316,8 @@ def todo_error(
             None,
         )
         if item is not None:
-            if not answered_in_words(item):
+            if not asked_in_a_message(item):
                 return Finding("widget-obligation", values=named)
-            if event["author"] != "agent":
-                return Finding("users-question", values=named)
             if item["status"] != "open":
                 return Finding(
                     "ended-obligation", values={**named, "status": item["status"]}
@@ -345,16 +330,15 @@ def todo_error(
         return Finding("unknown-todo", values=named)
     if todo["state"] != "open":
         return Finding("ended-todo", values={**named, "state": todo["state"]})
-    if event["author"] == "user" and todo["owner"] != "user":
-        return Finding("agents-todo", values=named)
     return log.completion_error(event, todo)
 
 
-def cmd_create(page_dir: Path, subject: str, title: str, owner: str) -> dict:
-    """Create a to-do titled `title`, owed by `owner`, on what `subject` names: a page
-    widget, thread, any other element of the page by its id, or `page` for the
-    page as a whole; the record. A thread attachment supplies discussion context
-    without making a reply complete the task."""
+def cmd_create(page_dir: Path, subject: str, title: str) -> dict:
+    """Create a to-do titled `title` on what `subject` names: a page widget, thread,
+    any other element of the page by its id, or `page` for the page as a whole; the
+    record. A thread attachment supplies discussion context without making a reply
+    complete the task."""
+    from .event_contracts import append_admitted
     from .leases import contract_writer
     from .revisioning import activate_source
     from .service import PageTransaction
@@ -379,32 +363,13 @@ def cmd_create(page_dir: Path, subject: str, title: str, owner: str) -> dict:
                         )
                     ]
                 )
-            return open_todo(page, named, title, owner)
+            record, _ = append_admitted(
+                page,
+                {"kind": "todo", "author": "agent", "subject": named, "title": title},
+            )
+            return record
 
     return write(page_dir)
-
-
-def open_todo(
-    page, subject: dict, title: str, owner: str, identity: dict | None = None
-) -> dict:
-    """The agent's to-do appended in `page`, an open `service.PageTransaction`, as
-    `cmd_create` describes, on `subject` as the log names one; `identity` names the
-    agent and session where the writer isn't the agent's own process, as Leaf's clerk
-    is (`clerk.apply_answer`)."""
-    from .event_contracts import append_admitted
-
-    record, _ = append_admitted(
-        page,
-        {
-            "kind": "todo",
-            "author": "agent",
-            **(identity or {}),
-            "owner": owner,
-            "subject": subject,
-            "title": title,
-        },
-    )
-    return record
 
 
 def take_in_hand(page, item: str, text: str, identity: dict) -> dict:

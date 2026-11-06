@@ -7,7 +7,7 @@ the input pending on the session's pages into a delivery and hands it over inlin
 or as a pointer. Codex offers its
 pointers through `codex.offer_hook_delivery` instead, but uses this module's Stop
 rule and reminders. `hooks` calls in here for pages the session owns and for a
-reconnect notice about a page it served before.
+prompt that could not serve one of its pages again (`reconnect`).
 
 Claude Code runs the prompt hook as every turn begins, including a turn opened by a
 background task's end, and adds its output to the turn's context; the Stop hook's
@@ -63,6 +63,24 @@ the pointer's input is confirmed; the page's later input follows at the boundary
 after the ack. Stop and a prompt that opens the turn again hand unconfirmed input
 over again, as they do input Escape dropped.
 
+Claude Code waits for its tool-boundary hook before every model call, and nearly
+every boundary has nothing to carry. So a boundary first reads each page's log, and
+folds its pages only for input past a cursor (`new_input`), a status check coming
+due or a line the clerk queued. This module imports the page model only where a
+hook folds a page. An update the cursor has passed that its owner holds no usable
+reference for (`delivery.unreferenced`) reaches the turn only where a hook folds
+the pages:
+
+- a boundary with new input or a clerk line beside it;
+- a boundary whose status check is due, every `STATUS_RENEWAL` and at a session's
+  first boundary;
+- Stop under plain `--print`, where no watch follows the turn;
+- otherwise the prompt of the turn the watch wakes once this one ends.
+
+A page at an older page protocol offers no input (`delivery.deliverable`), so an
+empty boundary leaves its renewal to the next prompt or Stop hook
+(`vendoring.renew_layer`).
+
 Pi has the context once the hook returns, so its hook records the receipt with the
 pickup. Claude Code reads it only once every hook of the event has exited, and
 Escape before then drops a prompt with its context, though not a tool boundary's.
@@ -98,10 +116,10 @@ line to renew. Whether the work has moved on is the agent's judgement; the hook 
 says how long the line has stood. This was the user's choice (28 October 2026) over
 Leaf reading the turn's liveness, or its current step, from the hooks itself.
 
-The prompt hook and a tool boundary also carry each ask Leaf's clerk put On me
-at the last turn's end, one line each (`clerk.queued`), and take them off the queue once
-printed (`clerk.heard`). Stop carries none: the clerk forks only after the turn has
-ended.
+The prompt hook and a tool boundary also carry what Leaf's clerk wrote or found at
+the last turn's end, one line each (`clerk.queued`), and take them off the queue
+once printed (`clerk.heard`). Stop carries none: the clerk forks only after the
+turn has ended.
 
 A harness reads a hook's output only after the hook exits, and discards it if the
 hook times out. So the hook records its handover only before `CONFIRM_WITHIN`, well
@@ -116,7 +134,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from .activity import acknowledged_obligations, turn_obligations, unanswered
 from .clerk import heard, queued
 from .delivery import (
     batch_data,
@@ -127,14 +144,12 @@ from .delivery import (
     receive_held,
     record_pickup,
 )
-from .event_contracts import write_refusal
 from .findings import Finding
-from .harness import Harness, claim_harness
+from .harness import HOOK_TIMEOUT_S, Harness, claim_harness
 from .schema import (
     ANSWER_INSTRUCTION,
     PREVIEW_FILE,
 )
-from .served_state.context import read_page
 from .service import (
     PageTransaction,
     owned_pages,
@@ -235,7 +250,29 @@ class PagePlan:
     unready: Finding | None
 
 
+def new_input(session_id: str) -> bool:
+    """Whether a page the session holds has input a tool hook hands over: input past
+    the page's cursor that no hook has handed into the open turn
+    (`delivery.deliverable` without `received`), read from the page's log alone."""
+    for page_dir in owned_pages(session_id):
+        try:
+            with PageTransaction(page_dir) as page:
+                claim = page.active_claim
+                if (
+                    claim is not None
+                    and claim["id"] == session_id
+                    and deliverable(page, received=False)
+                ):
+                    return True
+        except FileNotFoundError:
+            continue
+    return False
+
+
 def read_plans(session_id: str) -> list[PagePlan]:
+    from .activity import acknowledged_obligations, turn_obligations
+    from .event_contracts import write_refusal
+    from .served_state.context import read_page
     from .vendoring import renew_layer
 
     plans = []
@@ -350,6 +387,8 @@ def remedies(
     plans: list[PagePlan], handing: list[dict] | tuple[dict, ...] = ()
 ) -> list[tuple[str, str | None]]:
     """Format remedies from already-read facts, with harness wording at the edge."""
+    from .activity import unanswered
+
     handed = {
         (batch["page"], event["id"]) for batch in handing for event in batch["events"]
     }
@@ -402,6 +441,9 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
     likewise checks generation and turn after reacquiring the page transaction.
     A page this Leaf may not write records none; `remedies` tells the turn why.
     """
+    from .activity import acknowledged_obligations
+    from .served_state.context import read_page
+
     for plan in plans:
         if not plan.acknowledged or plan.unwritable:
             continue
@@ -439,11 +481,6 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
         except FileNotFoundError:
             continue
 
-
-# The time every harness gives the prompt and Stop hooks: each registration's
-# `timeout` (`hooks/hooks.json`, `hooks/codex.json`) and Pi extension's bound
-# (`hooks/pi.ts`), which `test_hook_registration` holds to this.
-HOOK_TIMEOUT_S = 20
 
 # How long after it starts a hook may still hand a delivery over inline and wait
 # for the locks that record it; the hook itself takes about 0.4 s. The other half
@@ -529,12 +566,18 @@ def carry_turn(
     expected: dict | None,
     *,
     started: float,
-    reconnect_harness: str | None = None,
+    unserved: list[Finding],
 ) -> bool | None:
-    """Compose this lifecycle's page input, obligations, and reconnect context
-    into the one hook output its harness reads, recording a delivery it hands
-    over inline by `CONFIRM_WITHIN` after `started`, the hook's
-    `time.monotonic()` as it began."""
+    """Compose this lifecycle's page input, obligations, and the pages a prompt
+    could not serve again (`unserved`, `reconnect.serve_again`) into the one hook
+    output its harness reads, recording a delivery it hands over inline by
+    `CONFIRM_WITHIN` after `started`, the hook's `time.monotonic()` as it began."""
+    # What Leaf's clerk wrote or found since the agent last heard (`clerk.queued`),
+    # which the next prompt or tool boundary carries.
+    told = queued(sid) if event in {"UserPromptSubmit", "PostToolBatch"} else []
+    due = event == "PostToolBatch" and status_check_due(sid)
+    if event == "PostToolBatch" and not told and not due and not new_input(sid):
+        return
     plans = read_plans(sid)
     if session_record(sid) != expected or any(
         plan.lifecycle != expected for plan in plans
@@ -561,14 +604,7 @@ def carry_turn(
         if carries
         else []
     )
-    renewals = (
-        status_reminders(sid, plans)
-        if event == "PostToolBatch" and status_check_due(sid)
-        else []
-    )
-    # The asks Leaf's clerk put On me since the agent last heard
-    # (`clerk.queued`), which the next prompt or tool boundary carries.
-    told = queued(sid) if event in {"UserPromptSubmit", "PostToolBatch"} else []
+    renewals = status_reminders(sid, plans) if due else []
     if event == "PostToolBatch" and not batches and not renewals and not told:
         return
     if event == "UserPromptSubmit":
@@ -584,7 +620,10 @@ def carry_turn(
     # response-debt and housekeeping reminders belong to prompt and Stop. It
     # neither reopens nor ends a turn.
     reminding = [] if event == "PostToolBatch" else plans
-    reasons = remedies(reminding, batches)
+    reasons = [
+        *((str(found), None) for found in unserved),
+        *remedies(reminding, batches),
+    ]
     # The message avoids "unattended": a page can be watched and still be owed
     # an answer, and the runtime spends that word on a different fact — a page
     # served to nobody at all.
@@ -617,12 +656,7 @@ def carry_turn(
         )
     delivery = freeze_delivery(batches) if batches else None
     deadline = started + CONFIRM_WITHIN
-    from .reconnect import notices
-
-    context = notices(reconnect_harness, sid, expected)
-    if context is None:
-        return
-    attention = [*context, *attention, *renewals, *told]
+    attention = [*attention, *renewals, *told]
     if delivery is None:
         message = "\n".join(attention)
     else:

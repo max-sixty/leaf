@@ -31,8 +31,8 @@ from interact_support import declared, running_http_server, wait_for
 from PIL import Image
 from playwright.sync_api import expect
 from render_harness import (
+    FEATURE_GALLERY,
     OPEN_THREAD_COUNT,
-    PANEL_THREAD,
     compare_with,
     consume_browser_errors,
     displayed,
@@ -73,17 +73,22 @@ from leaf.render_gate import version as render_gate_model
 from leaf.revision_artifact import read_artifact
 from leaf.service import acknowledged
 from leaf.structure import SourceDocument
-from leaf_dev.browser import panel_tab, show_resolved
+from leaf_dev.browser import PANEL_THREAD, panel_tab, show_resolved
 from leaf_dev.commands import site as site_build
-from leaf_dev.example_data import catalog_sources, data_operations, example_versions
+from leaf_dev.docs import DOCS, product_sources
+from leaf_dev.example_data import (
+    WORKED_EXAMPLES,
+    authored_sources,
+    catalog_sources,
+    data_operations,
+    example_versions,
+    named_source,
+    published_sources,
+)
 from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import authored_markup, read_event_lines, source_packages
 
 ROOT = Path(__file__).parents[2]
-DOCS = ROOT / "docs"
-EXAMPLES = ROOT / "examples"
-FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
-DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 
 
 def open_count(page):
@@ -131,16 +136,6 @@ def sample_allocation(page, url, template):
     return allocation
 
 
-def pages_under(directory):
-    """The pages a sweep walks, proved to exist before it walks them. Four of the
-    checks below are loops over a glob and nothing else, so a directory that moved or
-    was renamed turns every one of them into a sweep that pressed nothing — green, and
-    for the wrong reason (tests/AGENTS.md, "Sweeps over controls")."""
-    pages = sorted(directory.glob("*.html"))
-    assert pages, f"no pages under {directory}"
-    return pages
-
-
 def heading(source: str) -> str:
     """The words of the h1 an authored source carries, as the parser reads them."""
     select_one_result = SourceDocument(source).tree.select_one("h1")
@@ -151,13 +146,12 @@ def heading(source: str) -> str:
 def example_title(stem: str) -> str:
     """The h1 an example's own source carries, so a retitled example cannot strand a
     test on its old words."""
-    return heading((EXAMPLES / f"{stem}.html").read_text(encoding="utf-8"))
+    return heading(named_source(stem).read_text(encoding="utf-8"))
 
 
 def authored_examples():
-    """The public examples, excluding any generated browser-stress snapshot."""
-    pages = pages_under(EXAMPLES)
-    authored = [page for page in pages if page.stem != "corpus"]
+    """The worked examples, the published pages besides the developer galleries."""
+    authored = authored_sources(directories=(WORKED_EXAMPLES,))
     assert authored, "no authored examples to publish"
     return authored
 
@@ -180,9 +174,10 @@ def framed_root_examples():
 
 
 def published_pages():
-    """The worked examples plus the linked developer reference."""
-    assert FEATURE_GALLERY in DEVELOPER_PAGES, "the core feature gallery is missing"
-    return [*authored_examples(), *DEVELOPER_PAGES]
+    """The pages the site publishes, the core feature gallery among them."""
+    pages = published_sources()
+    assert FEATURE_GALLERY in pages, "the core feature gallery is missing"
+    return pages
 
 
 @pytest.fixture(name="site", scope="module")
@@ -291,11 +286,6 @@ def served_example(site, tmp_path):
         yield serve
 
 
-def product_url(hosted, name):
-    """The canonical route for one product source."""
-    return hosted + site_build.product_route(Path(name))
-
-
 media_url = site_build.media_url
 
 
@@ -314,7 +304,7 @@ def opened(page, url):
 
 def test_product_pages_select_the_sources_packages(site):
     """Publication and local previews compose the product source's same layer."""
-    for page in pages_under(DOCS):
+    for page in product_sources():
         target = site_build.product_page(site, page.name)
         source_markup = page.read_text()
         assert 'href="/theme.css"' not in source_markup, page.name
@@ -345,7 +335,7 @@ def test_published_examples_keep_the_site_theme_out_of_their_layer(site, monkeyp
     monkeypatch.chdir(ROOT)  # resolve project-relative package selections
     package = DOCS / "package"
     context_theme = layer_model.stylesheet(package / "overrides.css", package).rstrip()
-    for source in site_build.published_page_sources():
+    for source in published_pages():
         record = layer_record(site / "examples" / source.stem)
         assert record is not None
         theme = (
@@ -357,7 +347,7 @@ def test_published_examples_keep_the_site_theme_out_of_their_layer(site, monkeyp
 
 
 def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
-    source = EXAMPLES / "wt-merge.html"
+    source = named_source("wt-merge")
     normal = open_page(browser, serve(source))
     published = open_page(browser, f"{hosted}/examples/wt-merge/")
     layout = """() => Object.fromEntries(
@@ -382,7 +372,7 @@ def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
 def test_product_pages_are_published_as_complete_page_records(site):
     """Each page retains its layer selection, history, and every captured media
     input."""
-    sources = pages_under(DOCS)
+    sources = product_sources()
     for source in sources:
         page = site_build.product_page(site, source.name)
         expected = authored_markup(source)
@@ -420,7 +410,7 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     assets = site_build.asset_site(site)
     pinned = pinned_assets()
     root_media = SourceDocument(
-        authored_markup(DOCS / "index.html")
+        authored_markup(named_source("index"))
     ).authoring.media_refs
     root_media.add(media_url(pinned / site_build.SOCIAL_CARD))
     product_media = {
@@ -677,7 +667,7 @@ def test_a_website_example_keeps_its_version_identity_and_history(
     expect(page.locator("main .lf-ins-block")).to_have_count(5)
 
     panel_menu(page, "versions").locator(
-        ".lf-fp-version:not([data-current]) > .lf-fp-item"
+        ".lf-fp-version:not([data-lf-current]) > .lf-fp-item"
     ).click()
     page.wait_for_url(
         re.compile(r"/examples/log-retention/versions/v1\.html(?:\?pin=)?$")
@@ -841,6 +831,28 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
     )
 
 
+# Counts the supervisor's probe rounds in the page: each one asked, and each one
+# handled, which a microtask queued from its answer marks once the round's own
+# continuation, which acts on the answer, has run. The probe asks for `registry.json`
+# past the cache, and the runtime's own read of the same address doesn't. Each probe
+# also carries a header naming it, since a route sees the two requests alike.
+COUNT_PROBES = """
+window.__lfProbes = {asked: 0, handled: 0};
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (input, init = {}) => {
+  if (!String(input).includes("registry.json") || init.cache !== "no-store")
+    return nativeFetch(input, init);
+  window.__lfProbes.asked += 1;
+  const headers = new Headers(init.headers);
+  headers.set("Leaf-Test-Probe", "1");
+  const answer = nativeFetch(input, {...init, headers});
+  const handled = () => queueMicrotask(() => { window.__lfProbes.handled += 1; });
+  answer.then(handled, handled);
+  return answer;
+};
+"""
+
+
 def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
     served_example, browser
 ):
@@ -853,22 +865,39 @@ def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
     """
     _, url = served_example("triage-board")
     page = browser.new_page()
+    # The supervisor asks again on its clock, so the test runs that clock forward.
+    page.clock.install()
     # One uncaught error before presentation, which is every startup fault this
-    # supervisor watches for that the page can still come up without.
-    page.add_init_script("setTimeout(() => { throw new Error('planted fault'); }, 50);")
-    probes = []
-    page.on("request", lambda request: probes.append(request.url))
+    # supervisor watches for that the page can still come up without. A listener
+    # throws it, because a timer's callback under the installed clock throws without
+    # firing the page's `error` event, and the supervisor would never start.
+    page.add_init_script(
+        "document.addEventListener('DOMContentLoaded', () => {"
+        " throw new Error('planted fault'); });"
+    )
+    page.add_init_script(COUNT_PROBES)
 
     page.goto(url, wait_until="load")
     notice = page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    # The supervisor took the fault, so its probe has been asking.
+    expect(page.locator("html")).to_have_attribute(
+        "data-lf-startup-error", re.compile("planted fault")
+    )
     expect(notice).to_have_count(0)
     expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
     # The probe stops with it: a page that started has nothing left to ask the source.
-    before = sum("registry.json" in probe for probe in probes)
-    page.wait_for_timeout(3000)
-    assert sum("registry.json" in probe for probe in probes) == before
+    # The supervisor sets the timer for its next round only once the last round's
+    # answer lands, so the clock runs a second at a time, each step taken with no round
+    # in flight.
+    idle = "() => window.__lfProbes.asked === window.__lfProbes.handled"
+    page.wait_for_function(idle)
+    before = page.evaluate("window.__lfProbes.asked")
+    for _ in range(3):
+        page.clock.run_for(1000)
+        page.wait_for_function(idle)
+    assert page.evaluate("window.__lfProbes.asked") == before
     consume_browser_errors(page, "planted fault")
 
 
@@ -880,20 +909,15 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
     round learned is no longer worth a navigation: it would take a working page out
     from under them.
 
-    Both halves are planted, because the two the page would produce cannot be ordered
-    against each other here: the supervisor's probe and the runtime's own widget read
-    are the same address, so holding one holds the other and nothing presents. The
-    fault and `data-lf-upgraded` are the supervisor's two inputs, and the test lands
-    the second one while its first round is still asking.
+    The fault is planted, and the route holds the supervisor's first round until the
+    page has upgraded. The runtime's own read of the registry is the same address, but
+    only the probe carries `COUNT_PROBES`'s header, so that read goes through and the
+    page comes up on its own while the round is still asking.
     """
     _, url = served_example("triage-board")
     page = browser.new_page()
-    page.add_init_script(
-        """
-        setTimeout(() => { throw new Error('planted fault'); }, 10);
-        setTimeout(() => document.body?.setAttribute('data-lf-upgraded', '1'), 600);
-        """
-    )
+    page.add_init_script("setTimeout(() => { throw new Error('planted fault'); }, 10);")
+    page.add_init_script(COUNT_PROBES)
     documents = []
     page.on(
         "request",
@@ -906,7 +930,7 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
     held = []
 
     def hold_the_first_round(route):
-        if held:
+        if held or "leaf-test-probe" not in route.request.headers:
             route.continue_()
         else:
             held.append(route)
@@ -921,9 +945,8 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
     answered = held[0].request.response()
     assert answered and answered.status == 404, "the held round's answer never landed"
     # The round acts on its answer as it lands, so a replacement would be a navigation
-    # starting now. Nothing states that the round declined one; this is the absence.
-    page.wait_for_timeout(2000)
-
+    # already starting once the page has handled the round, the first it asked.
+    page.wait_for_function("() => window.__lfProbes.handled >= 1")
     assert len(documents) == 1, documents
     expect(
         page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
@@ -1093,7 +1116,6 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
     takes its paper from the theme in both schemes, and nothing scrolls sideways at
     390px: the nav wraps, the screenshots scale, and a command too long for the
     column scrolls inside its own block, as the architecture diagram fits its box."""
-    names = [source.name for source in site_build.product_sources()]
     page = browser.new_page()
     failed = []
     page.on(
@@ -1105,12 +1127,13 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         ),
     )
     paper = "getComputedStyle(document.body).backgroundColor"
-    for name in names:
+    for document in product_sources():
+        name = document.name
         page.set_viewport_size({"width": 1200, "height": 900})
-        page.goto(product_url(hosted, name), wait_until="load")
+        page.goto(hosted + site_build.product_route(document), wait_until="load")
         wait_until_ready(page)
         assert page.evaluate("document.compatMode") == "CSS1Compat", name
-        source = (DOCS / name).read_text(encoding="utf-8")
+        source = document.read_text(encoding="utf-8")
         expected_title = SourceDocument(source).authoring.title.strip()
         assert expected_title
         assert page.title() == expected_title, name
@@ -1275,7 +1298,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     expect(developer_galleries.locator("a.developer-gallery-link")).to_have_count(2)
     expect(page.locator("iframe, lf-tabs")).to_have_count(0)
     published = {path.name for path in (site / "examples").iterdir() if path.is_dir()}
-    assert published == authored | {source.stem for source in DEVELOPER_PAGES}
+    assert published == {source.stem for source in published_pages()}
     assert page.evaluate(
         "() => Boolean(document.querySelector('#pages')"
         ".compareDocumentPosition(document.querySelector('#developer-galleries'))"
@@ -1481,9 +1504,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     page.locator(".lf-fp-leaf").click()
     expect(page.locator(".sitenote")).to_have_count(0)
     # Unclaimed, the copy's agent is still on call: a comment starts it.
-    assert page.locator(".lf-fp-leaf .lf-dot").evaluate(
-        "dot => [...dot.classList]"
-    ) == ["lf-dot", "listening"]
+    assert page.locator(".lf-fp-leaf").get_attribute("data-lf-tone") == "listening"
     state = page.evaluate("() => fetch('api/state').then(r => r.json())")
     assert state["publication"] == {
         "kind": "example",
@@ -1508,7 +1529,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
             }"""
     )
     assert answer["status"] == 200
-    assert answer["body"]["browser"]["basis"] == {"through_seq": answer["through"]}
+    assert answer["body"]["browser"]["basis"]["through_seq"] == answer["through"]
     assert set(answer["body"]["browser"]["views"]) == {"1"}
 
 
@@ -1524,7 +1545,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     with no error anywhere."""
     page_dir, url = served_example("ship-review")
     page = open_page(browser, url)
-    source = EXAMPLES / "ship-review.html"
+    source = named_source("ship-review")
     events = read_events(page_dir)
     threads = [
         thread
@@ -1548,8 +1569,8 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     expect(row).to_have_count(1)
     row.click()
     thread = page.locator(PANEL_THREAD)
-    expect(thread.locator(".lf-fp-quote")).to_have_text("“One reconnect in about 40”")
-    assert thread.locator(".lf-fp-quote.detached").count() == 0, (
+    expect(thread.locator(".lf-thread-quote")).to_have_text("One reconnect in about 40")
+    assert thread.locator(".lf-thread-quote-head[data-lf-detached]").count() == 0, (
         "the shipped anchor found nothing on the page it was captured from"
     )
     # Painted, not merely resolved: the mark is what puts the user at the passage.
@@ -1627,14 +1648,14 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     expect_open_threads(page, opened_with + 1)
     thread = written()
     expect(thread).to_contain_text("Can the migration fix ship first?")
-    expect(thread.locator(".lf-fp-quote")).to_contain_text(selected.strip()[:40])
-    expect(thread.locator(".lf-msg.agent")).to_have_count(0)
+    expect(thread.locator(".lf-thread-quote")).to_contain_text(selected.strip()[:40])
+    expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(0)
     page.reload(wait_until="load")
     wait_until_ready(page)
     thread = written()
     expect(thread).to_contain_text("Can the migration fix ship first?")
-    expect(thread.locator(".lf-fp-quote")).to_contain_text(selected.strip()[:40])
-    expect(thread.locator(".lf-msg.agent")).to_have_count(0)
+    expect(thread.locator(".lf-thread-quote")).to_contain_text(selected.strip()[:40])
+    expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(0)
 
 
 def test_a_published_decision_survives_reload(served_example, browser):

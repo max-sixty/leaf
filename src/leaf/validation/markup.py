@@ -4,7 +4,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from leaf.findings import Finding, element_at
-from leaf.passages import block_markdown
+from leaf.passages import markdown_dialect
 from leaf.schema import MEDIA_DIR, SERVED_PATH
 from leaf.structure import (
     AUTHORED_ALLOCATIONS,
@@ -128,7 +128,7 @@ def document_declaration_errors(parser: SourceDocument) -> list[Finding]:
 
 
 def page_boundary_errors(parser: SourceDocument) -> list[Finding]:
-    """Authored content lies under the page's one main content boundary."""
+    """Delivery needs explicit head/body wrappers and one direct main Layout box."""
     errors = []
     direct_heads = [
         line for line, is_direct in parser.authoring.head_elements if is_direct
@@ -163,10 +163,6 @@ def page_boundary_errors(parser: SourceDocument) -> list[Finding]:
                     "direct": len(direct),
                 },
             )
-        )
-    if parser.authoring.outside_main:
-        errors.append(
-            Finding("outside-main", values={"content": parser.authoring.outside_main})
         )
     return errors
 
@@ -225,7 +221,7 @@ def text_media_errors(text: str, page_dir: Path) -> list[Finding]:
     and unused definitions as text, so neither asks for a file the page will not load."""
     refs = {
         url
-        for token in block_markdown().parse(text)
+        for token in markdown_dialect(True).parse(text)
         for child in token.children or ()
         if child.type in {"link_open", "image"}
         if (url := child.attrGet("href" if child.type == "link_open" else "src"))

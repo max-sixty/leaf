@@ -19,10 +19,8 @@ publication follows the asset head; only snapshot acceptance advances the expect
 that belong to this runtime. README image URLs name the media commit. Downloads land
 under .tmp, which both local builds and CI may discard and reconstruct.
 
-    uv run leaf-dev fetch-assets
-
-Every reader calls `pinned_assets()`, which fetches on a miss; the command only warms
-the cache, as `wt setup` does. A writer stages its files in a clone of the revision its
+Every reader calls `pinned_assets()`, which fetches on a miss; `leaf-dev setup` warms
+the cache for both pins. A writer stages its files in a clone of the revision its
 checkout pins, so what it adds, replaces or removes is measured against the set its own
 branch reads. `publish` replays that change onto the repository's head, which keeps
 files other branches published since, then moves the pin. A writer that owns a whole

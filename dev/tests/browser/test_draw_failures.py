@@ -16,7 +16,7 @@ PAGE = """<!doctype html>
 <main>
 <h1>Control page</h1>
 <lf-playground id="pg">
-  <lf-playground-control name="radius" label="Corner radius" kind="range" value="40" min="0" max="24" step="1" unit="px"></lf-playground-control>
+  <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range" value="40" min="0" max="24" step="1" unit="px"></lf-playground-control>
   <lf-playground-preview><p>Preview</p></lf-playground-preview>
   <lf-playground-output>Radius {radius}</lf-playground-output>
 </lf-playground>

@@ -116,7 +116,12 @@ A key goes first to the scope on the focused control, then to the widgets around
 then to the page. A scope takes only keys whose rows make a press, by a `run` or by
 naming a `control` Leaf clicks, so other keys pass outward. A row keeps its key while unavailable, so the key never falls through to a
 different meaning further out; an unavailable Escape, though, passes on to the next
-Escape. Text fields keep their editing keys ahead of every widget scope.
+Escape. Text fields keep their editing keys ahead of every widget scope. A key other
+than typing or Escape, pressed while the user has scrolled the focused control out of
+sight, lets go of the control first and goes to the page, so neither a widget's command
+nor the browser's own Enter and Space acts on what the user can't see. That key stops at
+the document, so a listener on the control or the widget doesn't hear it, and a script's
+own listener on the document or window hears it only in capture.
 
 A menu or other scope that covers the page gives `allButCommandReference` as its
 declaration's `claims`, so the page's keys wait while the user is in it and only the
@@ -257,6 +262,16 @@ Open a native dialog or popover with `showNativeLayer(layer, {source})`, adding
 Inside a live sample they suppress the browser's own focus moves, so place the arrival
 with `focusDestination`. `isNativeLayer(node)` says whether a popover is open or a
 dialog modal.
+
+A control that opens a popover, such as a menu of choices, names it with
+`popovertarget`, or passes itself as the source of `showNativeLayer(popover, {source})`.
+Leaf puts the user on a `popovertarget` control as the popover opens, so closing it
+returns them there. Every such control declares `aria-expanded="false"`, and Leaf keeps
+it current as the popover opens and closes, however it opened. To land the user on a
+control inside the popover, call `focusDestination(control, "move")` from the
+popover's `toggle` event when its `newState` is `"open"`. The `lf-popover` class gives an open
+popover Leaf's raised surface and names it as the ground its controls paint; its own
+rule sets only its place, size and padding.
 
 ### Delayed work
 

@@ -1,0 +1,75 @@
+/* Leaf's values for Web Awesome's tokens. Upstream's document-root theme
+   (vendor/webawesome-theme.css, its custom properties only) supplies defaults through
+   inheritance, including declared shadow stages. Map Leaf tokens at that same root so
+   upstream's derived tokens resolve against them, and on controls so local Leaf
+   palettes still apply. A page without Leaf takes both at its root
+   (`leaf.layer.portable_sheet`), as it takes tokens.css, so the faces Leaf takes from
+   the library (controls.css) look the same in its widgets. Public parts carry Leaf's
+   logical focus, rather than a second native focus ring (components/webawesome.css). */
+:where(:root),
+:is(
+  wa-copy-button,
+  wa-comparison,
+  wa-radio-group,
+  wa-radio,
+  wa-slider,
+  wa-tooltip,
+  wa-select,
+  wa-option,
+  wa-input
+) {
+  --wa-font-family-body: var(--sans);
+  /* Controls inherit typography through their hosts. Reset the surrounding prose's
+     face without overriding the component's size, weight, line height or state ink. */
+  &:not(:root) {
+    font-family: var(--wa-font-family-body);
+    font-style: normal;
+    font-variant: normal;
+    font-stretch: normal;
+    font-feature-settings: normal;
+    font-variation-settings: normal;
+    letter-spacing: normal;
+    word-spacing: normal;
+    text-transform: none;
+  }
+  --wa-color-surface-raised: var(--card);
+  --wa-color-surface-default: var(--field);
+  --wa-color-surface-lowered: var(--card);
+  --wa-color-surface-border: var(--border-2);
+  --wa-color-text-normal: var(--ink);
+  --wa-color-text-quiet: var(--muted);
+  --wa-color-neutral-fill-quiet: var(--field);
+  /* The vendor's hover and track fill. It stands on --card (a listbox, a slider's
+     panel), so --card here drew an option's hover and a slider's unfilled track in the
+     colour of the ground they sit on; --chip is the fill Leaf's own chips wear. */
+  --wa-color-neutral-fill-normal: var(--chip);
+  --wa-color-neutral-border-normal: var(--border-2);
+  /* A control's outline, an unchosen radio's or checkbox's (controls.css, `.lf-choice`):
+     upstream's mid grey in Leaf's warm ink, at least 3:1 against a card. */
+  --wa-color-neutral-border-loud: color-mix(in oklab, var(--muted) 75%, var(--card));
+  --wa-color-neutral-on-quiet: var(--ink-2);
+  --wa-color-neutral-on-normal: var(--ink);
+  --wa-color-brand-fill-quiet: var(--accent-tint);
+  --wa-color-brand-on-quiet: var(--accent);
+  --wa-color-brand-border-quiet: var(--accent);
+  --wa-color-brand-border-loud: color-mix(in srgb, var(--accent) 45%, var(--card));
+  /* A solid/active surface and its ink move together in either page scheme.
+     Components own which state uses the pair, through their upstream tokens. */
+  --wa-color-brand-fill-loud: var(--accent);
+  --wa-color-brand-on-loud: light-dark(var(--card), var(--paper));
+  --wa-color-focus: var(--accent);
+  /* Upstream's corner scale is Leaf's (tokens.css, `--r`); one home for both. */
+  --wa-border-radius-s: var(--r-s);
+  --wa-border-radius-m: var(--r);
+  --wa-border-radius-l: var(--r-l);
+  /* Leaf's logical focus owner paints the band. The vendor's native focus and open
+     states must not paint another, including during a held label press. */
+  --wa-focus-ring-style: none;
+  --wa-form-control-background-color: var(--field);
+  --wa-form-control-border-color: var(--border-2);
+  --wa-form-control-value-color: var(--ink);
+  --wa-form-control-placeholder-color: var(--muted);
+  /* A line tall (`--lf-line`) whatever its type would make it, restated on each
+     control so a place that sets the line sets it here too. */
+  --wa-form-control-height: var(--lf-line);
+}

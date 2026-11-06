@@ -1,29 +1,8 @@
-/* The page's own code blocks, coloured by syntax-tokens.js, and the language a file path
-   means: the parts of highlighting that read Leaf's registry and report to the page. */
-import { runtime } from "./context.js";
+/* The page's own code blocks, coloured by syntax-tokens.js, with failures reported
+   to the page. Portable language-paths.js owns a filename's language reading. */
 import { reportPageError } from "./layer-client.js";
 import { syntaxLanguageNames } from "./syntax-languages.js";
 import { synNodes, syntax } from "./syntax-tokens.js";
-
-const registry = runtime.registry;
-
-// What a filename says it holds, or undefined where the registry's table has no answer
-// and the block stays the colour of its own ink. The only place a language is derived
-// rather than declared: a unified diff spans files and a file editor names one, so neither
-// has a `language` to read, and a file's path is its own statement about what it is.
-// lf-diff colours by this, and the file editor chooses its Markdown mode by it, so a
-// filename means the same language in both. Still a declaration —
-// the rule that nothing is inferred is about source *text*, which no path is. The table
-// is the registry's ($languages), beside the enum it has to agree with, rather than a
-// second list here.
-/** @param {string} path */
-export const langForPath = (path) => {
-  const filename = path.slice(path.lastIndexOf("/") + 1);
-  const dot = filename.lastIndexOf(".");
-  return dot < 0
-    ? undefined
-    : registry.$languages.paths[filename.slice(dot + 1).toLowerCase()];
-};
 
 // The page's own code blocks: <pre><code class="language-python">. The class is the
 // universal one — what every Markdown renderer emits — so a block Claude wrote anywhere
@@ -38,15 +17,81 @@ export const langForPath = (path) => {
 // without the file's reading of the same page needing to know it happened.
 const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
 const BLOCK = "pre > code[class]";
-// A block's declared language where the registry colours it.
+// The language Leaf colours a block in, or none, read again when its tokens land. A
+// block is coloured when its declared language is one the registry colours, it holds
+// text and inline annotations, and it wears the reading face.
+//
+// Tokens are cut at the text nodes' boundaries, so authored elements keep their
+// identity, attributes and listeners. A <br> supplies a line break absent from
+// textContent; leave those blocks alone rather than tokenize a different source.
+// A page that supplies its own token palette turns off the reading face, as for its
+// other personally themed content.
+//
+// The token palette is the face's, drawn for the face's code ground (reading.css), so a
+// block that doesn't wear it, as on a page that takes no theme, keeps the colours its
+// page gives it. Only a block in the document has a face to read: one not yet placed is
+// a surface Leaf is building, such as a message, and all of those wear the face.
 /** @param {Element} code */
-const languageOf = (code) => {
+const colouredAs = (code) => {
   const lang = code.getAttribute("class")?.match(LANGUAGE_CLASS)?.[1];
-  if (!lang) return undefined;
-  return Object.hasOwn(syntaxLanguageNames, lang)
-    ? syntaxLanguageNames[lang]
-    : undefined;
+  if (!lang || !Object.hasOwn(syntaxLanguageNames, lang)) return undefined;
+  if (code.querySelector("br")) return undefined;
+  if (
+    code.isConnected &&
+    getComputedStyle(code).getPropertyValue("--lf-reading-face").trim() !== "1"
+  )
+    return undefined;
+  return syntaxLanguageNames[lang];
 };
+// Partition the whole-source token stream over text nodes and our earlier token
+// spans. Authored elements are traversed, never replaced; a token crossing one is
+// cut into pieces with the same style. Equal pieces keep their nodes on a repaint.
+/** @param {Element} code
+ * @param {Parameters<typeof synNodes>[0]} tokens */
+function colourText(code, tokens) {
+  /** @type {(Text | Element)[]} */
+  const nodes = [];
+  /** @param {Node} parent */
+  const collect = (parent) => {
+    for (const node of parent.childNodes) {
+      if (
+        node instanceof Text ||
+        (node instanceof Element && node.matches("[data-lf-syn]"))
+      )
+        nodes.push(node);
+      else collect(node);
+    }
+  };
+  collect(code);
+  let index = 0;
+  let offset = 0;
+  for (const node of nodes) {
+    let remaining = node.textContent.length;
+    /** @type {Parameters<typeof synNodes>[0][number][]} */
+    const pieces = [];
+    while (remaining) {
+      const token = /** @type {Parameters<typeof synNodes>[0][number]} */ (
+        tokens[index]
+      );
+      const length = Math.min(remaining, token.text.length - offset);
+      if (length)
+        pieces.push({
+          text: token.text.slice(offset, offset + length),
+          style: token.style,
+        });
+      remaining -= length;
+      offset += length;
+      if (offset === token.text.length) {
+        index++;
+        offset = 0;
+      }
+    }
+    const painted = synNodes(pieces);
+    if (painted.length === 1 && painted.every((piece) => node.isEqualNode(piece)))
+      continue;
+    if (painted.length) node.replaceWith(...painted);
+  }
+}
 // Blocks whose tokens are on their way. A pass that reaches one again before they land,
 // as a message that renders twice in a turn does, would tokenize the same text and
 // write the same spans over the ones the first pass wrote. So the pass in flight
@@ -65,7 +110,7 @@ export async function highlightBlocks(root) {
     // A block already tokenized for this language keeps its spans: a live revision
     // that rewrote an ancestor's attribute dresses the ancestor again, and the user
     // may be holding a selection in the block beneath it.
-    const lang = languageOf(code);
+    const lang = colouredAs(code);
     if (lang && code.getAttribute("data-lf-syntax") !== lang && !tokenizing.has(code)) {
       tokenizing.add(code);
       blocks.push(code);
@@ -73,18 +118,16 @@ export async function highlightBlocks(root) {
   }
   if (!blocks.length) return;
   for (const code of blocks) {
-    let lang = languageOf(code);
+    let lang = colouredAs(code);
     try {
       while (lang) {
         const source = code.textContent;
-        const tokens = await syntax(source, lang);
-        if (code.textContent !== source || languageOf(code) !== lang) {
-          lang = languageOf(code);
+        const { tokens } = await syntax(source, lang);
+        if (code.textContent !== source || colouredAs(code) !== lang) {
+          lang = colouredAs(code);
           continue;
         }
-        // Tokens that colour nothing are the text the block already holds.
-        if (tokens.some(({ style }) => Object.keys(style).length))
-          code.replaceChildren(...synNodes(tokens));
+        colourText(code, tokens);
         code.setAttribute("data-lf-syntax", lang);
         break;
       }

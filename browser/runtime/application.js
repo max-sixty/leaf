@@ -3,6 +3,7 @@
    Importing this module is inert. leaf.js supplies the concrete feature views once and
    mounts the application before widget upgrade; exported functions are stable closures
    for the public widget API and fail clearly if invoked before that boundary. */
+import { effect, untracked } from "/runtime/framework.js";
 import { annotationMode, runtime } from "./context.js";
 import {
   applicationState,
@@ -34,12 +35,12 @@ import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
-import { createQueueActions, queueItemKey } from "./queue-api.js";
+import { createQueueActions } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
 import { nextRender } from "./rendering.js";
 import { createReadTracking } from "./thread/read.js";
 import { createSinceSeen } from "./since-seen.js";
-import { createAtWork } from "./at-work.js";
+import { createMarginBars } from "./margin-bars.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
 import { threadBox as buildThreadBox } from "./thread/box.js";
@@ -81,7 +82,7 @@ import { raiseError } from "./errors.js";
  * arriveAtQueueItem: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["arriveAtItem"],
  * nextObligationWithin: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["nextWithin"],
  * state: Pick<Parameters<typeof createStateApplication>[0], "prepareActivation" | "acceptData" | "notifyDataSubscribers">,
- * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<ReturnType<typeof import("./obligations/view.js").createObligationView>, "goToObligation"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel">,
+ * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<ReturnType<typeof import("./obligations/view.js").createObligationView>, "goToObligation"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel" | "currentLocationObligation">,
  * createMarginProjection?: typeof import("./annotation-overlay/margin-projection.js").createMarginProjection | undefined,
  * threadAvailable?: boolean,
  * }} ApplicationDependencies */
@@ -249,13 +250,12 @@ function createApplication(dependencies) {
       applicationState.settleMarkRead(messages);
     }
   };
-  // The revision a visible tab showed, through the same door as the user leaves, so
-  // the send outlives the document. Nothing draws it ahead of the answer.
+  // The revision a visible tab showed, sent as the user leaves; the event door keeps a
+  // send alive past its document (layer-client.js, `postEvent`). Nothing draws it ahead
+  // of the answer.
   createSinceSeen({
     markSeen: (revision) =>
-      deliverBookkeeping({ kind: "seen", revision }, receiveState, {
-        keepalive: true,
-      }),
+      deliverBookkeeping({ kind: "seen", revision }, receiveState),
   });
   const read = createReadTracking({
     markRead,
@@ -270,7 +270,6 @@ function createApplication(dependencies) {
     open: openPageThread,
   });
   const queueActions = createQueueActions({
-    post,
     arrive: (item) => dependencies.arriveAtQueueItem(item),
   });
   const replyView = {
@@ -282,8 +281,7 @@ function createApplication(dependencies) {
   const settlementView = {
     pendingEntries: ledger.snapshot,
     actions: threadActions,
-    landedAway: undo.landedAway,
-    returnToThread: undo.returnToThread,
+    undo,
   };
   const reactionView = {
     registerSurface: dependencies.registerReactSurface,
@@ -293,11 +291,8 @@ function createApplication(dependencies) {
     reply: replyView,
     settlement: settlementView,
     reaction: reactionView,
-    // A thread's head ends the user's to-do on it with its own Done.
-    todos: {
-      done: /** @param {string} id */ (id) =>
-        queueActions.done(queueItemKey({ kind: "todo", id })),
-    },
+    // Where the words a thread is about stand, which a thread quoting them reads.
+    placedAt: dependencies.anchorPlacement.placedAt,
     read,
     openThread: openPageThread,
     landInThread: dependencies.landInThread,
@@ -315,7 +310,7 @@ function createApplication(dependencies) {
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
   const inlineContributions = createInlineContributions(annotations);
-  createAtWork(annotations);
+  createMarginBars(annotations);
   // Print hides contributed controls and cannot supply their visibility reading.
   // Refuse the annotation pass whole until the document returns to screen media.
   const onPaper = matchMedia("print");
@@ -328,14 +323,41 @@ function createApplication(dependencies) {
     return entries;
   }
   // The margin's annotations, which the margin's own geometry and contributions also
-  // redraw directly. `refresh()` redraws them once they have been drawn.
+  // redraw directly, at once, since a contribution's control and the focus prepared on
+  // it must stand when the call returns (contributions.js). `refresh()` redraws them
+  // once they have been drawn.
   let annotationsDrawn = false;
-  const renderAnnotations = () => {
+  const paintAnnotations = () => {
     annotationsDrawn = true;
     if (!onPaper.matches) {
       const entries = refreshAnnotationInventory();
       overlay?.paint(entries);
     }
+  };
+  // A direct redraw can show what the presenter's last paint did not read, such as the
+  // age of a message in a card it just opened, so it follows its own reads until the
+  // presenter's next paint reads them all again, and a change to one, such as the
+  // clock, repaints through the presenter.
+  let following = () => {};
+  const forget = () => {
+    following();
+    following = () => {};
+  };
+  const renderAnnotations = () => {
+    forget();
+    let first = true;
+    const stop = effect(() => {
+      if (first) {
+        first = false;
+        paintAnnotations();
+      } else untracked(() => void marginPresentation?.present());
+    });
+    // The paint may itself have redrawn them directly, which follows its own reads.
+    const nested = following;
+    following = () => {
+      nested();
+      stop();
+    };
   };
   renderAnnotations.refresh = () => {
     if (annotationsDrawn) renderAnnotations();
@@ -343,7 +365,7 @@ function createApplication(dependencies) {
   // The inventory lists the marks the projection's chrome paints, reading their nodes,
   // which signals cannot track, so it reads the parts that move them itself, and
   // reads them once that region has committed. What the thread pass decides about
-  // each thread, where it is placed and whether a widget seats or holds it, and the
+  // each thread, where it is placed and whether a widget seats it, and the
   // ages the margin shows are followed with the rest of what this paint reads, so a
   // commit that moves one and the clock repaint them by the same proof.
   const annotationInputs = readPart(annotationSelection);
@@ -354,7 +376,10 @@ function createApplication(dependencies) {
       region: "annotations",
       after: PRESENTATION_DOM.obligations,
       reading: () => annotationInputs(),
-      paint: renderAnnotations,
+      paint: () => {
+        forget();
+        paintAnnotations();
+      },
     });
     marginPresentation = presentation;
     void presentation.present();
@@ -373,16 +398,19 @@ function createApplication(dependencies) {
     refreshInventory: refreshAnnotationInventory,
     renderAnnotations,
     openPageThread,
+    returnToPage: () => threadDestinations.returnToPage(),
     designModeActive: dependencies.annotationCommands.designModeActive,
     pointerModeActive: dependencies.annotationCommands.pointerModeActive,
     leavePageMap: dependencies.annotationCommands.leavePageMap,
     openPageMap: dependencies.annotationCommands.openPageMap,
     pageMapDialogContains: dependencies.annotationCommands.pageMapDialogContains,
     scrollThreadIntoView: dependencies.annotationCommands.scrollThreadIntoView,
-    renderMarginThread: (host, thread, controls) =>
-      renderMarginThread(host, thread, inlineView, controls),
+    renderMarginThread: (host, thread, outlets) =>
+      renderMarginThread(host, thread, inlineView, outlets),
     placedAt: dependencies.anchorPlacement.placedAt,
     marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
+    currentLocationObligation:
+      dependencies.annotationCommands.currentLocationObligation,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
     openInPanel: dependencies.annotationCommands.openInPanel,
   });
@@ -429,9 +457,9 @@ function createApplication(dependencies) {
     marginCommitted: () => marginPresentation?.committed() ?? Promise.resolve(),
     read,
   });
-  /** @param {Parameters<typeof ledger.present>[0]} receipts */
-  const accountPending = (receipts) => {
-    ledger.present(receipts);
+  /** @param {Parameters<typeof ledger.present>[0]} events */
+  const accountPending = (events) => {
+    ledger.present(events);
     releasePendingSafely("receipt presentation");
   };
 
@@ -492,6 +520,7 @@ function createApplication(dependencies) {
 
   const feed = createStateFeed({
     prepareActivation: dependencies.state.prepareActivation,
+    stateInHand: installedState.stateInHand,
     stateApplying,
     invalidateDom,
     receiveState,
@@ -695,12 +724,11 @@ function createApplication(dependencies) {
     consumeAnnotations,
     threadActions,
     queueActions,
-    settlement: settlementView,
     /** @param {string} id */
     openObligation(id) {
       const item = readObligations().all.find((item) => item.id === id);
       if (!item) return Promise.resolve(false);
-      if (hasObligationSource(item, "update") || hasObligationSource(item, "todo"))
+      if (hasObligationSource(item, "update"))
         return queueActions.open(JSON.stringify([item.source.kind, item.id]));
       if (item.thread !== null && answeredInWords(item)) {
         showHeld(item.thread);
@@ -777,9 +805,6 @@ export const queueActions = Object.freeze({
   open: /** @type {ReturnType<typeof createApplication>["queueActions"]["open"]} */ (
     ...args
   ) => app().queueActions.open(...args),
-  done: /** @type {ReturnType<typeof createApplication>["queueActions"]["done"]} */ (
-    ...args
-  ) => app().queueActions.done(...args),
 });
 /** @type {ReturnType<typeof import("./composing/input.js").createCompositionInputs>["wireInput"]} */
 export const wireInput = (...args) => app().wireInput(...args);

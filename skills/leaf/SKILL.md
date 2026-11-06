@@ -149,7 +149,9 @@ Leaf repository.
 
 ## Conditional references
 
-Read references from this skill directory.
+Read references from this skill directory. Read each one when its condition
+arises unless its text is still in your context: what you remember of it, or a
+summary from before a compaction, doesn't carry its rules.
 
 ### Author a version
 
@@ -183,6 +185,8 @@ Read references from this skill directory.
   summarizing or resolving a thread.
 - `references/page-checkpoints.md`: before a pre-handover review, stamping,
   or ending a page.
+- `references/turn-end-check.md`: in Claude Code, what Leaf's turn-end check asks a
+  fork of your session, when one of its messages or records puzzles you.
 
 ### Serve or extend a page
 

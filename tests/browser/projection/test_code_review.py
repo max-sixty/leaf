@@ -56,7 +56,8 @@ def test_page_state_and_browser_share_the_decision_and_bound_sources(browser, se
 
     A pin is a source id nothing rewrites: the reviewed copy keeps its revision while
     the current source moves on, and each widget's origin names its own file's digest,
-    the file `page state` names for that source.
+    the file `page state` names for that source. A write to one source, with both
+    documents on the page, moves that document's words and provenance alone.
     """
     authored = leaf_page(
         "construction parity",
@@ -104,6 +105,20 @@ def test_page_state_and_browser_share_the_decision_and_bound_sources(browser, se
         )
     expect(page.locator("#reviewed figcaption")).to_have_text("Reviewed")
     expect(page.locator("#current figcaption")).to_have_text("instructions")
+
+    data_model.cmd_data_set(serve.page_dir, "instructions", "Moved instructions.\n")
+    told(page)
+    expect(page.locator("#current code")).to_have_text("Moved instructions.\n")
+    for selector, source, text in (
+        ("#current", "instructions", "Moved instructions.\n"),
+        ("#reviewed", "reviewed-instructions", "Reviewed instructions.\n"),
+    ):
+        projection = page.locator(f"{selector} [data-lf-datum]")
+        expect(projection).to_have_attribute("data-lf-source", source)
+        expect(projection).to_have_attribute(
+            "data-lf-source-revision", source_revision(serve.page_dir, source)
+        )
+        expect(projection.locator("code")).to_have_text(text)
 
 
 def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, serve):
@@ -260,10 +275,7 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
     page.emulate_media(media="screen")
 
 
-@pytest.mark.parametrize("returned", [False, True], ids=["stayed", "returned"])
-def test_pr_review_observed_age_refreshes_without_a_data_change(
-    browser, serve, returned
-):
+def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
     """The observation time is rendered after Markdown loading, but still follows the
     shared clock when the source revision remains unchanged, including after the brief
     leaves the page and returns with its painting kept."""
@@ -296,17 +308,6 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(
     page = open_page(browser, url)
     observed = page.locator(".pr-observed")
     expect(observed).to_have_text("Observed just now")
-    if returned:
-        page.locator("#reviewed-pr").evaluate(
-            """async (element) => {
-              const parent = element.parentNode;
-              const next = element.nextSibling;
-              element.remove();
-              await new Promise((resolve) => setTimeout(resolve));
-              parent.insertBefore(element, next);
-              await new Promise((resolve) => setTimeout(resolve));
-            }"""
-        )
 
     # Only the browser's clock can be moved from here, and every state answer
     # recalibrates the page's one measured offset against the server's real `now`
@@ -319,6 +320,20 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(
     page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
     ticked(page)
     expect(observed).to_have_text("Observed 3h ago")
+
+    page.locator("#reviewed-pr").evaluate(
+        """async (element) => {
+          const parent = element.parentNode;
+          const next = element.nextSibling;
+          element.remove();
+          await new Promise((resolve) => setTimeout(resolve));
+          parent.insertBefore(element, next);
+          await new Promise((resolve) => setTimeout(resolve));
+        }"""
+    )
+    page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=6))
+    ticked(page)
+    expect(observed).to_have_text("Observed 6h ago")
 
 
 def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
@@ -436,7 +451,7 @@ def test_native_call_diff_json_keeps_spaced_paths_and_exact_patch_destinations(
             selector = (
                 ".lf-call-root-location a"
                 if status == "unchanged"
-                else f'.lf-call-line[data-status="{status}"] a'
+                else f'.lf-call-line[data-lf-status="{status}"] a'
             )
             # Playwright's text filters collapse whitespace; the source coordinates
             # intentionally distinguish these two names.
@@ -653,10 +668,7 @@ def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser,
     assert resolved(["app.py", "new", 20]) == '["app.py","both",5,20]'
 
 
-@pytest.mark.parametrize("manifest", [False, True])
-def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
-    browser, serve, manifest
-):
+def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser, serve):
     """Old source b.py and durable destination b.py identify different rename rows."""
     url = serve(
         leaf_page(
@@ -679,9 +691,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
         "diff --git a/a.py b/a.py\nnew file mode 100644\n"
         "--- /dev/null\n+++ b/a.py\n@@ -0,0 +1 @@\n+new_a()\n"
     )
-    data_model.cmd_data_set(
-        serve.page_dir, "patch-data", patch_manifest(patch) if manifest else patch
-    )
+    data_model.cmd_data_set(serve.page_dir, "patch-data", patch_manifest(patch))
     data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
@@ -734,7 +744,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
     data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
-        patch_manifest(long_preimage) if manifest else long_preimage,
+        patch_manifest(long_preimage),
     )
     told(page)
     expect(header).to_contain_text("legacy/very/long/original.py → c.py")
@@ -749,7 +759,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
     data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
-        patch_manifest(ambiguous) if manifest else ambiguous,
+        patch_manifest(ambiguous),
     )
     told(page)
     expect(header).to_contain_text("a.py → c.py")
@@ -792,7 +802,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
         data_model.cmd_data_set(
             serve.page_dir,
             "patch-data",
-            patch_manifest(copy_patch) if manifest else copy_patch,
+            patch_manifest(copy_patch),
         )
         told(page)
         links.nth(1).click()
@@ -817,7 +827,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
     data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
-        patch_manifest(copied("b.py")) if manifest else copied("b.py"),
+        patch_manifest(copied("b.py")),
     )
     told(page)
     links.nth(1).click()
@@ -994,13 +1004,13 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     data_model.cmd_data_set(serve.page_dir, "document", "Original source words.")
     original_revision = source_revision(serve.page_dir, "document")
     page = open_page(browser, url)
-    resized(page, 900, 900)
+    resized(page, 1024, 900)
     if quote_anchor:
-        # The code box also spans the gutter and blank column; drag on its words.
-        words = page.locator("#source [data-content] [data-line] span").evaluate(
-            """span => {
+        # The row also spans the numbers' column and blank room; drag on its words.
+        words = page.locator("#source .lf-text-document-run > *").evaluate(
+            """row => {
               const range = document.createRange();
-              range.selectNodeContents(span);
+              range.selectNodeContents(row);
               return range.getBoundingClientRect().toJSON();
             }"""
         )
@@ -1036,9 +1046,13 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
         "“Original source words.”" if quote_anchor else "§ text-document"
     )
     assert page.evaluate("() => CSS.highlights.get('lf-pending').size") == 0
-    expect(page.locator("#source.lf-pending, #source .lf-pending")).to_have_count(0)
-    # Earlier data no longer supplies a passage fragment. The surviving datum
-    # keeps the editor beside it; sending hands that position to the first card.
+    # The document is the same document across the replacement, so a draft on all of it
+    # stays on it, outlined. A draft on words the replacement took names no place now,
+    # and the document only keeps its editor in view. Either way the editor stays where
+    # it stood; sending hands that position to the first card.
+    expect(page.locator("#source.lf-pending, #source .lf-pending")).to_have_count(
+        0 if quote_anchor else 1
+    )
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("data-lf-placement", re.compile("(top|bottom)-start"))
     rendered(page)
@@ -1058,10 +1072,19 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
         "datum": "document",
         "source": "document",
         "source_revision": original_revision,
+        "identity": "document",
     }
     if quote_anchor:
-        expected_anchor["quote"] = "Original source words."
+        # The document's own words around the quote, its caption here, are its context.
+        expected_anchor |= {"quote": "Original source words.", "prefix": "document"}
     assert comment["anchor"] == expected_anchor
+    if quote_anchor:
+        # Its words are gone, so the thread stands nowhere on the page, and its head
+        # says so.
+        head = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote-head")
+        expect(head).to_have_attribute("data-lf-detached", "")
+        expect(page.locator(".lf-margin-marker")).to_have_count(0)
+        return
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_css("opacity", "1")
     rendered(page)
@@ -1073,18 +1096,15 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     page.locator(".lf-margin-marker").click()
     expect(card).to_have_css("opacity", "1")
     rendered(page)
-    # Reopening is a fresh placement on the datum's current full-width box; it
-    # need not retain the old quote's inline start after its words disappeared. The
+    # Reopening is a fresh placement on the document's current full-width box. The
     # document scrolls inside its box, so the card may open over that box or under it.
     reopened = card.bounding_box()
     assert datum["x"] < reopened["x"] + reopened["width"]
     assert reopened["x"] < datum["x"] + datum["width"]
     assert datum["y"] < reopened["y"] < datum["y"] + datum["height"] + 10
-    # The thread's own head says the words it quotes are earlier data, as a plain word
-    # rather than a boxed badge.
+    # A comment on the whole document follows it, so its head has nothing to say.
     status = open_panel_thread(page, comment["id"]).locator(".lf-anchor-status")
-    expect(status).to_have_text("Earlier data")
-    assert status.evaluate("el => getComputedStyle(el).borderTopWidth") == "0px"
+    expect(status).to_have_count(0)
 
 
 def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
@@ -1291,6 +1311,12 @@ def test_datum_travel_resolves_the_destination_after_reveal(browser, serve):
     page.locator("#patch").evaluate(
         """source => {
           let revealed = false;
+          // This fixture replaces the widget's rows itself, so it also owns
+          // their address lookup rather than leaving lf-diff's retained rows stale.
+          const elementsFor = source.lfElementsFor.bind(source);
+          source.lfElementsFor = key => elementsFor(key).flatMap(original =>
+            [...source.shadowRoot.querySelectorAll('[data-lf-datum]')].filter(
+              row => row.dataset.lfDatum === original.dataset.lfDatum));
           source.parentElement.addEventListener('beforematch', () => {
             const row = source.shadowRoot.querySelector(
               `[data-lf-datum='["app.py","new",2]']`);
@@ -1311,9 +1337,11 @@ def test_datum_travel_resolves_the_destination_after_reveal(browser, serve):
     page.evaluate(hide)
     page.locator("#calls .lf-call-location").last.click()
     expect(page.locator(".lf-live")).to_have_text("Opened app.py:2 in the exact patch")
-    expect(
-        page.locator('lf-diff [data-lf-datum=\'["app.py","new",2]\'][data-rebuilt]')
-    ).to_be_in_viewport()
+    rebuilt = page.locator(
+        'lf-diff [data-lf-datum=\'["app.py","new",2]\'][data-rebuilt]'
+    )
+    expect(rebuilt).to_be_in_viewport()
+    expect(rebuilt).to_be_focused()
     page.evaluate(hide)
     page.locator("#calls .lf-call-location").last.click()
     expect(page.locator(".lf-live")).to_have_text(

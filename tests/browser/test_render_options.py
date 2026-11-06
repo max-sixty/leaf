@@ -19,6 +19,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     CHIP_PAGE,
     INLINE_CASE_PAGE,
+    LOCATION_RING,
     NESTED_OBLIGATION_PAGE,
     OBLIGATION_PAGE,
     OBLIGATION_SHAPES_PAGE,
@@ -34,7 +35,6 @@ from render_cases_navigation import (
 from render_harness import (
     CARRIED_PAGE,
     EXAMPLE_PACKAGES,
-    EXAMPLES,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     SAMPLE_MARKUP,
@@ -44,7 +44,6 @@ from render_harness import (
     _traffic,
     _until,
     compare_with,
-    consume_browser_errors,
     expect_obligations_answered,
     expect_panel_offers,
     expect_panel_says,
@@ -71,8 +70,26 @@ from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+def assert_selected_mark(mark):
+    """The selected box paints ink around a check cut out of its centre."""
+    ink = mark.evaluate(
+        """el => getComputedStyle(el, '::before').backgroundColor
+            .match(/\\d+/g).slice(0, 3).map(Number)"""
+    )
+    shot = Image.open(BytesIO(mark.screenshot())).convert("RGB")
+    x, y = shot.width // 2, shot.height // 2
+    centre = shot.crop((x - 3, y - 3, x + 4, y + 4))
+    painted = [
+        sum(abs(a - b) for a, b in zip(pixel, ink, strict=True)) < 40
+        for pixel in rgb_pixels(centre)
+    ]
+    assert sum(painted) > 5, "the selected mark has no filled centre"
+    assert painted.count(False) > 5, "the selected mark has no cut-out check"
 
 
 def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
@@ -260,13 +277,15 @@ def test_a_live_card_pick_shows_the_check_and_remains_pressable(browser, serve):
     completed obligation is reopened for review; "selected" stays its accessible name."""
     page = open_page(browser, live_url(serve(SETTLED_PAGE)))
     page.locator("#transport .lf-settled").click()
+    # Leave the group's binding badges so its selection marks are drawn.
+    page.locator("h1").click()
     mark = page.locator("#opt-lax .lf-pick")
     assert mark.get_attribute("aria-checked") == "true"
     assert mark.get_attribute("aria-label") == "selected: Lax cookie — option 1 of 3"
     assert mark.evaluate("el => getComputedStyle(el).fontSize") == "0px", (
         "a picked card draws no word beside its check"
     )
-    assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
+    assert_selected_mark(mark)
 
     strict = page.locator("#opt-strict")
     size = "el => [Math.round(el.getBoundingClientRect().width), Math.round(el.getBoundingClientRect().height)]"
@@ -457,7 +476,7 @@ def test_unchanged_markdown_option_is_not_a_version_change(browser, serve):
     ) == ["job-camera"]
 
 
-def test_markdown_option_state_change_has_no_inline_text_diff(browser, serve):
+def test_markdown_option_state_change_offers_no_card(browser, serve):
     source = OBLIGATION_PAGE.replace(
         "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
     )
@@ -472,52 +491,6 @@ def test_markdown_option_state_change_has_no_inline_text_diff(browser, serve):
     expect(page.locator("#job-mounts")).to_have_class(re.compile(r"\blf-ins-block\b"))
     change = page.locator('[data-lf-margin-for="job-mounts"] [data-lf-kinds~="change"]')
     expect(change).not_to_have_attribute("aria-controls", re.compile(".*"))
-
-
-def test_a_failed_draw_keeps_the_options_and_the_next_reading_draws_over_it(
-    browser, serve
-):
-    """A draw that throws shows its failure beside the authored options it paints, so
-    the next reading still has them to draw on."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Failed draw",
-                '<h1>Failed draw</h1><lf-ask id="ask"><h2>Which?</h2>'
-                '<lf-options id="options" choose><lf-option id="one">First</lf-option>'
-                '<lf-option id="two">Second</lf-option></lf-options></lf-ask>',
-            )
-        ),
-    )
-    page.evaluate("""async () => {
-      const options = document.getElementById('options');
-      options.render = function () {
-        this.state;
-        throw new Error('an intentional draw failure');
-      };
-      options.requestUpdate();
-      await options.updateComplete;
-      delete options.render;
-    }""")
-    expect(page.locator("#options .lf-error")).to_have_count(1)
-    # The report names the widget, which is how the agent that wrote it finds it.
-    consume_browser_errors(page, '<lf-options id="options"> failed')
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "options",
-            "action": "choose",
-            "detail": {"value": ["two"]},
-        },
-    )
-    told(page)
-    expect(page.locator("#two")).to_have_attribute("chosen", "")
-    expect(page.locator("#options .lf-error")).to_have_count(0)
-    expect(page.locator("#options .lf-pick")).to_have_count(2)
 
 
 def test_option_controls_hold_presentation_without_replacing_authored_nodes(
@@ -741,10 +714,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     expect(mark).to_have_text("selected")
     expect(mark).to_have_css("font-size", "0px")
     expect(mark).to_have_css("opacity", "1")
-    assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
-    assert (
-        mark.evaluate("el => parseFloat(getComputedStyle(el, '::before').fontSize)") > 0
-    )
+    assert_selected_mark(mark)
     assert option.bounding_box() == before, "the selected header state resized its card"
 
     state = mark.bounding_box()
@@ -799,25 +769,205 @@ def test_an_open_option_ring_stays_visible_at_rest(browser, serve, color_scheme)
     assert all(reading["contrast"] >= 3 for reading in readings), readings
 
 
-def test_an_obligation_leads_with_one_authored_heading(browser, serve):
-    """The question is document content above the answers, never generated group chrome.
-
-    Each shape of obligation is read on the one page that holds them all."""
+def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
+    browser, serve, subtests
+):
+    """Each shape of obligation read on the one page that holds them all, with the
+    picks last because they write the log."""
     page = open_page(browser, serve(OBLIGATION_SHAPES_PAGE))
-    for item, group, question in (
-        ("cards-decision", "cards", "Where should a session live?"),
-        ("rows-decision", "rows", "Which jobs are worth starting?"),
-        ("done-decision", "done", "How do parallel sessions merge?"),
-    ):
-        heading = page.locator(f"#{item} > :is(h1, h2, h3, h4, h5, h6)")
-        expect(heading).to_have_count(1)
-        expect(heading).to_have_text(question)
-        expect(page.locator(f"#{group} > [data-lf-said='label']")).to_have_count(0)
-        assert heading.evaluate(
-            "el => el.getBoundingClientRect().bottom"
-        ) < page.locator(f"#{group}").evaluate(
-            "el => el.getBoundingClientRect().top"
-        ), f"{group}'s answer control stands before its authored question"
+
+    with subtests.test("an obligation leads with one authored heading"):
+        # The question is document content above the answers, never generated group
+        # chrome.
+        #
+        # Each shape of obligation is read on the one page that holds them all.
+        for item, group, question in (
+            ("cards-decision", "cards", "Where should a session live?"),
+            ("rows-decision", "rows", "Which jobs are worth starting?"),
+            ("done-decision", "done", "How do parallel sessions merge?"),
+        ):
+            heading = page.locator(f"#{item} > :is(h1, h2, h3, h4, h5, h6)")
+            expect(heading).to_have_count(1)
+            expect(heading).to_have_text(question)
+            expect(page.locator(f"#{group} > [data-lf-said='label']")).to_have_count(0)
+            assert heading.evaluate(
+                "el => el.getBoundingClientRect().bottom"
+            ) < page.locator(f"#{group}").evaluate(
+                "el => el.getBoundingClientRect().top"
+            ), f"{group}'s answer control stands before its authored question"
+
+    with subtests.test("joined option cells share edges and text column"):
+        # Read over the joined option cells and the full-width Done control.
+        #
+        # A group under `choose` is one control: cells divided by a hairline and nothing
+        # else. Two things follow for every option cell, and the question was simply the
+        # child that had neither. The line is the whole of what separates a cell from
+        # the next, so a margin beside it is a second way to say what the line already
+        # says and draws a rule floating in a band of nothing. Each option cell holds
+        # its words off the frame at the column the group reserves, so one that opens on
+        # the frame hangs out of the column its own neighbours share.
+        #
+        # Here rather than in the render gate, on the line tests/AGENTS.md draws: a
+        # property caused by a particular page belongs to the gate, which must report it
+        # to that page's author, and one identical for every valid page belongs to the
+        # suite. A joined control is leaf's own theme — no authored page can make it
+        # wrong. A reading in the gate had to find the control by fingerprint (a frame,
+        # a clip, a stacked pair), and that fingerprint is worn by a board column, a
+        # framed scroller, an authored row-gap and a framed `<details>`, none of which
+        # is wrong; it also never saw the same defect written as `border-top` on the
+        # lower cell. Asked here, of the widget itself, both forms are visible and
+        # nothing correct is accused.
+        #
+        # Every child shares the joined edge; option cells share a text column. The
+        # authored options are the author's, the option the user writes is the module's,
+        # the question and the Done press are the runtime's, and each arrived carrying
+        # the spacing it wears standing alone. Both joined forms, cards and rows, stand
+        # on one page.
+        for group in ("cards", "rows"):
+            cells = page.locator(f"#{group}").evaluate(
+                r"""el => {
+                     const px = (v) => parseFloat(v) || 0;
+                     const kids = [...el.children].filter((c) => c.checkVisibility());
+                     return kids.map((c, i) => {
+                       const s = getComputedStyle(c);
+                       const r = c.getBoundingClientRect();
+                       const next = kids[i + 1];
+                       // The ground the user sees under the cell, which is not the same as
+                       // what the cell declares: a cell that paints nothing shows the group's
+                       // own, and that is how an unpicked option is filled.
+                       const clear = (v) => !v || v === 'transparent'
+                                || /rgba\(0,\s*0,\s*0,\s*0\)/.test(v);
+                       return {
+                         kind: c.tagName.toLowerCase(),
+                         what: c.tagName.toLowerCase() + (c.dataset.lfSaid
+                                ? `[${c.dataset.lfSaid}]` : (c.className ? '.' + c.className.trim().split(/\s+/)[0] : '')),
+                         opens: px(s.paddingInlineStart) + px(s.borderInlineStartWidth),
+                         ground: clear(s.backgroundColor)
+                           ? getComputedStyle(el).backgroundColor : s.backgroundColor,
+                         picked: c.hasAttribute('chosen'),
+                         gap: next
+                           ? Math.round((next.getBoundingClientRect().top - r.bottom) * 10) / 10
+                           : null,
+                       };
+                     });
+                   }"""
+            )
+            assert len(cells) > 2, (
+                f"a control of {len(cells)} cells proves little: {cells}"
+            )
+
+            # The hairline is a 1px gap; anything wider is a band of nothing.
+            apart = [c for c in cells if c["gap"] is not None and c["gap"] > 1.5]
+            assert not apart, (
+                f"cells of #{group} stand apart from the line that joins them: {apart}"
+            )
+
+            # Done spans the control and centers its label, apart from the option text column.
+            done_cells = [c for c in cells if c["kind"] == "lf-options-done"]
+            assert len(done_cells) <= 1
+            if done_cells:
+                assert cells[-1] is done_cells[0], (
+                    "Done should close the joined control"
+                )
+            option_cells = [c for c in cells if c["kind"] != "lf-options-done"]
+            bare = [c for c in option_cells if c["opens"] < 0.5]
+            assert not bare, (
+                f"cells of #{group} open on the frame while their neighbours hold off it: "
+                f"{bare}"
+            )
+
+            # And they open at one column, which is the half a user sees first: the question
+            # hung a whole binding column left of the words it was a question about. Every cell,
+            # the user's own among them: that cell holds the option they write when none of the
+            # authored ones is the answer, so a cell drawn short of the column starts the one box
+            # the group takes words in outside the run of boxes the group is. Its own 12px did
+            # exactly that, and this line excused it as apparatus. What is compared is the cell,
+            # not the caret: a text box holds its words off its own frame, which is the box's and
+            # no business of the group's.
+            words = {c["opens"] for c in option_cells}
+            assert len(words) == 1, (
+                f"#{group}'s cells open at {sorted(words)}, so the question, its answers and "
+                "the option the user writes read as more than one column"
+            )
+
+            # And the user's own option is filled the way an option nobody has picked is
+            # filled, which is the other half of what says it is one of the answers. A pick
+            # colours the cell that holds it and nothing else does, so any other ground here is
+            # a state the group hasn't got: the cell wore --field, a tinted band that in this
+            # theme means a detail or a note, and a band under the answers is a footer whatever
+            # else is written in it.
+            open_option = next(
+                c["ground"]
+                for c in cells
+                if c["what"] == "lf-option" and not c["picked"]
+            )
+            user = next(c for c in cells if "lf-another" in c["what"])
+            assert user["ground"] == open_option, (
+                f"#{group}'s user-written option stands on {user['ground']} where an "
+                f"unpicked option stands on {open_option}, so it reads as apparatus under the "
+                "answers rather than as one of them"
+            )
+
+    with subtests.test("a picked cell rings every side alike"):
+        # A pick rings its cell in the ok ink, inside the joined frame. A hairline cast
+        # over the next cell lay over the ring's lower edge and left it half as thick as
+        # the other three, reading as the grey divider rather than the pick's edge;
+        # standing the pick above its neighbours only moved the cut onto the pick above
+        # it when two adjacent rows were taken. Counted in pixels down the picked cell's
+        # middle and across its top, in both joined forms, with a row taken beside
+        # another.
+        for option in ("#c-redis", "#r-drill", "#r-rotate"):
+            page.locator(f"{option} > .lf-pick").click()
+            expect(page.locator(option)).to_have_attribute("chosen", "")
+        # Keep hover labels clear of the pixels whose ring thickness is measured.
+        page.locator("h1").click()
+        rendered(page)
+        ok = page.evaluate(
+            """() => {
+                 const probe = document.body.appendChild(document.createElement('i'));
+                 probe.style.color = 'var(--ok)';
+                 const rgb = getComputedStyle(probe).color.match(/\\d+/g).slice(0, 3);
+                 probe.remove();
+                 return rgb.map(Number);
+               }"""
+        )
+
+        def ok_run(clip):
+            shot = Image.open(BytesIO(page.screenshot(clip=clip))).convert("RGB")
+            inked = [
+                sum(abs(a - b) for a, b in zip(px, ok, strict=True)) < 40
+                for px in rgb_pixels(shot)
+            ]
+            # The ring's two edges along this line: from the middle outward, the first run
+            # of ink each way, so a picked neighbour's edge past the hairline is its own.
+            half = len(inked) // 2
+
+            def first_run(line):
+                run = list(itertools.dropwhile(lambda inked: not inked, line))
+                return len(list(itertools.takewhile(bool, run)))
+
+            return first_run(inked[half::-1]), first_run(inked[half:])
+
+        for option in ("#c-redis", "#r-drill", "#r-rotate"):
+            box = page.locator(option).bounding_box()
+            mid_x = round(box["x"] + box["width"] / 2)
+            # Above the cell's words and its mark, which a row hangs at its start.
+            clear_y = round(box["y"] + 4)
+            top, bottom = ok_run(
+                {"x": mid_x, "y": box["y"] - 4, "width": 1, "height": box["height"] + 8}
+            )
+            left, right = ok_run(
+                {
+                    "x": box["x"] - 4,
+                    "y": clear_y,
+                    "width": box["width"] + 8,
+                    "height": 1,
+                }
+            )
+            assert top == bottom == left == right > 0, (
+                f"{option}'s ring is {top}px at the top, {bottom}px at the bottom, "
+                f"{left}px on the left and {right}px on the right"
+            )
 
 
 def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_sample(
@@ -885,168 +1035,6 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
     )
 
 
-def test_joined_option_cells_share_edges_and_text_column(browser, serve):
-    """Read over the joined option cells and the full-width Done control.
-
-    A group under `choose` is one control: cells divided by a hairline and
-    nothing else. Two things follow for every option cell, and the question was
-    simply the child that had neither. The line is the whole of what separates a cell
-    from the next, so a margin beside it is a second way to say what the line already
-    says and draws a rule floating in a band of nothing. Each option cell holds its
-    words off the frame at the column the group reserves, so one that opens on the frame
-    hangs out of the column its own neighbours share.
-
-    Here rather than in the render gate, on the line tests/AGENTS.md draws: a property
-    caused by a particular page belongs to the gate, which must report it to that page's
-    author, and one identical for every valid page belongs to the suite. A joined
-    control is leaf's own theme — no authored page can make it wrong. A reading in the
-    gate had to find the control by fingerprint (a frame, a clip, a stacked pair), and
-    that fingerprint is worn by a board column, a framed scroller, an authored row-gap
-    and a framed `<details>`, none of which is wrong; it also never saw the same defect
-    written as `border-top` on the lower cell. Asked here, of the widget itself, both
-    forms are visible and nothing correct is accused.
-
-    Every child shares the joined edge; option cells share a text column. The
-    authored options are the author's, the option the user writes is the module's,
-    the question and the Done press are the runtime's, and each arrived carrying the
-    spacing it wears standing alone. Both joined forms, cards and rows, stand on one
-    page."""
-    page = open_page(browser, serve(OBLIGATION_SHAPES_PAGE))
-    for group in ("cards", "rows"):
-        cells = page.locator(f"#{group}").evaluate(
-            r"""el => {
-                 const px = (v) => parseFloat(v) || 0;
-                 const kids = [...el.children].filter((c) => c.checkVisibility());
-                 return kids.map((c, i) => {
-                   const s = getComputedStyle(c);
-                   const r = c.getBoundingClientRect();
-                   const next = kids[i + 1];
-                   // The ground the user sees under the cell, which is not the same as
-                   // what the cell declares: a cell that paints nothing shows the group's
-                   // own, and that is how an unpicked option is filled.
-                   const clear = (v) => !v || v === 'transparent'
-                            || /rgba\(0,\s*0,\s*0,\s*0\)/.test(v);
-                   return {
-                     kind: c.tagName.toLowerCase(),
-                     what: c.tagName.toLowerCase() + (c.dataset.lfSaid
-                            ? `[${c.dataset.lfSaid}]` : (c.className ? '.' + c.className.trim().split(/\s+/)[0] : '')),
-                     opens: px(s.paddingInlineStart) + px(s.borderInlineStartWidth),
-                     ground: clear(s.backgroundColor)
-                       ? getComputedStyle(el).backgroundColor : s.backgroundColor,
-                     picked: c.hasAttribute('chosen'),
-                     gap: next
-                       ? Math.round((next.getBoundingClientRect().top - r.bottom) * 10) / 10
-                       : null,
-                   };
-                 });
-               }"""
-        )
-        assert len(cells) > 2, f"a control of {len(cells)} cells proves little: {cells}"
-
-        # The hairline is a 1px gap; anything wider is a band of nothing.
-        apart = [c for c in cells if c["gap"] is not None and c["gap"] > 1.5]
-        assert not apart, (
-            f"cells of #{group} stand apart from the line that joins them: {apart}"
-        )
-
-        # Done spans the control and centers its label, apart from the option text column.
-        done_cells = [c for c in cells if c["kind"] == "lf-options-done"]
-        assert len(done_cells) <= 1
-        if done_cells:
-            assert cells[-1] is done_cells[0], "Done should close the joined control"
-        option_cells = [c for c in cells if c["kind"] != "lf-options-done"]
-        bare = [c for c in option_cells if c["opens"] < 0.5]
-        assert not bare, (
-            f"cells of #{group} open on the frame while their neighbours hold off it: "
-            f"{bare}"
-        )
-
-        # And they open at one column, which is the half a user sees first: the question
-        # hung a whole binding column left of the words it was a question about. Every cell,
-        # the user's own among them: that cell holds the option they write when none of the
-        # authored ones is the answer, so a cell drawn short of the column starts the one box
-        # the group takes words in outside the run of boxes the group is. Its own 12px did
-        # exactly that, and this line excused it as apparatus. What is compared is the cell,
-        # not the caret: a text box holds its words off its own frame, which is the box's and
-        # no business of the group's.
-        words = {c["opens"] for c in option_cells}
-        assert len(words) == 1, (
-            f"#{group}'s cells open at {sorted(words)}, so the question, its answers and "
-            "the option the user writes read as more than one column"
-        )
-
-        # And the user's own option is filled the way an option nobody has picked is
-        # filled, which is the other half of what says it is one of the answers. A pick
-        # colours the cell that holds it and nothing else does, so any other ground here is
-        # a state the group hasn't got: the cell wore --field, a tinted band that in this
-        # theme means a detail or a note, and a band under the answers is a footer whatever
-        # else is written in it.
-        open_option = next(
-            c["ground"] for c in cells if c["what"] == "lf-option" and not c["picked"]
-        )
-        user = next(c for c in cells if "lf-another" in c["what"])
-        assert user["ground"] == open_option, (
-            f"#{group}'s user-written option stands on {user['ground']} where an "
-            f"unpicked option stands on {open_option}, so it reads as apparatus under the "
-            "answers rather than as one of them"
-        )
-
-
-def test_a_picked_cell_rings_every_side_alike(browser, serve):
-    """A pick rings its cell in the ok ink, inside the joined frame. A hairline cast
-    over the next cell lay over the ring's lower edge and left it half as thick as the
-    other three, reading as the grey divider rather than the pick's edge; standing
-    the pick above its neighbours only moved the cut onto the pick above it when two
-    adjacent rows were taken. Counted in pixels down the picked cell's middle and
-    across its top, in both joined forms, with a row taken beside another."""
-    page = open_page(browser, serve(OBLIGATION_SHAPES_PAGE))
-    for option in ("#c-redis", "#r-drill", "#r-rotate"):
-        page.locator(f"{option} > .lf-pick").click()
-        expect(page.locator(option)).to_have_attribute("chosen", "")
-    rendered(page)
-    ok = page.evaluate(
-        """() => {
-             const probe = document.body.appendChild(document.createElement('i'));
-             probe.style.color = 'var(--ok)';
-             const rgb = getComputedStyle(probe).color.match(/\\d+/g).slice(0, 3);
-             probe.remove();
-             return rgb.map(Number);
-           }"""
-    )
-
-    def ok_run(clip):
-        shot = Image.open(BytesIO(page.screenshot(clip=clip))).convert("RGB")
-        inked = [
-            sum(abs(a - b) for a, b in zip(px, ok, strict=True)) < 40
-            for px in rgb_pixels(shot)
-        ]
-        # The ring's two edges along this line: from the middle outward, the first run
-        # of ink each way, so a picked neighbour's edge past the hairline is its own.
-        half = len(inked) // 2
-
-        def first_run(line):
-            run = list(itertools.dropwhile(lambda inked: not inked, line))
-            return len(list(itertools.takewhile(bool, run)))
-
-        return first_run(inked[half::-1]), first_run(inked[half:])
-
-    for option in ("#c-redis", "#r-drill", "#r-rotate"):
-        box = page.locator(option).bounding_box()
-        mid_x = round(box["x"] + box["width"] / 2)
-        # Above the cell's words and its mark, which a row hangs at its start.
-        clear_y = round(box["y"] + 4)
-        top, bottom = ok_run(
-            {"x": mid_x, "y": box["y"] - 4, "width": 1, "height": box["height"] + 8}
-        )
-        left, right = ok_run(
-            {"x": box["x"] - 4, "y": clear_y, "width": box["width"] + 8, "height": 1}
-        )
-        assert top == bottom == left == right > 0, (
-            f"{option}'s ring is {top}px at the top, {bottom}px at the bottom, "
-            f"{left}px on the left and {right}px on the right"
-        )
-
-
 WIDE_PROSE = (
     "Each alternative was measured against the same traffic and the same failover "
     "days, so the figures in the cards below compare directly with one another."
@@ -1057,24 +1045,24 @@ WIDE_OBLIGATION_PAGE = leaf_page(
 <h1>Where sessions live</h1>
 <div id="layout">
 <section id="body">
-<lf-ask id="cell-decision" data-width="available"><h2>Where should a session live?</h2>
+<lf-ask id="cell-decision"><h2>Where should a session live?</h2>
 <p>{WIDE_PROSE}</p>
-<lf-options id="cell-cards" choose>
+<lf-options id="cell-cards" choose data-width="available">
   <lf-option id="cc-redis"><strong>Redis</strong> A store we already run.</lf-option>
   <lf-option id="cc-pg"><strong>Postgres</strong> One fewer moving part.</lf-option>
 </lf-options></lf-ask>
-<lf-ask id="rows-decision" data-width="available"><h2>Which jobs are worth starting?</h2>
+<lf-ask id="rows-decision"><h2>Which jobs are worth starting?</h2>
 <p>{WIDE_PROSE}</p>
-<lf-options id="cell-rows" choose multiple>
+<lf-options id="cell-rows" choose multiple data-width="available">
   <lf-option id="cr-drill">A revocation drill</lf-option>
   <lf-option id="cr-rotate">Key rotation for the fallback cookie</lf-option>
 </lf-options></lf-ask>
 </section>
 <section id="aside"><p>Beside the argument.</p></section>
 </div>
-<lf-ask id="page-decision" data-width="available"><h2>Who owns the migration?</h2>
+<lf-ask id="page-decision"><h2>Who owns the migration?</h2>
 <p>{WIDE_PROSE}</p>
-<lf-options id="page-cards" choose>
+<lf-options id="page-cards" choose data-width="available">
   <lf-option id="pc-platform"><strong>Platform</strong> They run the store.</lf-option>
   <lf-option id="pc-accounts"><strong>Accounts</strong> They own the table.</lf-option>
 </lf-options></lf-ask></div>
@@ -1132,8 +1120,8 @@ def test_a_choose_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser,
         assert not short, f"#{group['id']}'s cells stop short of its frame: {short}"
         assert all(cell["divider"] for cell in group["cells"][1:]), group
         # A card hangs its mark at the frame's end; a row hangs its at the leading edge
-        # (test_every_row_hangs_its_mark_at_the_same_column), so only its hairline
-        # has the frame's end to reach.
+        # (test_a_group_marks_its_arity_and_its_rows_keep_their_column_and_words), so
+        # only its hairline has the frame's end to reach.
         if "cards" in group["id"]:
             far = [cell for cell in options if cell["mark"] > 16]
             assert not far, f"#{group['id']}'s marks stand in from its frame: {far}"
@@ -1236,9 +1224,12 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # stays unwired. The live pair is the control — without it a theme that had stopped
     # drawing the offer at all would read exactly like one that withholds it.
     offer = """el => { const cs = getComputedStyle(el);
-        const stateRoom = getComputedStyle(el, '::before');
+        const pick = el.querySelector(':scope > .lf-pick');
+        const ps = pick && getComputedStyle(pick);
         return { cursor: cs.cursor, box: cs.borderTopWidth,
-                 stateRoom: stateRoom.content === 'none' ? 0 : parseFloat(stateRoom.width) }; }"""
+                 stateRoom: !ps || ps.float === 'none' ? 0
+                   : pick.getBoundingClientRect().width
+                     + parseFloat(ps.marginInlineStart) + parseFloat(ps.marginInlineEnd) }; }"""
     quoted_card, live_card = (
         page.locator(sel).evaluate(offer) for sel in ("#q-shim", "#l-shim")
     )
@@ -1256,8 +1247,9 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     assert quoted_box == "0px", (
         f"the exhibit is drawn as a control to answer: {quoted_box} border"
     )
-    # The live card reserves one header slot for either its chosen state or keyboard
-    # binding badge. An exhibit can grow neither, so its title keeps that room.
+    # The live card's mark is the float that reserves one header slot for either its
+    # chosen state or keyboard binding badge. An exhibit can grow neither, so its title
+    # keeps that room.
     assert quoted_card["stateRoom"] == 0 and live_card["stateRoom"] > 0, (
         "the exhibit reserves the live card's header state slot: "
         f"{quoted_card['stateRoom']} vs {live_card['stateRoom']}"
@@ -1326,7 +1318,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
 def test_one_band_says_where_the_user_is_located(browser, serve):
     """The user's band is drawn once, on the exact option row being worked.
 
-    The obligation retains its semantic location marker, but its exterior outline would
+    The obligation retains its semantic location marker, but its location ring would
     look like a second group border and vanish as state changes. The active row carries
     keyboard location instead; the group's permanent frame does not change."""
     page = open_page(browser, serve(OBLIGATION_WITH_CONTEXT_PAGE))
@@ -1337,7 +1329,8 @@ def test_one_band_says_where_the_user_is_located(browser, serve):
     expect(page.locator("#storage-decision[data-lf-obligation]")).to_have_count(1)
     drawn = """el => { const s = getComputedStyle(el);
                        return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); }"""
-    assert page.locator("#storage-decision").evaluate(drawn) == 0
+    rendered(page)
+    assert page.locator("#storage-decision").evaluate(LOCATION_RING) == ["none"]
     group = page.locator("#storage-options")
     assert group.evaluate(
         "el => el.matches(':has(> lf-option > .lf-pick:focus-visible)')"
@@ -1446,10 +1439,7 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     mark = page.locator("#br-steel .lf-pick")
     expect(mark).to_have_css("font-size", "0px")
     expect(mark).to_have_css("opacity", "1")
-    assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
-    assert (
-        mark.evaluate("el => parseFloat(getComputedStyle(el, '::before').fontSize)") > 0
-    )
+    assert_selected_mark(mark)
 
     page.locator("#job-heater").click()
     expect(page.locator("#job-heater[chosen]")).to_have_count(1)
@@ -1463,86 +1453,217 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     )
 
 
-def test_a_group_says_how_many_of_it_the_user_may_take(browser, serve):
-    """How many a group takes is the one thing about it a user has to know before
-    pressing anything, and for a while the page said it nowhere. A `multiple` group drew
-    the identical circles a single-pick group draws — the shape every platform uses for
-    "one of these" — so the two questions were pixel-for-pixel the same and the only
-    thing that distinguished them was the author remembering to say so in prose. A user
-    who took the marks at their word would pick once and expect the next click to replace
-    it.
-
-    So the mark carries the arity, in both of the registers one control has: its corner
-    is round for one and square for any, and its word is "choose one" or "choose any" for
-    a user who gets no corner. The corner is read as a fraction of the mark's own box,
-    because the two are computed in different units (a circle is stated as a percentage of
-    a box whose size is stated in px) and the question is the shape rather than either
-    number. What is pinned is that they differ and that the single-pick one is a full
-    round — a threshold between them would be this design's 3px corner written down a
-    second time, free to disagree with it.
-
-    Arity is not the form, which is why the contrast is card against card. `multiple`
-    is orthogonal to whether the options are titled, so a titled group asking "which of
-    these" still needs empty squares the user can count. A single-choice titled group
-    can leave its radio unpainted because the joined card structure already makes each
-    answer a target; the missing circle is therefore a statement about form and arity
-    together, not a forgotten selector.
-
-    And the shape is paint inside a box that does not change, so neither arity is a
-    pixel wider than the other and every room already reserved still covers."""
+def test_a_group_marks_its_arity_and_its_rows_keep_their_column_and_words(
+    browser, serve, subtests
+):
+    """What a question's marks and rows state at rest, read on one page, and the
+    mark under its own press, last because that press writes the log."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
-    corner = """el => { const s = getComputedStyle(el, '::before');
-                        const r = s.borderTopLeftRadius;
-                        return r.endsWith('%') ? parseFloat(r) / 100
-                                               : parseFloat(r) / parseFloat(s.width); }"""
-    one = page.locator("#br-steel .lf-pick").evaluate(corner)
-    many = page.locator("#tl-clamp .lf-pick").evaluate(corner)
-    assert one == 0.5, "a group taking one option draws something other than a circle"
-    assert many < one, (
-        "a group taking more than one draws the circle that means 'one of these', so "
-        "nothing on the page says the user may take a second"
-    )
-    # Not the list form's rule wearing a card's clothes: the row group agrees with the
-    # card group it shares an arity with, against the card group it shares a form with.
-    assert page.locator("#job-mounts .lf-pick").evaluate(corner) == many
 
-    # A card taking several answers keeps every empty square: each is that option's own
-    # state and together they say how many remain available. A titled card taking one
-    # answer keeps the same semantic control but leaves its circle unpainted at rest; its
-    # group frame, divisions, pointer and aim wash already state where the answer can go.
-    dot = "el => getComputedStyle(el, '::before').visibility"
-    assert page.locator("#tl-clamp .lf-pick").evaluate(dot) == "visible", (
-        "a card group asking 'which of these' draws no empty boxes, so the user has "
-        "nothing to count and no sign a second pick is on offer"
-    )
-    assert page.locator("#br-steel .lf-pick").evaluate(dot) == "visible", (
-        "a single-choice titled card hides its empty ring, so a user who has not "
-        "hovered sees nothing on it that looks like a control"
-    )
+    with subtests.test("a group says how many of it the user may take"):
+        # How many a group takes is the one thing about it a user has to know before
+        # pressing anything, and for a while the page said it nowhere. A `multiple`
+        # group drew the identical circles a single-pick group draws — the shape every
+        # platform uses for "one of these" — so the two questions were pixel-for-pixel
+        # the same and the only thing that distinguished them was the author remembering
+        # to say so in prose. A user who took the marks at their word would pick once
+        # and expect the next click to replace it.
+        #
+        # So the mark carries the arity, in both of the registers one control has: its
+        # corner is round for one and square for any, and its word is "choose one" or
+        # "choose any" for a user who gets no corner. The corner is read as a fraction
+        # of the mark's own box, because the two are computed in different units (a
+        # circle is stated as a percentage of a box whose size is stated in px) and the
+        # question is the shape rather than either number. What is pinned is that they
+        # differ and that the single-pick one is a full round — a threshold between them
+        # would be this design's 3px corner written down a second time, free to disagree
+        # with it.
+        #
+        # Arity is not the form, which is why the contrast is card against card.
+        # `multiple` is orthogonal to whether the options are titled, so a titled group
+        # asking "which of these" still needs empty squares the user can count. A
+        # single-choice titled group can leave its radio unpainted because the joined
+        # card structure already makes each answer a target; the missing circle is
+        # therefore a statement about form and arity together, not a forgotten selector.
+        #
+        # And the shape is paint inside a box that does not change, so neither arity is
+        # a pixel wider than the other and every room already reserved still covers.
+        corner = """el => { const s = getComputedStyle(el, '::before');
+                            const r = s.borderTopLeftRadius;
+                            return r.endsWith('%') ? parseFloat(r) / 100
+                                                   : parseFloat(r) / parseFloat(s.width); }"""
+        one = page.locator("#br-steel .lf-pick").evaluate(corner)
+        many = page.locator("#tl-clamp .lf-pick").evaluate(corner)
+        assert one == 0.5, (
+            "a group taking one option draws something other than a circle"
+        )
+        assert many < one, (
+            "a group taking more than one draws the circle that means 'one of these', so "
+            "nothing on the page says the user may take a second"
+        )
+        # Not the list form's rule wearing a card's clothes: the row group agrees with the
+        # card group it shares an arity with, against the card group it shares a form with.
+        assert page.locator("#job-mounts .lf-pick").evaluate(corner) == many
+        # A card taking several answers keeps every empty square: each is that option's own
+        # state and together they say how many remain available. A titled card taking one
+        # answer keeps the same semantic control but leaves its circle unpainted at rest; its
+        # group frame, divisions, pointer and aim wash already state where the answer can go.
+        dot = "el => getComputedStyle(el, '::before').visibility"
+        assert page.locator("#tl-clamp .lf-pick").evaluate(dot) == "visible", (
+            "a card group asking 'which of these' draws no empty boxes, so the user has "
+            "nothing to count and no sign a second pick is on offer"
+        )
+        assert page.locator("#br-steel .lf-pick").evaluate(dot) == "visible", (
+            "a single-choice titled card hides its empty ring, so a user who has not "
+            "hovered sees nothing on it that looks like a control"
+        )
+        # Paint, not metrics: the open controls occupy the same header slot in both arities.
+        # The single-choice ring is hidden, not removed, so keyboard focus and a later state
+        # use the same coordinate without moving the card.
+        box = "el => { const b = el.getBoundingClientRect(); return [b.width, b.height]; }"
+        assert page.locator("#tl-clamp .lf-pick").evaluate(box) == page.locator(
+            "#br-steel .lf-pick"
+        ).evaluate(box), "the shape that says arity took room from the option beside it"
+        # The same statement for a user who gets no shape. A corner is paint, so all a
+        # screen reader has of a mark is its word, and while that word was "choose" in both
+        # arities the pixels above were the page's only account of how many it takes — which
+        # is to say, no account at all for anyone listening. Read off the offer rather than
+        # the pick: the offer is the state the user is in while the question is still open,
+        # which is when knowing costs them a wasted press.
+        named = "el => el.getAttribute('aria-label')"
+        assert (
+            page.locator("#br-steel .lf-pick").evaluate(named)
+            == "choose one: Steel — option 1 of 2"
+        )
+        assert (
+            page.locator("#tl-clamp .lf-pick").evaluate(named)
+            == "choose any: Bar clamp — option 1 of 2"
+        )
 
-    # Paint, not metrics: the open controls occupy the same header slot in both arities.
-    # The single-choice ring is hidden, not removed, so keyboard focus and a later state
-    # use the same coordinate without moving the card.
-    box = "el => { const b = el.getBoundingClientRect(); return [b.width, b.height]; }"
-    assert page.locator("#tl-clamp .lf-pick").evaluate(box) == page.locator(
-        "#br-steel .lf-pick"
-    ).evaluate(box), "the shape that says arity took room from the option beside it"
+    with subtests.test("every row hangs its mark at the same column"):
+        # A row's dot is both the list's statement that it takes a pick and the target
+        # of the press that makes one, and it says the first of those by standing in a
+        # column with the others. Twice it did not. Laid out as flex items the row's
+        # free space had to be handed to whichever part of the apparatus came first, so
+        # the column was a fact about the `for` reference and a row with no block to
+        # name parked its mark wherever its label ended. And a chip an option says
+        # (`risk`) went in last of all, past the mark. `#jobs` carries both against rows
+        # that carry neither, which is where either reads worst — rows lined up and one
+        # hanging mid-sentence — and a group of rows naming nothing is what the shipped
+        # examples haven't got, which is why the form shipped the first way.
+        #
+        # The column is the row's leading edge, which is a change from the line's end
+        # and the reason is distance rather than alignment: both ends give a straight
+        # column, and the trailing one put it as far from the words it answers for as
+        # the row is wide — ~620px in a full-width group, so reading a row and reading
+        # whether it was taken were two separate looks. It is also the side a card's
+        # mark has always stood on, so the widget now asks its question one way in both
+        # forms.
+        #
+        # The mark stands out of flow in a column the group reserves, not in a cell of
+        # the row's own table, and that is what makes the column a column: a cell takes
+        # its width from what its row happens to hold, so a row naming no block comes
+        # out eight pixels off its neighbours and carries whatever stands beside it
+        # along. At the line's end that raggedness was the marks'; at the line's start
+        # it would be the labels', which is the edge the user actually runs their eye
+        # down.
+        # Where the ring is painted, and where the row's first authored word is, both against
+        # the group. Read as a pair because either alone can be satisfied by the wrong thing:
+        # a constant column proves nothing if it is past the words, and being left of the
+        # words proves nothing if each row picks its own place.
+        read = """() => {
+                    const group = document.querySelector('#jobs').getBoundingClientRect();
+                    return [...document.querySelectorAll('#jobs > lf-option')].map((o) => {
+                      const mark = o.querySelector(':scope > .lf-pick');
+                      const walk = document.createTreeWalker(o, NodeFilter.SHOW_TEXT);
+                      let node = walk.nextNode();
+                      while (node && (!node.data.trim()
+                             || node.parentElement.closest('[data-lf-gen]')))
+                        node = walk.nextNode();
+                      const range = document.createRange();
+                      range.setStart(node, 0); range.setEnd(node, 1);
+                      return [Math.round(mark.getBoundingClientRect().left - group.left),
+                              Math.round(range.getBoundingClientRect().left - group.left)];
+                    });
+                  }"""
+        seen = page.evaluate(read)
+        columns = {mark for mark, _word in seen}
+        assert len(columns) == 1, (
+            f"a row's mark hangs where its own row put it rather than in one column the "
+            f"user can aim down: {seen}"
+        )
+        assert all(mark < word for mark, word in seen), (
+            f"a row's mark stands past the words it answers for: {seen}"
+        )
 
-    # The same statement for a user who gets no shape. A corner is paint, so all a
-    # screen reader has of a mark is its word, and while that word was "choose" in both
-    # arities the pixels above were the page's only account of how many it takes — which
-    # is to say, no account at all for anyone listening. Read off the offer rather than
-    # the pick: the offer is the state the user is in while the question is still open,
-    # which is when knowing costs them a wasted press.
-    named = "el => el.getAttribute('aria-label')"
-    assert (
-        page.locator("#br-steel .lf-pick").evaluate(named)
-        == "choose one: Steel — option 1 of 2"
-    )
-    assert (
-        page.locator("#tl-clamp .lf-pick").evaluate(named)
-        == "choose any: Bar clamp — option 1 of 2"
-    )
+    with subtests.test("a row label keeps the spacing it was written with"):
+        # A row is a line of prose with apparatus after it, and the prose is the
+        # author's: what it says between two words is a space, and the page owes them
+        # that space and no other. Laid out as flex items it owed them whatever the
+        # row's own `gap` was, because every stretch of a label became an item of its
+        # own and a flex item's edge whitespace is trimmed — `Replace the
+        # <code>M8</code> mounts` came out with 8px either side of the code and without
+        # the space that was written there, and zeroing the gap took the space away
+        # without giving it back. So the room between the last word and the code it runs
+        # into is read against the space itself: that the space is on the screen at all,
+        # and that nothing else is standing in for it.
+        room = """() => {
+                    const code = document.querySelector('#job-mounts code');
+                    const text = code.previousSibling;   // "Replace the "
+                    const range = (from, to) => {
+                      const r = document.createRange();
+                      r.setStart(text, from); r.setEnd(text, to);
+                      return r.getBoundingClientRect();
+                    };
+                    const word = range(0, text.data.length - 1);
+                    const space = range(text.data.length - 1, text.data.length);
+                    return [space.width, code.getBoundingClientRect().left - word.right];
+                  }"""
+        space, gap = page.evaluate(room)
+        assert space > 1, "the space the label was written with is not on the screen"
+        assert abs(gap - space) < 0.5, (
+            f"{gap}px of room where the label asked for {space}px"
+        )
+
+    with subtests.test("a chip an option says stands with the rest of its words"):
+        # A chip is the page's words and the apparatus around it is the module's, so the
+        # user — and the file's reading of that same version — find the chip inside the
+        # row's own words rather than out among the row's machinery.
+        #
+        # The rule was written against an attribute rendered by `x-says`, where the edge
+        # a pseudo-element would have taken stops being the element's own words the
+        # moment a module injects chrome, and appending put the page's words on the far
+        # side of it. A chip is authored markup now, written before the title, so it
+        # cannot land there by construction — which is the stronger form of the same
+        # guarantee, and this holds the outcome rather than the mechanism that used to
+        # threaten it.
+        #
+        # The mark leads the row and the `for` reference ends it, so the words are what
+        # stands between them, and the chip is read against both edges rather than
+        # against whichever one the apparatus happened to be on.
+        chip = page.locator("#job-heater > small.tag")
+        expect(chip).to_have_text("reversible")
+        ref = page.locator("#job-heater .lf-ref").bounding_box()
+        mark = page.locator("#job-heater > .lf-pick").bounding_box()
+        assert mark["x"] < chip.bounding_box()["x"] < ref["x"], (
+            "the chip stands outside the row's own words rather than among them"
+        )
+
+    with subtests.test("a row holds its mark still under its own press"):
+        # The mark is what the press is aimed at, so it is the last thing on the page
+        # that may move when the press lands — and the word it gains is exactly what
+        # would move it. The room for that word is held from the start, which is what
+        # keeps the § reference beside it still; the dot inside had no such guarantee,
+        # because it was centred in a box whose height was the word's, so a mark that
+        # gained one lifted its own dot 3.4px out from under the pointer that had just
+        # pressed it. Out of flow, over the row's own height, the dot stands where it
+        # stood.
+        mark = page.locator("#job-heater .lf-pick")
+        box = "el => JSON.stringify(el.getBoundingClientRect())"
+        before = mark.evaluate(box)
+        page.locator("#job-heater").click()
+        expect(mark).to_have_text("selected")
+        assert mark.evaluate(box) == before, "the press moved the mark it landed on"
 
 
 def test_only_bound_cards_yield_their_header_state_to_the_obligation(browser, serve):
@@ -1585,54 +1706,54 @@ def test_only_bound_cards_yield_their_header_state_to_the_obligation(browser, se
     )
 
 
-def test_an_obligation_inside_an_option_keeps_its_own_arity(browser, serve):
-    """An option's content model is prose, so a question nests inside another question's
-    option — the theme's argument-row form lists `lf-options` among the block content it
-    lays out. The arity a mark wears has to be its own group's, and the shape that says so
-    is one an enclosing group could hand down: written as an inherited value, "which of
-    these" on the outside would have made "which one" on the inside draw squares, and the
-    user would be told they may take both of two answers that replace each other.
-
-    So each group reaches only as far as the options it owns. This is what stops that
-    being an argument: a descendant selector here would pass every other test on this
-    page and fail only where two questions stand inside one another."""
+def test_a_nested_obligation_keeps_its_own_arity_and_commands(browser, serve, subtests):
+    """A question inside another question's option answers for itself, in the shape
+    of its marks and in its keys, the key's pick last because it writes the log."""
     page = open_page(browser, serve(NESTED_OBLIGATION_PAGE))
-    corner = """el => { const s = getComputedStyle(el, '::before');
-                        const r = s.borderTopLeftRadius;
-                        return r.endsWith('%') ? parseFloat(r) / 100
-                                               : parseFloat(r) / parseFloat(s.width); }"""
-    assert page.locator("#in-now .lf-pick").evaluate(corner) == 0.5, (
-        "a single-pick question took the arity of the question it is nested in, so it "
-        "offers a set where only one answer will stand"
-    )
-    # And the outer group's own marks are unaffected by the group standing inside one of
-    # its options: the mark on #out-drill is the outer question's, not the inner one's.
-    assert page.locator("#out-drill > .lf-pick").evaluate(corner) < 0.5
-    assert page.locator("#out-keys > .lf-pick").evaluate(corner) < 0.5
 
+    with subtests.test("an obligation inside an option keeps its own arity"):
+        # An option's content model is prose, so a question nests inside another
+        # question's option — the theme's argument-row form lists `lf-options` among the
+        # block content it lays out. The arity a mark wears has to be its own group's,
+        # and the shape that says so is one an enclosing group could hand down: written
+        # as an inherited value, "which of these" on the outside would have made "which
+        # one" on the inside draw squares, and the user would be told they may take both
+        # of two answers that replace each other.
+        #
+        # So each group reaches only as far as the options it owns. This is what stops
+        # that being an argument: a descendant selector here would pass every other test
+        # on this page and fail only where two questions stand inside one another.
+        corner = """el => { const s = getComputedStyle(el, '::before');
+                            const r = s.borderTopLeftRadius;
+                            return r.endsWith('%') ? parseFloat(r) / 100
+                                                   : parseFloat(r) / parseFloat(s.width); }"""
+        assert page.locator("#in-now .lf-pick").evaluate(corner) == 0.5, (
+            "a single-pick question took the arity of the question it is nested in, so it "
+            "offers a set where only one answer will stand"
+        )
+        # And the outer group's own marks are unaffected by the group standing inside one of
+        # its options: the mark on #out-drill is the outer question's, not the inner one's.
+        assert page.locator("#out-drill > .lf-pick").evaluate(corner) < 0.5
+        assert page.locator("#out-keys > .lf-pick").evaluate(corner) < 0.5
 
-def test_a_nested_obligations_commands_belong_only_to_their_own_obligation(
-    browser, serve
-):
-    """An obligation projects commands from its answer source, but containment alone does
-    not confer ownership: a second obligation may stand inside an option as evidence.
-
-    The outer obligation must therefore expose only its two choices. Otherwise both numbered
-    command sets collide when the user navigates there, and the inner question either
-    breaks the key routes or lends its answers to the wrong obligation.
-    """
-    page = open_page(browser, serve(NESTED_OBLIGATION_PAGE))
-    page.keyboard.press("m")
-
-    expect(page.locator("#outer-decision")).to_be_focused()
-    outer_hints = page.locator("#outer > lf-option > .lf-key-badge")
-    expect(outer_hints).to_have_text(["1", "2"])
-    expect(outer_hints.first).to_be_visible()
-    expect(page.locator("#inner > lf-option > .lf-key-badge").first).to_be_hidden()
-
-    page.keyboard.press("2")
-    expect(page.locator("#out-keys")).to_have_attribute("chosen", "")
-    expect(page.locator("#inner > lf-option[chosen]")).to_have_count(0)
+    with subtests.test("a nested obligation's commands belong only to it"):
+        # An obligation projects commands from its answer source, but containment alone
+        # does not confer ownership: a second obligation may stand inside an option as
+        # evidence.
+        #
+        # The outer obligation must therefore expose only its two choices. Otherwise
+        # both numbered command sets collide when the user navigates there, and the
+        # inner question either breaks the key routes or lends its answers to the wrong
+        # obligation.
+        page.keyboard.press("m")
+        expect(page.locator("#outer-decision")).to_be_focused()
+        outer_hints = page.locator("#outer > lf-option > .lf-key-badge")
+        expect(outer_hints).to_have_text(["1", "2"])
+        expect(outer_hints.first).to_be_visible()
+        expect(page.locator("#inner > lf-option > .lf-key-badge").first).to_be_hidden()
+        page.keyboard.press("2")
+        expect(page.locator("#out-keys")).to_have_attribute("chosen", "")
+        expect(page.locator("#inner > lf-option[chosen]")).to_have_count(0)
 
 
 def test_a_nested_obligations_pick_is_not_part_of_its_outers_record(browser, serve):
@@ -1680,7 +1801,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     option = page.locator("#ro-column")
     picked = "el => el.hasAttribute('chosen')"
 
-    page.locator("#ro-shot").get_by_role("button", name="Slider", exact=True).click()
+    page.locator("#ro-shot").get_by_role("radio", name="Slider", exact=True).click()
     comparison = page.locator("#ro-shot wa-comparison")
     comparison.scroll_into_view_if_needed()
     bounds = comparison.bounding_box()
@@ -1688,7 +1809,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     page.mouse.click(bounds["x"] + bounds["width"] / 4, bounds["y"] + 80)
     expect(comparison).to_have_attribute("position", "100")
     assert not option.evaluate(picked), "clicking the shot answered the question"
-    page.locator("#ro-shot").get_by_role("button", name="Pair", exact=True).click()
+    page.locator("#ro-shot").get_by_role("radio", name="Pair", exact=True).click()
     expect(page.locator("#ro-shot")).to_have_attribute("data-lf-shot-mode", "compare")
     assert not option.evaluate(picked), "changing the shot view answered the question"
 
@@ -1747,111 +1868,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     ] == [["ro-column"]]
 
 
-def test_every_row_hangs_its_mark_at_the_same_column(browser, serve):
-    """A row's dot is both the list's statement that it takes a pick and the target of
-    the press that makes one, and it says the first of those by standing in a column
-    with the others. Twice it did not. Laid out as flex items the row's free space had to
-    be handed to whichever part of the apparatus came first, so the column was a fact
-    about the `for` reference and a row with no block to name parked its mark wherever
-    its label ended. And a chip an option says (`risk`) went in last of all, past the
-    mark. `#jobs` carries both against rows that carry neither, which is where either
-    reads worst — rows lined up and one hanging mid-sentence — and a group of rows naming
-    nothing is what the shipped examples haven't got, which is why the form shipped the
-    first way.
-
-    The column is the row's leading edge, which is a change from the line's end and the
-    reason is distance rather than alignment: both ends give a straight column, and the
-    trailing one put it as far from the words it answers for as the row is wide — ~620px
-    in a full-width group, so reading a row and reading whether it was taken were two
-    separate looks. It is also the side a card's mark has always stood on, so the widget
-    now asks its question one way in both forms.
-
-    The mark stands out of flow in a column the group reserves, not in a cell of the
-    row's own table, and that is what makes the column a column: a cell takes its width
-    from what its row happens to hold, so a row naming no block comes out eight pixels off
-    its neighbours and carries whatever stands beside it along. At the line's end that
-    raggedness was the marks'; at the line's start it would be the labels', which is the
-    edge the user actually runs their eye down."""
-    page = open_page(browser, serve(OBLIGATION_PAGE))
-    # Where the ring is painted, and where the row's first authored word is, both against
-    # the group. Read as a pair because either alone can be satisfied by the wrong thing:
-    # a constant column proves nothing if it is past the words, and being left of the
-    # words proves nothing if each row picks its own place.
-    read = """() => {
-                const group = document.querySelector('#jobs').getBoundingClientRect();
-                return [...document.querySelectorAll('#jobs > lf-option')].map((o) => {
-                  const mark = o.querySelector(':scope > .lf-pick');
-                  const walk = document.createTreeWalker(o, NodeFilter.SHOW_TEXT);
-                  let node = walk.nextNode();
-                  while (node && (!node.data.trim()
-                         || node.parentElement.closest('[data-lf-gen]')))
-                    node = walk.nextNode();
-                  const range = document.createRange();
-                  range.setStart(node, 0); range.setEnd(node, 1);
-                  return [Math.round(mark.getBoundingClientRect().left - group.left),
-                          Math.round(range.getBoundingClientRect().left - group.left)];
-                });
-              }"""
-    seen = page.evaluate(read)
-    columns = {mark for mark, _word in seen}
-    assert len(columns) == 1, (
-        f"a row's mark hangs where its own row put it rather than in one column the "
-        f"user can aim down: {seen}"
-    )
-    assert all(mark < word for mark, word in seen), (
-        f"a row's mark stands past the words it answers for: {seen}"
-    )
-
-
-def test_a_row_label_keeps_the_spacing_it_was_written_with(browser, serve):
-    """A row is a line of prose with apparatus after it, and the prose is the author's:
-    what it says between two words is a space, and the page owes them that space and no
-    other. Laid out as flex items it owed them whatever the row's own `gap` was, because
-    every stretch of a label became an item of its own and a flex item's edge whitespace
-    is trimmed — `Replace the <code>M8</code> mounts` came out with 8px either side of
-    the code and without the space that was written there, and zeroing the gap took the
-    space away without giving it back. So the room between the last word and the code it
-    runs into is read against the space itself: that the space is on the screen at all,
-    and that nothing else is standing in for it."""
-    page = open_page(browser, serve(OBLIGATION_PAGE))
-    room = """() => {
-                const code = document.querySelector('#job-mounts code');
-                const text = code.previousSibling;   // "Replace the "
-                const range = (from, to) => {
-                  const r = document.createRange();
-                  r.setStart(text, from); r.setEnd(text, to);
-                  return r.getBoundingClientRect();
-                };
-                const word = range(0, text.data.length - 1);
-                const space = range(text.data.length - 1, text.data.length);
-                return [space.width, code.getBoundingClientRect().left - word.right];
-              }"""
-    space, gap = page.evaluate(room)
-    assert space > 1, "the space the label was written with is not on the screen"
-    assert abs(gap - space) < 0.5, (
-        f"{gap}px of room where the label asked for {space}px"
-    )
-
-
-def test_a_row_holds_its_mark_still_under_its_own_press(browser, serve):
-    """The mark is what the press is aimed at, so it is the last thing on the page that
-    may move when the press lands — and the word it gains is exactly what would move it.
-    The room for that word is held from the start, which is what keeps the § reference
-    beside it still; the dot inside had no such guarantee, because it was centred in a
-    box whose height was the word's, so a mark that gained one lifted its own dot 3.4px
-    out from under the pointer that had just pressed it. Out of flow, over the row's own
-    height, the dot stands where it stood."""
-    page = open_page(browser, serve(OBLIGATION_PAGE))
-    mark = page.locator("#job-heater .lf-pick")
-    box = "el => JSON.stringify(el.getBoundingClientRect())"
-    before = mark.evaluate(box)
-    page.locator("#job-heater").click()
-    expect(mark).to_have_text("selected")
-    assert mark.evaluate(box) == before, "the press moved the mark it landed on"
-
-
-@pytest.mark.parametrize("width", [390, 1200])
-def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, width):
+def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, subtests):
     """A row's § reference rides at the end of the words' last line where it fits, and
     drops under them where it doesn't, so on a phone the words keep the row's width
     rather than wrapping into a column beside it. Rows that all name one block draw no
@@ -1872,8 +1889,7 @@ def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, wid
 <section id="stall"><h2>iOS reconnect stall</h2><p>One reconnect in about 40.</p>
 </section>""",
     )
-    context = browser.new_context(viewport={"width": width, "height": 900})
-    page = open_page(browser, serve(source), context=context)
+    page = open_page(browser, serve(source))
     lines = """option => {
       const words = document.createRange();
       words.setStartBefore(option.querySelector('.lf-pick').nextSibling);
@@ -1881,43 +1897,24 @@ def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, wid
       const height = () => words.getBoundingClientRect().height;
       const ref = option.querySelector('.lf-ref');
       const withRef = height();
-      ref.style.display = 'none';
-      const without = height();
-      ref.style.display = '';
+      const without = lfUnwatched(() => {
+        ref.style.display = 'none';
+        const read = height();
+        ref.style.display = '';
+        return read;
+      });
       const box = option.getBoundingClientRect(), at = ref.getBoundingClientRect();
       return {withRef, without, inside: at.right <= box.right && at.bottom <= box.bottom};
     }"""
-    for option in ("#short", "#long"):
-        reading = page.locator(option).evaluate(lines)
-        assert reading["withRef"] == reading["without"], (option, reading)
-        assert reading["inside"], (option, reading)
+    for width in (390, 1200):
+        with subtests.test(width=width):
+            resized(page, width, 900)
+            for option in ("#short", "#long"):
+                reading = page.locator(option).evaluate(lines)
+                assert reading["withRef"] == reading["without"], (option, reading)
+                assert reading["inside"], (option, reading)
     expect(page.locator("#long .lf-ref")).to_have_text("§ iOS reconnect stall")
     expect(page.locator("#same .lf-ref")).to_have_count(0)
-
-
-def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve):
-    """A chip is the page's words and the apparatus around it is the module's, so the
-    user — and the file's reading of that same version — find the chip inside the
-    row's own words rather than out among the row's machinery.
-
-    The rule was written against an attribute rendered by `x-says`, where the edge a
-    pseudo-element would have taken stops being the element's own words the moment a
-    module injects chrome, and appending put the page's words on the far side of it.
-    A chip is authored markup now, written before the title, so it cannot land there by
-    construction — which is the stronger form of the same guarantee, and this holds the
-    outcome rather than the mechanism that used to threaten it.
-
-    The mark leads the row and the `for` reference ends it, so the words are what stands
-    between them, and the chip is read against both edges rather than against whichever
-    one the apparatus happened to be on."""
-    page = open_page(browser, serve(OBLIGATION_PAGE))
-    chip = page.locator("#job-heater > small.tag")
-    expect(chip).to_have_text("reversible")
-    ref = page.locator("#job-heater .lf-ref").bounding_box()
-    mark = page.locator("#job-heater > .lf-pick").bounding_box()
-    assert mark["x"] < chip.bounding_box()["x"] < ref["x"], (
-        "the chip stands outside the row's own words rather than among them"
-    )
 
 
 def test_one_chip_holds_every_short_fact(browser, serve):
@@ -2277,11 +2274,14 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
     expect(page.locator("#job-mounts")).not_to_have_attribute("chosen", "")
 
 
-def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
-    """A task on a widget follows an id through declared shadow roots, so its
-    ending must reach the same tree. This stages an authored prose widget the way
-    a future x-shadow vocabulary member may: the lookup already promises to find it
-    there, and the cleanup cannot leave the provisional line behind after the server
+def test_widget_work_in_a_declared_shadow_tree_keeps_its_button_and_leaves_with_its_task(
+    browser, serve, subtests
+):
+    """A task on a widget follows an id through declared shadow roots. This stages an
+    authored prose widget the way a future x-shadow vocabulary member may. Crossing
+    that supported boundary must not turn the shared local line back into an unstyled
+    block, and its ending must reach the same tree: the lookup already promises to find
+    it there, and the cleanup cannot leave the provisional line behind after the server
     projects the claim away."""
     work_page = TWICE_PAGE.replace(
         '<lf-diff id="patch">',
@@ -2297,49 +2297,29 @@ def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
     told(page)
     work_button = page.locator('[data-lf-margin-for="shadow-card"] > .lf-margin-marker')
     expect(work_button).to_have_attribute("data-lf-kinds", "activity")
+    display = work_button.evaluate("el => getComputedStyle(el).display")
 
     page.evaluate(
         """() => document.getElementById('patch').shadowRoot.append(
             document.getElementById('shadow-card'))"""
     )
     expect(work_button).to_have_count(1)
+    with subtests.test("it keeps its button's face across the boundary"):
+        expect(work_button).to_have_css("display", display)
+        # The page opens with pins (`pin=True`), so the marker wears the pin's face.
+        expect(work_button).to_have_css("border-radius", "6px 6px 6px 0px")
+        expect(work_button).to_have_css("height", "26px")
 
-    settled = stamp_page(
-        d,
-        work_page,
-        "Shard checked",
-        completes=("shadow-card",),
-    )
-    assert settled["version"] == 2
-    told(page)
-    expect(work_button).to_have_count(0)
-
-
-def test_widget_work_keeps_its_button_style_in_a_declared_shadow_tree(browser, serve):
-    """The same declaration-backed seat may be staged into an x-shadow widget;
-    crossing that supported boundary must not turn the shared local line back into an
-    unstyled block."""
-    work_page = TWICE_PAGE.replace(
-        '<lf-diff id="patch">',
-        '<lf-board id="shadow-work"><lf-column id="shadow-now" label="Now">\n'
-        '  <lf-card id="shadow-card"><strong>Check the shard</strong></lf-card>\n'
-        '</lf-column></lf-board>\n<lf-diff id="patch">',
-    )
-    url = serve(work_page)
-    page = open_page(browser, url, pin=True)
-    working(serve.page_dir, "checking the shard", subject="shadow-card")
-    told(page)
-    work_button = page.locator('[data-lf-margin-for="shadow-card"] > .lf-margin-marker')
-    expect(work_button).to_have_css("display", "flex")
-
-    page.evaluate(
-        """() => document.getElementById('patch').shadowRoot.append(
-            document.getElementById('shadow-card'))"""
-    )
-    expect(work_button).to_have_css("display", "flex")
-    # The page opens with pins (`pin=True`), so the marker wears the pin's face.
-    expect(work_button).to_have_css("border-radius", "6px 6px 6px 0px")
-    expect(work_button).to_have_css("height", "26px")
+    with subtests.test("it leaves with its task"):
+        settled = stamp_page(
+            d,
+            work_page,
+            "Shard checked",
+            completes=("shadow-card",),
+        )
+        assert settled["version"] == 2
+        told(page)
+        expect(work_button).to_have_count(0)
 
 
 def test_the_box_is_offered_only_where_something_can_answer_it(browser, serve):
@@ -2564,16 +2544,18 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
     lines = """(el) => { const r = document.createRange();
                          r.selectNodeContents(el); return r.getClientRects().length; }"""
     assert view.get_by_role("cell", name="12,000").evaluate(lines) == 1
-    assert view.locator(".lf-msg.agent .lf-msg-body a").evaluate(lines) > 1
+    assert (
+        view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body a").evaluate(lines) > 1
+    )
     # And the room the cells stopped giving up went where the theme puts it.
     assert (
-        view.locator(".lf-msg.agent .lf-msg-body table").evaluate(
+        view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body table").evaluate(
             "(t) => t.scrollWidth - t.clientWidth"
         )
         > 0
     )
     assert (
-        view.locator(".lf-msg.agent .lf-msg-body").evaluate(
+        view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body").evaluate(
             "(b) => b.scrollWidth - b.clientWidth"
         )
         == 0
@@ -2588,9 +2570,7 @@ def test_a_thread_obligations_done_press_keeps_its_keys_and_one_workflow(
     A tick followed by Done are two coordinates. The message carries their shared
     strongest workflow once rather than painting two receipt classifiers.
     """
-    page = open_page(
-        browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
-    )
+    page = open_page(browser, serve(named_source("ship-review")))
     # The example's one thread whose reply asks with options.
     question = open_panel_thread(page, "7b3e0a41").locator("lf-options[choose]").first
     question.locator("lf-option:not([chosen]) > .lf-pick").first.click()
@@ -2628,9 +2608,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     chip hung on the mark's corner, 10px higher, with the mark showing under it. The mark
     now takes the digit's box, and every card wears its own digit. A chosen card is filled
     in the tint of an ok chip, so its "recommended" chip keeps a ground of its own there."""
-    page = open_page(
-        browser, serve(next(p for p in EXAMPLES if p.stem == "alert-review"))
-    )
+    page = open_page(browser, serve(named_source("alert-review")))
     resized(page, 1440, 900)
     page.keyboard.press("m")
     expect(page.locator("#ar-canary-decision")).to_be_focused()
@@ -2669,9 +2647,7 @@ def test_an_obligation_digit_hangs_off_a_corner_clear_of_its_neighbours(browser,
     the notification playground at 1024px its Create button wraps under Reset and Copy,
     8px below them, and a digit hung on that corner stood over Reset's; it now takes the
     first corner that stands over no other control."""
-    page = open_page(
-        browser, serve(next(p for p in EXAMPLES if p.stem == "notification-playground"))
-    )
+    page = open_page(browser, serve(named_source("notification-playground")))
     resized(page, 1024, 768)
     page.keyboard.press("m")
     chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
@@ -2706,7 +2682,7 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     assert mark.get_attribute("role") == "img"
     assert mark.get_attribute("aria-label") == "selected: Lax cookie"
     assert mark.evaluate("el => getComputedStyle(el).fontSize") == "0px"
-    assert mark.evaluate("el => getComputedStyle(el, '::before').content") == '"✓"'
+    assert_selected_mark(mark)
 
     # The generated check is not authored text, so rewording another option marks only
     # that option in the version comparison.

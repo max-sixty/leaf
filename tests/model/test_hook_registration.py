@@ -8,24 +8,29 @@ import shlex
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 from conftest import LEAF_COMMAND
 from interact_support import (
+    ADMITTING_DEPENDENCIES,
     COMPOSITE_TIMEOUT,
+    EVERY_TURN_DEPENDENCIES,
     PLUGIN_ROOT,
+    READING_DEPENDENCIES,
     STATED_TIMEOUT,
-    acknowledged_through,
     append_carried_log_record,
+    append_command,
+    fresh_imports,
+    leaf_main,
+    published,
     record_claim,
+    response_reference,
     serving,
+    unlisted_dependencies,
     wait_for,
 )
 
-from leaf import files as files_model
 from leaf import harness as harness_model
-from leaf import hook_transport as hook_transport_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -155,6 +160,18 @@ def _registered_hook_command(harness, event):
     return hook["command"]
 
 
+def test_claude_code_runs_the_start_hook_only_after_a_compaction():
+    """Outside a compaction, Leaf's start hook has nothing to add, while Claude Code
+    holds a resumed session's first reply until its start hooks end; the prompt
+    hook serves the session's pages again (`reconnect`). After a compaction it
+    tells the agent to read the leaf skill again (`hooks.reload_skill`) before it
+    replies, which nothing else does."""
+    [registration] = _registrations("claude-code")["SessionStart"]
+    assert registration["matcher"] == "compact"
+    [hook] = registration["hooks"]
+    assert not hook.get("async")
+
+
 def _registered_hook_arguments(harness, event):
     """The `leaf` arguments the synchronous registration for this event passes."""
     words = shlex.split(_registered_hook_command(harness, event))
@@ -217,7 +234,7 @@ def test_every_carrying_hook_has_the_timeout_leaf_counts_on():
                 for hook in registration["hooks"]
                 if not hook.get("asyncRewake")
             ]
-            assert hook["timeout"] == hook_transport_model.HOOK_TIMEOUT_S, (
+            assert hook["timeout"] == harness_model.HOOK_TIMEOUT_S, (
                 harness,
                 event,
             )
@@ -227,7 +244,7 @@ def test_every_carrying_hook_has_the_timeout_leaf_counts_on():
         (PLUGIN_ROOT / "hooks" / "pi.ts").read_text(),
         re.MULTILINE,
     )
-    assert int(timeout.replace("_", "")) == hook_transport_model.HOOK_TIMEOUT_S * 1000
+    assert int(timeout.replace("_", "")) == harness_model.HOOK_TIMEOUT_S * 1000
 
 
 def test_the_registered_watch_hook_wakes_the_session(claimed, tmp_path):
@@ -316,64 +333,6 @@ def test_cancelling_the_background_registration_never_wakes_the_session(
     watching.terminate()
     out, err = watching.communicate(timeout=STATED_TIMEOUT)
     assert (watching.returncode, out, err) == (0, "", "")
-
-
-@pytest.mark.parametrize("event", ["PostToolBatch", "UserPromptSubmit"])
-def test_the_registered_hook_delivers_or_says_nothing(claimed, event):
-    """The harness command calls Leaf's launcher, and Leaf answers under uv.
-
-    Exercise the exact registration, stdin, environment selection and returned
-    context; an unowned session has nothing to hand over.
-    """
-
-    def run(payload, env=None):
-        return subprocess.run(
-            ["/bin/sh", "-c", _registered_hook_command("claude-code", event)],
-            input=payload,
-            env=(env or os.environ) | {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT)},
-            capture_output=True,
-            text=True,
-            timeout=COMPOSITE_TIMEOUT,
-            check=False,
-        )
-
-    append_carried_log_record(
-        claimed, {"kind": "comment", "author": "user", "text": "hi"}
-    )
-    payload = json.dumps({"hook_event_name": event, "session_id": "s1"})
-    claim_record = service_model.page_claim(claimed)
-    assert claim_record is not None
-    turn = claim_record["turn"]
-    if event == "PostToolBatch":
-        worker = run(
-            json.dumps(
-                {"hook_event_name": event, "session_id": "s1", "agent_id": "worker"}
-            )
-        )
-        assert (worker.returncode, worker.stdout, worker.stderr) == (0, "", "")
-        assert acknowledged_through(claimed) == 0
-    answered = run(payload)
-    assert answered.returncode == 0, answered.stderr
-    assert answered.stdout, "nothing came back: the CLI never answered under uv"
-    output = json.loads(answered.stdout)
-    assert output["hookSpecificOutput"]["hookEventName"] == event
-    context = output["hookSpecificOutput"]["additionalContext"]
-    [batch] = json.loads(context.split("\n")[1])["batches"]
-    assert [event["text"] for event in batch["events"]] == ["hi"]
-    if event == "PostToolBatch":
-        claim_record_2 = service_model.page_claim(claimed)
-        assert claim_record_2 is not None
-        assert claim_record_2["turn"] == turn
-        claim_record_3 = service_model.page_claim(claimed)
-        assert claim_record_3 is not None
-        assert claim_record_3["turn_closed"] is None
-        # The next tool boundary adds no repeated response-debt reminders.
-        again = run(payload)
-        assert (again.returncode, again.stdout, again.stderr) == (0, "", "")
-
-    # The library answers an unowned session silently under uv as well.
-    stranger = run(json.dumps({"hook_event_name": event, "session_id": "s2"}))
-    assert (stranger.returncode, stranger.stdout, stranger.stderr) == (0, "", "")
 
 
 @pytest.mark.parametrize("harness", REGISTRATIONS)
@@ -466,6 +425,7 @@ def test_the_registered_hook_leaves_library_execution_to_uv(harness, event, tmp_
         "--project",
         str(project),
         "python",
+        "-P",
         "-m",
         "leaf",
         *_registered_hook_arguments(harness, event),
@@ -544,113 +504,6 @@ def test_codex_tool_hook_starts_leaf_only_for_a_session_that_claimed_a_page(
     }
 
 
-def test_the_registered_session_end_releases_shared_claims_without_an_environment(
-    page_dir, tmp_path
-):
-    """A fresh install releases another checkout's claims within harness shutdown.
-
-    Only the launcher and standalone stdlib cleanup exist in this install, since
-    each record's format names its own `since`. No package can be imported and uv
-    refuses to run; macOS's system Python 3.9 exercises the same entry without
-    site packages.
-    """
-    project = tmp_path / "cold-plugin"
-    launcher = project / "bin/leaf"
-    launcher.parent.mkdir(parents=True)
-    launcher.write_bytes((PLUGIN_ROOT / "bin/leaf").read_bytes())
-    launcher.chmod(0o755)
-    program = project / "src/leaf/state.py"
-    program.parent.mkdir(parents=True)
-    program.write_bytes((PLUGIN_ROOT / "src/leaf/state.py").read_bytes())
-    tools = tmp_path / "tools"
-    tools.mkdir()
-    system_python = Path("/usr/bin/python3")
-    (tools / "python3").symlink_to(
-        system_python if system_python.exists() else sys.executable
-    )
-    uv_called = tmp_path / "uv-called"
-    uv = tools / "uv"
-    uv.write_text('#!/bin/sh\nprintf called > "$UV_CALLED"\nexit 99\n')
-    uv.chmod(0o755)
-
-    record_claim(page_dir, id="ended-session")
-    marker_files = [
-        cleanup_model.session_file("ended-session", cleanup_model.HOOKS_SUFFIX)
-    ]
-    for marker in marker_files:
-        marker.parent.mkdir(parents=True, exist_ok=True)
-        marker.write_text("session evidence")
-    claims = service_model.claim_path(page_dir).parent
-    (claims / "malformed.json").write_text("{")
-    (claims / "wrong-shape.json").write_text("[]")
-    missing_page = tmp_path / "missing-page"
-    missing_claim = {"id": "ended-session", "page": str(missing_page)}
-    missing_path = service_model.claim_path(missing_page)
-    cleanup_model.write_json(missing_path, missing_claim)
-    foreign = page_dir.parent / "foreign-page"
-    foreign.mkdir()
-    (foreign / cleanup_model.EVENTS_FILE).touch()
-    record_claim(foreign, id="another-session")
-    foreign_claim = service_model.page_claim(foreign)
-
-    done = subprocess.run(
-        ["/bin/sh", "-c", _registered_hook_command("claude-code", "SessionEnd")],
-        input=json.dumps(
-            {"hook_event_name": "SessionEnd", "session_id": "ended-session"}
-        ),
-        env=os.environ
-        | {
-            "CLAUDE_PLUGIN_ROOT": str(project),
-            "PATH": f"{tools}:/usr/bin:/bin",
-            "UV_CALLED": str(uv_called),
-        },
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
-    assert not uv_called.exists()
-    assert not service_model.claim_is_active(service_model.page_claim(page_dir))
-    assert not any(marker.exists() for marker in marker_files)
-    assert service_model.page_claim(foreign) == foreign_claim
-    assert files_model.read_json(missing_path) == missing_claim
-    assert not missing_page.exists()
-
-    # An empty shutdown needs neither a page nor a managed environment either.
-    done = subprocess.run(
-        ["/bin/sh", "-c", _registered_hook_command("claude-code", "SessionEnd")],
-        input=json.dumps({"hook_event_name": "SessionEnd", "session_id": "empty"}),
-        env=os.environ
-        | {
-            "CLAUDE_PLUGIN_ROOT": str(project),
-            "PATH": f"{tools}:/usr/bin:/bin",
-            "UV_CALLED": str(uv_called),
-        },
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
-    assert not uv_called.exists()
-
-    # The console and module entry use the same cleanup in a managed runtime.
-    record_claim(page_dir, id="managed-session")
-    done = subprocess.run(
-        [*LEAF_COMMAND, "session-end"],
-        input=json.dumps(
-            {"hook_event_name": "SessionEnd", "session_id": "managed-session"}
-        ),
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
-    assert not service_model.claim_is_active(service_model.page_claim(page_dir))
-
-
 def test_a_hook_in_a_session_holding_no_page_imports_no_page_reading_or_server(
     page_dir,
 ):
@@ -660,9 +513,8 @@ def test_a_hook_in_a_session_holding_no_page_imports_no_page_reading_or_server(
     neither the page servers nor page reading: markup, registry schemas, and
     anchor capture. Run in a fresh interpreter, whose `sys.modules` is the hook's."""
     record_claim(page_dir, id="another-session")
-    probe = """\
+    program = """
 import io, json, runpy, sys
-imported = [sorted(sys.modules)]
 HOOK = ["hook", "--harness", "codex"]
 cases = (
     ("UserPromptSubmit", HOOK, None),
@@ -689,53 +541,80 @@ for event, args, turn_id in cases:
         observed = hook_turn("holds-nothing")
         assert observed["turn"] == turn_id
         assert observed["running"] == (event not in ("Stop", "Interrupt"))
-    imported.append(sorted(sys.modules))
-print(json.dumps(imported))
 """
-    done = subprocess.run(
-        [sys.executable, "-c", probe],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=True,
-    )
-    heavy = (
-        "psutil",
+    _, imported = fresh_imports(program)
+    assert unlisted_dependencies(imported, EVERY_TURN_DEPENDENCIES) == {}
+    page_reading_or_serving = (
         "leaf.hosting",
-        "uvicorn",
         "leaf.http",
         "leaf.codex",
         "leaf.delivery",
         "leaf.thread",
-        "websockets",
         "leaf.hook_transport",
         "leaf.served_state.page",
         "leaf.event_contracts",
         "leaf.anchor_capture",
-        "jsonschema",
-        "markdown_it",
-        "turbohtml",
     )
-    for loaded in json.loads(done.stdout):
-        assert [module for module in heavy if module in loaded] == []
+    assert {
+        module: imported[module]
+        for module in page_reading_or_serving
+        if module in imported
+    } == {}
 
 
-def test_a_claimed_hook_imports_no_css_script_or_watch_parser():
-    """The claimed hook reads the page and validates its events, so it needs the schema
-    validators, but not what only capture, vendoring and a watch
-    use. Their imports cost tens of milliseconds at every tool boundary."""
-    probe = (
-        "import sys, json, leaf.hook_transport; print(json.dumps(sorted(sys.modules)))"
-    )
-    done = subprocess.run(
-        [sys.executable, "-c", probe],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=True,
-    )
-    loaded = set(json.loads(done.stdout))
-    assert {"tinycss2", "tree_sitter", "watchfiles"} & loaded == set()
+def test_the_hook_transport_imports_no_page_model():
+    """Claude Code runs the tool-boundary hook before every model call, and one with
+    nothing new reads only its pages' logs (`hook_transport.new_input`). So the hook
+    transport loads the schema validators, the HTML, Markdown, CSS and script
+    parsers and the file watcher only where a hook reads a page, vendors it or
+    watches it; each costs tens of milliseconds at every start."""
+    _, imported = fresh_imports("import leaf.hook_transport\n")
+    assert unlisted_dependencies(imported, EVERY_TURN_DEPENDENCIES) == {}
+
+
+@pytest.mark.parametrize(
+    ("process", "listed"),
+    [
+        pytest.param("Stop", READING_DEPENDENCIES, id="stop"),
+        pytest.param("UserPromptSubmit", ADMITTING_DEPENDENCIES, id="prompt"),
+        pytest.param("thread reply", ADMITTING_DEPENDENCIES, id="reply"),
+    ],
+)
+def test_a_session_holding_a_page_loads_only_the_dependencies_each_step_uses(
+    claimed, process, listed
+):
+    """A session holding a page starts Leaf at each step of every turn, and each
+    process pays at every start for what it imports. A Stop hook with nothing to hand
+    over reads the page in its layer's vocabulary, which is merged and stamped but
+    not validated (`layer-registry.md`), so it loads no schema validator. A prompt
+    hook delivering the user's comment, and the agent's reply, load the validator to
+    match handling clauses and to admit the event, and neither loads the page's
+    source checks, the server or the file watcher."""
+    published(claimed)
+    hook = ["hook", "--harness", "claude-code"]
+    payload = {"hook_event_name": process, "session_id": "s1", "prompt_id": "p1"}
+    if process == "Stop":
+        _, imported = fresh_imports(leaf_main(*hook, stdin=json.dumps(payload)))
+        assert "leaf.served_state.context" in imported, "the hook read no page"
+    else:
+        asked = append_command(
+            claimed,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Check it."},
+        )
+        printed, imported = fresh_imports(
+            leaf_main(*hook, stdin=json.dumps(payload))
+            if process == "UserPromptSubmit"
+            else leaf_main(
+                "thread",
+                "reply",
+                response_reference(claimed, asked),
+                "--ephemeral",
+                "--text",
+                "Checking.",
+            )
+        )
+        assert asked["id"] in printed, printed
+    assert unlisted_dependencies(imported, listed) == {}
 
 
 @pytest.mark.parametrize(

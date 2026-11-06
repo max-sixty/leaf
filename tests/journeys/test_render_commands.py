@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from browser.test_render_commands import FILM_DECLARATION, FILM_PAGE, unnamed_browser
 from conftest import LEAF_COMMAND
 from interact_support import (
     append_carried_log_record,
@@ -15,6 +16,7 @@ from interact_support import (
     install_payload,
     state_json,
 )
+from model.test_user_views import report as user_view_report
 from playwright.sync_api import expect
 from render_cases_layout import (
     SHOT_PAGE,
@@ -34,11 +36,9 @@ from leaf import render_checks as render_checks_model
 from leaf import user_views
 from leaf.render_gate.command import PIN_VARIABLE
 from leaf.render_gate.page_code import run_page_code
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-from browser.test_render_commands import FILM_DECLARATION, FILM_PAGE, unnamed_browser
-from model.test_user_views import report as user_view_report
 
 
 def test_check_render_refuses_what_only_a_browser_can_see(serve):
@@ -56,7 +56,7 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     CHROME_BIN, so unnaming leaf's alone is not unnaming. A clean result has to name
     the browser that drew the page: a clean gate telling a Chromium host that Chrome
     drew it is the same false claim on the way out that the failure messages stopped
-    making."""
+    making. Findings leave the author pictures of the page that needs fixing."""
     serve(LONG_PAGE)
     d = serve.page_dir
 
@@ -87,21 +87,6 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     [scrolls] = [f for f in report["findings"] if f["code"] == "page-scrolls"]
     assert scrolls["widths"] == [360, 1920], report
     assert scrolls["severity"] == "error" and scrolls["values"]["past"] > 0, scrolls
-
-
-def test_a_failing_render_check_saves_screens(serve, headless_shell):
-    """Findings leave the author pictures of the page that needs fixing."""
-    serve(LONG_PAGE.replace("</main>", "<div style='width:150vw'>wide</div></main>"))
-    ran = subprocess.run(
-        [*LEAF_COMMAND, "page", "check", str(serve.page_dir), "--render"],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
-    )
-    assert ran.returncode == 1, ran.stdout + ran.stderr
-    report = json.loads(ran.stdout)
-    assert any(f["code"] == "page-scrolls" for f in report["findings"]), report
     screens = report["browser"]["screens"]
     into = Path(screens["directory"])
     names = {screen["file"] for screen in screens["files"]}
@@ -284,7 +269,6 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     a Chromium and no Chrome meets it, and its result names that executable rather
     than Chrome; the default channel's Chrome is
     `test_check_render_refuses_what_only_a_browser_can_see`'s."""
-    root = Path(__file__).parents[2]
     installed = install_payload(tmp_path / "host" / "leaf")
     launcher = installed / "bin" / "leaf"
     elsewhere = tmp_path / "unrelated-project"
@@ -310,9 +294,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     installed_registry = json.loads(vocabulary.stdout)
     assert "lf-diagram" in installed_registry
     assert installed_registry["$layer"]["packages"] == ["diagram"]
-    (page_dir / "index.html").write_text(
-        (root / "examples" / "release-notes.html").read_text()
-    )
+    (page_dir / "index.html").write_text(named_source("release-notes").read_text())
     shutil.copytree(example_media(), page_dir / "media", dirs_exist_ok=True)
     stamp = subprocess.run(
         [
@@ -340,174 +322,6 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     )
     assert rendered.returncode == 0, rendered.stdout + rendered.stderr
     assert json.loads(rendered.stdout)["browser"]["browser"] == headless_shell
-
-
-def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
-    """The live pair is continuously comparable through its native divider.
-
-    Image clicks, pointer drag and the complete keyboard pattern move one divider,
-    while print keeps the two complete frames and their order. The gate's pass is
-    `test_render_reads_widget_chrome_where_it_stands`'s."""
-    url = serve(
-        SHOT_PAGE,
-        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
-    )
-
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.add_init_script(
-        """new MutationObserver(() => {
-          if (document.body?.hasAttribute('data-lf-presented') &&
-              window.__lfPresentedAt === undefined)
-            window.__lfPresentedAt = performance.now();
-        }).observe(document, {attributes: true, subtree: true});
-        new PerformanceObserver(list => {
-          for (const entry of list.getEntries())
-            if (entry.name.endsWith('/vendor/webawesome.esm.js'))
-              window.__lfComparisonRequestedAt = entry.startTime;
-        }).observe({type: 'resource', buffered: true});"""
-    )
-    page.goto(url)
-    render_checks_model.wait_until_ready(page)
-    page.locator("lf-shot").get_by_role("button", name="Slider", exact=True).click()
-    comparison = page.locator("lf-shot wa-comparison")
-    handle = comparison.get_by_role("scrollbar")
-    expect(handle).to_be_visible()
-    page.wait_for_function("window.__lfComparisonRequestedAt !== undefined")
-    timing = page.evaluate(
-        """() => ({
-          presented: window.__lfPresentedAt,
-          requested: window.__lfComparisonRequestedAt,
-        })"""
-    )
-    assert timing["requested"] >= timing["presented"]
-    rail = page.locator("lf-shot .lf-shot-toolbar")
-    expect(rail).to_have_count(1)
-    expect(rail.locator(".lf-shotcap")).to_have_text(["Before", "After"])
-    before_bounds = rail.locator('[data-lf-state="before"]').bounding_box()
-    after_bounds = rail.locator('[data-lf-state="after"]').bounding_box()
-    assert before_bounds is not None and after_bounds is not None
-    expect(comparison).to_have_attribute("position", "50")
-    glyph = comparison.locator('[slot="handle"].lf-shot-handle')
-    expect(glyph).to_have_count(1)
-    assert glyph.evaluate(
-        "node => [getComputedStyle(node).borderStyle, "
-        "getComputedStyle(node).borderRadius]"
-    ) == ["solid", "50%"]
-    expect(handle).to_have_accessible_name("Before and after — the navigation rail")
-    expect(handle).to_have_attribute("aria-valuetext", "Before 50%, after 50%")
-    # Labels keep source order across the viewport-wide header, while fitted images
-    # can be narrower. Each image half must show that source. Web Awesome's `after`
-    # slot is the inline-start side, so wiring same-named slots reverses the evidence.
-    comparison.scroll_into_view_if_needed()
-    visible_halves = page.evaluate(
-        """() => {
-          const box = document.querySelector('lf-shot wa-comparison')
-            .getBoundingClientRect();
-          return [...document.querySelectorAll('lf-shot .lf-shot-toolbar .lf-shotcap')].map((cap, index) => {
-            const x = box.left + box.width * (index === 0 ? 0.25 : 0.75);
-            const hit = document.elementFromPoint(x, box.top + box.height / 2);
-            return [cap.dataset.lfState, hit?.closest('.lf-shotframe')?.dataset.lfState];
-          });
-        }"""
-    )
-    assert before_bounds["x"] < after_bounds["x"]
-    assert visible_halves == [["before", "before"], ["after", "after"]]
-    page.emulate_media(media="print")
-    assert shown_frames(page) == ["before", "after"]
-    printed_tops = [
-        page.locator(f'lf-shot .lf-shotframe[data-lf-state="{state}"]').bounding_box()[
-            "y"
-        ]
-        for state in ("before", "after")
-    ]
-    assert printed_tops[0] < printed_tops[1], "paper put the after frame on top"
-    page.emulate_media(media="screen")
-    expect(comparison).to_be_visible()
-    page.mouse.move(0, 0)
-    divider_face = comparison.evaluate(
-        """async node => {
-          const divider = node.shadowRoot.querySelector('[part~="divider"]');
-          const handle = node.shadowRoot.querySelector('[part~="handle"]');
-          await Promise.all(handle.getAnimations().map(animation => animation.finished));
-          return {
-            divider: getComputedStyle(divider).backgroundColor,
-            handle: getComputedStyle(handle).backgroundColor,
-          };
-        }"""
-    )
-    assert divider_face["divider"] != divider_face["handle"]
-
-    comparison.scroll_into_view_if_needed()
-    bounds = comparison.bounding_box()
-    assert bounds is not None
-    image_point = (bounds["x"] + bounds["width"] / 4, bounds["y"] + 80)
-    page.mouse.click(*image_point)
-    expect(comparison).to_have_attribute("position", "100")
-    expect(handle).to_have_attribute("aria-valuetext", "Before 100%, after 0%")
-    page.mouse.click(*image_point)
-    expect(comparison).to_have_attribute("position", "0")
-    page.keyboard.down("Shift")
-    page.mouse.click(*image_point)
-    page.keyboard.up("Shift")
-    expect(comparison).to_have_attribute("position", "0")
-    comparison.evaluate("node => { node.position = 50; }")
-    view = page.locator("lf-shot").get_by_role("button", name="Slider", exact=True)
-    # A second finger does not replace the primary contact's input destination.
-    view.focus()
-    handle.evaluate("""handle => handle.dispatchEvent(new PointerEvent('pointerdown', {
-      bubbles: true, composed: true, pointerId: 98, pointerType: 'touch',
-      isPrimary: false, button: 0
-    }))""")
-    expect(view).to_be_focused()
-    handle.click()
-    expect(handle).to_be_focused()
-    expect(comparison).to_have_attribute("position", "50")
-    page.keyboard.press("ArrowRight")
-    expect(comparison).to_have_attribute("position", "51")
-    page.keyboard.press("End")
-    expect(comparison).to_have_attribute("position", "100")
-
-    handle.focus()
-    expect(handle).to_be_focused()
-    page.keyboard.press("ArrowLeft")
-    expect(comparison).to_have_attribute("position", "99")
-    expect(handle).to_have_attribute("aria-valuetext", "Before 99%, after 1%")
-    page.keyboard.press("Shift+ArrowLeft")
-    expect(comparison).to_have_attribute("position", "89")
-    page.keyboard.press("End")
-    expect(comparison).to_have_attribute("position", "100")
-    page.keyboard.press("Home")
-    expect(comparison).to_have_attribute("position", "0")
-
-    comparison.evaluate("node => { node.position = 50; }")
-    expect(comparison).to_have_attribute("position", "50")
-    bounds = comparison.bounding_box()
-    handle_bounds = handle.bounding_box()
-    assert bounds is not None and handle_bounds is not None
-    at = (
-        handle_bounds["x"] + handle_bounds["width"] / 2,
-        handle_bounds["y"] + handle_bounds["height"] / 2,
-    )
-    page.mouse.move(*at)
-    page.mouse.down()
-    page.mouse.move(at[0] + bounds["width"] / 4, at[1], steps=4)
-    page.mouse.up()
-    dragged = float(comparison.get_attribute("position"))
-    assert 70 <= dragged <= 80
-    expect(handle).to_have_attribute(
-        "aria-valuetext", f"Before {dragged:g}%, after {100 - dragged:g}%"
-    )
-
-    comparison.evaluate("node => { node.position = 100; }")
-    expect(comparison).to_have_attribute("position", "100")
-    handle.focus()
-    page.keyboard.press("End")
-    expect(handle).to_be_focused()
-    width = handle.evaluate(
-        "node => getComputedStyle(node).outlineStyle === 'none' ? 0 :"
-        " parseFloat(getComputedStyle(node).outlineWidth)"
-    )
-    assert width > 0
 
 
 def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
@@ -585,74 +399,6 @@ def test_plain_check_runs_a_page_whose_widget_reads_media(serve, headless_shell)
     assert check(0) == []
 
 
-def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
-    browser, serve
-):
-    url = serve(
-        FILM_PAGE.replace("</main>", '<img src="/page/missing-image.png"></main>'),
-        page_files={
-            "registry.json": json.dumps(FILM_DECLARATION),
-            "film.js": 'import { label } from "./helper.js";\n'
-            "export const paint = el => (el.textContent = label);\n",
-            "helper.js": 'export const label = "loaded";\n',
-            "widgets/lf-film.js": 'import { paint } from "../film.js";\n'
-            "customElements.define('lf-film', class extends HTMLElement {\n"
-            "  connectedCallback() { paint(this); }\n"
-            "});\n",
-            "widgets/lf-loader.js": "customElements.define('lf-loader', class extends HTMLElement {\n"
-            "  connectedCallback() { this.textContent = 'loaded'; }\n"
-            "});\n",
-        },
-        media={"page/missing-image.png": solid_png(1, 1, (0, 0, 0))},
-    )
-
-    class RoutedBrowser:
-        def __init__(self, *, fail_helper):
-            self.fail_helper = fail_helper
-
-        def new_page(self, **kwargs):
-            page = browser.unwatched.new_page(**kwargs)
-            page.route(
-                "**/page/helper.js",
-                lambda route: (
-                    route.abort("failed") if self.fail_helper else route.continue_()
-                ),
-            )
-            page.route(
-                "**/page/missing-image.png", lambda route: route.fulfill(status=404)
-            )
-            return page
-
-    failed = run_page_code(RoutedBrowser(fail_helper=True), url)
-    # The runtime's own report carries the error's stack; the check's refusal quotes
-    # only the reason the page shows.
-    by_code = {}
-    for report in failed:
-        by_code.setdefault(report.code, []).append(report.values)
-    assert any(
-        report["text"].startswith("page failed to start:")
-        and "TypeError" in report["text"]
-        for report in by_code["page-report"]
-    ), failed
-    assert by_code["not-ready"][0]["stage"] == "refused", failed
-    assert by_code["not-ready"][0]["error"].startswith("the runtime could not start:")
-    assert any(
-        report["kind"] == "Script"
-        and report["error"] == "net::ERR_FAILED"
-        and report["frame"] == url
-        and report["url"].endswith("/page/helper.js")
-        for report in by_code["request-failed"]
-    ), failed
-    assert any(
-        report["status"] == 404
-        and report["kind"] == "Image"
-        and report["url"].endswith("/page/missing-image.png")
-        for report in by_code["request-status"]
-    ), failed
-
-    assert run_page_code(RoutedBrowser(fail_helper=False), url) == []
-
-
 def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_shell):
     """A quick page takes plain `page check` and nothing else, so that is the check
     that has to run the page's own code: a widget that throws on its first paint, or
@@ -724,3 +470,439 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     clean = check(0, LEAF_BROWSER_EXECUTABLE=headless_shell)
     assert clean["browser"]["ran"] == ["page code"]
     assert clean["browser"]["browser"] == headless_shell
+
+
+from browser.test_render_commands import stage_reach_cases
+from browser.threads import open_panel_thread
+from interact_support import (
+    add_test_widget,
+    wait_for,
+)
+from render_cases_layout import (
+    BADGE_CHROME,
+)
+from render_harness import (
+    CARRIED_PAGE,
+    EXAMPLE_PACKAGES,
+    REPLY_HOST_PAGE,
+    SAMPLE_MARKUP,
+    SAMPLE_TEXT,
+    consume_browser_errors,
+    open_page,
+    primed,
+)
+
+from leaf import event_log as events_model
+from leaf.render_gate import version as render_gate_model
+
+
+@pytest.mark.shifts_unsurveyed
+def test_render_reads_widget_chrome_where_it_stands(
+    browser, serve, tmp_path, monkeypatch
+):
+    """The user's reading of a page, on one page.
+
+    The words a widget puts out of reach. A user selected a draft's heading, tried to
+    comment on it, and got nothing back — twice, months apart, on the same page. The
+    heading was the page's word in a row its author had marked as the runtime's, and
+    `.lf-ui` is a look rather than a permission, so the class alone can't be the answer:
+    the declaration goes on the label (relabel), and an undeclared word under chrome is
+    reported. It is about a word the user was shown, so the check asks that first: a
+    word the browser reads out and the page never paints is hidden with [hidden], the
+    silence available in every root, and the same word shown is still reported. A
+    visible control and an otherwise identical one below an unscrollable clip keep the
+    control-reachability reading non-vacuous.
+
+    The chrome half, asked where the nesting turns over. A widget's chrome is a
+    `.lf-ui` the widget put inside itself. A widget in a message is the other way up:
+    the runtime's own layer is above it and the widget has none of its own, so every
+    word it holds sits under a `.lf-ui` with nothing wrong. Asking whether the *words*
+    stand in a widget cannot tell those apart and accuses the second; asking whose the
+    `.lf-ui` is can. One reply carries three widgets: a question, an exhibit beside it,
+    and a badge whose module injects unmarked words under the chrome face. The panel
+    around all three says nothing; the badge's own chrome is read exactly as it would
+    be on a page. Nothing here had ever been rendered until a fixture asked the gate
+    rather than the panel.
+
+    Beside them, a pair shot captured at two widths: both frames render at the frame's
+    width, so the pair is scaled by two different factors and every line lands somewhere
+    new, and the flip would report that the whole page changed with nothing on screen
+    to say otherwise. That is the one shot failure worth an error box rather than a
+    caveat, and the gate has to hear about it, since nobody else will. The same shot
+    with both frames at one width passes."""
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / ".leaf"
+    add_test_widget(package, "lf-badge", upgrade=True)
+    module = package / "widgets" / "lf-badge.js"
+    source = module.read_text()
+    starter = "class extends LeafElement {},"
+    assert source.count(starter) == 1
+    module.write_text(
+        source.replace(
+            starter,
+            "class extends LeafElement {\n    setup() {\n"
+            + BADGE_CHROME
+            + "\n    }\n  },",
+        )
+    )
+    narrow = solid_png(400, 300, (235, 215, 205))
+    narrow_src = f"/media/{hashlib.sha256(narrow).hexdigest()[:16]}.png"
+    pair = (
+        f'<lf-shot id="shot-pair" alt="the navigation rail" before="{SHOT_SRC["before"]}"'
+        f' after="{narrow_src}"></lf-shot>'
+        f'<lf-shot id="shot-nav" alt="the navigation rail" before="{SHOT_SRC["before"]}"'
+        f' after="{SHOT_SRC["after"]}"></lf-shot>'
+    )
+    start = CARRIED_PAGE.index('<lf-options id="carried">')
+    carried = CARRIED_PAGE[start : CARRIED_PAGE.index("</lf-options>") + 13]
+    source = REPLY_HOST_PAGE.replace("</main>", carried + pair + "</main>")
+    url = serve(
+        source,
+        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
+        media={
+            **{SHOT_SRC[name]: data for name, data in SHOTS.items()},
+            narrow_src: narrow,
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-decision",
+            "author": "user",
+            "revision": 1,
+            "text": "What would the alternative look like?",
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": "c-decision",
+            "revision": 1,
+            "text": SAMPLE_TEXT,
+            "markup": SAMPLE_MARKUP + '<lf-badge id="rp-badge">Weighed.</lf-badge>',
+        },
+    )
+    page = open_page(primed(browser, stage_reach_cases), url)
+    assert (
+        page.locator(
+            "#native-link, #hidden-note, #shown-note, #unreachable-row, "
+            "#unreachable-button"
+        ).count()
+        == 5
+    )
+    assert page.locator("#hidden-note").is_hidden()
+    assert page.locator("#shown-offer, #clipped-offer").count() == 2
+    assert page.locator("#shown-offer").is_visible()
+    # A label inside a form control no marker can reach is the suite's question of
+    # Leaf's own modules (`test_page_fixture_renders`), not the gate's.
+    assert [
+        said
+        for said in render_checks_model.evaluate_probe(page, "wordsInFormControls")
+        if said["at"] == "<lf-option id=c-lax>"
+    ] == [
+        {
+            "code": "form-control-words",
+            "at": "<lf-option id=c-lax>",
+            "words": "Lax, host-only",
+        }
+    ]
+    # The two-width pair fails soft, as the gate below is to hear.
+    consume_browser_errors(page, '<lf-shot id="shot-pair"> failed')
+    page.close()
+
+    failures = render_gate_model.render_version(
+        primed(browser.unwatched, stage_reach_cases), url
+    ).failures
+    pair = [f for f in failures if f.code == "console-error"]
+    assert pair and all(
+        "shot-pair" in f.values["text"]
+        and "600px" in f.values["text"]
+        and "400px" in f.values["text"]
+        for f in pair
+    ), failures
+    clipped = [f for f in failures if f.code == "clipped-control"]
+    assert [(f.values["id"], f.widths) for f in clipped] == [
+        ("clipped-offer", (360, 1920))
+    ], failures
+    assert all(f.values["by"] == "<div id=clipped-holder>" for f in clipped), clipped
+    words = sorted(
+        {(f.code, f.at, f.values["words"]) for f in failures if f not in pair + clipped}
+    )
+    assert words == [
+        ("chrome-words", "<lf-badge id=rp-badge>", "Sent by the reviewer"),
+        ("chrome-words", "<lf-option id=c-lax>", "Session cookies"),
+        ("chrome-words", "<lf-option id=c-lax>", "opens in a new tab"),
+    ], failures
+
+
+@pytest.mark.shifts_unsurveyed
+def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
+    browser, serve, tmp_path, headless_shell
+):
+    """Nothing draws a message's widgets before the user opens its thread, and the
+    log freezes the message, so a thread command runs markup holding a widget only a
+    browser can judge once before it posts, and refuses it with the widget's own
+    error, as plain `page check` refuses a page. A host with no browser posts it
+    unrun; the body its module cannot draw then reports to the author when the user
+    opens its thread, naming the widget, and the author answers with a corrected
+    reply."""
+    url = serve(LONG_PAGE)
+    d = serve.page_dir
+
+    def post(executable):
+        return subprocess.run(
+            [*LEAF_COMMAND, "thread", "create", str(d), "--text", "See this."]
+            + [
+                "--markup",
+                '<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>',
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": executable},
+        )
+
+    refused = post(headless_shell)
+    assert refused.returncode != 0, refused.stdout + refused.stderr
+    refusal = json.loads(refused.stderr)["error"]
+    assert refusal.startswith("comment markup doesn't draw:"), refusal
+    assert '<lf-chart id="t-bad"> failed: ' in refusal
+    assert not [e for e in events_model.read_events(d) if e["kind"] == "comment"]
+
+    posted = post(str(tmp_path / "none"))
+    assert posted.returncode == 0, posted.stdout + posted.stderr
+
+    [root] = [e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"]
+    page = open_page(browser, url)
+    view = open_panel_thread(page, root)
+    expect(view.locator("#t-bad .lf-error")).to_contain_text("Unexpected token")
+    report = '<lf-chart id="t-bad"> failed: '
+    consume_browser_errors(page, report)
+    reported = wait_for(
+        lambda: [
+            event["text"]
+            for event in events_model.read_events(d)
+            if event["kind"] == "error"
+        ],
+        bool,
+        failure="the page never reported the chart",
+    )
+    assert len(reported) == 1 and reported[0].startswith(report), reported
+
+
+def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
+    """The live pair is continuously comparable through its native divider.
+
+    Image clicks, pointer drag and the complete keyboard pattern move one divider,
+    while print keeps the two complete frames and their order. The gate's pass is
+    `test_render_reads_widget_chrome_where_it_stands`'s."""
+    url = serve(
+        SHOT_PAGE,
+        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
+    )
+
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.goto(url)
+    render_checks_model.wait_until_ready(page)
+    comparison = page.locator("lf-shot wa-comparison")
+    handle = comparison.get_by_role("scrollbar")
+    expect(handle).to_be_visible()
+    rail = page.locator("lf-shot .lf-shot-toolbar")
+    expect(rail).to_have_count(1)
+    expect(rail.locator(".lf-shotcap")).to_have_text(["Before", "After"])
+    before_bounds = rail.locator('[data-lf-state="before"]').bounding_box()
+    after_bounds = rail.locator('[data-lf-state="after"]').bounding_box()
+    assert before_bounds is not None and after_bounds is not None
+    expect(comparison).to_have_attribute("position", "50")
+    glyph = comparison.locator('[slot="handle"].lf-shot-handle')
+    expect(glyph).to_have_count(1)
+    assert glyph.evaluate(
+        "node => [getComputedStyle(node).borderStyle, "
+        "getComputedStyle(node).borderRadius]"
+    ) == ["solid", "50%"]
+    expect(handle).to_have_accessible_name("Before and after — the navigation rail")
+    expect(handle).to_have_attribute("aria-valuetext", "Before 50%, after 50%")
+    # Labels keep source order across the viewport-wide header, while fitted images
+    # can be narrower. Each image half must show that source. Web Awesome's `after`
+    # slot is the inline-start side, so wiring same-named slots reverses the evidence.
+    comparison.scroll_into_view_if_needed()
+    visible_halves = page.evaluate(
+        """() => {
+          const box = document.querySelector('lf-shot wa-comparison')
+            .getBoundingClientRect();
+          return [...document.querySelectorAll('lf-shot .lf-shot-toolbar .lf-shotcap')].map((cap, index) => {
+            const x = box.left + box.width * (index === 0 ? 0.25 : 0.75);
+            const hit = document.elementFromPoint(x, box.top + box.height / 2);
+            return [cap.dataset.lfState, hit?.closest('.lf-shotframe')?.dataset.lfState];
+          });
+        }"""
+    )
+    assert before_bounds["x"] < after_bounds["x"]
+    assert visible_halves == [["before", "before"], ["after", "after"]]
+    page.emulate_media(media="print")
+    assert shown_frames(page) == ["before", "after"]
+    printed_tops = [
+        page.locator(f'lf-shot .lf-shotframe[data-lf-state="{state}"]').bounding_box()[
+            "y"
+        ]
+        for state in ("before", "after")
+    ]
+    assert printed_tops[0] < printed_tops[1], "paper put the after frame on top"
+    page.emulate_media(media="screen")
+    expect(comparison).to_be_visible()
+    page.mouse.move(0, 0)
+    divider_face = comparison.evaluate(
+        """async node => {
+          const divider = node.shadowRoot.querySelector('[part~="divider"]');
+          const handle = node.shadowRoot.querySelector('[part~="handle"]');
+          await Promise.all(handle.getAnimations().map(animation => animation.finished));
+          return {
+            divider: getComputedStyle(divider).backgroundColor,
+            handle: getComputedStyle(handle).backgroundColor,
+          };
+        }"""
+    )
+    assert divider_face["divider"] != divider_face["handle"]
+
+    comparison.scroll_into_view_if_needed()
+    bounds = comparison.bounding_box()
+    assert bounds is not None
+    image_point = (bounds["x"] + bounds["width"] / 4, bounds["y"] + 80)
+    page.mouse.click(*image_point)
+    expect(comparison).to_have_attribute("position", "100")
+    expect(handle).to_have_attribute("aria-valuetext", "Before 100%, after 0%")
+    page.mouse.click(*image_point)
+    expect(comparison).to_have_attribute("position", "0")
+    page.keyboard.down("Shift")
+    page.mouse.click(*image_point)
+    page.keyboard.up("Shift")
+    expect(comparison).to_have_attribute("position", "0")
+    comparison.evaluate("node => { node.position = 50; }")
+    view = page.locator("lf-shot").get_by_role("radio", name="Slider", exact=True)
+    # A second finger does not replace the primary contact's input destination.
+    view.focus()
+    handle.evaluate("""handle => handle.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true, composed: true, pointerId: 98, pointerType: 'touch',
+      isPrimary: false, button: 0
+    }))""")
+    expect(view).to_be_focused()
+    handle.click()
+    expect(handle).to_be_focused()
+    expect(comparison).to_have_attribute("position", "50")
+    page.keyboard.press("ArrowRight")
+    expect(comparison).to_have_attribute("position", "51")
+    page.keyboard.press("End")
+    expect(comparison).to_have_attribute("position", "100")
+
+    handle.focus()
+    expect(handle).to_be_focused()
+    page.keyboard.press("ArrowLeft")
+    expect(comparison).to_have_attribute("position", "99")
+    expect(handle).to_have_attribute("aria-valuetext", "Before 99%, after 1%")
+    page.keyboard.press("Shift+ArrowLeft")
+    expect(comparison).to_have_attribute("position", "89")
+    page.keyboard.press("End")
+    expect(comparison).to_have_attribute("position", "100")
+    page.keyboard.press("Home")
+    expect(comparison).to_have_attribute("position", "0")
+
+    comparison.evaluate("node => { node.position = 50; }")
+    expect(comparison).to_have_attribute("position", "50")
+    bounds = comparison.bounding_box()
+    handle_bounds = handle.bounding_box()
+    assert bounds is not None and handle_bounds is not None
+    at = (
+        handle_bounds["x"] + handle_bounds["width"] / 2,
+        handle_bounds["y"] + handle_bounds["height"] / 2,
+    )
+    page.mouse.move(*at)
+    page.mouse.down()
+    page.mouse.move(at[0] + bounds["width"] / 4, at[1], steps=4)
+    page.mouse.up()
+    dragged = float(comparison.get_attribute("position"))
+    assert 70 <= dragged <= 80
+    expect(handle).to_have_attribute(
+        "aria-valuetext", f"Before {dragged:g}%, after {100 - dragged:g}%"
+    )
+
+    comparison.evaluate("node => { node.position = 100; }")
+    expect(comparison).to_have_attribute("position", "100")
+    handle.focus()
+    page.keyboard.press("End")
+    expect(handle).to_be_focused()
+    width = handle.evaluate(
+        "node => getComputedStyle(node).outlineStyle === 'none' ? 0 :"
+        " parseFloat(getComputedStyle(node).outlineWidth)"
+    )
+    assert width > 0
+
+
+def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
+    browser, serve
+):
+    url = serve(
+        FILM_PAGE.replace("</main>", '<img src="/page/missing-image.png"></main>'),
+        page_files={
+            "registry.json": json.dumps(FILM_DECLARATION),
+            "film.js": 'import { label } from "./helper.js";\n'
+            "export const paint = el => (el.textContent = label);\n",
+            "helper.js": 'export const label = "loaded";\n',
+            "widgets/lf-film.js": 'import { paint } from "../film.js";\n'
+            "customElements.define('lf-film', class extends HTMLElement {\n"
+            "  connectedCallback() { paint(this); }\n"
+            "});\n",
+            "widgets/lf-loader.js": "customElements.define('lf-loader', class extends HTMLElement {\n"
+            "  connectedCallback() { this.textContent = 'loaded'; }\n"
+            "});\n",
+        },
+        media={"page/missing-image.png": solid_png(1, 1, (0, 0, 0))},
+    )
+
+    class RoutedBrowser:
+        def __init__(self, *, fail_helper):
+            self.fail_helper = fail_helper
+
+        def new_page(self, **kwargs):
+            page = browser.unwatched.new_page(**kwargs)
+            page.route(
+                "**/page/helper.js",
+                lambda route: (
+                    route.abort("failed") if self.fail_helper else route.continue_()
+                ),
+            )
+            page.route(
+                "**/page/missing-image.png", lambda route: route.fulfill(status=404)
+            )
+            return page
+
+    failed = run_page_code(RoutedBrowser(fail_helper=True), url)
+    # The runtime's own report carries the error's stack; the check's refusal quotes
+    # only the reason the page shows.
+    by_code = {}
+    for report in failed:
+        by_code.setdefault(report.code, []).append(report.values)
+    assert any(
+        report["text"].startswith("page failed to start:")
+        and "TypeError" in report["text"]
+        for report in by_code["page-report"]
+    ), failed
+    assert by_code["not-ready"][0]["stage"] == "refused", failed
+    assert by_code["not-ready"][0]["error"].startswith("the runtime could not start:")
+    assert any(
+        report["kind"] == "Script"
+        and report["error"] == "net::ERR_FAILED"
+        and report["frame"] == url
+        and report["url"].endswith("/page/helper.js")
+        for report in by_code["request-failed"]
+    ), failed
+    assert any(
+        report["status"] == 404
+        and report["kind"] == "Image"
+        and report["url"].endswith("/page/missing-image.png")
+        for report in by_code["request-status"]
+    ), failed
+
+    assert run_page_code(RoutedBrowser(fail_helper=False), url) == []

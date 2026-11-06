@@ -26,6 +26,18 @@
   width: 0;
   height: 0;
 }
+/* Every box that holds rows stands them in its one grid cell, each offset from the
+   cell's corner by its seat as margins, so no row is a positioned box: Chromium's hit
+   test visits every positioned box on every call, and a page of 512 questions held a
+   row for each. A row paints in document order among its lane's, and above the page
+   by its lane's stacking. The seat is physical, from the lane's left (margin-layout.js
+   writes it so), so a row stands from the cell's left in a right-to-left page too. */
+.lf-margin-toolbar,
+.lf-margin-lane,
+.lf-margin-carrier {
+  display: grid;
+  grid-template: 0px / 0px;
+}
 .lf-margin-lane,
 .lf-margin-cut {
   z-index: 2;
@@ -42,10 +54,11 @@
   position-visibility: always;
 }
 .lf-margin-cluster {
-  position: absolute;
-  z-index: 2;
-  left: var(--lf-margin-x, 0px);
-  top: var(--lf-margin-y, 0px);
+  grid-area: 1 / 1;
+  justify-self: left;
+  align-self: start;
+  margin-left: var(--lf-margin-x, 0px);
+  margin-top: var(--lf-margin-y, 0px);
   display: inline-flex;
   align-items: center;
   gap: var(--margin-gap);
@@ -70,11 +83,12 @@
   .lf-margin-cluster[data-lf-place="pin"]:not([data-lf-revealed]) {
   visibility: hidden;
 }
-/* A pin's count stands on its left, over the block it is about: at the window's edge the
- * page's `overflow-x: hidden` would clip one on the right. */
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-count {
-  right: auto;
-  left: -7px;
+/* A pin's count stands on its left, over the block it is about: at the window's edge one
+ * on the right would stand past the window. The count shares its face's grid cell
+ * (controls.css), so it stands there by alignment. */
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-face > .lf-margin-count {
+  justify-self: left;
+  margin: -7px 0 0 -7px;
 }
 /* What a hovered or focused item says about the target it acts on is said on the target:
  * `highlight` (margin-projection.js) hands every item to target paint, which traces the
@@ -113,57 +127,19 @@
 .lf-margin-options [data-lf-margin-entry-overflow] {
   display: none;
 }
-/* Every annotation has the same filled pin face when it stands on the block it is
-   about, over the block's own words, so it is a solid face with the rail marker's
-   corners save one, left square to point into the block, and a paper edge that parts
-   it from whatever it covers. It is smaller than a rail
-   marker with a mouse, because it covers what it stands on, and keeps the full aim floor
-   under a finger, so what the user sees is what they press.
+/* A pin's entries stand at the aim floor, smaller than a rail marker's under a mouse
+   (the entry face's pin, controls.css).
 
-   The fill is the pin, so the states a rail marker paints on its paper take the pin's
-   attention color: an annotation on the user has a green fill; other pins stay blue.
-   Shape and fill identify placement, not whether a press acts, opens context, or does
-   nothing. Glyphs and labels retain each entry's meaning; only interactive entries
-   respond to a press or darken on hover. Overflow and revealed actions use this same
-   face. The pin supplies its ink through --lf-entry-ink, so the shared entry states
-   retain it while package themes can still override their paint. */
+   TODO(#4041): under a finger, draw the pin at 26px inside a 44px aim given by a reach
+   (surfaces.css), so it covers fewer words. Seating that needs two boxes per pin, which
+   margin-placement.js doesn't have: the face, kept off words and touching its target,
+   and the aim, kept off controls and other rows. CSS alone gives a pin one box. With
+   margins making the row the aim, every seat stayed, but a pin seated outside its
+   target drew 9px further from it, past the 12px `leaf-dev pins` allows, on 18 of its
+   26 cases at 390px. With the row the face, the aim lay over a neighbouring control's
+   press on 9 of 270 sentences. */
 .lf-margin-cluster[data-lf-place="pin"] {
   --margin-entry: max(26px, var(--aim-floor));
-}
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry {
-  border-radius: var(--r) var(--r) var(--r) 0;
-  --lf-pin-edge: var(--paper);
-  border: 2px solid var(--lf-pin-edge);
-  background: var(--lf-pin-face, var(--pin-fill));
-  --lf-entry-ink: var(--pin-ink);
-  box-shadow: var(--raise-1);
-}
-.lf-margin-cluster[data-lf-place="pin"]
-  .lf-margin-entry
-  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
-  color: var(--lf-entry-ink);
-  inline-size: 14px;
-  block-size: 14px;
-}
-.lf-margin-cluster[data-lf-place="pin"]
-  .lf-margin-entry:not([data-lf-behavior="status"]):is(button, [role="button"]):is(
-    :hover,
-    [data-lf-focus],
-    [aria-expanded="true"],
-    [data-lf-target-selected]
-  ) {
-  border-color: var(--lf-pin-edge);
-}
-.lf-margin-cluster[data-lf-place="pin"]
-  .lf-margin-entry:not([data-lf-behavior="status"]):is(button, [role="button"]):is(
-    :hover,
-    [aria-expanded="true"]
-  ):not([aria-disabled="true"]):not(:disabled) {
-  background: color-mix(in srgb, var(--lf-pin-face, var(--pin-fill)) 82%, #000);
-}
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry[data-lf-turn="user"] {
-  --lf-pin-face: var(--pin-on-user);
-  --lf-entry-ink: var(--pin-on-user-ink);
 }
 .lf-margin-receipt {
   color: var(--ink-2);

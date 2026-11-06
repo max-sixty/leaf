@@ -55,7 +55,7 @@ keep an unanswered request open or explain why changed circumstances make it
 unnecessary. An independent decision does not silently answer or retire it.
 
 Earlier short and replay probes passed on both arms and did not reproduce a failure.
-A later base/candidate check accepting either a still-open assessment or reasoned
+A later base/head check accepting either a still-open assessment or reasoned
 retirement likewise passed one sample per arm. Those checks validate the distinctions,
 not a reduced error rate. The temporary case was archived with experiment evidence
 rather than kept as a permanent rule that this particular assessment must stay open.
@@ -71,8 +71,8 @@ Reproduce the recovered grading from this session's local result copies, which r
 references to the original saved pages:
 
 ```sh
-uv run leaf-dev eval-pairs .tmp/comparison/phase-aware-runs/*
-uv run leaf-dev eval-report .tmp/comparison/report .tmp/comparison/phase-aware-runs/*
+uv run leaf-dev eval --judge pair $(printf -- '--from %s ' .tmp/comparison/phase-aware-runs/*)
+uv run leaf-dev eval-report .tmp/comparison/report .tmp/eval/<judging-run> .tmp/comparison/phase-aware-runs/*
 ```
 
 The audit is `.tmp/comparison/audit.json`; the original saved runs are under
@@ -235,7 +235,8 @@ without claiming a live alert configuration change. Execution and page checks
 completed for all four. The first HTML's final judge reported a threshold-keyboard
 defect; the other three final judges passed. Replaying the same keys on the first
 HTML and on a bare, script-free native select produced the same non-response in
-headless Chromium and Firefox. That test does not isolate an authored defect, so
+headless Chromium and Firefox; [Browser support gaps](browser-support.md#native-select-keyboard-input-in-the-test-engine)
+owns the current recheck. That test does not isolate an authored defect, so
 the attribution remains unconfirmed. The original verdict is retained; the browser
 users and pair judges completed the offered selection and copying routes.
 
@@ -459,9 +460,8 @@ import tempfile, time
 from pathlib import Path
 from leaf_dev import ROOT
 from leaf_dev.arms import build_source, run_leaf
-from leaf_dev.commands.distribution import current_kernel
 from leaf_dev.example_data import catalog_sources
-arm = current_kernel(ROOT)
+arm = ROOT
 scratch = Path(tempfile.mkdtemp(dir=ROOT / ".tmp"))
 for source in catalog_sources():
     page = scratch / source.stem
@@ -650,7 +650,7 @@ and pair judges, on the arrangement tasks at 1600×1000. The runs named in the t
 sections above no longer existed, so every control was authored fresh. Each repair
 was compared on its own task against the commit before it (`--base`), then on a
 dissimilar task, then against HTML controls through an index of chosen samples, since
-`eval-pairs` pairs only the two columns inside its runs.
+a pair judge pairs only the two columns inside its runs.
 
 Retained, in commit order on the campaign branch:
 

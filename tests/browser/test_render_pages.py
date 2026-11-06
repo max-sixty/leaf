@@ -10,6 +10,7 @@ from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
     declare_on_page,
+    element_declaration,
     record_claim,
 )
 from PIL import Image, ImageChops, ImageStat
@@ -20,6 +21,7 @@ from render_cases_interaction import (
     live_url,
 )
 from render_cases_layout import (
+    MARK,
     SHOT_SRC,
     SHOTS,
     current_location_ring,
@@ -34,7 +36,6 @@ from render_cases_widgets import (
     DIAGRAM_AND_RAIL_PAGE,
     DIAGRAM_ROOM,
     DRAWING_PLACEMENT,
-    DRAWN_PAST_A_RAIL_PAGE,
     FRAMED_WIDE_PAGE,
     LONG_CHAIN_PAGE,
     NOTE_AND_WIDE_PAGE,
@@ -50,13 +51,13 @@ from render_cases_widgets import (
     WIDE_DIAGRAM_PAGE,
 )
 from render_harness import (
-    EXAMPLES,
     INLINE_PAGE,
     LONG_PAGE,
     REPLY_HOST_PAGE,
     TOKEN,
     consume_browser_errors,
     expect_open_threads,
+    fetch_whole_state,
     held_frames,
     http_error_console,
     leaf_page,
@@ -66,6 +67,7 @@ from render_harness import (
     panel_field,
     panel_menu,
     panel_settled,
+    panel_view,
     refuse,
     resized,
     root_overflow,
@@ -85,13 +87,14 @@ from leaf import schema as schema_model
 from leaf.registry.storage import load_registry
 from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf.render_gate.scheme import console_finding
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def test_sort_film_readout_and_narration(browser, serve):
     """Changing step numbers hold their space, and narration renders inline Markdown."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    example = named_source("rust-sort")
     page = open_page(browser, serve(example))
     assert (
         "collapse(): merge if one is true"
@@ -151,7 +154,7 @@ def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, ser
     """A workspace is a screen, so in a 900px-tall window at the narrowest width the
     page sets its panes side by side, the whole player shows in its pane, the last
     step's longer summary included (page-layout.md, "A workspace")."""
-    example = next(path for path in EXAMPLES if path.stem == "rust-sort")
+    example = named_source("rust-sort")
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 720, "height": 900}
     )
@@ -174,7 +177,7 @@ def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, ser
 
 
 def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve):
-    example = next(path for path in EXAMPLES if path.stem == "ship-review")
+    example = named_source("ship-review")
     page = open_page(browser, serve(example))
     summary = page.locator("#off-facts")
     expect(summary).to_be_visible()
@@ -347,18 +350,20 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     expect_open_threads(page, 1)
     [root] = [e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"]
     thread = open_panel_thread(page, root)
-    expect(thread.locator(".lf-msg.agent")).to_have_count(1)
-    expect(thread.locator(".lf-msg.agent > .lf-msg-head b")).to_have_text("Codex")
-    expect(thread.locator(".lf-fp-quote")).to_contain_text(
-        "“Retries are capped at three”"
+    expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(1)
+    expect(
+        thread.locator(".lf-msg[data-lf-author=agent] > .lf-msg-head b")
+    ).to_have_text("Codex")
+    expect(thread.locator(".lf-thread-quote")).to_have_text(
+        "Retries are capped at three"
     )
 
     write(panel_field(page), "three is the retry budget, not a guess")
     with sending(page, "the reply"):
         page.keyboard.press("ControlOrMeta+Enter")
-    expect(thread.locator(".lf-msg.user")).to_have_count(1)
+    expect(thread.locator(".lf-msg[data-lf-author=user]")).to_have_count(1)
     with sending(page, "the resolve"):
-        page.locator(".lf-fp-settle").click()
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
 
     kinds = [(e["kind"], e.get("author")) for e in events_model.read_events(d)]
     assert ("comment", "agent") in kinds
@@ -401,8 +406,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         view = state["browser"]["views"][str(state["active"]["revision"])]
         view["document"]["projection"]["entries"].append(None)
         broken.append(True)
@@ -425,7 +429,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
         )
     page.lf_errors.remove(console_finding(fault.value))
 
-    inline = seat.locator(f':scope > .lf-page-thread[data-thread="{root["id"]}"]')
+    inline = seat.locator(f':scope > .lf-page-thread[data-lf-thread="{root["id"]}"]')
     expect(inline).to_have_count(0)
     expect(composer).to_have_count(1)
     expect(composer).to_be_focused()
@@ -467,7 +471,9 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
         },
     )
     page = open_page(browser, live_url(url))
-    thread = page.locator(f'#proposal > .lf-thread-seat > [data-thread="{root["id"]}"]')
+    thread = page.locator(
+        f'#proposal > .lf-thread-seat > [data-lf-thread="{root["id"]}"]'
+    )
     reply = thread.locator(":scope > .lf-thread-reply leaf-text")
     write(reply, "keep this inline reply")
     reply.evaluate("node => node.setSelectionRange(5, 16, 'backward')")
@@ -479,8 +485,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         view = state["browser"]["views"][str(state["active"]["revision"])]
         view["document"]["projection"]["entries"].append(None)
         broken.append(True)
@@ -514,8 +519,9 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     # The remote resolution waits behind the thread's notice while the focused
     # draft is in view. The user can reveal it without losing their reply.
     notice = thread.locator(".lf-thread-news")
-    expect(notice).to_have_text("Resolved")
-    expect(thread).to_have_attribute("data-resolved", "false")
+    expect(notice).to_have_text("1 new")
+    expect(notice).to_have_attribute("title", "Resolved")
+    expect(thread).to_have_attribute("data-lf-resolved", "false")
     notice.click()
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
     expect(reply).to_have_js_property("value", "keep this inline reply")
@@ -547,8 +553,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         view = state["browser"]["views"][str(state["active"]["revision"])]
         view["document"]["projection"]["entries"].append(None)
         broken.append(True)
@@ -575,12 +580,16 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     told(page)
     # The view keeps the user's editing place and says the remote resolution in a
     # notice the user opens.
-    news = page.locator(".lf-fp-controls .lf-thread-news")
-    expect(news).to_have_text("Resolved")
+    news = page.locator(".lf-fp-head .lf-thread-news")
+    expect(news).to_have_text("1 new")
+    expect(news).to_have_attribute("title", "Resolved")
     expect(draft).to_have_js_property("value", "keep this unfinished reply")
     news.click()
     expect(view).to_be_visible()
-    expect(page.locator(".lf-fp-settle")).to_have_accessible_name("Reopen")
+    # A thread the agent resolved names the agent before Reopen, as a card's does.
+    expect(
+        page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
+    ).to_have_accessible_name(re.compile(r"Resolved by \w+ · Reopen$"))
     expect(draft).to_have_js_property("value", "keep this unfinished reply")
 
 
@@ -594,8 +603,8 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
     page.locator("body").focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+V")
-    menu = page.locator(".lf-fp-menu[data-level=versions]")
-    row = menu.locator(".lf-fp-version .lf-fp-item").first
+    versions = page.locator(panel_view("versions"))
+    row = versions.locator(".lf-fp-version .lf-fp-item").first
     expect(row).to_be_focused()
 
     broken = []
@@ -604,8 +613,7 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         view = state["browser"]["views"][str(state["active"]["revision"])]
         view["document"]["projection"]["entries"].append(None)
         broken.append(True)
@@ -616,7 +624,7 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
         lambda message: "read failed" in message.text
     ) as fault:
         nudge(d)
-    expect(menu).to_be_visible()
+    expect(versions).to_be_visible()
     expect(row).to_be_focused()
     page.lf_errors.remove(console_finding(fault.value))
 
@@ -648,23 +656,19 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     page.locator("#flow svg").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
     page.locator("#flow.lf-mark-el.lf-pending.lf-projected-mark").wait_for()
-    expect(page.locator(".lf-visual-mark-pending")).to_be_visible()
+    expect(page.locator("#flow")).to_have_attribute(
+        "data-lf-mark", re.compile(r"\bpending\b")
+    )
     assert not composer_quote(page)["shown"], "a picture has no words to quote back"
     page.keyboard.press("Escape")
 
     page.locator("#tree").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
     page.locator("#tree.lf-mark-el.lf-pending.lf-projected-mark").wait_for()
-    overlay = page.locator(".lf-visual-mark-pending")
-    expect(overlay).to_be_visible()
-    look = overlay.evaluate(
-        """el => { const style = getComputedStyle(el, '::after'); return {
-          background: getComputedStyle(el).backgroundImage,
-          outline: [style.outlineStyle, style.outlineWidth],
-        }; }"""
-    )
-    assert look["background"] == "none", look
-    assert look["outline"][0] == "solid" and look["outline"][1] != "0px", look
+    tree = page.locator("#tree")
+    expect(tree).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
+    look = tree.evaluate(MARK)
+    assert look and look["style"] == "solid" and look["width"] > 0, look
     page.keyboard.press("Escape")
 
     # And a paragraph is still text: the click reaches no picture and raises nothing.
@@ -673,6 +677,27 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
         page.locator(".lf-fab-input"),
         "a click on prose was read as a click on a picture",
     ).not_to_be_visible()
+
+
+# The ink a box draws its mark in (MARK), as the screenshot holds it: a mixed ink
+# computes as color(srgb ...), and a canvas reads any colour as bytes.
+_MARK_INK = """element => {
+          const pen = document.createElement('canvas').getContext('2d');
+          pen.fillStyle = getComputedStyle(element).outlineColor;
+          pen.fillRect(0, 0, 1, 1);
+          return [...pen.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+        }"""
+
+
+def _outer_box(mark):
+    """The outer edge of a box's mark (MARK) as a rectangle."""
+    ring = mark["ring"]
+    return {
+        "x": ring["left"],
+        "y": ring["top"],
+        "width": ring["right"] - ring["left"],
+        "height": ring["bottom"] - ring["top"],
+    }
 
 
 def _bracket_ink_changes(quiet, painted, target, clip, ink):
@@ -741,10 +766,10 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     down both sides. Both projected brackets, including their end caps, remain above
     the frame.
     """
-    example = next(path for path in EXAMPLES if path.stem == "release-notes")
+    example = named_source("release-notes")
     page = open_page(browser, serve(example))
     shot = page.locator("#rn-console-shot")
-    shot.get_by_role("button", name="Slider", exact=True).click()
+    shot.get_by_role("radio", name="Slider", exact=True).click()
     shot.scroll_into_view_if_needed()
     box = shot.bounding_box()
     clip = {
@@ -763,44 +788,27 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     expect(comparison).to_have_attribute("position", "50")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     expect(shot).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    overlay = page.locator(".lf-visual-mark-pending")
-    expect(overlay).to_be_visible()
-    contour = overlay.evaluate(
-        """element => { const style = getComputedStyle(element, '::after');
-          // A mixed ink computes as color(srgb …); a canvas reads any colour as bytes.
-          const pen = document.createElement('canvas').getContext('2d');
-          pen.fillStyle = style.outlineColor;
-          pen.fillRect(0, 0, 1, 1);
-          return {
-            ink: [...pen.getImageData(0, 0, 1, 1).data.slice(0, 3)],
-            outset: parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth),
-          }; }"""
-    )
+    expect(shot).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
+    ink = shot.evaluate(_MARK_INK)
     marked = screenshot()
 
     # The contour stands outside the frame, so its edges are the outline's outer box.
-    outset = contour["outset"]
-    outer = {
-        "x": box["x"] - outset,
-        "y": box["y"] - outset,
-        "width": box["width"] + 2 * outset,
-        "height": box["height"] + 2 * outset,
-    }
-    changed, _ = _bracket_ink_changes(quiet, marked, outer, clip, contour["ink"])
+    outer = _outer_box(shot.evaluate(MARK))
+    changed, _ = _bracket_ink_changes(quiet, marked, outer, clip, ink)
     assert all(changed[side] > 0 for side in changed), (
         f"the screenshot frame covered part of its annotation contour: {changed}"
     )
 
 
 def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, serve):
-    """The selected thread may strengthen its contour, but its overlay stays hollow.
+    """The selected thread may strengthen its contour, but it stays hollow.
 
     This is the checkout-release regression: the metric fills its host edge to edge,
-    so a mark projected above the widget also sits above every word the widget draws.
-    Comparing the interior with that overlay hidden makes the guarantee independent of
-    the widget's DOM, colors, and stacking choices.
+    so a mark projected above the widget also sat above every word the widget draws.
+    Comparing the interior with the card's mark taken off makes the guarantee
+    independent of the widget's DOM, colors, and stacking choices.
     """
-    example = next(path for path in EXAMPLES if path.stem == "live-progress")
+    example = named_source("live-progress")
     url = serve(example)
     append_carried_log_record(
         serve.page_dir,
@@ -819,8 +827,7 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     stand_on_thread(page, "blocked-card-comment")
 
     card = page.locator("#lp-k-checks")
-    mark = page.locator('.lf-visual-mark[data-for="lp-k-checks"].lf-visual-mark-here')
-    expect(mark).to_be_visible()
+    expect(card).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
     card.scroll_into_view_if_needed()
     # Include the floating thread's final placement and shadow in both captures.
     rendered(page)
@@ -830,7 +837,9 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
         return Image.open(io.BytesIO(page.screenshot(clip=box))).convert("RGB")
 
     marked = screenshot()
-    mark.evaluate("element => { element.style.visibility = 'hidden'; }")
+    card.evaluate(
+        "element => { element.style.setProperty('outline', 'none', 'important'); }"
+    )
     bare = screenshot()
     inset = math.ceil(3 * page.evaluate("devicePixelRatio"))
     interior = (inset, inset, marked.width - inset, marked.height - inset)
@@ -838,12 +847,12 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     assert difference.getbbox() is None, (
         "the selected comment painted inside the metric card instead of only around it"
     )
-    mark.evaluate("element => { element.style.removeProperty('visibility'); }")
+    card.evaluate("element => { element.style.removeProperty('outline'); }")
 
 
 def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     """A margin control traces a visual target above its edge-to-edge children."""
-    example = next(path for path in EXAMPLES if path.stem == "release-notes")
+    example = named_source("release-notes")
     page = open_page(browser, serve(example))
     resized(page, 1200, 900)
     margins_laid_out(page)
@@ -877,64 +886,17 @@ def test_a_screenshot_margin_trace_paints_both_quiet_brackets(browser, serve):
     margins_laid_out(page)
     toggle = page.get_by_role("button", name="Review capture", exact=True)
     toggle.hover()
-    trace = page.locator('.lf-target-trace[data-for="rn-console-shot"]')
-    expect(trace).to_be_visible()
-    ink = trace.evaluate(
-        """element => {
-          const canvas = document.createElement('canvas');
-          const context = canvas.getContext('2d');
-          context.fillStyle = getComputedStyle(element, '::after').outlineColor;
-          context.fillRect(0, 0, 1, 1);
-          return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
-        }"""
-    )
+    expect(shot).to_have_attribute("data-lf-traced", "")
+    ink = shot.evaluate(_MARK_INK)
     traced = screenshot()
 
-    outset = trace.evaluate(
-        "element => { const s = getComputedStyle(element, '::after');"
-        " return parseFloat(s.outlineOffset) + parseFloat(s.outlineWidth); }"
-    )
-    outer = {
-        "x": box["x"] - outset,
-        "y": box["y"] - outset,
-        "width": box["width"] + 2 * outset,
-        "height": box["height"] + 2 * outset,
-    }
+    outer = _outer_box(shot.evaluate(MARK))
     changed, missing = _bracket_ink_changes(quiet, traced, outer, clip, ink)
     assert not missing, (
         f"the screenshot frame covered the trace's {missing} edge: {changed} ink pixels"
     )
-    assert shot.evaluate("element => getComputedStyle(element).outlineStyle") == "none"
-    shot.get_by_role("button", name="Pair", exact=True).click()
+    shot.get_by_role("radio", name="Pair", exact=True).click()
     expect(shot.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
-
-
-def test_a_diagram_follows_the_scheme_it_is_read_in(browser, serve):
-    """The SVG keeps Leaf's theme variables, so a scheme flip repaints it live."""
-    page = open_page(browser, serve(WIDE_DIAGRAM_PAGE))
-    node = (
-        page.locator('#flow g[data-id="S"]')
-        .locator("rect, polygon, path, circle, ellipse")
-        .first
-    )
-    expect(node).to_be_visible()
-    fill = "el => getComputedStyle(el).fill"
-    light = node.evaluate(fill)
-    expected = page.evaluate(
-        """() => {
-          const probe = document.createElement('i');
-          probe.style.cssText = 'color:color-mix(in srgb, var(--accent) 10%, var(--paper))';
-          document.body.append(probe);
-          const color = getComputedStyle(probe).color;
-          probe.remove();
-          return color;
-        }"""
-    )
-    assert light == expected, "the renderer must receive Leaf's accent-tinted surface"
-    page.emulate_media(color_scheme="dark")
-    assert node.evaluate(fill) != light, (
-        "a diagram's node surface must follow the page's scheme"
-    )
 
 
 def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve):
@@ -1008,68 +970,102 @@ flowchart LR
     assert not page.evaluate("() => !!window.lfInjected")
 
 
-def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
-    """A diagram keeps the natural geometry its renderer laid out.
-
-    Scaling a wide drawing to the column takes its labels below legibility. The module
-    states the viewBox width explicitly, so only how much of that natural drawing fits
-    in the available room changes.
-
-    Which is the whole of it wherever the window has the room. A drawing is not a box
-    that fills whatever it is given, so the one width the vocabulary shares is no promise
-    about it: held to that number, this 1147px flowchart was cut off at 1080 on a window
-    with 470px to spare. The board on the
-    same page is the half that says the declaration is doing this rather than the tag —
-    it declares `wide` with its `data-width` and lays its columns out into whatever it is
-    given, so it takes that shared number and stops there on the same window that hands
-    the diagram all of the room.
-
-    Past the room there is nothing left to give, and the answer is the theme's for any
-    wide content: the widget's own box scrolls sideways and the document does not."""
+def test_a_diagram_takes_the_room_and_follows_the_scheme_it_is_read_in(
+    browser, serve, subtests
+):
+    """A drawing's width across windows and its paint across schemes, on one page."""
     page = open_page(browser, serve(WIDE_DIAGRAM_PAGE))
 
-    # This width leaves the complete drawing room on both supported font platforms.
-    resized(page, 1920, 900)
-    wide = page.evaluate(DIAGRAM_ROOM)
-    assert wide["natural"] > wide["wide"], (
-        f"the fixture must lay out wider than the shared width ({wide['wide']:.0f}px), "
-        "or the window having room says nothing"
-    )
-    assert wide["natural"] < wide["room"], (
-        "and inside the room this window has, or nothing here is about being cut off"
-    )
-    assert round(wide["drawn"]) == round(wide["natural"]), (
-        f"the drawing was scaled to fit: natural {wide['natural']:.0f}px, "
-        f"drawn {wide['drawn']:.0f}px"
-    )
-    assert not wide["scrolls"], (
-        f"a window with the room for the whole drawing still cut it off: "
-        f"{wide['natural']:.0f}px of diagram in a {wide['box']:.0f}px box"
-    )
-    assert wide["board"] <= wide["wide"] + 1, (
-        f"the board took the room too, so what grew was the tag and not what it "
-        f"declares: board {wide['board']:.0f}px against {wide['wide']:.0f}px"
-    )
-    assert wide["board"] > wide["column"] + 1, (
-        "and the board must still be growing, or its half of this proves nothing"
-    )
-    assert root_overflow(page) == 0, "the page itself must not scroll sideways"
+    with subtests.test("a diagram takes the room and scrolls only past it"):
+        # A diagram keeps the natural geometry its renderer laid out.
+        #
+        # Scaling a wide drawing to the column takes its labels below legibility. The
+        # module states the viewBox width explicitly, so only how much of that natural
+        # drawing fits in the available room changes.
+        #
+        # Which is the whole of it wherever the window has the room. A drawing is not a
+        # box that fills whatever it is given, so the one width the vocabulary shares is
+        # no promise about it: held to that number, this 1147px flowchart was cut off at
+        # 1080 on a window with 470px to spare. The board on the same page is the half
+        # that says the declaration is doing this rather than the tag — it declares
+        # `wide` with its `data-width` and lays its columns out into whatever it is
+        # given, so it takes that shared number and stops there on the same window that
+        # hands the diagram all of the room.
+        #
+        # Past the room there is nothing left to give, and the answer is the theme's for
+        # any wide content: the widget's own box scrolls sideways and the document does
+        # not.
+        # This width leaves the complete drawing room on both supported font platforms.
+        resized(page, 1920, 900)
+        wide = page.evaluate(DIAGRAM_ROOM)
+        assert wide["natural"] > wide["wide"], (
+            f"the fixture must lay out wider than the shared width ({wide['wide']:.0f}px), "
+            "or the window having room says nothing"
+        )
+        assert wide["natural"] < wide["room"], (
+            "and inside the room this window has, or nothing here is about being cut off"
+        )
+        assert round(wide["drawn"]) == round(wide["natural"]), (
+            f"the drawing was scaled to fit: natural {wide['natural']:.0f}px, "
+            f"drawn {wide['drawn']:.0f}px"
+        )
+        assert not wide["scrolls"], (
+            f"a window with the room for the whole drawing still cut it off: "
+            f"{wide['natural']:.0f}px of diagram in a {wide['box']:.0f}px box"
+        )
+        assert wide["board"] <= wide["wide"] + 1, (
+            f"the board took the room too, so what grew was the tag and not what it "
+            f"declares: board {wide['board']:.0f}px against {wide['wide']:.0f}px"
+        )
+        assert wide["board"] > wide["column"] + 1, (
+            "and the board must still be growing, or its half of this proves nothing"
+        )
+        assert root_overflow(page) == 0, "the page itself must not scroll sideways"
+        resized(page, 1000, 900)
+        narrow = page.evaluate(DIAGRAM_ROOM)
+        assert narrow["natural"] > narrow["room"], (
+            "the narrow half proves nothing unless the drawing outgrows the room"
+        )
+        assert round(narrow["drawn"]) == round(narrow["natural"]), (
+            "a drawing that no longer fits is still not scaled down"
+        )
+        assert narrow["scrolls"], (
+            "a drawing wider than the room must scroll inside its box"
+        )
+        assert root_overflow(page) == 0, "nor may the page scroll sideways for it"
 
-    resized(page, 1000, 900)
-    narrow = page.evaluate(DIAGRAM_ROOM)
-    assert narrow["natural"] > narrow["room"], (
-        "the narrow half proves nothing unless the drawing outgrows the room"
-    )
-    assert round(narrow["drawn"]) == round(narrow["natural"]), (
-        "a drawing that no longer fits is still not scaled down"
-    )
-    assert narrow["scrolls"], "a drawing wider than the room must scroll inside its box"
-    assert root_overflow(page) == 0, "nor may the page scroll sideways for it"
+    with subtests.test("a diagram follows the scheme it is read in"):
+        # The SVG keeps Leaf's theme variables, so a scheme flip repaints it live.
+        node = (
+            page.locator('#flow g[data-id="S"]')
+            .locator("rect, polygon, path, circle, ellipse")
+            .first
+        )
+        expect(node).to_be_visible()
+        fill = "el => getComputedStyle(el).fill"
+        light = node.evaluate(fill)
+        expected = page.evaluate(
+            """() => {
+              const probe = document.createElement('i');
+              probe.style.cssText = 'color:color-mix(in srgb, var(--accent) 10%, var(--paper))';
+              document.body.append(probe);
+              const color = getComputedStyle(probe).color;
+              probe.remove();
+              return color;
+            }"""
+        )
+        assert light == expected, (
+            "the renderer must receive Leaf's accent-tinted surface"
+        )
+        page.emulate_media(color_scheme="dark")
+        assert node.evaluate(fill) != light, (
+            "a diagram's node surface must follow the page's scheme"
+        )
 
 
 def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve):
-    """A focused visual paints one projected ring; entering its thread keeps the
-    reference on the same target without restoring a second source outline."""
+    """A focused visual draws one ring, its own mark; entering its thread keeps the
+    mark on the same target, one outline, rather than adding a second."""
     url = serve(WIDE_DIAGRAM_PAGE)
     append_carried_log_record(
         serve.page_dir,
@@ -1091,37 +1087,58 @@ def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve)
     rendered(page)
     ring = current_location_ring(page)
     assert ring and ring["cuts"] == ring["covers"] == [], ring
-    mark = page.locator(".lf-visual-mark")
-    expect(page.locator(".lf-visual-mark-focus")).to_have_attribute("data-for", "flow")
+    expect(diagram).to_have_attribute("data-lf-mark", re.compile(r"\bfocus\b"))
+    expect(page.locator("[data-lf-mark]")).to_have_count(1)
 
     resized(page, 1200, 900)
     stand_on_thread(page, "diagram-comment")
     expect(diagram).to_have_class(re.compile(r"\blf-mark-here\b"))
-    expect(diagram).to_have_css("outline-style", "none")
-    expect(mark).to_have_class(re.compile(r"\blf-visual-mark-here\b"))
+    expect(diagram).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
+    expect(page.locator("[data-lf-mark]")).to_have_count(1)
+    expect(diagram).to_have_css("outline-style", "solid")
 
 
-def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
+# A patch naming one file twice, with a line wider than the column.
+_WIDE_LINE = "+" + "wide " * 60
+_REFUSED_DIFF_PAGE = leaf_page(
+    "refused diff",
+    '<h1 id="t">Refused</h1>\n<lf-diff id="bad"><pre>\n'
+    + (
+        "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-x\n"
+        + _WIDE_LINE
+        + "\n"
+    )
+    * 2
+    + "</pre></lf-diff>",
+)
+
+
+@pytest.mark.parametrize(
+    ("source", "tag"),
+    [(BROKEN_DIAGRAM_PAGE, "lf-diagram"), (_REFUSED_DIFF_PAGE, "lf-diff")],
+    ids=["light", "shadow"],
+)
+def test_a_widget_that_failed_soft_claims_no_room(browser, serve, source, tag):
     """A wide widget's room is for the thing it draws, and a widget whose upgrade failed
     has not drawn it: what stands there is the message and the source it choked on, which
     is prose and belongs in the measure the page's prose is set to. Taking the room
-    anyway put a parse error across the whole window with its message on one line."""
-    page = open_page(browser, serve(BROKEN_DIAGRAM_PAGE))
+    anyway put a parse error across the whole window with its message on one line. A
+    shadow widget shows its failure in its stage, where page layout can't look."""
+    page = open_page(browser, serve(source))
     # The page reports the renderer's refusal, which is what the fixture is for.
-    consume_browser_errors(page, '<lf-diagram id="bad"> failed: ')
+    consume_browser_errors(page, f'<{tag} id="bad"> failed: ')
     resized(page, 1600, 900)
     at = page.evaluate("""() => {
-        const box = document.getElementById('bad').querySelector('.lf-error');
-        const main = document.querySelector('main'), ms = getComputedStyle(main);
-        const mb = main.getBoundingClientRect();
+        const bad = document.getElementById('bad');
+        const box = (bad.shadowRoot ?? bad).querySelector('.lf-error');
+        const column = document.querySelector('main > h1').getBoundingClientRect();
         return { failed: !!box,
                  box: box ? box.getBoundingClientRect().width : 0,
                  widget: document.getElementById('bad').getBoundingClientRect().width,
                  // What the box would be floored at if nothing said otherwise: the
                  // source is a `pre`, so its longest line is its minimum width.
                  source: box ? box.querySelector('pre').scrollWidth : 0,
-                 column: mb.width - parseFloat(ms.paddingLeft)
-                         - parseFloat(ms.paddingRight) };
+                 column: column.width };
     }""")
     assert at["failed"], "the fixture must fail to render, or this proves nothing"
     assert at["source"] > at["column"], (
@@ -1278,69 +1295,6 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     assert root_overflow(page) == 0, "the page must not scroll sideways for either"
 
 
-def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
-    browser, serve
-):
-    """A board's columns are as wide as what they hold, a diff's lines are as long as its
-    files', and prose is set to a measure, so a page carrying all three used to be a
-    cramped board or a page widened past its own measure for one exhibit. x-space
-    declares the capacity a widget needs, and the theme spends the room the layout
-    measured, so each exhibit grows and the prose does not move. The board, a surface,
-    takes all the room; the diff, slightly wider than the column, starts at the prose's
-    edge and stops at the shared cap.
-
-    The code block is the half that says the declaration is doing this. It is a widget
-    too, and declares nothing, so it stays in the column: a rule that reached every
-    widget, or one naming lf-board, would pass every other assertion here and fail this
-    one."""
-    page = open_page(browser, serve(WIDE_AND_NARROW_PAGE))
-
-    wide = page.evaluate(ROOM_GEOMETRY)
-    board, patch, column = wide["board"], wide["widePatch"], wide["column"]
-    # The room is the body's box; a breakout stops at the shell's 24px gutter.
-    for edge, inset in (("left", 24), ("right", -24)):
-        assert board[edge] == pytest.approx(wide["room"][edge] + inset, abs=1), (
-            f"an available board fills the room: its {edge} edge is at "
-            f"{board[edge]:.0f}px, the room's at {wide['room'][edge]:.0f}px"
-        )
-    assert patch["left"] == pytest.approx(column["left"], abs=1), (
-        "a wide exhibit starts where the prose starts, or it reads as one that slipped: "
-        f"diff at {patch['left']:.0f}, column at {column['left']:.0f}"
-    )
-    # Room to spare at this viewport, so a diff stopping short of it is the shared cap
-    # binding rather than the window: one width for the vocabulary, not each widget's own.
-    assert column["width"] < patch["width"] < wide["room"]["width"], (
-        "the wide breakout must stop at one stated width, not fill whatever is there: "
-        f"diff {patch['width']:.0f}px, room {wide['room']['width']:.0f}px"
-    )
-    assert abs(wide["diff"]["width"] - column["width"]) <= 1, (
-        "a widget that declares nothing keeps the column: code block "
-        f"{wide['diff']['width']:.0f}px against {column['width']:.0f}px"
-    )
-    assert abs(wide["prose"]["width"] - column["width"]) <= 1, (
-        "prose keeps its measure whatever the exhibits beside it do"
-    )
-    assert root_overflow(page) == 0, "the page must not scroll sideways"
-
-    # Under the column's own width there is no room to take, and the rule has to come out
-    # as the layout the page already had: the same edge, not an inset approximation of it.
-    resized(page, 700, 900)
-    narrow = page.evaluate(ROOM_GEOMETRY)
-    assert narrow["column"]["width"] < 720, (
-        "the narrow half proves nothing unless the window is under the column"
-    )
-    for name in ("board", "widePatch"):
-        assert abs(narrow[name]["left"] - narrow["column"]["left"]) <= 1, (
-            f"the {name} on a narrow window must start where the prose starts: at "
-            f"{narrow[name]['left']:.0f}, column at {narrow['column']['left']:.0f}"
-        )
-        assert abs(narrow[name]["width"] - narrow["column"]["width"]) <= 1, (
-            f"and be the column exactly: {name} "
-            f"{narrow[name]['width']:.0f}px, column {narrow['column']['width']:.0f}px"
-        )
-    assert root_overflow(page) == 0, "nor scroll sideways on a narrow window"
-
-
 def test_authored_blocks_choose_wide_or_available_space(browser, serve):
     """One authored width contract applies to native and package blocks. A widget read
     as text keeps the prose measure when nested in a wider section rather than taking
@@ -1452,9 +1406,11 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
 def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     browser, serve
 ):
-    """Framed holders request their own width on column and sidebar pages. Their
-    evidence stays inside that frame; a wide child alone does not widen it. Workspace
-    holders and explicitly bounded cells keep the room their containing region grants."""
+    """A framed holder, a callout, requests its own width on column and sidebar pages:
+    its evidence stays inside that frame, and a wide child alone does not widen it. An
+    obligation frames nothing, so it takes no width of its own: a wide child stands in
+    the page's flow and the obligation's box grows round it. Workspace holders and
+    explicitly bounded cells keep the room their containing region grants."""
     cells = "<td>p95 latency</td>" * 12
     table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
     item = (
@@ -1464,10 +1420,8 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     body = (
         '<p id="prose">Prose.</p>'
         + item.format(id="ask", width="", table="")
-        + item.format(id="granted", width=' data-width="wide"', table="")
-        + item.format(
-            id="holds", width=' data-width="wide"', table=table.format(id="holds")
-        )
+        + item.format(id="stated", width=' data-width="wide"', table="")
+        + item.format(id="holds", width="", table=table.format(id="holds"))
         + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
         + '<aside class="callout" id="granted-c" data-width="wide">'
         + table.format(id="granted-c")
@@ -1480,7 +1434,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         + "</lf-options>"
     )
     measure = """() => Object.fromEntries(
-      ['prose', 'ask', 'granted', 'granted-c', 'contained-c', 'holds', 'holds-t', 'callout', 'list']
+      ['prose', 'ask', 'stated', 'granted-c', 'contained-c', 'holds', 'holds-t', 'callout', 'list']
         .map(id => {
         const box = document.getElementById(id).getBoundingClientRect();
         return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
@@ -1494,24 +1448,24 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     edge = at["prose"]["left"]
     wide = round(wide_width(page))
     # An option list keeps the measure whatever one option holds: only a box's own
-    # blocks widen it.
-    for boxed in ("ask", "callout", "contained-c", "list"):
+    # blocks widen it. A width written on an obligation has no effect.
+    for boxed in ("ask", "stated", "callout", "contained-c", "list"):
         assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
     # A granted callout's padding and border fall inside the wide measure.
-    for granted in ("granted", "granted-c", "holds"):
-        assert at[granted] == {"width": wide, "left": edge}, (granted, at)
-    # The widened obligation frames its table, which stands wider than the measure.
-    assert at["holds-t"]["width"] > 720, at
+    assert at["granted-c"] == {"width": wide, "left": edge}, at
+    # The obligation's box takes in the table it holds, which takes the room it declares.
+    assert at["holds-t"] == {"width": wide, "left": edge}, at
+    assert at["holds"]["left"] == edge and at["holds"]["width"] >= wide, at
 
-    # The obligation spans its block wherever the block breaks out, and an obligation granted the
-    # room itself holds its block in that room. In a list obligation, which stands in from the
-    # column, and where the page arranged the obligation, in a grid track, neither grows.
+    # The obligation spans its block wherever the block breaks out. In a list obligation,
+    # which stands in from the column, and where the page arranged the obligation, in a
+    # grid track, it doesn't grow.
     extras = (
         "<ol><li>"
         + item.format(id="listed", width="", table=table.format(id="listed"))
         + "</li></ol>"
         + item.format(
-            id="both", width=' data-width="wide"', table=table.format(id="both")
+            id="both", width=' data-width="available"', table=table.format(id="both")
         )
         + '<div style="display: grid; grid-template-columns: 350px 1fr">'
         + item.format(id="tracked", width="", table=table.format(id="tracked"))
@@ -1524,7 +1478,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         + '<div id="wrapper" data-width="wide">'
         + item.format(
             id="wrapped",
-            width=' data-width="available"',
+            width="",
             table=f'<table data-width="available"><tr>{cells}</tr></table>',
         )
         + "</div>"
@@ -1562,19 +1516,26 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     # An obligation inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.
     assert at["wrapped"] == at["wrapper"], at
-    # Native grid owns the full page width: negative margins can leave the prose
-    # track without leaving the page. Only the padded box exceeds that actual room.
-    boxes = column.evaluate("""() => Object.fromEntries(
-      ['main', '#pulled', '#spilled'].map(selector => {
-        const box = document.querySelector(selector).getBoundingClientRect();
-        return [selector, {left: box.left, right: box.right}];
-      }))""")
+    # The column's room beside its prose is the page's: negative margins can leave the
+    # prose without leaving that room, the shell less a gutter each side. Only the
+    # padded box exceeds it.
+    boxes = column.evaluate("""() => {
+      const shell = document.body.getBoundingClientRect();
+      const gutter = parseFloat(getComputedStyle(document.querySelector('main'))
+        .getPropertyValue('--col-pad'));
+      return {room: {left: shell.left + gutter, right: shell.right - gutter},
+        ...Object.fromEntries(['#pulled', '#spilled'].map(selector => {
+          const box = document.querySelector(selector).getBoundingClientRect();
+          return [selector, {left: box.left, right: box.right}];
+        }))};
+    }""")
     for selector in ("#pulled", "#spilled"):
-        assert boxes[selector]["left"] >= boxes["main"]["left"], boxes
-        assert boxes[selector]["right"] <= boxes["main"]["right"], boxes
+        assert boxes[selector]["left"] >= boxes["room"]["left"], boxes
+        assert boxes[selector]["right"] <= boxes["room"]["right"], boxes
+    # The padded box's words stay on the prose and its padding is blank, so it stands
+    # in no margin; the window still clips the padding it carries past the page.
     misplaced = evaluate_probe(column, "misplacedBoxes")
     assert [(m["code"], m["at"]) for m in misplaced] == [
-        ("past-column", "<div id=padded>"),
         ("clipped-out", "<div id=padded>"),
     ], misplaced
 
@@ -1594,7 +1555,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     )
     resized(workspace, 1726, 900)
     at = workspace.evaluate(measure.replace("'list']", "'list', 'region', 'board']"))
-    for block in ("prose", "ask", "granted", "granted-c", "holds", "callout", "list"):
+    for block in ("prose", "ask", "stated", "granted-c", "holds", "callout", "list"):
         assert at[block] == at["region"], (block, at)
     assert at["board"] == at["region"], at
 
@@ -1724,18 +1685,26 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
             assert at[kept][edge] == pytest.approx(at["cell"][edge], abs=1), (kept, at)
     assert width(at["beside"]) == pytest.approx(width(at["cell"]), abs=1), at
     assert root_overflow(page) == 0
+    # A focus ring beside the tables leaves nothing to scroll sideways either
+    # (test_a_breakout_grows_only_from_a_holder_that_spans_the_column).
+    page.evaluate(
+        """() => { const p = document.getElementById('prose');
+          p.tabIndex = -1; p.focus({focusVisible: true}); }"""
+    )
+    assert root_overflow(page) == 0
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
-    browser, serve, subtests, direction
+    request, serve, subtests, direction, engine
 ):
-    """A table granted room sizes its box to its columns, so it is no longer the
-    container its caption reads its width from; the caption is held to the box instead.
+    """A table granted room sizes its box to its columns, and its caption fills that box.
     On a phone, where the room is the column and an eight-column table scrolls, a long
     caption stays inside the scrollport at either end of the scroll: in the page's flow,
     and in a list item and a quotation, which hold it to their own width. Each holder's
     table scrolls alone, so one page holds all three."""
+    browser = request.getfixturevalue(engine)
     cells = "".join(f"<td>measured value {i}</td>" for i in range(8))
     caption = "Services in the migration, by stage, with their owners and windows"
 
@@ -1773,6 +1742,30 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
                 assert at["caption"][0] >= at["box"][0] - 1, (end, at)
                 assert at["caption"][1] <= at["box"][1] + 1, (end, at)
     assert root_overflow(page) == 0
+
+
+def test_a_table_caption_reads_at_its_tables_size_and_colour(browser, serve):
+    """A caption names what its table covers, such as which case a table among
+    several shows, so it reads at least at the size and in the colour of the cells
+    it names. Set as apparatus, at the chip size in the muted colour, it was the
+    faintest text around the table, and a reader took three tables for one (#5403)."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Captions",
+                "<h1>Captions</h1><table><caption>Agents that set no working "
+                "directory</caption><thead><tr><th>Agent</th><th>Result</th></tr>"
+                "</thead><tbody><tr><td>Codex</td><td>Refused</td></tr></tbody>"
+                "</table>",
+            )
+        ),
+    )
+    face = "el => { const s = getComputedStyle(el); return [s.fontSize, s.color]; }"
+    caption_size, caption_colour = page.locator("caption").evaluate(face)
+    cell_size, cell_colour = page.locator("td").first.evaluate(face)
+    assert float(caption_size[:-2]) >= float(cell_size[:-2]), (caption_size, cell_size)
+    assert caption_colour == cell_colour
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
@@ -1815,6 +1808,29 @@ def test_a_scrolling_table_keeps_its_row_names_in_view(browser, serve, direction
     for cell in at:
         assert cell["offset"] <= 0.5, at
         assert cell["on_top"], at
+
+    # The fade past the names goes while focus is in the table, as the table's mask does,
+    # for a control holding focus in its own shadow tree too. `:has()` can't see into
+    # one, so the mask lifted and this fade stayed over the columns.
+    fade = "name => getComputedStyle(name, '::after').content"
+    assert page.locator("#name-0").evaluate(fade) != "none"
+    # It clears away from the names, toward the columns: a right-to-left table's fade
+    # had cleared toward them.
+    toward = "to right" if direction == "ltr" else "to left"
+    ground = "name => getComputedStyle(name, '::after').backgroundImage"
+    assert (
+        page.locator("#name-0").evaluate(ground).startswith(f"linear-gradient({toward}")
+    )
+    table.evaluate("""t => {
+      const cell = t.querySelector('tbody td:last-child');
+      const host = cell.appendChild(document.createElement('div'));
+      host.attachShadow({mode: 'open'}).innerHTML = '<button>Open</button>';
+      host.shadowRoot.firstChild.focus({preventScroll: true});
+    }""")
+    rendered(page)
+    expect(table).to_have_attribute("data-lf-more-before", "")
+    assert page.locator("#name-0").evaluate(fade) == "none"
+    assert table.evaluate("t => getComputedStyle(t).maskImage") == "none"
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
@@ -1978,10 +1994,9 @@ def test_a_row_of_metrics_sets_every_figure_on_one_line(request, serve, engine):
 def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, engine):
     """A table whose cells hold sentences wraps them inside the box it stands in, and
     scrolls nothing: in an obligation, in a panel, and in a figure granted the page's room.
-    Firefox and WebKit have no scroll-state container and dropped the table's
-    `container-type: inline-size scroll-state` whole, so the width its caption reads
-    (100cqi) was the window's: an obligation's two-column table laid its rows out 1728px wide
-    in a 720px column and cut its second column off."""
+    A long caption takes its width from the table's box: where it read the window's
+    instead, in Firefox and WebKit, an obligation's two-column table laid its rows out
+    1728px wide in a 720px column and cut its second column off."""
     sentence = (
         "When a new copy is installed, the update copies each commit and records it. "
     )
@@ -2012,6 +2027,44 @@ def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, e
     for held in at.values():
         assert held["scrolls"] <= 1 and held["past"] <= 1, at
     assert root_overflow(page) == 0
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_box_sized_to_its_content_gives_a_table_its_columns_width(
+    request, serve, subtests, engine
+):
+    """A box that takes its width from what it holds, such as a flex item or a grid's
+    `auto` track, gives a table its columns' width, as it would the browser's own
+    table, so the table scrolls nothing. While the table was an inline-size container it
+    asked such a box for no width: two tables side by side in a flex row and one in an
+    auto track stood 0px wide, and a headed table beside a note 65px with a column out
+    of sight."""
+    table = (
+        '<table id="{}"><thead><tr><th>Region</th><th>Hosts</th></tr></thead>'
+        "<tbody><tr><td>us-east-1</td><td>14</td></tr></tbody></table>"
+    )
+    note = "<p>The compute line is up a fifth since September.</p>"
+    body = (
+        "<h1>Tables in boxes sized to them</h1>"
+        f'<div class="row">{table.format("flexed")}{table.format("flexed-too")}</div>'
+        f'<div class="row"><div><h2>Budget</h2>{table.format("headed")}</div>{note}</div>'
+        f'<div class="tracks">{table.format("tracked")}{note}</div>'
+    )
+    head = (
+        "<style>.row { display: flex; gap: 16px; align-items: start; }"
+        " .tracks { display: grid; grid-template-columns: auto 1fr; gap: 16px; }</style>"
+    )
+    browser = request.getfixturevalue(engine)
+    page = open_page(browser, serve(leaf_page("Sized", body, head=head)))
+    resized(page, 1440, 900)
+    for name in ("flexed", "flexed-too", "headed", "tracked"):
+        with subtests.test(table=name):
+            at = page.locator(f"#{name}").evaluate(
+                """t => ({width: t.getBoundingClientRect().width,
+                          columns: t.querySelector('tr').getBoundingClientRect().width,
+                          scrolls: t.scrollWidth - t.clientWidth})"""
+            )
+            assert at["scrolls"] <= 1 and at["width"] >= at["columns"] - 1, at
 
 
 INDENTED_CELLS = "".join(f"<td>measured value {i}</td>" for i in range(8))
@@ -2074,12 +2127,17 @@ INDENTED_PAGE = leaf_page(
 def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
     request, serve, direction, engine
 ):
-    """An explicit flow shares document tracks; ordinary holders contain their exhibits."""
+    """An explicit flow shares the column's room; ordinary holders contain their exhibits.
+    A focus ring beside a breakout leaves nothing to scroll sideways: Firefox counted a
+    breakout moved by a relative offset at its place in flow once a ring restyled its
+    holder, so closing a thread card, which rings the paragraph it leaves the user at,
+    left the page 456px wider than a 1728px window."""
     browser = request.getfixturevalue(engine)
     source = leaf_page(
         "Native exhibit tracks",
         '<h1>Evidence</h1><p id="prose">Reading measure.</p>'
-        '<section class="layout-flow"><div id="wide" data-width="wide">Wide</div>'
+        '<section class="layout-flow"><p id="beside">Beside the breakouts.</p>'
+        '<div id="wide" data-width="wide">Wide</div>'
         '<div id="available" data-width="available">Available</div></section>'
         '<div id="holder" style="margin-inline-start:40px"><div id="nested" data-width="available">Contained</div></div>'
         '<div id="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
@@ -2100,6 +2158,12 @@ def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
             (at["grid"]["width"] - 16) / 2, abs=1
         )
         assert root_overflow(page) == 0
+    resized(page, 1440, 900)
+    page.evaluate(
+        """() => { const p = document.getElementById('beside');
+          p.tabIndex = -1; p.focus({focusVisible: true}); }"""
+    )
+    assert root_overflow(page) == 0
 
 
 def test_a_breakout_a_revision_inserts_deeper_lands_before_it_paints(browser, serve):
@@ -2212,37 +2276,100 @@ def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
     assert root_overflow(page) == 0
 
 
-def test_paper_keeps_the_column(browser, serve):
-    """Paper has no window to take room from: a printed page is the column's width,
-    whatever the screen it was sent from was showing. The rule that grants the room is
-    therefore screen-only, and leaving it out of print is the whole of what paper needs —
-    the same bargain paper already has with every affordance a copy keeps.
-
-    Asked here rather than left to the print gate beside it, which reads what a medium
-    drops rather than how wide it sets what it keeps: a board printed at a screen's width
-    loses its right-hand columns off the edge of the sheet, and every word of it is still
-    in the document for that gate to find."""
+def test_a_widget_that_declares_width_takes_the_room_on_screen_and_not_on_paper(
+    browser, serve, subtests
+):
+    """Who takes the room beside the column, on a screen and on a sheet, on one page."""
     page = open_page(browser, serve(WIDE_AND_NARROW_PAGE))
-    on_screen = page.evaluate(
-        "() => document.getElementById('sprint').getBoundingClientRect().width"
-    )
-    column = page.evaluate("""() => {
-        const m = document.querySelector('main'), s = getComputedStyle(m);
-        const b = m.getBoundingClientRect();
-        return b.width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
-    }""")
-    assert on_screen > column + 1, (
-        "the board must be wider than the column on screen, or print proves nothing"
-    )
 
-    page.emulate_media(media="print")
-    printed = page.evaluate(
-        "() => document.getElementById('sprint').getBoundingClientRect().width"
-    )
-    assert abs(printed - column) <= 1, (
-        f"paper set the board to {printed:.0f}px, past a {column:.0f}px column: a sheet "
-        "has no window to take the room from, so what runs past it is off the page"
-    )
+    with subtests.test("paper keeps the column"):
+        # Paper has no window to take room from: a printed page is the column's width,
+        # whatever the screen it was sent from was showing. The rule that grants the
+        # room is therefore screen-only, and leaving it out of print is the whole of
+        # what paper needs — the same bargain paper already has with every affordance a
+        # copy keeps.
+        #
+        # Asked here rather than left to the print gate beside it, which reads what a
+        # medium drops rather than how wide it sets what it keeps: a board printed at a
+        # screen's width loses its right-hand columns off the edge of the sheet, and
+        # every word of it is still in the document for that gate to find.
+        on_screen = page.evaluate(
+            "() => document.getElementById('sprint').getBoundingClientRect().width"
+        )
+        column = page.evaluate(
+            "() => document.getElementById('prose').getBoundingClientRect().width"
+        )
+        assert on_screen > column + 1, (
+            "the board must be wider than the column on screen, or print proves nothing"
+        )
+        page.emulate_media(media="print")
+        printed = page.evaluate(
+            "() => document.getElementById('sprint').getBoundingClientRect().width"
+        )
+        assert abs(printed - column) <= 1, (
+            f"paper set the board to {printed:.0f}px, past a {column:.0f}px column: a sheet "
+            "has no window to take the room from, so what runs past it is off the page"
+        )
+        page.emulate_media(media="screen")
+
+    with subtests.test(
+        "a widget that declares width takes the room and the column stays put"
+    ):
+        # A board's columns are as wide as what they hold, a diff's lines are as long as
+        # its files', and prose is set to a measure, so a page carrying all three used
+        # to be a cramped board or a page widened past its own measure for one exhibit.
+        # x-space declares the capacity a widget needs, and the theme spends the room
+        # the layout measured, so each exhibit grows and the prose does not move. The
+        # board, a surface, takes all the room; the diff, slightly wider than the
+        # column, starts at the prose's edge and stops at the shared cap.
+        #
+        # The code block is the half that says the declaration is doing this. It is a
+        # widget too, and declares nothing, so it stays in the column: a rule that
+        # reached every widget, or one naming lf-board, would pass every other assertion
+        # here and fail this one.
+        wide = page.evaluate(ROOM_GEOMETRY)
+        board, patch, column = wide["board"], wide["widePatch"], wide["column"]
+        # The room is the body's box; a breakout stops at the shell's 24px gutter.
+        for edge, inset in (("left", 24), ("right", -24)):
+            assert board[edge] == pytest.approx(wide["room"][edge] + inset, abs=1), (
+                f"an available board fills the room: its {edge} edge is at "
+                f"{board[edge]:.0f}px, the room's at {wide['room'][edge]:.0f}px"
+            )
+        assert patch["left"] == pytest.approx(column["left"], abs=1), (
+            "a wide exhibit starts where the prose starts, or it reads as one that slipped: "
+            f"diff at {patch['left']:.0f}, column at {column['left']:.0f}"
+        )
+        # Room to spare at this viewport, so a diff stopping short of it is the shared cap
+        # binding rather than the window: one width for the vocabulary, not each widget's own.
+        assert column["width"] < patch["width"] < wide["room"]["width"], (
+            "the wide breakout must stop at one stated width, not fill whatever is there: "
+            f"diff {patch['width']:.0f}px, room {wide['room']['width']:.0f}px"
+        )
+        assert abs(wide["diff"]["width"] - column["width"]) <= 1, (
+            "a widget that declares nothing keeps the column: code block "
+            f"{wide['diff']['width']:.0f}px against {column['width']:.0f}px"
+        )
+        assert abs(wide["prose"]["width"] - column["width"]) <= 1, (
+            "prose keeps its measure whatever the exhibits beside it do"
+        )
+        assert root_overflow(page) == 0, "the page must not scroll sideways"
+        # Under the column's own width there is no room to take, and the rule has to come out
+        # as the layout the page already had: the same edge, not an inset approximation of it.
+        resized(page, 700, 900)
+        narrow = page.evaluate(ROOM_GEOMETRY)
+        assert narrow["column"]["width"] < 720, (
+            "the narrow half proves nothing unless the window is under the column"
+        )
+        for name in ("board", "widePatch"):
+            assert abs(narrow[name]["left"] - narrow["column"]["left"]) <= 1, (
+                f"the {name} on a narrow window must start where the prose starts: at "
+                f"{narrow[name]['left']:.0f}, column at {narrow['column']['left']:.0f}"
+            )
+            assert abs(narrow[name]["width"] - narrow["column"]["width"]) <= 1, (
+                f"and be the column exactly: {name} "
+                f"{narrow[name]['width']:.0f}px, column {narrow['column']['width']:.0f}px"
+            )
+        assert root_overflow(page) == 0, "nor scroll sideways on a narrow window"
 
 
 def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
@@ -2323,32 +2450,6 @@ def test_a_wide_widget_keeps_its_margins_and_its_comment_lands_on_it(browser, se
         assert root_overflow(page) == 0, f"at {width}px the page scrolls sideways"
 
 
-def test_a_drawing_the_room_can_hold_is_shown_whole(browser, serve):
-    """Scrolling is the theme's honest degrade when even the room runs short, and only
-    then: a drawing wider than the column and narrower than the room beside it, with
-    nothing standing in the margin at its band, is shown whole. The guard pins the
-    premise: the graph is wider than the column and narrower than the room."""
-    url = serve(DRAWN_PAST_A_RAIL_PAGE)
-    page = open_page(browser, url)
-    fit = page.evaluate("""() => {
-        const el = document.getElementById('flow');
-        const m = document.querySelector('main');
-        const s = getComputedStyle(m);
-        const room = m.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
-        return { shows: el.clientWidth, drawn: el.scrollWidth, room,
-                 column: m.querySelector('h1').getBoundingClientRect().width };
-    }""")
-    assert fit["column"] < fit["drawn"] <= fit["room"], (
-        f"the premise is gone — the graph must need growing and fit the room, or "
-        f"this test asks nothing: drawn {fit['drawn']:.0f}px, "
-        f"column {fit['column']:.0f}px, room {fit['room']:.0f}px"
-    )
-    assert fit["shows"] >= fit["drawn"] - 1, (
-        f"the page had {fit['room']:.0f}px of room and no note or row beside the "
-        f"drawing, and still shows {fit['shows']:.0f}px of its {fit['drawn']:.0f}px"
-    )
-
-
 def test_a_box_that_shows_less_than_it_holds_says_so(browser, serve):
     """A drawing that genuinely could not fit scrolls, and on a platform drawing overlay
     scrollbars the scrollbar is no sign at rest: measured, a twelve-node flowchart in a
@@ -2397,24 +2498,6 @@ def test_a_box_that_shows_less_than_it_holds_says_so(browser, serve):
     flow.evaluate("el => { el.scrollLeft = -(el.scrollWidth - el.clientWidth); }")
     expect(flow).to_have_attribute("data-lf-more-before", "")
     expect(flow).not_to_have_attribute("data-lf-more-after", "")
-
-
-def test_a_scroller_that_stops_scrolling_drops_its_continuation(browser, serve):
-    source = leaf_page(
-        "Changing scrollport",
-        '<div id="box" class="scroll" style="width:200px;overflow-x:auto;white-space:nowrap">'
-        '<span style="display:inline-block;width:600px">Wide content</span></div>',
-    )
-    page = open_page(browser, serve(source))
-    box = page.locator("#box")
-    expect(box).to_have_attribute("data-lf-more-after", "")
-    page.evaluate("""() => {
-      const box = document.querySelector('#box');
-      box.style.overflowX = 'hidden';
-      box.firstElementChild.style.width = '650px';
-    }""")
-    rendered(page)
-    expect(box).not_to_have_attribute("data-lf-more-after", "")
 
 
 def test_a_scroller_reclassifies_when_an_ancestor_changes_its_style(browser, serve):
@@ -2932,6 +3015,25 @@ def test_a_sidebar_pages_aside_takes_the_width_the_page_sets(browser, serve):
     assert track_box["width"] == pytest.approx(body_box["width"], abs=0.5)
 
 
+def test_a_wide_table_scrolls_inside_a_sidebar_pages_body_on_a_phone(browser, serve):
+    """A sidebar page's row sets its body's width, not what the body holds, so on a
+    phone a table wider than the window scrolls inside the body and the page scrolls
+    nothing. A body as wide as its widest content stood as wide as the table's columns,
+    past the window."""
+    cells = "".join(f"<td>measured value {i}</td>" for i in range(8))
+    source = leaf_page(
+        "a sidebar page",
+        "<header><h1>Review</h1></header>"
+        f"<section id='body'><p>Body paragraph.</p><table id='wide'><tr>{cells}</tr>"
+        "</table></section><aside id='track'><p>Summary.</p></aside>",
+        layout="sidebar",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 390, 844)
+    assert page.locator("#wide").evaluate("t => t.scrollWidth - t.clientWidth") > 0
+    assert root_overflow(page) == 0
+
+
 def test_a_sidebar_pages_items_trim_their_words_at_both_edges(browser, serve):
     """Each item in a sidebar page's row trims its words' outer margins, through any
     wrapper, as a column does at its edges: beside the body, a track whose heading sits in
@@ -3383,6 +3485,61 @@ def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(
     assert page.locator("#dressed").evaluate(face) == ["Georgia", "20px"]
 
 
+def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rules(
+    browser, serve
+):
+    """In a declared shadow tree the default face reaches a bare control, and yields to
+    the rules the widget adopts, those of a library it layers inside `lf-base`
+    included. It outranked them there, which set lf-file-tree's rows, buttons Trees
+    dresses in mono, in the sans."""
+    declaration = element_declaration("lf-own-controls", upgrade=True)
+    declaration["x-shadow"] = True
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Widget controls",
+                """<h1>Widget controls</h1>
+<p><button id="classed" class="button" type="button">Classed</button></p>
+<lf-own-controls id="own"></lf-own-controls>""",
+            ),
+            layer_registry={"lf-own-controls": declaration},
+            layer_widgets={
+                "lf-own-controls.js": """
+import {inBaseLayer, once, shadowStage} from '/runtime/widget-api.js';
+const sheet = new CSSStyleSheet();
+sheet.replaceSync(inBaseLayer(`
+  @layer library { .library { font: 18px Georgia; } }
+  .own { font: 20px Georgia; }
+`));
+customElements.define('lf-own-controls', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const root = this.attachShadow({mode: 'open'});
+    root.adoptedStyleSheets = [sheet];
+    shadowStage(this, ['bare', 'own', 'library'].map((name) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = name;
+      button.textContent = name;
+      return button;
+    }));
+  }
+});
+"""
+            },
+        ),
+    )
+    face = (
+        "el => { const s = getComputedStyle(el); return [s.fontFamily, s.fontSize]; }"
+    )
+    leaf = page.locator("#classed").evaluate(face)
+    own = page.locator("#own")
+    assert own.locator("button.bare").evaluate(face) == leaf
+    assert own.locator("button.own").evaluate(face) == ["Georgia", "20px"]
+    assert own.locator("button.library").evaluate(face) == ["Georgia", "18px"]
+
+
 def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, serve):
     """A failed candidate owns neither the agent name nor the reply count.
 
@@ -3421,8 +3578,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         if broken:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         state["agent"] = "Rejected agent"
         rejected_version = {
             **state["versions"][-1],
@@ -3460,8 +3616,8 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     page.lf_errors.remove(console_finding(fault.value))
 
     view = open_panel_thread(page, root["id"])
-    expect(view.locator(".lf-msg.agent .lf-msg-body")).to_have_count(0)
-    expect(view.locator(".lf-msg.user .lf-msg-body")).to_have_text(
+    expect(view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body")).to_have_count(0)
+    expect(view.locator(".lf-msg[data-lf-author=user] .lf-msg-body")).to_have_text(
         "which host answers?"
     )
     expect(panel_field(page)).to_have_js_property("value", "keep this unfinished reply")
@@ -3470,6 +3626,8 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
 
     expect(panel_menu(page, "versions")).not_to_contain_text("Rejected version")
     page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
 
     assert "this one does" not in (field.get_attribute("placeholder") or "")
     assert "this one does" not in page.locator(".lf-live").text_content()
@@ -3480,4 +3638,12 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     expect(page.locator(".lf-live")).to_have_text("this one does")
     expect(field).not_to_have_attribute("placeholder", re.compile("this one does"))
     view = open_panel_thread(page, root["id"])
-    expect(view.locator(".lf-msg.agent .lf-msg-body")).to_have_text("this one does")
+    expect(view.locator(".lf-msg[data-lf-author=agent] .lf-msg-body")).to_have_text(
+        "this one does"
+    )
+
+
+import pytest
+from render_harness import (
+    leaf_page,
+)

@@ -14,12 +14,7 @@ from leaf.events import build_threads
 from leaf.files import list_revisions
 from leaf.findings import Finding
 from leaf.passages import SourceReading
-from leaf.projection import (
-    generated_children,
-    page_reading,
-    retirement_outcomes,
-    rewritten_bodies,
-)
+from leaf.projection import page_reading
 from leaf.registry.contract import visual_parts
 from leaf.revision_artifact import RevisionArtifact, read_revision
 from leaf.structure import SourceDocument
@@ -70,13 +65,7 @@ def revision_reanchors(
     # candidate, and the next activation's look at this one as its predecessor,
     # walk neither page again. Only a thread a revision may have moved asks.
     def passages(page):
-        return cache(
-            lambda: page.reading.decided_passages(
-                retirement_outcomes(page.projection.actions),
-                rewritten_bodies(page.projection.actions),
-                generated_children(page.projection.desired, page.document.ids),
-            )
-        )
+        return cache(lambda: page.reading.decided_passages(**page.logged_words))
 
     previous_passages, current_passages = passages(previous), passages(current)
     moves, advice = {}, []

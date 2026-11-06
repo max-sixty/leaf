@@ -11,11 +11,9 @@
  * stylesheets (`build/styles.mjs`), the page protocol's types, the event records and
  * the served state (`contract-types.mjs`), and the baseline its schemas are held to
  * (`protocol.mjs`), the third-party bundles and the runtime's table of their grammars
- * (`build/vendor.mjs`), and last the kernel compiled from all of them
- * (`build/runtime-bundle.mjs`). The kernel's directory, the layer's `vendor/` and each
- * package's hold nothing else, so a file there that no build writes is stale. Leaf
- * installation, vendoring, activation, and
- * export never invoke this tool.
+ * (`build/vendor.mjs`). The layer's `vendor/` and each package's hold nothing else,
+ * so a file there that no build writes is stale. Leaf installation, vendoring,
+ * activation, and export never invoke this tool.
  * The compiler's layer paths are generated into `tsconfig.paths.json` from the
  * package directories, so its CLI and editors resolve the same installed modules.
  *
@@ -27,31 +25,26 @@
  * that reached
  * them, as it does for every vendored bundle.
  */
-import { cp, mkdtemp, readFile, readdir, mkdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, readdir, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { build } from "../esbuild.mjs";
 import { contractTypes, protocolSchemas } from "./contract-types.mjs";
 import { baselineSchemas, protocolBreaks } from "./protocol.mjs";
 import { litNamespace, litPath } from "../lit.mjs";
 import { styleOutputs } from "../styles.mjs";
-import { kernelOutputs } from "../runtime-bundle.mjs";
+import { signalsPath } from "../runtime-bundle.mjs";
 import { adapt, seam, vendorOutputs, vendorTypePaths } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const assets = "browser";
-/** The committed kernel, which installs serve while it matches the tree's modules. */
-const kernelDirectory = "dist/kernel";
 /** The type check's configurations and the declarations of the bundles it reads. */
 const typeRoot = "browser/types";
 const compilerPathsFile = `${typeRoot}/tsconfig.paths.json`;
 const litTypesFile = `${typeRoot}/lit.d.ts`;
 const packageRoot = "packages";
-/** The layer path of the framework's signals, which the kernel compiles in. */
-export const signalsPath = "vendor/signals-core.js";
 
 /** Package directories in deterministic order, shared by paths and build ownership. */
 async function packageDirectories(directory) {
@@ -198,12 +191,6 @@ async function protocolOutputs() {
   };
 }
 
-// One strict program checks all maintained browser modules, including modules no
-// entry point imports yet. Public bundle paths resolve through their source entries
-// to the installed dependencies' declarations. Diagnostics inside committed vendor
-// output belong to the dependency; maintained source and declaration errors fail here.
-const maintainedSource = (file) => !/^(?:browser|packages\/[^/]+)\/vendor\//.test(file);
-
 /** Refuse TypeScript under the runtime, whose modules a page runs as written. */
 export async function checkRuntimeModules(directory = root) {
   const runtime = `${assets}/runtime`;
@@ -219,31 +206,21 @@ export async function checkRuntimeModules(directory = root) {
     );
 }
 
-function typecheck(config, reports = (_file) => true) {
-  const result = spawnSync(
+// One strict program checks all maintained browser modules, including modules no
+// entry point imports yet. Public bundle paths resolve through their source entries
+// to the installed dependencies' declarations.
+function typecheck() {
+  execFileSync(
     process.execPath,
     [
       path.join(root, "node_modules/typescript/bin/tsc"),
       "--project",
-      `${typeRoot}/${config}`,
+      `${typeRoot}/tsconfig.json`,
       "--pretty",
       "false",
     ],
-    { cwd: root, encoding: "utf8" },
+    { cwd: root, stdio: "inherit" },
   );
-  if (result.error) throw result.error;
-  if (result.signal) throw new Error(`${config}: tsc ended on ${result.signal}`);
-  if (result.status === 0) return;
-  // Each diagnostic starts unindented, with its file where it has one; its
-  // continuation lines indent.
-  const diagnostics = (result.stdout + result.stderr)
-    .split(/\n(?=\S)/)
-    .filter((diagnostic) => {
-      if (!diagnostic.trim()) return false;
-      const file = /^(\S+)\(\d+,\d+\): /.exec(diagnostic)?.[1];
-      return file === undefined || reports(file);
-    });
-  if (diagnostics.length) throw new Error(`${config}:\n${diagnostics.join("\n")}`);
 }
 
 export async function buildOutputs() {
@@ -258,7 +235,7 @@ export async function buildOutputs() {
   if ((await readFile(contractPath, "utf8")) !== protocol.contract)
     throw new Error("Stale protocol types; run pnpm run build:browser");
   await checkRuntimeModules();
-  typecheck("tsconfig.json", maintainedSource);
+  typecheck();
 
   const outputs = new Map([
     [compilerPathsFile, paths],
@@ -349,35 +326,7 @@ export async function buildOutputs() {
     );
   for (const producer of [styleOutputs, vendorOutputs])
     for (const [name, bytes] of await producer()) outputs.set(name, bytes);
-  for (const [name, bytes] of await kernelOf(outputs))
-    outputs.set(`${kernelDirectory}/${name}`, bytes);
   return outputs;
-}
-
-/**
- * The kernel (`runtime-bundle.mjs`, `kernelOutputs`) compiled from the layer this
- * build leaves: the tracked modules with every output above in place, and the
- * layer's `vendor/` as the build writes it, so one build both moves a module the
- * kernel reads and compiles the kernel from it.
- */
-async function kernelOf(outputs) {
-  const layer = await mkdtemp(path.join(tmpdir(), "leaf-kernel-layer-"));
-  try {
-    for (const name of ["leaf.js", "runtime", "widgets"])
-      await cp(path.join(root, assets, name), path.join(layer, name), {
-        recursive: true,
-      });
-    await mkdir(path.join(layer, "vendor"));
-    for (const [name, bytes] of outputs) {
-      if (!name.startsWith(`${assets}/`)) continue;
-      const destination = path.join(layer, name.slice(assets.length + 1));
-      await mkdir(path.dirname(destination), { recursive: true });
-      await writeFile(destination, bytes);
-    }
-    return await kernelOutputs(layer);
-  } finally {
-    await rm(layer, { force: true, recursive: true });
-  }
 }
 
 const missing = (error) => {
@@ -386,13 +335,11 @@ const missing = (error) => {
 };
 
 /**
- * The directories this build owns whole: the kernel, the layer's `vendor/` and each
- * package's. Every file in them is an output, so one the build no longer writes is
- * stale.
+ * The directories this build owns whole: the layer's `vendor/` and each package's.
+ * Every file in them is an output, so one the build no longer writes is stale.
  */
 async function ownedDirectories(directory) {
   return [
-    kernelDirectory,
     `${assets}/vendor`,
     ...(await packageDirectories(directory)).map((base) => `${base}/vendor`),
   ];
@@ -421,7 +368,6 @@ export async function checkOutputs(outputs, directory = root) {
     }
     if (!actual?.equals(expected)) stale.push(name);
   }
-  // After a merge, a conflicted kernel file is one of these: the rebuild resolves it.
   if (stale.length)
     throw new Error(
       `Stale browser output; rebuild it with \`pnpm install --frozen-lockfile && pnpm run build:browser\`:\n${stale.join("\n")}`,

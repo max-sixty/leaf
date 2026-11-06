@@ -27,19 +27,12 @@
    are read again when it ends.
 
    The first unread destination belongs to this reading too. Its Go-to route (`g u`)
-   and Next unread at the head of the floating panel's view of a thread, which goes to
-   that thread's first, share the same exact-message arrival. Ordinary `u` remains
+   and a thread's Next unread (thread-card.js), which goes to that thread's first, share
+   the same exact-message arrival. Ordinary `u` remains
    paired with `d` in whichever reading region the user is in. */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { signal } from "/runtime/framework.js";
-import {
-  layoutWindow,
-  presented,
-  seenRect,
-  watchRoom,
-  clippedContents,
-  shownWindow,
-} from "../geometry.js";
+import { layoutWindow, presented, seenRect, watchRoom } from "../geometry.js";
 import { intersect, hasArea } from "../rect.js";
 import { recordInteraction } from "../interaction-log.js";
 import { sessionIsActive } from "../layer-client.js";
@@ -104,7 +97,7 @@ function visibleInterval(body, clips, band) {
 }
 
 // An element's box can intersect the viewport while all its words are clipped or
-// below it. Measure the text itself through the shared clipping/chrome reading.
+// below it. Measure the text itself through the one reading of what is seen.
 /** @param {Element} body @param {import("../geometry.js").ClipCache} clips @param {import("../rect.js").Box} band */
 function wordsAreVisible(body, clips, band) {
   if (!presented(body) || !body.checkVisibility({ opacityProperty: true }))
@@ -122,10 +115,8 @@ function wordsAreVisible(body, clips, band) {
       continue;
     range.selectNodeContents(node);
     for (const box of range.getClientRects()) {
-      const clipped = clippedContents(box, holder, clips);
-      if (!clipped) continue;
-      const room = shownWindow({ within: clipped, item: holder });
-      if (hasArea(intersect(intersect(clipped, room), band))) return true;
+      const seen = seenRect(range, clips, box);
+      if (seen && hasArea(intersect(seen, band))) return true;
     }
   }
   return false;
@@ -197,6 +188,7 @@ export function createReadTracking({ markRead, openThread }) {
       : Promise.resolve();
   }
 
+  /** @satisfies {import("../keyboard/bindings.js").Command} */
   const firstUnreadCommand = {
     id: "thread.unread.first",
     ready: savedReadingSettled,
@@ -312,7 +304,7 @@ export function createReadTracking({ markRead, openThread }) {
 
   // Runs `then` after the next pass over the presented threads, once what that pass
   // read counts as read in `readThreads()`: what still stands unread then is what the
-  // page has not shown whole, as the floating panel's Next unread asks.
+  // page has not shown whole, as a thread's Next unread asks.
   /** @param {() => void} then */
   function afterPass(then) {
     passWaiters.push(then);
@@ -370,8 +362,6 @@ export function createReadTracking({ markRead, openThread }) {
 
   /** @param {Element} body @param {BodyReading} reading */
   function observeBody(body, reading) {
-    if (!(body instanceof Element))
-      throw new TypeError("A message body must be an Element");
     if (!renderedBodies.has(body)) sizes.observe(body);
     const registration = {
       body,

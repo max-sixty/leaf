@@ -30,18 +30,17 @@ sources and regenerates their composition before refreshing its page.
 Changes to the watcher's Python, schemas or dependencies need an explicit restart;
 the current preview stays served until then.
 
-The preview serves the selected checkout in place, compiling its kernel there before
-each refresh where a runtime edit left it stale (`current_kernel`); authored-page edits
-compile nothing. A `--user` preview's session runs its hooks and delivery from the
-launching checkout's `bin/leaf`.
+The preview serves the selected checkout in place, with its runtime's source modules,
+so a runtime edit reaches the page with no build. A `--user` preview's session runs its
+hooks and delivery from the launching checkout's `bin/leaf`.
 
-While it runs, `watchfiles` reports edits. Initialization decides whether the layer
-actually changed; identical saves leave the browser and server alone. A source or
-`.page/` companion edit is stamped into the live page at the same URL. A package or
-runtime edit restarts the server, which composes the layer afresh, and a changed
-selection goes through `page init`, which mints a new layer generation the browser
-follows into a fresh document. A refused update is printed and retried after the next
-edit.
+While it runs, a native subscription (`leaf.file_changes`) reports edits.
+Initialization decides whether the layer actually changed; identical saves leave the
+browser and server alone. A source or `.page/` companion edit is stamped into the
+live page at the same URL. A package or runtime edit restarts the server, which
+composes the layer afresh, and a changed selection goes through `page init`, which
+mints a new layer generation the browser follows into a fresh document. A refused
+update is printed and retried after the next edit.
 Fixture history, literal data seeds and earlier versions initialize a fresh slot.
 Live updates follow current markup, page-owned files, captured data files, media
 and the browser runtime. Restarting a user preview preserves its history and current
@@ -79,7 +78,6 @@ from leaf.publishing import authored_digest, authored_files, write_authored_file
 from leaf.refusals import Refused
 from leaf.schema import LAYER_FILE, PACKAGES_DIR
 from leaf_dev import ROOT
-from leaf_dev.commands.distribution import compiler_root, current_kernel
 from leaf_dev.example_data import (
     capture_file,
     data_companion,
@@ -518,7 +516,6 @@ def refresh_preview(
     """
     try:
         refresh_composition(source)
-        current_kernel(runtime)
         fixture = read_fixture(source, runtime=runtime)
         incoming = incoming_files(source)
         incoming_digest = authored_digest(incoming)
@@ -743,14 +740,13 @@ def watch_changes(watched: Watched) -> PreviewChanges:
     """Install the native subscriptions before publishing the preview URL.
 
     Single files use shallow parent watches: an editor's atomic rename changes
-    the inode, so a file watch on Linux otherwise loses later saves.
+    the inode, so a file watch on Linux otherwise loses later saves. The runtime's
+    Python trees are inputs, and every interpreter that imports them writes
+    bytecode beside them, so `__pycache__` is ignored.
     """
-    from watchfiles import Change, DefaultFilter
-
-    default_filter = DefaultFilter()
     return PreviewChanges(
         watch_roots(watched),
-        lambda path: default_filter(Change.modified, str(path)),
+        lambda path: "__pycache__" not in path.parts,
         collect=True,
     )
 
@@ -841,7 +837,6 @@ def serve_preview(
     service = None
     changes = None
     try:
-        current_kernel(runtime)
         state["serving"] = serving_identity(runtime)
         prepared_page = None
         if resumed:
@@ -942,9 +937,9 @@ def serve_preview(
                 continue
             if not changes.matches(watch_roots(rebuilt)):
                 # A refresh can change which packages the page selects, and a
-                # subscription is fixed for its lifetime. Holding the old one
-                # wherever the roots stand still keeps the edits made during the
-                # refresh, which the rust watcher collected while this was busy.
+                # subscription's roots are fixed for its lifetime. Holding the old
+                # one wherever the roots stand still keeps the edits made during
+                # the refresh, which it collected while this was busy.
                 changes.close()
                 changes = watch_changes(rebuilt)
             watched = rebuilt
@@ -959,6 +954,12 @@ def serve_preview(
             changes.close()
         if service is not None:
             service.stop()
+
+
+def launching_checkout() -> Path:
+    """The developer checkout that launched this preview, which a selected-runtime
+    worker otherwise can't tell from the checkout it runs in."""
+    return Path(os.environ.get("LEAF_PREVIEW_LAUNCHER_ROOT", ROOT)).resolve()
 
 
 def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) -> None:
@@ -995,10 +996,9 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
     # the root as this launcher resolved it, rather than reading a relative setting
     # against a directory of its own.
     os.environ["LEAF_PREVIEWS_ROOT"] = str(page.parent)
-    # The selected runtime owns this worker, but an installed payload has no
-    # browser build dependencies. Compile its modules with the checkout that
-    # launched the preview.
-    os.environ["LEAF_PREVIEW_COMPILER_ROOT"] = str(ROOT)
+    # The selected runtime owns this worker, and the checkout launching it owns the
+    # session's hooks (`launching_checkout`).
+    os.environ["LEAF_PREVIEW_LAUNCHER_ROOT"] = str(ROOT)
     if user:
         command.append("--user")
     os.chdir(runtime)
@@ -1034,7 +1034,7 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
     # and delivery, including a comparison whose renderers use other runtimes.
     # Prepare the lifetime before choosing it, and choose before the adapter.
     claim = prepare_claim(harness, page)
-    select_launcher(harness.session, compiler_root() / "bin/leaf")
+    select_launcher(harness.session, launching_checkout() / "bin/leaf")
     with (
         harness.preparing_delivery(),
         starting_detached(
@@ -1149,7 +1149,9 @@ def preview(
                         from leaf.session_runtime import select_launcher
 
                         prepare_claim(harness, page)
-                        select_launcher(harness.session, compiler_root() / "bin/leaf")
+                        select_launcher(
+                            harness.session, launching_checkout() / "bin/leaf"
+                        )
                     run_preview(source, page, runtime / "bin" / "leaf", runtime, user)
         elif export:
             export_preview(*checkout(runtime), authored_source(example, source), slot)
@@ -1174,7 +1176,6 @@ def export_preview(
     from leaf_dev.arms import run_directory
 
     out_dir = run_directory(TMP / "exports")
-    current_kernel(runtime)
     with tempfile.TemporaryDirectory(prefix="preview-export-", dir=TMP) as staging:
         page = Path(staging) / "page"
         prepared = prepare_page(

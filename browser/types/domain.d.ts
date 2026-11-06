@@ -57,12 +57,13 @@ export type ThreadGesture =
   LocalMessage | LocalEdit | Settlement | Extract<Command, { kind: "undo" }>;
 /** A message as a served thread holds it (`Message` in `state.schema.json`): a logged
  * comment or reply naming its current content version, or a provisional reply. Its
- * `edited` joins a rewrite this tab has not sent yet, which has no `seq`. */
+ * `edited` joins a rewrite this tab has not sent yet, which has no `seq`, and its
+ * `withdrawn` an undo this tab has not sent yet, which has no id or time. */
 type ServedMessage = Without<
   NonNullable<
     ServedState["browser"]
   >["views"][string]["thread"]["threads"][number]["msgs"][number],
-  "edited"
+  "edited" | "withdrawn"
 >;
 type Without<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 export type Message = CompleteUnion<ServedMessage | LocalMessage> & {
@@ -71,6 +72,7 @@ export type Message = CompleteUnion<ServedMessage | LocalMessage> & {
   agent?: string | null;
   pending?: boolean;
   edited?: { id: string; seq?: number; ts: string; was: string; pending?: true };
+  withdrawn?: { id: string; ts: string; was: string } | { was: string; pending: true };
   addressable?: boolean;
   plainText?: string;
 };
@@ -100,7 +102,7 @@ export interface Thread {
     covers: readonly string[];
     protected: readonly string[];
   })[];
-  unread: readonly ContentVersion[];
+  unread: Readonly<Record<string, string>>;
   attention: Attention;
 }
 export type Settlement = Extract<Command, { kind: "resolve" | "unresolve" }> & {
@@ -135,9 +137,11 @@ export type PendingProjection =
       coordinate: string;
       localOrder: number;
     };
-interface Coverage {
+// A widget event or undo in the log, at the coordinate its view classifies it at, an
+// undo at its target's, or null (`logCoverage` in `framework/application.js`).
+export interface Coverage {
   event: Event;
-  coordinate: unknown;
+  coordinate: readonly string[] | null;
 }
 export interface ProjectionInput {
   entries?: readonly ProjectionEntry[];

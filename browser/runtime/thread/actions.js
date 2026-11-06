@@ -7,8 +7,8 @@
    defaults to the active revision; a resumed draft supplies the revision captured
    with its anchor, even after the active document has changed. */
 import { randomId } from "../ids.js";
-import { editable } from "./model.js";
-import { readThreads } from "./state.js";
+import { discussed, editable } from "./model.js";
+import { threadNamed } from "./state.js";
 
 /** @typedef {import("../../types/domain.js").PendingCommand} PendingCommand */
 /** @typedef {ReturnType<typeof import("../pending/dispatch.js").createCommandDispatch>["post"]} Post */
@@ -45,7 +45,10 @@ export function createThreadActions({
   // A visible local thread is a current root while saved history is loading too.
   // Its replies and settlement use the same ledger dependency on that opening send.
   /** @param {string} key */
-  const find = (key) => readThreads().threads.find((thread) => thread.key === key);
+  const find = (key) => {
+    const thread = threadNamed(key);
+    return thread && discussed(thread) ? thread : null;
+  };
 
   /** @param {string} key @param {string} text @param {{attempt?: string}} [options] */
   const reply = (key, text, { attempt } = {}) => {
@@ -64,14 +67,15 @@ export function createThreadActions({
   };
 
   // The user rewriting a message of their own (`message-edit.js`), written over the
-  // revision `base` names. Words the message already says, and none, send nothing.
+  // revision `base` names. Words the message already says send nothing; none at all
+  // delete it.
   /** @param {string} key @param {string} messageId @param {string} text
    * @param {{attempt?: string, base?: string}} [options] */
   const edit = (key, messageId, text, { attempt, base } = {}) => {
     const thread = find(key);
     if (!thread) return null;
     const message = thread.msgs.find((item) => item.id === messageId);
-    if (!message || !editable(message) || !text || text === message.text) return null;
+    if (!message || !editable(message) || text === message.text) return null;
     return post({
       kind: "edit",
       message: messageId,

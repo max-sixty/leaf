@@ -33,11 +33,11 @@
  * instead of the message's: each heading and code block in the type, padding and indent
  * the page gives it there, each quote's inset, and the display's gap between two
  * outermost blocks in place of the blank lines that part them in the source, so no
- * word moves as the editor opens (browser/AGENTS.md, "Editing in place"). Such a
- * display is a Markdown body, which reads as a file, so the field draws a line break
- * inside a paragraph as a space, and Return among a paragraph's words writes a hard
- * break, which the body draws as a line too (field-editor.js, `joints`, `newLine`). The
- * cascade answers what those faces are: as the editor builds, and when its width
+ * word moves as the editor opens (browser/AGENTS.md, "Editing something keeps it where
+ * it stood and as it read"). Such a display is a Markdown body, which reads as a file,
+ * so the field draws a line break inside a paragraph as a space, and Return among a
+ * paragraph's words writes a hard break, which the body draws as a line too
+ * (field-editor.js, `joints`, `newLine`). The cascade answers what those faces are: as the editor builds, and when its width
  * changes, an empty copy of that element holding one of each block stands hidden
  * beside the field, where the page's own rules and density reach it, and is read and
  * removed in the same task. The rules it yields go in a sheet of the field's own, which
@@ -301,7 +301,8 @@ sheet.replaceSync(`
   .lf-md-picture { max-width: 100%; height: auto; vertical-align: middle; }
   /* A rule's line is the sent hr, a line tall with its stroke through the middle
      (reading.css, \`.lf-msg-body hr\`), its source on that line under the caret, so
-     reaching it moves nothing (browser/AGENTS.md, "Stability"). */
+     reaching it moves nothing (browser/AGENTS.md, "The page holds still under the
+     user's aim"). */
   .lf-md-rule {
     background: linear-gradient(var(--rule), var(--rule)) center / 100% 1px no-repeat; }
   /* A press on a task's box reaches the line, which puts the caret in its brackets, as a

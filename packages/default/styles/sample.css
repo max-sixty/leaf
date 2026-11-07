@@ -306,13 +306,3 @@ lf-sample[window] .lf-sample-frame {
     display: none;
   }
 }
-/* A quoted choose group renders as one that never declared `choose`. That promise is
- * kept where each pressable look is granted, not undone here: every affordance rule in
- * the lf-options section — the hand, the joined shape, the reserved strip and
- * binding-badge column, the hover wash — excludes exhibits in its own selector
- * (`:not(:where([data-lf-exhibit]) *)`, the marker the runtime paints from this entry's
- * x-exhibit), because an unkeying block here lost every contest against a plainly-spelled
- * guard and missed every affordance written after it. The upgrade holds the half no
- * stylesheet can: the click handler (quoted(), lf-options.js). What stays
- * quoted is the document's state — a chosen card's mark and ring — because a mention
- * shows the decision without offering it. */

@@ -2685,9 +2685,9 @@ export function createFloatingPanel({
   }
   // A row joining Threads while the list stands, a thread the agent starts, or a row
   // changing section, one a reply reopens or one resolved elsewhere, would move the
-  // rows the user reads there (`browser/AGENTS.md`, "News never moves what the reader
-  // is reading"). So the standing list draws each row in the section it drew it in,
-  // and a thread new to it not at all, and says what joined or moved in the notice a
+  // rows the user reads there (`browser/AGENTS.md`, "News moves what the reader reads
+  // only in the thread they are in"). So the standing list draws each row in the
+  // section it drew it in, and a thread new to it not at all, and says what joined or moved in the notice a
   // thread's held news uses (thread/held-news.js, `newsNotice`) until the user
   // presses it, which lets the list settle and lands on the first row it names. The
   // notice stands over the list, in the view's head, which grows the panel upward by

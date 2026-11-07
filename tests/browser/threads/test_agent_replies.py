@@ -21,6 +21,7 @@ from render_cases_interaction import (
 )
 from render_harness import (
     expect_on_me,
+    expect_preview_words,
     holding,
     leaf_page,
     open_page,
@@ -778,14 +779,14 @@ def test_held_news_says_one_count_of_all_it_holds(browser, serve):
     thread_model.post_reply(serve.page_dir, {"parent": root}, "The mounts come first.")
     told(page)
     notice = thread.get_by_role("button", name="1 new", exact=True)
-    expect(notice).to_have_accessible_description("1 new reply")
+    expect_preview_words(notice, "1 new reply")
     rendered(page)
     width = notice.bounding_box()["width"]
 
     append_user_reply(serve.page_dir, root, "And the bird bath?")
     told(page)
     notice = thread.get_by_role("button", name="2 new", exact=True)
-    expect(notice).to_have_accessible_description("1 new reply · 1 new message")
+    expect_preview_words(notice, "1 new reply · 1 new message")
     rendered(page)
     assert notice.bounding_box()["width"] == pytest.approx(width, abs=0.5)
     # The room "1 new" made holds "2 new" whole, figures of one width in both.

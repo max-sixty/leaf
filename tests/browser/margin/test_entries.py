@@ -19,6 +19,7 @@ from render_harness import (
     open_page,
     open_threads,
     panel_settled,
+    put_preview_away,
     resized,
     sending,
     told,
@@ -908,6 +909,9 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
             **faces[0],
             "ink": token_colour(page, "--danger-ink"),
         }
+        # The Tab showed Reject's preview, which the first Escape puts away; the
+        # second folds the cluster.
+        put_preview_away(page)
         page.keyboard.press("Escape")
 
     expect(status).to_have_attribute("data-lf-behavior", "status")

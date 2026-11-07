@@ -28,6 +28,7 @@ from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
     expect_open_threads,
+    expect_preview_words,
     http_error_console,
     nudge,
     open_page,
@@ -278,16 +279,14 @@ def test_a_panel_row_follows_its_pages_status_live(
     expect(row).to_contain_text("recording the demo")
     # A neighbour waiting on its own user says so in this seat's shorter words, and
     # in the same term its own status uses: All pages is where a user picks which
-    # page to go to. The hover holds it whole, since the line ellipsizes at the
-    # panel's width, and it is the row's hover and not a part's, the innermost title
-    # winning where two overlap.
+    # page to go to. The row's preview holds it whole, since the line ellipsizes at
+    # the panel's width, and no part of the row has a title of its own, whose
+    # tooltip the browser would show in its place.
     end_work(other_dir)
     declare(other_dir, "waiting")
     told(page)
     expect(row).to_contain_text("Ready")
-    expect(row).to_have_attribute(
-        "title", f"The other leaf\n{tmp_path / 'other-work'}\nReady"
-    )
+    expect_preview_words(row, f"The other leaf\n{tmp_path / 'other-work'}\nReady")
     assert row.locator("[title]").count() == 0, (
         "a part of the row carries a tooltip of its own, which wins under the pointer "
         "over the row's whole account"

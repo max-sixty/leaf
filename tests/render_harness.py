@@ -1827,6 +1827,15 @@ def panel_field(page):
     return page.locator(".lf-fp-field leaf-text")
 
 
+def field_press(page):
+    """The press the panel field's end offers while the field says its words at rest
+    (composing/input.js, `pressAtRest`), the moment's own: a notice's, such as a
+    Resolve's Next thread, the next On Me item after an answer, or a stance's Close
+    (floating-panel.js, `fieldReading`). Its word is `.lf-compose-press-word`, and the
+    key that makes it the `kbd` after it."""
+    return page.locator(".lf-fp-field .lf-compose-press")
+
+
 def panel_settled(page, open=True, view=None):
     """Wait for the floating panel to stand with a view open, or with none, its motion
     finished.
@@ -2822,12 +2831,23 @@ PREVIEW = "#lf-preview"
 
 def tab_onto(target):
     """Step onto `target` with the keyboard, as the user does: Shift+Tab off it and Tab
-    back, a move the user made themselves, which a focus preview reads (preview.js),
-    where a script's focus reads nothing."""
+    back. Focus moved by Tab shows the target's preview (preview.js) whatever input came
+    before; a script's focus shows it only where the browser shows that focus
+    (`:focus-visible`)."""
     target.focus()
     target.page.keyboard.press("Shift+Tab")
     target.page.keyboard.press("Tab")
     expect(target).to_be_focused()
+
+
+def put_preview_away(page):
+    """Press Escape as its first step, which puts away the preview standing over the
+    page and does nothing else, so the next Escape takes the step it stood in front of
+    (preview.js; keyboard/AGENTS.md, "Escape"). Fails unless one stood and it went."""
+    preview = page.locator(PREVIEW)
+    expect(preview).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
 
 
 def expect_preview_words(target, words):

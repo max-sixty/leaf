@@ -10,6 +10,7 @@ from render_cases_interaction import live_url, panel_comment
 from render_harness import (
     PANEL,
     expect_panel_says,
+    field_press,
     holding,
     leaf_page,
     open_page,
@@ -236,6 +237,62 @@ SEEN_SHARE = """async (selector) => {
     ? ((seen.right - seen.left) * (seen.bottom - seen.top)) / (box.width * box.height)
     : 0;
 }"""
+
+
+def test_an_answer_offers_the_next_item_on_me_at_the_field_s_end(browser, serve):
+    """Once the server reads a reply as answering the question it was sent under, while
+    more waits on the user, the panel field's end offers Next On Me. The caret stays in
+    the card's reply box, where `m` is a letter typed, so the press stands without its
+    key and still walks to the next item, whose key it then says. An answer that leaves
+    nothing On Me offers nothing."""
+    url = serve(QUEUE_PAGE)
+    d = serve.page_dir
+    asked = append_carried_log_record(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Weekly?",
+            "anchor": {"section": "cadence"},
+        },
+    )
+    append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Agent",
+            "parent": asked["id"],
+            "responds": asked["id"],
+            "revision": 1,
+            "text": "Weekly or daily?",
+            "obligation": True,
+        },
+    )
+    page = open_page(browser, url)
+    expect_on_me(page, 2)
+    page.keyboard.press("m")
+    expect_walk_position(page, "1 of 2 waiting on me · Reply")
+    page.keyboard.press("Enter")
+    box = page.locator(f'.lf-page-thread[data-lf-thread="{asked["id"]}"] leaf-text')
+    write(box, "Weekly.")
+    with sending(page, "the reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect_on_me(page, 1)
+    press = field_press(page)
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
+    expect(box).to_be_focused()
+    expect(press.locator("kbd")).to_have_count(0)
+    press.click()
+    expect(page.locator("#channel-ask")).to_be_focused()
+    expect(press.locator("kbd")).to_have_text("m")
+
+    with sending(page, "the pick"):
+        page.locator("#beta").click()
+    expect_on_me(page, 0)
+    round_trip(page)
+    expect(press).to_have_count(0)
 
 
 def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, serve):

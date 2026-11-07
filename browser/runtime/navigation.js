@@ -41,6 +41,7 @@ import { threadIn } from "./thread/focus.js";
 import {
   NO_OPEN_THREADS,
   THREADS_OFFLINE,
+  anyOpenThread,
   readThreads,
   threadList,
 } from "./thread/state.js";
@@ -65,10 +66,6 @@ const openThreads = (placedAt) =>
     threadList().filter((thread) => !thread.resolved),
     placedAt,
   ).map((thread) => thread.id);
-// Whether the walk has anywhere to go, which a press and the keys' readiness ask: the
-// open threads' order is the walk's business, and sorting them for a count cost a sort
-// of every thread per input.
-const anyOpenThread = () => threadList().some((thread) => !thread.resolved);
 
 // The thread the walk stands on: the one the origin's current location is in,
 // wherever it is drawn. Its target, with the thread's card beside it, is at the thread,

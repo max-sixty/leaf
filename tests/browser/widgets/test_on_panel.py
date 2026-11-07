@@ -16,6 +16,7 @@ from render_cases_interaction import (
 from render_harness import (
     PANEL,
     expect_obligations_answered,
+    expect_preview_words,
     holding,
     leaf_page,
     open_page,
@@ -369,16 +370,17 @@ def test_an_answered_boxless_obligation_is_taken_back_from_its_card(browser, ser
 
 
 def test_on_me_s_tabs_stand_where_a_view_names_itself(browser, serve):
-    """On Me's tabs name its view, so they start its controls, where another view's way
-    back stands, rather than standing among the presses at their end; no name bar
-    stands over the view, the heading naming it to assistive tech alone."""
+    """On Me's tabs name its view, so the first starts its controls, where another
+    view's way back stands, rather than standing among the presses at their end; no
+    name bar stands over the view, the heading naming it to assistive tech alone. The
+    strip holding the tabs reaches past them for their focus ring, so the tab is read."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     resized(page, 1440, 900)
     open_on_me(page)
     start, tabs = page.locator(".lf-fp-controls").evaluate(
         """c => [c.getBoundingClientRect().left
             + parseFloat(getComputedStyle(c).paddingLeft),
-          c.querySelector('.lf-fp-filters').getBoundingClientRect().left]"""
+          c.querySelector('.lf-fp-filters > .lf-fp-tab').getBoundingClientRect().left]"""
     )
     assert tabs == start, (tabs, start)
     assert page.locator(".lf-fp-head").bounding_box()["height"] == 0
@@ -749,10 +751,10 @@ def test_an_option_s_choice_on_its_card_says_what_it_gives(browser, serve):
     expect(box.locator(".lf-fp-choice-says")).to_have_text(
         "One mechanism for any number of blocks."
     )
-    # Cut to two lines on the card, the words read whole on hover, and the press,
-    # whose name already holds them, isn't described by them again.
-    expect(box.locator(".lf-fp-choice-says")).to_have_attribute(
-        "title", "One mechanism for any number of blocks."
+    # Cut to two lines on the card, the words read whole in their preview, and the
+    # press, whose name already holds them, isn't described by them again.
+    expect_preview_words(
+        box.locator(".lf-fp-choice-says"), "One mechanism for any number of blocks."
     )
     expect(box).to_have_accessible_description("")
     expect(aside.locator(".lf-fp-choice-says")).to_have_text("It covers the footer.")

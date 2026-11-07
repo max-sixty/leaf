@@ -9,6 +9,7 @@ from render_harness import (
     PANEL,
     comment_note,
     consume_browser_errors,
+    expect_preview_words,
     holding,
     leaf_page,
     open_page,
@@ -326,10 +327,11 @@ customElements.define('lf-test-surface', class extends LeafElement {
             },
         )
         told(page)
-        # The notice holding the first reply counts this one too.
-        expect(
-            healthy.get_by_role("button", name="2 new", exact=True)
-        ).to_have_accessible_description("2 new replies")
+        # The notice holding the first reply counts this one too, and its preview
+        # says what it holds.
+        expect_preview_words(
+            healthy.get_by_role("button", name="2 new", exact=True), "2 new replies"
+        )
         expect(broken.locator(".lf-page-thread")).to_have_count(2)
         expect(broken.locator(".lf-page-thread leaf-text").first).to_have_js_property(
             "value", "Keep this unsent reply."

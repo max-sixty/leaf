@@ -139,6 +139,11 @@ export const ACTIONS = {
   next: { name: "Next", icon: "next" },
   // A find bar's steps run up and down its matches, as a browser's do.
   "next-match": { name: "Next match", icon: "down" },
+  // The next steps the floating panel's field offers at its end (floating-panel.js,
+  // `noticePress`): after a Resolve, and after an answer with more on the user, in the
+  // title case the user asked for on 6 November 2026.
+  "next-on-me": { name: "Next On Me", icon: "inbox" },
+  "next-thread": { name: "Next thread", icon: "next" },
   "on-me": { name: "On Me", icon: "inbox" },
   pause: { name: "Pause", icon: "pause" },
   play: { name: "Play", icon: "play" },

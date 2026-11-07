@@ -58,7 +58,10 @@ same step, through its row's `keep` where `run` would throw away unsent words
   in for one (`step`) or a move to a place (`move`), the cause its mover gives
   `focusDestination`, so focus a surface places as it opens, or hands back as it closes
   or as Escape backs the user out (`return`), costs no Escape, and one put away stays
-  away until the user aims again, whatever a widget declares meanwhile.
+  away until the user aims again, whatever a widget declares meanwhile. A preview
+  suspended while what it reads is out of sight costs no Escape either: every Escape
+  the dispatcher answers, a key's or a close request's, announces itself first
+  (`ESCAPED`, `dispatch.js`), which ends that reading before the step is taken.
 - Draw and Design are page modes; surfaces opened inside them close first.
 - A surface's own state, such as Threads' search, clears before the surface closes.
   Page-side selections, targets, margin clusters and the page composer coexist beside a view the

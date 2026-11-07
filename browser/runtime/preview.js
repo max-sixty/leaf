@@ -175,7 +175,8 @@
      ends, so the browser makes no click of it, which would press the target and, as a
      click outside a hint popover, close the preview. The preview stands until the next
      press: a tap on its target, which presses, or a touch elsewhere or a finger's
-     scroll, which put it away, as iOS's link preview does. A press let go before the
+     scroll, which put it away, as iOS's link preview does, or until focus moves to
+     another element, a new aim, as it ends a focus preview. A press let go before the
      hold reads is a tap, which shows nothing and which the browser's click presses. A
      press with a
      modifier is not this gesture (`plainPress`). Touch capture is released at the press
@@ -255,6 +256,7 @@ import { controlKeys } from "./keyboard/control-keys.js";
 import { advertisesKeys } from "./keyboard/bindings.js";
 import { focused, onCurrentLocation, openedThisInput, typesText } from "./focus.js";
 import { pageScope } from "./keyboard/register.js";
+import { ESCAPED } from "./keyboard/dispatch.js";
 import { offlineInteractive } from "./context.js";
 import { watchPresentation, whenDocumentPresented } from "./semantic-state.js";
 import { plainPress } from "./pointer.js";
@@ -1779,21 +1781,23 @@ export function mountPreviews(chrome) {
     { capture: true, passive: true },
   );
   // Focus arriving is a new reading, whatever put the target's last one away, and
-  // focus leaving takes its preview along. It shows where the user moved it, as whoever
+  // focus leaving takes its preview along, as it takes a held one: focus moving is a
+  // new aim, out of sight or not. It shows where the user moved it, as whoever
   // moved it says (focus.js, `focusDestination`): a Tab, Shift+Tab or a placement
   // standing in for one (`step`), and a move to a place, as a walk lands (`move`), but
   // not one into a surface that opened since the user's last input, which is the
   // surface placing them as it opens (focus.js, `openedThisInput`).
   onCurrentLocation((node, cause) => {
     quiet = null;
-    if (shown?.route === "focus" && shown.from !== node) hide();
+    if ((shown?.route === "focus" || shown?.route === "hold") && shown.from !== node)
+      hide();
     if (node && (cause === "step" || (cause === "move" && !openedThisInput(node))))
       showFocus(node);
   });
   // Escape is the preview's own step while one shows, ahead of every other, which does
   // nothing else; any other key puts a pointer's away and goes on to its work. A
-  // suspended reading shows nothing to put away, so Escape ends it and goes on to its
-  // work, as a scope that holds no preview gives it.
+  // suspended reading shows nothing to put away, so any Escape the page answers, a
+  // key's or a close request's, ends it on its way to its own step (`ESCAPED`).
   pageScope("preview", {
     title: "A preview",
     escape: "inner",
@@ -1808,11 +1812,14 @@ export function mountPreviews(chrome) {
       },
     ],
   });
+  document.addEventListener(ESCAPED, () => {
+    if (shown?.away) quieten();
+  });
   document.addEventListener(
     "keydown",
     (event) => {
       if (event.key === "Escape") {
-        if (offlineInteractive || shown?.away) quieten();
+        if (offlineInteractive) quieten();
       } else if (shown?.route === "pointer" || !shown) quieten();
     },
     { capture: true },

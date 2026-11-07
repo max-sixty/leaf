@@ -9,9 +9,15 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import PANEL_PAGE, live_url, panel_comment
+from render_cases_interaction import (
+    PANEL_PAGE,
+    THREAD_DIFF_PAGE,
+    live_url,
+    panel_comment,
+)
 from render_cases_navigation import _publish
 from render_harness import (
+    RELEASE_FOCUS,
     back_gesture,
     leaf_page,
     long_press,
@@ -20,6 +26,7 @@ from render_harness import (
     post_event,
     preview_parts,
     preview_text,
+    tab_onto,
     told,
 )
 
@@ -96,6 +103,59 @@ def test_a_control_previews_its_word_and_every_key_that_presses_it(
     expect(view).to_be_visible()
     page.keyboard.press("Escape")
     expect(view).to_be_hidden()
+
+
+# A range and a select built the way Leaf builds its own, whose faces say no name.
+LEAF_SETTINGS = """<p id="settings"></p>
+<script type="module">
+import {offer} from '/runtime/widget-api.js';
+const rows = offer('input', 'probe-rows', undefined, 'range');
+rows.id = 'rows';
+rows.setAttribute('aria-label', 'Rows shown');
+const speed = offer('select', 'probe-speed');
+speed.id = 'speed';
+speed.setAttribute('aria-label', 'Playback speed');
+for (const rate of ['1×', '2×']) speed.append(new Option(rate));
+document.getElementById('settings').append(rows, speed);
+</script>"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_range_and_a_select_preview_their_names_and_a_thread_card_none(
+    engine, request, serve
+):
+    """A range and a select are controls, Leaf's own included, so focus the user moves
+    onto one previews the name its face doesn't show. A thread card is no control: a
+    walk landing on one the page draws previews nothing, since its words are what the
+    user reads, and a preview there would take the Escape that lets go of it."""
+    url = serve(
+        THREAD_DIFF_PAGE.replace("</lf-test-plan>", "</lf-test-plan>" + LEAF_SETTINGS)
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Does the tray fit the north bracket?",
+            "anchor": {"section": "cd-q"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), live_url(url))
+    preview = page.locator(PREVIEW)
+    for control, name in (("#rows", "Rows shown"), ("#speed", "Playback speed")):
+        tab_onto(page.locator(control))
+        expect(preview).to_be_visible()
+        expect(preview.locator(".lf-preview-word")).to_have_text(name)
+
+    thread = page.locator("#cd-q .lf-page-thread")
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("t")
+    expect(thread).to_be_focused()
+    rendered(page)
+    assert not preview.is_visible(), preview.inner_text()
+    page.keyboard.press("Escape")
+    expect(thread).not_to_be_focused()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -458,7 +518,9 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     body = question.locator(".lf-msg-body").bounding_box()
     page.mouse.move(body["x"] + 8, body["y"] + body["height"] / 2, steps=3)
     page.wait_for_timeout(500)
+    expect(preview).to_be_visible()
     expect(preview).to_have_attribute("data-lf-route", "focus")
+    expect(preview).to_have_text("Sat 15 Aug 2026, 14:22 PT")
     page.mouse.move(0, 0)
     page.keyboard.press("Escape")
 

@@ -1,4 +1,4 @@
-"""The two lists, On me (`on_user`) and On <agent> (`on_agent`): what is on the user,
+"""The two lists, On Me (`on_user`) and On <agent> (`on_agent`): what is on the user,
 what is on the agent, and what each has finished (`done`).
 
 Every user row is an obligation record (`obligations.py`): a message request,
@@ -10,13 +10,13 @@ membership agree. The browser places its own unresolved sends against the served
 lists (`browser/runtime/framework/application.js`, `localQueues`); it never selects
 them again.
 
-On me holds records whose next actor is the user. On <agent> holds the open update
+On Me holds records whose next actor is the user. On <agent> holds the open update
 records the agent owes, then the agent's to-dos. A widget's obligation becomes the
 agent's while a thread about it awaits the agent's word, and that thread's newest
 unanswered turn already publishes an update record there; On <agent> lists that
 update alone (`obligations.anchors_with_agent`, `thread_obligation_readings`).
 
-On me has one row per place the user has a move at, since the walk over it (`m`)
+On Me has one row per place the user has a move at, since the walk over it (`m`)
 stops once at each place and the panel draws a card per row. The records the user
 answers in words in one thread, its asking messages, are answered by one reply, so they share the thread's row, the first of them leading.
 That row joins the row of an open obligation on the page the thread is about
@@ -90,7 +90,7 @@ def _record_row(record: dict, owner: str, live: bool = False) -> dict:
 
 
 def _on_user(records: list[dict], threads: dict, within: dict) -> list[dict]:
-    """On me's rows, one per place the user has a move at: requests, then the updates
+    """On Me's rows, one per place the user has a move at: requests, then the updates
     to send again."""
     users = [record for record in records if record["next_actor"] == "user"]
     rows = []

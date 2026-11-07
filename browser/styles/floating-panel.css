@@ -142,7 +142,7 @@
      (`--lf-line`, below, where words stand) and a symbol in a view the same
      (`--lf-icon-action-face`, `.lf-fp-opened`). The panel once drew its own face for
      every control in it (`lf-fp-face`), a second look for each kind of press beside
-     the page's, until each moved onto its role on 28 October. On me's cards stand
+     the page's, until each moved onto its role on 28 October. On Me's cards stand
      their ring inside their edge, since the panel's rows meet edge to edge (base.css,
      "Where it stands"), and the card the `m` walk stands on wears it too, though
      focus is at its ask on the page (floating-panel.js, `walkedStop`). */
@@ -669,7 +669,7 @@
     display: none;
   }
 
-  /* The row's end: one seat, which the On me mark and a stance's way out take in turn
+  /* The row's end: one seat, which the On Me mark and a stance's way out take in turn
      (floating-panel.js, `quick`). The mark keeps its count's room whether or not it has
      a number, so a count arriving moves nothing beside it. The way out takes the leaf's
      width, so its ✕ stands as close to the field as the leaf does at the row's start. */
@@ -679,7 +679,7 @@
     display: flex;
   }
   /* Both are symbols (controls.css), a line tall, so the way out stands a symbol's
-     width, the leaf's. The On me mark stands wider, its symbol and its count's room
+     width, the leaf's. The On Me mark stands wider, its symbol and its count's room
      centred in it, so a count arriving moves no symbol. */
   .lf-fp-quick > .lf-fp-on-user {
     width: max(var(--lf-fp-aim), calc(16px + 4px + 2ch + 14px));
@@ -1271,7 +1271,7 @@
     min-height: 1lh;
   }
   /* The value is words, so it keeps the name's first line's baseline: its box is a
-     line of the name's face, from a strut, as the On me count's is (above). Centred
+     line of the name's face, from a strut, as the On Me count's is (above). Centred
      with the keys on that line, the smaller value stood higher. */
   .lf-fp-end > .lf-fp-value {
     grid-area: 1 / 1;
@@ -1389,7 +1389,7 @@
      pointer that can't hover never reads that title, so under one a row says its words
      whole at rest: a menu row's, a version's note on the lines under its name, and a
      page's title, what its agent is doing and the rest of its account in All pages. On
-     me's answers keep their two lines, whose whole words Show reaches. */
+     Me's answers keep their two lines, whose whole words Show reaches. */
   .lf-fp-page-rest {
     display: none;
   }
@@ -1581,7 +1581,7 @@
   .lf-fp-on-body {
     padding: 0 8px 10px;
   }
-  /* On me's card reads as the thread it belongs to, its words in a thread's face, and
+  /* On Me's card reads as the thread it belongs to, its words in a thread's face, and
      the answers it takes, answered here. What it is and its question's heading set
      cards apart, with the space between them, so no rule runs between them. */
   .lf-fp-on-item[data-lf-card] {
@@ -1829,7 +1829,7 @@
   }
   /* The plan's head at On <agent>'s foot, a word (controls.css) with its progress as
      a short bar after its words, which discloses the plan over the list. A step on the
-     user says so with an inline press, On me, which turns to the list of it. */
+     user says so with an inline press, On Me, which turns to the list of it. */
   .lf-fp-plan-head {
     display: inline-flex;
     align-items: center;

@@ -137,7 +137,7 @@ function addressableNaming(element) {
 export const addressableName = (element) =>
   element ? namingWords(addressableNaming(element)) : "";
 
-// What the chrome calls an element away from it: an On me row, a Page Map heading,
+// What the chrome calls an element away from it: an On Me row, a Page Map heading,
 // a thread's anchor, a feed row. The element's name comes first: `addressableName`,
 // else its own caption, the `aria-label` its author gave it, or a control's <label>.
 // An element whose words are its own (a block of prose, anything holding text of its

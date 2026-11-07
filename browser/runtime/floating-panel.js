@@ -18,23 +18,23 @@
  *   read. The next exposure, including a return from a hidden tab, reads the current
  *   status. The leaf's tone, counts and accessible name stay live, and notices
  *   answering a gesture show immediately.
- * - **The row**: the leaf, the comment field, and at its end one seat: the On me mark,
+ * - **The row**: the leaf, the comment field, and at its end one seat: the On Me mark,
  *   counting what waits on the user, with a dot while a thread holds a reply they have
  *   not read; or, while a stance or a search stands, the ✕ that ends it, so the seat
  *   never stands empty. The ✕ takes the leaf's width, beside the field;
- *   filling the room On me keeps for its count stood it 29px clear of the field, which
+ *   filling the room On Me keeps for its count stood it 29px clear of the field, which
  *   the user questioned on 31 October. The ✕ keeps the seat while the user writes in
  *   the stance. Once the stance ends, a draft's Send takes the corner as it does at
  *   rest, so a draft standing through a stance rewraps as the stance comes and as it
  *   goes, which a path this rare may do (browser/AGENTS.md, "The page holds still
  *   under the user's aim"). Rejected: holding the seat for the draft until the next posture
- *   change. That kept On me beside the draft and the field narrower, and saved no
+ *   change. That kept On Me beside the draft and the field narrower, and saved no
  *   rewrap, since the stance's arrival had already rewrapped the draft. An open view
  *   has its ✕ on a line of its own, its head line or its tabs, and the field takes the
  *   seat's room while the view stands, a stance's ✕ waiting with it (**Opened**).
- *   The user chose the one seat on 25 October over a Threads mark beside On me and a seat kept
+ *   The user chose the one seat on 25 October over a Threads mark beside On Me and a seat kept
  *   empty for the ✕, which left a gap at the row's end; Threads became the On view's
- *   tab, since On me already lists a thread message that waits on the user. Rejected:
+ *   tab, since On Me already lists a thread message that waits on the user. Rejected:
  *   the ✕ standing before both marks, which kept them still but stood it between the
  *   field and the marks. Beside the seat stands at most one small notice for a state
  *   the user should not miss, such as reading an older version, tinted by its tone and
@@ -80,7 +80,7 @@
  *   mode chip when a draft hides its placeholder. No transient message adds a row.
  *   The keys that send are Send's hover name, where Return sends with
  *   Shift+Return's new line beside it (composing/input.js).
- * - **Opened**: a view above the same row (On, whose tabs are the menu, On me,
+ * - **Opened**: a view above the same row (On, whose tabs are the menu, On Me,
  *   On <agent>, Threads and the plan; a thread; or All pages), what the user reads or
  *   chooses there, under its head
  *   line: the way back to the list the view opened over, a ‹ alone before the name,
@@ -135,7 +135,7 @@
  *   While it stands it covers the page under it, which reads as unseen (geometry.js,
  *   `declareCover`).
  *
- * The leaf's menu is the On view's first tab, beside On me, On <agent> and Threads,
+ * The leaf's menu is the On view's first tab, beside On Me, On <agent> and Threads,
  * and the leaf opens the view on it: the full status over the rest of the page's
  * controls, each one line, with its key where it has one, and a chevron on a row that
  * opens a list of its own (Versions, and the groups Navigate and Annotations). Such a
@@ -143,10 +143,10 @@
  * field is its search (`menuFound`), narrowing the rows to the words typed, with the
  * threads and versions they name and a press that hands the words to the command
  * reference. The user chose this on 30 October, over the menu as a small list of its
- * own over the leaf (15 October), which reached neither On me nor Threads and, with
+ * own over the leaf (15 October), which reached neither On Me nor Threads and, with
  * its lists, kept a second surface with its own opening, holding and fade beside the
  * views. Rejected with it: the On view's tabs at that menu's foot, a menu of rows for
- * On me and Threads, and a leaf that folds the panel or opens On <agent>. A row that
+ * On Me and Threads, and a leaf that folds the panel or opens On <agent>. A row that
  * copies a text is one press in the menu wherever the page can copy (`canCopy`), and
  * says which session or Leaf the page runs only in About this page (page-controls.js,
  * the `about` group). A
@@ -279,7 +279,13 @@ import { holdPlace } from "./user-place.js";
 import { onUserCount, queueItemKey, readPlan, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
 import { groupingLabel, ON_ME_GROUPINGS, queueStop } from "./queue-walk.js";
-import { carriesObligation, emptyOnList, itemNoun, itemOutcome } from "./queues.js";
+import {
+  carriesObligation,
+  emptyOnList,
+  itemNoun,
+  itemOutcome,
+  onList,
+} from "./queues.js";
 import { agePreview, ago, shortAgo } from "./presence.js";
 import { userChoice } from "./storage.js";
 import { obligationEnding } from "./obligations/answer.js";
@@ -546,7 +552,7 @@ export function createFloatingPanel({
         ? "Selection"
         : nothing;
     const newsName = news ? `${counted(news, "thread")} with news` : "";
-    const onUserName = [onUser ? `On me: ${onUser}` : "On me", newsName]
+    const onUserName = [onUser ? `On Me: ${onUser}` : "On Me", newsName]
       .filter(Boolean)
       .join(", ");
     const quick = html`<button
@@ -807,7 +813,7 @@ export function createFloatingPanel({
     keeps(host, "data-lf-long", (long || expanded) && !activeSearch() ? "" : null);
   lengthWatch.observe(field);
   const searchSurface = shell("search-surface");
-  // The row's end: the On me mark, or the way out of the search the user is in, or of
+  // The row's end: the On Me mark, or the way out of the search the user is in, or of
   // their stance where no view is open, there while the user types too
   // (touch-controls.js, `stance`), each at its own width (floating-panel.css,
   // `.lf-fp-quick`).
@@ -1343,7 +1349,7 @@ export function createFloatingPanel({
   const openCount = () => (inventoried() ? threadCounts(threads()).open : null);
   // Ordinary open state is implicit, and news is the row's mark (`data-lf-unread`),
   // which says New to assistive tech alone. Only an open thread is news (`isNews`), as
-  // the On me mark's dot counts it: the user chose (2026-10-25) that a resolved
+  // the On Me mark's dot counts it: the user chose (2026-10-25) that a resolved
   // thread's unread reply says nothing new. Rows name attention and drafts, and a
   // resolved thread says so with how long ago, as a Done line says its outcome and age.
   /** @param {ReturnType<typeof readThreads>["threads"][number]} thread */
@@ -1765,7 +1771,7 @@ export function createFloatingPanel({
     // How far the box reaches up from the window's foot, which the root's
     // `scroll-padding-bottom` keeps every landing clear of, with the gap above the box
     // and at least the foot's room (`--lf-foot-band`, base.css), so `m`, `t`, a Go-to
-    // or an On me row's Show lands what it reaches above an open view rather than
+    // or an On Me row's Show lands what it reaches above an open view rather than
     // under it. The browser's own reveals read the same padding, and Leaf's landings
     // the band stated beside it (geometry.js, `stateFootBand`). CSS can't size the
     // root's padding from a fixed box in the chrome's shadow tree, so the box states
@@ -2660,7 +2666,7 @@ export function createFloatingPanel({
   // The rows read in the page's order, the one the `t` walk steps through
   // (thread/placement.js), so each thread stands among its passage's neighbours: the
   // open threads, then the resolved ones folded under Resolved (`settledHeading`), as
-  // what left On me stands under Done, each unread row marked and a drafted one saying
+  // what left On Me stands under Done, each unread row marked and a drafted one saying
   // Draft. The user chose this on 25
   // October, with Threads becoming the On view's tab, over Open, Unread, Drafts and
   // Resolved filters, which a second row of tabs would have had to hold. A search reads
@@ -3121,7 +3127,7 @@ export function createFloatingPanel({
   // The lists are the publisher's (`readQueues`): what waits on the user and on the
   // agent, a tab each. The view has no name of its own: its title is the open tab's.
   //
-  // On me holds a card per item standing open, its answers on it, under the groups the
+  // On Me holds a card per item standing open, its answers on it, under the groups the
   // `m` walk steps through in the same order (queue-walk.js, `onMeGroups`), with what
   // left the list under Done. A card says what the item is and where it stands, then
   // its question and its answers, Discuss, Undo, and Show, which travels where `m`
@@ -3141,16 +3147,16 @@ export function createFloatingPanel({
   // The opening keeps the item standing open, by its key (`openItem`), and the height
   // each card first stood at, which it keeps while open, so an answer that shortens it
   // moves nothing below (`seatHeights`); and whether the plan's steps stand over On
-  // <agent>'s list (`planShown`). The items On me seats, and what each card carries,
-  // stay out of it: a view opened over On clears them, and On me fading out under that
+  // <agent>'s list (`planShown`). The items On Me seats, and what each card carries,
+  // stay out of it: a view opened over On clears them, and On Me fading out under that
   // view seats again what still waits on the user, so going back to On keeps those in
   // their seats, one answered in that view included.
   /** @type {"you" | "agent"} */
   let queueTab = "you";
   /** @type {PanelQueueItem[] | null} */
-  let seated = null; // On me's item keys present in the open view
+  let seated = null; // On Me's item keys present in the open view
   /** @type {Map<string, readonly string[]>} */
-  const carrying = new Map(); // what each card in the open On me view carries (`also`)
+  const carrying = new Map(); // what each card in the open On Me view carries (`also`)
   const QUEUE_TABS = Object.freeze({ you: "user", agent: "agent" });
   const AGENT_LAYOUTS = Object.freeze(["list", "summary"]);
   const agentLayout = userChoice("lf-on-agent-layout", AGENT_LAYOUTS);
@@ -3179,14 +3185,14 @@ export function createFloatingPanel({
     if (view && trail.value.at(-1)?.view === "queue")
       moveScrollerBy(view, -view.scrollTop);
   }
-  // The On me door, as `g M` presses it: the view on the user's list, turned to it where
+  // The On Me door, as `g M` presses it: the view on the user's list, turned to it where
   // the view shows another tab, else opened or closed.
   function openOnMe() {
     const turned = chooseQueueTab("you");
     if (turned && showing({ view: "queue" })) paint();
     else open({ view: "queue" });
   }
-  // The mark opens On me, or Threads where nothing waits on the user but a reply they
+  // The mark opens On Me, or Threads where nothing waits on the user but a reply they
   // have not read, as the Threads mark it replaced opened on its Unread filter. It
   // stands only while no view does, so it never closes one; the seat's ✕ does that.
   function pressMark() {
@@ -3203,7 +3209,7 @@ export function createFloatingPanel({
     const words = emptyOnList(readQueues().phase, name);
     return words.endsWith("…") ? words : `${words}.`;
   };
-  // Each list as served: On me's grouped where it is drawn (`onMe.groups`), On
+  // Each list as served: On Me's grouped where it is drawn (`onMe.groups`), On
   // <agent>'s strongest workflow first, and Done newest first.
   const queueLists = () => {
     // Page placement determines the list's order, including after a revision
@@ -3230,9 +3236,9 @@ export function createFloatingPanel({
     return entry?.event ?? null;
   };
   /** @param {string} tab */
-  const tabLabel = (tab) => (tab === "agent" ? `On ${agentName()}` : "On me");
+  const tabLabel = (tab) => onList(tab === "agent" ? agentName() : "me");
   // The stop the `m` walk stands on while the field says its position
-  // (keyboard/status-context.js): its row in On me wears the ring a focused row
+  // (keyboard/status-context.js): its row in On Me wears the ring a focused row
   // wears, and the list brings it into view as the walk reaches it (`landWalked`), so
   // the list follows the walk rather than standing where it was.
   const walkedStop = () => {
@@ -3332,11 +3338,11 @@ export function createFloatingPanel({
                 const tab = controls.querySelector(
                   '.lf-fp-filters [aria-pressed="true"]',
                 );
-                if (!tab) throw new Error("On me has no active tab after selecting it");
+                if (!tab) throw new Error("On Me has no active tab after selecting it");
                 focusDestination(tab, "move");
               }}
             >
-              On me
+              On Me
             </button>`
           : step.state === "working" && step.since
             ? panelAge(step.since, { face: "lf-fp-plan-time" })
@@ -3472,7 +3478,7 @@ export function createFloatingPanel({
     return html`<div class="lf-fp-on-head">${first}${show}</div>
       ${rest}`;
   }
-  // One item: On me's card standing open (`card`), else a line opened into its card
+  // One item: On Me's card standing open (`card`), else a line opened into its card
   // while it is the open item. `says` names what the group's heading already says of
   // it, which the card leaves out where that is its `place`; `leads` whether it is the
   // first item of the walk's stop it stands at, which alone wears the walk's ring.
@@ -3561,9 +3567,9 @@ export function createFloatingPanel({
     // panel; keep its current route until the destination decides, then close only for
     // page travel.
     // A card drawing the message it asks (`message`) holds that message's drawing ahead
-    // of the page's (thread/messages.js, `authoredRank`), so an arrival with On me
+    // of the page's (thread/messages.js, `authoredRank`), so an arrival with On Me
     // standing landed in this card, and the user fell to the page as it closed. Where
-    // the thread stands on the page, On me goes first and the arrival lands in its card.
+    // the thread stands on the page, On Me goes first and the arrival lands in its card.
     const show = arrivesAt(item)
       ? html`<button
           type="button"
@@ -3695,7 +3701,7 @@ export function createFloatingPanel({
     const kind = mine ? (list === "done" ? "" : stop.noun) : agentNoun(item);
     const where = says === "place" ? "" : onMe.place(item);
     const walked = leads && queueTab === "you" && walkedStop() === stop.key;
-    // On me's card says only where its item stands over its question, where its band
+    // On Me's card says only where its item stands over its question, where its band
     // doesn't say it, and keeps that once it is answered, so the answer moves nothing.
     // It names no kind: its question and answers say what it is. The user chose that
     // on 26 October 2026 over a kind word before every card's place, which repeated
@@ -4114,7 +4120,7 @@ export function createFloatingPanel({
   // no tab beside it and no tab stands with a blank where its count would go.
   // Rejected: a blank at zero, which reads as a gap after the word, and the word
   // centred in a room wider on both sides, which stood it off centre once it had a
-  // count, as On me nearly always does.
+  // count, as On Me nearly always does.
   /** @template {string} T @param {readonly T[]} names @param {T} current
    * @param {(name: T) => string} label @param {(name: T) => unknown} choose
    * @param {(name: T) => number | null} count */
@@ -4255,7 +4261,7 @@ export function createFloatingPanel({
       aux:
         queueTab === "you"
           ? chooser({
-              label: "Group On me",
+              label: "Group On Me",
               values: ON_ME_GROUPINGS,
               name: groupingLabel,
               current: onMe.grouping(),
@@ -4413,7 +4419,7 @@ export function createFloatingPanel({
         asked.add(outlet);
       } else {
         const key = card.getAttribute("data-lf-key");
-        if (key === null) throw new Error("On me card has no item key");
+        if (key === null) throw new Error("On Me card has no item key");
         if (!opening.seatHeights.has(key))
           opening.seatHeights.set(key, card.getBoundingClientRect().height);
       }
@@ -4881,9 +4887,9 @@ export function createFloatingPanel({
   // page: a long thread's view covers most of the window, and a place at the page's
   // foot can't be scrolled above even a short one. A view the landing clears stays, so
   // a link followed from a thread's view leaves the thread open for Back to return to.
-  // On me stays too where it lists the item travel lands on (`onMe.lists`), since its
+  // On Me stays too where it lists the item travel lands on (`onMe.lists`), since its
   // card shows that item, ringed where the `m` walk reached it (`walkedStop`); a thread
-  // On me doesn't list, as `t` reaches, has no card there. A Tab onto a page stop the
+  // On Me doesn't list, as `t` reaches, has no card there. A Tab onto a page stop the
   // view would stand over clears it the same way, since the ring the user follows would
   // stand under it. Whether the panel stands over the place at all is its cover's
   // answer, by the rule every reading of what the user sees takes (geometry.js,
@@ -4917,7 +4923,7 @@ export function createFloatingPanel({
   // The doors to the panel's views and to Versions, as Go-to's named destinations
   // (keyboard/go-to-sequence.js) and version travel (`g V`, version.js) press them:
   // each opens what it names, or puts it away where it already stands, so the press
-  // that opened it closes it. The On me door turns the On view to the user's list where
+  // that opened it closes it. The On Me door turns the On view to the user's list where
   // it shows another tab, and the Threads door to Threads.
   // `shows` says whether the press would put its view away.
   function putVersionsAway() {

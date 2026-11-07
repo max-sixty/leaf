@@ -1081,7 +1081,7 @@
         },
         "published_at": { "type": ["string", "null"] },
         "queues": {
-          "description": "On me and On <agent> and what each has finished (`served_state.queues`).",
+          "description": "On Me and On <agent> and what each has finished (`served_state.queues`).",
           "type": "object",
           "properties": {
             "on_user": { "type": "array", "items": { "$ref": "#/$defs/QueueRow" } },
@@ -1351,7 +1351,7 @@
       ]
     },
     "QueueRow": {
-      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A record's row names its obligation by `id`, whose record is the view's `obligations` entry, and a to-do row names its record in the page's `todos` entry.",
+      "description": "One row of On Me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A record's row names its obligation by `id`, whose record is the view's `obligations` entry, and a to-do row names its record in the page's `todos` entry.",
       "anyOf": [
         { "$ref": "#/$defs/ObligationRow", "unevaluatedProperties": false },
         { "$ref": "#/$defs/TodoRow", "unevaluatedProperties": false }
@@ -1367,7 +1367,7 @@
         },
         { "properties": { "kind": { "const": "update" } } }
       ],
-      "description": "An obligation record's row in On me or On <agent> (`served_state.queues`).",
+      "description": "An obligation record's row in On Me or On <agent> (`served_state.queues`).",
       "type": "object",
       "properties": {
         "kind": {

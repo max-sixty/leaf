@@ -112,7 +112,7 @@ container's id, and `rankAt(state.<verb>, container, index, unit)`, which places
 unit at `index` among the container's others and keeps it there however other units
 move. A verb with no record sends what its `detail` schema declares.
 
-A widget that puts an obligation on On me can give its class
+A widget that puts an obligation on On Me can give its class
 `static answerWords(value, element)`, returning short words for the answer in the On
 lists, which otherwise show none. `value` is the obligation's `answer.value`, and
 `element` gives the authored markup, such as option labels; read only that, not what

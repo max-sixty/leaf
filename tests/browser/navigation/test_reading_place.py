@@ -727,7 +727,7 @@ def test_reading_restore_leaves_a_concealed_landmark_alone(browser, serve, subte
 def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     """Each step of the obligation walk somewhere else adds a history entry where the user
     stood, as each trip to a thread does, so Back returns to the obligation the user was
-    on, though answering it took it out of On me, and then to where they were reading.
+    on, though answering it took it out of On Me, and then to where they were reading.
     `m` from a thread `t` reached comes back to the thread, its card open again beside
     its passage."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
@@ -811,7 +811,7 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     assert landed < reading - 1000
     assert entry() == start + 1
 
-    # Answering the obligation takes it out of On me, so no walk's Shift reaches it again.
+    # Answering the obligation takes it out of On Me, so no walk's Shift reaches it again.
     page.keyboard.press("1")
     expect(page.locator("#se-rota[chosen]")).to_have_count(1)
     page.keyboard.press("Shift+m")

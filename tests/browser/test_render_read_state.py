@@ -301,7 +301,7 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     page = open_page(browser, url)
 
     mark = _on_me_mark(page)
-    expect(mark).to_have_attribute("aria-label", "On me, 1 thread with news")
+    expect(mark).to_have_attribute("aria-label", "On Me, 1 thread with news")
     expect(mark.locator(".lf-fp-news")).to_be_visible()
     thread_control_width = mark.bounding_box()["width"]
     # With news waiting and nothing on the user, the mark opens Threads, where the
@@ -323,7 +323,7 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     ]
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
-    expect(mark).to_have_attribute("aria-label", "On me")
+    expect(mark).to_have_attribute("aria-label", "On Me")
     expect(mark.locator(".lf-fp-news")).to_be_hidden()
     assert abs(mark.bounding_box()["width"] - thread_control_width) < 1
     page.reload()

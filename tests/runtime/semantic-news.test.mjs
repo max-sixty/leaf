@@ -149,7 +149,7 @@ test("structural questions own their thread obligation and reopening starts a ne
     reopened.news.map(({ kind, thread, source }) => [kind, thread, source]),
     [["user_obligation", "t", "choice"]],
   );
-  assert.equal(said(reopened.news), "New on me");
+  assert.equal(said(reopened.news), "New On Me");
   const queued = combineSemanticNews(first.news, reopened.news);
   assert.equal(queued.length, 4);
   const current = currentSemanticNews(queued, reopenedReading, reopened.observed);
@@ -160,7 +160,7 @@ test("structural questions own their thread obligation and reopening starts a ne
       ["user_obligation", "t", "choice"],
     ],
   );
-  assert.equal(said(current), "2 new on me");
+  assert.equal(said(current), "2 new On Me");
   assert.deepEqual(combineSemanticNews(reopened.news, reopened.news), reopened.news);
   assert.deepEqual(observeSemanticNews(reopened.observed, owed).news, []);
 });
@@ -356,7 +356,7 @@ test("page obligations come from the shown revision, not a waiting activation", 
   assert.equal(selected.onMe, 1);
 });
 
-test("a reading that empties On me says so while the list stays empty", () => {
+test("a reading that empties On Me says so while the list stays empty", () => {
   // A list empty from the first reading is no news.
   const baseline = observeSemanticNews(null, reading());
   assert.deepEqual(baseline.news, []);
@@ -374,7 +374,7 @@ test("a reading that empties On me says so while the list stays empty", () => {
   const queued = combineSemanticNews(emptied.news, again.news);
   assert.equal(
     said(currentSemanticNews(queued, refilled, again.observed)),
-    "New on me",
+    "New On Me",
   );
 });
 
@@ -408,7 +408,7 @@ test("a new message speaks for itself, with what it asks of the user", () => {
   const both = observeSemanticNews(baseline.observed, more);
   assert.equal(
     said(currentSemanticNews(both.news, more, both.observed)),
-    "Does this answer your question? · New on me",
+    "Does this answer your question? · New On Me",
   );
 });
 
@@ -457,7 +457,7 @@ test("a notice sets the agent's words apart from Leaf's news", () => {
       [" · ", "leaf"],
       ["Not answered", "leaf"],
       [" · ", "leaf"],
-      ["New on me", "leaf"],
+      ["New On Me", "leaf"],
     ],
   );
   const edited = message("m2", { edited: { id: "edit", seq: 2 } });

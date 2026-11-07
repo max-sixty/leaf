@@ -546,7 +546,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     """Where the user is located and what the user still owes are two facts, and a
     widget whose seat holds a thread waiting on the agent is where they part. Its seat holds the words
     the user just wrote, its answer is unmade and its controls are live, and it has left
-    On me because the next word there is the agent's — but the user
+    On Me because the next word there is the agent's — but the user
     is located in it all the same, and it is still the question they are working.
 
     Read off the user's list, both the ring and `c` went with the count: the moment the
@@ -605,7 +605,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     # The completion count includes every active obligation: the authored pick is complete;
     # the seated obligation and suggestion are not.
     expect_obligations_answered(page, "1/3")
-    # In On me the seated obligation is the agent's: the comment in its seat is owed a reply,
+    # In On Me the seated obligation is the agent's: the comment in its seat is owed a reply,
     # which stands for it, so it is neither the user's obligation nor done.
     panel_control(page, "queue").click()
     panel_settled(page, view="queue")

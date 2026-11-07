@@ -99,7 +99,7 @@ def _attribute_written(attr: str, values: list) -> str:
 
 def refuse_second_request(asking: dict | None) -> None:
     """A message asks once. `--obligation` beside a widget that asks would stay on
-    On me after the user answers the widget, since only their words answer it."""
+    On Me after the user answers the widget, since only their words answer it."""
     if asking is not None:
         raise Rejected(
             [

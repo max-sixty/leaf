@@ -741,7 +741,7 @@ function createApplication(dependencies) {
         readObligations().all,
       );
     },
-    // The On me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
+    // The On Me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
     nextObligation: /** @type {ApplicationDependencies["nextObligationWithin"]} */ (
       options,
     ) => dependencies.nextObligationWithin(options),

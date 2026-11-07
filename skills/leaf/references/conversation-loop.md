@@ -68,7 +68,7 @@ no to-do.
 
 When the work runs to several steps, some of which may wait on the user, write your plan
 before you start the first step, so the user can follow it in the panel's list of your
-work, under the plan's progress, and see On me grouped by its goals: the goal, its steps
+work, under the plan's progress, and see On Me grouped by its goals: the goal, its steps
 in order, the one under way, and those waiting on them.
 `leaf task plan <page>` reads the whole outline from stdin as a JSON list of steps: the
 goal at depth 0, each step one deeper than the step it belongs to, and each either a
@@ -105,7 +105,7 @@ Leave the page available for optional feedback, putting down your current starts
 leaf page open <page>
 ```
 
-Your to-dos stay open. An informational page with nothing on On me simply invites
+Your to-dos stay open. An informational page with nothing on On Me simply invites
 comments. Tell the user what they can do on the page, and hand over as your harness
 contract says. From the first handoff on, every turn's final response includes the
 exact page URL; progress messages don't repeat it. An export hands over its file URL,
@@ -172,7 +172,7 @@ even after the user resolves the thread or your session ends. A turn's own messa
 open one. Handing the work to another session, a background job, or a later turn is
 such a promise too; a `--done` reply would tell the user nothing more is coming. So is
 holding a decision the user put off until other work lands: while the to-do stays open,
-the decision their thread is about stays off On me, and ending the to-do puts it back.
+the decision their thread is about stays off On Me, and ending the to-do puts it back.
 
 Whoever finishes the work ends the to-do: `leaf task end <page> <todo> done --text "<where>"`,
 or `failed`/`dropped` with the reason. If another session will finish it, put the page
@@ -183,31 +183,31 @@ Work on an update that finishes inside the turn needs no to-do.
 
 ## The On lists
 
-The user's **On me** list holds everything waiting on them: each decision your work
+The user's **On Me** list holds everything waiting on them: each decision your work
 leaves to them, whether or not your next step depends on it, and each answer,
 permission, review, or outside action you need. That includes every option you
 present for their judgment, not only the one you recommend. Ask each by a route in
 the table below, grouped as `authoring-on-me.md` says, and keep it until the user
 decides or you withdraw it. A question written in prose, a heading, a status line or
-chat isn't on On me; only the routes in the table put it there. Information they may
+chat isn't on On Me; only the routes in the table put it there. Information they may
 comment on but need not decide is not an obligation.
 
 In Claude Code, as each turn ends, an experimental check of Leaf's reads the
-conversation for decisions, answers or steps you left to the user that On me doesn't
+conversation for decisions, answers or steps you left to the user that On Me doesn't
 hold. It asks each in a new thread as your message with `--obligation`, on the passage
 it concerns or the page, and tells you at your next step what it wrote. Where a few of
 a page's words have gone stale, it swaps in new ones and tells you the old and new
 words; change them back or rewrite them if they're wrong, and carry the change into
 any file you build the page from. It also tells you what else it found, such as a
-page that still says what has since changed, an On me item the user settled
+page that still says what has since changed, an On Me item the user settled
 elsewhere, or work you set running that no page shows, for you to act on where it
 still holds; `turn-end-check.md` is what it asks. That catches what slips; it doesn't
 ask for you, so keep asking by the routes below. What it writes is yours like
 anything you write: the user's reply reaches you as any reply does, and you end one
 that isn't theirs with `leaf task end <page> message:<id> dropped`.
 
-On me also lists any update of the user's that failed to send. Your own list shows as
-**On <your name>**. The user presses `m` to step through On me in page order. Each
+On Me also lists any update of the user's that failed to send. Your own list shows as
+**On <your name>**. The user presses `m` to step through On Me in page order. Each
 press lands where the obligation is answered; on a widget's obligation, its numbered actions
 (`1`–`9`) answer it there, and on a thread message, its thread opens on it. Leaf adds
 no control of its own, such as a Done, to answer an item: on the page, the user answers
@@ -218,11 +218,11 @@ they give elsewhere, such as in chat, with `leaf task end` (below).
 | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | A decision or input recorded by a widget                                 | Author a widget that records it, on the page or in a thread message's `--markup` (`authoring-on-me.md`)                                                                           | The widget's declared answer; a multiple-choice widget also needs the user's Done                                                          |
 | A question answered in words                                             | `--obligation` on `thread create` or `thread reply` (`threads.md`)                                                                                                                | The user's next message there or a settling reaction                                                                                       |
-| Permission for a stated action                                           | Options to take the action or keep things as they are (`authoring-on-me.md`, "Permission")                                                                                        | The user's pick and its row in On me                                                                                                       |
+| Permission for a stated action                                           | Options to take the action or keep things as they are (`authoring-on-me.md`, "Permission")                                                                                        | The user's pick and its row in On Me                                                                                                       |
 | An action the user takes, such as trying a build or connecting a browser | `--obligation` on a message saying what to do, asking for a reply only for what the user alone can report or your next step waits on, in a thread on what it concerns or the page | Your `leaf task end … done` once you see its effect, which you check yourself wherever you can; or the user's reply or a settling reaction |
 
 Generally pass `--obligation` when a message hands the next move to the user,
-including an answer that informs a decision already on On me. A message that asks a
+including an answer that informs a decision already on On Me. A message that asks a
 new question whose answers you can list asks with a widget in its markup instead
 (`threads.md`, "Ask for a pick"); the command refuses both together. Progress and
 information that need no response create no obligation.
@@ -232,11 +232,11 @@ Obligation ids are `message:<message>` for an explicit message request,
 and `update:<event-id>` for an update
 the user handed over.
 The user's next message in a thread answers every conversational request before it,
-whatever it says, so On me clears the moment they reply. Its delivery names those
+whatever it says, so On Me clears the moment they reply. Its delivery names those
 requests in `settled`, for you to read the message against. A clarification hands the
 conversation back to you, as does a question about an action, such as "where do I run
 it?"; if the request still stands, answer with `--obligation <id>`, which returns
-the same item to On me (`threads.md`). A new question takes `--obligation` alone. Ask a
+the same item to On Me (`threads.md`). A new question takes `--obligation` alone. Ask a
 dependent question only once its prerequisite is answered. An answer grants nothing
 its question did not ask.
 
@@ -247,7 +247,7 @@ answer:
 leaf page state <page> | jq '{source, obligations, todos, queues}'
 ```
 
-`queues.on_user` is On me. `queues.on_agent` is your list: the updates you owe a
+`queues.on_user` is On Me. `queues.on_agent` is your list: the updates you owe a
 reply or a version, and your to-dos. Read them as given rather than rebuilding them
 from events. A row names its obligation or to-do by `id`, and in `also` the other
 obligations the user answers at the same place: an answer of yours in a thread about a
@@ -263,7 +263,7 @@ are not in this reading.
 Check `source` for an invalid or missing `index.html` before taking an empty list as a
 clean handoff.
 
-An empty On me means you need nothing from the user now. Finish authorized work
+An empty On Me means you need nothing from the user now. Finish authorized work
 without asking again. Ask about a paused project only when resuming or dropping it
 needs the user's decision. Put a blocked action on the user only when they can
 unblock it, and leave questions about another session's work to that session.
@@ -272,7 +272,7 @@ When the user answers a question your message asked by another route than the on
 offered, such as in chat, or in words where it offered a choice, use the answer and end
 its obligation with `leaf task end`, using the id from `page state`: `done` records
 where they answered; `dropped` withdraws a question that no longer applies. End a
-step on On me the same way, with `done`, once you see its effect, `--text` saying what
+step on On Me the same way, with `done`, once you see its effect, `--text` saying what
 you saw; whenever you read the lists, check the effect of each step you can. Neither
 outcome fabricates an answer in the page's history:
 

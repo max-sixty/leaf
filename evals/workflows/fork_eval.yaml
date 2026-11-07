@@ -26,7 +26,7 @@ rubrics:
       "No items and no changes.", which passes; or a conversation between a user and
       a coding agent, the question Leaf's turn-end
       check asked a fork of that conversation, every item of the fork's answer that
-      Leaf took (each ask as Leaf put it On me, with the title and text the user
+      Leaf took (each ask as Leaf put it On Me, with the title and text the user
       reads; each finding as Leaf passed it to the agent), each marked `labelled`
       where this test expects it, and the changes Leaf made to the page from the
       answer's edits. Pass only if all of these hold. A question's title names its
@@ -36,13 +36,13 @@ rubrics:
       on, not for an effect the agent could check itself and nothing waits on. A finding's summary says correctly what the conversation
       shows. Each change makes the page say what the conversation shows now, in the
       page's own register. Each item not labelled is one the question asks for and
-      the conversation clearly shows: an ask the agent left to the user that no On me
+      the conversation clearly shows: an ask the agent left to the user that no On Me
       item holds and the user hasn't answered since; a page passage the work or the
-      conversation has since contradicted; an On me item settled elsewhere; or work
+      conversation has since contradicted; an On Me item settled elsewhere; or work
       the agent promised or set running that no page shows. An unlabelled item fails
       if it hedges about what the page may say, if a Leaf message in the
       conversation already passed it on, if it concerns a chat reply rather than the
-      page, if an On me item already holds it, if the user has since answered it, if
+      page, if an On Me item already holds it, if the user has since answered it, if
       it concerns a server, watcher or wait loop serving only the agent's own checks,
       or if it repeats another item.
   line: &line

@@ -630,7 +630,7 @@ def test_the_thread_card_survives_the_on_view_and_authored_sidebars(browser, ser
 
     toggle_queue(page)
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    # The press on the marker puts On me away and opens the card, not a thread view.
+    # The press on the marker puts On Me away and opens the card, not a thread view.
     marker.click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(PANEL_THREAD)).to_have_count(0)

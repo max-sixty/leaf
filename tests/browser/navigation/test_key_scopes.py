@@ -169,7 +169,7 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
 
 def test_the_thread_walk_goes_on_from_the_place_the_panel_holds(browser, serve):
     """Stepping into the panel from a thread keeps the user in that thread on the page,
-    so `t` pressed in On me goes on to the next thread rather than back into it."""
+    so `t` pressed in On Me goes on to the next thread rather than back into it."""
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
     )
@@ -240,7 +240,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
         page.keyboard.press("Escape")
         assert page.evaluate(on_body)
 
-    # On me by pointer: out with the panel's view.
+    # On Me by pointer: out with the panel's view.
     toggle.click()
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
@@ -300,7 +300,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
 def test_a_view_reached_from_another_view_leaves_both_of_them_shut(browser, serve):
     """The surface a user was already in does not come back when the next one goes.
 
-    `g T` from On me puts Threads up in its place, and the one Escape that takes
+    `g T` from On Me puts Threads up in its place, and the one Escape that takes
     Threads off lands on the page rather than reopening the view the user came from.
     Nothing records that they were in it, and the descent Escape matches is the one that
     the state in front of them describes: Threads over the page.
@@ -1492,7 +1492,7 @@ def test_an_offline_walk_says_its_list_cannot_be_had(browser, serve):
         page, "Current threads are unavailable while the server is offline"
     )
     page.keyboard.press("m")
-    expect_panel_says(page, "On me is unavailable while the server is offline")
+    expect_panel_says(page, "On Me is unavailable while the server is offline")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

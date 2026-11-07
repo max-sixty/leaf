@@ -1527,7 +1527,7 @@ def test_failed_primary_reader_restores_the_same_native_obligation_in_core(
 def test_the_panels_routes_to_a_thread_reach_the_reader_that_holds_its_widget(
     browser, serve
 ):
-    """On me's route and Threads' row each take the user to the primary reader that
+    """On Me's route and Threads' row each take the user to the primary reader that
     owns the thread's widget. The panel opens no view of the thread, and the widget
     arrives as the same native node."""
     page = open_page(browser, package_workspace(serve))

@@ -4354,7 +4354,7 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     restore_cases = user_view_restore_cases(page)
     assert len(restore_cases) > 1, "the runtime declares nothing to arrive in"
 
-    # The control, and the whole reason the silences below say anything: opening On me
+    # The control, and the whole reason the silences below say anything: opening On Me
     # by hand is the gesture whose motion the arrivals must not have. What it paints
     # is the runtime's business and is not named here; that it paints at all is this
     # reading's, and a reading that reports nothing when something moved would pass

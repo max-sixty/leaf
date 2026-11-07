@@ -19,8 +19,8 @@ metadata:
 vars:
   prompt: |
     You are working with the user on a Leaf page of interface proposals. On the
-    proposal that adds an Answer press to On me cards, the user commented: "how
-    should a widget decide what its On me card shows? it should be up to the widget".
+    proposal that adds an Answer press to On Me cards, the user commented: "how
+    should a widget decide what its On Me card shows? it should be up to the widget".
 
     The page so far holds ten proposals, each put to the user like these two:
 
@@ -51,18 +51,18 @@ vars:
       <h3 id="answer-control">A question asked in words shows no way to answer it</h3>
       <p>
         A bare <code>lf-ask</code> renders as an ordinary paragraph, and the only
-        sign it is a question is a <code>?</code> in the rail. On me has the same
+        sign it is a question is a <code>?</code> in the rail. On Me has the same
         gap: a card whose widget lives in an undrawn thread message gets only the
         quiet words “Discuss” and “Show”, and neither says an answer is owed.
       </p>
       <p>
         Proposal: give a bare <code>lf-ask</code> an <strong>Answer</strong> press
-        that opens its comment box labelled “Answer…”. When On me can't draw a
+        that opens its comment box labelled “Answer…”. When On Me can't draw a
         card's choices, draw its way there as an <strong>Answer</strong> press.
         Cost: about 40 lines, one default-package widget plus theme.
       </p>
       <lf-options id="answer-control-choice" choose>
-        <lf-option id="answer-build"><small class="tag">effort: ~40 lines</small><small class="tag ok">recommended</small><strong>Draw an Answer press on bare questions and on On me cards</strong></lf-option>
+        <lf-option id="answer-build"><small class="tag">effort: ~40 lines</small><small class="tag ok">recommended</small><strong>Draw an Answer press on bare questions and on On Me cards</strong></lf-option>
         <lf-option id="answer-keep"><small class="tag">effort: none</small><strong>Keep the rail’s ? as the only sign</strong></lf-option>
       </lf-options>
     </lf-ask>
@@ -70,7 +70,7 @@ vars:
 
     You read the code. Your notes:
 
-    - Today a widget has four inputs to its On me card. `x-awaits` in its registry
+    - Today a widget has four inputs to its On Me card. `x-awaits` in its registry
       entry says whether it asks and what answers it. Its keyboard commands marked
       `decision: true` are copied onto the card as plain buttons, and a press clicks
       the widget's real control on the page (`choicesOf` in `obligations/view.js`).

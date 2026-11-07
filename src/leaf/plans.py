@@ -27,7 +27,7 @@ the start `running` on a named to-do, `since`, when a working step began, its
 A step naming an obligation a later version removed reads as dropped.
 
 The floating panel's On <agent> discloses the plan from its progress at the view's
-foot, and On me can group its items under the goals whose steps name them
+foot, and On Me can group its items under the goals whose steps name them
 (`floating-panel.js`, `queue-walk.js`). `conversation-loop.md`,
 "When to write", asks an agent for a plan when its work runs to several steps, some of
 which may wait on the user.

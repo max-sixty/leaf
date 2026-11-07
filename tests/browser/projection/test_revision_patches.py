@@ -1029,7 +1029,7 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     second = first.replace(reading, questions + reading)
     page = open_page(browser, live_url(serve(first, packages=("diff",))))
     door = page.locator(".lf-fp-on-user")
-    expect(door).to_have_attribute("aria-label", "On me")
+    expect(door).to_have_attribute("aria-label", "On Me")
     target = (
         page.locator("#reading")
         if subject != "diff"
@@ -1047,7 +1047,7 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     # An empty but open composer was sufficient to hold the original report.
     (serve.page_dir / "index.html").write_text(second)
     expect(page.locator("lf-ask")).to_have_count(3)
-    expect(door).to_have_attribute("aria-label", "On me: 3")
+    expect(door).to_have_attribute("aria-label", "On Me: 3")
     if subject == "selection":
         assert (
             page.evaluate("getSelection().toString().trim()")
@@ -1062,7 +1062,7 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     editor.evaluate("node => node.setSelectionRange(5, 9)")
     (serve.page_dir / "index.html").write_text(first)
     expect(page.locator("lf-ask")).to_have_count(0)
-    expect(door).to_have_attribute("aria-label", "On me")
+    expect(door).to_have_attribute("aria-label", "On Me")
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property(
         "value", "Keep this comment while questions change."
@@ -1093,13 +1093,13 @@ def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
     # The row offers the latest, without a press that would end the hold.
     expect(page.locator("button.lf-fp-row-notice-press")).to_be_enabled()
     expect(page.locator("#subject p")).to_have_count(1)
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me")
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", "This occurrence matters.")
 
     editor.press("Escape")
     expect(page.locator("#subject p")).to_have_count(2)
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me: 1")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me: 1")
 
 
 def test_a_live_revision_preserves_an_unchanged_authored_editor(browser, serve):

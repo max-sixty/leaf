@@ -55,7 +55,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
 
     # A mode offers no step of its own: a stroke's undo is on its drawing's composer, so
-    # each mode's ✕ stands in the On me mark's seat, and the mark comes back after it.
+    # each mode's ✕ stands in the On Me mark's seat, and the mark comes back after it.
     for entry, root, mode, exit_name in (
         ("command:draw.mode.enter", "html", "data-lf-draw-mode", "Exit Draw mode"),
         (

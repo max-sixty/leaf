@@ -1,5 +1,5 @@
 /* lf-tally: a region's obligations still to answer, in a chip (chip.css) as a header's are,
- * with its Next on me beside it. The count's room stacks the widest labels the count
+ * with its Next On Me beside it. The count's room stacks the widest labels the count
  * can take in one cell with the words, giving the chip its width, so a changing count
  * moves neither the control nor what follows. Until the page's first reading is in,
  * the tally keeps its room and shows nothing; once every obligation is answered the chip takes
@@ -33,7 +33,7 @@ lf-tally {
 :host(lf-tally) .lf-tally-room {
   visibility: hidden;
 }
-/* Next on me stands in a header row beside the chips at their type size, as tall as
+/* Next On Me stands in a header row beside the chips at their type size, as tall as
  * the layer's aim floor, so the row keeps the height its title gives it. A chip after
  * it paints over whatever of its focus ring reaches the chip, and a space between the
  * two is narrower than the ring, so it keeps the ring's room after it. */
@@ -52,7 +52,7 @@ lf-tally:not(:defined)::before {
   padding: var(--chip-pad);
 }
 lf-tally[next]:not(:defined)::after {
-  content: "Next on me";
+  content: "Next On Me";
   display: inline-block;
   visibility: hidden;
   font: var(--font-small);

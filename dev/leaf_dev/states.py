@@ -1185,13 +1185,13 @@ def option_references(page: Page) -> None:
 
 
 def on_me(page: Page) -> None:
-    """On me, opened from the floating panel's On me mark."""
+    """On Me, opened from the floating panel's On Me mark."""
     page.locator(".lf-fp-on-user").click()
     expect(page.locator(panel_view("queue"))).to_be_visible()
 
 
 def on_me_question(page: Page) -> None:
-    """On me opened on the card of a question the agent asked in a thread with
+    """On Me opened on the card of a question the agent asked in a thread with
     `--obligation`, its whole words over the card's Reply."""
     question = (
         "Can you review the change or name a reviewer, then merge it after checking "
@@ -1213,7 +1213,7 @@ def on_me_question(page: Page) -> None:
 
 
 def on_me_choice(page: Page) -> None:
-    """A described choice card in On me, before answering."""
+    """A described choice card in On Me, before answering."""
     on_me(page)
     card = page.locator(
         '.lf-fp-on-item[data-lf-obligation-id="widget:decision-dedupe"]'
@@ -1696,8 +1696,8 @@ def options_in_pane(page: Page) -> None:
 
 
 def tally_after_an_answer(page: Page) -> None:
-    """A queue's tally after Next on me and one answer: the count down by one, the
-    answered row's check above the open marks, and Next on me's second obligation open."""
+    """A queue's tally after Next On Me and one answer: the count down by one, the
+    answered row's check above the open marks, and Next On Me's second obligation open."""
     next_on_me = page.locator("#ar-left .lf-tally-next")
     next_on_me.click()
     page.locator("#ar-canary-consecutive").click()
@@ -2124,7 +2124,7 @@ def ship_tasks(page: Page) -> None:
 
 
 def ship_answered(page: Page) -> None:
-    """On me once the user has pressed Done in the reconnect thread and picked the
+    """On Me once the user has pressed Done in the reconnect thread and picked the
     release: what still waits on them."""
     card_by_pointer(page)
     page.locator(".lf-margin-preview:not([hidden]) .lf-done").click()
@@ -2135,7 +2135,7 @@ def ship_answered(page: Page) -> None:
 
 
 def card_message_by_keyboard(page: Page) -> None:
-    """The agent's question in a margin card, reached by Next on me (`m`), which
+    """The agent's question in a margin card, reached by Next On Me (`m`), which
     focuses the message, so its card wears the ring."""
     for _ in range(4):
         page.keyboard.press("m")
@@ -2144,7 +2144,7 @@ def card_message_by_keyboard(page: Page) -> None:
             "() => document.activeElement?.matches('.lf-margin-preview .lf-msg')"
         ):
             return
-    raise AssertionError("Next on me never reached a card's message")
+    raise AssertionError("Next On Me never reached a card's message")
 
 
 def element_thread_open(page: Page) -> None:

@@ -1,8 +1,8 @@
-"""Agent-facing page state: the On me and On <agent> lists, and the obligations and to-dos
+"""Agent-facing page state: the On Me and On <agent> lists, and the obligations and to-dos
 they select from.
 
 The reading uses one transaction and holds the two lists the active view serves
-(`served_state.queues`): On me (`on_user`) holds the open obligations on the user, the
+(`served_state.queues`): On Me (`on_user`) holds the open obligations on the user, the
 updates handed back to them among them; On <agent>
 (`on_agent`) holds the updates the agent owes an answer and its to-dos. The obligation
 inventory (`obligations`) also retains finished records, whatever their `status`.
@@ -141,7 +141,7 @@ def _base_state(
             else {}
         ),
         "measurement_lag": [],
-        # What is on the user (On me) and what is on the agent (On <agent>), each item
+        # What is on the user (On Me) and what is on the agent (On <agent>), each item
         # naming its kind and subject (`served_state.queues`); the to-dos on either
         # side; the agent's plan, which arranges them (`plans`); and the complete
         # canonical obligation inventory those lists select from, whose records an obligation's
@@ -343,7 +343,7 @@ def page_state(
     authored measurements whose live source has run again
     (`measurement_lag_entries`), each comment thread's current state, attention, and
     the agent messages in it the user has not read, every open to-do on either side,
-    the obligations, the two lists, On me and On <agent>, that they and the workflows add up
+    the obligations, the two lists, On Me and On <agent>, that they and the workflows add up
     to (`served_state.queues`, the panel's own counts), and presence beside what
     answers for it. It is a
     selection from the reading /api/state serves (`read_served_page`), computed on

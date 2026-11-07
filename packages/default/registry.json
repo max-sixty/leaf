@@ -514,7 +514,7 @@
   },
   "lf-tally": {
     "description": "A count of the open obligations in one region, such as the decisions left in a queue, split into those waiting on the user and those waiting on the agent, with an optional control that goes to the next one waiting on the user.",
-    "x-instructions": "Write it empty with a stable id, and set `for` to the region whose obligations it counts, such as a side-list `lf-tabs` queue. Place it where the reader looks for the queue's state, such as a workspace header beside its `.tag` chips. Add `next` for a Next on me control that steps through the obligations waiting on the user.",
+    "x-instructions": "Write it empty with a stable id, and set `for` to the region whose obligations it counts, such as a side-list `lf-tabs` queue. Place it where the reader looks for the queue's state, such as a workspace header beside its `.tag` chips. Add `next` for a Next On Me control that steps through the obligations waiting on the user.",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
@@ -633,7 +633,7 @@
   },
   "lf-sample": {
     "description": "A labeled sample: quoted content, interactive content on this page, or an isolated child Leaf page.",
-    "x-instructions": "Use interactive for inline controls that share this page’s state and Undo; they ask nothing, so none goes on On me. For an isolated live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome. Read live-samples.md for child-page interaction, reset, and isolation.",
+    "x-instructions": "Use interactive for inline controls that share this page’s state and Undo; they ask nothing, so none goes on On Me. For an isolated live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome. Read live-samples.md for child-page interaction, reset, and isolation.",
     "x-name": "label",
     "type": "object",
     "properties": {

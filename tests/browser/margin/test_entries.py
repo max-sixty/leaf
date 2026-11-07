@@ -358,7 +358,7 @@ or roll every tenant into a single partitioned archive?</h2>
 def test_an_obligation_marker_names_its_question_once_the_user_points_at_it(
     browser, serve
 ):
-    """Arriving at an obligation with `m` paints its On me marker selected, and only its
+    """Arriving at an obligation with `m` paints its On Me marker selected, and only its
     marker. Its preview appears only when the user points at the marker: the ask's
     heading already says the question, and a preview nobody pointed at covers the ask's
     controls.

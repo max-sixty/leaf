@@ -360,6 +360,13 @@ it. A widget that wants Leaf's face for the pointer too, its key chips included,
 declares the words in `lfPreview` and writes no `title`. Off Leaf nothing reads
 `lfPreview`.
 
+A thread's words preview the thread to a pointer or a finger only where nothing else
+there takes the pointer: a control, native or ARIA, an element with a `title` or an
+`lfPreview`, or a widget that draws its content itself (`x-content` `data` or
+`empty`). There the element's own preview shows, or none, and the thread is reached
+by its margin entry. Words a widget holds of the author's markup, outside any control
+in it, preview their thread.
+
 A link an author wrote to a place on the page previews that place with no declaration.
 A link a widget draws previews nothing of the place unless the widget declares it,
 since only the widget knows whether its words already say what the place holds; to

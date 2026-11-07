@@ -236,6 +236,11 @@ playable").
   ("The page holds still under the user's aim") and holds no control. The pointer can
   cross onto it and read it there (WCAG 1.4.13). Revealing a block's own controls, as Copy appears on a
   code block, is no preview and stays its block's.
+  A thread's words and its margin entry read one preview, made from the reading every
+  surface paints the thread from (`threadPreview`), and an age reads its clock time in
+  the reader's zone (`agePreview`). Checks:
+  `test_a_thread_previews_where_it_stands_from_its_words_and_its_entry`,
+  `test_an_age_previews_its_clock_time_in_the_reader_s_zone`.
 - **Every route reads it.** A resting pointer reads it after a short dwell, keyboard
   focus the user moved there themselves at once, by Tab or a keyboard walk, as whoever
   moved focus says, but not focus a surface places as it opens or hands back as it
@@ -251,14 +256,18 @@ playable").
   their words to the preview and write no title on Leaf.
 - **One owner shows every preview.** An element adds to what pointing at it reads
   (`lfPreview`, `../skills/leaf/references/module-input.md`, "Previews"), a control's
-  word and keys come from its name and the register, and a link an author wrote into
-  the page shows the place it names (`runtime/place-preview.js`). `runtime/preview.js`
-  shows one at a time on every route, puts it away on leave, blur or a press, and gives
-  a screen reader the words it shows on focus as the focused element's description.
+  word and keys come from its name and the register, a link an author wrote into the
+  page shows the place it names (`runtime/place-preview.js`), and a range's owner says
+  where the pointer or a holding finger rests on it, as a thread's passage marks do
+  (`anchor-paint.js`). `runtime/preview.js` shows one at a time on every route, puts it
+  away on leave, blur or a press, and gives a screen reader the words it shows on focus
+  as the focused element's description.
   While one stands it is Escape's first step, which does nothing else, so a preview
   over the surface the user is in never costs them that surface (WCAG 1.4.13). Checks:
   `test_a_control_previews_its_word_and_every_key_that_presses_it`,
-  `test_a_link_into_the_page_previews_where_it_points`.
+  `test_a_link_into_the_page_previews_where_it_points`,
+  `test_a_range_previews_beside_the_line_the_pointer_rests_on` and
+  `test_a_finger_holding_a_thread_s_words_reads_it_above_them`.
 
 ### Visual treatment carries meaning
 
@@ -624,8 +633,10 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowWord`, `progressFace`, `todoWord`                    |
 | A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                             |
 | What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                    |
-| What an element (its `lfPreview`) or control says when pointed at, on every route                     | `preview.js`                                                                       |
+| What an element (its `lfPreview`), control or range says when pointed at, on every route              | `preview.js` `pointRange`                                                          |
 | What a place on the page shows as a preview, and the place a link into the page names                 | `place-preview.js` `placePreview`, `linkedPlace`                                   |
+| What a thread says when pointed at, on its passage mark and its margin entry                          | `thread/messages.js` `threadPreview`                                               |
+| The clock time behind an age, and what an age's `<time>` previews                                     | `presence.js` `clockTime`, `agePreview`                                            |
 | The keys that press a control                                                                         | `keyboard/control-keys.js` `controlKeys`                                           |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                              |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |

@@ -223,7 +223,8 @@ function renderLine(record, line, owner, count = null) {
         >${
           record.status === "added" ? "+" : record.status === "removed" ? "−" : " "
         }</span
-      ><span class="lf-call-body">${record.body}</span>${
+      >
+      <span class="lf-call-body">${record.body}</span>${
         record.root ? "" : locationLink(record, owner)
       }${
         count === null

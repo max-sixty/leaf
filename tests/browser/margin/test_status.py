@@ -614,7 +614,8 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     marker.evaluate("node => node.dataset.identityProbe = 'retained'")
     with_agent = _margin_entry_paint(marker)
     rendered(page)
-    assert preview_parts(marker) == ["Thread…"]
+    # A thread's entry previews where each of its threads stands (`threadPreview`).
+    assert not any("Your turn" in part for part in preview_parts(marker))
 
     agent_comment = append_carried_log_record(
         serve.page_dir,
@@ -632,7 +633,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     expect(marker).to_have_attribute("data-lf-turn", "user")
     expect(marker).to_have_attribute("data-identity-probe", "retained")
     rendered(page)
-    assert preview_parts(marker)[1:2] == ["Your turn"]
+    assert any("Your turn" in part for part in preview_parts(marker))
     expect(marker).to_have_attribute(
         "aria-label", re.compile(r"^Threads \(2\), Your turn,")
     )
@@ -764,7 +765,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     told(page)
     expect(marker).not_to_have_attribute("data-lf-turn", re.compile(".+"))
     rendered(page)
-    assert "Your turn" not in preview_parts(marker)
+    assert not any("Your turn" in part for part in preview_parts(marker))
     answered = {
         "background": with_agent["background"],
         "icon": token_colour(page, "--accent"),
@@ -825,7 +826,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     told(page)
     marker = page.locator('[data-lf-margin-for="bracket"] > .lf-margin-marker')
     rendered(page)
-    assert preview_parts(marker)[1:2] == ["Still to do"]
+    assert preview_parts(marker)[-1].startswith("Still to do")
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, Still to do,"))
 
     page.locator("#feed .lf-activity-news").click()

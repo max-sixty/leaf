@@ -273,10 +273,15 @@ async function boot() {
       pointer: pointerAt,
       currentLocationThreadId,
       currentLocationObligation: () => items.currentLocationIn(),
-      rowThread: () => floatingPanel?.hoveredThread() ?? null,
+      rowThread: (under) => floatingPanel?.hoveredThread(under) ?? null,
       threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
       marginThread: () => app?.overlay?.pointedThread() ?? null,
+      placedAt: (id) => anchorPlacement.placedAt(id),
+      pendingAt: () => anchorPlacement.pendingAt(),
+      settle: () => anchorPlacement.settle(),
     });
+    const painting = anchorPaint;
+    anchorPlacement.hearPlaced((change) => painting.replace(change));
   }
   const drawingPaint = createDrawingInk({
     drawings: () => [
@@ -527,6 +532,7 @@ async function boot() {
     currentTarget,
     markAt: anchorPaint?.markAt,
     scrollToElement: anchorTravel.scrollToElement,
+    scrollToPassage: anchorTravel.scrollToPassage,
     scrollToRange: anchorTravel.scrollToRange,
     visualActionAnchor: anchorControls.visualActionAnchor,
     designModeActive: designMode.active,
@@ -568,7 +574,7 @@ async function boot() {
     currentTarget,
   });
   targets = createTargetPicker({
-    scrollToRange: anchorTravel.scrollToRange,
+    scrollToPassage: anchorTravel.scrollToPassage,
     hintChrome,
     commentOnTarget: responseSurface.commentOnTarget,
     updateFab: responseSurface.updateFab,

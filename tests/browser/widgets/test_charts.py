@@ -1359,6 +1359,56 @@ def test_a_reading_holds_a_pointer_that_slides_onto_it_over_one_paragraph(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_card_s_words_beneath_a_reading_reach_the_card(engine, request, serve):
+    """A chart stands in a card the user presses, which says its own preview, and the
+    high point's reading stands over the card's words above the chart. The pointer
+    moving from the point onto those words reaches the card, whose preview shows, as a
+    press there would open it."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "tall",
+                '<h1 id="t">Tasks</h1><div id="box"><p id="words" style="height: 200px">'
+                f"The task's words, around its chart.</p>{TALL}</div>"
+                '<p style="height: 1200px">After.</p>',
+            )
+        ),
+    )
+    chart = page.locator("#tall")
+    preview = page.locator(PREVIEW)
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+    box = dots.nth(1).bounding_box()
+    high = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.move(high[0] - 4, high[1])
+    page.mouse.move(*high)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
+    tip = preview.bounding_box()
+    on = (tip["x"] + 12, tip["y"] + 12)
+    assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", on) == (
+        "words"
+    )
+    # The box becomes the card once its words stand under the reading, so where the
+    # reading stands is decided before the card is there to keep clear of.
+    page.evaluate(
+        """() => {
+          const card = document.getElementById('box');
+          card.setAttribute('role', 'button');
+          card.tabIndex = 0;
+          card.lfPreview = () => ({name: 'Open task details'});
+        }"""
+    )
+    for step in range(1, 11):
+        page.mouse.move(
+            high[0] + (on[0] - high[0]) * step / 10,
+            high[1] + (on[1] - high[1]) * step / 10,
+        )
+    expect(preview.locator(".lf-preview-word")).to_have_text("Open task details")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_titled_link_beneath_a_reading_takes_the_pointer_from_it(
     engine, request, serve
 ):

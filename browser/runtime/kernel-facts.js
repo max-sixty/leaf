@@ -27,7 +27,7 @@ const escaped = collapse
 export const COLLAPSE = new RegExp(`[${escaped}]+`, "g");
 export const TEXT_BLOCK = blocks.join(",");
 // The elements a line of words runs through (`$passages.phrasing`).
-export const PHRASING = phrasing.join(",");
+export const PHRASING = new Set(phrasing);
 export const CONTEXT = context;
 
 // A widget's tag, which tells a widget declaration from an idiom selector.

@@ -559,8 +559,13 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
                 path.write_text(module)
         example = source if isinstance(source, Path) else None
         fixture = read_fixture(example) if example else None
+        # An example selects a package of the checkout's by its path from the checkout
+        # (the docs' `./docs/package`), which this directory reaches from elsewhere.
         selected_packages = (
-            fixture.packages
+            tuple(
+                ROOT / item if item.startswith("./") else item
+                for item in fixture.packages
+            )
             if fixture is not None and packages is None
             else (
                 *EXAMPLE_PACKAGES,
@@ -2828,8 +2833,9 @@ def expect_preview_words(target, words):
 def preview_parts(target, route="pointer"):
     """What `target`'s preview shows a pointer resting on it (runtime/preview.js), or
     with `route="focus"` the keyboard stepping onto it: its name, then each line of
-    detail, as the face draws them, key chips left out. The pointer leaves it again
-    after, so the next reading is a new one."""
+    detail, as the face draws them, key chips left out: of a list, the items it
+    shows and the words for the rest. The pointer leaves it again after, so the
+    next reading is a new one."""
     page = target.page
     tip = page.locator("#lf-preview")
     if route == "focus":
@@ -2842,7 +2848,9 @@ def preview_parts(target, route="pointer"):
     expect(tip).to_be_visible()
     expect(tip).to_have_attribute("data-lf-route", route)
     parts = tip.evaluate(
-        """(tip) => [...tip.querySelectorAll('.lf-preview-word, .lf-preview-detail')]
+        """(tip) => [...tip.querySelectorAll(
+            '.lf-preview-word, .lf-preview-detail, .lf-preview-more')]
+          .filter((part) => part.checkVisibility({visibilityProperty: true}))
           .map((part) => part.textContent)"""
     )
     if route == "pointer":

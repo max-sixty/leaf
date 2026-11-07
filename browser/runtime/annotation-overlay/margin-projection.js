@@ -145,6 +145,7 @@ import { paintTrace } from "../target-paint.js";
 import { outlineChange } from "../margin-bars.js";
 
 import { threadNamed } from "../thread/state.js";
+import { threadPreview } from "../thread/messages.js";
 import { carryingThreadPlace, currentLocationThreadId } from "../thread/focus.js";
 
 import { claimed } from "../thread/surfaces.js";
@@ -1008,7 +1009,25 @@ export function createMarginProjection({
         count: items.length,
         accessibleLabel,
       }),
-      { writesRelation: false, writesSeat },
+      {
+        writesRelation: false,
+        writesSeat,
+        // A thread's entry previews its threads, as their passage marks do, as they
+        // read when it shows; to the keyboard a lone thread's line leaves out the word
+        // the entry's name already says (`markerName`, `spokenContext`).
+        preview:
+          choice?.kind === "comment"
+            ? (route) =>
+                threadPreview(
+                  choice.items.map(
+                    (item) => threadNamed(item.thread.id) ?? item.thread,
+                  ),
+                  route === "focus" && choice.items.length === 1
+                    ? spokenContext(choice)
+                    : null,
+                )
+            : null,
+      },
     );
     presentContributionReceipts(node, workflowReceipt(items), awaitingUser(items));
     syncReadingRelation(node, choice);

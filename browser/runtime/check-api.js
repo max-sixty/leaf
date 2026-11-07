@@ -85,6 +85,8 @@ export {
   tabStops,
 } from "./focus.js";
 export { selectionAnchor } from "./composing/capture.js";
+// A range's owner's word of where the pointer rests, as a passage mark's is.
+export { pointRange } from "./preview.js";
 export { TEXT_BLOCK } from "./kernel-facts.js";
 export { renderingState } from "./rendering.js";
 export {

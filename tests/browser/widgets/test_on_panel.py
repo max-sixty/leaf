@@ -22,6 +22,7 @@ from render_harness import (
     panel_settled,
     panel_view,
     post_event,
+    preview_parts,
     refuse,
     resized,
     round_trip,
@@ -819,7 +820,7 @@ def test_a_group_s_done_on_its_card_commits_rather_than_reading_as_a_choice(
     expect(told).to_have_count(2)
     done = card.get_by_role("button", name="Done", exact=True)
     expect(done).to_have_text("Done")
-    expect(done).to_have_attribute("title", "Finish choosing options")
+    assert preview_parts(done) == ["Done", "Finish choosing options"]
     assert done.bounding_box()["width"] < told.first.bounding_box()["width"] / 3
 
     done.click()

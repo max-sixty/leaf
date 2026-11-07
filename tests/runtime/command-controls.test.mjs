@@ -1832,7 +1832,7 @@ test("page command scopes share native activation and hand removed controls back
   document.body.append(control);
   let available = true;
   let runs = 0;
-  const remove = pageScope("versions", {
+  const remove = pageScope("thread", {
     rows: [
       {
         id: "probe.page",
@@ -2500,14 +2500,21 @@ test("a chosen contribution offer retains its exact reading across a later updat
       "margin",
       activateContributionControl,
     )(chosen.reading.entries[0]);
-    assert.match(before.textContent, /Before the update/);
+    // What an entry says is its preview (preview.js).
+    const { render } = await import("/runtime/framework.js");
+    const said = (control) => {
+      const box = document.createElement("div");
+      render(control.lfPreview().name, box);
+      return box.textContent;
+    };
+    assert.match(said(before), /Before the update/);
     const after = materializeContributionControls(
       source.model,
       "margin",
       activateContributionControl,
     )(source.model.reading.entries[0]);
     assert.equal(after, before);
-    assert.match(after.textContent, /After the update/);
+    assert.match(said(after), /After the update/);
   } finally {
     registration.unregister();
     owner.remove();

@@ -499,17 +499,10 @@
   .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-quiet);
   }
-  /* A notice offering a press stands in the empty words' place, the one press the row
-     offers while it passes (floating-panel.js, `rowNotice`). */
-  .lf-fp-field
-    leaf-text[data-lf-says="notice"]
-    .lf-compose-placeholder-words:empty
-    ~ kbd {
-    display: none;
-  }
   /* The word naming what entering the field does, after the agent's or Leaf's words
-     (composing/input.js, `enters`), in Leaf's italic whatever voice theirs is. */
-  .lf-fp-field .lf-compose-placeholder-enters {
+     (composing/input.js, `enters`), or the press the field's end offers in its place,
+     such as a passing notice's Undo, in Leaf's italic whatever voice theirs is. */
+  .lf-fp-field :is(.lf-compose-placeholder-enters, .lf-compose-press-word) {
     color: var(--lf-fp-quiet);
     font-style: italic;
   }
@@ -739,22 +732,9 @@
      narrow rewrap, and the field grows up over its line under the reader. It stands
      aside with the mark while the user writes or the field holds a draft
      (floating-panel.js, `writing`). */
-  .lf-floating-panel[data-lf-writing] .lf-fp-row-notice:not([data-lf-passing]),
+  .lf-floating-panel[data-lf-writing] .lf-fp-row-notice,
   .lf-floating-panel[data-lf-drafted] .lf-fp-row-notice {
     display: none;
-  }
-  /* A passing notice with its press (`rowNotice`) stands where the empty field's
-     words would, over its start on the panel's own ground, taking no room, so its
-     coming and its going move neither the field nor its controls. It stands through
-     the writing posture, which lasts while the user stays in the panel, since the
-     gesture it reports, such as a Resolve, stood them outside the field. */
-  .lf-fp-row-notice[data-lf-passing] {
-    position: absolute;
-    left: anchor(--lf-fp-field left);
-    top: anchor(--lf-fp-field top);
-    bottom: anchor(--lf-fp-field bottom);
-    max-width: anchor-size(--lf-fp-field width);
-    background: var(--lf-fp-surface);
   }
   /* Its tone tints it: an older version in warning. */
   .lf-fp-row-notice-face {
@@ -776,15 +756,6 @@
     &[data-lf-tone="ok"] {
       --lf-fp-notice-tint: var(--ok-tint);
     }
-  }
-  /* A passing notice says its words where the field's would, so it wears their face:
-     the message's type, and the dimmed ink of a notice the field says (above), in
-     Leaf's italic (voice.js); its press is an inline press, as every notice's is. In a
-     chip's small type and full ink it read as a different line from the field's
-     "Away" or the "Resolved the thread" it replaced. */
-  .lf-fp-row-notice[data-lf-passing] .lf-fp-row-notice-face {
-    font: var(--font-message);
-    color: var(--muted);
   }
   /* The row holds one line. A notice's words longer than the room the field gives it
      end in an ellipsis, and its press stays whole; wrapped, they took two lines and
@@ -1924,7 +1895,8 @@
     color: var(--danger-ink);
   }
 
-  /* The folded leaf's status on hover or focus, and passing notices. */
+  /* The folded leaf's passing notices, since there is no field to show them; its status
+     is its preview (runtime/preview.js). */
   .lf-fp-leaf {
     anchor-name: --lf-fp-leaf;
   }

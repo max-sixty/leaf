@@ -253,9 +253,6 @@ THREAD_CARD_GEOMETRY = """() => {
 }"""
 
 
-# The rail and the narrowest pin; 700's pin takes the same Page Map route.
-
-
 def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
     browser, serve
 ):

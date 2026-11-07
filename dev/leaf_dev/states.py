@@ -590,6 +590,91 @@ def card_by_pointer(page: Page) -> None:
     open_card(page, page.locator(".lf-margin-marker").first)
 
 
+def control_preview(page: Page) -> None:
+    """The first margin card's Resolve under a resting pointer, whose preview names its
+    word and the key that presses it (preview.js). A runtime without previews shows
+    the card alone."""
+    card_by_pointer(page)
+    page.locator(".lf-margin-preview .lf-resolve").hover()
+    page.wait_for_function(
+        """() => {
+          const tip = document.getElementById('lf-preview');
+          return !tip || tip.matches(':popover-open');
+        }"""
+    )
+    settle(page)
+
+
+# Longer than a preview's dwell (preview.js, `DWELL`), so a runtime that previews what
+# the pointer rests on has shown it, and one that doesn't shows the page as it stands.
+PREVIEW_DWELL_MS = 400
+
+
+def thread_preview(page: Page) -> None:
+    """The open thread's passage mark under a resting pointer, which previews who wrote
+    its last message and when, that message's opening line and where the thread stands
+    (thread/messages.js, `threadPreview`)."""
+    line = page.evaluate(
+        """(words) => {
+          const walker = document.createTreeWalker(document.querySelector('main'),
+            NodeFilter.SHOW_TEXT);
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const at = node.data.indexOf(words);
+            if (at < 0) continue;
+            node.parentElement.scrollIntoView({block: 'center', behavior: 'instant'});
+            const range = document.createRange();
+            range.setStart(node, at);
+            range.setEnd(node, at + words.length);
+            return range.getClientRects()[0].toJSON();
+          }
+        }""",
+        "The trusted supervisor owns shutdown.",
+    )
+    page.mouse.move(line["left"] - 20, line["top"] - 20)
+    page.mouse.move(line["left"] + 10, line["top"] + line["height"] / 2, steps=3)
+    page.wait_for_timeout(PREVIEW_DWELL_MS)
+    settle(page)
+
+
+def age_preview(page: Page) -> None:
+    """The first margin card's first age under a resting pointer, which previews the clock
+    time behind it in the reader's zone (presence.js, `agePreview`)."""
+    card_by_pointer(page)
+    age = page.locator(".lf-margin-preview .lf-msg-head time").first
+    box = age.bounding_box()
+    assert box, "the card shows no age"
+    # The card may open with the age under the pointer, which reads nothing until the
+    # pointer moves.
+    page.mouse.move(box["x"] - 30, box["y"] + box["height"] + 30)
+    age.hover()
+    page.wait_for_timeout(PREVIEW_DWELL_MS)
+    settle(page)
+
+
+def link_preview(page: Page) -> None:
+    """The gallery's link to its session table under a resting pointer, whose preview
+    shows the table's caption, its first rows and the thread about it
+    (place-preview.js). A runtime without link previews shows the link alone, once a
+    second has passed without one."""
+    page.locator("#bg-link-previews").evaluate(
+        "el => el.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    page.locator("#bg-link-table").hover()
+    page.evaluate(
+        """() => new Promise((done) => {
+          const tip = document.getElementById('lf-preview');
+          const until = performance.now() + 1000;
+          const look = () =>
+            !tip || tip.matches(':popover-open') || performance.now() > until
+              ? done()
+              : requestAnimationFrame(look);
+          look();
+        })"""
+    )
+    settle(page)
+
+
 def open_card(page: Page, marker: Locator) -> None:
     """The margin card `marker` opens, by a click on it. The margin is fixed to the
     window and anchored to the page, so Playwright's scroll into view leaves a marker
@@ -1725,6 +1810,32 @@ def gallery_metrics(page: Page) -> None:
     page.locator("#bg-metrics-and-chart").scroll_into_view_if_needed()
 
 
+def chart_preview(page: Page) -> None:
+    """The gallery's line chart under a resting pointer by its second run: the ring on
+    the baseline's point, its rule to the axis, and the preview above them saying the
+    run, the series and the value (lf-chart.js). A runtime whose charts say no values
+    shows the chart alone."""
+    gallery_metrics(page)
+    chart = page.locator("#bg-chart")
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+    run = chart.locator('[data-lf-part="x-axis tick label"] text').get_by_text(
+        "2", exact=True
+    )
+    value = chart.locator('[data-lf-part="y-axis tick label"] text').get_by_text(
+        "6", exact=True
+    )
+    x, y = run.bounding_box(), value.bounding_box()
+    assert x is not None and y is not None
+    at = (x["x"] + x["width"] / 2, y["y"] + y["height"] / 2)
+    page.mouse.move(at[0] - 8, at[1])
+    page.mouse.move(*at)
+    page.wait_for_function(
+        """() => !document.querySelector('#bg-chart .lf-chart-at')
+          || document.getElementById('lf-preview').matches(':popover-open')"""
+    )
+    settle(page)
+
+
 def gallery_plans(page: Page) -> None:
     """Planned work beside observed history, using authored stable section identity."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
@@ -2848,6 +2959,7 @@ STATES = (
     State("side-tab-focus", "alert-review", tab_by_keyboard),
     State("frame-edges", "feature-gallery", frame_edges),
     State("gallery-metrics", "feature-gallery", gallery_metrics),
+    State("chart-preview", "feature-gallery", chart_preview, region="#bg-chart"),
     State("gallery-plans", "feature-gallery", gallery_plans),
     State(
         "gallery-drawing",
@@ -2890,6 +3002,10 @@ STATES = (
     # Its threads on the user's turn, tinted and saying so at their ends.
     State("page-map-turn", "ship-review", page_map, region=".lf-page-map-dialog"),
     State("plan-card", "review-a-plan", card_by_pointer),
+    State("control-preview", "review-a-plan", control_preview),
+    State("thread-preview", "review-a-plan", thread_preview),
+    State("age-preview", "review-a-plan", age_preview),
+    State("link-preview", "feature-gallery", link_preview),
     State("reaction-palette", "ship-review", reaction_palette),
     State("reaction-pressed", "ship-review", reaction_pressed),
     State(

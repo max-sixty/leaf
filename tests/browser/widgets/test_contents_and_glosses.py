@@ -1299,10 +1299,11 @@ def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
 
 
 def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, serve):
-    """The explanation is a glance, not a mouse-only tooltip: the phrase opens it on
-    hover, Tab reaches its Explain control, and a click pins it for mouse or touch. In
-    every form the top-layer card remains inside the viewport, and both the phrase and
-    explanation remain the page's authored words."""
+    """The explanation is a glance, not a mouse-only tooltip: the phrase previews it to
+    a resting pointer and to Tab, which reaches its Explain control, in the face every
+    preview wears (preview.js), and a click pins it as the page's card for mouse or
+    touch. The preview and the card each stay inside the viewport, Escape puts either
+    away, and both the phrase and explanation remain the page's authored words."""
     source = leaf_page(
         "gloss",
         """
@@ -1351,56 +1352,47 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     assert affordance["pointer"] == "help"
     assert affordance["extraWidth"] == pytest.approx(0, abs=1)
     assert affordance["underline"] == affordance["accent"]
+    preview = page.locator("#lf-preview")
+    words = "A thin, end-to-end path through the real system."
     gloss.hover()
-    expect(bubble).to_be_visible()
-    expect(bubble).to_have_text("A thin, end-to-end path through the real system.")
-
-    # Auto popovers light-dismiss on a press outside the card. The phrase is outside
-    # the card too, so the click that pins a hovered explanation must reconcile the
-    # browser's just-closed popover with the widget state before the pointer leaves.
-    gloss.click(position={"x": 20, "y": 8})
-    page.mouse.move(0, 0)
-    expect(bubble).to_be_visible()
-    page.locator("h1").click()
+    expect(preview).to_be_visible()
+    expect(preview.locator(".lf-preview-word")).to_have_text("walking skeleton")
+    expect(preview.locator(".lf-preview-detail")).to_have_text(words)
     expect(bubble).to_be_hidden()
-    gloss.hover()
-    expect(bubble).to_be_visible()
-
-    rect = bubble.evaluate("el => el.getBoundingClientRect()")
+    rect = preview.evaluate("el => el.getBoundingClientRect().toJSON()")
     viewport = page.evaluate("() => ({ width: innerWidth, height: innerHeight })")
     assert rect["left"] >= 0 and rect["right"] <= viewport["width"]
     assert rect["top"] >= 0 and rect["bottom"] <= viewport["height"]
-    bubble.hover()
-    expect(bubble).to_be_visible()
-
-    # A real pointer crosses the space between the phrase and its card; a single
-    # hover jump skips that space and cannot establish the hover-content route.
-    page.mouse.move(0, 0)
-    expect(bubble).to_be_hidden()
-    gloss.hover()
-    expect(bubble).to_be_visible()
-    card = bubble.bounding_box()
-    page.mouse.move(
-        card["x"] + card["width"] / 2,
-        card["y"] + card["height"] / 2,
-        steps=20,
-    )
-    expect(bubble).to_be_visible()
-
-    # WCAG's hover-content route: Escape dismisses the card without requiring the
-    # pointer to move away or transferring focus to a control the user never used.
+    # WCAG's hover-content route: Escape dismisses it without the pointer moving or
+    # focus going to a control the user never used.
     page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+
+    # A press pins the page's card, which the phrase's preview no longer covers.
+    # Auto popovers light-dismiss on a press outside the card. The phrase is outside
+    # the card too, so the click that pins must reconcile the browser's just-closed
+    # popover with the widget state before the pointer leaves.
+    gloss.click(position={"x": 20, "y": 8})
+    page.mouse.move(0, 0)
+    expect(bubble).to_be_visible()
+    expect(bubble).to_have_text(words)
+    rect = bubble.evaluate("el => el.getBoundingClientRect().toJSON()")
+    assert rect["left"] >= 0 and rect["right"] <= viewport["width"]
+    assert rect["top"] >= 0 and rect["bottom"] <= viewport["height"]
+    gloss.hover()
+    expect(preview).to_be_hidden()
+    page.locator("h1").click()
     expect(bubble).to_be_hidden()
 
     page.mouse.move(0, 0)
-    expect(bubble).to_be_hidden()
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("Tab")
     expect(mark).to_be_focused()
-    expect(bubble).to_be_visible()
+    expect(preview.locator(".lf-preview-detail")).to_have_text(words)
+    expect(bubble).to_be_hidden()
     expect(gloss).to_have_css("outline-style", "solid")
     page.keyboard.press("Escape")
-    expect(bubble).to_be_hidden()
+    expect(preview).to_be_hidden()
 
     assert gloss.evaluate("el => el.childNodes[0].textContent.trim()") == (
         "walking skeleton"
@@ -1437,7 +1429,10 @@ def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
     control = page.get_by_role("button", name="work it", exact=True)
     bubble = page.get_by_role("note")
     control.hover()
-    expect(bubble).to_be_visible()
+    # The nested control's face says its name, so the gloss around it previews.
+    expect(page.locator("#lf-preview .lf-preview-detail")).to_have_text(
+        "An explanation."
+    )
     control.click()
     page.mouse.move(0, 0)
     page.evaluate(RELEASE_FOCUS)

@@ -1,6 +1,5 @@
 /* Thread readers select the application root, independent of panel rendering. */
 import { readPart } from "../semantic-state.js";
-import { threadNames } from "./model.js";
 
 export const threadState = readPart((root) => root.effective.thread);
 export const allThreads = readPart((root) => root.effective.thread.all);
@@ -14,16 +13,13 @@ export const THREADS_OFFLINE =
   "Current threads are unavailable while the server is offline";
 
 // The thread a name names: its key, its id, one of its messages' ids, or this tab's
-// attempt at one (`threadNames`), indexed once for each publication's threads. A
-// surface that lists only conversations also asks `discussed` of the answer.
-/** @type {WeakMap<ReturnType<typeof allThreads>, Map<string, ReturnType<typeof allThreads>[number]>>} */
-const names = new WeakMap();
+// attempt at one (`threadNames`), as the publisher indexed them when the threads
+// arrived. A surface that lists only conversations also asks `discussed` of the answer.
 /** @param {string} name */
 export function threadNamed(name) {
-  const threads = allThreads();
-  let index = names.get(threads);
-  if (!index) names.set(threads, (index = threadNames(threads)));
-  return index.get(name) ?? null;
+  const { all, named } = threadState();
+  const at = named.get(name);
+  return at === undefined ? null : (all[at] ?? null);
 }
 // The logged id of the thread `name` names, else the name as given.
 /** @param {string} name */

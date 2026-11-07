@@ -35,6 +35,11 @@
    widget moves the user into the layer, where it has a control to land on, from its
    `toggle` event.
 
+   A hint popover (`popover="hint"`), as a preview is (preview.js), holds no control and
+   takes no key, and the platform closes it as any other popover opens, so it joins no
+   stack: the dispatcher tiers no scope over it, its opening changes nothing a modal
+   admits and expands no control its `source` names, and its closing hands nobody back.
+
    Every read prunes first, and an entry whose surface no longer stands is removed
    wherever it sits, so a dialog closed by script beneath another layer cannot linger as
    a false floor. Modal entry dismisses auto and hint popovers through the platform
@@ -50,6 +55,9 @@
    An owner that reads where the user is before its modal opens dismisses those same
    popovers first (`dismissPopoversOutside`), so the reading finds the user already handed
    back from them.
+
+   Each native layer's opening is recorded against the user's input it came under
+   (focus.js, `layerOpened`), as every layer opened through `openLayer` is.
 
    Whether a node is one of these layers, or stands in one as rendered, is asked of
    `shadow-tree.js` (`nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding`), below this module and the
@@ -80,6 +88,7 @@ import {
   focusDestination,
   handBack,
   canPlaceFocus,
+  layerOpened,
 } from "../focus.js";
 import { move } from "../dom-move.js";
 import { renderedUnder } from "../shadow-tree.js";
@@ -99,6 +108,14 @@ let styleChrome = null;
 /** @param {(root: ShadowRoot) => void} style */
 export function installLayerStyleIntegration(style) {
   styleChrome = style;
+}
+// Chrome carried into `layer`, as a modal into an authored popover or a preview into
+// an authored modal dialog, takes the chrome's styles into the shadow tree `layer`
+// stands in, where it stands in one.
+/** @param {Element} layer */
+export function carryChromeStyles(layer) {
+  const root = layer.getRootNode();
+  if (root instanceof ShadowRoot) styleChrome?.(root);
 }
 
 /** @typedef {{root: HTMLElement, opening: boolean, readonly kind: ReturnType<typeof nativeLayerKind>, active: () => boolean, fromNowhere: boolean, opener: Element | null, source: Element | null}} NativeLayer
@@ -129,8 +146,11 @@ function prune() {
 // top: `toggle` is queued rather than synchronous, so moving a layer on that last
 // declaration would make it the newest thing on the stack after something else opened over
 // it. A closed entry is pruned and an actual reopening joins at the top.
+/** @param {Element} node */
+const isHint = (node) => node.getAttribute("popover") === "hint";
 /** @param {HTMLElement} node @param {Element | null} [source] */
 function pushNativeLayer(node, source = null) {
+  if (isHint(node)) return null;
   const at = entries.findIndex((entry) => entry.root === node);
   const existing = at < 0 ? null : entries[at];
   if (existing?.active()) return existing;
@@ -157,6 +177,7 @@ function pushNativeLayer(node, source = null) {
       entry.opening = false;
     });
   entries.push(entry);
+  layerOpened(node);
   return entry;
 }
 
@@ -288,8 +309,7 @@ function seatModal(dialog, source) {
         place.scope = document.createElement("div");
         place.scope.className = "lf-chrome";
       }
-      const root = holder.getRootNode();
-      if (root instanceof ShadowRoot) styleChrome?.(root);
+      carryChromeStyles(holder);
       if (place.scope.parentNode !== holder) move(holder, place.scope);
       seat = place.scope;
     }
@@ -304,6 +324,8 @@ function seatModal(dialog, source) {
 export function closeNativeLayer(layer) {
   const dialog = layer instanceof HTMLDialogElement;
   if (dialog ? !layer.open : !isNativeLayer(layer)) return;
+  // A hint never held the user, so closing one hands nobody back.
+  if (isHint(layer)) return layer.hidePopover();
   const currentLocation = focused();
   const returnTo = entries.find((entry) => entry.root === layer)?.opener;
   const returnLocally =
@@ -351,7 +373,8 @@ export function watchLayerChanges(listener) {
 const changed = (event) => {
   if (
     !(event.target instanceof HTMLElement) ||
-    !event.target.matches("[popover], dialog")
+    !event.target.matches("[popover], dialog") ||
+    isHint(event.target)
   )
     return;
   for (const listener of changeListeners) listener(event);
@@ -368,7 +391,8 @@ export function watchLayers(root) {
     if (
       event.newState !== "open" ||
       !(event.target instanceof HTMLElement) ||
-      !event.target.matches("[popover], dialog")
+      !event.target.matches("[popover], dialog") ||
+      isHint(event.target)
     )
       return;
     const call = scripted?.layer === event.target ? scripted : null;

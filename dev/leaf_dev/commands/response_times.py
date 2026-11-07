@@ -43,11 +43,9 @@ answering session's record can be read, the input also carries its reply's break
 (delivery and those commands), the harness's other work before it took the input,
 idle time between its turns, and the model's time and calls. Its case is `working`
 where a turn was running at the admission, so the harness took the input at that
-turn's next tool boundary or its end, else `waiting`. An input a fork of the
-conversation answered (`leaf.forks`) has none, nor commands' time or a pickup wait
-(below), since the session spent nothing on it and takes it only later. This
-command reads a Claude Code session's transcript still in this machine's Claude
-Code projects (`transcript_of`), which times no request or first output, so the
+turn's next tool boundary or its end, else `waiting`. This command reads a Claude
+Code session's transcript still in this machine's Claude Code projects
+(`transcript_of`), which times no request or first output, so the
 model's time stays unsplit; other harnesses' inputs carry no breakdown, and the
 summary's reply rows count them missing. `leaf-dev journey` reads the record of the
 session it runs instead, on any harness (`journey.User.sample`).
@@ -65,10 +63,9 @@ Each input also carries the fork that decided it (`fork`: its outcome and second
 the last whose inputs name its message, and a fork's working line, posted as it
 handed the thread over, is the progress and first reply of the thread's newest
 waiting message. The summary's `delivered` row is how long an update read Delivered,
-from its opened pickup to the session starting or answering it, over the inputs no
-fork answered; `fork_reply` and `fork_hand_over` time the first reply over the inputs
-a fork answered or handed to the session, so a survey shows whether forks bring the
-agent's first words sooner.
+from its opened pickup to the session starting or answering it; `fork_hand_over`
+times the first reply over the inputs a fork handed to the session, so a survey
+shows whether forks bring the agent's first words sooner.
 
 `prompted` waits are where nothing of Leaf's woke an idle session before the user
 typed. The watch record says whether a watch ran and the protocol its Leaf spoke,
@@ -426,9 +423,8 @@ def page_timings(
         row for row in observations if row["source"] == "cli" and row["type"] == "watch"
     ]
     forks = [row for row in observations if row["type"] == "fork_reply"]
-    forked = {fork["reply"] for fork in forks if "reply" in fork}
     # The last fork made for a message decided it: another message in its held
-    # thread forks again for them all, dropping the earlier fork's answer.
+    # thread forks again for them all, dropping the earlier fork's line.
     decided = {message: fork for fork in forks for message in fork["inputs"]}
     for row in rows.values():
         fork = decided.get(row["message_id"])
@@ -446,18 +442,14 @@ def page_timings(
             for command in commands
             if answered is not None and command["session"] == answered["session"]
         ]
-        # A reply a fork of the conversation wrote took nothing of the session's,
-        # which takes the input only later, so its reply, pickup and commands
-        # waited on nothing of the session's.
-        by_fork = answered is not None and answered["event_id"] in forked
-        row["reply"] = None if by_fork else breakdown(row, mine, records)
-        row["pickup"] = None if by_fork else waited(row, watches, records)
+        row["reply"] = breakdown(row, mine, records)
+        row["pickup"] = waited(row, watches, records)
         # From where the harness took the input, so a working harness's
         # commands for the work it was busy with stay out.
         took = row["milestones"].get("opened", {}).get("at", row["admitted_at"])
         row["leaf_commands_s"] = (
             None
-            if answered is None or by_fork
+            if answered is None
             else row["reply"]["leafCommandsMs"] / 1000
             if row["reply"] is not None
             else leaf_commands_ms(mine, took, answered["at"]) / 1000
@@ -651,13 +643,8 @@ def response_times(
         )
     }
     # How long each update read Delivered: from the harness opening it into a turn
-    # to the session starting or answering it, over the inputs no fork answered.
-    delivered = [
-        row
-        for row in rows
-        if "opened" in row["milestones"]
-        and (row["fork"] is None or row["fork"]["outcome"] != "reply")
-    ]
+    # to the session starting or answering it.
+    delivered = [row for row in rows if "opened" in row["milestones"]]
     summary["delivered"] = spread(
         delivered,
         [
@@ -671,11 +658,10 @@ def response_times(
             if {"started", "answered"} & row["milestones"].keys()
         ],
     )
-    for outcome in ("reply", "hand_over"):
-        summary[f"fork_{outcome}"] = distribution(
-            [row for row in rows if row["fork"] and row["fork"]["outcome"] == outcome],
-            "first_reply",
-        )
+    summary["fork_hand_over"] = distribution(
+        [row for row in rows if row["fork"] and row["fork"]["outcome"] == "hand_over"],
+        "first_reply",
+    )
     summary["leaf_commands"] = spread(
         rows,
         [row["leaf_commands_s"] for row in rows if row["leaf_commands_s"] is not None],
@@ -729,13 +715,13 @@ def response_times(
         f"Unlinked agent replies: {sum(len(reading['unlinked_agent_replies']) for reading in readings)}; missing means no exact-linked observation."
     )
     click.echo(
-        "delivered runs from opened to the session's start or answer, over inputs no fork answered; fork_reply and fork_hand_over are first_reply over the inputs a fork answered or handed to the session, a hand-over's working line included."
+        "delivered runs from opened to the session's start or answer; fork_hand_over is first_reply over the inputs a fork handed to the session, its working line included."
     )
     click.echo(
-        "leaf_commands reads each command's own record on any harness; whole_* and leaf_share_* read Claude Code transcripts, so their missing includes every other input and those a fork answered."
+        "leaf_commands reads each command's own record on any harness; whole_* and leaf_share_* read Claude Code transcripts, so their missing includes every other input."
     )
     click.echo(
-        "opened_* sorts each opened pickup a Claude Code transcript on this machine covers by what ended its wait (reply_phases.pickup_wait), over those inputs alone, less those a fork answered."
+        "opened_* sorts each opened pickup a Claude Code transcript on this machine covers by what ended its wait (reply_phases.pickup_wait), over those inputs alone."
     )
     click.echo(
         "milestone           observed  missing  clock errors      p50      p90      p95      max     total"

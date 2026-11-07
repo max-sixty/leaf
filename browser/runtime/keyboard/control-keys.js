@@ -6,15 +6,26 @@
    advertise a shortcut the dispatcher has withdrawn. A row inside a sequence scope carries
    that sequence's steps, so a destination reached through `g` says the whole shortcut.
 
-   This pass is the one writer of such a control's `title`. The control's owner names it
-   in `data-lf-key-title`, and a static control's first title is taken as that name, so
-   the owner and this pass never take turns rewriting the one attribute.
+   A key that presses a control another command owns, as `r` presses a thread's Resolve,
+   names the control with no `run` of its own: its press is the control's activation
+   (bindings.js, `commandRun`), so the button keeps one command and the key is one more
+   way to press it. A row that both names a button and runs a result claims the button's
+   activation, and two such claims on one button are refused (scopes.js, `chosenCommand`).
 
-   The pass runs in the fixed chrome's frame, so every name it writes goes through
-   `keeps` and says nothing where the control already says it. Restated title or shortcut
-   metadata is news to whatever is reading the page — the mutation stream a screen reader
-   rebuilds its buffer from. */
+   `controlKeys` is what the preview of a control names (preview.js), read when the
+   preview shows, and `controlShortcuts` the same presses for a screen reader: each one
+   press long, since `aria-keyshortcuts` has no syntax for a sequence, its spaces
+   separating alternatives. The complete sequence stays in the preview, the overlay and
+   the command reference. A control's `aria-keyshortcuts` also names the keys its own
+   scopes take while it has focus (scopes.js, `reflectElementShortcuts`), which no chip
+   draws, so every chip's key is in it. `paintCoreControls` keeps that attribute on
+   every control a page row names, as the rows' liveness moves. The pass runs in the
+   fixed chrome's frame, so every attribute it writes goes through `keeps` and says
+   nothing where the control already says it. Restated shortcut metadata is news to
+   whatever is reading the page — the mutation stream a screen reader rebuilds its
+   buffer from. */
 import {
+  ariaBindings,
   ariaShortcuts,
   bindings,
   commandAvailable,
@@ -25,8 +36,12 @@ import {
   word,
 } from "./bindings.js";
 import { ELEMENTS, pageScopes } from "./register.js";
-import { buttonCommand } from "./scopes.js";
-import { keeps } from "../keeps.js";
+import {
+  buttonCommand,
+  projectControlShortcuts,
+  reflectElementShortcuts,
+} from "./scopes.js";
+import { ACTIONS, shownAction } from "../icon-paths.js";
 
 /** @param {import("./bindings.js").Scope | null | undefined} scope */
 const stepsBefore = (scope) => word(scope?.sequencePrefix ?? scope?.sequence) ?? [];
@@ -72,38 +87,79 @@ function* namedControls(row) {
     }
 }
 
-function controlRows() {
-  /** @type {Map<Element, {scope: import("./bindings.js").Scope, control: import("./bindings.js").Cell<Element | null>, active: boolean, press: string, shortcuts: () => string}>} */
+/** @typedef {{steps: string[], aria: string}} Press */
+// Every control the page's rows and routes name, with the live presses each gives it:
+// one walk of the rows, kept for the task that made it, so a pass reading many
+// controls walks them once, and a paint walks them again (`paintCoreControls`).
+/** @type {Map<Element, Map<string, Press>> | null} */
+let named = null;
+/** @param {Map<string, Press>} presses @param {import("./bindings.js").Scope | null | undefined} scope @param {string} press @param {string} aria */
+function addPress(presses, scope, press, aria) {
+  const before = stepsBefore(scope);
+  const steps = [...before, press].filter(Boolean);
+  if (steps.length)
+    presses.set(steps.join(" "), { steps, aria: before.length ? "" : aria });
+}
+function namedByRows() {
+  if (named) return named;
+  /** @type {Map<Element, Map<string, Press>>} */
   const controls = new Map();
   for (const scope of pageScopes().filter((scope) => scope !== ELEMENTS))
     for (const row of scope?.rows ?? [])
-      for (const named of namedControls(row)) {
-        const control = word(named.control);
+      for (const each of namedControls(row)) {
+        const control = word(each.control);
         if (!control) continue;
-        const prior = controls.get(control);
-        // One native control may also have an unbound semantic route for reference
-        // activation. Project it once, preferring the live keyboard presentation;
-        // the unbound row must not erase that route or rewrite its title each frame.
-        if (!prior || (!prior.active && named.active))
-          controls.set(control, { scope, ...named });
+        const presses = controls.get(control) ?? new Map();
+        controls.set(control, presses);
+        if (each.active) addPress(presses, scope, each.press, each.shortcuts());
       }
+  named = controls;
+  queueMicrotask(() => {
+    named = null;
+  });
   return controls;
 }
 
-export function paintCoreControls() {
-  for (const [control, { scope, active, press, shortcuts }] of controlRows()) {
-    let title = control.getAttribute("data-lf-key-title");
-    if (title === null) {
-      title = control.getAttribute("title") ?? "";
-      control.setAttribute("data-lf-key-title", title);
-    }
-    const steps = [...stepsBefore(scope), press].filter(Boolean).join(" ");
-    keeps(control, "title", title + (active ? ` (${steps})` : ""));
-    // Native command buttons receive exact reachable shortcuts from command-hints.
-    if (buttonCommand(control)) continue;
-    // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
-    // alternatives. The complete sequence remains in the overlay, tooltip, and
-    // accessible command reference instead of claiming its final press works alone.
-    keeps(control, "aria-keyshortcuts", active && !scope.sequence ? shortcuts() : null);
+// Every press that reaches `control`, each its steps as key chips spell them and, one
+// press long, as `aria-keyshortcuts` names it: the live page rows and routes that name
+// it, the command a scope declares away from it that claims its press, as the image
+// viewer's `z` claims its zoom, and the key the action it shows names, as Escape for a
+// surface's close. Keys a scope declares on the control itself are its own activation,
+// the platform's press, not a shortcut.
+/** @param {Element} control @returns {Press[]} */
+function pressesReaching(control) {
+  const presses = new Map(namedByRows().get(control));
+  const shared = ACTIONS[shownAction(control) ?? ""]?.key;
+  if (shared) addPress(presses, null, spell(shared), ariaBindings(shared).join(" "));
+  const own = buttonCommand(control);
+  if (own && own.source !== control && bindings(own.row).length) {
+    const route = own.entry === own.row ? null : own.entry;
+    if (commandAvailable(own.row, route))
+      addPress(
+        presses,
+        own.scope,
+        route?.binding !== undefined ? spell(route.binding) : labelOf(own.row),
+        route?.binding !== undefined
+          ? ariaBindings(route.binding).join(" ")
+          : ariaShortcuts([own.row], false),
+      );
   }
+  return [...presses.values()];
+}
+/** @param {Element} control @returns {string[][]} */
+export const controlKeys = (control) =>
+  pressesReaching(control).map(({ steps }) => steps);
+/** @param {Element} control */
+const controlShortcuts = (control) =>
+  [
+    ...new Set(
+      pressesReaching(control).flatMap(({ aria }) => aria.split(" ").filter(Boolean)),
+    ),
+  ].join(" ");
+
+projectControlShortcuts(controlShortcuts);
+
+export function paintCoreControls() {
+  named = null;
+  for (const control of namedByRows().keys()) reflectElementShortcuts(control);
 }

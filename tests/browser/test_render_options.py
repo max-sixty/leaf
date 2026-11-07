@@ -1417,11 +1417,19 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     )
 
     # The block a row is about, reachable as a link and named by the block's own words
-    # rather than its id; after § the kind word ("section") would say nothing.
+    # rather than its id; after § the kind word ("section") would say nothing. Pointing
+    # at it previews the block, so it carries no tooltip of the platform's beside that.
     ref = page.locator("#job-mounts .lf-ref")
     expect(ref).to_have_text("§ The mounts")
-    expect(ref).to_have_attribute("title", "Jump to § The mounts")
     assert ref.get_attribute("href") == "#sec-mounts"
+    assert ref.get_attribute("title") is None
+    ref.hover()
+    preview = page.locator("#lf-preview")
+    expect(preview.locator(".lf-preview-name")).to_have_text("The mounts")
+    expect(preview.locator(".lf-place-text")).to_have_text(
+        "Plastic, and one came down in January."
+    )
+    page.mouse.move(0, 0)
     assert page.locator("#job-camera .lf-ref").count() == 0
 
     # No open mark says its word in either form. The compact row draws its target; the

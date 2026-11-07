@@ -485,9 +485,37 @@ const bundles = {
   // for, in one module with no specifier left in it; vendoring d3 whole beside it
   // would be 100KB more and two files whose versions can drift apart. The whole of
   // Plot goes in, since an author writes the chart in Plot's own API.
+  //
+  // Which channels a tip says, how its `format` words each, and the lines it says
+  // them in are decided inside the tip mark's module, by functions it doesn't export.
+  // The chart's preview says a point by those decisions, so the module exports them
+  // (`tipSources` and `tipRows` in the entry), each line naming the channel it says.
   plot: () => ({
     out: `${packageVendor("default")}/plot.esm.js`,
     entryPoints: [input("entries/plot/entry.mjs")],
+    adapt: [
+      {
+        file: /@observablehq\/plot\/src\/marks\/tip\.js$/,
+        edit: (source) =>
+          seam(
+            seam(
+              seam(
+                source,
+                "\nfunction getSourceChannels(channels, scales) {",
+                "\nexport function getSourceChannels(channels, scales) {",
+                "Plot tip sources",
+              ),
+              "\nfunction* formatChannels(i, index, channels, scales, values) {",
+              "\nexport function* formatChannels(i, index, channels, scales, values) {",
+              "Plot tip rows",
+            ),
+            "yield {",
+            "yield {key,",
+            "Plot tip row channel",
+            4,
+          ),
+      },
+    ],
     banner: {
       js:
         `/*! @observablehq/plot ${version("@observablehq/plot")} — ISC — https://observablehq.com/plot\n` +

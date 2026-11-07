@@ -70,7 +70,8 @@ A thread shows in a narrow card or panel, so a paragraph that reads fine in chat
 wall there. Say what changed or where to look in a sentence or two, or one short item per
 point; the page carries the evidence. Record a decision, result, or deferred work on
 the page and link it from the reply with a fragment link such as
-`[the decision](#decision)`, which opens any tab or group hiding its target. To point
+`[the decision](#decision)`, which previews its target while the user points at it and
+opens any tab or group hiding it. To point
 at lines of an `lf-code` block, put them after its id and a colon, in the grammar of
 its `hi` attribute: `[the retry](#client:12-18)`. Where
 the reasoning matters to someone using the result, keep the thread anchored to that
@@ -178,7 +179,7 @@ what choosing it does and mark the one you advise (`authoring-on-me.md`, "What a
 question holds"):
 
 ```bash
-leaf thread reply <answer.ref> --text "Which store should own sessions? I'd keep the account store, which already expires them." --markup '<lf-options id="session-store" choose><lf-option id="session-store-account"><small class="tag ok">recommended</small><strong>Keep the account store</strong></lf-option><lf-option id="session-store-own"><strong>Give sessions their own store</strong> One more service to run.</lf-option></lf-options>'
+leaf thread reply <answer.ref> --text "Which store should own sessions? I'd keep the account store, which already expires them." --markup '<lf-options id="session-store" choose><lf-option id="session-store-account"><small class="tag ok">recommended</small> <strong>Keep the account store</strong></lf-option><lf-option id="session-store-own"><strong>Give sessions their own store</strong> One more service to run.</lf-option></lf-options>'
 ```
 
 If the user answers in words instead, end the question with

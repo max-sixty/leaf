@@ -31,8 +31,11 @@ from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
     EDITOR_ROOTS,
     LONG_PAGE,
+    PREVIEW,
+    accessible_node,
     close_panel_menu,
     consume_browser_errors,
+    expect_preview_words,
     holding,
     http_error_console,
     open_page,
@@ -42,6 +45,8 @@ from render_harness import (
     panel_menu,
     panel_settled,
     panel_view,
+    preview_parts,
+    preview_text,
     resized,
     rgb_pixels,
     round_trip,
@@ -475,16 +480,24 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
         "data-lf-says", "notice"
     )
-    notice = page.locator(".lf-fp-row-notice")
-    expect(notice).to_be_visible()
-    expect(notice).to_contain_text(f"Resolved “{first}” · Undo")
-    expect(notice.locator("kbd")).to_have_text("z")
-    # Its press is the one the row offers while it passes.
-    expect(page.locator(".lf-fp-field .lf-compose-placeholder > kbd")).to_be_hidden()
+    # The field says what was resolved, and its end the press that takes it back,
+    # Undo and its key, where Comment or Reply and c stand at rest.
+    hint = page.locator(".lf-fp-field .lf-compose-placeholder")
+    expect(hint.locator(".lf-compose-placeholder-words")).to_have_text(
+        f"Resolved “{first}”"
+    )
+    undo = page.locator(".lf-fp-field .lf-compose-press")
+    expect(undo.locator(".lf-compose-press-word")).to_have_text("Undo")
+    expect(undo.locator("kbd")).to_have_text("z")
+    # A screen reader is given the press too, though the field's words are hidden
+    # from it as its placeholder.
+    node = accessible_node(undo)
+    assert not node.get("ignored") and node["role"]["value"] == "button", node
+    assert node["name"]["value"].startswith("Undo"), node
     second = page.locator(".lf-fp-head .lf-fp-title").inner_text()
     # Taking the first resolve back returns the user to the thread they resolved.
     with sending(page, "the undo"):
-        notice.get_by_role("button").click()
+        undo.click()
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
     expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(first)
     expect(thread).to_be_focused()
@@ -505,7 +518,7 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
 
 
 def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
-    """The row's "Resolved “…” · Undo" names one gesture. The log refusing that
+    """The row's "Resolved “…”" and its Undo name one gesture. The log refusing that
     Resolve takes the notice away with it, and its press takes back that Resolve
     even once another gesture of the user's is the newest, the one `z` would take: a
     press that ran `z` took back an earlier gesture once its own was refused. The
@@ -527,7 +540,8 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     title = page.locator(".lf-fp-head .lf-fp-title")
     expect(thread).to_be_visible()
     first = title.inner_text()
-    notice = page.locator(".lf-fp-row-notice")
+    said = page.locator(".lf-fp-field .lf-compose-placeholder-words")
+    undo = page.locator(".lf-fp-field .lf-compose-press")
 
     held = []
     page.route(
@@ -541,17 +555,19 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     thread.focus()
     page.keyboard.press("r")
     holding(page, held, 1, "the resolve")
-    expect(notice).to_contain_text(f"Resolved “{first}” · Undo")
+    expect(said).to_have_text(f"Resolved “{first}”")
+    expect(undo).to_contain_text("Undo")
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     page.unroute("**/api/event")
     expect(title).to_have_text(first)
-    expect(notice).to_be_hidden()
+    expect(undo).to_have_count(0)
 
     thread.focus()
     with sending(page, "the resolve"):
         page.keyboard.press("r")
     expect(title).not_to_have_text(first)
-    expect(notice).to_contain_text(f"Resolved “{first}” · Undo")
+    expect(said).to_have_text(f"Resolved “{first}”")
+    expect(undo).to_contain_text("Undo")
     # Another tab of the user's resolves the thread left over, so `z` would take that.
     (other,) = set(roots) - {first, title.inner_text()}
     append_carried_log_record(
@@ -576,7 +592,7 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     )
     told(page)
     with sending(page, "the undo"):
-        notice.get_by_role("button").click()
+        undo.click()
     events = events_model.read_events(serve.page_dir)
     assert [event["undoes"] for event in events if event["kind"] == "undo"] == [
         resolved
@@ -859,9 +875,22 @@ def test_clicking_into_the_field_moves_none_of_an_open_view_s_controls(browser, 
     assert panel_tab(page, "Threads").bounding_box() == tab
     page.keyboard.type("Could")
     expect(page.locator(".lf-fp-send")).to_be_visible()
-    # Each platform spells Shift its own way (keyboard/bindings.js, `spell`).
-    expect(page.locator(".lf-fp-send")).to_have_attribute(
-        "title", re.compile(r"^Send \(⏎\) · New line \((⇧|Shift\+)⏎\)$")
+    # Send's preview names the key that sends from the box (preview.js).
+    page.locator(".lf-fp-send").hover()
+    expect(page.locator("#lf-preview")).to_be_visible()
+    expect(page.locator("#lf-preview .lf-preview-word")).to_have_text("Send")
+    # The key that sends, and where Return sends, the one that makes a new line, each
+    # as the register spells it on this platform (keyboard/bindings.js, `spell`), which
+    # writes Shift as ⇧ on a Mac and as Shift+ elsewhere.
+    send, line = page.evaluate(
+        """async () => {
+          const {spell} = await import('/runtime/keyboard/bindings.js');
+          return [spell('Enter'), spell('Shift+Enter')];
+        }"""
+    )
+    expect(page.locator("#lf-preview kbd")).to_have_text([send, line])
+    expect(page.locator("#lf-preview .lf-preview-detail")).to_have_text(
+        f"New line {line}"
     )
     settled(page)
     assert page.locator(".lf-fp-close").bounding_box() == close
@@ -953,7 +982,7 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     expect(words).to_have_text("Reply…")
     agent({"kind": "resolve", "parent": root})
     notice = page.locator(".lf-fp-news-outlet .lf-thread-news")
-    expect(notice).to_have_attribute("title", "Resolved")
+    expect_preview_words(notice, "Resolved")
     expect(page.locator(".lf-fp-head .lf-resolve")).to_be_visible()
     expect(words).to_have_text("Reply…")
     # Off the field, it says the thread's word before Reply, which isn't Resolved yet.
@@ -1243,7 +1272,7 @@ def test_copy_link_is_one_press_in_the_leaf_s_menu(browser, serve):
     menu = panel_menu(page)
     row = menu.locator('.lf-fp-item[data-lf-row="share"]')
     expect(row).to_have_text("Copy link")
-    expect(row).to_have_attribute("title", re.compile("^Grants access"))
+    assert preview_parts(row)[-1].startswith("Grants access")
     expect(menu.locator('.lf-fp-item[data-lf-row="inspection"]')).to_have_count(1)
     expect(menu.locator('.lf-fp-item[data-lf-row="layer"]')).to_have_count(0)
     row.click()
@@ -1522,7 +1551,7 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     panel_comment(serve.page_dir, "Who watches the weekend?")
     told(page)
     joined = page.locator(".lf-fp-joined .lf-thread-news")
-    expect(joined).to_have_attribute("title", "1 new thread")
+    expect_preview_words(joined, "1 new thread")
     settled(page)
     # The line starts on the words' edge, as the rows' marks do.
     assert page.locator(".lf-fp-joined").evaluate(
@@ -1599,7 +1628,7 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
     )
     panel_comment(serve.page_dir, "Should the close name the rollout?", author="agent")
     told(page)
-    expect(notice).to_have_attribute("title", "1 new thread · 1 thread reopened")
+    expect_preview_words(notice, "1 new thread · 1 thread reopened")
     settled(page)
     assert rows.evaluate_all(tops) == before
 
@@ -1615,7 +1644,7 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
         {"kind": "resolve", "author": "agent", "agent": "Claude", "parent": root},
     )
     told(page)
-    expect(notice).to_have_attribute("title", "1 thread resolved")
+    expect_preview_words(notice, "1 thread resolved")
     expect(rows.first).to_have_text(re.compile("Is the opening right?"))
     panel_tab(page, "Threads").click()
     expect(notice).to_have_count(0)
@@ -1689,7 +1718,7 @@ def test_resolved_news_unfolds_resolved_to_land_on_its_row(browser, serve):
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": settling}
     )
     told(page)
-    expect(notice).to_have_attribute("title", "1 thread resolved")
+    expect_preview_words(notice, "1 thread resolved")
     expect(row).to_be_visible()
     expect(view.locator(".lf-rows-group > .lf-rows-head")).to_have_text(
         [re.compile(r"^\s*Open\s*2\s*$")]
@@ -2918,7 +2947,7 @@ def test_floating_status_records_feedback_only_when_its_words_show(
             page.locator("h1").first.click()
         else:
             page.locator(".lf-fp-leaf").hover()
-            expect(page.locator(".lf-fp-peek")).to_contain_text(
+            expect(page.locator(PREVIEW)).to_contain_text(
                 "Reading the diagnostic transport"
             )
     rows = visible()
@@ -2950,7 +2979,8 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
         identity={"agent": "Codex", "session": "codex-thread"},
     )
     told(page)
-    peek = page.locator(".lf-fp-peek")
+    # The folded leaf's status is its preview (preview.js).
+    peek = page.locator(PREVIEW)
     leaf = page.locator(".lf-fp-leaf")
     leaf.hover()
     expect(peek).to_contain_text("Reading the diagnostic transport.")
@@ -2990,12 +3020,15 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
         ephemeral=True,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
+    expect(peek).to_be_hidden()
     with page.expect_request("**/api/news"):
         page.evaluate("""() => {
           window.__lfTestVisibility = 'visible';
           document.dispatchEvent(new Event('visibilitychange'));
         }""")
     told(page)
+    page.mouse.move(5, 5)
+    leaf.hover()
     expect(peek).to_contain_text("Tracing the reply acknowledgements.")
     ticked(page)
     words = peek.inner_text()
@@ -3006,45 +3039,62 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
     page.evaluate(
         "async () => (await window.__lfWidgetApi()).notice('Saved for later')"
     )
-    expect(peek).to_have_text("Saved for later")
+    expect(page.locator(".lf-fp-peek")).to_have_text("Saved for later")
 
 
 def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
     """The row's status and errors remain inline; its menu carries the full reading.
-    Hover and keyboard focus reveal status only when the leaf is folded."""
+    The leaf's preview names what it opens, and says the status under that only when
+    the leaf is folded."""
     page = floating(browser, serve(LONG_PAGE))
-    peek = page.locator(".lf-fp-peek")
+    peek = page.locator(PREVIEW)
     leaf = page.locator(".lf-fp-leaf")
     seat = page.locator(".lf-fp-field")
     expect(field(page)).to_have_attribute("placeholder", re.compile(r"^Away\b"))
     assert seat.get_attribute("title") is None
-    for target in (leaf, seat):
-        target.hover()
-        assert not peek.evaluate("peek => peek.hasAttribute('data-lf-shown')")
+    leaf.hover()
+    expect(peek).to_have_text("Page menu")
+    seat.hover()
+    rendered(page)
+    expect(peek).to_be_hidden()
 
     leaf.click()
     expect(page.locator(panel_view("menu"))).to_contain_text("Updates are saved.")
     expect(peek).to_be_hidden()
     page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+    # Escape hands the keyboard back to the leaf, where the user didn't go, so it
+    # previews nothing that would stand in front of their next Escape.
+    expect(leaf).to_be_focused()
+    expect(peek).to_be_hidden()
+    page.locator("body").click(position={"x": 5, "y": 5})
     page.evaluate(
         "async text => (await window.__lfWidgetApi()).raiseError(text)",
         "Couldn't save the draft",
     )
     expect(field(page)).to_have_attribute("data-lf-says", "error")
     seat.hover()
-    assert not peek.evaluate("peek => peek.hasAttribute('data-lf-shown')")
+    rendered(page)
+    expect(peek).to_be_hidden()
     page.locator("body").click(position={"x": 5, "y": 5})
     page.keyboard.press(".")
+    # The preview stands by the leaf, so it is read where the leaf comes to rest.
+    panel_settled(page, open=False)
     leaf.hover()
     expect(peek).to_be_visible()
     expect(peek).to_contain_text("Away right now.")
     leaf.click()
     expect(peek).to_be_hidden()
+    panel_settled(page, open=False)
+    # The leaf travels to where the expanded row stands once its layout has settled, and
+    # a preview stands by it on its way, so the keyboard reads it once it has arrived.
+    rendered(page)
+    panel_settled(page, open=False)
     # Tab back onto the expanded leaf: keyboard focus must not repeat the status.
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     expect(leaf).to_be_focused()
-    assert not peek.evaluate("peek => peek.hasAttribute('data-lf-shown')")
+    expect(peek).to_have_text("Page menu")
 
 
 def test_floating_menu_tracks_stalled_detail_hidden_by_a_draft(browser, serve, request):
@@ -3236,7 +3286,6 @@ def test_nothing_passing_interrupts_the_user_writing(browser, serve):
     write(field(page), "Could the rollback cover the weekend?")
     page.evaluate(say, "Saved for later")
     page.mouse.click(5, 5)
-    expect(page.locator(".lf-fp-context")).to_have_count(0)
     expect(field(page)).to_have_js_property(
         "value", "Could the rollback cover the weekend?"
     )
@@ -4081,6 +4130,11 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
         "Working on 1; 1 up next. Now: Drafting the note's first line."
     )
     expect(summary).to_contain_text("Last done: Tidy the wording")
+    # Its age is a time, which says when to a pointer, as every age the panel shows.
+    assert re.fullmatch(
+        r"\w{3} \d{1,2} \w{3} \d{4}, \d{2}:\d{2} .+",
+        preview_text(summary.locator("time")),
+    )
     expect(summary.locator('[data-lf-voice="agent"]')).to_have_text(
         ["Drafting the note's first line", "Tidy the wording"]
     )
@@ -4145,7 +4199,7 @@ def test_versions_travel_opens_in_the_panel(browser, serve):
     # Each version says the note its stamp gave it after its name, whole on hover, and a
     # listener hears the name and the note as two words, the note once.
     expect(view.locator(".lf-fp-note")).to_have_text(["two", "t"])
-    expect(view.locator(".lf-fp-note").first).to_have_attribute("title", "two")
+    expect_preview_words(view.locator(".lf-fp-note").first, "two")
     first = view.locator(".lf-fp-version .lf-fp-item").first
     expect(first).to_have_accessible_name("v2 (latest version) two")
     expect(first).to_have_accessible_description("")
@@ -4520,8 +4574,8 @@ def test_a_list_the_menu_leads_to_opens_over_it_and_goes_back(browser, serve):
 
 def test_a_double_click_on_the_way_back_goes_back_once(browser, serve):
     """The menu is taller than a list over it, so the ‹ at the list's head stands where
-    one of the menu's rows comes; the second click of a double-click on it presses
-    nothing there, Undo included, nor takes focus from the row the list came from, so
+    one of the menu's rows comes; a triple click's second and third clicks on it press
+    nothing there, Undo included, nor take focus from the row the list came from, so
     the next Enter can't undo either, and the user's choice stands."""
     page = floating(browser, serve(UNDO_PAGE))
     with sending(page, "the pick"):
@@ -4529,7 +4583,7 @@ def test_a_double_click_on_the_way_back_goes_back_once(browser, serve):
     panel_menu(page, "annotate")
     box = page.locator(".lf-fp-head .lf-fp-back").bounding_box()
     point = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    page.mouse.dblclick(*point)
+    page.mouse.click(*point, click_count=3)
     panel_settled(page, view="menu")
     assert page.evaluate(
         "([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest('.lf-fp-item'))",
@@ -4725,7 +4779,7 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
         panel_comment(serve.page_dir, text)
     page = floating(browser, url)
     on_mark = page.locator(".lf-fp-on-user")
-    expect(on_mark).to_have_attribute("title", "On me: 2")
+    expect(on_mark).to_have_attribute("aria-label", "On me: 2")
 
     on_mark.click()
     queue = page.locator(panel_view("queue"))

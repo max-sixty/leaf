@@ -559,8 +559,13 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
                 path.write_text(module)
         example = source if isinstance(source, Path) else None
         fixture = read_fixture(example) if example else None
+        # An example selects a package of the checkout's by its path from the checkout
+        # (the docs' `./docs/package`), which this directory reaches from elsewhere.
         selected_packages = (
-            fixture.packages
+            tuple(
+                ROOT / item if item.startswith("./") else item
+                for item in fixture.packages
+            )
             if fixture is not None and packages is None
             else (
                 *EXAMPLE_PACKAGES,
@@ -848,6 +853,23 @@ def sending(page, what):
     round_trip(page)
 
 
+def back_gesture(page):
+    """Make the close request Android's back gesture makes. An Escape keydown nothing
+    cancels is the same request, so the page's listeners are kept from hearing it. The
+    page makes its watcher in the repaint frame after what it closes opens, which a
+    finger can't beat but a driver can, so the gesture waits out two frames first."""
+    page.evaluate(
+        """() => new Promise((resolve) => requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            addEventListener('keydown', (event) => {
+              if (event.key === 'Escape') event.stopImmediatePropagation();
+            }, {capture: true, once: true});
+            resolve();
+          })))"""
+    )
+    page.keyboard.press("Escape")
+
+
 # The same arrangement for a test that holds the wire open with `page.route`, and the one
 # place the ledger is the wrong fact to state it over. The runtime counts a send as it
 # makes it, while the driver is handed the request over its own connection a beat later,
@@ -860,6 +882,19 @@ def sending(page, what):
 # route that lands after the send's paint would wait out the whole deadline. The browser's
 # own record already shows the send was made, so this repeats a driver call — the thing
 # that dispatches the route here — until the list has it.
+def long_press(page, point):
+    """Send what a touch engine sends as a press it holds becomes a long press, a
+    `contextmenu` at the finger, which a held finger reads at (preview.js) and which
+    Chromium's injected touch never sends. Says whether the page let the platform's menu
+    open."""
+    return page.evaluate(
+        """([x, y]) => document.elementFromPoint(x, y).dispatchEvent(new PointerEvent(
+          'contextmenu', {bubbles: true, cancelable: true, composed: true,
+            pointerType: 'touch', clientX: x, clientY: y}))""",
+        [point["x"], point["y"]],
+    )
+
+
 def holding(page, held, count, what):
     """Wait until `held` has collected `count` requests the route put there."""
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
@@ -936,14 +971,28 @@ def comment_note(page, holder):
 
 @contextmanager
 def _accessibility(page):
-    """Read nodes of the browser's accessibility tree, by selector or backend node:
-    what a screen reader is given, not the DOM attributes that asked for it."""
+    """Read nodes of the browser's accessibility tree, by selector, Playwright locator
+    (which reaches into shadow trees) or backend node: what a screen reader is given,
+    not the DOM attributes that asked for it."""
     cdp = page.context.new_cdp_session(page)
 
-    def ax(selector=None, **at):
+    def ax(selector=None, *, locator=None, **at):
         if selector is not None:
             root = cdp.send("DOM.getDocument")["root"]["nodeId"]
             at = cdp.send("DOM.querySelector", {"nodeId": root, "selector": selector})
+        if locator is not None:
+            locator.evaluate("(node) => { window.__lfAccessibleNode = node; }")
+            held = cdp.send(
+                "Runtime.evaluate",
+                {
+                    "expression": """(() => {
+                      const node = window.__lfAccessibleNode;
+                      delete window.__lfAccessibleNode;
+                      return node;
+                    })()"""
+                },
+            )
+            at = {"objectId": held["result"]["objectId"]}
         return cdp.send(
             "Accessibility.getPartialAXTree", {**at, "fetchRelatives": False}
         )["nodes"][0]
@@ -952,6 +1001,15 @@ def _accessibility(page):
         yield ax
     finally:
         cdp.detach()
+
+
+def accessible_node(locator):
+    """What a screen reader is given for the element `locator` names: the node the
+    browser's accessibility tree holds for it, with its `role` and `name`, or `ignored`
+    and the reasons. A role locator can't stand in for it, since Playwright's own
+    reading misses `aria-hidden` on a shadow ancestor of slotted content."""
+    with _accessibility(locator.page) as ax:
+        return ax(locator=locator)
 
 
 def accessible_details(page, selector):
@@ -2756,6 +2814,71 @@ def fills_the_window(page, block, fills):
 # An async page expression for the top of the page scroller's landing band, below the
 # chrome covering its top edge: where a reading place is measured from.
 LANDING_TOP = "(await window.__lfCheckApi()).landingBand(document.scrollingElement).top"
+
+
+# The one preview standing over the page (runtime/preview.js).
+PREVIEW = "#lf-preview"
+
+
+def tab_onto(target):
+    """Step onto `target` with the keyboard, as the user does: Shift+Tab off it and Tab
+    back, a move the user made themselves, which a focus preview reads (preview.js),
+    where a script's focus reads nothing."""
+    target.focus()
+    target.page.keyboard.press("Shift+Tab")
+    target.page.keyboard.press("Tab")
+    expect(target).to_be_focused()
+
+
+def expect_preview_words(target, words):
+    """Wait until `target`'s own preview declaration (`lfPreview`, runtime/preview.js)
+    says `words` as its name or a line of its detail, the whole line for a string or a
+    match for a pattern: the words a pointer, the keyboard or a finger read there, read
+    without showing them."""
+    pattern = words.pattern if isinstance(words, re.Pattern) else None
+    target.page.wait_for_function(
+        """([el, words, pattern]) => {
+          const said = el.lfPreview?.('pointer');
+          const lines = said ? [said.name, ...(said.detail ?? [])] : [];
+          return lines.some((line) => typeof line === 'string'
+            && (pattern === null ? line === words : new RegExp(pattern).test(line)));
+        }""",
+        arg=[target.element_handle(), None if pattern else words, pattern],
+    )
+
+
+def preview_parts(target, route="pointer"):
+    """What `target`'s preview shows a pointer resting on it (runtime/preview.js), or
+    with `route="focus"` the keyboard stepping onto it: its name, then each line of
+    detail, as the face draws them, key chips left out: of a list, the items it
+    shows and the words for the rest. The pointer leaves it again after, so the
+    next reading is a new one."""
+    page = target.page
+    tip = page.locator("#lf-preview")
+    if route == "focus":
+        tab_onto(target)
+    else:
+        # From somewhere else: a pointer already resting where the target now stands
+        # reads nothing there until it moves (preview.js).
+        page.mouse.move(2, 2)
+        target.hover()
+    expect(tip).to_be_visible()
+    expect(tip).to_have_attribute("data-lf-route", route)
+    parts = tip.evaluate(
+        """(tip) => [...tip.querySelectorAll(
+            '.lf-preview-word, .lf-preview-detail, .lf-preview-more')]
+          .filter((part) => part.checkVisibility({visibilityProperty: true}))
+          .map((part) => part.textContent)"""
+    )
+    if route == "pointer":
+        page.mouse.move(0, 0)
+    return parts
+
+
+def preview_text(target):
+    """The words `target`'s preview shows a resting pointer, as its face's
+    `textContent` reads them where no key chip stands beside its name."""
+    return "".join(preview_parts(target))
 
 
 def resized(page, width, height):

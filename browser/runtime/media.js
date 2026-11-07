@@ -88,10 +88,7 @@ export function writeAttachedMedia(text, paths) {
   return text + "\n\n" + images;
 }
 
-const viewerClose = closeControl({
-  name: "Close image preview",
-  title: "Close image preview (Esc)",
-});
+const viewerClose = closeControl({ name: "Close image preview" });
 
 const viewerZoom = offerAction("word", "lf-media-viewer-zoom", "100%");
 

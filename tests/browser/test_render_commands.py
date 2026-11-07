@@ -1385,6 +1385,38 @@ def test_reduced_motion_is_the_page_s_to_answer(browser, serve):
     assert [f["at"] for f in found] == ["<div id=busy>"], found
 
 
+def test_a_code_block_no_reading_face_reaches_is_named(browser, serve):
+    """On a page that takes no theme, a `language-…` block keeps its ink, since the
+    runtime colours a block's tokens only where it wears the reading face, and the
+    gate's reading names it so its author hears before a reader takes it for a broken
+    block. One inside a box that turns the face on is coloured and quiet, and so is a
+    block in a language Leaf doesn't colour."""
+    block = '<pre id="{}"><code class="language-{}">{{"count": 3}}</code></pre>'
+    url = serve(
+        leaf_page(
+            "Code",
+            "<h1>Code</h1>"
+            + block.format("plain", "json")
+            + '<div style="--lf-reading-face: 1">'
+            + block.format("faced", "json")
+            + "</div>"
+            + block.format("unknown", "zzz"),
+        ),
+        theme=False,
+    )
+    page = open_page(browser, url)
+    expect(page.locator("#faced code")).to_have_attribute("data-lf-syntax", "json")
+    found = render_checks_model.evaluate_probe(page, "uncolouredCode")
+
+    assert found == [
+        {
+            "code": "uncoloured-code",
+            "at": "<code> in <pre id=plain>",
+            "language": "json",
+        }
+    ], found
+
+
 def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     """A comment on a widget's option leaves a page the gate passes
     (`test_every_table_the_theme_sets_honestly_passes_the_gate` gates one): the mark

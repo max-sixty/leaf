@@ -843,10 +843,7 @@ def test_a_bounded_region_reflows_its_margin_without_resizing_the_page(
                 # Moving only the paragraph can change the clear seat around it. The layout
                 # notification must settle that seat as a full geometry reading would.
                 assert after["top"] != before["top"]
-                page.evaluate("""async () => {
-                  const {layoutChanged} = await window.__lfWidgetApi();
-                  layoutChanged(document.body);
-                }""")
+                margins_laid_out(page)
                 assert page.evaluate(reading) == after
             assert after["hit"]
 
@@ -1469,7 +1466,6 @@ def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serv
         ),
     )
     resized(page, 1440, 900)
-    margins_laid_out(page)
     margins_laid_out(page)
     stuck = page.locator('.lf-margin-cluster[data-lf-margin-for="fixed-note"]')
     flow = page.locator('.lf-margin-cluster[data-lf-margin-for="flow"]')

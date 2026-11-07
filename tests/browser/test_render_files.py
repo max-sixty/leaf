@@ -426,8 +426,10 @@ def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
     child = frame.element_handle().content_frame()
     editor = child.get_by_role("textbox", name="File contents", exact=True)
     expect(editor).to_have_attribute("aria-readonly", "true")
-    expect(child.locator(".lf-file-editor-status")).to_have_attribute(
-        "title", "No file is bound as 'notes'."
+    # The status says why it can't save when pointed at (preview.js).
+    child.locator(".lf-file-editor-status").hover()
+    expect(child.locator("#lf-preview .lf-preview-detail")).to_have_text(
+        "No file is bound as 'notes'."
     )
     expect(child.locator(".cm-placeholder")).to_have_text(
         "No file is bound as 'notes'."

@@ -1,6 +1,6 @@
 /* Control construction and labels are document-local. Leaf reads their generated
    word and action markers; an ordinary host needs no page services to build them. */
-import { offer, generatedElement } from "./element-markers.js";
+import { offer, generatedElement, titlesName } from "./element-markers.js";
 import { actionName, showAction } from "./icon-paths.js";
 import { keeps, keepsText } from "./keeps.js";
 import { keepFieldKeys } from "./field-keys.js";
@@ -32,17 +32,18 @@ export function searchField(cls, { name, label, placeholder = label }) {
 
 // A role's symbol whose action follows its state, as Expand all turns to Collapse
 // all, takes its new symbol and name from its action:
-// `nameAction(button, action, {label, title, className})`. It shows `action`'s symbol
-// and says the action's name as tooltip and accessible name unless `label` says
-// more, as a symbol role does, so the name and the symbol can't drift apart.
+// `nameAction(button, action, {label, className})`. It shows `action`'s symbol and
+// says the action's name as accessible name, and off Leaf as title (`titlesName`),
+// unless `label` says more, as a symbol role does, so the name and the symbol can't
+// drift apart.
 /**
  * @param {Element} control @param {string} action
- * @param {{label?: string, title?: string, className?: string}} [options]
+ * @param {{label?: string, className?: string}} [options]
  */
-export function nameAction(control, action, { label, title, className } = {}) {
+export function nameAction(control, action, { label, className } = {}) {
   const name = label ?? actionName(action);
   keeps(control, "aria-label", name);
-  keeps(control, "title", title ?? name);
+  keeps(control, "title", titlesName() ? name : null);
   showAction(control, action, className);
 }
 

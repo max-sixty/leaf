@@ -83,6 +83,7 @@ import {
   quoteFrom,
   rangeOf,
   readingFrom,
+  segmentsBox,
 } from "./passages.js";
 import {
   ADDRESSABLE,
@@ -784,7 +785,7 @@ function landmarkOf(view) {
   if (first)
     return {
       node: first.node,
-      top: () => rangeOf(segments).getBoundingClientRect().top,
+      top: () => segmentsBox(segments).top,
     };
   const section =
     view.section && targetElement(resolveAnchor({ section: view.section }));
@@ -862,10 +863,7 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
       if (drawn && under(drawn.node, body)) {
         moveScrollerBy(box, drawn.top() - boxTop);
       } else if (segments.length && view.quote) {
-        moveScrollerBy(
-          box,
-          rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop,
-        );
+        moveScrollerBy(box, segmentsBox(segments).top - boxTop - view.quoteTop);
       } else if (!currentLocation) {
         // An unresolved or concealed passage leaves live focus as the precise
         // destination; section and raw-offset fallbacks belong to readings without one.

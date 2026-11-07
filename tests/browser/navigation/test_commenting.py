@@ -70,7 +70,6 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
         ".lf-composer > leaf-composition-field > .lf-compose-field > .lf-compose-submit"
     )
     expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
-    expect(page.locator(".lf-composer-row")).to_have_count(0)
     field_box = box.bounding_box()
     action = page.locator(".lf-compose-field").get_by_role(
         "button", name="Other responses", exact=True

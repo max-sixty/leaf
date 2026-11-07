@@ -46,6 +46,7 @@ import {
   targetElement,
   targetParts,
   targetRange,
+  targetSegments,
 } from "../../resolved-target.js";
 import { blockAt, quoteFrom, segmentsIn } from "../../passages.js";
 import { pageSelection, selectionAnchor } from "../../composing/capture.js";
@@ -72,6 +73,7 @@ import { pageScroller } from "../../scrolling.js";
  * response: import("../../composing/surface.js").ResponseState,
  * positioned: (ready: boolean) => void, dismiss: () => void,
  * scrollToElement: (element: Element, behavior: ScrollBehavior, block: ScrollLogicalPosition) => unknown,
+ * scrollToPassage: ReturnType<typeof import("../../anchor-travel.js").createAnchorTravel>["scrollToPassage"],
  * scrollToRange: (range: Range, behavior: ScrollBehavior) => unknown,
  * }} capabilities */
 export function createFloatingResponsePlacement({
@@ -81,6 +83,7 @@ export function createFloatingResponsePlacement({
   positioned,
   dismiss,
   scrollToElement,
+  scrollToPassage,
   scrollToRange,
 }) {
   /** @param {Element} [scroller] */
@@ -627,8 +630,10 @@ export function createFloatingResponsePlacement({
       bringBack: /** @param {ScrollBehavior} behavior */ (behavior) => {
         const found = response.resolved;
         const anchor = response.anchor;
-        const range = anchor?.quote && (targetRange(found) ?? selectedRange(anchor));
-        if (range) return scrollToRange(range, behavior);
+        if (anchor?.quote && targetRange(found))
+          return scrollToPassage(targetSegments(found), behavior);
+        const selected = anchor?.quote && selectedRange(anchor);
+        if (selected) return scrollToRange(selected, behavior);
         const target = response.target;
         const line = response.pointIn(target) ?? target;
         if (line) scrollToElement(line, behavior, "nearest");

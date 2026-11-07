@@ -39,15 +39,14 @@ let writtenBackward = false;
 // Each end is a boundary point, `[node, offset]`.
 /** @typedef {[node: Node, offset: number]} SelectionEnd */
 /** @param {SelectionEnd} anchor @param {SelectionEnd} focus */
+// Its ends may stand in different trees, as a passage's run from the page into a
+// shadow stage, which the selection holds as one composed range and the platform orders
+// (`direction`), where comparing them as two ranges' bounds throws.
 export function selectEnds(anchor, focus) {
   const selection = getSelection();
   if (!selection) return;
-  const from = document.createRange(),
-    to = document.createRange();
-  from.setStart(...anchor);
-  to.setStart(...focus);
-  writtenBackward = from.compareBoundaryPoints(Range.START_TO_START, to) > 0;
   selection.setBaseAndExtent(...anchor, ...focus);
+  writtenBackward = selection.direction === "backward";
   writtenSelection = selectionEnds(selection);
 }
 /** @param {Selection} selection */

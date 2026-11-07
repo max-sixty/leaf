@@ -63,10 +63,6 @@
         max-width: 30rem;
       }
 
-      #bg-panel-sample .lf-sample-frame {
-        min-height: 40rem;
-      }
-
       #bg-metrics {
         margin-block: var(--sp-4);
       }
@@ -518,6 +514,44 @@
               >, then use browser Back. The viewport and focus return to this link;
               press <kbd>c</kbd> to comment on the link. Forward returns to the sample.
             </p>
+          </section>
+
+          <section id="bg-link-previews" class="layout-flow">
+            <h2>
+              <strong>Links into the page</strong
+              ><span class="bg-feature-detail">: a preview of where each points</span>
+            </h2>
+            <p id="bg-link-previews-guide">
+              Rest the pointer on a link here, Tab to it, or hold a finger on it: a
+              preview stands beside it with what it points at, and the page stays where
+              it is. A press, Enter or a tap still follows the link; letting go of a
+              held finger leaves the preview standing.
+              <a id="bg-link-stove" href="#bg-board-stove">The stove decision</a>
+              shows its answer and
+              <a id="bg-link-flask" href="#bg-board-flask">the flask question</a> its
+              options waiting on you,
+              <a id="bg-link-meeting" href="#bg-link-settled-ask">the trailhead</a>,
+              settled when the page was written, its options with the pick checked;
+              <a id="bg-link-board" href="#bg-board-plan">the packing board</a> lists
+              its columns,
+              <a id="bg-link-table" href="#bg-margin-layer-table">the session table</a>
+              its first rows and the thread about it,
+              <a id="bg-link-steps" href="#bg-core-surfaces-steps">the On me steps</a>
+              their first items,
+              <a id="bg-link-code" href="#bg-javascript-code">the code sample</a> its
+              first lines, and
+              <a id="bg-link-image" href="#bg-image-preview">the pasted screenshot</a>
+              its picture.
+              <a id="bg-link-site" href="https://leaf.page/">Leaf's site</a>
+              is another document, so it keeps only the browser's status bar.
+            </p>
+            <lf-ask id="bg-link-settled-ask">
+              <h3>Which trailhead does the sample walk start from?</h3>
+              <lf-options id="bg-link-settled" choose settled>
+                <lf-option id="bg-link-settled-north">The north car park</lf-option>
+                <lf-option id="bg-link-settled-south" chosen>The south gate</lf-option>
+              </lf-options>
+            </lf-ask>
           </section>
 
           <section id="bg-changing-text" class="layout-flow">
@@ -1148,7 +1182,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               cue encloses the label, while pointer selection keeps the native radio
               mark. Text-entry fields retain their focus cue.
             </p>
-            <lf-sample id="bg-panel-sample" label="workshop threads">
+            <lf-sample id="bg-panel-sample" label="workshop threads" window>
               <template
                 id="bg-panel-sample-page"
                 data-sample
@@ -2446,13 +2480,13 @@ gallery/
               </div>
               <div id="bg-compare" class="layout-tiles">
                 <section id="bg-variant-paper" class="panel">
-                  <small id="bg-chip-power" class="tag">power: none</small
-                  ><small class="tag ok">weight: low</small>
+                  <small id="bg-chip-power" class="tag">power: none</small>
+                  <small class="tag ok">weight: low</small>
                   <strong>Paper map</strong> Easy to annotate and fold.
                 </section>
                 <section id="bg-variant-screen" class="panel">
-                  <small class="tag">power: daily</small
-                  ><small class="tag warn">weight: medium</small>
+                  <small class="tag">power: daily</small>
+                  <small class="tag warn">weight: medium</small>
                   <strong>Tablet map</strong> Searchable and backlit.
                 </section>
               </div>

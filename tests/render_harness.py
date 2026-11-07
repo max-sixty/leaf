@@ -1827,6 +1827,15 @@ def panel_field(page):
     return page.locator(".lf-fp-field leaf-text")
 
 
+def field_press(page):
+    """The press the panel field's end offers while the field says its words at rest
+    (composing/input.js, `pressAtRest`), the moment's own: a notice's, such as a
+    Resolve's Next thread, the next On me item after an answer, or a stance's Close
+    (floating-panel.js, `fieldReading`). Its word is `.lf-compose-press-word`, and the
+    key that makes it the `kbd` after it."""
+    return page.locator(".lf-fp-field .lf-compose-press")
+
+
 def panel_settled(page, open=True, view=None):
     """Wait for the floating panel to stand with a view open, or with none, its motion
     finished.

@@ -20,8 +20,10 @@
  *   answering a gesture show immediately.
  * - **The row**: the leaf, the comment field, and at its end one seat: the On me mark,
  *   counting what waits on the user, with a dot while a thread holds a reply they have
- *   not read; or, while a stance or a search stands, the ✕ that ends it, so the seat
- *   never stands empty. The ✕ takes the leaf's width, beside the field;
+ *   not read; or, while a search stands, the ✕ that ends it, and while a stance stands,
+ *   the ✕ that ends it wherever the field doesn't say Close at its end, as it does with
+ *   its words at rest, so the seat never stands empty and the stance has one way out
+ *   on screen. The ✕ takes the leaf's width, beside the field;
  *   filling the room On me keeps for its count stood it 29px clear of the field, which
  *   the user questioned on 31 October. The ✕ keeps the seat while the user writes in
  *   the stance. Once the stance ends, a draft's Send takes the corner as it does at
@@ -40,15 +42,26 @@
  *   the user should not miss, such as reading an older version, tinted by its tone and
  *   with at most one press (`olderVersion`); the field gives it room, so the seat keeps
  *   its place, but only while it holds no words, which a narrower field would rewrap
- *   under the reader; the notice waits while words stand there. The empty field says
+ *   under the reader; the notice waits while words stand there, or a press at the
+ *   field's end, which a notice coming or going on news would move. The empty field says
  *   what the agent is doing or wants, in the status's words
  *   (`statusReading`), or what a passing notice says, where a placeholder would say
- *   "Comment", and the field's end says the one press the row offers with its key,
- *   Comment and c, or while it passes the press a notice of the user's own gesture
- *   offers to take it back, as a Resolve's Undo and z (`noticePress`), chosen on 31
- *   October so a Resolve that moves the panel on says which thread it resolved and
- *   offers its undo there; in a stance, such as Draw mode, it names the stance, whose way out is
- *   the seat's ✕; in a thread it says the thread's word beside the leaf, in its
+ *   "Comment", and the field's end says the one press that matters most at that
+ *   moment: Comment and c at rest; while it passes, the press a notice of the user's
+ *   own gesture offers, as a Resolve's Next thread and t (`noticePress`,
+ *   thread/folding.js); once the server reads a gesture as answering something On me
+ *   lists, a pick, a settling reaction or a reply sent from a card, while more stands
+ *   there, Next On Me and m (application.js, `offerNextOnMe`), which a reply or comment
+ *   sent from this field never shows, since the caret stays in it; and in a stance,
+ *   such as Draw mode, whose name the field says, Close (`stanceClose`), in place of
+ *   the seat's ✕. A press acts as a touch control does, wherever the caret stands, and
+ *   says its key only while that key would make it now: `m` typed in a card's reply is
+ *   a letter, and Escape closes a comment box standing in Design mode before the mode.
+ *   The user chose a notice's press on 31 October, so a Resolve that moves the panel
+ *   on says which thread it resolved and offers its next step there, and the rest on 6
+ *   November 2026, from what three weeks of their keys pressed next, over Undo and z
+ *   after a Resolve, Comment and c after an answer, and the ✕ with Escape unsaid in a
+ *   stance. In a thread it says the thread's word beside the leaf, in its
  *   speaker's face (voice.js), with a walk's position after it, and Reply with the key
  *   that enters the field at the field's end (`turnLead`). The user chose this on 27
  *   October so the next action reads apart from the agent's words, over three others:
@@ -56,8 +69,10 @@
  *   the turn left to the thread's messages, and the agent's words in a lane of their
  *   own before the seat, at rest too. Reply was in ink until 5 November 2026, when the
  *   user chose one dim face for every comment box's word. While words stand selected
- *   on the page, the page's field quotes them, inside a stance too, and a press there
- *   comments on them (`selectedWords`), the one route a finger has to them; the user
+ *   on the page, the page's field quotes them, inside a stance too, and ends in Comment
+ *   and c as at rest (the user's choice on 6 November 2026, over c alone after the
+ *   quote), and a press there comments on them (`selectedWords`), the one route a
+ *   finger has to them; the user
  *   chose that on 19 October over a worded step standing in the marks' place, which
  *   took a stance's steps away while it stood, accepting that a press on the field
  *   addresses selected words whenever they stand. A status that reports reads dimmer
@@ -213,7 +228,6 @@ import {
 import { el, offeredAction, reveal } from "./widget-elements.js";
 import { actionTemplate, iconTemplate } from "./icons.js";
 import { actionName } from "./icon-paths.js";
-import { commandSteps } from "./keyboard/control-keys.js";
 import { canCopy, copyControl } from "./copy-control.js";
 import { atLayoutPrecision, keeps, keepsHidden } from "./keeps.js";
 import { keepFieldKeys } from "./field-keys.js";
@@ -222,7 +236,12 @@ import { statusReading } from "./page-status.js";
 import { leavesRows } from "./live-leaves.js";
 import { keys } from "./keyboard/scopes.js";
 import { pageCommand, pageDoor, pageRung } from "./keyboard/register.js";
-import { advertisesKeys, parsed } from "./keyboard/bindings.js";
+import {
+  advertisesKeys,
+  parsed,
+  spell,
+  titleOf as rowTitle,
+} from "./keyboard/bindings.js";
 import {
   keySequenceModel,
   keySequenceTemplate,
@@ -290,7 +309,7 @@ import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
-import { noticeReading, noticeWords } from "./notifications.js";
+import { noticeReading, noticeWords, offeredPress } from "./notifications.js";
 import {
   dismissError,
   dismissErrors,
@@ -306,6 +325,7 @@ import {
   focusDestination,
   focused,
   holdFocus,
+  inputCount,
   letGo,
   onCurrentLocation,
   onPressAway,
@@ -347,6 +367,12 @@ import { agentName, documentChanged } from "./semantic-state.js";
 import { runtime } from "./context.js";
 import { renderedUnder, under } from "./shadow.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
+import { commandSteps } from "./keyboard/control-keys.js";
+import {
+  activeCommandLabel,
+  escapeInvocation,
+  innermostStance,
+} from "./keyboard/dispatch.js";
 import { closestAcross } from "./passages.js";
 
 const prefs = () => window.lfChrome;
@@ -522,7 +548,7 @@ export function createFloatingPanel({
       errorsReading().some(
         (error) => !error.seen && !sayingNow.has(error.id) && !standsAtItsBox(error),
       );
-    const exit = initial ? null : fieldExit(search, top);
+    const exit = initial ? null : fieldExit(search, top, input, reading);
     // A view's Close ends the line its presses stand on: a list's tabs at its foot, or
     // the head line, where a thread's presses stand and every other view's name. A
     // search's own ✕ ends the row under a list's tabs while it holds the field, so the
@@ -771,6 +797,9 @@ export function createFloatingPanel({
   host.addEventListener("pointerleave", () => {
     pointer = null;
     readCorner();
+    // A press offered while the pointer stood on the panel stands once it leaves
+    // (`pagePress`).
+    if (shownOffer !== offeredPress()) paint();
   });
   const leaf = shell("leaf");
   const field = shell("field");
@@ -982,12 +1011,14 @@ export function createFloatingPanel({
   // reading.
   //
   // A reading that offers a press (`offers`), the reply or the selected words, stands
-  // with the key that makes it; every reading, and the words standing before the reply,
-  // are said by the agent or by Leaf, each in its face (voice.js), and read dim
-  // (floating-panel.css). A stance's name and the words quoted are nobody's.
+  // with the key that makes it; the page field's other readings end in the press the
+  // moment offers (`offer`), else in Comment and the key that enters the field. Every
+  // reading, and the words standing before the reply, are said by the agent or by
+  // Leaf, each in its face (voice.js), and read dim (floating-panel.css). A stance's
+  // name and the words quoted are nobody's.
   const HIDDEN = "Annotations hidden";
-  // A notice offering the press that takes back the user's own gesture is newer than
-  // any error the field says, so while it passes it says its words over that error,
+  // A notice offering a press after the user's own gesture is newer than any error the
+  // field says, so while it passes it says its words over that error,
   // which waits in the menu's Errors meanwhile, as one the field has passed does, and
   // the field says it again once the notice has gone. The caret in the field says
   // nothing that passes.
@@ -995,8 +1026,11 @@ export function createFloatingPanel({
   function noticePressing(input) {
     return Boolean(passing().press) && input !== focused();
   }
-  // The page field's readings that say something other than a press there.
-  const SAYS_ELSE = new Set(["status", "stance", "notice"]);
+  // The page field's readings whose words say something other than a press there, so
+  // its end says the press: the status, a passing notice, and the words selected on the
+  // page, which the user chose on 6 November 2026 to end in Comment… and c, as the field
+  // does at rest, over c alone right after the quote.
+  const SAYS_ELSE = new Set(["status", "notice", "selection"]);
   const hiddenLead = () => (annotationsHidden() ? [leafSays(`${HIDDEN} · `)] : []);
   // `drawn` is the thread as its view draws it, which the reply box's words read
   // (`replyOptionsFor`).
@@ -1028,25 +1062,56 @@ export function createFloatingPanel({
           .join(" · "),
       };
     // A notice says its words in the empty field's, and the press it offers, such as
-    // a Resolve's Undo, is the one the field's end offers while it passes, said as
-    // Comment and its key are (`noticePress`, composing/input.js `enters`).
-    if (notice.visible)
+    // a Resolve's Next thread, is the one the field's end offers while it passes, said
+    // as Comment and its key are (`noticePress`, composing/input.js `enters`); one
+    // offering none leaves the page's own there (`pagePress`), as the walk a Next On
+    // Me makes says its place beside the press that takes it on.
+    if (notice.visible) {
+      const own = notice.press ? noticePress(notice.press) : null;
+      const close = own || !stance ? null : stanceClose();
       return {
         says: "notice",
         words: [
           ...(stance ? [`${stance} · `] : []),
           ...[noticeWords(notice.message)].flat(),
         ],
-        offer: notice.press ? noticePress(notice.press) : null,
+        offer: own ?? close ?? (key ? null : pagePress()),
+        exits: Boolean(close),
       };
-    if (stance)
+    }
+    if (stance) {
+      const close = stanceClose();
       return {
         says: "stance",
         words: annotationsHidden() ? [`${stance} · `, leafSays(HIDDEN)] : stance,
+        offer: close,
+        exits: Boolean(close),
       };
+    }
     if (!key)
-      return { says: "status", words: [...hiddenLead(), ...status().summaryParts] };
+      return {
+        says: "status",
+        words: [...hiddenLead(), ...status().summaryParts],
+        offer: pagePress(),
+      };
     return { says: "turn", words: leafSays(REPLY_HINT), offers: true };
+  }
+  // The press offered alone on the page, as Next On Me after an answer
+  // (notifications.js, `offerPress`), or null. It comes and goes with the server's
+  // reading rather than with the user's input, so while the pointer rests on the panel
+  // the field's end keeps what it showed, and takes the change at the user's next input
+  // or once the pointer leaves: a press arriving there would stand where the user was
+  // about to press Comment (browser/AGENTS.md, "The page holds still under the user's
+  // aim").
+  /** @type {import("./notifications.js").NoticePress | null} */
+  let shownOffer = null;
+  let offerShownAt = -1;
+  function pagePress() {
+    if (pointer === null || inputCount() !== offerShownAt) {
+      shownOffer = offeredPress();
+      offerShownAt = inputCount();
+    }
+    return shownOffer ? noticePress(shownOffer) : null;
   }
   // What stands before an open thread's reply while the field says it, beside the leaf
   // (composing/input.js, `hintLead`): the thread's word, as Threads says it, then a
@@ -1132,7 +1197,8 @@ export function createFloatingPanel({
       hintParts: () => fieldHint(null, input),
       // The agent's or Leaf's words at rest say nothing about the press, so the key
       // that enters the field stands with its word (composing/input.js, `enters`),
-      // unless a notice offers a press of its own there while it passes.
+      // unless the moment offers a press of its own there: a passing notice's, the
+      // next On me item after an answer, or a stance's Close (`fieldReading`).
       enters: () => {
         const { says, words, offer } = fieldReading(null, input);
         return offer ?? (SAYS_ELSE.has(says) && wordsText(words) ? COMMENT_HINT : "");
@@ -1249,10 +1315,13 @@ export function createFloatingPanel({
     const top = trail.value.at(-1);
     return top?.thread ? (threadOf(top) ? replyInput() : null) : pageEditor().input;
   };
-  // The way out at the row's end: a search's, or, where no view stands, a stance's. An
-  // open view's Close stands on the view's own line (`closeAtFoot`).
-  /** @param {PanelSearch | typeof threadSearch | null} search @param {PanelRoute | null | undefined} top */
-  const fieldExit = (search, top) => {
+  // The way out at the row's end: a search's, or, where no view stands, a stance's
+  // while one stands and the page field doesn't say it at its end, which it does while
+  // it says its words at rest (`stanceClose`). An open view's Close stands on the view's
+  // own line (`closeAtFoot`).
+  /** @param {PanelSearch | typeof threadSearch | null} search @param {PanelRoute | null | undefined} top
+   * @param {Element | null} input @param {ReturnType<typeof fieldReading> | null} reading */
+  const fieldExit = (search, top, input, reading) => {
     if (search === threadSearch && !menuSearching())
       return {
         label: "Close search",
@@ -1261,6 +1330,11 @@ export function createFloatingPanel({
         action: null,
       };
     if (top && (!search || menuSearching())) return null;
+    if (
+      !search &&
+      (!innermostStance() || (reading?.exits && input !== focused() && !draftOf(input)))
+    )
+      return null;
     const exit = rows().find((entry) => entry.exit);
     return exit ? { ...exit, press: () => exit.press?.(null) } : null;
   };
@@ -4496,6 +4570,11 @@ export function createFloatingPanel({
     // Only the page field competes with the seated annotation composer. An open
     // view already keeps that seat out, regardless of what its reply field says.
     keeps(host, "data-lf-offers", !top && !search && reading.offers ? "" : null);
+    // A press standing at the field's end at rest keeps the row's notice aside, as the
+    // user's words do, so a notice coming or going on news never moves it from under
+    // the user's aim (floating-panel.css).
+    const presses = !search && Boolean(reading.offer) && input !== focused() && !words;
+    keeps(host, "data-lf-presses", presses ? "" : null);
     keeps(host, "data-lf-tone", status().tone || null);
     keeps(host, "data-lf-asks", status().asks ? "" : null);
 
@@ -4544,20 +4623,58 @@ export function createFloatingPanel({
   // gesture says its words and its press in the field instead (`fieldReading`).
   /** @typedef {{says: string, tone: string | null, press: {label: string,
    * run: () => unknown, title?: string | null, disabled?: boolean} | null}} RowNotice */
-  // A notice's press as the field's end offers it (composing/input.js, `BoxPress`): its
-  // word, the keys of the page command that makes it, as the command reference spells
-  // them, and what it does. The user chose on 5 November 2026 that the right side of
-  // the box is for shortcuts, so a Resolve's Undo stands there with z, in the face
-  // Comment and c wear, over the notice's own line with an inked Undo over the field's
-  // start, which since 31 October had been the one press in the row in a face of its
-  // own.
-  /** @param {NonNullable<ReturnType<typeof passing>["press"]>} press
+  // A notice's press, or one offered alone (notifications.js, `offerPress`), as the
+  // field's end offers it (composing/input.js, `BoxPress`): its word, the keys of the
+  // page command that makes it, as the command reference spells them, and what it does.
+  // The user chose on 5 November 2026 that the right side of the box is for shortcuts,
+  // so a notice's press stands there with its key, in the face Comment and c wear, over
+  // the notice's own line with an inked Undo over the field's start, which since 31
+  // October had been the one press in the row in a face of its own.
+  // Its key stands beside it only while that key would make the same press now, as the
+  // dispatcher reads it (`activeCommandLabel`): with the caret in a box, `m` is a letter
+  // typed, and the press alone still acts.
+  /** @param {import("./notifications.js").NoticePress} press
    * @returns {import("./composing/input.js").BoxPress} */
   function noticePress(press) {
     return {
       word: actionName(press.action),
-      keys: commandSteps(press.command),
+      // Read at each ask, so a box standing this press rechecks its key without
+      // reading the field's words again (composing/input.js, `pressing`).
+      get keys() {
+        const key = activeCommandLabel([press.command]);
+        return key ? [key] : [];
+      },
       run: press.run,
+    };
+  }
+  // The way out of the stance the user is in, as the page field's end offers it while
+  // the field says its words at rest: Close, a press that ends the stance at once, as
+  // its ✕ does (keyboard/touch-controls.js), with `esc` beside it only while Escape takes
+  // the stance off now, as the dispatcher reads it (`escapeInvocation`): its step is the
+  // stance's exit, or one titled as that exit, the ladder's step for the stance. Where
+  // something stands over the stance, such as a widget's comment box in Design mode,
+  // Escape closes that first, and Close stands alone. The reading that offers it
+  // `exits`, which tells `fieldExit` the field says it, so the seat holds the On me mark
+  // meanwhile. Both ask the dispatcher whether a stance stands now (`innermostStance`):
+  // the stance's words and its exit row are read in the repaint frame, so for the paint
+  // a search's close makes, they still name the search, and the seat would take its ✕
+  // for that paint and give it up in the next.
+  /** @returns {import("./composing/input.js").BoxPress | null} */
+  function stanceClose() {
+    const held = innermostStance();
+    const exit = held ? rows().find((entry) => entry.exit) : null;
+    if (!held || !exit) return null;
+    return {
+      word: actionName("close"),
+      // Read at each ask, as a notice's press's key is (`noticePress`).
+      get keys() {
+        const escape = escapeInvocation();
+        const ends =
+          escape !== null &&
+          (escape.row === held.exit || rowTitle(escape.row) === rowTitle(held.exit));
+        return ends ? [spell("Escape")] : [];
+      },
+      run: () => exit.press?.(null),
     };
   }
   // The page shows an older version than the latest: the menu's row that opens the

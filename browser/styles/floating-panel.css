@@ -482,26 +482,27 @@
      words (floating-panel.js, `saying`), so no face stands over another reading's words
      for a frame, as the notice's weight once did over the status, carrying it sideways.
 
-     A press the field offers, an open thread's Reply or the words selected on the page,
-     stands with the key that makes it, dim as every comment box's word is (`offers`,
+     A press the field's words offer, an open thread's Reply, stands with the key that
+     makes it, dim as every comment box's word is (`offers`,
      and composing/input.js, `hintLead`). The user chose dim in every box on 5 November
      2026 over the ink the panel's Reply had worn since 27 October to stand apart from
      the agent's words, the one box whose word was inked. Once the caret is in, the
      field's word stands dim with the key that sends them and the key for a new line, as
      in every box that holds lines (response.css).
 
-     Any other reading keeps its words and ends in Comment and its key while c enters
-     the field (composing/surface.js, `commentHint`; composing/input.js, `enters`), so
-     the row says that c goes here and, by losing them, that it goes elsewhere. The user
-     chose the word on 5 November 2026, so every key in a box stands with its word, over
-     the key alone they had chosen the day before, which a reader took for the inbox's
-     shortcut beside it. */
+     Any other reading keeps its words, the words selected on the page included, and
+     ends in the press the moment offers, such as a stance's Close, else in Comment and
+     its key while c enters the field (composing/surface.js, `commentHint`;
+     composing/input.js, `enters`), so the row says that c goes here and, by losing
+     them, that it goes elsewhere. The user chose the word on 5 November 2026, so every
+     key in a box stands with its word, over the key alone they had chosen the day
+     before, which a reader took for the inbox's shortcut beside it. */
   .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-quiet);
   }
   /* The word naming what entering the field does, after the agent's or Leaf's words
      (composing/input.js, `enters`), or the press the field's end offers in its place,
-     such as a passing notice's Undo, in Leaf's italic whatever voice theirs is. */
+     such as a Resolve's Next thread, in Leaf's italic whatever voice theirs is. */
   .lf-fp-field :is(.lf-compose-placeholder-enters, .lf-compose-press-word) {
     color: var(--lf-fp-quiet);
     font-style: italic;
@@ -732,9 +733,12 @@
   /* The field gives the notice its room only at rest: words a notice arriving would
      narrow rewrap, and the field grows up over its line under the reader. It stands
      aside with the mark while the user writes or the field holds a draft
-     (floating-panel.js, `writing`). */
+     (floating-panel.js, `writing`), and while the field's end offers a press, which a
+     notice coming or going on news would move from under the user's aim
+     (`data-lf-presses`). */
   .lf-floating-panel[data-lf-writing] .lf-fp-row-notice,
-  .lf-floating-panel[data-lf-drafted] .lf-fp-row-notice {
+  .lf-floating-panel[data-lf-drafted] .lf-fp-row-notice,
+  .lf-floating-panel[data-lf-presses] .lf-fp-row-notice {
     display: none;
   }
   /* Its tone tints it: an older version in warning. */

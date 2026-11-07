@@ -585,7 +585,6 @@ export function createTargetPicker({
       announce("Page search closed.");
       return;
     }
-    if (hints.backOneLetter()) return;
     closeTargetPicker(true);
     announce("Target picker closed.");
   }
@@ -716,21 +715,31 @@ export function createTargetPicker({
         : notice("No search to repeat"),
   };
 
+  // Escape takes back a typed hint letter, one at a time, before it closes the picker,
+  // as a step of its own (`TARGETING_LETTER`), so the way out's words, key and press
+  // always end what they name.
+  const lettersTyped = () => !pageSearchOpen() && Boolean(hints.prefix());
+  /** @type {import("../keyboard/bindings.js").Command} */
+  const TARGETING_LETTER = {
+    id: "targeting.letter.back",
+    keys: ["Escape"],
+    title: "back one letter",
+    touch: false,
+    when: lettersTyped,
+    run: () => hints.backOneLetter(),
+  };
   /** @type {import("../keyboard/bindings.js").Command} */
   const TARGETING_BACK = {
     id: "targeting.back",
-    keys: ["Escape"],
+    keys: () => (lettersTyped() ? [] : ["Escape"]),
     title: () =>
       pageSearchOpen()
         ? searchReturnsToHints
           ? "back to hints"
           : "close search"
-        : hints.prefix()
-          ? "back one letter"
-          : "close picker",
-    // The ✕ of both stances (keyboard/AGENTS.md, "Touch routes"). While the user
-    // has typed part of a hint it takes back a letter, as its words say; a finger,
-    // which types none, always closes.
+        : "close picker",
+    // The way out of both stances, which the panel offers (keyboard/AGENTS.md, "Touch
+    // routes"). Its press closes the picker, typed letters and all.
     exit: true,
     run: back,
   };
@@ -768,6 +777,7 @@ export function createTargetPicker({
           title: "choose target",
         },
       }),
+      TARGETING_LETTER,
       TARGETING_BACK,
     ],
   };

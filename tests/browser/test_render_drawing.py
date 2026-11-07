@@ -18,6 +18,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     PANEL,
+    field_press,
     leaf_page,
     open_page,
     open_threads,
@@ -1143,8 +1144,8 @@ def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, se
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "comment"
     ]
-    # Out of Draw mode, by its ✕ in the panel's row, to reach Threads.
-    page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]').click()
+    # Out of Draw mode, by the Close at the panel field's end, to reach Threads.
+    field_press(page).filter(has_text="Close").click()
     references = open_panel_thread(page, comment).locator(".lf-drawing-reference")
     expect(references.first).to_have_text("Drawing comment")
     assert set(references.all_text_contents()) == {"Drawing comment"}

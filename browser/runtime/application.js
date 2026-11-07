@@ -15,7 +15,10 @@ import {
   PRESENTATION_DOM,
   readPart,
 } from "./semantic-state.js";
-import { announce } from "./notifications.js";
+import { announce, offerPress } from "./notifications.js";
+import { inputCount } from "./focus.js";
+import { executeCommand } from "./keyboard/dispatch.js";
+import { declarationFor } from "./registry.js";
 import { hasObligationSource } from "./obligations/source.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { watchPendingTraffic } from "./traffic.js";
@@ -35,7 +38,7 @@ import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
-import { createQueueActions } from "./queue-api.js";
+import { createQueueActions, onUserCount } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
 import { nextRender } from "./rendering.js";
 import { createReadTracking } from "./thread/read.js";
@@ -88,6 +91,38 @@ import { raiseError } from "./errors.js";
  * }} ApplicationDependencies */
 
 const commandDispatch = createCommandDispatch();
+
+// An answer the user sends the agent: their words, or a widget's verb other than one
+// that records what they are still working on, as a playground's settings do before its
+// submission (`unsent`).
+/** @param {import("./pending/state.js").DeliveryHandle["event"]} event */
+const answers = (event) =>
+  isMessageEvent(event) ||
+  (event.kind === "action" &&
+    !declarationFor(document.getElementById(event.widget), "x-state")?.[event.action]
+      ?.unsent);
+// After an answer, with more on the user, the floating panel's field offers the next
+// item On me lists, `m`'s press, at its end (notifications.js, `offerPress`). The user
+// chose this on 6 November 2026 over the field's Comment… and c, from three weeks of
+// their keys, in which `m` came next after 29% of picks and 21% of comments and replies.
+// It waits for the server's reading of the answer, which says what is still on the
+// user, so it never offers the item just answered, and only while the user hasn't moved
+// since. It goes at their next input, or once nothing is left On me.
+/** @type {import("./notifications.js").NoticePress} */
+const nextOnMe = {
+  action: "next-on-me",
+  command: "queue.next",
+  run: () => executeCommand("queue.next"),
+  stands: () => onUserCount() > 0,
+};
+/** @param {import("./pending/state.js").DeliveryHandle} entry */
+const offerNextOnMe = (entry) => {
+  const since = inputCount();
+  void entry.read.then(() => {
+    if (inputCount() === since && nextOnMe.stands()) offerPress(nextOnMe);
+  });
+};
+
 /** @type {ReturnType<typeof createApplication> | null} */
 let application = null;
 const app = () => {
@@ -198,6 +233,7 @@ function createApplication(dependencies) {
 
   /** @param {import("./pending/state.js").DeliveryHandle} entry */
   function afterEnqueue(entry) {
+    if (answers(entry.event)) offerNextOnMe(entry);
     // Enqueue has already published and claimed its presentation, whose coordinator
     // reports any failed paint. The entry's answer describes the server's durable
     // decision, so a local announcement failure is reported here rather

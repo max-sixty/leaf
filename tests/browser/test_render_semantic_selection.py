@@ -17,6 +17,7 @@ from render_harness import (
     ROOT,
     available_commands,
     expect_panel_says,
+    field_press,
     leaf_page,
     open_page,
     panel_control,
@@ -172,13 +173,14 @@ def test_select_element_obeys_covering_surfaces_and_pointer_modes(browser, serve
 
 
 def test_the_picker_s_way_out_stays_available_across_pointer_changes(browser, serve):
-    """The picker's ✕ stays in the panel's row as the primary pointer changes under
-    it."""
+    """The picker's way out, Close at the panel field's end, stays in the panel's row
+    as the primary pointer changes under it."""
     page = open_page(browser, serve(TARGETS_PAGE))
-    cancel = page.locator('.lf-fp-exit[aria-label="Close picker"]')
+    cancel = field_press(page).filter(has_text="Close")
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).to_have_count(3)
     expect(cancel).to_be_visible()
+    expect(cancel.locator("kbd")).to_have_text("esc")
 
     cdp = page.context.new_cdp_session(page)
     cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": True})
@@ -308,9 +310,9 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
 
 
 def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
-    """Words a script selects are quoted in the panel's field beside c, the key that
-    comments on them as a press there does, while a Tab into the field writes on the
-    page. A page draft hiding the quote shows a Selection mode chip, and on a page
+    """Words a script selects are quoted in the panel's field, which ends in Comment…
+    and c, the key that comments on them as a press there does, as the field does at
+    rest, while a Tab into the field writes on the page. A page draft hiding the quote shows a Selection mode chip, and on a page
     drawing its own annotations the field stands in an open comment box's place while
     it quotes."""
     source = leaf_page(
@@ -328,7 +330,7 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
 
     select("#first")
     expect(offered).to_have_attribute(
-        "placeholder", "“The first passage holds its words.” c"
+        "placeholder", "“The first passage holds its words.” · Comment… c"
     )
     expect(offered).to_have_attribute("aria-label", "Comment on the selection")
     page.locator(".lf-fp-leaf").focus()
@@ -376,7 +378,7 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
     }""")
     page.clock.resume()
     expect(offered).to_have_attribute(
-        "placeholder", "“A second passage comes after it.” c"
+        "placeholder", "“A second passage comes after it.” · Comment… c"
     )
     offered.click()
     expect(composer).to_be_focused()

@@ -85,7 +85,7 @@
  * `::part(placeholder)`, which a slotted child inherits. The words are hidden from
  * assistive technology, which reads them as the content node's `aria-placeholder`.
  * A child in slot `end` is a press of the box's own at the placeholder's far end, such
- * as a Resolve's Undo: it wears the placeholder's face and stands exactly while the
+ * as a Resolve's Next thread: it wears the placeholder's face and stands exactly while the
  * words do, the words shorten before it, and it stays in the accessibility tree and
  * takes the pointer, so a press on it is its own and never a press on the field.
  * Rejected: the press among the slotted words, whose `aria-hidden` took it out of the

@@ -411,9 +411,7 @@ def settle_at(page, width: int, height: int) -> None:
     when the reading is taken.
 
     The motion the resize started is finished first (`finishMoving`, runtime.js), so
-    the reading is the page it ends on. A sidebar's contents map fades its labels out
-    over the column when the window grows wide enough to lay the map in the margin,
-    and a reading mid-fade reported them covering the column's words."""
+    the reading is the page it ends on."""
     page.set_viewport_size({"width": width, "height": height})
     # What the resize set moving in script (an observer, the layout that observer's
     # write causes, and whatever that chains into) has run and been laid out.

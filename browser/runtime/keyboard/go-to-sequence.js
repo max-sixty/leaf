@@ -458,9 +458,6 @@ export function createGoToSequence({
     if (on && !goToActive && claimsEsc(focused())) return;
     if (on) stopGlide(pageScroller);
     goToActive = on;
-    // The sequence itself reveals page navigation such as a roomy contents map. Publish that
-    // state before taking the visible-scene reading so those routes enter the same map as
-    // links that were already standing in the document.
     document.body.toggleAttribute(PAGE_PAINT_ATTRIBUTE.goto, on);
     targetFilter = null;
     if (!on) {

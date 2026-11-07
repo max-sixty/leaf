@@ -13,7 +13,7 @@ import {
 import { laidOutItems } from "./framing.js";
 import { at as element, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
-import { clippedControls, restsOverPage, sealedAxes } from "./reachability.js";
+import { clippedControls, sealedAxes } from "./reachability.js";
 import { scrollbarClearance } from "./scrollbars.js";
 import { coveredWords, shrunkLabelReading } from "./words.js";
 
@@ -300,8 +300,6 @@ function marginReading(main, shellLeft, shellRight) {
     s = getComputedStyle(el),
     b = el.getBoundingClientRect(),
   ) => {
-    // An overlay at rest belongs to the margin it starts in.
-    if (restsOverPage(s)) return b.left < colLeft - 1 || b.right > colRight + 1;
     if (s.position === "absolute" || s.position === "fixed")
       return b.right <= colLeft + 1 || b.left >= colRight - 1;
     if (s.float === "none") return false;
@@ -548,8 +546,6 @@ export function misplacedBoxes() {
     const b = el.getBoundingClientRect();
     const hit = marginElements.find((r) => {
       if (el.contains(r) || r.contains(el)) return false;
-      // An overlay at rest states the room it takes to the column's free room.
-      if (restsOverPage(getComputedStyle(r))) return false;
       const c = r.getBoundingClientRect();
       return (
         b.left < c.right - 1 &&

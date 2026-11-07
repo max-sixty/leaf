@@ -2355,7 +2355,7 @@ def go_to(page: Page) -> None:
 
 
 def contents_by_keyboard(page: Page) -> None:
-    """Reveal the contents map with focus on its first section link."""
+    """The contents map with focus on its first section link."""
     page.keyboard.press("Tab")
     page.locator("lf-toc li a").first.focus()
 
@@ -2380,13 +2380,6 @@ def overflowing_tabs(page: Page) -> None:
     strip.scroll_into_view_if_needed()
     strip.locator('.lf-tabstrip-scroll[data-lf-to="end"] > span').click()
     scroll_settled(page)
-
-
-def contents_over_reading(page: Page) -> None:
-    """Reveal the margin map over a section, including its title's background."""
-    contents_by_keyboard(page)
-    page.locator("lf-toc li a").first.press("Enter")
-    page.locator("lf-toc .lf-toc-start a").focus()
 
 
 def widget_inline_hints(page: Page) -> None:
@@ -2965,16 +2958,9 @@ STATES = (
     # The contents map draws only in a sidebar's track beside a `.layout-column`. No
     # example draws one, so these states read a fixture built that way.
     State(
-        "contents-spine-keyboard",
+        "contents-map-keyboard",
         "sidebar-contents",
         contents_by_keyboard,
-    ),
-    State(
-        "contents-over-reading",
-        "sidebar-contents",
-        contents_over_reading,
-        window=Window((1100, 900)),
-        region=".lf-toc-start a",
     ),
     State("playground-controls", "notification-playground", playground_controls),
     State("playground-instruction", "notification-playground", playground_instruction),

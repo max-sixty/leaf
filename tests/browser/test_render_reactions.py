@@ -1278,7 +1278,9 @@ def test_a_picture_in_a_control_stays_the_controls_and_any_other_takes_a_comment
     proxies = page.locator(".lf-visual-action")
     expect(proxies).to_have_count(1)
     assert proxies.evaluate("node => node.lfAnchor") == {"section": "unlinked"}
-    bar = page.locator(".lf-fab-bar")
+    # A press that leaves focus on a control may rest the empty box beside it (#5428);
+    # what it must not do is open the bar.
+    bar = page.locator(".lf-fab-bar:not([data-lf-rest])")
     field = page.locator(".lf-fab-input")
 
     with subtests.test(picture="linked"):
@@ -1385,7 +1387,7 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     # Escape hands the user back to the part itself, not the proxy they pressed, which
     # shows nothing of its own.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    expect(page.locator(".lf-fab-bar:not([data-lf-rest])")).to_be_hidden()
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
     expect(start).to_be_focused()
 
@@ -1825,7 +1827,9 @@ def test_a_reaction_returns_focus_to_the_visual_target(browser, serve, entry):
     page.keyboard.press("Tab")
     page.keyboard.press("1")
     round_trip(page)
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    # The box may rest beside the part focus returned to, empty (#5428); no field
+    # stays open.
+    expect(page.locator(".lf-fab-bar:not([data-lf-rest])")).to_be_hidden()
     expect(part).to_be_focused()
     part.evaluate("node => { window.lfReturnedVisualTarget = node; }")
     page.evaluate(

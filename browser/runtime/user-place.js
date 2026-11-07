@@ -90,7 +90,9 @@ import { pointerAt } from "./pointer.js";
 import { repaint } from "./repaint.js";
 
 // The box a control stands at, where a rule names one: a thread where its reply box
-// waits, or a hidden stand-in where what it stands for is (details-shelf.js).
+// waits, a hidden stand-in where what it stands for is (details-shelf.js), or the On me
+// card the `m` walk rings for the stop it reached (floating-panel.js). The first rule
+// matching the node that names a box decides.
 /** @type {[string, (node: Element) => Element | null][]} */
 const standing = [];
 /** @param {string} selector @param {(node: Element) => Element | null} at */
@@ -98,8 +100,13 @@ export function standsAt(selector, at) {
   standing.push([selector, at]);
 }
 /** @param {Element} node */
-const boxStoodAt = (node) =>
-  standing.find(([selector]) => node.matches(selector))?.[1](node) ?? null;
+const boxStoodAt = (node) => {
+  for (const [selector, at] of standing) {
+    const box = node.matches(selector) ? at(node) : null;
+    if (box) return box;
+  }
+  return null;
+};
 
 // The focused node while it is where the user is: while any of it, or the box it stands
 // at (`standsAt`), is in front of them (geometry.js, `seenRect`), or while a motion under

@@ -511,15 +511,21 @@
   };
   // A popover shown with a `source` takes it as its implicit anchor, which
   // `position-anchor: auto` follows and which no style or property names afterwards,
-  // so the call itself is read. A popover shown without one has none.
+  // so the call itself is read. A popover shown without one has none. Only a call that
+  // opens the popover sets its anchor: one made while it stands open, or one that
+  // throws, leaves the anchor the browser kept.
   const implicitAnchors = new WeakMap();
   for (const method of ["showPopover", "togglePopover"]) {
     const native = HTMLElement.prototype[method];
     HTMLElement.prototype[method] = function (options) {
-      const source = options instanceof Object ? options.source : null;
-      if (source instanceof Element) implicitAnchors.set(this, source);
-      else implicitAnchors.delete(this);
-      return native.call(this, options);
+      const wasOpen = this.matches(":popover-open");
+      const result = native.call(this, options);
+      if (!wasOpen && this.matches(":popover-open")) {
+        const source = options instanceof Object ? options.source : null;
+        if (source instanceof Element) implicitAnchors.set(this, source);
+        else implicitAnchors.delete(this);
+      }
+      return result;
     };
   }
   const implicitAnchor = (node, style) =>

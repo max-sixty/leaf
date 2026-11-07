@@ -4095,7 +4095,9 @@ start.onclick = () => {
 # `implicit` is Leaf's preview: a popover shown with its anchor as `source`, under the
 # chrome guard's rollback, its insets an offset from a custom property under a rule
 # leaving them `auto` (chrome.css, `.lf-preview`), as the Leaf button carries it
-# through a fold.
+# through a fold. `reshown` asks it to show again with another `source` while it stands
+# open, which the browser ignores, keeping the first; that other element's travel then
+# explains nothing of an equal independent move.
 @pytest.mark.parametrize(
     ("guard", "fault"),
     [
@@ -4107,6 +4109,7 @@ start.onclick = () => {
         ("lower", True),
         ("implicit", False),
         ("implicit", True),
+        ("reshown", True),
     ],
 )
 def test_native_anchor_follows_owned_translation_but_not_an_independent_offset(
@@ -4133,24 +4136,29 @@ def test_native_anchor_follows_owned_translation_but_not_an_independent_offset(
           }}
           #tip {{left:anchor(left)!important;top:anchor(bottom)!important}}
           #tip {{all:revert-layer!important}}""",
-        "implicit": """#tip { all: revert-layer }
+    }.get(guard, "")
+    implicit = guard in {"implicit", "reshown"}
+    if implicit:
+        guards = """#tip { all: revert-layer }
           #tip { position:fixed;inset:auto;margin:0;padding:0;border:0;
             position-anchor:auto }
           #tip.below { left:calc(anchor(left) + var(--x));
-            top:calc(anchor(bottom) + var(--y)) }""",
-    }[guard]
-    implicit = guard == "implicit"
+            top:calc(anchor(bottom) + var(--y)) }"""
+    mover = "other" if guard == "reshown" else "source"
     page = browser.new_page()
     page.goto(
         "data:text/html,"
         + quote(f"""<!doctype html><style>{guards}</style><body style="margin:0">
 <button id="start">Start</button>
 <button id="source" style="position:absolute;left:350px;top:100px;anchor-name:--source">Anchor</button>
+{'<button id="other" style="position:absolute;left:350px;top:200px">Other</button>' if guard == "reshown" else ""}
 <div id="tip" {'popover=manual class=below style="--x:0px;--y:0px"' if implicit else f'style="{anchored if guard == "none" else ""}"'}>
 <button id="control">Attached control</button></div>
 <p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
-<script>{"tip.showPopover({source});" if implicit else ""}start.onclick=()=>{{
-window.motion=source.animate([{{translate:'-200px 0px'}},{{translate:'0px 0px'}}],
+<script>{"tip.showPopover({source});" if implicit else ""}
+{"try {tip.showPopover({source: other})} catch {}" if guard == "reshown" else ""}
+start.onclick=()=>{{
+window.motion={mover}.animate([{{translate:'-200px 0px'}},{{translate:'0px 0px'}}],
   {{duration:1000,fill:'forwards'}});
 motion.pause();motion.currentTime=150;
 }}</script></body>""")
@@ -4167,7 +4175,7 @@ motion.pause();motion.currentTime=150;
           // A removed anchor must not own an equal independent displacement.
           // The important rollback must not cancel the injected margin itself.
           if (fault) tip.style.setProperty('margin-left',
-            ['wins', 'lower'].includes(guard) ? '130px' : '55px',
+            ['wins', 'lower', 'reshown'].includes(guard) ? '130px' : '55px',
             guard === 'lower' ? 'important' : '');
           trigger.style.left = '40px';
         }""",
@@ -4175,7 +4183,7 @@ motion.pause();motion.currentTime=150;
     )
     paint(page)
     after = page.locator("#control").bounding_box()
-    expected = (130 if guard in {"wins", "lower"} else 185) if fault else 130
+    expected = (130 if guard in {"wins", "lower", "reshown"} else 185) if fault else 130
     assert after["x"] - before["x"] == pytest.approx(expected)
     judge_watches()
     errors = take_browser_errors(page)

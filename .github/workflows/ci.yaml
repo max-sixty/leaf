@@ -290,10 +290,21 @@ jobs:
   # nightly suite takes, and a failure turns the run red for tend like `test`'s. The
   # Linux job's gates, website checks and profiles are platform-independent or
   # Linux-only, so this job runs the suite alone. The runner has three cores, so two
-  # workers keep the share of cores `test` leaves idle.
+  # workers keep the share of cores `test` leaves idle. Two runners split the
+  # suite, since one ran it in four to five hours and twice hit the step's limit
+  # before pytest wrote its junit (#5656); `browser` and the other tiers each took
+  # half the worker time on 2026-11-07.
   test-macos:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: browser
+            tests: tests/browser
+          - shard: rest
+            tests: tests --ignore=tests/browser
     env:
       PYTEST_ADDOPTS: --durations=25 --durations-min=1
     steps:
@@ -310,14 +321,14 @@ jobs:
         shell: bash
         run: |
           mkdir -p .tmp/test-results
-          uv run pytest tests -n 2 -v --run-nightly --junitxml=.tmp/test-results/results.xml \
+          uv run pytest ${{ matrix.tests }} -n 2 -v --run-nightly --junitxml=.tmp/test-results/results.xml \
             2>&1 | tee .tmp/test-results/output.log
 
       - name: Upload pytest results
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: pytest-results-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: pytest-results-${{ github.job }}-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             .tmp/test-results/
             .tmp/thread-snapshots/runs/

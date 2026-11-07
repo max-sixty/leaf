@@ -3457,26 +3457,23 @@ def test_a_focus_preview_goes_under_a_sticky_header_and_returns_with_its_control
     expect(tip.locator(".lf-preview-word")).to_have_text("Read report")
 
 
-@pytest.mark.parametrize("ending", ["Escape", "back", "Tab", "focus"])
-def test_what_ends_a_held_reading_ends_it_while_its_control_is_scrolled_away(
-    browser, serve, ending
-):
+@pytest.mark.parametrize("after", ["nothing", "Escape", "back"])
+def test_a_held_reading_ends_as_its_control_scrolls_away(browser, serve, after):
     """A finger holds a control in a scrolling box, and its preview shows. The box
-    scrolls the control out of view, the preview going with it, and the finger lifts.
-    Whatever ends a reading that shows ends this one: Escape; a back gesture, the close
-    request that takes the step Escape would, here the focused control's own; and focus
-    moving on, by Tab or a script, which is a new aim. So the control scrolled back into
-    view shows no preview until the user aims at it again. Chromium alone: Playwright
-    holds no finger in Firefox."""
+    scrolls the control out of view, and the reading ends there, its element hearing
+    so, since the hold that aimed at it is over once it has gone. The finger lifts, and
+    whatever comes next, nothing, Escape or a back gesture taking the step Escape would,
+    here the focused control's own, the control scrolled back into view shows no
+    preview until the user aims at it again. Chromium alone: Playwright holds no finger
+    in Firefox."""
     context = browser.new_context(has_touch=True)
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Held",
-                '<input id="field" aria-label="Note"><button id="step">Step</button>'
-                '<div id="box" style="height: 180px; overflow: auto"><div'
-                ' style="height: 80px"></div><button id="held"'
+                '<button id="step">Step</button><div id="box" style="height: 180px;'
+                ' overflow: auto"><div style="height: 80px"></div><button id="held"'
                 ' aria-label="Read report">?</button><div style="height: 1000px">'
                 "</div></div>",
             )
@@ -3485,11 +3482,15 @@ def test_what_ends_a_held_reading_ends_it_while_its_control_is_scrolled_away(
     )
     held = page.locator("#held")
     held.evaluate(
-        "el => { el.lfPreview = () => ({name: 'Read report',"
-        " detail: ['Details for the held control']}); }"
+        """el => {
+          el.lfPreview = () => ({name: 'Read report',
+            detail: ['Details for the held control']});
+          el.ended = 0;
+          el.addEventListener('lf-preview-ended', () => (el.ended += 1));
+        }"""
     )
     step = page.locator("#step")
-    if ending == "back":
+    if after == "back":
         # A step of Escape's that stays live while focus is on the control, so the page
         # holds a close watcher for the gesture to reach.
         page.evaluate(
@@ -3515,20 +3516,66 @@ def test_what_ends_a_held_reading_ends_it_while_its_control_is_scrolled_away(
     box = page.locator("#box")
     box.evaluate("el => { el.scrollTop = 160; }")
     expect(tip).to_be_hidden(timeout=3000)
+    assert held.evaluate("el => el.ended") == 1
     cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
-    if ending == "Escape":
+    if after == "Escape":
         page.keyboard.press("Escape")
-    elif ending == "back":
+    elif after == "back":
         back_gesture(page)
         expect(step).to_have_attribute("data-fired", "")
-    elif ending == "Tab":
-        page.keyboard.press("Tab")
-        expect(page.locator("#field")).to_be_focused()
-    else:
-        page.locator("#field").focus()
     box.evaluate("el => { el.scrollTop = 0; }")
     page.wait_for_timeout(600)
     expect(tip).to_be_hidden()
+
+
+def test_a_held_reading_stays_as_a_redraw_gives_focus_back(browser, serve):
+    """A field has focus, and a finger holds the reference beside it, whose value shows.
+    A redraw replaces the field and gives focus back to its replacement (`holdFocus`),
+    which is no aim of the user's, so the held reading stays. Chromium alone: Playwright
+    holds no finger in Firefox."""
+    context = browser.new_context(has_touch=True)
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Reference",
+                '<p id="form"><input id="note" aria-label="Note"><button id="ref"'
+                ' aria-label="Read value">?</button></p>',
+            )
+        ),
+        context=context,
+    )
+    ref = page.locator("#ref")
+    ref.evaluate(
+        "el => { el.lfPreview = () => ({name: 'Value to enter', detail: ['42.7']}); }"
+    )
+    page.locator("#note").focus()
+    tip = page.locator(PREVIEW)
+    cdp = context.new_cdp_session(page)
+    at = ref.bounding_box()
+    at = {"x": at["x"] + at["width"] / 2, "y": at["y"] + at["height"] / 2}
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [at]})
+    page.wait_for_timeout(600)
+    long_press(page, at)
+    expect(tip).to_have_attribute("data-lf-route", "hold")
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    expect(tip.locator(".lf-preview-word")).to_have_text("Value to enter")
+    page.evaluate(
+        """async () => {
+          const { holdFocus } = await window.__lfWidgetApi();
+          const field = document.getElementById('note');
+          const restore = holdFocus(document.getElementById('form'));
+          const replacement = field.cloneNode(true);
+          replacement.placeholder = 'Its new value';
+          field.replaceWith(replacement);
+          await new Promise((done) => requestAnimationFrame(done));
+          restore(replacement);
+        }"""
+    )
+    expect(page.locator("#note")).to_be_focused()
+    page.wait_for_timeout(400)
+    expect(tip).to_be_visible()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Value to enter")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

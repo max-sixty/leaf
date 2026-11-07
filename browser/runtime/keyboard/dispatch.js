@@ -510,13 +510,6 @@ function resolveKey(ev) {
 }
 /** @param {KeyboardEvent} ev */
 export const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
-// Every Escape the page answers, a key's or the platform's close request's, first tells
-// the document it was asked (`ESCAPED`), whatever step it then takes, so what a close
-// ends without being a step of its own, as a preview suspended out of sight
-// (preview.js), ends on either path, while what the user can see takes Escape as a
-// step of its own.
-export const ESCAPED = "lf-escaped";
-const escaped = () => document.dispatchEvent(new Event(ESCAPED));
 // Escape with no key behind it, as the platform's close request asks for it
 // (close-requests.js): whether a press would take a step now, and taking it, through
 // the row's `keep` where it declares one (bindings.js).
@@ -526,7 +519,6 @@ export const escapeTakesAStep = () => {
   return Boolean(matched) && matched !== INPUT_PENDING;
 };
 export function answerCloseRequest() {
-  escaped();
   const matched = resolveKey(escapePress());
   if (!matched || matched === INPUT_PENDING) return;
   const keep = matched.row.keep;
@@ -540,7 +532,6 @@ export function answerCloseRequest() {
 // which command wins. The controller leaves composing input to the IME.
 /** @param {KeyboardEvent} ev */
 export function dispatchKey(ev) {
-  if (answers("Escape", ev)) escaped();
   const matched = resolveKey(ev);
   if (!matched || matched === INPUT_PENDING) return false;
   // Repeats are consumed even for a command that runs once. A native row performs

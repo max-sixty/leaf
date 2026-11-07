@@ -114,7 +114,9 @@
    (`fit`), so words that grow never move it under the user's aim (browser/AGENTS.md,
    "The page holds still under the user's aim") nor cover anything. A focus reading
    stays there even where a control the page draws later stands in that room, over it,
-   since it takes no pointer and the pointer reaches the control beneath. A new aim
+   since it takes no pointer and the pointer reaches the control beneath; the pointer
+   coming to rest on that control is a new aim at it, and the reading gives way there,
+   out of sight until the pointer leaves the control (`yieldTo`). A new aim
    inside the element it stands for (`previewChanged` with `aim`), as a chart's next
    point, keeps its side by the new box, standing by the edge that side stands by, its
    bottom above the box and its top below or beside it, where that side's room holds the new
@@ -237,7 +239,9 @@
    2026 a focus reading whose room a control came into, as the notice Threads draws
    when news joins a thread, stood afresh, which carried its words 330 px under no
    input of the user's; it now keeps its place over the control (decided in review,
-   7 November 2026). Until 7 November
+   7 November 2026), and gives way while the pointer rests on it, since a label it
+   covered could be pressed but not read; it hides rather than standing afresh, which
+   would move its words under a hover. Until 7 November
    2026 every element wearing `data-lf-offer` was a control here, so a thread card
    previewed its accessible name, its own first words, to a pointer resting in it and to
    a `t` walk landing on it, where the preview took the Escape that lets go of the
@@ -685,7 +689,10 @@ let shown = null;
 // preview put away took the next Escape, or the next back gesture, and did nothing, so
 // inside an open popover the press after the preview's closed nothing, even a frame
 // later.
-const standsForEscape = () => Boolean(shown && !shown.away);
+// The control a focus reading gives way to while the pointer rests on it (`yieldTo`).
+/** @type {Element | null} */
+let yielding = null;
+const standsForEscape = () => Boolean(shown && !shown.away && !yielding);
 let stoodForEscape = false;
 function stepMoved() {
   if (standsForEscape() === stoodForEscape) return;
@@ -1371,15 +1378,7 @@ function stand(record, reading, standing, aim = false) {
 /** @param {Placement} at @param {number} reach @param {Element} holder */
 function clearRoom(at, reach, holder) {
   const own = holder.getBoundingClientRect();
-  const around = new Set(climb(holder));
-  /** @type {Set<Element>} */
-  const taking = new Set();
-  for (let up = renderedParent(holder); up; up = renderedParent(up)) {
-    const takes = aimableAt(up);
-    if (!takes) break;
-    taking.add(takes);
-    up = takes;
-  }
+  const { around, taking } = surrounding(holder);
   const down = at.y !== "above";
   const across = steps(at.box.left, at.box.right);
   const count = Math.max(1, Math.ceil((reach - 2) / REACH));
@@ -1397,6 +1396,51 @@ function clearRoom(at, reach, holder) {
     if (edge < Infinity) return Math.max(0, edge);
   }
   return Infinity;
+}
+// The boxes around `holder`, which stand under its preview wherever it stands, and
+// those of them that take the pointer, which `targetAt` reads.
+/** @param {Element} holder */
+function surrounding(holder) {
+  const around = new Set(climb(holder));
+  /** @type {Set<Element>} */
+  const taking = new Set();
+  for (let up = renderedParent(holder); up; up = renderedParent(up)) {
+    const takes = aimableAt(up);
+    if (!takes) break;
+    taking.add(takes);
+    up = takes;
+  }
+  return { around, taking };
+}
+// The control the pointer rests on, one the standing preview's placement keeps clear of
+// (`targetAt`), where the preview covers some of it, as one news drew beneath a focus
+// reading holding its place; else null.
+function coveredAtPointer() {
+  if (!shown) return null;
+  const { holder } = shown;
+  const { around, taking } = surrounding(holder);
+  const control = targetAt(rest.x, rest.y, holder, around, taking);
+  if (!control) return null;
+  const box = control.getBoundingClientRect();
+  const over = tip.getBoundingClientRect();
+  return box.left < over.right &&
+    box.right > over.left &&
+    box.top < over.bottom &&
+    box.bottom > over.top
+    ? control
+    : null;
+}
+// The control a focus reading gives way to while the pointer rests on it: the reading
+// stays where it stands, out of sight (`data-lf-yields`, chrome.css), so the control's
+// words can be read and nothing moves under a hover (browser/AGENTS.md, "The page holds
+// still under the user's aim"), and it shows again there once the pointer leaves the
+// control. Out of sight, it is no step of Escape's.
+/** @param {Element | null} control */
+function yieldTo(control) {
+  if (yielding === control) return;
+  yielding = control;
+  keeps(tip, "data-lf-yields", control ? "" : null);
+  stepMoved();
 }
 // The points `REACH` apart from just inside `from` to just inside `to`.
 /** @param {number} from @param {number} to */
@@ -1476,6 +1520,7 @@ function hide() {
   // writes nothing.
   closeNativeLayer(tip);
   cooled = performance.now();
+  yieldTo(null);
   stepMoved();
   ended(record);
 }
@@ -1505,6 +1550,9 @@ function point(target, read = null, at) {
   pointingRead = read;
   pointingAt = at;
   clearTimeout(dwell);
+  // A focus reading over the control the pointer has come to, as one news drew beneath
+  // it while it held its place, gives way until the pointer leaves it.
+  if (shown?.route === "focus") yieldTo(coveredAtPointer());
   if (shown?.route === "pointer" && !target) {
     const record = shown;
     leaving = setTimeout(() => {

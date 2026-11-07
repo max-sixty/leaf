@@ -3807,6 +3807,74 @@ def test_a_standing_preview_redrawn_over_a_control_that_arrived_moves_clear(
     assert page.evaluate("window.pressed") == 1
 
 
+# Whether the preview's box covers some of the control that arrived beneath it.
+COVERS_ARRIVED = """() => {
+  const a = document.getElementById('arrived').getBoundingClientRect();
+  const b = document.getElementById('lf-preview').getBoundingClientRect();
+  return b.right > a.left && b.left < a.right && b.bottom > a.top && b.top < a.bottom;
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_focus_preview_gives_way_to_a_control_it_holds_over_while_pointed_at(
+    engine, request, serve
+):
+    """A focus preview holds its place when a control arrives beneath it, since it
+    takes no pointer and the pointer still reaches the control. Pointing at that
+    control is a new aim at it, so the preview gives way where it stands, out of sight,
+    and the control's words can be read; it comes back there once the pointer leaves,
+    and pointing at what it doesn't cover leaves it standing."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Arrival",
+                '<p><button id="before">Before</button>'
+                ' <button id="read" aria-label="Read report">i</button></p>'
+                '<p id="elsewhere" style="margin-top: 300px">Elsewhere on the page.</p>',
+            )
+        ),
+    )
+    read = page.locator("#read")
+    tip = page.locator(PREVIEW)
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(read).to_be_focused()
+    expect(tip).to_be_visible()
+    rendered(page)
+    stood = tip.bounding_box()
+    # A control arrives where the preview stands, as news draws one, and the preview
+    # reads its element again; it holds its place over the control.
+    page.evaluate(
+        """() => {
+          const box = document.getElementById('lf-preview').getBoundingClientRect();
+          const arrived = document.createElement('button');
+          arrived.id = 'arrived';
+          arrived.textContent = 'Latest';
+          arrived.style.cssText = `position: fixed; left: ${box.left}px;`
+            + ` top: ${box.top}px`;
+          document.querySelector('main').append(arrived);
+          document.getElementById('read').dispatchEvent(new CustomEvent('lf-preview',
+            {bubbles: true, composed: true, detail: {aim: false}}));
+        }"""
+    )
+    rendered(page)
+    assert tip.bounding_box() == stood
+    assert page.evaluate(COVERS_ARRIVED)
+    page.locator("#elsewhere").hover()
+    rendered(page)
+    expect(tip).to_be_visible()
+    assert tip.bounding_box() == stood, "pointing at what it doesn't cover moved it"
+    # By its start, which the page's comment box, resting beside the focused control,
+    # leaves clear.
+    page.locator("#arrived").hover(position={"x": 4, "y": 4})
+    expect(tip).to_be_hidden()
+    page.locator("#elsewhere").hover()
+    expect(tip).to_be_visible()
+    assert tip.bounding_box() == stood, "giving way moved it"
+    expect(read).to_be_focused()
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_focus_preview_out_of_view_stands_once_its_target_comes_into_view(
     engine, request, serve

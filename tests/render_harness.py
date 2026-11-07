@@ -2822,8 +2822,9 @@ PREVIEW = "#lf-preview"
 
 def tab_onto(target):
     """Step onto `target` with the keyboard, as the user does: Shift+Tab off it and Tab
-    back, a move the user made themselves, which a focus preview reads (preview.js),
-    where a script's focus reads nothing."""
+    back. Focus moved by Tab shows the target's preview (preview.js) whatever input came
+    before; a script's focus shows it only where the browser shows that focus
+    (`:focus-visible`)."""
     target.focus()
     target.page.keyboard.press("Shift+Tab")
     target.page.keyboard.press("Tab")

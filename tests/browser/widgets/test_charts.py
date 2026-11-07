@@ -678,6 +678,38 @@ def test_a_chart_in_a_shut_tab_draws_when_the_tab_opens(browser, serve):
     expect(page.locator("#tab-chart svg[role=img]")).to_be_visible()
 
 
+def test_a_chart_first_laid_out_on_paper_draws_at_its_stated_height(browser, serve):
+    """Paper prints a shut tab's panel open, where the theme holds no undrawn box at its
+    stated height and the box is its source's. A chart there still waits for the user to
+    open the tab (`measure`), so it takes the stated height once they do. Drawn for the
+    box paper gave it, it kept the source's height, and a source shorter than Plot's
+    margins drew bars of negative height."""
+    url = serve(
+        leaf_page(
+            "chart printed from a shut tab",
+            '<h1 id="t">Views</h1><lf-tabs id="views">'
+            '<lf-tab id="words" label="Words"><p id="p">Some words.</p></lf-tab>'
+            '<lf-tab id="numbers" label="Numbers">'
+            + chart_markup("tab-chart", MESSAGE_CHART).replace(
+                '<lf-chart id="tab-chart">',
+                '<lf-chart id="tab-chart" data-height="200">',
+            )
+            + "</lf-tab></lf-tabs>",
+        )
+    )
+    page = open_page(browser, url)
+    expect(page.locator("#views.lf-rendered")).to_be_attached()
+    page.emulate_media(media="print")
+    # Two frames: the layout paper gives the open panel, and its delivery.
+    page.evaluate(
+        "() => new Promise((done) => requestAnimationFrame(() =>"
+        " requestAnimationFrame(done)))"
+    )
+    page.emulate_media(media="screen")
+    page.get_by_role("tab", name="Numbers").click()
+    expect(page.locator("#tab-chart svg[role=img]")).to_have_attribute("height", "200")
+
+
 # A chart's values, which a chart says to the pointer, the keyboard and a finger
 # (lf-chart.js, chart-points.js). Two series stacked in two weeks, so a step runs along
 # a series and across to the other, and a stack's share is what a segment measures.

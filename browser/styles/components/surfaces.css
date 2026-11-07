@@ -960,13 +960,13 @@ summary {
   align-items: baseline;
   gap: 8px;
 }
-/* The label opens a block of its own among the messages, so it takes the face that
-   names a message's sender, in the muted ink that keeps it from reading as one. */
+/* The label keeps the status face. The sender's face, or its weight at this size, wraps it
+   beside a margin card's actions, in the room Next unread's words leave. */
 .lf-summary-label {
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--muted);
-  font: var(--font-name);
+  font: var(--font-status);
 }
 .lf-summary-text {
   color: var(--ink-2);

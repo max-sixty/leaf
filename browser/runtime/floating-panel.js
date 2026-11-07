@@ -4141,13 +4141,22 @@ export function createFloatingPanel({
   /** @param {"menu" | "you" | "agent" | "threads"} current */
   function onTabs(current) {
     const lists = queueLists();
+    // A list is counted once the server's reading is in, as Threads is (`openCount`),
+    // so no tab says 0 of a list the page can't read yet or offline.
+    const counted = readQueues().phase === "ready";
     return tabs(
       ["menu", "you", "agent", "threads"],
       current,
       (tab) => (tab === "menu" || tab === "threads" ? TAB_LABELS[tab] : tabLabel(tab)),
       onTab,
       (tab) =>
-        tab === "menu" ? null : tab === "threads" ? openCount() : lists[tab].length,
+        tab === "menu"
+          ? null
+          : tab === "threads"
+            ? openCount()
+            : counted
+              ? lists[tab].length
+              : null,
     );
   }
   // A tab keeps the user on it, as turning between the lists always has, so the press

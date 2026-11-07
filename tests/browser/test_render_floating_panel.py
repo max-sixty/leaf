@@ -1605,12 +1605,24 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(3)
 
 
+# Whether the preview stands open clear of Threads' notice.
+PREVIEW_CLEAR_OF_NOTICE = """() => {
+  const tip = document.getElementById('lf-preview');
+  const a = document.querySelector('.lf-fp-joined .lf-thread-news')?.getBoundingClientRect();
+  const b = tip.getBoundingClientRect();
+  return Boolean(a) && tip.matches(':popover-open') && (b.right <= a.left
+    || b.left >= a.right || b.bottom <= a.top || b.top >= a.bottom);
+}"""
+
+
 def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve):
     """A reply reopening a resolved thread would move its row from Resolved to the head
     of the list, and a thread the agent starts would join among the open rows. Neither
     moves a row the user reads: the reopened row keeps its place, the new one waits,
     and a notice says what joined. Enter on it lets the list settle and lands on the
-    first row it named. A tab press draws the list whole, a row it held included."""
+    first row it named. Later news holds the rows still behind the notice, and the
+    landed row's preview stands afresh clear of it. A tab press draws the list whole,
+    a row it held included."""
     url = serve(LONG_PAGE, comments=3)
     root = panel_comment(serve.page_dir, "Is the opening right?", {"section": "p0"})
     append_carried_log_record(
@@ -1652,6 +1664,9 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
     expect(rows).to_have_count(5)
     expect(rows.first).to_have_text(re.compile("Is the opening right?"))
     expect(returned).to_be_focused()
+    expect(page.locator(PREVIEW)).to_be_visible()
+    settled(page)
+    landed = rows.evaluate_all(tops)
 
     append_carried_log_record(
         serve.page_dir,
@@ -1659,6 +1674,22 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
     )
     told(page)
     expect_preview_words(notice, "1 thread resolved")
+    settled(page)
+    assert rows.evaluate_all(tops) == landed
+    # The notice draws where the landed row's focus preview stood, and the preview
+    # stands afresh clear of it. A notice arriving under a preview is a rare path,
+    # which moves the preview rather than carrying a hold of its own (SOUL.md, "Keep
+    # the foundation small and extensible"), so the preview's words are the one move
+    # the watch reports here; the rows' are not.
+    page.wait_for_function(PREVIEW_CLEAR_OF_NOTICE)
+    page.evaluate("() => window.lfShiftsJudged()")
+    consume_browser_errors(
+        page,
+        lambda problem: (
+            problem.code == "moved-without-input"
+            and any("lf-preview" in step for step in problem.values["node"])
+        ),
+    )
     expect(rows.first).to_have_text(re.compile("Is the opening right?"))
     panel_tab(page, "Threads").click()
     expect(notice).to_have_count(0)

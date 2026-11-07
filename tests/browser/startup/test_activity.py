@@ -21,6 +21,7 @@ from render_cases_layout import token_colour
 from render_cases_navigation import TAB_AND_DOT, TAB_TONE, live_watcher
 from render_harness import (
     LONG_PAGE,
+    expect_preview_words,
     open_page,
     open_threads,
     panel_settled,
@@ -40,19 +41,32 @@ from leaf import state as cleanup_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-# Where the leaf's peek says the status's whole sentence.
-PEEK = ".lf-fp-peek"
+# Where the folded leaf says the status's whole sentence: under its name in its
+# preview (preview.js).
+PEEK = "#lf-preview .lf-preview-detail"
 LEAF = ".lf-fp-leaf"
 
 
 def expect_status_says(page, words):
-    """Point at the leaf and read the status's whole sentence in its peek, which keeps
-    what it opened with for one exposure (floating-panel.js), so the pointer leaves
-    again and the next reading is a new exposure."""
-    page.locator(".lf-fp-leaf").hover()
+    """Fold the panel to its leaf, the one seat that says the status's whole sentence
+    when pointed at, read it in the leaf's preview, which keeps what it opened with
+    while it shows (preview.js), and unfold the panel again. Folding puts away what
+    stands open in the panel, and the pointer leaves, so the next reading is a new
+    one."""
+    close = page.locator(".lf-fp-close")
+    if close.is_visible():
+        close.click()
+        panel_settled(page, open=False)
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press(".")
+    leaf = page.locator(LEAF)
+    expect(leaf).to_have_attribute("aria-label", re.compile(r"^Unfold Leaf"))
+    leaf.hover()
     expect(page.locator(PEEK)).to_have_text(words)
     page.mouse.move(5, 5)
-    expect(page.locator(PEEK)).to_be_hidden()
+    expect(page.locator("#lf-preview")).to_be_hidden()
+    page.keyboard.press(".")
+    expect(leaf).to_have_attribute("aria-label", re.compile(r"^Page menu"))
 
 
 def workflow_of(scope, message):
@@ -111,7 +125,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     page = open_page(browser, url)
     late = workflow_of(open_panel_thread(page, unpicked["id"]), unpicked["id"])
     expect(late).to_have_text(re.compile(r"^Still queued for "))
-    expect(late).to_have_attribute("title", re.compile(r"^Still queued for "))
+    expect_preview_words(late, re.compile(r"^Still queued for "))
 
     view = open_panel_thread(page, held)
     held_workflow = workflow_of(view, held)
@@ -176,9 +190,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # One line, on the thread it names: a mark that stood on every open thread would
     # say only that the agent is busy, which the leaf already says.
     expect(held_workflow).to_have_text("On it")
-    expect(held_workflow).to_have_attribute(
-        "title", "On it · reading the reconnect traces"
-    )
+    expect_preview_words(held_workflow, "On it · reading the reconnect traces")
     expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
     expect(held_workflow).to_have_count(1)
     # The move's state is metadata on the exact outgoing message, closing that row
@@ -247,9 +259,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     working(d, "drafting v2")
     told(page)
     expect(held_workflow).to_have_count(1)
-    expect(held_workflow).to_have_attribute(
-        "title", "On it · reading the reconnect traces"
-    )
+    expect_preview_words(held_workflow, "On it · reading the reconnect traces")
 
     # The answer is what ends it.
     append_carried_log_record(
@@ -359,7 +369,7 @@ def test_the_leaf_and_all_pages_say_the_served_activity(browser, serve, other_le
     this_page = page.locator(f"{panel_view('leaves')} .lf-fp-page").first
     expect(this_page).to_contain_text("This page")
     # The row names the page; what its agent is doing is said whole on hover.
-    expect(this_page).to_have_attribute("title", re.compile("\nWaiting on the shard$"))
+    expect_preview_words(this_page, re.compile("\nWaiting on the shard$"))
 
 
 def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
@@ -403,9 +413,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     )
     claim(quiet_ts)
     expect(work_line).to_have_text("Gone quiet")
-    expect(work_line).to_have_attribute(
-        "title", "Gone quiet · reading the reconnect traces"
-    )
+    expect_preview_words(work_line, "Gone quiet · reading the reconnect traces")
     expect(work_line.locator("time")).to_have_count(0)
     expect(work_button).not_to_have_attribute(
         "data-lf-agent-workflow", re.compile(".+")
@@ -437,6 +445,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
         page, "--muted"
     )
     expect_status_says(page, page_work)
+    work_line = workflow_of(open_panel_thread(page, held), held)
 
     # Turn closure belongs to one exact session. When a Codex watcher task holds the
     # page, its turn ending is no evidence that the page task, which wrote this claim,
@@ -491,10 +500,7 @@ def test_the_tab_wears_what_the_leaf_says(browser, serve, tmp_path, dead_pid):
     runtime paints the element it declares in whatever colour the dot is wearing, so the
     tab and the leaf are one fact read twice: a palette written out again for the tab
     would be free to drift from the theme the day a project overrode a token, and drift
-    silently, since a tab nobody is watching closely is exactly the case this is for.
-
-    What a copy does with all of it is the export section's
-    (test_a_copy_wears_the_mark_and_claims_no_session)."""
+    silently, since a tab nobody is watching closely is exactly the case this is for."""
     page = open_page(browser, serve(LONG_PAGE))
     d = serve.page_dir
 

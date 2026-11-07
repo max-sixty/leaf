@@ -761,7 +761,7 @@ function createApplication(dependencies) {
     queueActions,
     /** @param {string} id */
     openObligation(id) {
-      const item = readObligations().all.find((item) => item.id === id);
+      const item = readObligations().byId.get(id);
       if (!item) return Promise.resolve(false);
       if (hasObligationSource(item, "update"))
         return queueActions.open(JSON.stringify([item.source.kind, item.id]));

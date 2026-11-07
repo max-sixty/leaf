@@ -28,6 +28,7 @@ from render_harness import (
     LONG_PAGE,
     PANEL,
     available_commands,
+    back_gesture,
     consume_browser_errors,
     draft_control,
     expect_panel_says,
@@ -1659,23 +1660,6 @@ BROWSER_BACK = """() => {
   window.browserBack = 0;
   new CloseWatcher().onclose = () => (window.browserBack += 1);
 }"""
-
-
-def back_gesture(page):
-    """Make the close request Android's back gesture makes. An Escape keydown nothing
-    cancels is the same request, so the page's listeners are kept from hearing it. The
-    page makes its watcher in the repaint frame after what it closes opens, which a
-    finger can't beat but a driver can, so the gesture waits out two frames first."""
-    page.evaluate(
-        """() => new Promise((resolve) => requestAnimationFrame(() =>
-          requestAnimationFrame(() => {
-            addEventListener('keydown', (event) => {
-              if (event.key === 'Escape') event.stopImmediatePropagation();
-            }, {capture: true, once: true});
-            resolve();
-          })))"""
-    )
-    page.keyboard.press("Escape")
 
 
 def test_a_back_gesture_takes_the_step_escape_would(browser, serve):

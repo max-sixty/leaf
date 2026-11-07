@@ -58,6 +58,7 @@ from render_harness import (
     FOLLOWER_MARK,
     LONG_PAGE,
     PANEL,
+    PREVIEW,
     RELEASE_FOCUS,
     REPLAYED_PAGE,
     SUBJECT_MARK,
@@ -1783,8 +1784,9 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
     )
 
 
-def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
-    """A transient chrome label paints above the page-level trace it summons."""
+def test_a_margin_preview_stands_clear_of_the_target_trace(browser, serve, monkeypatch):
+    """A margin marker's preview is about its target, so it stands clear of the target
+    and of the trace it summons around it, rather than painting over that trace."""
     single = OBLIGATION_PAGE.replace(
         '<lf-options id="jobs" choose multiple>', '<lf-options id="jobs" choose>'
     )
@@ -1810,7 +1812,7 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
         "aria-label", re.compile(r"^Still queued for \w+,")
     )
     marker.hover()
-    label = marker.locator(":scope > .lf-margin-entry-label")
+    label = page.locator(PREVIEW)
     traced = page.locator("#jobs")
     expect(label).to_be_visible()
     expect(traced).to_have_attribute("data-lf-traced", "")
@@ -1819,31 +1821,13 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     )
 
     label_box = label.bounding_box()
-    # The trace's right run, the outer edge of the target's outline.
-    trace_right = traced.evaluate(MARK)["ring"]["right"]
-    assert label_box["x"] < trace_right < label_box["x"] + label_box["width"], (
-        "the status label does not cross the target trace"
-    )
-    with_trace = Image.open(io.BytesIO(label.screenshot())).convert("RGB")
-    traced.evaluate(
-        "node => { node.style.setProperty('outline-style', 'none', 'important') }"
-    )
-    untraced = Image.open(io.BytesIO(label.screenshot())).convert("RGB")
-    # Taking the trace off can change Chrome's text antialiasing without changing
-    # which surface covers the trace. Compare the solid label background at the
-    # trace's crossing instead of its glyph pixels.
-    edge = round((trace_right - label_box["x"]) * untraced.width / label_box["width"])
-    background = untraced.getpixel((5, 5))
-    crossing = [
-        (x, y)
-        for x in range(max(3, edge - 3), min(untraced.width - 3, edge + 4))
-        for y in range(3, untraced.height - 3)
-        if untraced.getpixel((x, y)) == background
-    ]
-    assert crossing
-    assert all(with_trace.getpixel(point) == background for point in crossing), (
-        "the target trace paints over the status label"
-    )
+    ring = traced.evaluate(MARK)["ring"]
+    assert (
+        label_box["x"] >= ring["right"]
+        or label_box["x"] + label_box["width"] <= ring["left"]
+        or label_box["y"] >= ring["bottom"]
+        or label_box["y"] + label_box["height"] <= ring["top"]
+    ), (label_box, ring)
 
 
 def test_an_aim_at_a_seam_promises_the_element_its_press_takes(
@@ -3900,7 +3884,7 @@ def test_the_aim_shows_over_the_widgets_own_paint(browser, serve):
     changed nothing a user could see. The aim's veil fills the box; the pixel diff
     here is armed against unarmed with the pointer held still, so the widget's own
     hover wash is in both frames and the difference is the promise alone."""
-    from PIL import Image, ImageChops  # a dev dependency already, for the demo recorder
+    from PIL import ImageChops  # a dev dependency already, for the demo recorder
 
     page = open_page(browser, serve(AIM_PAINT_PAGE))
     card = page.locator("#card-star")

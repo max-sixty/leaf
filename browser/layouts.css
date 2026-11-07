@@ -341,6 +341,16 @@
     inherits: true;
     initial-value: 0px;
   }
+  @property --lf-free-left {
+    syntax: "<length-percentage>";
+    inherits: true;
+    initial-value: 0px;
+  }
+  @property --lf-free-right {
+    syntax: "<length-percentage>";
+    inherits: true;
+    initial-value: 0px;
+  }
   /* The measure of the prose a box holds from its content edge, which the runtime
    * reads to find the prose (content-layout.js, `proseRect`) and to tell the page's
    * flow from a figure standing past it (margin-layout.js). It does not inherit: a
@@ -418,6 +428,28 @@
   :not(.layout-column, .layout-flow, [data-lf-flow]) > * {
     --lf-free-start: 0px;
     --lf-free-end: 0px;
+    --lf-free-left: 0px;
+    --lf-free-right: 0px;
+  }
+  /* The column also states each side's room by the side it lies on, and a flow takes
+   * its start and end from those in its own direction, so a flow written the other way
+   * from its column, as a right-to-left question on a left-to-right page, grows toward
+   * the side that has the room. */
+  .layout-column:dir(ltr) {
+    --lf-free-left: var(--lf-free-start);
+    --lf-free-right: var(--lf-free-end);
+  }
+  .layout-column:dir(rtl) {
+    --lf-free-left: var(--lf-free-end);
+    --lf-free-right: var(--lf-free-start);
+  }
+  :is(.layout-flow, [data-lf-flow]):dir(ltr) {
+    --lf-free-start: var(--lf-free-left);
+    --lf-free-end: var(--lf-free-right);
+  }
+  :is(.layout-flow, [data-lf-flow]):dir(rtl) {
+    --lf-free-start: var(--lf-free-right);
+    --lf-free-end: var(--lf-free-left);
   }
   :is(.layout-column, .layout-flow, [data-lf-flow])
     > :is(.layout-flow, [data-lf-flow]) {

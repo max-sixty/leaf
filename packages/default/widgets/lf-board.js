@@ -54,6 +54,7 @@ import {
   announce,
   labelOf,
   layoutChanged,
+  previewChanged,
   saying,
   dragging,
   motion,
@@ -351,10 +352,18 @@ customElements.define(
         when: () => this.#movable(card) && !this.#resumeProjection,
         run: () => this.#grab(card, grip, rows),
       };
-      // The tooltip names the keys the row binds rather than a letter typed beside it: the
-      // grip answers Space too, and said Enter on every surface for as long as the word and
-      // the press were separate objects.
-      grip.title = `Drag to move — or ${labelOf(grab)} to grab`;
+      // The grip says the drag, as its description and under its name in its preview;
+      // the keys that grab it are the row's own, its activation, which a control's
+      // preview leaves out, so the grip names them as key chips beside its name, which a
+      // finger never sees, and its `aria-keyshortcuts` names them for a screen reader.
+      const drag = "Drag to move";
+      grip.setAttribute("aria-description", drag);
+      // Grabbed, the card is moving, so the grip says nothing over it until it drops.
+      grip.lfPreview = () =>
+        !held() && {
+          keys: grab.keys.map((binding) => [labelOf({ ...grab, keys: [binding] })]),
+          detail: [drag],
+        };
       /** @type {import("/runtime/keyboard/bindings.js").Command[]} */
       const rows = [
         grab,
@@ -471,6 +480,7 @@ customElements.define(
       this.#grabbed = { card, grip, from, index };
       this.#beginGesture();
       card.classList.add("lf-lift");
+      previewChanged(grip);
       // Where the card starts, in the idiom every arrow step announces — a user about to
       // move it needs the position the moves count from.
       announce(
@@ -568,6 +578,7 @@ customElements.define(
     #release(grab) {
       grab.card.classList.remove("lf-lift");
       this.#grabbed = null;
+      previewChanged(grab.grip);
     }
 
     // Arrow steps and a cancelled grab place through one writer. Start from the

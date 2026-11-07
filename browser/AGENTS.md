@@ -208,15 +208,66 @@ needs (`../SOUL.md`, "Let the user work as directly as in a terminal").
   the symbols for play, pause, copy and undo, so they can tell what the control does
   before hovering it; a symbol is smaller and quieter than a word. The control names its
   action from `ACTIONS` in `runtime/icon-paths.js`, which gives it the action's symbol,
-  and says its name as tooltip and accessible name, without the word beside the symbol.
+  and says its name as its accessible name and its preview (below), without the word
+  beside the symbol.
   An action shows one symbol, or one word, wherever Leaf offers it, so a reader who
   learns it in one place knows it in every other, and a press names an action, never an
   icon, so its symbol can't drift. One control whose symbol follows its state, such
   as play turning to pause, replaces a button for each state. A symbol only related to
   the action, such as a speech bubble for answering a question, leaves the reader
-  guessing, and a tooltip doesn't fix that: the reader must already suspect the control
-  to hover it, and a touch screen has no hover. The rows of the leaf's menu keep their
-  words, since the user opened the menu to read them.
+  guessing, and a preview doesn't fix that: the reader must already suspect the control
+  to point at it. The rows of the leaf's menu keep their words, since the user opened
+  the menu to read them.
+
+### Pointing reads; pressing acts
+
+Hovering, focusing or holding a press on a mark, control or value shows its whole word
+and a preview of what pressing it opens, or of the fact it stands for, so the user can
+judge whether to go there before going (`../SOUL.md`, "Make the work concrete and
+playable").
+
+- **A preview reads and never acts.** It says where a thread stands, what a link points
+  at, what caused a change or the time behind an age; a control's says its word and
+  every key that presses it, each as a key chip. Every preview wears one face, its name
+  and key chips on the first line and its detail under them. It stands over the page
+  beside what it previews, where the browser keeps it as the target moves, clear of
+  the target's focus ring and inside the window, covering none of the targets beside
+  it where a side is free of them, moves nothing around it
+  ("The page holds still under the user's aim") and holds no control. The pointer can
+  cross onto it and read it there (WCAG 1.4.13). Revealing a block's own controls, as Copy appears on a
+  code block, is no preview and stays its block's.
+  A thread's words and its margin entry read one preview, made from the reading every
+  surface paints the thread from (`threadPreview`), and an age reads its clock time in
+  the reader's zone (`agePreview`). Checks:
+  `test_a_thread_previews_where_it_stands_from_its_words_and_its_entry`,
+  `test_an_age_previews_its_clock_time_in_the_reader_s_zone`.
+- **Every route reads it.** A resting pointer reads it after a short dwell, keyboard
+  focus the user moved there themselves at once, by Tab or a keyboard walk, as whoever
+  moved focus says, but not focus a surface places as it opens or hands back as it
+  closes, and a finger by a long press, the touch form of pointing, whose release
+  presses nothing and leaves the preview standing until the next press, while a tap
+  still presses (until 5 November 2026 the release pressed, so a finger couldn't read
+  without acting short of sliding off, which on touch often scrolls instead); where
+  a surface can't take a hold, it says the words at rest, as a panel row's cut words
+  stand whole. So no fact is said to hover alone. A preview the user put away stays
+  away until they aim again, whatever the element declares meanwhile. A `title` is its
+  writer's: the browser's tooltip shows it to a pointer, and Leaf's preview to focus
+  and a finger, so two tooltips never stand together. Leaf's own controls declare
+  their words to the preview and write no title on Leaf.
+- **One owner shows every preview.** An element adds to what pointing at it reads
+  (`lfPreview`, `../skills/leaf/references/module-input.md`, "Previews"), a control's
+  word and keys come from its name and the register, a link an author wrote into the
+  page shows the place it names (`runtime/place-preview.js`), and a range's owner says
+  where the pointer or a holding finger rests on it, as a thread's passage marks do
+  (`anchor-paint.js`). `runtime/preview.js` shows one at a time on every route, puts it
+  away on leave, blur or a press, and gives a screen reader the words it shows on focus
+  as the focused element's description.
+  While one stands it is Escape's first step, which does nothing else, so a preview
+  over the surface the user is in never costs them that surface (WCAG 1.4.13). Checks:
+  `test_a_control_previews_its_word_and_every_key_that_presses_it`,
+  `test_a_link_into_the_page_previews_where_it_points`,
+  `test_a_range_previews_beside_the_line_the_pointer_rests_on` and
+  `test_a_finger_holding_a_thread_s_words_reads_it_above_them`.
 
 ### Visual treatment carries meaning
 
@@ -301,7 +352,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | External data                                                                                               | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                  |
 | Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`                                                      |
 | Repaint and geometry                                                                                        | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `shown-box.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js`             |
-| Chrome and available space                                                                                  | `chrome.js`, `floating-panel.js`, `page-layout.js`, `root-headers.js`, `page-controls.js`                                                                  |
+| Chrome and available space                                                                                  | `chrome.js`, `floating-panel.js`, `page-layout.js`, `root-headers.js`, `page-controls.js`, `preview.js`, `place-preview.js`                                |
 | Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                         |
 | Keyboard                                                                                                    | `keyboard/AGENTS.md`                                                                                                                                       |
 | Focus and navigation                                                                                        | `focus.js`, `current-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js`, `change-walk.js`                    |
@@ -442,6 +493,7 @@ use it:
 | Where a box sits relative to another box or its scroller                   | the containing block, sticky positioning, anchor positioning, scroll timelines                                                    |
 | Which of Leaf's surfaces paints over which, with the page beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, inside the chrome's root after `body` at the largest z-index |
 | Whether a box is rendered at all                                           | `checkVisibility`                                                                                                                 |
+| Whether a word in a box is drawn                                           | `checkVisibility` of the nearest box, its `content-visibility`, and the word's `visibility` (`passages.js` `drawsWithin`)         |
 | Where the reader's place stays as content above it changes height          | scroll anchoring, over renders that keep the nodes they don't change                                                              |
 | Which rules reach an element                                               | cascade layers, `@scope`, and a shadow root as the boundary                                                                       |
 
@@ -491,7 +543,7 @@ reads (root `AGENTS.md`, "The document starts state; the log changes it"):
 | the line inside a target that a comment sits by                                                                | `pointed-place.js` (`placePoints`); presentation only                                                                                                                                                                                                                                                                                                                               |
 | the side and line a comment box and its thread card sit by                                                     | `annotation-overlay/comment-placement.js` (`commentSide`)                                                                                                                                                                                                                                                                                                                           |
 | whether a margin row sits in the rail or as a pin, and where                                                   | `annotation-overlay/margin-layout.js`                                                                                                                                                                                                                                                                                                                                               |
-| what a scroller shows, what a surface covers, what sticky headers cover, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareCover`, `shownWindow`, `seenRect`, `motionBand`)                                                                                                                                                                                                                                                                                              |
+| what a scroller shows, what a surface covers, what sticky headers cover, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareCover`, `shownWindow`, `seenRect`, `growthIsSeen`)                                                                                                                                                                                                                                                                                            |
 
 Add no second cache, pending map, replay list or DOM attribute as another source for
 one of these facts. A rendering may expose state, such as `data-lf-state` for CSS and
@@ -581,15 +633,24 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowWord`, `progressFace`, `todoWord`                    |
 | A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                             |
 | What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                    |
+| What an element (its `lfPreview`), control or range says when pointed at, on every route              | `preview.js` `pointRange`                                                          |
+| What a place on the page shows as a preview, and the place a link into the page names                 | `place-preview.js` `placePreview`, `linkedPlace`                                   |
+| What a thread says when pointed at, on its passage mark and its margin entry                          | `thread/messages.js` `threadPreview`                                               |
+| The clock time behind an age, and what an age's `<time>` previews                                     | `presence.js` `clockTime`, `agePreview`                                            |
+| The keys that press a control                                                                         | `keyboard/control-keys.js` `controlKeys`                                           |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                              |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
 | The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |
+| The open conversations about an element or the part a heading heads, and whose turn                   | `thread/placement.js` `conversationsAbout`                                         |
 | The thread id a drawn thread carries, and the page threads drawn with an id                           | `thread/selectors.js` `drawnThreadId`, `drawnThreadsWithId`                        |
 | Where opening a thread puts the user: its reply, or the thread                                        | `thread/focus.js` `openingPart`                                                    |
 | Whether the user is writing a reply                                                                   | `thread/replies.js` `replyIsEditing`                                               |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
 | Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                             |
-| What names the part of the page a node stands in: its heading, or a named region                      | `thread/placement.js` `partOver`                                                   |
+| What names the part of the page or a message a node stands in, and where a heading's part ends        | `thread/placement.js` `partOver`, `headingAfter`                                   |
+| A document's outline, and what stood over each element, as the walk reading it met them               | `passages.js` `documentOutline`, `headed`                                          |
+| Which reading of the page stands, for what is derived from it                                         | `passages.js` `pageReadingVersion`                                                 |
+| Whether a title runs into words on its line, read off the markup                                      | `passages.js` `runsIntoLine`                                                       |
 
 ### Facts both runtimes know
 

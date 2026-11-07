@@ -350,7 +350,8 @@ function commandsAt(control) {
   return found;
 }
 // The one command a button answers now: the available declaration, or the first where
-// none is. Two available at once is an ambiguous button.
+// none is. Two available at once is an ambiguous button. A row that only adds a key to
+// press the button names it with no `run`, and claims nothing (control-keys.js).
 /** @template {ButtonCommand} T @param {[T, ...T[]]} candidates @returns {T} */
 function chosenCommand(candidates) {
   const available = candidates.filter(
@@ -361,7 +362,8 @@ function chosenCommand(candidates) {
   const [first, second] = available;
   if (first && second)
     throw new TypeError(
-      `leaf: ${second.entry.id} shares a button with ${first.entry.id}`,
+      `leaf: ${second.entry.id} shares a button with ${first.entry.id}; ` +
+        `a key that presses ${first.entry.id}'s button names it as \`control\` with no \`run\``,
     );
   return first ?? candidates[0];
 }
@@ -983,9 +985,18 @@ export function commandsWithin(root) {
 // declaration and any number of projected ones can coexist, so none may erase another's
 // bindings. Each scope's live rows are read and refused on their own; the attribute is
 // their union, since two scopes on one control may name one press: an obligation's route names
-// the intrinsic key of the command it routes to, which that command's own scope names.
+// the intrinsic key of the command it routes to, which that command's own scope names. The
+// union also holds every one-press key that reaches the element as a control, which its
+// preview draws as key chips (control-keys.js, `controlShortcuts`, which says so here
+// with `projectControlShortcuts`, since it reads this module's readings).
+/** @type {(element: Element) => string} */
+let reaching = () => "";
+/** @param {(element: Element) => string} read */
+export function projectControlShortcuts(read) {
+  reaching = read;
+}
 /** @param {Element} element */
-function reflectElementShortcuts(element) {
+export function reflectElementShortcuts(element) {
   const available = scopesAt(element).filter((scope) => !scope.when || scope.when());
   for (const scope of available) {
     try {
@@ -1011,8 +1022,8 @@ function reflectElementShortcuts(element) {
     ),
   );
   const shortcuts = [
-    ...new Set(
-      available.flatMap((scope) =>
+    ...new Set([
+      ...available.flatMap((scope) =>
         ariaShortcuts(
           scope.rows,
           true,
@@ -1027,7 +1038,8 @@ function reflectElementShortcuts(element) {
           .split(" ")
           .filter(Boolean),
       ),
-    ),
+      ...reaching(element).split(" ").filter(Boolean),
+    ]),
   ].join(" ");
   keeps(element, "aria-keyshortcuts", shortcuts || null);
 }

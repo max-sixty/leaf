@@ -852,3 +852,105 @@ placement stood it; Firefox's blur still leaves focus on `body` after Back.
 and Firefox. To recheck, intercept a traversal with `scroll: "manual"`, scroll in the
 handler, and read the offset after `popstate`; once Firefox keeps the handler's offset
 and neither engine reveals or scrolls to the target, that step can go.
+
+### Highlight hit testing
+
+`CSS.highlights.highlightsFromPoint(x, y, {shadowRoots})` (CSS Custom Highlight API)
+names the highlights under a point and the ranges of each there, and Playwright's
+Chromium headless shell 156.0.8078.4, Firefox 157 and WebKit 27.2 all ship it. On
+2026-11-05 it answered correctly at a range's edges and inside a shadow tree passed in
+`shadowRoots`, which it needs in every engine. Two things keep a thread's passage
+marks from using it to say which mark the pointer is on
+(`browser/runtime/annotation-overlay/anchor-paint.js`, `markHit`):
+
+- Its cost grows with the ranges the page's highlights hold, every one of them read
+  on each call. At the last of a paragraph's marks, one call took 20 µs at 32 and
+  320 µs at 512 in Chromium, and 15 µs and 100 µs in Firefox. Read again on
+  2026-11-06 over a mark in the middle of a page of 32 and of 512 paragraphs, one
+  thread each, it took 15 µs and 235 µs in Chromium 156.0.8078.4 and 15 µs and 80 µs
+  in Firefox 157, against 1 µs and 5 µs for `caretPositionFromPoint` at both sizes.
+  A hover's work must not grow with the page (root `AGENTS.md`, "Responsiveness").
+- Firefox and WebKit name a highlight under a box covering its words, as the chrome
+  over the page is; Chromium names none there.
+
+So `markHit` takes the caret lookup's text node and offset, reads the one or two
+characters' boxes around the offset, and finds the marks covering that character in
+an index of the marks' live ranges, the ones the highlight paints. After a change to
+the page's words, anchor placement places again only the threads whose quotes the
+page's index of quotes says changed (passages.js, `quotesChanged`), and the index reads
+again only those threads' ranges. Recheck by timing
+`highlightsFromPoint` over a mark on pages of 32 and 512 marks, and at a point under a
+covering box; once its cost holds still and every engine names nothing under a cover,
+`markHit` can ask it instead of keeping its own index.
+
+### A popover's implicit anchor after a hide and show in one task in Firefox
+
+Firefox bug. On 2026-11-05, Playwright Firefox 157 (build 1555, macOS), in a fresh
+context with no Leaf code, stood a popover by the source it was last shown with when it
+was hidden and shown again by another source in one task
+(`showPopover({source: b})`): it stood by `a`. A frame between the hide and the show
+stood it by `b`, as did any change to the popover itself before the show, such as its
+words. Chromium 156.0.8078.4 (headless shell build 1248) stood it by `b` every time. On
+this page the manual and auto popovers stand 380 px off and the hint one, there, did not;
+on a Leaf page the hint one does:
+
+```html
+<style>
+  .tip {
+    position: fixed;
+    inset: auto;
+    margin: 0;
+    position-anchor: auto;
+    position-area: block-end span-inline-end;
+  }
+  button {
+    position: fixed;
+  }
+</style>
+<button id="a" style="left: 20px; top: 20px">A</button>
+<button id="b" style="left: 400px; top: 200px">B</button>
+<div class="tip" popover="manual">Words</div>
+<script type="module">
+  const tip = document.querySelector(".tip");
+  tip.showPopover({ source: a });
+  await new Promise(requestAnimationFrame);
+  tip.hidePopover();
+  tip.showPopover({ source: b }); // with a frame before this line, it stands by B
+  await new Promise(requestAnimationFrame);
+  console.log(tip.getBoundingClientRect().left - b.getBoundingClientRect().left);
+</script>
+```
+
+The preview (`browser/runtime/preview.js`, `open`) is one popover a warm switch hides
+and shows again by its next target in one task, so two targets with the same words in
+turn would stand the second preview by the first. Where a new source comes with the
+words the last one had, it moves the preview to the other side of a sibling, its
+stage's mark, which re-lays it out and which the page's write watch reads as a change,
+as a re-insertion at the same place it would not. To recheck, run the page in Firefox;
+once it logs 0, drop the move in `open`.
+
+### A touch long press in WebKit
+
+WebKit gap. A WebKit touch engine, iOS and iPadOS Safari and every iOS browser, sends no
+event as a touch press becomes a long press: no `contextmenu`
+([WebKit bug 213953](https://bugs.webkit.org/show_bug.cgi?id=213953), open, its last
+comment 2026-03-28), where Chromium on Android sends one at the long-press timeout the
+user set and Gecko on Android one at its own. Read in WebKit's source at main 58fe6ea4b
+(2026-11-05), `Source/WebKit/UIProcess/ios/WKContentViewInteraction.mm`: the long press
+WebKit recognizes is UIKit's, at 0.12 s for its highlight (`highlightDelay`, line 539)
+and 0.75 s for its sheet (`tapAndHoldDelay`, line 540), and neither reaches the page as
+an event. The highlight one, enabled only where an app uses no context menus or allows no
+link previews (line 1849), sends a click when the touch ends, however long it was held
+(lines 3787–3790), unless a touch event the page cancelled cleared it (lines
+2496–2502). Safari uses context menus, so its click after a long hold is UIKit's tap
+recognizer's to give, which WebKit sets no duration on.
+
+So a held finger reads a preview (`browser/runtime/preview.js`, the hold) at
+`contextmenu` where the engine sends it, and after 500 ms, UIKit's default for a long
+press, where `GestureEvent` says the engine is WebKit, which exposes it in desktop
+Safari too, where only a touch starts a hold and no touch comes; the touch's end is
+cancelled there as everywhere, which stops WebKit's own click. The cost: on iOS a press
+held past 500 ms reads rather than presses whatever the user set in Touch
+Accommodations, which no page can read. To recheck, hold a finger on an element with a
+`contextmenu` listener in Safari on an iPhone or the simulator; once it logs, drop the
+timer and `holdsUntold` in `preview.js`.

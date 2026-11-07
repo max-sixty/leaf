@@ -6,11 +6,11 @@ stay in the thread, whether the agent's session is idle or busy. Today the media
 first reply takes 17 s when the session is idle and 21 s when it is busy, and the real
 answer 48 s and 100 s ([waits on real pages](leaf-run-sessions.md#waits-on-real-pages)).
 
-The `forked-replies` branch builds it: `src/leaf/forks.py` holds the states a thread
-moves through, the hold and the reply, and `hooks/claude-code.ts` (`forkReply`) makes
-the fork. This note holds the research behind it: what Claude Code lets a hooks module
-fork, measured, and how well the fork judges what to answer. The main thread is the
-session's own conversation, as against the forks and subagents made from it.
+On main, `src/leaf/forks.py` holds the states a thread moves through, the hold and the
+working line a fork posts, and `hooks/claude-code.ts` (`forkReply`) makes the fork. This
+note holds the research behind it: what Claude Code lets a hooks module fork, measured,
+and how well the fork judges what to answer. The main thread is the session's own
+conversation, as against the forks and subagents made from it.
 
 On 2026-11-05 the user took answering out of this fork. A `$.model.fork` fork can't
 call tools, so it now posts only the agent's working line and hands every message to

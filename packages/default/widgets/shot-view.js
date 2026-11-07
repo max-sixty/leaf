@@ -301,7 +301,6 @@ export class ShotView {
             }),
         )}
         data-lf-state=${state}
-        title=${label}
         aria-label=${frame ? nothing : `${label} — ${host.getAttribute("alt")}`}
         ?data-lf-shot-hidden=${
           !frame &&
@@ -345,7 +344,7 @@ export class ShotView {
             aria-label=${`Open ${state} image — ${alt}`}
             href=${pair ? this.images[index]?.src || nothing : nothing}
             tabindex=${pair ? nothing : "-1"}
-            title=${pair ? `Open ${state} image` : nothing}
+            .lfPreview=${() => (pair ? { detail: [`Open ${state} image`] } : null)}
             ${box()}
             ><div class="lf-shotplane" ${box()}>
               <img
@@ -433,15 +432,17 @@ export class ShotView {
                       ${ref(this.choiceRef)}
                       type="button"
                       aria-pressed=${String(value === scale)}
-                      title=${
-                        value === "actual"
-                          ? this.metadata.pixelRatio
-                            ? "Captured CSS size"
-                            : "One image pixel per CSS pixel"
-                          : this.geometry
-                            ? `Fit · ${Math.round(this.geometry.fitScale * 100)}%`
-                            : nothing
-                      }
+                      .lfPreview=${() => {
+                        const says =
+                          value === "actual"
+                            ? this.metadata.pixelRatio
+                              ? "Captured CSS size"
+                              : "One image pixel per CSS pixel"
+                            : this.geometry
+                              ? `Fit · ${Math.round(this.geometry.fitScale * 100)}%`
+                              : null;
+                        return says ? { detail: [says] } : null;
+                      }}
                       @click=${() => this.chooseScale?.(value)}
                     >
                       ${text}

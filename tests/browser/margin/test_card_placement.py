@@ -11,6 +11,7 @@ from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, panel_comment
 from render_harness import (
     LONG_PAGE,
     PANEL,
+    expect_preview_words,
     holding,
     leaf_page,
     margins_laid_out,
@@ -380,7 +381,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
     append_agent_reply(serve.page_dir, root, "And the banner can keep its own.")
     told(page)
     notice = preview.locator(".lf-margin-thread-controls .lf-thread-news")
-    expect(notice).to_have_attribute("title", re.compile("1 new reply"))
+    expect_preview_words(notice, re.compile("1 new reply"))
     expect(notice).to_have_text("2 new")
     rendered(page)
     card = preview.locator(f'.lf-page-thread[data-lf-thread="{root}"]')

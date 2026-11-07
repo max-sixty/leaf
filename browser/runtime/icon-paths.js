@@ -108,14 +108,16 @@ export function iconElement(icon, className = "lf-margin-entry-icon") {
 // draft, and a draft's other ways out save. A rewrite's Discard also stood two seats
 // from its card's Close. A reaction's removal took undo over ✕ for the same reading
 // (the user's choice, 23 October 2026, anchor-controls.js).
-/** @type {Record<string, {name: string, icon: string}>} */
+/** @type {Record<string, {name: string, icon: string, key?: string}>} */
 export const ACTIONS = {
   accept: { name: "Accept", icon: "check" },
   add: { name: "Add", icon: "add" },
   arrange: { name: "Arrange", icon: "arrange" },
   back: { name: "Back", icon: "previous" },
   cancel: { name: "Cancel", icon: "cross" },
-  close: { name: "Close", icon: "cross" },
+  // Escape closes every surface a close control closes (keyboard/AGENTS.md, "Escape"),
+  // the platform's own close request on a native layer, so its preview names the key.
+  close: { name: "Close", icon: "cross", key: "Escape" },
   collapse: { name: "Collapse", icon: "collapse" },
   comment: { name: "Comment", icon: "comment" },
   copy: { name: "Copy", icon: "copy" },
@@ -196,6 +198,13 @@ function actionFace(role, label, action) {
   return { label: label ?? name, action };
 }
 
+// The action each control shows, which its preview reads for the key the action
+// itself names (control-keys.js).
+/** @type {WeakMap<Element, string>} */
+const shownActions = new WeakMap();
+/** @param {Element} control */
+export const shownAction = (control) => shownActions.get(control);
+
 /**
  * Draws `action`'s symbol as `control`'s first child, and leaves one that already
  * shows it, so a template's later renders write nothing and a control whose action
@@ -203,6 +212,7 @@ function actionFace(role, label, action) {
  * @param {Element} control @param {string} action @param {string} [className]
  */
 export function showAction(control, action, className = "lf-action-icon") {
+  shownActions.set(control, action);
   const icon = actionIcon(action);
   const drawn = control.querySelector(":scope > svg[data-lf-icon]");
   if (drawn?.getAttribute("data-lf-icon") === icon) return;
@@ -217,36 +227,34 @@ const drawAction = (node, role, action) =>
 
 /**
  * The role constructors (`control-faces.js`, `ACTION_FACES`) with each symbol and mark
- * drawn from its action: `offerAction(role, className, label, {title, action})`, and
+ * drawn from its action: `offerAction(role, className, label, {action})`, and
  * `offerActionElement(node, …)` for a template's element. The runtime builds its own
  * from these (widget-elements.js).
  * @param {{
- * offerAction: (role: LeafActionRole, className?: string, label?: string, options?: {title?: string}) => HTMLButtonElement,
- * offerActionElement: <T extends Element>(node: T, role: LeafActionRole, className?: string, label?: string, options?: {title?: string}) => T
+ * offerAction: (role: LeafActionRole, className?: string, label?: string) => HTMLButtonElement,
+ * offerActionElement: <T extends Element>(node: T, role: LeafActionRole, className?: string, label?: string) => T
  * }} base
  */
 export function actionOffers(base) {
-  /** @param {string | undefined} title */
-  const titled = (title) => (title === undefined ? undefined : { title });
   return {
     /**
      * @param {LeafActionRole} role @param {string} [className] @param {string} [label]
-     * @param {{title?: string, action?: string}} [options]
+     * @param {{action?: string}} [options]
      */
-    offerAction(role, className, label, { title, action } = {}) {
+    offerAction(role, className, label, { action } = {}) {
       const face = actionFace(role, label, action);
-      const node = base.offerAction(role, className, face.label, titled(title));
+      const node = base.offerAction(role, className, face.label);
       if (face.action !== undefined) drawAction(node, role, face.action);
       return node;
     },
     /**
      * @template {Element} T
      * @param {T} node @param {LeafActionRole} role @param {string} [className]
-     * @param {string} [label] @param {{title?: string, action?: string}} [options]
+     * @param {string} [label] @param {{action?: string}} [options]
      */
-    offerActionElement(node, role, className, label, { title, action } = {}) {
+    offerActionElement(node, role, className, label, { action } = {}) {
       const face = actionFace(role, label, action);
-      base.offerActionElement(node, role, className, face.label, titled(title));
+      base.offerActionElement(node, role, className, face.label);
       if (face.action !== undefined) drawAction(node, role, face.action);
       return node;
     },

@@ -51,6 +51,14 @@ same step, through its row's `keep` where `run` would throw away unsent words
 
 - The document is the base. In a live sample, one more Escape returns focus to the
   containing page.
+- A preview standing over the page is the first step, by pointer or by focus: Escape
+  puts it away and does nothing else, and the next Escape takes the step it stood in
+  front of (`preview.js`). Any other key puts a pointer's preview away and does its own
+  work. A focus preview stands only where focus was moved by Tab, a placement standing
+  in for one (`step`) or a move to a place (`move`), the cause its mover gives
+  `focusDestination`, so focus a surface places as it opens, or hands back as it closes
+  or as Escape backs the user out (`return`), costs no Escape, and one put away stays
+  away until the user aims again, whatever a widget declares meanwhile.
 - Draw and Design are page modes; surfaces opened inside them close first.
 - A surface's own state, such as Threads' search, clears before the surface closes.
   Page-side selections, targets, margin clusters and the page composer coexist beside a view the
@@ -112,8 +120,11 @@ the row's own control beside the content it changes.
 Words owe a finger the same reach. A `title` shows only to a pointer resting on its
 element, so it can't be the only place a state's reason or the rest of a cut word is
 said. A state says its word on the surface that holds it (`quoteReading`), a panel
-row's cut words stand whole where no pointer can hover (`floating-panel.css`), and a
-control that shows part of its word gives the rest to a held press (`held-word.js`).
+row's cut words stand whole where no pointer can hover (`floating-panel.css`), and
+whatever previews, a control's word and keys among it, shows its preview to a finger
+holding it. The hold reads and its release presses nothing, while a tap still presses;
+until 5 November 2026 the release pressed, so a finger couldn't read without acting
+short of sliding off, which on touch often scrolls instead (`preview.js`).
 
 The comment field has one primary action, Dictate while empty and Send once it has
 words. Suggest and reactions share an anchored Other responses picker, reached by the

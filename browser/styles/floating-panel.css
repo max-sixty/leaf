@@ -719,10 +719,11 @@
     left: 19px;
     box-shadow: 0 0 0 1.5px var(--lf-fp-surface);
   }
-  /* The row's one small notice, beside the seat (floating-panel.js, `rowNotice`): a
-     tinted chip of the qualifying size, whose press is the words that end it, an
-     inline press (controls.css). The field gives up the room it takes, so the seat
-     keeps its place, and while the user writes it stands aside with the mark. */
+  /* The row's one small notice, beside the seat (floating-panel.js,
+     `rowNoticeTemplate`): a tinted chip of the qualifying size, whose press is the
+     words that end it, an inline press (controls.css). The field gives up the room it
+     takes, so the seat keeps its place, and while the user writes it stands aside with
+     the mark. */
   .lf-fp-row-notice {
     flex: none;
     display: flex;
@@ -1899,7 +1900,8 @@
     color: var(--danger-ink);
   }
 
-  /* The folded leaf's status on hover or focus, and passing notices. */
+  /* The folded leaf's passing notices, since there is no field to show them; its status
+     is its preview (runtime/preview.js). */
   .lf-fp-leaf {
     anchor-name: --lf-fp-leaf;
   }

@@ -11,9 +11,11 @@
    (annotation-theme.css, at .lf-margin-cluster): its posture as `data-lf-place`, and
    its seat, including the push rail packing gives it, as the row's own `margin-left`
    and `margin-top`. A custom property for the seat would be inherited, and every move
-   would restyle the row's whole subtree. Layout reads the full length; the style
-   attribute prints it to six significant digits, so far down a long page its text can
-   stay the same as the row moves (tests/write_watch.js, `unshownSeat`).
+   would restyle the row's whole subtree. Layout reads the full length. The style
+   attribute prints it to six significant digits, so from 10,000px down a page a
+   sub-pixel move can leave the attribute's text as it was, which the suite's write
+   watch (tests/write_watch.js), judging a write by its text, reads as a write that
+   changed nothing.
    Rows take their final places once, in one shared held-and-arrival order. Each posture's
    solver avoids the final rectangles and held labels already placed. A pin's chosen
    seat is its final place: no second packing pass can translate it into words or

@@ -660,6 +660,72 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
     assert "holds no sample with milestones" in empty.output
 
 
+def test_the_journey_chart_reads_ci_samples_through_a_cache(monkeypatch, tmp_path):
+    """`--from-ci` downloads each `publish-site` run's sample once, charts the newest
+    release though `gh` lists runs newest first, and caches "no artifact" only when
+    GitHub says there is none, never after a failed call. `--since` lays the releases
+    out in the order they ran."""
+    calls = []
+    failing = []
+
+    def sample(release, at):
+        row = {"target": "https://leaf.page", "version": release, "at": at}
+        row["comment"] = {"milestones": {"answered": {"elapsed_s": 1.0}}}
+        return json.dumps(row) + "\n"
+
+    runs = {
+        3: sample("newer", "2026-10-03T12:00+00:00"),
+        2: sample("older", "2026-10-02T12:00+00:00"),
+        1: "",  # no artifact
+    }
+
+    def gh(command, **_):
+        calls.append(command)
+        if command[:3] == ["gh", "run", "list"]:
+            listing = json.dumps([{"databaseId": run} for run in runs])  # newest first
+            return subprocess.CompletedProcess(command, 0, listing, "")
+        if command[:2] == ["gh", "api"]:
+            run = int(command[-1].split("/runs/")[1].split("/")[0])
+            count = str(int(runs[run] != ""))
+            return subprocess.CompletedProcess(command, 0, count, "")
+        if failing:
+            raise subprocess.CalledProcessError(1, command)
+        folder = Path(command[command.index("--dir") + 1])
+        (folder / "journey.jsonl").write_text(runs[int(command[3])])
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+    monkeypatch.setattr(journey_chart.subprocess, "run", gh)
+    local = tmp_path / "leaf-dev" / "journey.jsonl"
+    local.parent.mkdir(parents=True)
+    local.write_text(sample("older", "2026-10-02T12:00-07:00"))
+
+    result = CliRunner().invoke(journey_chart.journey_chart, ["--from-ci"])
+    assert result.exit_code == 0, result.output
+    assert "at newer" in result.stdout and "at older" not in result.stdout
+    again = CliRunner().invoke(journey_chart.journey_chart, ["--from-ci"])
+    assert again.stdout == result.stdout
+    assert sum(c[:3] == ["gh", "run", "download"] for c in calls) == 2
+
+    # Samples order by their instant: 11:00 at this zone comes after CI's 12:00 UTC.
+    local.write_text(sample("local", "2026-10-03T11:00-07:00"))
+    later = CliRunner().invoke(journey_chart.journey_chart, ["--from-ci"])
+    assert "at local" in later.stdout and "at newer" not in later.stdout
+
+    across = CliRunner().invoke(
+        journey_chart.journey_chart, ["--from-ci", "--since", "2026-10-01T00:00+00:00"]
+    )
+    order = [f"https://leaf.page at {name}" for name in ("older", "newer", "local")]
+    assert f"domain: {json.dumps(order)}" in across.stdout
+
+    # A failed call raises and leaves the run uncached rather than marked empty.
+    runs = {4: sample("failed", "2026-10-04T12:00+00:00"), **runs}
+    failing.append(True)
+    with pytest.raises(subprocess.CalledProcessError):
+        journey_chart.ci_samples(5)
+    assert not (tmp_path / "leaf-dev" / "ci" / "4").exists()
+
+
 def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
     """The deployment gate names the turn it read, not the panel it looked at.
 

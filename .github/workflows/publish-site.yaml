@@ -133,7 +133,17 @@ jobs:
         # Worker invocation exists. The preload emits only allowlisted metadata.
         env:
           NODE_OPTIONS: --require=${{ github.workspace }}/dev/leaf_dev/http_transport.cjs
+          # The journey's sample lands where the upload step below reads it.
+          XDG_STATE_HOME: ${{ runner.temp }}/state
         run: |
           release=$(jq --raw-output .release .tmp/site/_leaf/site.json)
           uv run leaf-dev verify-site --release "$release" --wait 900
           uv run leaf-dev journey https://leaf.page --release "$release"
+
+      # `leaf-dev journey-chart --from-ci` charts these samples across releases.
+      - name: Keep the journey's sample
+        uses: actions/upload-artifact@v7
+        with:
+          name: journey-sample
+          path: ${{ runner.temp }}/state/leaf-dev/journey.jsonl
+          if-no-files-found: error

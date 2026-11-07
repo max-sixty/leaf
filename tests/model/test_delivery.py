@@ -858,6 +858,33 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     assert undone["names"] == {"flag-first": "Flag first"}
 
 
+def test_done_on_an_empty_pick_says_nothing(page_dir, capsys):
+    """Done with nothing picked completes the answer with no option, so it quotes
+    none of the group's words (#5620)."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
+    )
+    publish(page_dir)
+    serving(page_dir, 1)
+    answered = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "plan-choice",
+            "action": "answer",
+            "detail": {},
+        },
+    )
+    assert service_model.claim_page(page_dir)
+    assert session_model.cmd_wait(page_dir) == 0
+    _, _, [shown] = delivered(capsys)
+    assert shown["id"] == answered["id"]
+    assert shown["subject"] == {"kind": "widget", "id": "plan-choice"}
+    assert "says" not in shown and "names" not in shown
+
+
 def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
     page_dir, capsys
 ):

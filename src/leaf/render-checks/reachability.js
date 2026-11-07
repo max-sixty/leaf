@@ -2,13 +2,6 @@ import { TEXT_BOX } from "/runtime/widget-api.js";
 import { shownBox, shownParts, userScrollport } from "/runtime/check-api.js";
 import { at, place, unique } from "./locate.js";
 
-// An overlay that takes no presses at rest, such as the contents map's spine, stands
-// over the page by design and reveals over it when the user reaches for it, so the box
-// it has at rest is not the room it shows in.
-/** @param {CSSStyleDeclaration} style */
-export const restsOverPage = (style) =>
-  style.position === "fixed" && style.pointerEvents === "none";
-
 // The axes on which a box clips what it holds and offers the user no way in, asked of
 // the overflow value per axis rather than of the scroll extent. A box that clips
 // always has something to scroll, which is what clipping means, so
@@ -139,12 +132,6 @@ export function clippedControls() {
 // resolves to content-visibility, which checkVisibility reports as visible while the
 // box measures zero. That collapse is the point of a closed tab; the collapse being
 // hunted here is the one nothing asked for.
-//
-// An overlay at rest (`restsOverPage`) is held to the height floor alone, as the
-// contents map is: in the margin its box is a 24px spine, and its labels reveal over
-// the page from it. Its scroll behavior says so in its computed style, which a widget that
-// lost its rules doesn't take on, so a map dropped into the flow at that width is
-// still caught.
 /** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
 export function tinyBoxes(declarations) {
   const declared = new Set(Object.keys(declarations));
@@ -165,7 +152,7 @@ export function tinyBoxes(declarations) {
       const tag = el.tagName.toLowerCase();
       const w = Math.round(el.getBoundingClientRect().width);
       const h = Math.round(el.getBoundingClientRect().height);
-      const narrow = !inline.has(tag) && !restsOverPage(getComputedStyle(el)) && w < 40;
+      const narrow = !inline.has(tag) && w < 40;
       return h < 10 || narrow ? [{ tag, id: el.id, w, h }] : [];
     });
 }

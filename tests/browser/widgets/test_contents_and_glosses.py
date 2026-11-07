@@ -841,16 +841,7 @@ def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
         "top => Math.abs(document.scrollingElement.scrollTop - top) <= 1", arg=bookmark
     )
     navigation = page.get_by_role("navigation", name="On this page")
-    move = navigation.get_by_role("link", name="Move the readers")
-    navigation_box = navigation.bounding_box()
-    assert navigation_box is not None
-    # At rest the map takes the pointer on its spine alone.
-    page.mouse.move(
-        navigation_box["x"] + 2,
-        navigation_box["y"] + navigation_box["height"] / 2,
-    )
-    expect(move).to_have_css("pointer-events", "auto")
-    move.click()
+    navigation.get_by_role("link", name="Move the readers").click()
     expect(page).to_have_url(re.compile(r"#move$"))
     page.wait_for_function(
         "() => document.getElementById('move').getBoundingClientRect().top < 150"
@@ -911,7 +902,8 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
             ".length"
         )
 
-    expect(toc).to_have_css("position", "fixed")
+    map_rows = nav.locator(".lf-toc-rows")
+    expect(map_rows).to_have_css("display", "flex")
     expect(heading).to_be_hidden()
     settled = toc.bounding_box()
     assert settled is not None
@@ -924,10 +916,8 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
     expect(toc).to_be_hidden()
 
     resized(page, 1200, 900)
-    # The wrapper itself holds no height in this posture — the map inside it is fixed —
-    # so its return is a display reading rather than a visible box.
-    expect(page.locator("#route")).not_to_have_css("display", "none")
-    expect(toc).to_have_css("position", "fixed")
+    expect(page.locator("#route")).to_be_visible()
+    expect(map_rows).to_have_css("display", "flex")
     expect(heading).to_be_hidden()
     assert toc.bounding_box() == settled, (
         f"the map came back as {toc.bounding_box()} rather than {settled}"
@@ -935,11 +925,11 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
     assert rows() == laid, "the map came back without its rows"
 
 
-def test_a_status_line_in_the_map_s_track_stands_clear_of_its_spine(browser, serve):
-    """`page-authoring.md` keeps a short status beside the contents in the track, but
-    the margin map stands over the track's start edge and reserves no room there: its
-    spine ran down the status's first letters, and a press on them opened the map
-    instead of reaching the words."""
+def test_a_status_line_in_the_map_s_track_follows_the_map(browser, serve):
+    """`page-authoring.md` keeps a short status beside the contents in the track. The
+    map is a block in that track, so the status follows it below, where scrolling the
+    track reaches it and a press on its words reaches the words, with nothing of the map
+    laid over them."""
     source = leaf_page(
         "status beside the map",
         '<aside><div class="layout-track"><lf-toc id="contents"></lf-toc>'
@@ -955,25 +945,26 @@ def test_a_status_line_in_the_map_s_track_stands_clear_of_its_spine(browser, ser
     )
     page = open_page(browser, serve(source))
     resized(page, 1400, 900)
-    expect(page.locator("#contents")).to_have_css("position", "fixed")
+    expect(page.locator("#contents .lf-toc-rows")).to_have_css("display", "flex")
+    page.locator("#status").scroll_into_view_if_needed()
     pressed = page.locator("#status").evaluate(
         """status => {
+            const map = document.getElementById("contents").getBoundingClientRect();
             const range = document.createRange();
             range.setStart(status.firstChild, 0);
             range.setEnd(status.firstChild, 1);
             const {left, top, height} = range.getBoundingClientRect();
-            return document.elementFromPoint(left + 1, top + height / 2)?.id;
+            return {
+                below: top >= map.bottom,
+                at: document.elementFromPoint(left + 1, top + height / 2)?.id,
+            };
         }"""
     )
-    assert pressed == "status", (
-        f"a press on the status's first letter reached {pressed!r}"
-    )
+    assert pressed == {"below": True, "at": "status"}, pressed
 
 
-def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
-    browser, serve
-):
-    """Crowded destinations remain a complete route when the user enters it.
+def test_a_crowded_document_map_shows_every_heading_on_one_fitted_scale(browser, serve):
+    """Crowded destinations remain a complete route.
 
     The raw document positions leave less than half a line between neighbors. The
     fitted scale keeps every heading, marker, and label distinct without overflowing."""
@@ -1013,15 +1004,6 @@ def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
     )
     assert any(abs(shift) > 1 for shift in shifts), shifts
 
-    page.mouse.move(nav_box["x"] + 2, nav_box["y"] + 100)
-    page.wait_for_function(
-        """nav => {
-          const links = [...nav.querySelectorAll('.lf-toc-start a, li a')];
-          return links.every(link => getComputedStyle(link).opacity === '1'
-            && link.getAnimations().every(m => m.playState === 'finished'));
-        }""",
-        arg=nav.element_handle(),
-    )
     shown = nav.locator(".lf-toc-start a, li a").evaluate_all(
         "links => links.filter(link => getComputedStyle(link).opacity === '1')"
         ".map(link => link.textContent || link.getAttribute('aria-label'))"

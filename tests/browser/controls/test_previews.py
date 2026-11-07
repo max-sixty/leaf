@@ -3394,7 +3394,11 @@ def test_a_covering_range_preview_stays_while_the_pointer_is_on_it_over_inert_wo
     page.wait_for_timeout(400)
     expect(tip).to_be_visible()
     expect(tip.locator(".lf-preview-word")).to_have_text("Its thread")
-    at = (box["x"] + box["width"] - 8, box["y"] + box["height"] / 2)
+    # The passage doesn't wrap, so on a narrow window its preview runs past the field's
+    # right edge; the aim stays over both.
+    under = page.locator("#under").bounding_box()
+    right = min(box["x"] + box["width"], under["x"] + under["width"])
+    at = (right - 8, box["y"] + box["height"] / 2)
     if field == "in its paragraph":
         page.evaluate(
             """([x, y]) => {

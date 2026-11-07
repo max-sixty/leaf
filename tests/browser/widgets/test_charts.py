@@ -1214,18 +1214,30 @@ def test_the_pointer_reads_the_point_its_preview_stands_over(engine, request, se
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("where", ["page", "tab panel"])
 def test_a_reading_stays_while_the_pointer_crosses_onto_it_past_the_chart(
-    engine, request, serve
+    engine, where, request, serve
 ):
     """A high point's six lines stand above the chart's top. The pointer moving from
     the point up onto them crosses the chart's edge and keeps them and the ring; moving
-    off them puts both away."""
+    off them puts both away. In an open tab, the panel the chart and the words above it
+    stand in takes a tab stop, which lets the reader reach and scroll it and takes no
+    pointer, so the reading keeps the pointer over the panel's words as over the
+    page's."""
+    chart_in = (
+        TALL
+        if where == "page"
+        else '<lf-tabs id="views"><lf-tab id="tasks" label="Tasks"><p id="words"'
+        ' style="height: 200px">The panel\'s words above its chart.</p>'
+        f'{TALL}</lf-tab><lf-tab id="other" label="Other"><p>Other words.</p>'
+        "</lf-tab></lf-tabs>"
+    )
     page = open_page(
         request.getfixturevalue(engine),
         serve(
             leaf_page(
                 "tall",
-                f'<h1 id="t">Tasks</h1>{TALL}<p style="height: 1200px">After.</p>',
+                f'<h1 id="t">Tasks</h1>{chart_in}<p style="height: 1200px">After.</p>',
             )
         ),
     )
@@ -1247,6 +1259,17 @@ def test_a_reading_stays_while_the_pointer_crosses_onto_it_past_the_chart(
         tip,
     )
     lines = (tip["x"] + 12, tip["y"] + 12)
+    if where == "tab panel":
+        assert (
+            page.evaluate(
+                """([x, y]) => {
+              const panel = document.elementFromPoint(x, y).closest('[role=tabpanel]');
+              return panel?.tabIndex;
+            }""",
+                list(lines),
+            )
+            == 0
+        ), "the reading stands over no tab stop's words"
     for step in range(1, 11):
         page.mouse.move(
             high[0] + (lines[0] - high[0]) * step / 10,

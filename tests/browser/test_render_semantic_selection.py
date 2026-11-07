@@ -207,10 +207,11 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     expect(page.locator(".lf-target-picker-hint.lf-current")).to_have_count(1)
     expect(page.locator(".lf-live")).to_contain_text("Hint a: heading: Targets")
     page.keyboard.press("?")
+    # The reference is a listbox, so each section is a group its heading names.
     expect(
-        page.locator(".lf-command-reference").get_by_role(
-            "heading", name="In the target picker", exact=True
-        )
+        page.locator(".lf-command-reference")
+        .get_by_role("group", name="In the target picker", exact=True)
+        .first
     ).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).to_be_hidden()

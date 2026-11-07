@@ -51,14 +51,14 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 ACROSS_OBLIGATION = """
-  <lf-ask id="{id}"{width}>
+  <lf-ask id="{id}">
     <hgroup><p class="eyebrow">Retention</p><h3>How long should logs be kept?</h3></hgroup>
     <figure><table id="{id}-figure">
       <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
       <tbody><tr><td>Hot</td><td class="num">40</td></tr>
         <tr><td>Warm</td><td class="num">120</td></tr></tbody>
     </table></figure>
-    <lf-options id="{id}-choice" choose{across}>
+    <lf-options id="{id}-choice" choose{across}{width}>
       <lf-option id="{id}-7"><strong>7 days</strong> The cheapest.
         <lf-options id="{id}-nested" choose>
           <lf-option id="{id}-hot"><strong>Hot only</strong> Drop warm at once.</lf-option>
@@ -81,8 +81,8 @@ ACROSS_OBLIGATION_PAGE = leaf_page(
 )
 
 
-ACROSS_WIDE_OBLIGATION_PAGE = leaf_page(
-    "options laid across a widened obligation",
+ACROSS_WIDE_OPTIONS_PAGE = leaf_page(
+    "options laid across the wide measure",
     "<div>"
     + ACROSS_OBLIGATION.format(id="wide", width=' data-width="wide"', across=" across")
     + "</div>",
@@ -353,16 +353,17 @@ def test_cards_laid_across_align_their_titles_whatever_chips_open_them(
         assert len(set(row["sentences"])) == 1, f"{id}: sentences misaligned: {row}"
 
 
-def test_options_laid_across_take_a_widened_obligations_width(browser, serve):
+def test_options_laid_across_fill_the_wide_measure_they_ask_for(browser, serve):
     """The column bounds a line of text, and no card's line is wider than its column, so
-    an obligation granted the wide measure for its figure lays its cards under all of it rather
-    than at the measure beside an empty strip. Room for more columns than it has
-    options holds no empty column beside them: the three cards share the whole row."""
-    page = open_page(browser, serve(ACROSS_WIDE_OBLIGATION_PAGE))
+    options laid across and granted the wide measure lay their cards under all of it,
+    inside the question's ring, rather than at the column beside an empty strip. Room
+    for more columns than it has options holds no empty column beside them: the three
+    cards share the whole row."""
+    page = open_page(browser, serve(ACROSS_WIDE_OPTIONS_PAGE))
     resized(page, 1726, 900)
     at = page.evaluate(ACROSS_GEOMETRY, "wide")
-    assert at["obligation"] > 720, at
-    assert abs(at["list"] - at["obligation"]) <= 1, at
+    assert at["list"] > 720, at
+    assert at["obligation"] >= at["list"], at
     assert len(set(at["tops"])) == 1, at
     # The group's frame takes 2px of its width, and each hairline between cards 1px.
     hairlines = len(at["widths"]) - 1

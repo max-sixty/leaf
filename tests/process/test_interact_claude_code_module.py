@@ -22,6 +22,7 @@ from interact_support import (
     wait_for,
 )
 
+from leaf import clerk as clerk_model
 from leaf import event_log as events_model
 from leaf import leases as leases_model
 from leaf import server as server_model
@@ -67,7 +68,7 @@ class ClaudeCode:
             elif "band" in record:
                 self.bands.put(record["band"])
             elif "forked" in record:
-                self.forks.put(record["forked"])
+                self.forks.put(record)
             elif {"copied", "toast"} & record.keys():
                 self.pressed.put(record)
             else:
@@ -388,7 +389,10 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
     driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "a1"})
     driven.emit("turn.complete", {**ended, "reason": "aborted", "isAborted": True})
     driven.emit("turn.complete", {**ended, "reason": "answer"})
-    assert "<leaf-fork-check>" in driven.forks.get(timeout=STATED_TIMEOUT)
+    forked = driven.forks.get(timeout=STATED_TIMEOUT)
+    assert "<leaf-fork-check>" in forked["forked"]
+    # Claude Code thinks at the effort Leaf names, whatever the session's own.
+    assert forked["effort"] == clerk_model.EFFORT
     told = wait_for(
         lambda: driven.debug.get(timeout=STATED_TIMEOUT),
         lambda line: line.startswith("Leaf: the clerk"),
@@ -408,6 +412,8 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
     )
     [note] = read_interactions(page_dir, types=("turn_end_check",))
     assert note["request"] == RESENT, note
+    # The note gives the effort the fork was sent at, not the session's in `request`.
+    assert note["effort"] == clerk_model.EFFORT != RESENT["effort"], note
     driven.quit()
 
 
@@ -424,7 +430,7 @@ def test_a_failed_fork_stays_out_of_the_conversation_and_the_next_turn_forks(
     driven.emit("turn.complete", {**ended, "turnId": "t1"})
     driven.emit("turn.complete", {**ended, "turnId": "t2"})
     for _ in range(2):
-        assert "<leaf-fork-check>" in driven.forks.get(timeout=STATED_TIMEOUT)
+        assert "<leaf-fork-check>" in driven.forks.get(timeout=STATED_TIMEOUT)["forked"]
         told = wait_for(
             lambda: driven.debug.get(timeout=STATED_TIMEOUT),
             lambda line: line.startswith("Leaf: the clerk"),
@@ -467,7 +473,7 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     asked = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Why 2 s?"}
     )
-    prompt = driven.forks.get(timeout=STATED_TIMEOUT)
+    prompt = driven.forks.get(timeout=STATED_TIMEOUT)["forked"]
     assert prompt.startswith("<leaf-fork-reply>"), prompt
     assert "Why 2 s?" in prompt
     told = wait_for(

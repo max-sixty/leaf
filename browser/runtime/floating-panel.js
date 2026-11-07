@@ -5104,10 +5104,7 @@ export function createFloatingPanel({
   }
 
   return {
-    host,
     mount,
-    open,
-    close,
     clearFor,
     pageComment,
     searchPage,

@@ -57,7 +57,7 @@ lf-tally[next]:not(:defined)::after {
   visibility: hidden;
   font: var(--font-small);
   box-sizing: border-box;
-  padding-inline: 10px;
+  padding-inline: var(--wa-form-control-padding-inline);
   border: 1px solid transparent;
   margin-inline-end: var(--focus-ring-room);
   min-block-size: var(--aim-floor);

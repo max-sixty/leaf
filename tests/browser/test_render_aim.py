@@ -2565,9 +2565,10 @@ CONTROL_SHAPES = {
         [("A", "A"), ("B", "B")],
     ),
     # A control's announcement reads the prose around it, and no neighbouring control's
-    # words.
+    # words. The section has a heading of its own, since an unnamed section is named by
+    # its words, the neighbour's included.
     "spoken": (
-        '<section id="spoken"><p>Find settings <input aria-label="Search flags"> <button aria-label="Close dialog">×</button></p></section>',
+        '<section id="spoken"><h2>Flags</h2><p>Find settings <input aria-label="Search flags"> <button aria-label="Close dialog">×</button></p></section>',
         "#spoken input, #spoken button",
         [("Search flags", None), ("Close dialog", "×")],
     ),

@@ -442,6 +442,9 @@ const railBeside = (scroller) => flowOf(scroller).flow === pageScroller;
 /** @param {Element} target */
 export const railStandsBeside = (target) =>
   Boolean(layer) && railStands(marginColumn()) && railBeside(scrollerFor(target));
+// The column's edge the rail hangs off: the right of `main`'s prose. What stands right
+// of a box ending short of it stands over the column, not in the rail's margin.
+export const railEdge = () => proseRect(marginColumn()).right;
 // Prospective placement measures the same primitive a first contribution will draw.
 // The native cascade resolves the entry's aim floor and the row's focus clearance,
 // including package or author overrides. No existing entry, cached size, or parsed
@@ -516,12 +519,11 @@ export function marginSpot(target, point = null, passage = null) {
       return { left, right };
     }
   if (!layer || !railStandsBeside(target)) return null;
-  const main = marginColumn();
   const hang =
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--rail-hang"),
     ) || 0;
-  const left = proseRect(main).right + hang;
+  const left = railEdge() + hang;
   return { left, right: left + restingRail(layer).row };
 }
 

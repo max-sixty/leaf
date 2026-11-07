@@ -28,8 +28,9 @@
    stands where its editor will and is carried as its editor is, so opening it moves
    nothing. It has no editor yet, so it has no height to fit and no motion to follow.
    It stands only in the room beside what it is about, the margin its rail stands in
-   (margin-layout.js, `railStandsBeside`), whatever rows stand there already. Under or
-   over its target, slid across a target with no room beside it, or beside a target
+   (margin-layout.js, `railStandsBeside`, `railEdge`), whatever rows stand there
+   already. Under or over its target, on its left, beside a target that ends short of
+   the column's edge, slid across a target with no room beside it, or beside a target
    the rail doesn't stand by, as a workspace pane whose neighbour fills the window
    beside it, it would lie on the page's own words and controls, the one just pressed
    among them, and the next press there would open it (browser/AGENTS.md, "Controls
@@ -63,7 +64,7 @@ import {
   commentBoundary,
   commentPlacement,
 } from "../comment-placement.js";
-import { railStandsBeside } from "../margin-layout.js";
+import { railEdge, railStandsBeside } from "../margin-layout.js";
 import { pointBand } from "../../pointed-place.js";
 import { keeps, roomPx } from "../../keeps.js";
 import { pageScroller } from "../../scrolling.js";
@@ -515,8 +516,9 @@ export function createFloatingResponsePlacement({
     if (
       response.rests &&
       (!railStandsBeside(place.element) ||
-        seat.side === "top" ||
-        seat.side === "bottom")
+        seat.side !== "right" ||
+        !place.clear ||
+        place.clear.right < railEdge() - 1)
     ) {
       withholdFab();
       return false;

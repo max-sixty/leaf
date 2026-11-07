@@ -210,9 +210,11 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
   the fork's first completion sends it no notification and wakes no idle session. The
   main thread finds it by name with ListAgents, and a SendMessage to that name resumes
   it; that resumed run's completion does notify the main thread and starts a turn.
-- A module can't message its own main thread (`$.session.send` to its own session id
-  fails as "no live session"), so Leaf's own channels carry what the main thread must
-  hear: the clerk's queued lines, delivered at the next tool boundary or prompt.
+- The fork can message the main thread itself: its SendMessage to `main` arrived as
+  an `<agent-message from="…">` and started a turn on the idle main session 60 ms
+  later (2026-11-07). The module's `$.session.send` to its own session id fails as
+  "no live session"; Leaf's prototype tells the main thread through the clerk's
+  queued lines instead, which wait for its next tool boundary or prompt.
 
 ### The design
 

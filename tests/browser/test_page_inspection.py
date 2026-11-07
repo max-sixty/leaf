@@ -16,6 +16,11 @@ from render_harness import (
     wait_for_revision,
 )
 
+# A sample's frame takes its child page's height (lf-sample.js), and the leaf's menu
+# opens inside that frame, so a child a few lines tall leaves the menu a sliver of a
+# view with About this page out of reach. The child takes the room the menu needs.
+MENU_ROOM = '<div style="height:24rem"></div>'
+
 
 def test_page_diagnostics_reads_and_copies_the_opening_view(browser, serve, subtests):
     source = leaf_page(
@@ -190,7 +195,7 @@ def test_diagnostics_arrival_inside_sample_stays_in_child_document(browser, serv
         '<h1 id="arrangement">Parent</h1>'
         '<lf-sample id="practice" label="Nested page"><template id="practice-source" data-sample>'
         '<h1>Child</h1><div id="arrangement" style="display:grid;grid-template-columns:1fr 1fr">'
-        "<p>First</p><p>Second</p></div></template></lf-sample>",
+        f"<p>First</p><p>Second</p></div>{MENU_ROOM}</template></lf-sample>",
     )
     page = open_page(browser, serve(source))
     sample = page.locator("#practice")
@@ -238,7 +243,8 @@ def test_sample_diagnostics_copy_failure_keeps_a_visible_manual_copy_route(
         "Copy host",
         "<h1>Parent</h1>"
         '<lf-sample id="practice" label="Nested page"><template id="practice-source" data-sample>'
-        "<h1>Child</h1><p>Clipboard access is restricted here.</p></template></lf-sample>",
+        "<h1>Child</h1><p>Clipboard access is restricted here.</p>"
+        f"{MENU_ROOM}</template></lf-sample>",
     )
     page = open_page(browser, serve(source))
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])

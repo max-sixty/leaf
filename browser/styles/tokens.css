@@ -254,10 +254,10 @@
      code, the common limit of formatters such as rustfmt, read unwrapped in the widest
      code gutter Leaf draws: a diff's, with old and new four-digit line numbers and its
      sign column. That row is 114 characters (the gutter's `2 × digits + 6`, then the
-     text) and 10px of borders and padding (packages/diff/styles/geometry.css, which
-     counts the same anatomy). It is derived from --code-size rather than stated, so a code size the
-     root sets carries it. A character is taken as 0.61em: the --mono stack's widest
-     common faces advance 0.602em (Menlo, DejaVu Sans Mono; SF Mono is 0.6em), and
+     text) and 10px of borders and padding (packages/diff: lf-diff.js sets the gutter,
+     widget-shadow.css its padding). It is derived from --code-size rather than stated,
+     so a code size the root sets carries it. A character is taken as 0.61em: the --mono
+     stack's widest common faces advance 0.602em (Menlo, DejaVu Sans Mono; SF Mono is 0.6em), and
      Firefox rounds that up far enough that at exactly 0.602em its diff scrolled the
      last column by a pixel. Registered (base.css) so it computes to a length where it is
      declared; unregistered, it would reach every reader as the formula. Sharing the

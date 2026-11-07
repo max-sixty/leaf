@@ -215,6 +215,10 @@ export function createStateApplication({
         // it cannot turn accepted truth into a refusal or strand proved receipts.
         if (installed) await installed.land();
         await notifyDataSubscribers();
+        // A widget's paint from its new data can claim other regions, as a diff that
+        // drops a commented line sends its thread to a margin card, and the place is
+        // kept only once those have drawn too.
+        await whenDocumentPresented();
         keepPlace?.();
         markStateApplied(state);
         accountPending(state.events);

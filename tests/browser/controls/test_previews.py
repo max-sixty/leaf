@@ -3414,6 +3414,92 @@ def test_a_covering_range_preview_stays_while_the_pointer_is_on_it_over_inert_wo
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_focus_preview_goes_under_a_sticky_header_and_returns_with_its_control(
+    engine, request, serve
+):
+    """Focus shows a control's preview in a box whose header sticks at its top. The box
+    scrolls the control under the header, and its preview goes, since the user can't
+    see what it is about; scrolled back, the control shows again with focus still on
+    it, and its preview comes back."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Sticky",
+                '<button id="before">Before</button><div id="box" tabindex="-1"'
+                ' style="height: 300px; overflow: auto; --lf-top: 0px"><div'
+                ' style="--lf-top: 60px"><header style="position: sticky; top: 0;'
+                ' height: 60px; background: #ddd; z-index: 2">Report</header>'
+                '<div style="height: 60px"></div><button id="read"'
+                ' aria-label="Read report">i</button><div style="height: 900px">'
+                "Details</div></div></div>",
+            )
+        ),
+    )
+    read = page.locator("#read")
+    read.evaluate(
+        "el => { el.lfPreview = () => ({name: 'Read report',"
+        " detail: ['Read these details before opening.']}); }"
+    )
+    tip = page.locator(PREVIEW)
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(read).to_be_focused()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Read report")
+    page.wait_for_timeout(300)
+    box = page.locator("#box")
+    box.evaluate("el => { el.scrollTop = 120; }")
+    expect(tip).to_be_hidden(timeout=3000)
+    box.evaluate("el => { el.scrollTop = 0; }")
+    expect(read).to_be_focused()
+    expect(tip).to_be_visible(timeout=3000)
+    expect(tip.locator(".lf-preview-word")).to_have_text("Read report")
+
+
+def test_escape_ends_a_held_reading_whose_control_scrolled_away(browser, serve):
+    """A finger holds a control in a scrolling box, and its preview shows. The box
+    scrolls the control out of view, and the preview goes with it. The finger lifts and
+    Escape ends the reading, so the control scrolled back into view shows none until the
+    user aims at it again. Chromium alone: Playwright holds no finger in Firefox."""
+    context = browser.new_context(has_touch=True)
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Held",
+                '<div id="box" style="height: 180px; overflow: auto"><div'
+                ' style="height: 80px"></div><button id="held"'
+                ' aria-label="Read report">?</button><div style="height: 1000px">'
+                "</div></div>",
+            )
+        ),
+        context=context,
+    )
+    held = page.locator("#held")
+    held.evaluate(
+        "el => { el.lfPreview = () => ({name: 'Read report',"
+        " detail: ['Details for the held control']}); }"
+    )
+    tip = page.locator(PREVIEW)
+    cdp = context.new_cdp_session(page)
+    at = held.bounding_box()
+    at = {"x": at["x"] + at["width"] / 2, "y": at["y"] + at["height"] / 2}
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [at]})
+    page.wait_for_timeout(600)
+    long_press(page, at)
+    expect(tip).to_have_attribute("data-lf-route", "hold")
+    expect(tip).to_be_visible()
+    box = page.locator("#box")
+    box.evaluate("el => { el.scrollTop = 160; }")
+    expect(tip).to_be_hidden(timeout=3000)
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    page.keyboard.press("Escape")
+    box.evaluate("el => { el.scrollTop = 0; }")
+    page.wait_for_timeout(600)
+    expect(tip).to_be_hidden()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_preview_leaves_a_field_beside_it_reachable(engine, request, serve):
     """A field is a control the user works, though it previews nothing, so a preview
     stands clear of one beside its target, and a press on the field focuses it."""

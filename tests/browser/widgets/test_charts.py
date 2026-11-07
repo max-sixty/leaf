@@ -1489,6 +1489,52 @@ def test_a_reading_goes_as_its_point_scrolls_out_of_the_box_the_chart_scrolls_in
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_focused_point_s_reading_returns_as_its_box_scrolls_it_back(
+    engine, request, serve
+):
+    """The keyboard reads a chart's high point in a scrolling box. The box scrolls the
+    point out over its top while the rest of the chart shows, and the reading goes with
+    it; scrolled back, the point shows with focus still on the chart, and its reading
+    and ring come back without another key."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "tall",
+                '<button id="before">Before</button><div id="box" tabindex="-1"'
+                f' style="height: 360px; overflow: auto">{TALL}'
+                '<p style="height: 900px">After.</p></div>'
+                '<p style="height: 1200px">After.</p>',
+            )
+        ),
+    )
+    chart = page.locator("#tall")
+    preview = page.locator(PREVIEW)
+    ring = chart.locator(".lf-chart-at circle")
+    expect(chart.locator("[data-lf-part=dot] > *")).to_have_count(2)
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(chart).to_be_focused()
+    page.keyboard.press("End")
+    expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
+    page.wait_for_timeout(300)
+    page.evaluate(
+        """() => {
+          const box = document.getElementById('box');
+          const dot = document.querySelectorAll('#tall [data-lf-part=dot] > *')[1];
+          box.scrollTop += dot.getBoundingClientRect().bottom
+            - box.getBoundingClientRect().top + 20;
+        }"""
+    )
+    expect(preview).to_be_hidden(timeout=3000)
+    page.locator("#box").evaluate("el => { el.scrollTop = 0; }")
+    expect(chart).to_be_focused()
+    expect(preview).to_be_visible(timeout=3000)
+    assert said(page) == ["Higher", *(f"line {n}" for n in range(2, 7))]
+    expect(ring).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_titled_link_beneath_a_reading_takes_the_pointer_from_it(
     engine, request, serve
 ):

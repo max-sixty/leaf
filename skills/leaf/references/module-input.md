@@ -320,7 +320,8 @@ come back the same leave the preview as it is. It returns:
   in view as it places the preview, as a margin entry's passage or a time's message;
   the box it stands by is always left in view, and the preview shows only while some
   of that box does, so a point scrolled out of view takes its preview with it, though
-  its element still shows. `excerpt: true` gives a preview that
+  its element still shows, and brings it back as it returns. `excerpt: true` gives a
+  preview that
   quotes a block of the page the face's wider room. A preview taller than the room beside its element shows the
   lines that fit and ends the last in an ellipsis; no preview scrolls, so what pressing
   the element opens says the rest. `list: {items, more}` is items under the lines, each
@@ -349,7 +350,9 @@ reads, as a chart's ring on the point it names, comes off when Leaf dispatches
 `CustomEvent` whose `detail.declared` is the object `lfPreview` returned for the
 reading that ended, as the preview goes for any reason: the pointer or focus leaving,
 the pointer leaving the window, the next touch after a finger's hold, Escape, or
-another target's preview taking its place. `lfPreview` returns a new object for each
+another target's preview taking its place. A preview hidden while the box it stands
+by is out of sight hasn't ended, so the mark stays. `lfPreview` returns a new object
+for each
 reading, since that object is how a widget tells the reading that ended from one it
 has returned since. A redraw with new words is no ending. A widget that has returned a
 newer reading since, as focus arriving reads the point a pointer's preview had, keeps

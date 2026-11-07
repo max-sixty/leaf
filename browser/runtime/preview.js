@@ -32,8 +32,9 @@
      on the element or a finger holding it reads it; a preview the user put away stays
      away, whatever the element declares, until they aim again. When its preview goes,
      whatever puts it away, the pointer or focus leaving, the press after a finger's
-     hold, Escape or another target's taking its place, the element hears
-     `lf-preview-ended` (`PREVIEW_ENDED`), a `CustomEvent` dispatched at it alone, whose
+     hold, Escape or another target's taking its place, though not while it is only
+     suspended out of sight, the element hears `lf-preview-ended` (`PREVIEW_ENDED`), a
+     `CustomEvent` dispatched at it alone, whose
      `detail.declared` is what its `lfPreview` returned for the reading that ended, the
      last it returned while that preview stood, a new object for each reading, so a mark it drew for that reading, as a
      chart's ring on its point, comes off then, and one it drew for a reading it has
@@ -91,15 +92,17 @@
    the element scrolls, and as the window resizes or a pinch or an on-screen keyboard
    changes what it shows; a hover writes nothing on the target, which observers of the
    page's boxes would hear. It stands only while some of the box it stands by shows
-   past every box clipping it, so a chart's point scrolled out of a box takes its
-   preview along though the chart still shows. Its side's room is the room it holds
-   clear, inside the part of the window the user sees, of every other control, tested
-   every 23 px across the box it would draw, and of what the preview is about (the box
-   it stands by and the declaration's `about`); a box around the target is a control
-   there only where it takes the pointer, as a card a press opens around a chart does
-   and a scrolling box doesn't. For a finger, whose hand hides what lies below the touch,
-   below holds none. Where it stands now comes first, its top corner on the edge it
-   stands by at the same offsets from the box it stands by, and it stays there while
+   past every box clipping it; otherwise its reading is suspended, the preview closed,
+   until that box shows again or the reading ends as a shown one would, so a chart's
+   point scrolled out of a box takes its preview along and brings it back. Its side's
+   room is the room it holds clear, inside the part of the window the user sees, of
+   every other control, tested every 23 px across the box it would draw, and of what
+   the preview is about (the box it stands by and the declaration's `about`); a box
+   around the target is a control there only where it takes the pointer, as a card a
+   press opens around a chart does and a scrolling box doesn't. For a finger, whose
+   hand hides what lies below the touch, below holds none. Where it stands now comes
+   first, its top corner on the edge it stands by at the same offsets from the box it
+   stands by, and it stays there while
    that room holds a whole line, held to it and its words fitted to it as to any room
    (`fit`), so words that grow never move it under the user's aim (browser/AGENTS.md,
    "The page holds still under the user's aim") nor cover anything. A new aim inside the
@@ -291,7 +294,7 @@ import { linkPreview } from "./place-preview.js";
  * @typedef {{name: Words | null, keys: Presses, detail: Words[], list: List | null, at: Element | import("./rect.js").Box | null, about: Element | null, excerpt: boolean, restates: boolean, declared: Preview | null}} Reading
  * @typedef {import("./rect.js").Box} Box
  * @typedef {Element | Range} Target
- * @typedef {{from: Target, target: Target, holder: Element, route: Route, read: Read | null, at: {x: number, y: number} | undefined, line?: number, within?: Box | null, reading: Reading, clock: number, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
+ * @typedef {{from: Target, target: Target, holder: Element, route: Route, read: Read | null, at: {x: number, y: number} | undefined, line?: number, within?: Box | null, away?: boolean, reading: Reading, clock: number, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
  * @typedef {{pointerId: number, node: Node | null, parent: Element | null, element: Element | null, range: Range | null, says: Read | null, at: {x: number, y: number}, armed: boolean, read: boolean, timer: ReturnType<typeof setTimeout> | undefined}} Hold */
 
 const DWELL = 200;
@@ -690,32 +693,35 @@ let leaving;
 let quiet = null;
 /** @type {Hold | null} */
 let hold = null;
-// A preview focus or a finger aimed at that no place could hold as it was aimed at, as
-// a target out of view, until it stands or the aim moves on. The platform says when its
-// element comes into view, whatever brings it there, a scroll in any tree or a layout
-// that moves it (`coming`), and the scheduler decides again then.
-/** @type {{from: Target, route: Route, read: Read | null, at: {x: number, y: number} | undefined} | null} */
-let waiting = null;
+// A reading whose subject the user can't see, as a point scrolled out of a box, a
+// control under a header stuck over its box, or a target out of view as it was aimed
+// at, is suspended: it stays the page's reading (`shown`), its preview closed (`away`),
+// until its subject shows again, or until whatever ends a reading that shows ends it,
+// which is then the first its element hears of it (`PREVIEW_ENDED`), so a chart keeps
+// its ring on a point scrolled away. It keeps its watch on the element it stands by
+// (`follow`), so a scroll of a box holding that element, a resize or a new
+// presentation decides it again (`decide`), and the platform says when its element
+// comes into view by a layout that moves it there (`coming`), as when it had no box.
 const coming = new IntersectionObserver((entries) => {
-  if (waiting && entries.some((entry) => entry.isIntersecting)) decide(false);
+  if (shown?.away && entries.some((entry) => entry.isIntersecting)) decide(false);
 });
 /** @type {Element | null} */
 let awaited = null;
-/** @param {typeof waiting} next */
-function wait(next) {
-  waiting = next;
-  const from = next?.from;
-  const el = !from
-    ? null
-    : isElement(from)
-      ? from
-      : isElement(from.commonAncestorContainer)
-        ? from.commonAncestorContainer
-        : from.commonAncestorContainer.parentElement;
+/** @param {Element | null} el */
+function awaitView(el) {
   if (el === awaited) return;
   if (awaited) coming.unobserve(awaited);
   awaited = el;
   if (el) coming.observe(el);
+}
+// Suspend `record`'s reading, and say it stands nowhere.
+/** @param {Shown} record */
+function away(record) {
+  record.away = true;
+  closeNativeLayer(tip);
+  anchored = null;
+  awaitView(record.holder);
+  return false;
 }
 // Whether the release just heard ended a hold that read, whose touch's end it cancels.
 let spent = false;
@@ -758,16 +764,16 @@ function readFrom(from, route, read) {
 // as empty space inside a chart, leaves it standing, as plain text does, and a preview
 // shown `again` for what it stands for goes once that says nothing. Shown `again`, it
 // draws what its target says now where it stands, with no fade, as a new `aim` inside
-// it where that is what changed. A hold that shows a reading has read, whichever way
+// it where that is what changed. A reading whose subject can't be seen is suspended
+// (`away`) and shows nothing yet. A hold that shows a reading has read, whichever way
 // the reading came, so its release presses nothing.
 /** @param {Target} from @param {Route} route @param {Read | null} [read] @param {{x: number, y: number}} [at] @param {boolean} [again] @param {boolean} [aim] */
 function show(from, route, read = null, at, again = false, aim = false) {
-  if (!again && shown?.from === from && shown.route === route) return true;
+  if (!again && shown?.from === from && shown.route === route) return !shown.away;
   const found = readFrom(from, route, read);
   const standing = again && shown?.from === from ? shown : null;
   if (!found) {
     if (standing) hide();
-    if (waiting?.from === from) wait(null);
     return false;
   }
   // Ending the standing record's watch can run its disconnect, which hides whatever
@@ -800,37 +806,24 @@ function show(from, route, read = null, at, again = false, aim = false) {
   keeps(tip, "data-lf-face", reading.excerpt ? "excerpt" : null);
   keeps(tip, "data-lf-list", reading.list ? "" : null);
   if (route === "hold" && !(target instanceof Range)) keeps(holder, "data-lf-held", "");
-  if (!stand(record, reading, Boolean(standing), aim)) {
-    unseen(record);
-    return false;
+  const stands = stand(record, reading, Boolean(standing), aim);
+  if (stands && route === "hold" && hold) hold.read = true;
+  if (standing) record.described = standing.described;
+  else {
+    // A screen reader hears a preview shown on focus as what focus is on describes,
+    // unless it says only what the control's own name and keys already do, or focus is
+    // on a proxy, whose own markup describes what it stands for.
+    const on = focused();
+    if (route === "focus" && on && !reading.restates && !on.matches(PROXY)) {
+      record.described = {
+        el: on,
+        attribute: on.getAttribute("aria-describedby"),
+        elements: on.ariaDescribedByElements,
+      };
+      on.ariaDescribedByElements = [...(on.ariaDescribedByElements ?? []), tip];
+    }
   }
-  wait(null);
-  if (route === "hold" && hold) hold.read = true;
-  if (standing) {
-    record.described = standing.described;
-    return true;
-  }
-  // A screen reader hears a preview shown on focus as what focus is on describes, unless
-  // it says only what the control's own name and keys already do, or focus is on a
-  // proxy, whose own markup describes what it stands for.
-  const on = focused();
-  if (route === "focus" && on && !reading.restates && !on.matches(PROXY)) {
-    record.described = {
-      el: on,
-      attribute: on.getAttribute("aria-describedby"),
-      elements: on.ariaDescribedByElements,
-    };
-    on.ariaDescribedByElements = [...(on.ariaDescribedByElements ?? []), tip];
-  }
-  return true;
-}
-// A preview no place holds, as one whose target is out of view, goes. What focus or a
-// finger reached waits until it comes into view, as a scroll that lands it decides
-// again (`decide`); a pointer reaches only what shows.
-/** @param {Shown} record */
-function unseen({ from, route, read, at }) {
-  hide();
-  wait(route === "pointer" ? null : { from, route, read, at });
+  return stands;
 }
 
 // Where a preview stands (`stand`), decided here, from the box the browser will draw,
@@ -1035,7 +1028,7 @@ let deciding = 0;
 let rereading = false;
 /** @param {boolean} reread */
 function decide(reread) {
-  if (!shown && !waiting) return;
+  if (!shown) return;
   rereading ||= reread;
   if (deciding) return;
   // The request stands until the decision has run, so what the decision itself sets
@@ -1044,8 +1037,8 @@ function decide(reread) {
     const read = rereading;
     if (shown) {
       if (read) refresh();
-      else if (!stand(shown, shown.reading, true)) unseen(shown);
-    } else if (waiting) show(waiting.from, waiting.route, waiting.read, waiting.at);
+      else stand(shown, shown.reading, true);
+    }
     deciding = 0;
     rereading = false;
   });
@@ -1063,13 +1056,15 @@ let placed = null;
 // Stand the preview by its anchor, and say whether it stands: the one decision of where
 // it stands, made again for the target it already stands for (`standing`), which tries
 // the place it stands at now first, or its side by the new box for a new `aim` inside
-// it, and afresh for a new target.
+// it, and afresh for a new target. Where it can stand nowhere, its reading is suspended
+// (`away`) until a decision finds it a place.
 /** @param {Shown} record @param {Reading} reading @param {boolean} standing @param {boolean} [aim] */
 function stand(record, reading, standing, aim = false) {
   const moved = seat();
   const anchor = anchorOf(record, reading);
-  if (!anchor) return false;
+  if (!anchor) return away(record);
   const { source, box } = anchor;
+  follow(source);
   const { target, holder, route } = record;
   const declared = reading.at;
   const point = Boolean(declared) && !isElement(declared);
@@ -1079,13 +1074,12 @@ function stand(record, reading, standing, aim = false) {
   // whose anchor element is clipped away (`position-visibility`, chrome.css), but a
   // chart's point scrolls out of a box while the chart still shows around it.
   const clips = target instanceof Range || point ? clippedContents : clippedRect;
-  if (!clips(box, source, new Map())) return false;
+  if (!clips(box, source, new Map())) return away(record);
   const gap =
     target instanceof Range ? GAP.line : route === "hold" ? GAP.hold : GAP.box;
   const rtl = getComputedStyle(holder).direction === "rtl";
   keeps(tip, "dir", rtl ? "rtl" : "ltr");
   open(source, standing, moved);
-  follow(source);
   // The part of the window the user sees, which a pinch or an on-screen keyboard makes
   // smaller than the layout viewport, and which nothing the chrome covers takes from,
   // since the preview stands over all of it; its width bounds the preview's.
@@ -1249,7 +1243,7 @@ function stand(record, reading, standing, aim = false) {
       const over = placeAt("top", start, box.top, room.bottom - box.top, leftOf(start));
       chosen = inside(over) && linesIn(Math.min(height, over.room)) >= 1 ? over : null;
     }
-    if (!chosen) return false;
+    if (!chosen) return away(record);
     held = Math.min(height, chosen.room);
     covering = true;
   }
@@ -1290,6 +1284,8 @@ function stand(record, reading, standing, aim = false) {
   );
   keeps(tip, "data-lf-covers", covering || point ? "" : null);
   fit(reading, held >= height ? Infinity : held);
+  record.away = false;
+  awaitView(null);
   return true;
 
   // How far a place may grow from its edge before it meets what it is about.
@@ -1427,6 +1423,7 @@ function hide() {
   if (record.route === "hold" && !(record.target instanceof Range))
     record.holder.removeAttribute("data-lf-held");
   follow(null);
+  awaitView(null);
   // Its words stay in the closed popover, so the next preview that says the same
   // writes nothing.
   closeNativeLayer(tip);
@@ -1492,7 +1489,7 @@ function point(target, read = null, at) {
 const inTip = () => holds(tip.getBoundingClientRect(), rest.x, rest.y);
 /** @param {Node | null} [node] the innermost node under the pointer */
 function onPreview(node = beneath) {
-  if (shown?.route !== "pointer") return false;
+  if (shown?.route !== "pointer" || shown.away) return false;
   if (under(node, tip)) return true;
   return (
     tip.hasAttribute("data-lf-covers") &&
@@ -1683,7 +1680,7 @@ function refresh() {
   render(face(found.reading), body);
   record.reading = found.reading;
   takeWithin(record);
-  if (!stand(record, found.reading, true)) unseen(record);
+  stand(record, found.reading, true);
 }
 let refreshing = false;
 
@@ -1720,9 +1717,14 @@ export function mountPreviews(chrome) {
     { capture: true },
   );
   // The platform hides a hint as another popover opens over it, or as a press lands
-  // elsewhere, and the record goes with it.
+  // elsewhere, and the record goes with it; a suspended reading's own close keeps it.
   tip.addEventListener("toggle", (event) => {
-    if (/** @type {ToggleEvent} */ (event).newState === "closed" && shown) hide();
+    if (
+      /** @type {ToggleEvent} */ (event).newState === "closed" &&
+      shown &&
+      !shown.away
+    )
+      hide();
   });
   document.addEventListener(
     "pointerover",
@@ -1784,17 +1786,18 @@ export function mountPreviews(chrome) {
   // surface placing them as it opens (focus.js, `openedThisInput`).
   onCurrentLocation((node, cause) => {
     quiet = null;
-    if (waiting && waiting.from !== node) wait(null);
     if (shown?.route === "focus" && shown.from !== node) hide();
     if (node && (cause === "step" || (cause === "move" && !openedThisInput(node))))
       showFocus(node);
   });
-  // Escape is the preview's own step while one stands, ahead of every other, which
-  // does nothing else; any other key puts a pointer's away and goes on to its work.
+  // Escape is the preview's own step while one shows, ahead of every other, which does
+  // nothing else; any other key puts a pointer's away and goes on to its work. A
+  // suspended reading shows nothing to put away, so Escape ends it and goes on to its
+  // work, as a scope that holds no preview gives it.
   pageScope("preview", {
     title: "A preview",
     escape: "inner",
-    at: () => shown !== null,
+    at: () => Boolean(shown && !shown.away),
     rows: [
       {
         id: "preview.dismiss",
@@ -1809,7 +1812,7 @@ export function mountPreviews(chrome) {
     "keydown",
     (event) => {
       if (event.key === "Escape") {
-        if (offlineInteractive) quieten();
+        if (offlineInteractive || shown?.away) quieten();
       } else if (shown?.route === "pointer" || !shown) quieten();
     },
     { capture: true },
@@ -1819,7 +1822,6 @@ export function mountPreviews(chrome) {
     (event) => {
       endHold();
       spent = false;
-      wait(null);
       if (shown?.route === "hold") hide();
       finger = event.pointerType === "touch";
       if (!finger) return quieten();
@@ -1898,7 +1900,6 @@ export function mountPreviews(chrome) {
       point(null);
       quieten();
       endHold();
-      wait(null);
     }
   });
   document.addEventListener(

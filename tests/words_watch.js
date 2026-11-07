@@ -205,8 +205,21 @@
       endHostEdit(field);
     }
     // leaf-text's native input precedes its host value update; its own input
-    // announces the updated host. Read that announcement before page handlers.
-    if (edit && (event.isTrusted || field.localName === "leaf-text")) {
+    // announces the updated host. Read that announcement before page handlers. Where
+    // the host announced an edit of its own first, as taking a selection away before a
+    // composition over it, the native input that follows reopens the edit.
+    if (
+      !edit &&
+      event.isTrusted &&
+      field.localName === "leaf-text" &&
+      holding.has(field)
+    )
+      edited.set(field, {
+        typedOrder: holding.get(field).typedOrder,
+        words: text(field),
+        ready: false,
+      });
+    else if (edit && (event.isTrusted || field.localName === "leaf-text")) {
       if (edit.key) editingKeys.add(edit.key);
       edit.words = text(field);
       edit.ready = field.localName !== "leaf-text" || !event.isTrusted;

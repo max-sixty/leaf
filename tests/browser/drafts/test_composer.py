@@ -99,9 +99,11 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
 def test_words_typed_over_formatted_words_replace_them_in_firefox(
     firefox_browser, serve
 ):
-    """Typing over a selection replaces it when the selection crosses formatting. In a
-    shadow root, Firefox inserted the words beside such a selection and left it in
-    place (field-editor.js, `beforeinput`)."""
+    """Typing over a selection replaces it when the selection crosses formatting, and
+    so do an input method's words. In a shadow root, Firefox inserted typed words beside
+    such a selection and left it in place, and dropped a composition begun over it
+    (field-editor.js, `beforeinput`). Playwright's `insert_text` reaches Firefox as a
+    composition."""
     page = open_page(firefox_browser, serve(LONG_PAGE), init_script=MARGIN_EDITOR_ROOTS)
     box = page_comment(page)
     page.keyboard.type("aa **bold** zz")
@@ -109,15 +111,16 @@ def test_words_typed_over_formatted_words_replace_them_in_firefox(
         "box => window.marginEditorRoots.get(box)?.querySelector('.cm-content strong')",
         arg=box.element_handle(),
     )
-    for select in (["ControlOrMeta+a"], ["End", *["Shift+ArrowLeft"] * 5]):
-        for key in select:
-            page.keyboard.press(key)
-        page.keyboard.type("Q")
-        expect(box).to_have_js_property(
-            "value", "Q" if len(select) == 1 else "aa **boldQ"
-        )
-        page.keyboard.press("ControlOrMeta+z")
-        expect(box).to_have_js_property("value", "aa **bold** zz")
+    for put in (page.keyboard.type, page.keyboard.insert_text):
+        for select in (["ControlOrMeta+a"], ["End", *["Shift+ArrowLeft"] * 5]):
+            for key in select:
+                page.keyboard.press(key)
+            put("Q")
+            expect(box).to_have_js_property(
+                "value", "Q" if len(select) == 1 else "aa **boldQ"
+            )
+            page.keyboard.press("ControlOrMeta+z")
+            expect(box).to_have_js_property("value", "aa **bold** zz")
 
 
 def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, serve):

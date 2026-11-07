@@ -4581,10 +4581,14 @@ export function createFloatingPanel({
   /** @param {import("./notifications.js").NoticePress} press
    * @returns {import("./composing/input.js").BoxPress} */
   function noticePress(press) {
-    const key = activeCommandLabel([press.command]);
     return {
       word: actionName(press.action),
-      keys: key ? [key] : [],
+      // Read at each ask, so a box standing this press rechecks its key without
+      // reading the field's words again (composing/input.js, `pressing`).
+      get keys() {
+        const key = activeCommandLabel([press.command]);
+        return key ? [key] : [];
+      },
       run: press.run,
     };
   }
@@ -4605,13 +4609,16 @@ export function createFloatingPanel({
     const held = innermostStance();
     const exit = held ? rows().find((entry) => entry.exit) : null;
     if (!held || !exit) return null;
-    const escape = escapeInvocation();
-    const ends =
-      escape !== null &&
-      (escape.row === held.exit || rowTitle(escape.row) === rowTitle(held.exit));
     return {
       word: actionName("close"),
-      keys: ends ? [spell("Escape")] : [],
+      // Read at each ask, as a notice's press's key is (`noticePress`).
+      get keys() {
+        const escape = escapeInvocation();
+        const ends =
+          escape !== null &&
+          (escape.row === held.exit || rowTitle(escape.row) === rowTitle(held.exit));
+        return ends ? [spell("Escape")] : [];
+      },
       run: () => exit.press?.(null),
     };
   }

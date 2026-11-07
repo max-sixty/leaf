@@ -583,12 +583,12 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const lineHint = focusedHere.value && !status ? lineKey : "";
       const entering = suffix && typeof offered === "string" ? offered : "";
       const pressText = press ? [press.word, ...pressKeys].join(" ") : "";
-      /** @param {string | BoxPress} reading */
+      /** @param {BoxPress} reading */
       const said = (reading) =>
-        typeof reading === "string"
-          ? ""
-          : [reading.word, ...(advertisesKeys() ? reading.keys : [])].join(" ");
-      if (press) pressing.set(field, () => said(untracked(enters)) !== pressText);
+        [reading.word, ...(advertisesKeys() ? reading.keys : [])].join(" ");
+      // The press as drawn, whose keys its owner reads at each ask, so the recheck
+      // costs that reading alone rather than the box's words.
+      if (press) pressing.set(field, () => said(press) !== pressText);
       else pressing.delete(field);
       const placeholder =
         (suffix || press) && !status

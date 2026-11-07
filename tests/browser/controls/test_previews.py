@@ -12,6 +12,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url, panel_comment
 from render_cases_navigation import _publish
 from render_harness import (
+    back_gesture,
     leaf_page,
     long_press,
     margins_laid_out,
@@ -3167,6 +3168,418 @@ def test_a_count_on_a_control_s_face_names_nothing(engine, request, serve):
     cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
     rendered(phone)
     assert phone.evaluate("window.lfPressed") == 0
+
+
+# Whatever fills the window around a small control, so its preview has no side clear of
+# it and stands over it, letting the pointer through: a field and a titled link, each a
+# target the user aims at though neither previews (widget-elements.js, `aimableAt`).
+BENEATH = {
+    "field": '<textarea id="under" aria-label="Draft" style="{}">A draft to edit.</textarea>',
+    "titled link": '<a id="under" href="#elsewhere" title="Where it goes" style="display:'
+    ' block; {}">A link titled with where it goes</a>',
+}
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("under", list(BENEATH))
+def test_a_preview_over_another_target_goes_as_the_pointer_reaches_it(
+    engine, under, request, serve
+):
+    """A preview that stands over another target lets the pointer through to it, and
+    the pointer reaching that target puts the preview away, as it would reaching the
+    target anywhere else, whether or not the target previews."""
+    fill = "position: fixed; left: 40px; top: 40px; width: calc(100vw - 80px);"
+    fill += " height: calc(100vh - 80px)"
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Beneath",
+                BENEATH[under].format(fill)
+                + '<button id="reset" aria-label="Reset draft" style="position: fixed;'
+                ' left: 650px; top: 400px; z-index: 2">↺</button>',
+            )
+        ),
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(2, 2)
+    page.locator("#reset").hover()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Reset draft")
+    expect(tip).to_have_attribute("data-lf-covers", "")
+    box = tip.bounding_box()
+    centre = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.move(*centre)
+    assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", centre) == (
+        "under"
+    )
+    expect(tip).to_be_hidden(timeout=3000)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_covering_preview_stays_while_the_pointer_is_on_it_over_inert_words(
+    engine, request, serve
+):
+    """A preview standing over what it covers lets the pointer through, and keeps
+    itself while the pointer is over it and over nothing there the user aims at, as a
+    pointer on a preview that takes it keeps that one (WCAG 1.4.13). The pointer moving
+    on to a target beneath it puts it away."""
+    fill = "position: fixed; left: 40px; top: 40px; width: calc(100vw - 80px);"
+    fill += " height: calc(100vh - 80px)"
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Beneath",
+                BENEATH["field"].format(fill)
+                + '<button id="reset" aria-label="Reset draft" style="position: fixed;'
+                ' left: 650px; top: 400px; z-index: 2">↺</button>',
+            )
+        ),
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(2, 2)
+    page.locator("#reset").hover()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Reset draft")
+    expect(tip).to_have_attribute("data-lf-covers", "")
+    box = tip.bounding_box()
+    words = (box["x"] + 8, box["y"] + box["height"] / 2)
+    page.evaluate(
+        """([x, y]) => {
+          const words = Object.assign(document.createElement('span'),
+            {id: 'plain', textContent: 'i'});
+          words.style.cssText = `position: fixed; left: ${x - 3}px; top: ${y - 6}px;`
+            + ' width: 8px; height: 12px; z-index: 3; font-size: 10px';
+          document.querySelector('main').append(words);
+        }""",
+        list(words),
+    )
+    page.mouse.move(*words)
+    assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", words) == (
+        "plain"
+    )
+    page.wait_for_timeout(400)
+    expect(tip).to_be_visible()
+    field = (box["x"] + box["width"] - 8, box["y"] + box["height"] / 2)
+    page.mouse.move(*field)
+    assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", field) == (
+        "under"
+    )
+    expect(tip).to_be_hidden(timeout=3000)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_covering_preview_holds_a_pointer_that_slides_onto_it_over_one_element(
+    engine, request, serve
+):
+    """The pointer leaves a control for inert words beside its covering preview, then
+    slides into the preview over the same words. No element boundary marks the entry,
+    and the preview stays, since the pointer is on it."""
+    fill = "position: fixed; left: 40px; top: 40px; width: calc(100vw - 80px);"
+    fill += " height: calc(100vh - 80px)"
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Beneath",
+                BENEATH["field"].format(fill)
+                + '<button id="reset" aria-label="Reset draft" style="position: fixed;'
+                ' left: 650px; top: 400px; z-index: 2">↺</button>',
+            )
+        ),
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(2, 2)
+    page.locator("#reset").hover()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Reset draft")
+    expect(tip).to_have_attribute("data-lf-covers", "")
+    box = tip.bounding_box()
+    y = box["y"] + box["height"] / 2
+    # The words reach past the preview's far side from the control, so they cover no
+    # part of the control.
+    if box["x"] >= page.locator("#reset").bounding_box()["x"]:
+        left, beside, inside = box["x"] + box["width"] - 30, 30, -10
+        edge = box["x"] + box["width"]
+    else:
+        left, beside, inside = box["x"] - 50, -30, 10
+        edge = box["x"]
+    page.evaluate(
+        """([x, y]) => {
+          const words = Object.assign(document.createElement('span'),
+            {id: 'plain', textContent: 'inert words'});
+          words.style.cssText = `position: fixed; left: ${x}px; top: ${y - 6}px;`
+            + ' width: 80px; height: 12px; z-index: 3; font-size: 10px';
+          document.querySelector('main').append(words);
+        }""",
+        [left, y],
+    )
+    beside, inside = (edge + beside, y), (edge + inside, y)
+    page.mouse.move(*beside)
+    page.mouse.move(*inside)
+    for at in (beside, inside):
+        assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", at) == (
+            "plain"
+        )
+    page.wait_for_timeout(500)
+    expect(tip).to_be_visible()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Reset draft")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("field", ["beside", "in its paragraph"])
+def test_a_covering_range_preview_stays_while_the_pointer_is_on_it_over_inert_words(
+    engine, field, request, serve
+):
+    """A passage of one line stands in a window a field fills, so its range's preview
+    has no side clear and stands over what it covers, letting the pointer through. The pointer
+    leaves the marked words for the preview over inert words: the range's owner says
+    the pointer is on no range, and the preview stays, since the pointer is on it. The
+    pointer moving on to a field beneath puts it away, the one filling the window or
+    one in the passage's own paragraph, which takes the pointer as any field does."""
+    fill = "position: fixed; left: 40px; top: 40px; width: calc(100vw - 80px);"
+    fill += " height: calc(100vh - 80px)"
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Beneath",
+                BENEATH["field"].format(fill)
+                + '<p id="passage" style="position: fixed; left: 300px; top: 300px;'
+                ' margin: 0; z-index: 2; white-space: nowrap; background: white">'
+                f"{PASSAGE}</p>",
+            )
+        ),
+    )
+    tip = page.locator(PREVIEW)
+    line = page.evaluate(MARK_LINE, MARKED)
+    on = (line["x"] + 4, line["y"] + line["height"] / 2)
+    page.mouse.move(*on)
+    shown = page.evaluate(
+        """async ([words, x, y]) => {
+          const {pointRange} = await window.__lfCheckApi();
+          const text = document.getElementById('passage').firstChild;
+          const at = text.data.indexOf(words);
+          window.lfRange = document.createRange();
+          lfRange.setStart(text, at);
+          lfRange.setEnd(text, at + words.length);
+          window.lfPointRange = pointRange;
+          const tip = document.getElementById('lf-preview');
+          const started = performance.now();
+          while (!tip.matches(':popover-open') && performance.now() - started < 2000) {
+            pointRange(lfRange.cloneRange(), () => ({name: 'Its thread'}), {x, y});
+            await new Promise((done) => setTimeout(done, 20));
+          }
+          return tip.matches(':popover-open');
+        }""",
+        [MARKED, *on],
+    )
+    assert shown
+    expect(tip).to_have_attribute("data-lf-covers", "")
+    box = tip.bounding_box()
+    words = (box["x"] + 8, box["y"] + box["height"] / 2)
+    page.evaluate(
+        """([x, y]) => {
+          const words = Object.assign(document.createElement('span'),
+            {id: 'plain', textContent: 'i'});
+          words.style.cssText = `position: fixed; left: ${x - 3}px; top: ${y - 6}px;`
+            + ' width: 8px; height: 12px; z-index: 3; font-size: 10px';
+          document.querySelector('main').append(words);
+        }""",
+        list(words),
+    )
+    page.mouse.move(*words)
+    assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", words) == (
+        "plain"
+    )
+    page.evaluate("() => window.lfPointRange(null)")
+    page.wait_for_timeout(400)
+    expect(tip).to_be_visible()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Its thread")
+    # The passage doesn't wrap, so on a narrow window its preview runs past the field's
+    # right edge; the aim stays over both.
+    under = page.locator("#under").bounding_box()
+    right = min(box["x"] + box["width"], under["x"] + under["width"])
+    at = (right - 8, box["y"] + box["height"] / 2)
+    if field == "in its paragraph":
+        page.evaluate(
+            """([x, y]) => {
+              const inner = Object.assign(document.createElement('input'),
+                {id: 'inner', ariaLabel: 'Its note'});
+              inner.style.cssText = `position: fixed; left: ${x - 6}px;`
+                + ` top: ${y - 8}px; width: 12px; height: 16px; padding: 0`;
+              document.getElementById('passage').append(inner);
+            }""",
+            list(at),
+        )
+    page.mouse.move(*at)
+    assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", at) == (
+        "under" if field == "beside" else "inner"
+    )
+    page.evaluate("() => window.lfPointRange(null)")
+    expect(tip).to_be_hidden(timeout=3000)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_focus_preview_goes_under_a_sticky_header_and_returns_with_its_control(
+    engine, request, serve
+):
+    """Focus shows a control's preview in a box whose header sticks at its top. The box
+    scrolls the control under the header, and its preview goes, since the user can't
+    see what it is about; scrolled back, the control shows again with focus still on
+    it, and its preview comes back."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Sticky",
+                '<button id="before">Before</button><div id="box" tabindex="-1"'
+                ' style="height: 300px; overflow: auto; --lf-top: 0px"><div'
+                ' style="--lf-top: 60px"><header style="position: sticky; top: 0;'
+                ' height: 60px; background: #ddd; z-index: 2">Report</header>'
+                '<div style="height: 60px"></div><button id="read"'
+                ' aria-label="Read report">i</button><div style="height: 900px">'
+                "Details</div></div></div>",
+            )
+        ),
+    )
+    read = page.locator("#read")
+    read.evaluate(
+        "el => { el.lfPreview = () => ({name: 'Read report',"
+        " detail: ['Read these details before opening.']}); }"
+    )
+    tip = page.locator(PREVIEW)
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(read).to_be_focused()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Read report")
+    page.wait_for_timeout(300)
+    box = page.locator("#box")
+    box.evaluate("el => { el.scrollTop = 120; }")
+    expect(tip).to_be_hidden(timeout=3000)
+    box.evaluate("el => { el.scrollTop = 0; }")
+    expect(read).to_be_focused()
+    expect(tip).to_be_visible(timeout=3000)
+    expect(tip.locator(".lf-preview-word")).to_have_text("Read report")
+
+
+@pytest.mark.parametrize("after", ["nothing", "Escape", "back"])
+def test_a_held_reading_ends_as_its_control_scrolls_away(browser, serve, after):
+    """A finger holds a control in a scrolling box, and its preview shows. The box
+    scrolls the control out of view, and the reading ends there, its element hearing
+    so, since the hold that aimed at it is over once it has gone. The finger lifts, and
+    whatever comes next, nothing, Escape or a back gesture taking the step Escape would,
+    here the focused control's own, the control scrolled back into view shows no
+    preview until the user aims at it again. Chromium alone: Playwright holds no finger
+    in Firefox."""
+    context = browser.new_context(has_touch=True)
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Held",
+                '<button id="step">Step</button><div id="box" style="height: 180px;'
+                ' overflow: auto"><div style="height: 80px"></div><button id="held"'
+                ' aria-label="Read report">?</button><div style="height: 1000px">'
+                "</div></div>",
+            )
+        ),
+        context=context,
+    )
+    held = page.locator("#held")
+    held.evaluate(
+        """el => {
+          el.lfPreview = () => ({name: 'Read report',
+            detail: ['Details for the held control']});
+          el.ended = 0;
+          el.addEventListener('lf-preview-ended', () => (el.ended += 1));
+        }"""
+    )
+    step = page.locator("#step")
+    if after == "back":
+        # A step of Escape's that stays live while focus is on the control, so the page
+        # holds a close watcher for the gesture to reach.
+        page.evaluate(
+            """async () => {
+              const { commandsChanged } = await window.__lfWidgetApi();
+              const step = document.getElementById('step');
+              step.lfCommands = { title: 'The step', rows: [{id: 'test.step',
+                keys: ['Escape'], title: 'Take the step',
+                when: () => !step.dataset.fired, run: () => (step.dataset.fired = '')}] };
+              commandsChanged(step);
+              step.focus();
+            }"""
+        )
+    tip = page.locator(PREVIEW)
+    cdp = context.new_cdp_session(page)
+    at = held.bounding_box()
+    at = {"x": at["x"] + at["width"] / 2, "y": at["y"] + at["height"] / 2}
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [at]})
+    page.wait_for_timeout(600)
+    long_press(page, at)
+    expect(tip).to_have_attribute("data-lf-route", "hold")
+    expect(tip).to_be_visible()
+    box = page.locator("#box")
+    box.evaluate("el => { el.scrollTop = 160; }")
+    expect(tip).to_be_hidden(timeout=3000)
+    assert held.evaluate("el => el.ended") == 1
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    if after == "Escape":
+        page.keyboard.press("Escape")
+    elif after == "back":
+        back_gesture(page)
+        expect(step).to_have_attribute("data-fired", "")
+    box.evaluate("el => { el.scrollTop = 0; }")
+    page.wait_for_timeout(600)
+    expect(tip).to_be_hidden()
+
+
+def test_a_held_reading_stays_as_a_redraw_gives_focus_back(browser, serve):
+    """A field has focus, and a finger holds the reference beside it, whose value shows.
+    A redraw replaces the field and gives focus back to its replacement (`holdFocus`),
+    which is no aim of the user's, so the held reading stays. Chromium alone: Playwright
+    holds no finger in Firefox."""
+    context = browser.new_context(has_touch=True)
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Reference",
+                '<p id="form"><input id="note" aria-label="Note"><button id="ref"'
+                ' aria-label="Read value">?</button></p>',
+            )
+        ),
+        context=context,
+    )
+    ref = page.locator("#ref")
+    ref.evaluate(
+        "el => { el.lfPreview = () => ({name: 'Value to enter', detail: ['42.7']}); }"
+    )
+    page.locator("#note").focus()
+    tip = page.locator(PREVIEW)
+    cdp = context.new_cdp_session(page)
+    at = ref.bounding_box()
+    at = {"x": at["x"] + at["width"] / 2, "y": at["y"] + at["height"] / 2}
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [at]})
+    page.wait_for_timeout(600)
+    long_press(page, at)
+    expect(tip).to_have_attribute("data-lf-route", "hold")
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    expect(tip.locator(".lf-preview-word")).to_have_text("Value to enter")
+    page.evaluate(
+        """async () => {
+          const { holdFocus } = await window.__lfWidgetApi();
+          const field = document.getElementById('note');
+          const restore = holdFocus(document.getElementById('form'));
+          const replacement = field.cloneNode(true);
+          replacement.placeholder = 'Its new value';
+          field.replaceWith(replacement);
+          await new Promise((done) => requestAnimationFrame(done));
+          restore(replacement);
+        }"""
+    )
+    expect(page.locator("#note")).to_be_focused()
+    page.wait_for_timeout(400)
+    expect(tip).to_be_visible()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Value to enter")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

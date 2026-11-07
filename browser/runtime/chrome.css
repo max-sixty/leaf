@@ -1206,8 +1206,9 @@ html[data-lf-region-capture]
      longer than its room shows the lines that fit (`fit`, preview.js), the last ending in
      an ellipsis, or a list's count at the foot. A pointer's preview takes the pointer,
      so the pointer can cross onto it and read it there (WCAG 1.4.13, "Hoverable"),
-     unless it covers another target (`data-lf-covers`); a focus's or a finger's takes
-     none. It fades in for a pointer or a finger, as a word that rose into place would
+     unless it covers another target or stands for a point inside its element, which
+     the pointer goes on reading beneath it (`data-lf-covers`); a focus's or a finger's
+     takes none. It fades in for a pointer or a finger, as a word that rose into place would
      move under nobody's input; under the keyboard's focus it is there at once. A preview
      that quotes a block of the page, such as the place a link opens, takes the excerpt
      room: the same face, wider. */

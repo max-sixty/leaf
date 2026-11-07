@@ -1810,6 +1810,32 @@ def gallery_metrics(page: Page) -> None:
     page.locator("#bg-metrics-and-chart").scroll_into_view_if_needed()
 
 
+def chart_preview(page: Page) -> None:
+    """The gallery's line chart under a resting pointer by its second run: the ring on
+    the baseline's point, its rule to the axis, and the preview above them saying the
+    run, the series and the value (lf-chart.js). A runtime whose charts say no values
+    shows the chart alone."""
+    gallery_metrics(page)
+    chart = page.locator("#bg-chart")
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+    run = chart.locator('[data-lf-part="x-axis tick label"] text').get_by_text(
+        "2", exact=True
+    )
+    value = chart.locator('[data-lf-part="y-axis tick label"] text').get_by_text(
+        "6", exact=True
+    )
+    x, y = run.bounding_box(), value.bounding_box()
+    assert x is not None and y is not None
+    at = (x["x"] + x["width"] / 2, y["y"] + y["height"] / 2)
+    page.mouse.move(at[0] - 8, at[1])
+    page.mouse.move(*at)
+    page.wait_for_function(
+        """() => !document.querySelector('#bg-chart .lf-chart-at')
+          || document.getElementById('lf-preview').matches(':popover-open')"""
+    )
+    settle(page)
+
+
 def gallery_plans(page: Page) -> None:
     """Planned work beside observed history, using authored stable section identity."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
@@ -2933,6 +2959,7 @@ STATES = (
     State("side-tab-focus", "alert-review", tab_by_keyboard),
     State("frame-edges", "feature-gallery", frame_edges),
     State("gallery-metrics", "feature-gallery", gallery_metrics),
+    State("chart-preview", "feature-gallery", chart_preview, region="#bg-chart"),
     State("gallery-plans", "feature-gallery", gallery_plans),
     State(
         "gallery-drawing",

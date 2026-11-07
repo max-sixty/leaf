@@ -57,6 +57,7 @@ const browserGlobals = Object.fromEntries(
     "CustomEvent",
     "DOMException",
     "DOMParser",
+    "DOMPoint",
     "DOMRect",
     "Document",
     "Element",

@@ -853,6 +853,23 @@ def sending(page, what):
     round_trip(page)
 
 
+def back_gesture(page):
+    """Make the close request Android's back gesture makes. An Escape keydown nothing
+    cancels is the same request, so the page's listeners are kept from hearing it. The
+    page makes its watcher in the repaint frame after what it closes opens, which a
+    finger can't beat but a driver can, so the gesture waits out two frames first."""
+    page.evaluate(
+        """() => new Promise((resolve) => requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            addEventListener('keydown', (event) => {
+              if (event.key === 'Escape') event.stopImmediatePropagation();
+            }, {capture: true, once: true});
+            resolve();
+          })))"""
+    )
+    page.keyboard.press("Escape")
+
+
 # The same arrangement for a test that holds the wire open with `page.route`, and the one
 # place the ledger is the wrong fact to state it over. The runtime counts a send as it
 # makes it, while the driver is handed the request over its own connection a beat later,

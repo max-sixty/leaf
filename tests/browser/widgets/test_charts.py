@@ -1409,6 +1409,86 @@ def test_a_card_s_words_beneath_a_reading_reach_the_card(engine, request, serve)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_reading_keeps_clear_of_the_card_its_chart_stands_in(engine, request, serve):
+    """A chart stands in a card the user presses, with the card's words above it. The
+    high point's reading would stand above the point, over those words, where the
+    pointer would take the card; it stands below the point inside the chart instead,
+    since the card is a control the reading must leave reachable, though the chart
+    stands inside it."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "tall",
+                '<h1 id="t">Tasks</h1><div id="card" role="button" tabindex="0">'
+                '<p id="words" style="height: 200px">The task\'s words, around its'
+                f" chart.</p>{TALL}</div>"
+                '<p style="height: 1200px">After.</p>',
+            )
+        ),
+    )
+    chart = page.locator("#tall")
+    preview = page.locator(PREVIEW)
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+    box = dots.nth(1).bounding_box()
+    high = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.move(high[0] - 4, high[1])
+    page.mouse.move(*high)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
+    page.wait_for_timeout(200)
+    tip = preview.bounding_box()
+    drawing = chart.bounding_box()
+    assert tip["y"] >= box["y"] + box["height"], (tip, box, drawing)
+    assert tip["y"] + tip["height"] <= drawing["y"] + drawing["height"], (tip, drawing)
+    assert said(page) == ["Higher", *(f"line {n}" for n in range(2, 7))]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_reading_goes_as_its_point_scrolls_out_of_the_box_the_chart_scrolls_in(
+    engine, request, serve
+):
+    """A chart stands in a scrolling box. The box scrolls the high point out over its
+    top while the rest of the chart still shows, the pointer left over empty drawing,
+    and the point's reading goes with the point rather than standing over whatever lies
+    above the box."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "tall",
+                '<h1 id="t">Tasks</h1><div id="box" style="height: 360px;'
+                f' overflow: auto">{TALL}<p style="height: 900px">After.</p></div>'
+                '<p style="height: 1200px">After.</p>',
+            )
+        ),
+    )
+    chart = page.locator("#tall")
+    preview = page.locator(PREVIEW)
+    dots = chart.locator("[data-lf-part=dot] > *")
+    expect(dots).to_have_count(2)
+    page.locator("#box").evaluate("el => el.scrollIntoView({block: 'center'})")
+    box = dots.nth(1).bounding_box()
+    high = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.move(high[0] - 4, high[1])
+    page.mouse.move(*high)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
+    shown = page.evaluate(
+        """() => {
+          const box = document.getElementById('box');
+          const dot = document.querySelectorAll('#tall [data-lf-part=dot] > *')[1];
+          box.scrollTop += dot.getBoundingClientRect().bottom
+            - box.getBoundingClientRect().top + 20;
+          const chart = document.getElementById('tall').getBoundingClientRect();
+          return chart.bottom - box.getBoundingClientRect().top;
+        }"""
+    )
+    assert shown > 100, shown
+    expect(preview).to_be_hidden(timeout=3000)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_titled_link_beneath_a_reading_takes_the_pointer_from_it(
     engine, request, serve
 ):

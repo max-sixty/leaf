@@ -90,10 +90,14 @@
    module decides again as its words or the box they stand by change, as a box holding
    the element scrolls, and as the window resizes or a pinch or an on-screen keyboard
    changes what it shows; a hover writes nothing on the target, which observers of the
-   page's boxes would hear. Its side's room is the room it holds clear, inside the part
-   of the window the user sees, of every other control, tested every 23 px across the
-   box it would draw, and of what the preview is about (the box it stands by and the
-   declaration's `about`); for a finger, whose hand hides what lies below the touch,
+   page's boxes would hear. It stands only while some of the box it stands by shows
+   past every box clipping it, so a chart's point scrolled out of a box takes its
+   preview along though the chart still shows. Its side's room is the room it holds
+   clear, inside the part of the window the user sees, of every other control, tested
+   every 23 px across the box it would draw, and of what the preview is about (the box
+   it stands by and the declaration's `about`); a box around the target is a control
+   there only where it takes the pointer, as a card a press opens around a chart does
+   and a scrolling box doesn't. For a finger, whose hand hides what lies below the touch,
    below holds none. Where it stands now comes first, its top corner on the edge it
    stands by at the same offsets from the box it stands by, and it stays there while
    that room holds a whole line, held to it and its words fitted to it as to any room
@@ -117,9 +121,11 @@
    reading the element beneath it: what it covers there, as the chart's next point, is
    that element's own, which no side's room is tested against, since only other
    controls and what the preview is about are. A pointer over the box of a preview that
-   lets it through, and over nothing there the user aims at, previewing or not, still
-   keeps the preview, as one on a preview that takes it does (`onPreview`), so a pointer
-   crossing from a point to its words keeps them past the element's edge. Each length is compared at the precision layout keeps,
+   lets it through, off what the preview is about and over nothing there the user aims
+   at, previewing or not, still keeps the preview, as one on a preview that takes it
+   does (`onPreview`), so a pointer crossing from a point to its words keeps them past
+   the chart's edge, and one reaching a field, in the passage's own paragraph or
+   elsewhere, takes the field. Each length is compared at the precision layout keeps,
    so a room and the line it is asked to hold, read off two boxes at one edge, are one
    length. A target thinner than the grid's step can stand under it unseen, and some of
    Leaf's own are thinner, as the trace timeline's marks are, which declare their lane
@@ -264,7 +270,13 @@ import { watchOwner } from "./arrivals.js";
 import { actionClass } from "./control-faces.js";
 import { aimableAt } from "./widget-elements.js";
 import { WORKS } from "./control-selectors.js";
-import { shownParts, shownWindow, visualViewport } from "./geometry.js";
+import {
+  clippedContents,
+  clippedRect,
+  shownParts,
+  shownWindow,
+  visualViewport,
+} from "./geometry.js";
 import { linkPreview } from "./place-preview.js";
 
 /** @typedef {string | Node | import("/vendor/lit.js").TemplateResult} Word
@@ -789,10 +801,7 @@ function show(from, route, read = null, at, again = false, aim = false) {
   keeps(tip, "data-lf-list", reading.list ? "" : null);
   if (route === "hold" && !(target instanceof Range)) keeps(holder, "data-lf-held", "");
   if (!stand(record, reading, Boolean(standing), aim)) {
-    hide();
-    // What focus or a finger reached out of view waits until it comes into view, as a
-    // scroll that lands it decides again (`decide`); a pointer reaches only what shows.
-    wait(route === "pointer" ? null : { from, route, read, at });
+    unseen(record);
     return false;
   }
   wait(null);
@@ -814,6 +823,14 @@ function show(from, route, read = null, at, again = false, aim = false) {
     on.ariaDescribedByElements = [...(on.ariaDescribedByElements ?? []), tip];
   }
   return true;
+}
+// A preview no place holds, as one whose target is out of view, goes. What focus or a
+// finger reached waits until it comes into view, as a scroll that lands it decides
+// again (`decide`); a pointer reaches only what shows.
+/** @param {Shown} record */
+function unseen({ from, route, read, at }) {
+  hide();
+  wait(route === "pointer" ? null : { from, route, read, at });
 }
 
 // Where a preview stands (`stand`), decided here, from the box the browser will draw,
@@ -1027,7 +1044,7 @@ function decide(reread) {
     const read = rereading;
     if (shown) {
       if (read) refresh();
-      else if (!stand(shown, shown.reading, true)) hide();
+      else if (!stand(shown, shown.reading, true)) unseen(shown);
     } else if (waiting) show(waiting.from, waiting.route, waiting.read, waiting.at);
     deciding = 0;
     rereading = false;
@@ -1056,6 +1073,13 @@ function stand(record, reading, standing, aim = false) {
   const { target, holder, route } = record;
   const declared = reading.at;
   const point = Boolean(declared) && !isElement(declared);
+  // What it stands for shows, or it stands nowhere: its own box, a range's line or a
+  // declared point, less every box that clips it, the window's included, and, for a box
+  // inside the element it stands by, that element's too. The platform hides a preview
+  // whose anchor element is clipped away (`position-visibility`, chrome.css), but a
+  // chart's point scrolls out of a box while the chart still shows around it.
+  const clips = target instanceof Range || point ? clippedContents : clippedRect;
+  if (!clips(box, source, new Map())) return false;
   const gap =
     target instanceof Range ? GAP.line : route === "hold" ? GAP.hold : GAP.box;
   const rtl = getComputedStyle(holder).direction === "rtl";
@@ -1304,6 +1328,14 @@ function stand(record, reading, standing, aim = false) {
 function clearRoom(at, reach, holder) {
   const own = holder.getBoundingClientRect();
   const around = new Set(climb(holder));
+  /** @type {Set<Element>} */
+  const taking = new Set();
+  for (let up = renderedParent(holder); up; up = renderedParent(up)) {
+    const takes = aimableAt(up);
+    if (!takes) break;
+    taking.add(takes);
+    up = takes;
+  }
   const down = at.y !== "above";
   const across = steps(at.box.left, at.box.right);
   const count = Math.max(1, Math.ceil((reach - 2) / REACH));
@@ -1313,7 +1345,7 @@ function clearRoom(at, reach, holder) {
     let edge = Infinity;
     for (const x of across) {
       if (holds(own, x, y)) continue;
-      const found = targetAt(x, y, holder, around);
+      const found = targetAt(x, y, holder, around, taking);
       if (!found) continue;
       const hit = found.getBoundingClientRect();
       edge = Math.min(edge, down ? hit.top - at.from : at.from - hit.bottom);
@@ -1338,7 +1370,7 @@ function steps(from, to) {
 // overflows or a tab panel, which `WORKS` leaves to its own gestures; anything that
 // scrolls; anything embedding a document, whose controls no hit test out here finds;
 // and whatever previews, which a pointer reads. It is wider than what takes the
-// pointer (`aimedAt`), since a press must still reach a region the pointer only reads.
+// pointer (`aimableAt`), since a press must still reach a region the pointer only reads.
 const EMBEDS = "iframe, embed, object";
 /** @param {Element} el */
 function keepsAccess(el) {
@@ -1361,27 +1393,22 @@ function hitAt(x, y) {
     hit = inner;
   return hit;
 }
-// The control other than `holder` that must stay reachable at a point of the page beneath
-// the preview, the nearest around what the point finds below what holds `holder`
-// (`around`), since what holds it stands under the preview wherever it stands.
-/** @param {number} x @param {number} y @param {Element} holder @param {Set<Element>} around */
-function targetAt(x, y, holder, around) {
+// The control other than `holder` and what it holds that must stay reachable at a point
+// of the page beneath the preview, the nearest around what the point finds. A box
+// around `holder` (`around`) stands under the preview wherever it stands, so it is no
+// control to keep clear of where it takes nothing (widget-elements.js, `aimableAt`),
+// as a scrolling box, a stop Leaf lends code or a tab panel doesn't, and is one where
+// it takes the pointer (`taking`), as a card a press opens around a chart does.
+/** @param {number} x @param {number} y @param {Element} holder @param {Set<Element>} around @param {Set<Element>} taking */
+function targetAt(x, y, holder, around, taking) {
   const hit = hitAt(x, y);
   for (const at of hit ? climb(hit) : []) {
-    if (around.has(at)) return null;
-    if (keepsAccess(at)) return renderedUnder(at, holder) ? null : at;
+    if (at === holder) return null;
+    if (taking.has(at)) return at;
+    if (!around.has(at) && keepsAccess(at))
+      return renderedUnder(at, holder) ? null : at;
   }
   return null;
-}
-// What takes the pointer at a point of the page beneath the preview, other than
-// `holder` and what it holds: the one answer to what takes it (widget-elements.js,
-// `aimableAt`). A box that takes nothing, as a scrolling or focusable one, is nothing
-// there, and one that takes the pointer is there even where `holder` stands inside it,
-// as a card a press opens around a chart.
-/** @param {number} x @param {number} y @param {Element} holder */
-function aimedAt(x, y, holder) {
-  const at = aimableAt(hitAt(x, y));
-  return at && !renderedUnder(at, holder) ? at : null;
 }
 
 function hide() {
@@ -1453,23 +1480,36 @@ function point(target, read = null, at) {
 // preview and a range's alike, whoever asks, `pointerover`, a move or a range's owner
 // saying the pointer left its range (`pointRange`): the node under the pointer is in the
 // preview, or the preview lets the pointer through (`data-lf-covers`) and the pointer is
-// over its box, off the element it previews, and over nothing there that takes the
-// pointer (`aimedAt`). What takes it is whatever the
-// user aims at, whether or not it previews, as a field or a titled link doesn't, and a
-// card a press opens around a chart; a scrolling or focusable box that takes nothing
-// doesn't. On it, the pointer rides the preview, its target's still, until it leaves
-// the box (WCAG 1.4.13, "Hoverable"): a pointer crossing from a chart's point or a
-// passage's words to their preview, past the element's edge or over unmarked words,
-// keeps it, and one that reaches a field beneath it takes the field.
+// over its box, off what it is about (`onSubject`), and over nothing there that takes
+// the pointer (widget-elements.js, `aimableAt`). What takes it is whatever the user
+// aims at, whether or not it previews, inside the element the preview stands by or
+// around it: a field, a titled link, a chart, whose drawing says what the pointer
+// reads there, and a card a press opens around one; a scrolling or focusable box that
+// takes nothing doesn't. On it, the pointer rides the preview, its target's still,
+// until it leaves the box (WCAG 1.4.13, "Hoverable"): a pointer crossing from a chart's
+// point or a passage's words to their preview, past the chart's edge or over unmarked
+// words, keeps it, and one that reaches a field beneath it takes the field.
 const inTip = () => holds(tip.getBoundingClientRect(), rest.x, rest.y);
 /** @param {Node | null} [node] the innermost node under the pointer */
 function onPreview(node = beneath) {
   if (shown?.route !== "pointer") return false;
   if (under(node, tip)) return true;
-  const { holder, target } = shown;
-  if (!tip.hasAttribute("data-lf-covers") || !inTip()) return false;
-  if (isElement(target) && under(node, holder)) return false;
-  return !aimedAt(rest.x, rest.y, holder);
+  return (
+    tip.hasAttribute("data-lf-covers") &&
+    inTip() &&
+    !onSubject(shown) &&
+    !aimableAt(hitAt(rest.x, rest.y))
+  );
+}
+// Whether the pointer is on what a preview is about, by its own boxes rather than the
+// element holding it: a range's lines, a declared point's box, or the element's.
+/** @param {Shown} record */
+function onSubject(record) {
+  const boxes =
+    record.target instanceof Range
+      ? [...record.target.getClientRects()]
+      : [anchorOf(record, record.reading)?.box];
+  return boxes.some((box) => box && holds(box, rest.x, rest.y));
 }
 function ride() {
   clearTimeout(leaving);
@@ -1643,7 +1683,7 @@ function refresh() {
   render(face(found.reading), body);
   record.reading = found.reading;
   takeWithin(record);
-  if (!stand(record, found.reading, true)) hide();
+  if (!stand(record, found.reading, true)) unseen(record);
 }
 let refreshing = false;
 

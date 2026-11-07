@@ -3324,14 +3324,16 @@ def test_a_covering_preview_holds_a_pointer_that_slides_onto_it_over_one_element
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("field", ["beside", "in its paragraph"])
 def test_a_covering_range_preview_stays_while_the_pointer_is_on_it_over_inert_words(
-    engine, request, serve
+    engine, field, request, serve
 ):
     """A passage of one line stands in a window a field fills, so its range's preview
     has no side clear and stands over what it covers, letting the pointer through. The pointer
     leaves the marked words for the preview over inert words: the range's owner says
     the pointer is on no range, and the preview stays, since the pointer is on it. The
-    pointer moving on to the field beneath puts it away."""
+    pointer moving on to a field beneath puts it away, the one filling the window or
+    one in the passage's own paragraph, which takes the pointer as any field does."""
     fill = "position: fixed; left: 40px; top: 40px; width: calc(100vw - 80px);"
     fill += " height: calc(100vh - 80px)"
     page = open_page(
@@ -3391,11 +3393,23 @@ def test_a_covering_range_preview_stays_while_the_pointer_is_on_it_over_inert_wo
     page.wait_for_timeout(400)
     expect(tip).to_be_visible()
     expect(tip.locator(".lf-preview-word")).to_have_text("Its thread")
-    field = (box["x"] + box["width"] - 8, box["y"] + box["height"] / 2)
-    page.mouse.move(*field)
-    assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", field) == (
-        "under"
+    at = (box["x"] + box["width"] - 8, box["y"] + box["height"] / 2)
+    if field == "in its paragraph":
+        page.evaluate(
+            """([x, y]) => {
+              const inner = Object.assign(document.createElement('input'),
+                {id: 'inner', ariaLabel: 'Its note'});
+              inner.style.cssText = `position: fixed; left: ${x - 6}px;`
+                + ` top: ${y - 8}px; width: 12px; height: 16px; padding: 0`;
+              document.getElementById('passage').append(inner);
+            }""",
+            list(at),
+        )
+    page.mouse.move(*at)
+    assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", at) == (
+        "under" if field == "beside" else "inner"
     )
+    page.evaluate("() => window.lfPointRange(null)")
     expect(tip).to_be_hidden(timeout=3000)
 
 

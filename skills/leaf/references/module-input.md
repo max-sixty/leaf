@@ -318,7 +318,9 @@ come back the same leave the preview as it is. It returns:
   preview stands above and takes no pointer, so the pointer goes on reading the element
   beneath it. `about` is the element the preview is about, which Leaf leaves
   in view as it places the preview, as a margin entry's passage or a time's message;
-  the box it stands by is always left in view. `excerpt: true` gives a preview that
+  the box it stands by is always left in view, and the preview shows only while some
+  of that box does, so a point scrolled out of view takes its preview with it, though
+  its element still shows. `excerpt: true` gives a preview that
   quotes a block of the page the face's wider room. A preview taller than the room beside its element shows the
   lines that fit and ends the last in an ellipsis; no preview scrolls, so what pressing
   the element opens says the rest. `list: {items, more}` is items under the lines, each

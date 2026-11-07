@@ -364,6 +364,10 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).to_contain_text("Check the return visit too.")
     expect(preview).not_to_contain_text(COMMENT_ON_OBLIGATION["text"])
+    # A click on › lands in the reply (thread/focus.js, `openingPart`); Escape stands
+    # the user on the thread, from which leaving takes the card down.
+    expect(preview.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
+    page.keyboard.press("Escape")
     leave_card(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")

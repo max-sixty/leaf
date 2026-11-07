@@ -231,8 +231,6 @@
      labels without making a second prose column. The rule beside the sidebar track spends
      it; native flex wrapping decides when both columns fit (layouts.css). */
   --sidebar: 264px;
-  /* The contents map's unfolded label width, including its gutter (default package). */
-  --sidebar-max: 344px;
   /* The document Layouts' prose measure and outer gutter. */
   --col: 720px;
   --col-pad: 24px;

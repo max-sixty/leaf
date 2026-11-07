@@ -56,14 +56,14 @@ export {
 import { pageRange, selectionBackward } from "./native-selection.js";
 import { move } from "./dom-move.js";
 
-import { PRESSES, WORKS } from "./control-selectors.js";
-import { tagsDeclaring } from "./registry.js";
+import { CONTROLS, PRESSES, WORKS } from "./control-selectors.js";
+import { registry, tagsDeclaring } from "./registry.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { actionTemplate } from "./icons.js";
 import { renderedParent } from "./shadow.js";
-import { isNativeLayer, renderedUnder } from "./shadow-tree.js";
+import { isElement, isNativeLayer, renderedUnder } from "./shadow-tree.js";
 
 import { keeps } from "./keeps.js";
 import { html, render, signal } from "/runtime/framework.js";
@@ -216,6 +216,44 @@ export function worksInside(node, container) {
   );
   return inner && inner !== container && container.contains(inner) ? inner : null;
 }
+
+/** What else the user could aim at, at `node`, at any point on the page, marked words
+ * or not: the nearest element around it, as the page renders it (`renderedParent`, so
+ * through the slot that draws it), that takes the pointer itself, or null where nothing
+ * does. One takes it where it is
+ * - a control, native or ARIA (`CONTROLS`), or an element with a title the browser
+ *   shows, as a link, a titled button or an option's mark;
+ * - an element that declares its own preview (`lfPreview`), as a card that says what
+ *   it holds, or a gloss;
+ * - a registered widget that draws its content itself (`x-content` `data` or `empty`),
+ *   as code, a diff or a draft does, with all it draws.
+ * A plain tab stop or scrolling box takes nothing, and neither does what a widget
+ * holds of the author's markup, as a pane's words, an option's beside its mark, a
+ * suggestion's old and new words or a playground's preview: the verbs a widget
+ * declares (`x-state`) say what it records, not that a press on its content acts. A
+ * thread's words preview the thread only where nothing does, on every route that
+ * reads a point (preview.js, `readingAt`); presses don't ask, so a press on a thread's
+ * words acts as it always has.
+ * @param {Node | null} node @returns {Element | null} */
+export function aimableAt(node) {
+  for (
+    let at = isElement(node) ? node : renderedParent(node);
+    at;
+    at = renderedParent(at)
+  )
+    if (
+      at.matches(CONTROLS) ||
+      (at.localName !== "iframe" && Boolean(at.getAttribute("title"))) ||
+      typeof at.lfPreview === "function" ||
+      drawsItsContent(registry[at.localName])
+    )
+      return at;
+  return null;
+}
+// Whether a registered widget draws its content itself, by its entry.
+/** @param {import("../types/contract.js").WidgetDeclaration | undefined} entry */
+const drawsItsContent = (entry) =>
+  entry?.["x-content"] === "data" || entry?.["x-content"] === "empty";
 
 // The chrome a widget injects: a control, or the box that holds controls. Three
 // markers, one per question asked of it — `lf-ui` for apparatus identity, which

@@ -605,6 +605,52 @@ def control_preview(page: Page) -> None:
     settle(page)
 
 
+# Longer than a preview's dwell (preview.js, `DWELL`), so a runtime that previews what
+# the pointer rests on has shown it, and one that doesn't shows the page as it stands.
+PREVIEW_DWELL_MS = 400
+
+
+def thread_preview(page: Page) -> None:
+    """The open thread's passage mark under a resting pointer, which previews who wrote
+    its last message and when, that message's opening line and where the thread stands
+    (thread/messages.js, `threadPreview`)."""
+    line = page.evaluate(
+        """(words) => {
+          const walker = document.createTreeWalker(document.querySelector('main'),
+            NodeFilter.SHOW_TEXT);
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const at = node.data.indexOf(words);
+            if (at < 0) continue;
+            node.parentElement.scrollIntoView({block: 'center', behavior: 'instant'});
+            const range = document.createRange();
+            range.setStart(node, at);
+            range.setEnd(node, at + words.length);
+            return range.getClientRects()[0].toJSON();
+          }
+        }""",
+        "The trusted supervisor owns shutdown.",
+    )
+    page.mouse.move(line["left"] - 20, line["top"] - 20)
+    page.mouse.move(line["left"] + 10, line["top"] + line["height"] / 2, steps=3)
+    page.wait_for_timeout(PREVIEW_DWELL_MS)
+    settle(page)
+
+
+def age_preview(page: Page) -> None:
+    """The first margin card's first age under a resting pointer, which previews the clock
+    time behind it in the reader's zone (presence.js, `agePreview`)."""
+    card_by_pointer(page)
+    age = page.locator(".lf-margin-preview .lf-msg-head time").first
+    box = age.bounding_box()
+    assert box, "the card shows no age"
+    # The card may open with the age under the pointer, which reads nothing until the
+    # pointer moves.
+    page.mouse.move(box["x"] - 30, box["y"] + box["height"] + 30)
+    age.hover()
+    page.wait_for_timeout(PREVIEW_DWELL_MS)
+    settle(page)
+
+
 def link_preview(page: Page) -> None:
     """The gallery's link to its session table under a resting pointer, whose preview
     shows the table's caption, its first rows and the thread about it
@@ -2930,6 +2976,8 @@ STATES = (
     State("page-map-turn", "ship-review", page_map, region=".lf-page-map-dialog"),
     State("plan-card", "review-a-plan", card_by_pointer),
     State("control-preview", "review-a-plan", control_preview),
+    State("thread-preview", "review-a-plan", thread_preview),
+    State("age-preview", "review-a-plan", age_preview),
     State("link-preview", "feature-gallery", link_preview),
     State("reaction-palette", "ship-review", reaction_palette),
     State("reaction-pressed", "ship-review", reaction_pressed),

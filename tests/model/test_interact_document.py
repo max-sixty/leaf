@@ -777,6 +777,14 @@ def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries(
         ),
         registry,
     ).verbatim[("page", None, 0)]
+    # A label and the words after it, which the page shows apart outside a text block,
+    # read apart here as in the page's reading.
+    labelled = passages_model.page_passages(
+        structure_model.SourceDocument(
+            '<lf-shell id="shell"><div><b>Status</b>Ready</div></lf-shell>'
+        ),
+        registry,
+    )
 
     assert (
         plain
@@ -789,6 +797,8 @@ def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries(
     )
     assert separated[0] == {"text": "set up"}
     assert non_js_whitespace == [{"text": "\u0085edge\u0085"}]
+    assert labelled.text == "Status Ready"
+    assert labelled.verbatim[("page", None, 0)] == [{"text": "Status Ready"}]
 
 
 def test_an_anchor_resolves_by_context_the_browser_keeps():

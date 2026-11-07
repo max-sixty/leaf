@@ -80,6 +80,41 @@ export const ago = (ts) => age(ts, false);
 /** @param {string | null | undefined} ts */
 export const shortAgo = (ts) => age(ts, true);
 
+// The clock time behind an age, in the reader's own zone: "Sat 15 Aug 2026, 14:02 PT".
+// An age says how long ago, and a reader checking a message against a commit, a
+// meeting or a log line needs when. The day before its month and a 24-hour clock read
+// one way to every reader, and the zone is the one the reader's browser keeps, named
+// as briefly as the platform names it. The instant is the server's, as written, so no
+// skew applies.
+/** @param {string | null | undefined} ts */
+export function clockTime(ts) {
+  const at = new Date(ts ?? NaN);
+  if (Number.isNaN(at.getTime())) return "";
+  const part = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+      timeZoneName: "shortGeneric",
+    })
+      .formatToParts(at)
+      .map(({ type, value }) => [type, value]),
+  );
+  return `${part.weekday} ${part.day} ${part.month} ${part.year}, ${part.hour}:${part.minute} ${part.timeZoneName}`;
+}
+// What an age previews (preview.js): the clock time of the instant its `<time>` holds,
+// so every age the page draws declares one function and holds its instant once, in
+// `datetime`, where the platform keeps it.
+/** @this {Element} @returns {import("./preview.js").Preview | null} */
+export function agePreview() {
+  const at = clockTime(this.getAttribute("datetime"));
+  return at ? { name: at } : null;
+}
+
 // How long working may go unheard before it reads as quiet. The server's activity fold
 // owns the number and serves it beside `now`; until a state has arrived nothing is
 // quiet, since there is no served clock to measure the silence against either.

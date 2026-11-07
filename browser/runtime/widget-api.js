@@ -137,7 +137,7 @@ export { notice } from "./notifications.js";
 export { raiseError } from "./errors.js";
 export { alignText, MAX_EDIT_LENGTH } from "./text-alignment.js";
 export { says, wrote } from "./passages.js";
-export { ago, clockValue, quietSince, shortAgo } from "./presence.js";
+export { ago, agePreview, clockValue, quietSince, shortAgo } from "./presence.js";
 export { revisionLabel } from "./context.js";
 export { boundFile } from "./file-api.js";
 export { RequestError } from "./layer-client.js";

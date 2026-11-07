@@ -853,6 +853,36 @@ and Firefox. To recheck, intercept a traversal with `scroll: "manual"`, scroll i
 handler, and read the offset after `popstate`; once Firefox keeps the handler's offset
 and neither engine reveals or scrolls to the target, that step can go.
 
+### Highlight hit testing
+
+`CSS.highlights.highlightsFromPoint(x, y, {shadowRoots})` (CSS Custom Highlight API)
+names the highlights under a point and the ranges of each there, and Playwright's
+Chromium headless shell 156.0.8078.4, Firefox 157 and WebKit 27.2 all ship it. On
+2026-11-05 it answered correctly at a range's edges and inside a shadow tree passed in
+`shadowRoots`, which it needs in every engine. Two things keep a thread's passage
+marks from using it to say which mark the pointer is on
+(`browser/runtime/annotation-overlay/anchor-paint.js`, `markHit`):
+
+- Its cost grows with the ranges the page's highlights hold, every one of them read
+  on each call. At the last of a paragraph's marks, one call took 20 µs at 32 and
+  320 µs at 512 in Chromium, and 15 µs and 100 µs in Firefox. Read again on
+  2026-11-06 over a mark in the middle of a page of 32 and of 512 paragraphs, one
+  thread each, it took 15 µs and 235 µs in Chromium 156.0.8078.4 and 15 µs and 80 µs
+  in Firefox 157, against 1 µs and 5 µs for `caretPositionFromPoint` at both sizes.
+  A hover's work must not grow with the page (root `AGENTS.md`, "Responsiveness").
+- Firefox and WebKit name a highlight under a box covering its words, as the chrome
+  over the page is; Chromium names none there.
+
+So `markHit` takes the caret lookup's text node and offset, reads the one or two
+characters' boxes around the offset, and finds the marks covering that character in
+an index of the marks' live ranges, the ones the highlight paints. After a change to
+the page's words, anchor placement places again only the threads whose quotes the
+page's index of quotes says changed (passages.js, `quotesChanged`), and the index reads
+again only those threads' ranges. Recheck by timing
+`highlightsFromPoint` over a mark on pages of 32 and 512 marks, and at a point under a
+covering box; once its cost holds still and every engine names nothing under a cover,
+`markHit` can ask it instead of keeping its own index.
+
 ### A popover's implicit anchor after a hide and show in one task in Firefox
 
 Firefox bug. On 2026-11-05, Playwright Firefox 157 (build 1555, macOS), in a fresh

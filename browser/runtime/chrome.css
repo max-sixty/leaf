@@ -1295,6 +1295,12 @@ html[data-lf-region-capture]
     margin-block-start: 2px;
     color: color-mix(in srgb, var(--tip-ink) 76%, transparent);
   }
+  /* A thread's line in the user's turn takes the turn's green ("Visual treatment
+     carries meaning"; thread/messages.js, `threadPreview`), drawn halfway to the
+     tooltip's ink, which reads at 4.8:1 or more on the inked ground in either scheme. */
+  .lf-preview-detail [data-lf-turn="user"] {
+    color: color-mix(in srgb, var(--ok) 50%, var(--tip-ink));
+  }
   /* The last line a preview held to its room keeps says there is more, by a line
      clamp's own ellipsis, which never wraps a line nor makes one: in the block the room
      ends in, and in a block before the room's end, clamped to the lines it has, where a

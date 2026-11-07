@@ -51,7 +51,7 @@
     "x-awaits": { "paint": "data-lf-awaits", "presence": true, "message": true }
   },
   "$passages": {
-    "description": "How Python (`leaf/passages.py`, `leaf/anchor_capture.py`) and the browser (`runtime/kernel-facts.js`) turn a page into text, so `leaf thread create` can confirm any quote the browser captures. Both read the serving Leaf's copy. Every anchor and passage the log keeps was read by `collapse` and `blocks`, so a change to either bumps `$events.protocol`; `context` sets only how much a new anchor captures.",
+    "description": "How Python (`leaf/passages.py`, `leaf/anchor_capture.py`) and the browser (`runtime/kernel-facts.js`) turn a page into text, so `leaf thread create` can confirm any quote the browser captures. Both read the serving Leaf's copy. Every anchor and passage the log keeps was read by `collapse`, `blocks` and `phrasing`, so a change to any of them bumps `$events.protocol` (`layer-registry.md`, \"Page protocol\"); `context` sets only how much a new anchor captures.",
     "collapse": "\t\n\u000b\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff",
     "why-collapse-is-spelled-out": "`collapse` lists the characters both readings fold to one space. JavaScript's \\s and Python's str.isspace() disagree on a few: U+FEFF is whitespace only to JavaScript, U+0085 only to Python. The browser captures every quote, so the list is JavaScript's set.",
     "blocks": [
@@ -72,7 +72,7 @@
       "figcaption",
       "summary"
     ],
-    "why-blocks": "A text node's block decides spacing: runs of text in different blocks are joined with one space and runs in one block with none, so `<p>a</p><p>b</p>` reads \"a b\" and `set<em>up</em>` reads \"setup\". The browser also treats a block as the unit of prose a reader is in, and a version diff compares blocks.",
+    "why-blocks": "The browser treats a text block as the unit of prose a reader is in, and a version diff compares blocks. None is phrasing, so a text block's words stand apart from the words beside it (`why-phrasing`): `<p>a</p><p>b</p>` reads \"a b\".",
     "phrasing": [
       "a",
       "abbr",
@@ -131,7 +131,7 @@
       "video",
       "wbr"
     ],
-    "why-phrasing": "HTML's phrasing content, the elements a line of words runs through, less the autonomous custom elements, which stand in a line only where their widget declares `x-inline`. A leading `<strong>` that authored words follow before a `<br>` or an element outside this set runs into its line and makes no part of the page (`thread/placement.js`, `partOver`); a suggestion's slot holding an element outside it is a block (`base.css`, held to this list by `build/registry.test.mjs`). The browser alone reads it, and it decides no text the log keeps, so a change to it bumps nothing.",
+    "why-phrasing": "HTML's phrasing content, the elements a line of words runs through, less the autonomous custom elements, which stand in a line only where their widget declares `x-inline`. A leading `<strong>` that authored words follow before a `<br>` or an element outside this set runs into its line and makes no part of the page (`thread/placement.js`, `partOver`); a suggestion's slot holding an element outside it is a block (`base.css`, held to this list by `build/registry.test.mjs`). Both readings read it (`enter` in passages.js, `passages.py`): an element outside it, a text block or a widget among them, starts words of its own, parted from those around it by a space, while two runs of words that meet where an element in it starts or ends meet at an edge, a place a word may end, so `<span>one</span><span>two</span>` reads as one word or as two. So it decides the words a capture writes to the log and whether a logged quote still resolves: a change to it bumps `$events.protocol`, as the `description` above says.",
     "context": 24,
     "why-context": "How many characters of context a captured anchor keeps on each side of its quote. A quote read from the file must be unique. The browser knows which occurrence the user selected, and widens the context until the shared resolver finds that one."
   },

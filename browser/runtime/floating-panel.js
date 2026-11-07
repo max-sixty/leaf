@@ -254,6 +254,7 @@ import {
   threadHeading,
   threadName,
   threadPassage,
+  threadPreview,
   titlePending,
 } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
@@ -279,7 +280,7 @@ import { onUserCount, queueItemKey, readPlan, readQueues } from "./queue-api.js"
 import { queueTitle } from "./queue-title.js";
 import { groupingLabel, ON_ME_GROUPINGS, queueStop } from "./queue-walk.js";
 import { carriesObligation, emptyOnList, itemNoun, itemOutcome } from "./queues.js";
-import { ago, shortAgo } from "./presence.js";
+import { agePreview, ago, shortAgo } from "./presence.js";
 import { userChoice } from "./storage.js";
 import { obligationEnding } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
@@ -325,7 +326,7 @@ import {
   REPLY_HINT,
 } from "./words.js";
 import { coarsePointer } from "./pointer.js";
-import { holdRendering, nextRender, sizeObserver } from "./rendering.js";
+import { afterScript, holdRendering, nextRender, sizeObserver } from "./rendering.js";
 import { boxMotion } from "./box-motion.js";
 import { landedBox, scrollIntoView } from "./landing-scroll.js";
 import { gesturedOn, newsCount, newsNotice } from "./thread/held-news.js";
@@ -363,6 +364,8 @@ const GROUPS = Object.freeze([
 ]);
 // Rows held elsewhere, so the menu and its groups leave them out: by the menu's foot.
 const FOLD = "panel.floating.fold";
+// A thread's row in Threads, which names the thread by its key.
+const THREAD_ROW = ".lf-fp-thread[data-lf-key]";
 const HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
 // A row the menu or a group lists: neither held elsewhere nor a stance's way out, at the
 // row's end.
@@ -398,6 +401,20 @@ function navigationWords() {
 /** @param {number} at */
 const clock = (at) =>
   new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+// An age the panel shows, which previews the clock time behind it as every age does
+// (presence.js, `agePreview`): short, in a room of its own (`.lf-fp-age`) at a line's
+// end, or in Leaf's voice inside a sentence Leaf says (`spoken`), as a sentence words
+// it where it says when (`long`: "3h ago").
+/** @param {string} ts @param {{face?: string | null, spoken?: boolean, long?: boolean}} [options] */
+const panelAge = (ts, { face = "lf-fp-age", spoken = false, long = false } = {}) => {
+  const age = html`<time
+    class=${spoken ? nothing : (face ?? nothing)}
+    datetime=${ts}
+    .lfPreview=${agePreview}
+    >${long ? ago(ts) : shortAgo(ts)}</time
+  >`;
+  return spoken ? html`<span data-lf-voice="leaf">${age}</span>` : age;
+};
 
 /** @typedef {(typeof GROUPS)[number]} MenuGroup */
 /** @typedef {({view: "thread", thread: string} | {view: "group", group: MenuGroup} |
@@ -1334,11 +1351,8 @@ export function createFloatingPanel({
     const word = thread.resolved
       ? RESOLVED
       : threadAttention(thread, agentName())?.word;
-    const since = thread.resolved ? shortAgo(thread.resolved.ts) : "";
     const draft = draftHasContent(replyContext(thread.key)) && "Draft";
-    return html`${word ? voiced(word) : nothing}${
-      since ? html` <span class="lf-fp-age">${since}</span>` : nothing
-    }${word && draft ? " · " : ""}${draft || nothing}`;
+    return html`${word ? voiced(word) : nothing}${thread.resolved?.ts ? html` ${panelAge(thread.resolved.ts)}` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
   };
   const rows = () => pageControls();
 
@@ -1855,7 +1869,10 @@ export function createFloatingPanel({
       const route = trail.value.at(-1);
       if (!press || !route?.thread) return;
       const view = openView();
-      if (holdThread(view?.getBoundingClientRect().height ?? null)) paint();
+      // Drawn once the script that made the press ends, still before the frame: a
+      // press that leaves the thread, as Back does, takes the hold with the view, so
+      // the hold never writes a height the leaving view would lose in the same script.
+      if (holdThread(view?.getBoundingClientRect().height ?? null)) afterScript(paint);
       if (press.closest(".lf-fp-news-outlet") && view)
         landing = {
           key: threadByKey(route.thread)?.key ?? route.thread,
@@ -1872,21 +1889,49 @@ export function createFloatingPanel({
   // A press that changes the view brings other controls under a pointer that hasn't
   // moved: the ‹ back to the menu, at the head of a shorter list, stands where the
   // menu's Undo comes. No control in the panel means anything by a second click, so a
-  // click that goes on a run of clicks begun on another control presses nothing and
-  // takes no focus, and a double-click on ‹ goes back once. Clicks repeated on one
-  // control, as Next match, each press it.
-  /** @type {WeakRef<Element> | null} */
-  let clicked = null;
+  // click that goes on a run of clicks presses nothing and takes no focus where it lands
+  // on another control than the run's last press did and the panel has drawn since that
+  // press began: a double-click on ‹ goes back once. Clicks repeated on one control, as
+  // Next match, each press it. So does a tap on Close just after a finger's hold read
+  // Search beside it, which Chromium counts into the same run: the hold drew nothing in
+  // the panel, so nothing it did put Close there. The run is the browser's, which counts
+  // every press into it, a hold whose release its preview took included (preview.js), so
+  // the panel hears each press as it begins rather than the clicks it receives.
+  /** @param {Event} event */
+  const pressed = (event) =>
+    event.target instanceof Element ? event.target.closest("button") : null;
+  // The control a press lands on and how many times the panel had drawn as it began
+  // (`draws`): this press's, and the last one's it pressed. A press refused leaves the
+  // run judged by the press before it, so a triple click's third presses nothing either.
+  /** @typedef {{control: WeakRef<Element> | null, draws: number, refused: boolean}} RunPress */
+  // How many times the panel has drawn (`paintPanel`).
+  let draws = 0;
+  /** @type {RunPress | null} */
+  let pressNow = null;
+  /** @type {RunPress | null} */
+  let pressBefore = null;
+  host.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (pressNow && !pressNow.refused) pressBefore = pressNow;
+      const control = pressed(event);
+      pressNow = { control: control && new WeakRef(control), draws, refused: false };
+    },
+    { capture: true },
+  );
   /** @param {MouseEvent} event */
   const runOfClicks = (event) => {
-    const control =
-      event.target instanceof Element ? event.target.closest("button") : null;
-    if (event.detail > 1 && control && control !== clicked?.deref()) {
+    const control = pressed(event);
+    if (
+      event.detail > 1 &&
+      control &&
+      control !== pressBefore?.control?.deref() &&
+      pressNow?.draws !== pressBefore?.draws
+    ) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      return;
+      if (pressNow) pressNow.refused = true;
     }
-    if (event.type === "click") clicked = control && new WeakRef(control);
   };
   host.addEventListener("mousedown", runOfClicks, { capture: true });
   host.addEventListener("click", runOfClicks, { capture: true });
@@ -2143,7 +2188,8 @@ export function createFloatingPanel({
       (pressLed()
         ? view
         : (at ?? rows[0] ?? view?.querySelector("button, input") ?? view));
-    if (target) focusDestination(target, "move");
+    // The row of the thread the user was in takes them back where they came from.
+    if (target) focusDestination(target, target === stoodRow ? "return" : "move");
     if (at) scrollIntoView(at, { block: "nearest", within: view });
   }
 
@@ -2786,17 +2832,23 @@ export function createFloatingPanel({
     const resolved = rows
       .filter(({ section }) => section === "resolved")
       .map(({ thread }) => thread);
+    // A row previews its thread as the thread's margin entry and mark do
+    // (`threadPreview`), leaving out to the keyboard the word its status already says.
     /** @param {ReturnType<typeof readThreads>["threads"][number]} thread */
-    const row = (thread) =>
-      html`<button
+    const row = (thread) => {
+      const attention = threadAttention(thread, agentName());
+      return html`<button
         type="button"
         ${offeredAction("row", "lf-fp-thread")}
         data-lf-key=${thread.key}
         ?data-lf-unread=${isNews(thread)}
         ?data-lf-resolved=${thread.resolved}
-        data-lf-turn=${
-          threadAttention(thread, agentName())?.kind === "needs_user" ? "user" : nothing
-        }
+        data-lf-turn=${attention?.kind === "needs_user" ? "user" : nothing}
+        .lfPreview=${(/** @type {import("./preview.js").Route} */ route) =>
+          threadPreview(
+            [thread],
+            route === "focus" && attention ? wordsText(attention.word) : null,
+          )}
         @click=${() => open({ view: "thread", thread: thread.key })}
       >
         <span class="lf-row-lead"
@@ -2807,6 +2859,7 @@ export function createFloatingPanel({
         <span class="lf-fp-label lf-row-main">${threadHeading(thread)}</span>
         <span class="lf-row-end">${threadStatus(thread)}</span>
       </button>`;
+    };
     // Every thread stands in a group, as every item does in On's lists (`groupedItems`).
     // The open ones keep their group's box as a search narrows them to its matches, so
     // the rows stay under the box they stood in.
@@ -3286,7 +3339,7 @@ export function createFloatingPanel({
               On me
             </button>`
           : step.state === "working" && step.since
-            ? html`<span class="lf-fp-plan-time">${shortAgo(step.since)}</span>`
+            ? panelAge(step.since, { face: "lf-fp-plan-time" })
             : nothing
       }${
         step.running
@@ -3531,10 +3584,9 @@ export function createFloatingPanel({
     if ("state" in item && !record)
       answers = card
         ? html`<span class="lf-fp-said"
-            >${voiced([
-              itemOutcome(item),
-              ...(item.ended ? [` ${shortAgo(item.ended)}`] : []),
-            ])}</span
+            >${voiced(itemOutcome(item))}${
+              item.ended ? html` ${panelAge(item.ended, { face: null })}` : nothing
+            }</span
           >`
         : nothing;
     // What the agent is doing about it: the line its last step wrote, as the status
@@ -3703,19 +3755,11 @@ export function createFloatingPanel({
     if (list === "agent") {
       const work = workOn(item);
       end = html`<span class="lf-fp-value"
-        >${voiced(work.word ?? "")}${
-          work.since
-            ? html` <span class="lf-fp-age">${shortAgo(work.since)}</span>`
-            : nothing
-        }</span
+        >${voiced(work.word ?? "")}${work.since ? html` ${panelAge(work.since)}` : nothing}</span
       >`;
     } else if ("state" in item && !record)
       end = html`<span class="lf-fp-value"
-        >${voiced(itemOutcome(item))}${
-          item.ended
-            ? html` <span class="lf-fp-age">${shortAgo(item.ended)}</span>`
-            : nothing
-        }</span
+        >${voiced(itemOutcome(item))}${item.ended ? html` ${panelAge(item.ended)}` : nothing}</span
       >`;
     else if (answered && !opened)
       end = html`<span class="lf-fp-value">${voiced(obligationEnding(record))}</span>`;
@@ -3975,33 +4019,24 @@ export function createFloatingPanel({
       .map((each) => each.since)
       .filter(Boolean)
       .toSorted()[0];
-    const longest = since ? shortAgo(since) : "";
-    const held = inHand.length
-      ? `Working on ${inHand.length}${
-          longest && longest !== "now" ? `, the longest for ${longest}` : ""
-        }`
-      : "";
+    const longest = since && shortAgo(since) !== "now" ? since : null;
     const waiting = queued.length ? `${queued.length} up next` : "";
-    const first =
-      held && waiting
-        ? `${held}; ${waiting}.`
-        : held
-          ? `${held}.`
-          : waiting
-            ? `${capitalized(waiting)}.`
-            : "Nothing to do right now.";
+    const first = inHand.length
+      ? html`${voiced(
+          leafSays(`Working on ${inHand.length}${longest ? ", the longest for " : ""}`),
+        )}${longest ? panelAge(longest, { spoken: true }) : nothing}${voiced(
+          leafSays(waiting ? `; ${waiting}.` : "."),
+        )}`
+      : voiced(
+          leafSays(waiting ? `${capitalized(waiting)}.` : "Nothing to do right now."),
+        );
     const now = work.find(
       (each) => each.line && each.line.text !== each.word?.text,
     )?.line;
     const progress = planProgress();
     const [last] = done;
     return html`<div class="lf-fp-work-summary">
-      <p>
-        ${voiced([
-          leafSays(first),
-          ...(now ? [leafSays(" Now: "), now, leafSays(".")] : []),
-        ])}
-      </p>
+      <p>${first}${now ? voiced([leafSays(" Now: "), now, leafSays(".")]) : nothing}</p>
       ${
         progress
           ? html`<p>
@@ -4014,8 +4049,11 @@ export function createFloatingPanel({
               ${voiced([
                 leafSays("Last done: "),
                 agentSays(excerptWords(queueTitle(last), 60)),
-                leafSays(`${last.ended ? `, ${ago(last.ended)}` : ""}.`),
-              ])}
+              ])}${
+                last.ended
+                  ? html`${voiced(leafSays(", "))}${panelAge(last.ended, { spoken: true, long: true })}`
+                  : nothing
+              }${voiced(leafSays("."))}
             </p>`
           : nothing
       }
@@ -4332,6 +4370,7 @@ export function createFloatingPanel({
     }
   }
   function paintPanel() {
+    draws += 1;
     painting = true;
     try {
       // A thread's view draws a thread of the reading. One the reading no longer holds,
@@ -5082,17 +5121,27 @@ export function createFloatingPanel({
     // `finishPlacement`).
     responseHome: responseSeat,
     revealResponse: clearRow,
-    // The thread whose row in Threads the pointer is on, and the row Threads draws for
-    // a thread, through which hover links a row and its passage both ways
-    // (anchor-paint.js, `markRow`).
-    hoveredThread: () => {
-      const row = threadRows().find((candidate) => candidate.matches(":hover"));
-      return row ? (threadByKey(row.dataset.lfKey)?.id ?? null) : null;
+    // The thread whose row in Threads holds `under`, the element under the pointer, and
+    // the row Threads draws for a thread, through which hover links a row and its
+    // passage both ways (anchor-paint.js, `markRow`). Each asks the rows' own markup, so
+    // a pointer move costs the same however many threads Threads lists.
+    /** @param {Element | null} under */
+    hoveredThread: (under) => {
+      const row = showing({ view: "threads" })
+        ? closestAcross(under, THREAD_ROW)
+        : null;
+      return row instanceof HTMLElement
+        ? (threadByKey(row.dataset.lfKey)?.id ?? null)
+        : null;
     },
     /** @param {string} id */
     threadRow: (id) => {
       const key = threadByKey(id)?.key;
-      return threadRows().find((row) => row.dataset.lfKey === key) ?? null;
+      return key && showing({ view: "threads" })
+        ? (shownView()?.querySelector(
+            `${THREAD_ROW}[data-lf-key="${CSS.escape(key)}"]`,
+          ) ?? null)
+        : null;
     },
   };
 }

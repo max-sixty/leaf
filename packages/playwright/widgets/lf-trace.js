@@ -2311,8 +2311,9 @@ export class Trace extends LeafElement {
               >
                 <span class="lf-row-lead"
                   ><span class="lf-trace-moment-number">${moment.number}</span></span
-                ><span class="lf-trace-moment-label lf-row-main">${moment.label}</span
-                ><span class="lf-trace-moment-time lf-row-end">${time}</span>
+                >
+                <span class="lf-trace-moment-label lf-row-main">${moment.label}</span>
+                <span class="lf-trace-moment-time lf-row-end">${time}</span>
               </button>`;
             },
           )}
@@ -2566,8 +2567,8 @@ export class Trace extends LeafElement {
                 ({ node }) => node.path,
                 ({ node }) =>
                   html`<li class="lf-trace-node">
-                    <span class="lf-trace-node-name">${nodeName(node)}</span
-                    ><code class="lf-trace-node-path">path ${node.path}</code>
+                    <span class="lf-trace-node-name">${nodeName(node)}</span>
+                    <code class="lf-trace-node-path">path ${node.path}</code>
                   </li>`,
               )}
             </ul>

@@ -126,7 +126,7 @@ def test_a_revision_that_restates_an_obligation_preserves_the_users_location_in_
     expect(decision).to_be_focused()
     (serve.page_dir / "index.html").write_text(LIVE_KEYS_OBLIGATION_REWRITTEN)
     told(page)
-    expect(page).to_have_title("Live keys rewritten")
+    expect(page).to_have_title("(1) Live keys rewritten")
     expect(panel_field(page)).to_have_attribute(
         "placeholder", re.compile("^Updated to Draft after v1")
     )
@@ -160,7 +160,7 @@ def test_a_restated_obligation_returns_a_user_to_the_question_not_to_a_control(
 
     (serve.page_dir / "index.html").write_text(LIVE_KEYS_OBLIGATION_REWRITTEN)
     told(page)
-    expect(page).to_have_title("Live keys rewritten")
+    expect(page).to_have_title("(1) Live keys rewritten")
     expect(page.locator("#lk-decision")).to_be_focused()
     # The press they had lined up decides nothing on its own, and the option they were
     # holding is still the one their own digit reaches.
@@ -266,7 +266,7 @@ def test_a_revision_gives_back_what_the_user_moved_and_nothing_they_left(
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
-    expect(page).to_have_title("Live keys rewritten")
+    expect(page).to_have_title("(1) Live keys rewritten")
     # The widget did go whole, so the carry is what decides these controls.
     expect(page.locator("#lk-decision h2")).to_have_text(
         "Which one, now the costs are in?"
@@ -320,7 +320,7 @@ def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
-    expect(page).to_have_title("Live keys rewritten")
+    expect(page).to_have_title("(1) Live keys rewritten")
     # The rewritten draft has connected and read its edit back: the words are kept.
     expect(editor).to_have_js_property("value", "Ship it, but louder.")
     expect(pick).to_be_focused()
@@ -369,7 +369,7 @@ customElements.define('page-counter', class extends HTMLElement {
     (serve.page_dir / "index.html").write_text(second)
     told(page)
 
-    expect(page).to_have_title("Live keys rewritten")
+    expect(page).to_have_title("(1) Live keys rewritten")
     assert page.evaluate("performance.timeOrigin") != original_document, (
         "the revision was patched in, so this proves nothing about the other install"
     )
@@ -497,7 +497,7 @@ customElements.define('page-counter', class extends HTMLElement {
     (serve.page_dir / "index.html").write_text(second)
     told(page)
 
-    expect(page).to_have_title("Live keys rewritten")
+    expect(page).to_have_title("(1) Live keys rewritten")
     assert page.evaluate("performance.timeOrigin") != original_document, (
         "the revision was patched in, so this proves nothing about the other install"
     )

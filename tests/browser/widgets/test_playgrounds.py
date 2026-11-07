@@ -20,6 +20,7 @@ from render_harness import (
     nudge,
     open_page,
     post_event,
+    put_preview_away,
     resized,
     rgb_pixels,
     round_trip,
@@ -1548,6 +1549,8 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
     expect(instruction).to_be_visible()
     page.keyboard.press("Tab")
     expect(playground.get_by_role("button", name="Copy instruction")).to_be_focused()
+    # The Tab showed Copy's preview, which the first Escape puts away.
+    put_preview_away(page)
     page.keyboard.press("Escape")
     expect(instruction).to_be_hidden()
     expect(reveal).to_be_focused()

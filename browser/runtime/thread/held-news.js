@@ -458,8 +458,9 @@ const said = (news) => {
  *  announces news waiting (`data-lf-news`, controls.css), in the accent the unread dot
  *  wears. It says one count of all
  *  that waits, "2 new", in every placement, which is its accessible name too, so a
- *  voice user saying the words they see reaches it; its title, and so its accessible
- *  description, says each fact, "1 new reply · 1 new message". A name of the facts
+ *  voice user saying the words they see reaches it; its preview says each fact, "1 new
+ *  reply · 1 new message", and a screen reader hears that as its description while it
+ *  stands on focus (preview.js). A name of the facts
  *  alone matched nothing the user saw. The user chose this on 31 October over a line
  *  of facts that dropped those past its room and counted them at its end ("1 new reply
  *  +1"), and said "2 new" only where even the first fact didn't fit, so one piece of

@@ -8,6 +8,7 @@ from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, SEATED_OBLIGATION_PAGE, panel_comment
 from render_harness import (
+    expect_preview_words,
     open_page,
     resized,
     sending,
@@ -764,9 +765,10 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
         told(page)
 
     edit_root("Start with the corrected measured constraint.")
-    expect(
-        card.get_by_role("button", name="2 new", exact=True)
-    ).to_have_accessible_description("1 message edited · 1 summary changed")
+    expect_preview_words(
+        card.get_by_role("button", name="2 new", exact=True),
+        "1 message edited · 1 summary changed",
+    )
     expect(checkpoint).to_have_count(1)
     expect(resolve).to_be_focused()
 
@@ -819,7 +821,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     )
     told(page)
     notice = card.get_by_role("button", name="1 new", exact=True)
-    expect(notice).to_have_accessible_description("1 summary changed")
+    expect_preview_words(notice, "1 summary changed")
     expect(old_checkpoint).to_be_visible()
     expect(opened).to_be_focused()
     notice.click()

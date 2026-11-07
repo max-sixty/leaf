@@ -24,6 +24,7 @@ from render_harness import (
     RELEASE_FOCUS,
     consume_browser_errors,
     displayed,
+    expect_preview_words,
     holding,
     leaf_page,
     long_press,
@@ -980,7 +981,7 @@ def diff_file_keeps_focus(page, serve, diff, source, value, rename, starts_as_re
 
 def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
     """A file that a revision turns from a rename into a changed file gets a new row,
-    and that row, too, says whether it cuts its path short."""
+    and that row, too, previews its whole path while it cuts the path short."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config/deeply/handlers.py"
     rename = (
         f"diff --git a/old.py b/{path}\n"
@@ -996,10 +997,9 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
     told(page)
     rendered(page)
     head = page.locator("lf-diff .lf-diff-head").first
-    expect(head).to_have_attribute("data-lf-path-cut", "")
-    expect(head.locator(".lf-diff-path")).to_have_attribute("title", path)
+    expect_preview_words(head, path)
 
-    # A changed source path can retain exactly the old clipped width. Its title
+    # A changed source path can retain exactly the old clipped width. Its preview
     # must follow the new identity even when no size changes and the disclosure stays.
     head.evaluate("node => window.retainedDiffHead = node")
     for source in ("legacy/original.py", "legacy/previous.py"):
@@ -1014,9 +1014,7 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
         )
         told(page)
         rendered(page)
-        expect(head.locator(".lf-diff-path")).to_have_attribute(
-            "title", f"{source} → {path}"
-        )
+        expect_preview_words(head, f"{source} → {path}")
         assert head.evaluate("node => node === window.retainedDiffHead")
 
 

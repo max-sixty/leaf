@@ -41,6 +41,7 @@ from render_harness import (
     panel_field,
     panel_settled,
     panel_view,
+    put_preview_away,
     refuse,
     resized,
     round_trip,
@@ -232,10 +233,12 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
         for root in roots
     ]
 
-    # Leaf's controls with no layer up: out onto the page.
+    # Leaf's controls with no layer up: focus arriving on one shows its preview
+    # (preview.js), which the first Escape puts away; the second lets go onto the page.
     expect(marker).to_be_visible()
     for control in (toggle, marker):
         control.focus()
+        put_preview_away(page)
         expect(control).to_be_focused()
         page.keyboard.press("Escape")
         assert page.evaluate(on_body)
@@ -644,10 +647,11 @@ HOVER_CARD_PAGE = """<!doctype html>
 def test_escape_passes_a_manual_popover_the_user_is_not_in(browser, serve):
     """A manual popover the user isn't in, such as a hover card, leaves Escape its steps
     beneath it: the panel's comment field and a link let go under it as they do with no
-    card open. The browser never closes a manual popover on Escape, so standing the
-    steps down under one left every press dead until the card closed (#5582). Focus
-    inside the card makes it the user's layer again, and the page beneath stays out of
-    Escape's reach."""
+    card open. A focused link previews the place it names, and the first Escape puts that
+    preview away (preview.js), so the link lets go at the second. The browser never
+    closes a manual popover on Escape, so standing the steps down under one left every
+    press dead until the card closed (#5582). Focus inside the card makes it the user's
+    layer again, and the page beneath stays out of Escape's reach."""
     page = open_page(browser, serve(HOVER_CARD_PAGE))
     card = page.locator("#card")
     link = page.locator("#link")
@@ -655,6 +659,8 @@ def test_escape_passes_a_manual_popover_the_user_is_not_in(browser, serve):
 
     link.focus()
     page.evaluate(show)
+    put_preview_away(page)
+    expect(link).to_be_focused()
     page.keyboard.press("Escape")
     expect(link).not_to_be_focused()
     assert card.evaluate("c => c.matches(':popover-open')")

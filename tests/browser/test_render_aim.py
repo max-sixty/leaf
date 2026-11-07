@@ -1869,8 +1869,7 @@ def test_an_aim_at_a_seam_promises_the_element_its_press_takes(
         open_compact_comment(page)
         assert page.evaluate(DRAFT_MARK) == seam["at"]
         page.keyboard.press("Escape")
-        # Escape closes the field; the box may rest beside the item, empty (#5428).
-        expect(page.locator(".lf-fab-bar:not([data-lf-rest])")).to_be_hidden()
+        expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
     with subtests.test(case="on the shared edge"):
         edge = page.evaluate(

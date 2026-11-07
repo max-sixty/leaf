@@ -465,11 +465,6 @@ const bundles = {
     },
   }),
 
-  blazediff: () => ({
-    out: `${packageVendor("default")}/blazediff.js`,
-    entryPoints: [input("entries/blazediff/entry.mjs")],
-  }),
-
   // DBSCAN groups screenshot fragments by their original neighborhoods.
   "density-clustering": () => ({
     out: `${packageVendor("default")}/density-clustering.esm.js`,

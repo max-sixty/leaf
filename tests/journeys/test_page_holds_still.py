@@ -1542,7 +1542,6 @@ def held(still, message):
 
 ENGINES = {"browser": "chromium", "firefox_browser": "firefox"}
 
-REPLY_BELOW = "the message clicked scrolls 195px up as the answer joins below it"
 REVISION_LANDING = "the revision's landing moves the message clicked 96px up"
 ON_SCREEN = "the paragraph read moves 67.4px down under the paragraph the revision adds"
 REMOVES = "the paragraph read moves 67.4px up into the paragraph the revision takes out"
@@ -1561,8 +1560,6 @@ GROWN_AFTER_GLIDE = (
 MOVES_ON_MAIN = {
     "diff-reading-deletions-chromium": DIFF_READING,
     "diff-reading-deletions-firefox": DIFF_READING,
-    "message-reply-below-chromium": REPLY_BELOW,
-    "message-reply-below-firefox": REPLY_BELOW,
     "message-revision-above-chromium": REVISION_LANDING,
     "message-revision-above-firefox": REVISION_LANDING,
     "reading-page-revision-on-screen-chromium": ON_SCREEN,

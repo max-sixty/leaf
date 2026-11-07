@@ -3624,8 +3624,9 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
     gap the location ring takes, the gestures as brackets and focus whole.
 
     A table and a card with authored corners draw them alike. A mark stands over an
-    outline the page gave the target while it lasts, and the page's own comes back once
-    no mark stands there.
+    outline the page gave the target while it lasts. Focus alone is the box's focus
+    ring rather than a mark, so an outline the page gave the box outranks it, and the
+    page's own stands again once only focus is marked.
     """
     page = open_page(
         browser,
@@ -3678,7 +3679,10 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
             page.keyboard.press("Escape")
             expect(node).to_be_focused()
             expect(node).to_have_attribute("data-lf-mark", re.compile(r"\bfocus\b"))
-            boundary(node, brackets=False)
+            if target == "rounded":
+                expect(node).to_have_css("outline-style", "dashed")
+            else:
+                boundary(node, brackets=False)
             page.evaluate(RELEASE_FOCUS)
             expect(node).not_to_have_attribute("data-lf-mark", re.compile(".*"))
             if target == "rounded":

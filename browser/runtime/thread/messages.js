@@ -252,7 +252,7 @@ function threadStands(thread, said) {
  * opening words, so a thread whose last message is its first says them once. A target
  * holding several threads is named by their count, as the card a press opens lists
  * them, and lists each, its name and where it stands, which the preview owner fits to
- * the room its face stands in (preview.js, `fitList`), saying how many more past those:
+ * the room its face stands in (preview.js, `fit`), saying how many more past those:
  * a press still reaches them, as the card it opens steps through every thread, and on
  * a window too narrow for the card, the thread it opens in the panel goes back to the
  * panel's list of them, where each row previews its thread. A line in the user's turn

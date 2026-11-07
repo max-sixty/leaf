@@ -112,10 +112,12 @@
    stands by, and it stays there while
    that room holds a whole line, held to it and its words fitted to it as to any room
    (`fit`), so words that grow never move it under the user's aim (browser/AGENTS.md,
-   "The page holds still under the user's aim") nor cover anything. A new aim inside the
-   element it stands for (`previewChanged` with `aim`), as a chart's next point, keeps
-   its side by the new box, standing by the edge that side stands by, its bottom above
-   the box and its top below or beside it, where that side's room holds the new
+   "The page holds still under the user's aim") nor cover anything. A focus reading
+   stays there even where a control the page draws later stands in that room, over it,
+   since it takes no pointer and the pointer reaches the control beneath. A new aim
+   inside the element it stands for (`previewChanged` with `aim`), as a chart's next
+   point, keeps its side by the new box, standing by the edge that side stands by, its
+   bottom above the box and its top below or beside it, where that side's room holds the new
    reading whole, so the preview rides along the drawing on one side as the pointer
    sweeps it, and a longer reading grows away from its point or stands afresh. Afresh, as for a new target or a corner whose room no longer holds a line, it takes
    the first side whose room holds it whole, in order: below, then above, from the
@@ -232,6 +234,10 @@
    target for it, though the pointer was on its words and on no other target there; it
    now stays while the pointer is over it (`onPreview`), so a chart's point's words past
    the chart's edge and a covering control's words can both be read. Until 7 November
+   2026 a focus reading whose room a control came into, as the notice Threads draws
+   when news joins a thread, stood afresh, which carried its words 330 px under no
+   input of the user's; it now keeps its place over the control (decided in review,
+   7 November 2026). Until 7 November
    2026 every element wearing `data-lf-offer` was a control here, so a thread card
    previewed its accessible name, its own first words, to a pointer resting in it and to
    a `t` walk landing on it, where the preview took the Escape that lets go of the
@@ -1225,24 +1231,31 @@ function stand(record, reading, standing, aim = false) {
   // The room a place holds clear of every other control and of what it is about. A
   // finger's hand hides what lies below the touch, so below it holds none.
   /** @param {Placement} at */
+  const reachOf = (at) =>
+    atLayoutPrecision(Math.max(0, Math.min(height, at.room, towardSubject(at))));
+  /** @param {Placement} at */
   const clearHeight = (at) => {
     if (route === "hold" && at.y === "below") return 0;
-    const reach = atLayoutPrecision(
-      Math.max(0, Math.min(height, at.room, towardSubject(at))),
-    );
+    const reach = reachOf(at);
     if (reach < least) return reach;
     return Math.min(reach, atLayoutPrecision(clearRoom(at, reach, holder)));
   };
   /** @type {Placement | null} */
   let chosen = null;
   let held = 0;
+  let covering = false;
   // Where it stands now stays while its clear room holds a whole line, held to that
   // room, so words that grow never move it nor cover anything. A new aim's side stays
   // only where its room holds the new reading whole, which is a new reading's to show.
+  // A focus reading stays even where a control the page has drawn since stands in that
+  // room, over it, as news draws a notice there: it takes no pointer, so the pointer
+  // still reaches the control beneath.
   if (now && inside(now)) {
     const clearOf = clearHeight(now);
     if (aim ? clearOf >= height : linesIn(clearOf) >= 1)
       [chosen, held] = [now, clearOf];
+    else if (route === "focus" && !aim && linesIn(reachOf(now)) >= 1)
+      [chosen, held, covering] = [now, reachOf(now), true];
   }
   // Afresh, the first place whose clear room holds it whole; else the one whose clear
   // room holds the most whole lines, held there.
@@ -1263,7 +1276,6 @@ function stand(record, reading, standing, aim = false) {
   // room stands over what it covers and lets the pointer through to it, a finger's above
   // its hand where it can; where no side holds a line, it stands over its target itself,
   // and where even that holds none, nothing shows.
-  let covering = false;
   if (!chosen) {
     /** @param {Placement[]} among */
     const roomiest = (among) =>

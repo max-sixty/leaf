@@ -232,7 +232,7 @@ playable").
   and key chips on the first line and its detail under them. It stands over the page
   beside what it previews, where the browser keeps it as the target moves, clear of
   the target's focus ring and inside the window, covering none of the targets beside
-  it where a side is free of them, moves nothing around it
+  it where a side is free of them as it shows, moves nothing around it
   ("The page holds still under the user's aim") and holds no control. The pointer can
   cross onto it and read it there (WCAG 1.4.13). Revealing a block's own controls, as Copy appears on a
   code block, is no preview and stays its block's.

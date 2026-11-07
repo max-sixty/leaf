@@ -12,8 +12,8 @@ Done names no option: on a group whose `x-awaits.value` verb records the pick
 as a set of ids, Done says that verb's state when the user pressed it, worded by the
 action that set it, or by Done's own document where the pick is authored. The pick
 is derived from the log before Done rather than stamped at admission, so Done keeps
-resting on its widget alone, at the cost of one fold of that prefix per Done read;
-an empty pick says nothing.
+resting on its widget alone; one walk of the log serves every Done of a document.
+An empty pick says nothing.
 
 A child a user wrote through a `creates` verb is in no document; the action that
 created it carries its words, and both readings take them from the latest such
@@ -30,8 +30,8 @@ from collections.abc import Callable
 from functools import cached_property
 from pathlib import Path
 
-from .events import event_document, taken_back
-from .passages import SourceReading, collapse, shown_words
+from .events import InForce, event_document
+from .passages import SourceReading, collapse, enclosing_of, shown_words
 from .projection import (
     attribute_marks,
     frozen_thread_reading,
@@ -109,6 +109,8 @@ class _Document:
         self.registry = registry
         self.by_id = by_id
         self.revision = revision
+        # Done id → the action holding its pick (`GestureWords._held`).
+        self.held: dict[str, dict | None] | None = None
         self.nodes = {
             node["attrs"]["id"]: node
             for content in contents
@@ -118,6 +120,10 @@ class _Document:
 
     def name(self, node: dict) -> str:
         return element_name(node, self.registry)
+
+    @cached_property
+    def marks(self) -> dict:
+        return attribute_marks(self.by_id, self.spoken, self.registry)
 
 
 class GestureWords:
@@ -179,40 +185,76 @@ class GestureWords:
             )
         return self._voices[event["id"]]
 
-    def _pick(self, done: dict) -> tuple[dict, list[str]] | None:
-        """What the widget's `x-awaits.value` verb held when `done` answered with
-        another verb: the action holding it and its ids, or `done` and the ids its
-        document authored. None where that verb records no set of ids on the widget."""
-        document = self._document(done)
-        node = document.nodes.get(done["widget"]) if document else None
-        if document is None or node is None:
+    def _value_verb(self, event: dict) -> str | None:
+        """The widget's `x-awaits.value` verb where `event` answers through another
+        verb and that one records a set of ids on the widget, in `event`'s document."""
+        if "answer" not in (event.get("meaning") or {}):
             return None
-        entry = document.registry.get(node["tag"], {})
+        entry = self.declaration(event)
         verb = (entry.get("x-awaits") or {}).get("value")
         spec = entry.get("x-state", {}).get(verb)
         if (
-            verb == done["action"]
+            verb == event["action"]
             or spec is None
             or spec["unit"] != "widget"
             or (spec.get("record") or {}).get("kind") != "attribute"
         ):
             return None
-        before = self.events[: self._positions.get(done["id"], len(self.events))]
-        projection = state_projection(
-            before,
-            document.by_id,
-            document.spoken,
-            document.registry,
-            document.revision,
-            floors=None if document.revision is not None else {},
-            withdrawn=taken_back(before),
-        )
-        widget = done["widget"]
-        held = projection.actions.get((widget, widget, verb))
+        return verb
+
+    def _held(self, document: _Document) -> dict[str, dict | None]:
+        """Done id → the action holding its value verb's state just before it, for
+        each Done this document answers in.
+
+        One walk of the log serves every Done of the document, as `InForce` reads
+        what each event changed: the fold of the document classifies the actions,
+        then undos withdraw and the document's version notes restate where they
+        fall. A frozen thread folds without floors, as `frozen_thread_reading`
+        does."""
+        if document.held is None:
+            classified = state_projection(
+                self.events,
+                document.by_id,
+                document.spoken,
+                document.registry,
+                document.revision,
+                floors={},
+                withdrawn=set(),
+            ).classified
+            in_force = InForce(enclosing_of(document.spoken))
+            document.held = {}
+            for event in self.events:
+                if event["kind"] == "undo":
+                    in_force.withdraw(event["undoes"])
+                elif event["kind"] == "note":
+                    if document.revision is not None and (
+                        event["revision"] <= document.revision
+                    ):
+                        in_force.restate(event)
+                elif event["kind"] == "action" and event["id"] in classified:
+                    if self._document(event) is document and (
+                        verb := self._value_verb(event)
+                    ):
+                        widget = event["widget"]
+                        document.held[event["id"]] = in_force.winner(
+                            (widget, widget, verb)
+                        )
+                    in_force.admit(event)
+        return document.held
+
+    def _pick(self, done: dict) -> tuple[dict, list] | None:
+        """What the widget's `x-awaits.value` verb held when `done` answered with
+        another verb: the action holding it and its ids, or `done` and the ids its
+        document authored. None where `_value_verb` names no such verb."""
+        verb = self._value_verb(done)
+        document = self._document(done)
+        if verb is None or document is None:
+            return None
+        held = self._held(document).get(done["id"])
         if held is not None:
-            return held[0], sorted(held[0]["detail"]["value"])
-        marks = attribute_marks(document.by_id, document.spoken, document.registry)
-        return done, markup_value(widget, spec, document.by_id, marks)
+            return held, sorted(held["detail"]["value"])
+        spec = document.registry[document.nodes[done["widget"]]["tag"]]["x-state"][verb]
+        return done, markup_value(done["widget"], spec, document.by_id, document.marks)
 
     @cached_property
     def _creations(self) -> dict[str, list[tuple[int, dict]]]:

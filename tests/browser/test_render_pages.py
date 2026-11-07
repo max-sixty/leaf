@@ -1595,8 +1595,8 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
     """A table given `data-width` keeps its columns' natural width and stands where any
     breakout of that width stands. A `wide` one starts at the prose's start edge and
     grows toward the end. An `available` one is centred on the prose axis while both margins have
-    room for it, the freer side taking what the narrower lacks, as where a contents
-    map's spine or a column moved over for a sidenote leaves one side narrower. One that
+    room for it, the freer side taking what the narrower lacks, as where a column moved
+    over for a sidenote leaves one side narrower. One that
     fits the column keeps its natural width and starts where the prose starts. Where a
     sidebar stands in the left margin the room is all on the right, so the table starts
     at the prose's left edge and grows right. In a right-to-left page the same holds

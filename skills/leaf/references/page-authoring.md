@@ -118,9 +118,10 @@ page composes the route and its document as siblings:
 ```
 
 The browser places that route before JavaScript runs and wraps it with the document
-when narrow. Keep contents and a short verdict or status in the track, and put detailed
-evidence and history in the body or behind a disclosure. See `page-layout.md`,
-"A sidebar page", for the shared composition and width contract.
+when narrow. The contents map fills the track's height, so put a verdict or status the
+reader should see at once at the top of the body, and detailed evidence and history in
+the body or behind a disclosure. See `page-layout.md`, "A sidebar page", for the
+shared composition and width contract.
 
 Workspaces and root page tabs have their own navigation, and so does a
 page of parts, whose column parts each take their own outline.

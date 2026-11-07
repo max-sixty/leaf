@@ -25,6 +25,7 @@ from render_harness import (
     margins_laid_out,
     open_page,
     panel_field,
+    put_preview_away,
     resized,
     round_trip,
     sending,
@@ -433,6 +434,10 @@ def test_keyboard_arrival_at_a_cluster_shows_all_its_entries_for_the_keys_to_wal
     expect(reject).to_be_focused()
     expect(more).to_be_hidden()
 
+    # The Tab showed Reject's preview, which the first Escape puts away; the second
+    # folds the cluster onto its toggle.
+    put_preview_away(page)
+    expect(reject).to_be_focused()
     page.keyboard.press("Escape")
     expect(more).to_be_focused()
     page.keyboard.press("Shift+Tab")

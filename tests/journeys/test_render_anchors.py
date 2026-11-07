@@ -29,6 +29,7 @@ from render_harness import (
     consume_browser_errors,
     expect_panel_offers,
     expect_panel_says,
+    expect_preview_words,
     leaf_page,
     open_page,
     panel_field,
@@ -1121,7 +1122,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     # The seat holds arrivals that would move the diff on screen behind its notice:
     # the user's own two messages. The agent's reply, already read, is not among them.
     notice = thread.get_by_role("button", name="2 new", exact=True)
-    expect(notice).to_have_accessible_description("2 new messages")
+    expect_preview_words(notice, "2 new messages")
     notice.click()
     line = ":scope > .lf-msg-head .lf-msg-sending"
     for view in (thread, panel_thread):

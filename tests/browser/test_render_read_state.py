@@ -28,6 +28,7 @@ from render_harness import (
     RELEASE_FOCUS,
     CutOff,
     _traffic,
+    expect_preview_words,
     fetch_whole_state,
     heard_back,
     holding,
@@ -554,7 +555,7 @@ def test_a_reply_in_a_diff_thread_draws_where_the_user_is_and_waits_elsewhere(
     news = thread.locator(":scope > .lf-thread-content").get_by_role(
         "button", name="1 new", exact=True
     )
-    expect(news).to_have_accessible_description("1 new reply")
+    expect_preview_words(news, "1 new reply")
     expect(thread.locator(".lf-msg")).to_have_count(2)
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
     assert all(
@@ -651,7 +652,7 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
         expect(thread.locator(".lf-thread-news")).to_have_count(0)
         return
     expect(news).to_be_visible()
-    expect(news).to_have_accessible_description("2 new replies")
+    expect_preview_words(news, "2 new replies")
     expect(thread.locator(".lf-msg")).to_have_count(1)
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
     # The notice stands after the header's words, in a box of its own, so axe still

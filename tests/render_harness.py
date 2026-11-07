@@ -2831,6 +2831,16 @@ def tab_onto(target):
     expect(target).to_be_focused()
 
 
+def put_preview_away(page):
+    """Press Escape as its first step, which puts away the preview standing over the
+    page and does nothing else, so the next Escape takes the step it stood in front of
+    (preview.js; keyboard/AGENTS.md, "Escape"). Fails unless one stood and it went."""
+    preview = page.locator(PREVIEW)
+    expect(preview).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+
+
 def expect_preview_words(target, words):
     """Wait until `target`'s own preview declaration (`lfPreview`, runtime/preview.js)
     says `words` as its name or a line of its detail, the whole line for a string or a

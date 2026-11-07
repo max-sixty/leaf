@@ -27,7 +27,6 @@ from render_harness import (
     INLINE_PAGE,
     LONG_PAGE,
     PANEL,
-    PREVIEW,
     available_commands,
     back_gesture,
     consume_browser_errors,
@@ -42,6 +41,7 @@ from render_harness import (
     panel_field,
     panel_settled,
     panel_view,
+    put_preview_away,
     refuse,
     resized,
     round_trip,
@@ -238,9 +238,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     expect(marker).to_be_visible()
     for control in (toggle, marker):
         control.focus()
-        expect(page.locator(PREVIEW)).to_be_visible()
-        page.keyboard.press("Escape")
-        expect(page.locator(PREVIEW)).to_be_hidden()
+        put_preview_away(page)
         expect(control).to_be_focused()
         page.keyboard.press("Escape")
         assert page.evaluate(on_body)
@@ -657,14 +655,11 @@ def test_escape_passes_a_manual_popover_the_user_is_not_in(browser, serve):
     page = open_page(browser, serve(HOVER_CARD_PAGE))
     card = page.locator("#card")
     link = page.locator("#link")
-    preview = page.locator(PREVIEW)
     show = "() => document.getElementById('card').showPopover()"
 
     link.focus()
     page.evaluate(show)
-    expect(preview).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(preview).to_be_hidden()
+    put_preview_away(page)
     expect(link).to_be_focused()
     page.keyboard.press("Escape")
     expect(link).not_to_be_focused()

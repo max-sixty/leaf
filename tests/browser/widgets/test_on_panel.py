@@ -16,6 +16,7 @@ from render_cases_interaction import (
 from render_harness import (
     PANEL,
     expect_obligations_answered,
+    expect_preview_words,
     holding,
     leaf_page,
     open_page,
@@ -749,10 +750,10 @@ def test_an_option_s_choice_on_its_card_says_what_it_gives(browser, serve):
     expect(box.locator(".lf-fp-choice-says")).to_have_text(
         "One mechanism for any number of blocks."
     )
-    # Cut to two lines on the card, the words read whole on hover, and the press,
-    # whose name already holds them, isn't described by them again.
-    expect(box.locator(".lf-fp-choice-says")).to_have_attribute(
-        "title", "One mechanism for any number of blocks."
+    # Cut to two lines on the card, the words read whole in their preview, and the
+    # press, whose name already holds them, isn't described by them again.
+    expect_preview_words(
+        box.locator(".lf-fp-choice-says"), "One mechanism for any number of blocks."
     )
     expect(box).to_have_accessible_description("")
     expect(aside.locator(".lf-fp-choice-says")).to_have_text("It covers the footer.")

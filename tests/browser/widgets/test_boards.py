@@ -700,14 +700,13 @@ GRIPPED_BLOCK_CARD_PAGE = leaf_page(
 )
 
 
-def test_a_finger_s_taller_grip_leaves_the_blocks_under_a_title_their_width(
+def test_a_grip_taller_than_its_title_leaves_the_blocks_under_it_their_width(
     browser, serve
 ):
-    """Under a finger the grip is the aim floor tall, so it reaches past a one-line
-    title. A block after the title that lays itself out on its own (a pre) was set
-    beside the grip's room for its whole height, 30px narrower than the card; a block
-    after the title now clears the grip and takes the card's width, and nothing stands
-    under the grip's box."""
+    """The grip, a symbol's face tall, reaches past a one-line title. A block after the
+    title that lays itself out on its own (a pre) was set beside the grip's room for its
+    whole height, narrower than the card; a block after the title now clears the grip
+    and takes the card's width, and nothing stands under the grip's box."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
@@ -729,7 +728,7 @@ def test_a_finger_s_taller_grip_leaves_the_blocks_under_a_title_their_width(
     }"""
     )
     # The premise: the grip reaches past the title's one line.
-    assert measured["grip"] == 44 and measured["title"] < 30, measured
+    assert measured["grip"] > measured["title"], measured
     assert measured["widths"] == [0, 0], measured
     assert measured["under"] == 0, measured
 

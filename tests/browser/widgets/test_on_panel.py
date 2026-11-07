@@ -369,16 +369,17 @@ def test_an_answered_boxless_obligation_is_taken_back_from_its_card(browser, ser
 
 
 def test_on_me_s_tabs_stand_where_a_view_names_itself(browser, serve):
-    """On me's tabs name its view, so they start its controls, where another view's way
-    back stands, rather than standing among the presses at their end; no name bar
-    stands over the view, the heading naming it to assistive tech alone."""
+    """On me's tabs name its view, so the first starts its controls, where another
+    view's way back stands, rather than standing among the presses at their end; no
+    name bar stands over the view, the heading naming it to assistive tech alone. The
+    strip holding the tabs reaches past them for their focus ring, so the tab is read."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     resized(page, 1440, 900)
     open_on_me(page)
     start, tabs = page.locator(".lf-fp-controls").evaluate(
         """c => [c.getBoundingClientRect().left
             + parseFloat(getComputedStyle(c).paddingLeft),
-          c.querySelector('.lf-fp-filters').getBoundingClientRect().left]"""
+          c.querySelector('.lf-fp-filters > .lf-fp-tab').getBoundingClientRect().left]"""
     )
     assert tabs == start, (tabs, start)
     assert page.locator(".lf-fp-head").bounding_box()["height"] == 0

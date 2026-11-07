@@ -358,6 +358,7 @@ import {
   declareCover,
   placeBox,
   placeHolder,
+  seenRect,
   stateFootBand,
 } from "./geometry.js";
 import { overlaps } from "./rect.js";
@@ -3323,12 +3324,17 @@ export function createFloatingPanel({
     const card = key ? view?.querySelector(".lf-fp-on-item[data-lf-walked]") : null;
     if (card) scrollIntoView(card, { block: "nearest", within: view });
   }
-  // The stop the walk reached stands at its ringed card: On me stays open over the stop
-  // it lists (`clearFor`), and a stop at the page's foot can't be scrolled clear of it,
-  // so the card is where the user sees where they are, and a key pressed there acts at
-  // the stop rather than letting it go (user-place.js, `focusPlace`).
+  // The stop the walk reached stands at its ringed card while the panel hides it: On me
+  // stays open over the stop it lists (`clearFor`), and a stop at the page's foot can't
+  // be scrolled clear of it, so the card is where the user sees where they are, and a
+  // key pressed there acts at the stop rather than letting it go (user-place.js,
+  // `focusPlace`). A stop in sight is its own place, which a reading keeps still
+  // (user-place.js, `holdUserPlace`).
   standsAt("*", (node) =>
-    node === focused() && showing({ view: "queue" }) && walkedStop()
+    node === focused() &&
+    showing({ view: "queue" }) &&
+    walkedStop() &&
+    !seenRect(node, new Map())
       ? (shownView()?.querySelector(".lf-fp-on-item[data-lf-walked]") ?? null)
       : null,
   );

@@ -1343,3 +1343,13 @@ error:
     - text: >-
         The page's runtime reported a failure the user saw. Fix the page or widget
         and save the fix. Reply only if the user asked about it.
+
+render:
+  event:
+    kind: render
+  told:
+    - text: >-
+        Leaf's render check read the version you handed over, as the user's browser
+        draws it. Fix each failure it lists and save the fix. Weigh each piece of
+        advice against the page, and change the page only where that helps the user.
+        Reply only if the user asked about it.

@@ -563,6 +563,72 @@ supports building the pass. Its delivery decides what agents do with advice: a c
 of its own that tells failures from advice kept the failure fixes and let Claude Code
 weigh the advice.
 
+## The render pass, 2026-11-05
+
+The pass is built in `src/leaf/render_gate/handover_pass.py`, whose header holds its
+contract and its cost. These runs scored it against the merge base, where the driver's
+`render` move posts the same findings as the page's `error`:
+
+```sh
+uv run leaf-dev eval document/render-hidden-failure --harness claude-code --base --repeat 6 -j 2
+uv run leaf-dev eval document/render-hidden-failure --harness codex --base --repeat 6 -j 2
+uv run leaf-dev eval document/render-after-handover-urgent --harness claude-code --base --repeat 6 -j 2
+uv run leaf-dev eval document/render-advice-with-comment --harness claude-code --base --repeat 4 -j 2
+uv run leaf-dev eval document/render-after-handover-quick --harness claude-code --base --repeat 10 -j 3
+```
+
+| Case, harness                      | Arm  | Ran `--render` first | Failures delivered: fixed | Advice-only delivered: chart changed | Advice-only held, no further input | Final page fails | Median handover |
+| ---------------------------------- | ---- | -------------------- | ------------------------- | ------------------------------------ | ---------------------------------- | ---------------- | --------------- |
+| hidden failure, Claude Code        | base | 0 of 6               | 6 of 6                    | —                                    | —                                  | 0 of 6           | 34 s            |
+| hidden failure, Claude Code        | head | 0 of 6               | 4 of 4                    | —                                    | 2                                  | 0 of 6           | 26 s            |
+| hidden failure, Codex              | base | —                    | 6 of 6                    | —                                    | —                                  | 0 of 6           | 49 s            |
+| hidden failure, Codex              | head | —                    | 9 of 9                    | —                                    | —                                  | 1 of 10          | 50 s            |
+| urgent, Claude Code                | base | 0 of 6               | —                         | 6 of 6                               | —                                  | 0 of 6           | 35 s            |
+| urgent, Claude Code                | head | 0 of 6               | 1 of 1                    | —                                    | 5                                  | 0 of 6           | 41 s            |
+| advice with a comment, Claude Code | base | 0 of 4               | —                         | 4 of 4                               | —                                  | 0 of 4           | 61 s            |
+| advice with a comment, Claude Code | head | 1 of 4               | —                         | 0 of 2                               | —                                  | 0 of 4           | 58 s            |
+| advice with a comment, Codex       | base | —                    | —                         | 4 of 4                               | —                                  | 0 of 4           | 50 s            |
+| advice with a comment, Codex       | head | —                    | —                         | 1 of 2                               | —                                  | 0 of 4           | 65 s            |
+| quick, Claude Code                 | base | 10 of 10             | —                         | 1 of 1                               | —                                  | 0 of 10          | —               |
+| quick, Claude Code                 | head | 10 of 10             | —                         | —                                    | —                                  | 0 of 10          | —               |
+
+Every run in the table passed its rubric (76 of 76), whose findings outcome holds where nothing was delivered. The base arm delivers the same findings as the
+page's `error`, under its clause. Codex's own `--render` runs aren't counted, since the
+script found its commands only in Claude Code's stream. The Codex head row combines 6
+samples run before the dropped-tell fix with 4 after it. In the first 6, one session's
+failures were lost and its final page failed.
+
+The handling clause holds failures and advice apart as the October measurement found.
+Every delivered failure was fixed on both arms. Base agents changed the chart for 15 of
+15 advice-only deliveries. Head agents changed it for 1 of 4, and Codex made that one
+change. The head arm also carried a `SKILL.md` line telling agents a quick page needs no
+browser review of their own, since Leaf checks it after the turn. It didn't measurably
+move when agents run the check: both arms ran it in all 10 quick sessions, and neither
+ran it when the user was waiting. So the change dropped it, which also keeps the skill
+from promising a reading on a host with no browser. With the user waiting, the pass
+finds what the agent skipped.
+
+On the October fixture agents no longer leave the failure for a reading to find. All 20
+Claude Code agents in the quick context ran `--render` before handing over. With the
+user waiting, none of 12 did, and all 12 fixed the card grid by reading its CSS. So
+`render-hidden-failure` keeps the card grid fixed and hides its one failure in a card
+label that `white-space: nowrap` keeps on one line. Plain `page check` passes it, and the
+render check fails it at 360–480px and 720–1560px wide.
+
+The runs found two problems with the pass, both fixed before the head arms in the
+table ran:
+
+- In 23 of 24 head samples the session's turn record closed only when the session
+  ended, if at all. Most real sessions on this Mac close theirs: 156 of 173 claimed
+  sessions not ended read closed. So the pass also counts the agent's `leaf page open`
+  after its last save as a handover, which 20 of 21 handovers made.
+- A reading whose version a save replaced while it ran dropped its tell, and the next
+  reading treated those findings as known. That cost 2 of 16 head samples their
+  failures. Each reading now records which findings the agent has heard.
+
+Across 16 Claude Code head sessions (46 revisions) the servers ran 22 readings, a median
+8.0 s each.
+
 ## Authoring effort, 2026-10-24
 
 An overnight campaign read Claude Code (Opus 5.5) and Codex (Sol 6.1) authors' tool

@@ -6,7 +6,8 @@
 gates `asked` for and those that `ran` (failing page code ends the check before the
 render gate reads anything), in which browser or why none could, with the render
 gate's margin widths and saved screens even when it reports findings. `browser` is
-null where no gate needed one.
+null where no gate needed one. A render check leaves its reading for the page's server
+and stamp (`render_gate.handover_pass`), which runs one without its `screens`.
 """
 
 from pathlib import Path
@@ -20,7 +21,7 @@ from leaf.registry.storage import layer_record, selected
 from .source import check_source, moved_threads, source_advice
 
 
-def cmd_check(page_dir: Path, render: bool = False) -> dict:
+def cmd_check(page_dir: Path, render: bool = False, *, screens: bool = True) -> dict:
     """Freeze the checked source before running slow, read-only browser work."""
     from leaf.event_contracts import write_refusal
 
@@ -71,11 +72,15 @@ def cmd_check(page_dir: Path, render: bool = False) -> dict:
         ).through(events[-1]["seq"] if events else 0)
 
     from leaf.render_gate.command import browser_check
+    from leaf.render_gate.handover_pass import remember_reading
 
     browser = browser_check(
         page_dir,
         snapshot,
         page_code=runs_code,
         render=render,
+        screens=screens,
     )
+    if render:
+        remember_reading(page_dir, result.artifact.digest, browser)
     return reported(browser.status, [*found, *browser.findings()], browser)

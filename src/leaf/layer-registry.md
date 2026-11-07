@@ -104,8 +104,9 @@ names the older protocol it speaks, so a newer Leaf reads it as no watch and adm
 nudges the session (`leases.wait_is_live`).
 
 Bump the number when a Leaf at it would misread an event another Leaf at it wrote into
-the log, or a record another wrote outside it. A Leaf skips an event kind it doesn't
-know, so a new kind declares `skippable` where skipping it leaves that Leaf's reading
+the log, or a record another wrote outside it. A Leaf's readings skip an event kind it
+doesn't know, and its deliveries hand such an event over as logged, with no handling
+clause. So a new kind declares `skippable` where that leaves an older Leaf's reading
 right, and bumps otherwise. A change to the bundled widgets, their
 registry entries, the theme or the public package API (`runtime/widget-api.js` and
 its portable part `runtime/portable-api.js`) keeps the number, since the Leaf serving a page supplies all of them. A page's own widgets

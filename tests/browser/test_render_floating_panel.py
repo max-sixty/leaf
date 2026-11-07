@@ -1159,6 +1159,12 @@ def test_on_a_phone_turning_on_s_tabs_moves_nothing(browser, serve, subtests):
             ):
                 panel_tab(page, tab).tap()
                 panel_settled(page, view=view)
+                # A tapped button stays `:active` for a moment after the tap, scaled
+                # by its press feedback; that is not the tab moving, so read once the
+                # press lets go.
+                page.wait_for_function(
+                    "() => !document.querySelector('.lf-fp-controls :active')"
+                )
                 assert strip.evaluate("el => el.scrollWidth <= el.clientWidth"), tab
                 now = page.evaluate(tabs)
                 assert stood in (None, now), (tab, stood, now)

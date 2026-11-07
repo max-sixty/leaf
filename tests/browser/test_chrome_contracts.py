@@ -936,7 +936,7 @@ def toggle_surface(page, surface, open=True):
 def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
     browser, serve, case, width
 ):
-    """Opening Threads or On me in the panel never moves the page: each view stands over
+    """Opening Threads or On Me in the panel never moves the page: each view stands over
     it, so the reading column keeps its place, its width and its wrapping, a wide page's
     side track stays where its Layout put it, and the document neither grows nor
     scrolls under it."""
@@ -1362,7 +1362,7 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
     # The panel's field quotes the selection, where the finger that made it finds it,
-    # and the On me mark keeps its seat; the leaf's menu stays shut.
+    # and the On Me mark keeps its seat; the leaf's menu stays shut.
     comment = selection_field(page)
     expect(comment).to_have_attribute("placeholder", "“Paragraph one”")
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))

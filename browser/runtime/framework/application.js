@@ -210,7 +210,7 @@ function advance(entry, signal, admitted = null) {
 /** @typedef {PublishedWorkflow<ServedWorkflow>} Workflow
  */
 
-/** One row of On me or On <agent>, as `served_state.queues` serves it or this tab
+/** One row of On Me or On <agent>, as `served_state.queues` serves it or this tab
  * places it: `owner` names the list. A row names its record by `id`. `also`, on a
  * record's row, names the other records the user answers at its place; `live` says
  * whether the agent has it in hand now. `localQueues` joins the current obligation or
@@ -466,7 +466,7 @@ function currentWidgetRelations(document, widgets, projection) {
   return { parents, memberships };
 }
 
-/* What is on the user (On me), what is on the agent (On <agent>), and what is done:
+/* What is on the user (On Me), what is on the agent (On <agent>), and what is done:
  * the view's served lists (`served_state.queues`), with this tab's unresolved sends
  * placed against them. Every row but a to-do names an obligation record, and only the
  * agent ends a to-do, so a send moves an item the server listed only where the record
@@ -647,7 +647,7 @@ function localUpdates(workflows) {
   return { workflows: named, records };
 }
 
-// The order the server lists On me in: obligations, then updates to send again;
+// The order the server lists On Me in: obligations, then updates to send again;
 // records of a kind among themselves in the order the view's inventory holds them.
 /** @param {QueueItem} item */
 const onUserRank = (item) => (item.kind === "update" ? 1 : 0);
@@ -1198,7 +1198,7 @@ export function createSemanticApplication({ presentation } = {}) {
       obligations: { phase, ...items, byId: obligationsById },
       // The agent's plan in force, as the server read it (`plans.plan_reading`).
       plan: ready ? (state?.browser.plan ?? null) : null,
-      // On me (on the user), On <agent> (on the agent), and done: the served lists
+      // On Me (on the user), On <agent> (on the agent), and done: the served lists
       // with this tab's sends placed against them (`localQueues`).
       queues: {
         phase,

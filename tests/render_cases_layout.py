@@ -596,7 +596,7 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
     "<div id='riding' style='width: 900px'>Where the content of a scrolled box "
     "starts.</div></div>\n</main>",
 )
-# One obligation, so a page has something On me.
+# One obligation, so a page has something On Me.
 ONE_OBLIGATION = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
@@ -615,7 +615,7 @@ def with_one_obligation(html):
 
 
 def toggle_queue(page, open=True):
-    """Open the panel's On me view from its mark, or close it from the same seat, where
+    """Open the panel's On Me view from its mark, or close it from the same seat, where
     its ✕ stands while the view does, and wait for it to stand or go."""
     page.locator(".lf-fp-on-user" if open else ".lf-fp-close").click()
     panel_settled(page, open=open, view="queue" if open else None)

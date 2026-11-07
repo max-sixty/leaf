@@ -1,6 +1,6 @@
-# On me
+# On Me
 
-On me is the user's list of everything waiting on them. This file covers the questions
+On Me is the user's list of everything waiting on them. This file covers the questions
 and choices you put there for the user to answer. A widget records a structured answer;
 a thread message with `--obligation` asks for an answer in words. Recommending an answer
 doesn't make the decision; the user does. `conversation-loop.md`, "The On lists", covers
@@ -64,7 +64,7 @@ bundled `lf-options`; a question about content that asks nothing, such as a char
 passage, goes in a thread on it. Put the widget where the question arises: a question a thread raises, such as which way to do
 what the user asked there, goes in your reply's markup (`threads.md`, "Ask for a
 pick"), and a decision the page records goes on the page.
-Each widget that asks puts one question on On me and records its answer. A choice can hold a
+Each widget that asks puts one question on On Me and records its answer. A choice can hold a
 partial answer before the user presses Done, and an empty selection can be a complete
 answer.
 
@@ -76,7 +76,7 @@ accept or reject it, beside that proposal's case. One choice can accept a batch
 of clear-cut proposals if it says why each is clear-cut. Use `multiple` only when the
 picks depend on each other, such as a limit on how many.
 
-On me lists only what still needs the user. Retire a question on the document
+On Me lists only what still needs the user. Retire a question on the document
 once it stops mattering, by removing its widget in a new version or marking it
 `restated` (`authoring-revisions.md`). For a question asked in a thread message, use
 `leaf task end` as "The On lists" describes. A request the user made stays open until you
@@ -85,7 +85,7 @@ answer it. To retire one yourself, say what changed to make it unnecessary.
 
 ## On the page
 
-Make each question answerable where On me takes the user: pressing `m` brings its
+Make each question answerable where On Me takes the user: pressing `m` brings its
 heading to the top of the window, leaving earlier content out of view. Inside the
 answering widget or an enclosing `lf-ask`, build the question around the material the
 user judges: a heading that asks it, why it arises, the current state and its evidence.

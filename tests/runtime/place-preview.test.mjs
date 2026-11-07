@@ -311,9 +311,9 @@ test("a node's trail names every part over it, outermost first", () => {
   ]);
 });
 
-test("a place with no name of its own is named by the part it stands in, as On me groups it", () => {
+test("a place with no name of its own is named by the part it stands in, as On Me groups it", () => {
   // The name of each place below is the card's, and the part `partOver` gives, which On
-  // me's "By place" bands are titled by, is the element that name comes from.
+  // Me's "By place" bands are titled by, is the element that name comes from.
   /** @param {string} markup @param {string} name @param {string} part */
   const named = (markup, name, part) => {
     assert.equal(previewed(markup).parts[0]?.join(":"), `name:${name}`);

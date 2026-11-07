@@ -32,7 +32,7 @@ by an `lf-ask` already is (`references/authoring-on-me.md`).
 | Edit           | `lf-draft`, text the user rewrites in place, with its history recorded |
 | Dismiss        | A "Not now" option or a reject, recorded as an outcome                 |
 | Jump into chat | Discuss on the On view's card, or a comment on the draft's exact words |
-| The feed       | The On view and `m`, which walk On me in page order, for one page only |
+| The feed       | The On view and `m`, which walk On Me in page order, for one page only |
 
 LangChain's [Agent Inbox](https://github.com/langchain-ai/agent-inbox) uses the
 same four verbs (`HumanInterruptConfig`: accept, edit, respond, ignore), and
@@ -51,7 +51,7 @@ same four verbs (`HumanInterruptConfig`: accept, edit, respond, ignore), and
   have no equivalent.
 - **No list spans pages.** All pages shows each live page's agent status. A page's
   row (`server_rows.py`) carries `{title, session_cwd, activity}`, whose counts
-  are updates the agent owes; nothing from On me. `presence.other_leaves` keeps
+  are updates the agent owes; nothing from On Me. `presence.other_leaves` keeps
   only rows whose server is live and whose page isn't closed, so a page with no
   server drops out.
 
@@ -70,7 +70,7 @@ source in B's list.
   Resuming a job that a worker still hosts starts a copy
   (`resume_claude_code_job`'s docstring), so the launchd job must message the
   live session instead.
-- **B. On me across every page.** Each page's row publishes its `on_user` queue
+- **B. On Me across every page.** Each page's row publishes its `on_user` queue
   (`served_state/queues.py`), and All pages becomes one list of every page's
   items: simple ones answered in place, the rest opening their page at the item.
   This designs for S15 "Many pages" in `notes/what-needs-you/research.md`, which

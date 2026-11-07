@@ -92,7 +92,7 @@ const kinds = {
     indication: true,
   },
   comment: { label: "Thread", icon: "comment", priority: 1 },
-  "on-me": { label: "On me", icon: "question", priority: 2 },
+  "on-me": { label: "On Me", icon: "question", priority: 2 },
   sent: {
     label: "Queued",
     icon: "sent",

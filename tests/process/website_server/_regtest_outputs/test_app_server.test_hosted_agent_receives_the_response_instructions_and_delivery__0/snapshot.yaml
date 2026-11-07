@@ -39,7 +39,7 @@ turn/start:
       or what changed and where it shows. A final message leaves the user no move,
       so where your answer leaves them one, such as a decision or something to try
       or review before making one, answer with `leaf thread reply <answer.ref> --obligation`
-      instead: it puts the answer on their On me list even where the decision itself
+      instead: it puts the answer on their On Me list even where the decision itself
       is already there. Where your answer asks a question of its own whose answers
       you can list, such as which of two ways to proceed or whether to take an action,
       reply with them in `--markup` in place of `--obligation`, as `<lf-options

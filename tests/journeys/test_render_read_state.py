@@ -38,7 +38,7 @@ def _on_me_mark(page):
     return page.locator(".lf-fp-on-user")
 
 
-# The page's one standing sign of unread messages: a dot on the On me mark, whose name
+# The page's one standing sign of unread messages: a dot on the On Me mark, whose name
 # counts the threads holding news, and on the folded leaf. The leaf's dot stands
 # whatever view is open, where the view's ✕ takes the mark's seat, so it is read here.
 def _expect_news(page, news=True):
@@ -272,7 +272,7 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
         '<h1>Practice page</h1><div id="read-gap"></div>{sample}',
         "#read-gap { height: 2000px; }",
     )
-    # Below the first screen it shows nothing: the user focuses its On me mark and
+    # Below the first screen it shows nothing: the user focuses its On Me mark and
     # scrolls the containing page back to the top first.
     _on_me_mark(child).focus()
     page.evaluate("scrollTo(0, 0)")

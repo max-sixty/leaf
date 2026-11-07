@@ -355,7 +355,7 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
 ):
     """As a main-loop turn the model answered ends in a session holding a live page,
     the module forks the conversation with the clerk's question and hands the answer
-    back, and Leaf asks what it names On me, in a thread of its own. A subagent's turn, or an interrupted
+    back, and Leaf asks what it names On Me, in a thread of its own. A subagent's turn, or an interrupted
     one, forks nothing."""
     page = page_dir.resolve()
     reply = json.dumps(

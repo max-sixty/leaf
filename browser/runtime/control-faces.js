@@ -47,7 +47,7 @@
      takes the band's ink. A thread's row on the user's turn says so in its closing
      words.
    - `answer`: one of the answers a question offers, such as a decision's choices on
-     an On me card, framed so the set reads as one to pick from, the chosen one
+     an On Me card, framed so the set reads as one to pick from, the chosen one
      (`aria-pressed`) marked in the ok tone as the page marks its chosen option.
    - `entry`: a margin entry, a glyph out in the page's margin whose label a pointer
      or a key reveals, framed by what it promises: an action raised, a disclosure

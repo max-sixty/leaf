@@ -632,7 +632,7 @@ def page_list() -> list:
     serves it), and the session that holds it: `claim_session`, the name its
     harness gives it now (`session_name`), the directory it claimed from
     (`session_cwd`), and whether it still runs (`session_alive`). A serving
-    page also carries how many rows On me holds (`on_user`) and its open and
+    page also carries how many rows On Me holds (`on_user`) and its open and
     unread thread counts (`threads`). `page state PAGE` reads one page whole."""
     from leaf.presence import page_list as listing
 
@@ -657,7 +657,7 @@ def state(
     page_dir: Path, target: str | None, after: int | None, limit: int | None
 ) -> dict:
     """Print the page as it is now, as one JSON object: the active revision's
-    file, the current widget actions and workers' reports, the user's On me list and
+    file, the current widget actions and workers' reports, the user's On Me list and
     yours, thread summaries, versions, presence, and bound data. Read the active
     revision's HTML beside it for the document.
 
@@ -1265,7 +1265,7 @@ def page_open(page_dir: Path) -> dict:
 
     This clears every task start; to-dos and unanswered updates stay owed.
     To request an answer, send a thread message with --obligation so the
-    question appears in On me. Opening a page creates no obligation.
+    question appears in On Me. Opening a page creates no obligation.
     """
     from leaf.session import cmd_waiting
 
@@ -1340,7 +1340,7 @@ def _title_option(command):
 @click.option(
     "--obligation",
     is_flag=True,
-    help="put this message on On me until the user replies or settles it",
+    help="put this message on On Me until the user replies or settles it",
 )
 def thread_create(
     page_dir: Path,
@@ -1358,7 +1358,7 @@ def thread_create(
     the work as a whole.
 
     Use --obligation when the next move is the user's: the message waits on
-    On me until their reply or settling reaction. A question whose answers you
+    On Me until their reply or settling reaction. A question whose answers you
     can list takes an `lf-options` choice in --markup instead, which waits on
     the user until they pick. Refuses a quote the active revision does not
     hold, or holds more than once. The comment's id is the thread's.
@@ -1403,7 +1403,7 @@ def thread_create(
     flag_value="",
     callback=_asked_questions,
     help=(
-        "put this message on On me until the user replies or settles it; with the ID "
+        "put this message on On Me until the user replies or settles it; with the ID "
         "of a question their reply left standing, ask that question again, once per "
         "question"
     ),

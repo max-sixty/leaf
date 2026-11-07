@@ -334,7 +334,7 @@ _DELIVERED_EVENT = {
             ),
             "settled": described(
                 "On the user's message in a thread, the agent's questions in words it "
-                "answered by rule, whatever it says, so they have left On me "
+                "answered by rule, whatever it says, so they have left On Me "
                 "(`obligations.settled_by_message`). Each is the obligation's `id` and "
                 "the `text` that asked it.",
                 {

@@ -132,7 +132,7 @@ def test_a_plain_agent_question_can_be_opened_and_answered(browser, serve, secti
 def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
     browser, serve, anchor
 ):
-    """On me reaches the exact question, even when its thread has lost its passage."""
+    """On Me reaches the exact question, even when its thread has lost its passage."""
     source = leaf_page(
         "Rehearsal report",
         '<h1 id="title">Rehearsal report</h1>'

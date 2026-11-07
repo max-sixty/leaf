@@ -1422,7 +1422,7 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
 
 def test_a_compaction_sends_the_agent_back_to_the_skill(claimed, capsys):
     """A compaction can drop the leaf skill, whose rules, such as putting every
-    question for the user on On me, the agent follows while it holds a page. The
+    question for the user on On Me, the agent follows while it holds a page. The
     SessionStart after one names the skill to read again; no other start or prompt
     does."""
 

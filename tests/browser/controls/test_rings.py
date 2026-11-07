@@ -394,7 +394,7 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
         "retargeting focus to the widget host drew a second ring around its button"
     )
 
-    # An On me arrival focuses the decision, and its location ring is its focus cue.
+    # An On Me arrival focuses the decision, and its location ring is its focus cue.
     page.keyboard.press("m")
     expect(page.locator("#focus-open-decision")).to_be_focused()
     rendered(page)

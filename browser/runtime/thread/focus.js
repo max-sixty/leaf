@@ -36,7 +36,7 @@ export function focusThread(thread, cause) {
 // as the card did, where `r`, `t` and the other keys act at once and `c` starts a reply.
 // That choice was about clicks. A key that opens a thread in a walk, `t` or Enter on a
 // marker or Next, keeps the user on the thread to walk on. Enter on a row of Threads or
-// On me keeps the caret in the reply instead, as a press on one does, and the floating
+// On Me keeps the caret in the reply instead, as a press on one does, and the floating
 // panel owns that (`focusView`). It was kept on 4 November 2026 because what the user
 // types after picking a row is an answer. Stood on the thread, after `g T` and Enter,
 // "really?" resolves the thread with `r`, moves on and opens the Command reference with

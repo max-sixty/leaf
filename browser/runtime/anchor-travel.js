@@ -29,7 +29,7 @@
  * Back does after a followed link. Leaf once let a run of steps share one entry while
  * the last landing still showed, so one Back undid a whole `t` or `m` walk. That skipped
  * the item a step left: after `t` then `m`, Back passed over the thread, and once the
- * user answered an obligation, which takes it out of On me, neither Back nor Shift+m
+ * user answered an obligation, which takes it out of On Me, neither Back nor Shift+m
  * returned to it. Limiting the sharing to one walk still missed the second case, so no
  * steps share an entry. A fragment link's
  * navigation step (`followFragment`) uses the history entry the browser added for the link as

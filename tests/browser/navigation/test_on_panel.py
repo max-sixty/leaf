@@ -1,4 +1,4 @@
-"""What waits on the user: the `m` queue, the panel's On me count and its On view,
+"""What waits on the user: the `m` queue, the panel's On Me count and its On view,
 and tallies."""
 
 import re
@@ -33,7 +33,7 @@ from leaf.render_checks import rendered
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-# What waits on the user, as On me counts it (floating-panel.js, `onUserCount`): the
+# What waits on the user, as On Me counts it (floating-panel.js, `onUserCount`): the
 # queue's own reading, since a gesture's next step can stand in the marks' place.
 ON_ME = """async () => {
   const {readQueues} = await window.__lfWidgetApi();
@@ -45,7 +45,7 @@ ON_ME = """async () => {
 
 
 def expect_on_me(page, count):
-    """Wait until On me counts `count` obligations waiting on the user."""
+    """Wait until On Me counts `count` obligations waiting on the user."""
     page.evaluate(ON_ME)
     page.wait_for_function("count => window.__lfOnMe() === count", arg=count)
 
@@ -99,7 +99,7 @@ def test_m_keeps_its_position_at_a_chrome_stop_without_a_page_target(browser, se
 def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     """`m` stops, in page order, at a thread whose question waits on the user as well
     as at an open obligation, and passes a thread waiting on the agent; `t` still walks both
-    threads. The panel's On me mark counts what waits on the user. A reply the user
+    threads. The panel's On Me mark counts what waits on the user. A reply the user
     sends takes its thread off that count and out of the walk once the server has read
     the reply."""
     url = serve(QUEUE_PAGE)
@@ -244,7 +244,7 @@ def test_an_answer_offers_the_next_item_on_me_at_the_field_s_end(browser, serve)
     more waits on the user, the panel field's end offers Next On Me. The caret stays in
     the card's reply box, where `m` is a letter typed, so the press stands without its
     key and still walks to the next item, whose key it then says. An answer that leaves
-    nothing On me offers nothing."""
+    nothing On Me offers nothing."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
     asked = append_carried_log_record(
@@ -405,9 +405,9 @@ def test_travel_reads_the_landing_through_every_region_it_scrolls(browser, serve
 
 
 def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
-    """On me stays open over a place `m` reaches, whose card it rings, and gives way to
-    one it doesn't list: `t` to a thread at the page's foot, which On me would stand
-    over, puts it away (floating-panel.js, `clearFor`). Opened by a key, On me stands on
+    """On Me stays open over a place `m` reaches, whose card it rings, and gives way to
+    one it doesn't list: `t` to a thread at the page's foot, which On Me would stand
+    over, puts it away (floating-panel.js, `clearFor`). Opened by a key, On Me stands on
     its first row, the channel question, so `m` steps on from it to the second."""
     url = serve(UNDER_PANEL_PAGE, anchored=[("tail", "The notes go out")])
     page = open_page(browser, url)
@@ -430,12 +430,12 @@ def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
 
 def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     """An `lf-tally` counts the obligations its region holds, by the rule a queue row's mark
-    reads, and leaves out one outside it. Its Next on me is `m` within the region: a
+    reads, and leaves out one outside it. Its Next On Me is `m` within the region: a
     press keeps the user located where they are and steps on, coming round at the end,
     and the walk announces its place among the region's obligations. Reached by Shift+Tab from
     an obligation, through the queue's own rows, Enter counts from that obligation, so the keyboard
     steps on too. An answer leaves the count once the log admits it; with none left the
-    tally says so and Next on me is disabled. One the user commented on is the agent's
+    tally says so and Next On Me is disabled. One the user commented on is the agent's
     turn, which the tally names instead of calling it the user's to answer."""
 
     def item(key, label):
@@ -464,7 +464,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
         ),
     )
     words = page.locator("#left .lf-tally-words")
-    button = page.locator("#left").get_by_role("button", name="Next on me")
+    button = page.locator("#left").get_by_role("button", name="Next On Me")
     first, second = page.locator("#first-decision"), page.locator("#second-decision")
     expect(words).to_have_text("2 left to answer")
     count = page.locator("#left .lf-tally-count")
@@ -510,7 +510,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
             ):
                 return
             page.keyboard.press("Shift+Tab")
-        raise AssertionError("Shift+Tab never reached Next on me")
+        raise AssertionError("Shift+Tab never reached Next On Me")
 
     button.click()
     expect(first).to_be_focused()
@@ -545,7 +545,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     expect(button).to_be_enabled()
     # A comment on the open obligation hands it to the agent until a reply: the tally and
     # the item's row say so rather than calling it the user's to answer, beside a
-    # disabled Next on me.
+    # disabled Next On Me.
     panel_comment(serve.page_dir, "Why Alpha?", {"section": "first-decision"})
     expect(words).to_have_text("1 on Claude")
     expect(count).to_have_css("color", waiting_color)
@@ -651,7 +651,7 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
 
 @pytest.mark.parametrize("width", [1200, 390])
 def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, width):
-    """An answered obligation stays in On me under Done, which closes and reopens through
+    """An answered obligation stays in On Me under Done, which closes and reopens through
     its routes, and finishing the page preserves the route back through the answer. The
     answer that leaves nothing on the user has the panel say so, unasked."""
     page = open_page(
@@ -733,7 +733,7 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
     page.keyboard.press("Shift+m")
     panel_settled(page, open=False)
 
-    # With nothing left on the user, On me opens on its folded Done.
+    # With nothing left on the user, On Me opens on its folded Done.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
@@ -753,7 +753,7 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
 
 
 def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
-    """An empty On me list says the panel rendered, rather than looking broken."""
+    """An empty On Me list says the panel rendered, rather than looking broken."""
     source = leaf_page(
         "One decision",
         '<h1>One decision</h1><lf-ask id="only-decision"><h2>Pick one</h2>'
@@ -789,12 +789,12 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
 
 
 def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):
-    """With On me open, `m` lands a suggestion the view would cover above the view,
+    """With On Me open, `m` lands a suggestion the view would cover above the view,
     since every landing clears the panel's whole box rather than its row alone
     (floating-panel.js, `followBox`). The suggestion ends a paragraph whose start the
     arrival aligns, as the feature gallery's "A pencil is useful too." does; the asks
     after it fill the list, so the view stands most of the window tall. Opened by a
-    key, On me stands on its first row, the suggestion, so `m` steps on to the first
+    key, On Me stands on its first row, the suggestion, so `m` steps on to the first
     ask and `Shift+m` walks back to the suggestion."""
     filler = "".join(f"<p>Paragraph {n} of the release notes.</p>" for n in range(30))
     asks = "".join(

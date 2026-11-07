@@ -258,7 +258,7 @@ does, such as "2 left to answer · 1 on Claude", so every count of a queue reads
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
 it is gone. `obligationActions.next({within, dir})` steps to the next obligation
 waiting on the user inside `within`, or the previous with `dir: -1`, as `m` does in On
-me, and resolves to whether it arrived. A control that calls it prevents `mousedown`'s
+Me, and resolves to whether it arrived. A control that calls it prevents `mousedown`'s
 default, so focus stays put and a second press steps on. The user answers an obligation
 through the widget's own command.
 
@@ -274,7 +274,7 @@ where the widget can't take `value`. Place the view by `value`, and change it on
 through `answer`, so the view records nothing of its own.
 
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
-under On me and On <agent>. Each row has a `kind`, which is its obligation's
+under On Me and On <agent>. Each row has a `kind`, which is its obligation's
 `source.kind` (with the obligation as `obligation`) or, on the agent's list, `todo`
 (with the to-do as `todo`), and an `owner`, `user` or `agent`, naming its list. An
 obligation's row lists in `also` the ids of the other obligations the user answers at

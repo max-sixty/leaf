@@ -1230,7 +1230,7 @@ def state_json(d):
 
 
 def obligations_on_user(state):
-    """Widget obligations on the user's list, On me, retaining source and prompt identity:
+    """Widget obligations on the user's list, On Me, retaining source and prompt identity:
     each row joined to the record in `obligations` it names."""
     records = {item["id"]: item for item in state["obligations"]}
     return [

@@ -119,7 +119,7 @@ customElements.define("lf-conditional", class extends LeafElement {
             layer_widgets={"lf-conditional.js": module},
         ),
     )
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me")
     view = page.locator(panel_view("queue"))
     items = ".lf-fp-on-item[data-lf-key^='[\"widget\"']"
 

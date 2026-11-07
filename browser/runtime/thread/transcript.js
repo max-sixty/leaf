@@ -639,11 +639,6 @@ export class Transcript {
               }
             </div>`
       }
-      ${
-        progress && range.forced
-          ? html`<div class="lf-summary-required">${range.requiredText}</div>`
-          : nothing
-      }
     </section>`;
   }
 

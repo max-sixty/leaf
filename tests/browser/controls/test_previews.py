@@ -453,11 +453,12 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     head = question.locator(".lf-msg-head").bounding_box()
     assert tip["y"] <= head["y"] + head["height"] + 24, (tip, head)
     assert tip["y"] + tip["height"] >= head["y"] - 24, (tip, head)
-    # A pointer on the words of the message the keyboard is on hears no time from them.
+    # A pointer on the words of the message the keyboard is on hears no time from them,
+    # nor anything else, so the keyboard's reading stands.
     body = question.locator(".lf-msg-body").bounding_box()
     page.mouse.move(body["x"] + 8, body["y"] + body["height"] / 2, steps=3)
     page.wait_for_timeout(500)
-    expect(preview).not_to_have_text("Sat 15 Aug 2026, 14:22 PT")
+    expect(preview).to_have_attribute("data-lf-route", "focus")
     page.mouse.move(0, 0)
     page.keyboard.press("Escape")
 

@@ -9,7 +9,11 @@
      press that reaches it (control-keys.js, `controlKeys`) as key chips beside its
      name, which a coarse pointer leaves out with every other advertised key. A control
      whose face says its name and that no key reaches previews nothing. A field the user
-     types in previews nothing: its words are what they read.
+     types in previews nothing: its words are what they read. A control is an element a
+     press acts on: a button, a link, a disclosure's summary, or one of Leaf's elements
+     whose `data-lf-offer` names a press (widget-elements.js, `PRESSABLE`). The rest of
+     Leaf's chrome, such as a thread card a walk lands on or a pointer rests in,
+     previews no name of its own, since its words are what the user reads.
    - An element declares what pointing at it adds as its `lfPreview(route)`, called once
      as its preview shows on that route (`"pointer"`, `"focus"` or `"hold"`), and again
      for each new presentation of the document while the preview stands, so the words
@@ -225,7 +229,11 @@
    pointer through, as one standing over what it covers, went as the pointer left its
    target for it, though the pointer was on its words and on no other target there; it
    now stays while the pointer is over it (`onPreview`), so a chart's point's words past
-   the chart's edge and a covering control's words can both be read. Rejected:
+   the chart's edge and a covering control's words can both be read. Until 7 November
+   2026 every element wearing `data-lf-offer` was a control here, so a thread card
+   previewed its accessible name, its own first words, to a pointer resting in it and to
+   a `t` walk landing on it, where the preview took the Escape that lets go of the
+   thread. Rejected:
    `interestfor`, which gives a control the same three routes natively but ships only
    in Chromium; the platform's
    `title` alone for Leaf's controls, which no finger or keyboard reads and which can't
@@ -272,7 +280,7 @@ import { nextRender, sizeObserver } from "./rendering.js";
 import { atClock, clockNow } from "./presence.js";
 import { watchOwner } from "./arrivals.js";
 import { actionClass } from "./control-faces.js";
-import { aimableAt } from "./widget-elements.js";
+import { aimableAt, PRESSABLE } from "./widget-elements.js";
 import { WORKS } from "./control-selectors.js";
 import {
   clippedContents,
@@ -490,7 +498,7 @@ function faceLines(reading) {
   return { blocks, rooms, padEnd, counted };
 }
 
-const CONTROL = 'button, summary, a[href], [role="button"], [data-lf-offer]';
+const CONTROL = `button, summary, a[href], [role="button"], ${PRESSABLE}`;
 // A proxy stands in for what the pointer takes by itself (control-faces.js, `proxy`),
 // so what it stands for previews: a gloss's proxy, its phrase.
 const PROXY = `.${actionClass("proxy")}`;

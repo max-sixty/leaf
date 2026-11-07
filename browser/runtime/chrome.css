@@ -1267,11 +1267,6 @@ html[data-lf-region-capture]
   .lf-preview[data-lf-route="pointer"]:not([data-lf-covers]) {
     pointer-events: auto;
   }
-  /* A focus reading giving way to the control the pointer rests on beneath it
-     (preview.js, `yieldTo`), where it stands. */
-  .lf-preview[data-lf-yields] {
-    visibility: hidden;
-  }
   .lf-preview[data-lf-route="focus"] > .lf-preview-face {
     transition: none;
   }

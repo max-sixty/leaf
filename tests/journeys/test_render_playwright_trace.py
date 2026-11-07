@@ -1881,7 +1881,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
             // or the right edge of a label pointing back from the scale's end.
             offsets: marks.map(mark => {
               const r = mark.getBoundingClientRect();
-              const at = track.left + edge + Number(mark.style.getPropertyValue('--t')) * span;
+              const at = track.left + edge + Number(mark.style.getPropertyValue('--lf-axis-at')) * span;
               return Math.abs((mark.hasAttribute('data-lf-flip') ? r.right : r.left) - at);
             }),
             flags: [...node.querySelectorAll('.lf-trace-moment-pin')].map(pin => {
@@ -1906,11 +1906,13 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
 
     first = visible_marks()
     # A shared flag lists every moment it stands for, in time order.
+    said_by_marks(widget)
     tips = "\n".join(
-        pins.evaluate_all("nodes => nodes.map(node => node.dataset.lfTip)")
+        pins.evaluate_all("nodes => nodes.map(node => node.dataset.testTip)")
     )
-    for number in range(2, 22):
-        assert re.search(rf"^{number} · ", tips, re.MULTILINE), number
+    assert re.findall(r" · Moment (\d+) · ", tips) == [
+        str(number) for number in range(2, 22)
+    ], tips
     pins.first.click()
     expect(widget.locator(".lf-trace-bookmark:visible")).to_have_count(20)
     expect(

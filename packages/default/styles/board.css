@@ -222,7 +222,7 @@ lf-card {
    The float is generated rather than the grip itself floated, which
    would have to come first in the card and so be read before its title.
 
-   Under a finger the grip is the aim floor tall and reaches past a one-line title. The
+   The grip's face is taller than a one-line title, so it reaches past the title. The
    prose lines running on after the title wrap beside it, which is right, since its box
    takes their presses; but a block that lays itself out on its own (a pre, a table) was
    set beside the float for its whole height, 44px narrower than the card. So every

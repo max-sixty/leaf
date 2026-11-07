@@ -866,7 +866,7 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
-    expect(page).to_have_title("Widgets second")
+    expect(page).to_have_title("(2) Widgets second")
     expect(page.locator("#wd-never")).to_contain_text("Do not start at all")
     expect(page.locator("#wd-never .lf-pick")).to_have_count(1)
     expect(page.locator("#arriving-tally .lf-tally-words")).to_have_text(

@@ -385,27 +385,56 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
     expect(page.locator("#lf-composer-quote")).to_contain_text("A second passage")
 
 
-def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, serve):
-    """The hint alphabet is a prefix-free tree, so adding a twenty-seventh target does
-    not turn every target into a two-key address. Many remain one key and only the tail
-    branches. A two-key tail hint raises the same element anchor as Alt-click."""
-    figures = "".join(
+# Sixty figures beside a heading: more targets than letters, so the tail of the hint
+# alphabet branches into two-key hints.
+DENSE_TARGETS_PAGE = leaf_page(
+    "dense visual targets",
+    '<h1 id="title">Visual targets</h1><div class="visual-grid">'
+    + "".join(
         f'<figure id="visual-{i}"><svg viewBox="0 0 32 18" width="32" height="18" '
         f'role="img" aria-label="Visual {i}"><rect x="1" y="1" width="30" '
         'height="16" fill="none" stroke="currentColor"></rect></svg></figure>'
         for i in range(60)
     )
-    html = leaf_page(
-        "dense visual targets",
-        f'<h1 id="title">Visual targets</h1><div class="visual-grid">{figures}</div>',
-        head="""
+    + "</div>",
+    head="""
 <style>
 .visual-grid { display: grid; grid-template-columns: repeat(10, 44px); gap: 12px; }
 .visual-grid figure { margin: 0; width: 32px; height: 18px; }
 </style>
 """,
-    )
-    page = open_page(browser, serve(html))
+)
+
+
+def test_the_picker_s_close_ends_it_whatever_escape_would_take_back(browser, serve):
+    """Escape takes back a typed hint letter before it closes the picker, so the panel
+    field's Close, which ends the picker at once, says `esc` only while no letter
+    stands typed."""
+    page = open_page(browser, serve(DENSE_TARGETS_PAGE))
+    page.keyboard.press("s")
+    hints = page.locator(".lf-target-picker-hint")
+    expect(hints).to_have_count(61)
+    close = field_press(page).filter(has_text="Close")
+    expect(close.locator("kbd")).to_have_text("esc")
+    codes = hints.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
+    first = next(code for code in codes if len(code) == 2)[0]
+    page.keyboard.press(first)
+    expect(close).to_be_visible()
+    expect(close.locator("kbd")).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(hints).to_have_count(61)
+    expect(close.locator("kbd")).to_have_text("esc")
+    page.keyboard.press(first)
+    expect(close.locator("kbd")).to_have_count(0)
+    close.click()
+    expect(hints).to_have_count(0)
+
+
+def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, serve):
+    """The hint alphabet is a prefix-free tree, so adding a twenty-seventh target does
+    not turn every target into a two-key address. Many remain one key and only the tail
+    branches. A two-key tail hint raises the same element anchor as Alt-click."""
+    page = open_page(browser, serve(DENSE_TARGETS_PAGE))
     page.keyboard.press("s")
 
     hints = page.locator(".lf-target-picker-hint")

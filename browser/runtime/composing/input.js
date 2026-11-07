@@ -299,10 +299,20 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
   /** @type {import("@preact/signals-core").Signal<Element | null>} */
   const hintedBox = signal(null);
   const hintLabel = signal("");
+  // A box's press says its key only while that key would make it (floating-panel.js,
+  // `noticePress`), which the dispatcher decides from focus and the keys' liveness
+  // rather than from anything a box reads, so this frame reads each standing press
+  // again, as it gives every box the comment key's destination, and repaints a box
+  // whose press now reads otherwise than it drew.
+  /** @type {Map<CompositionField, () => boolean>} */
+  const pressing = new Map();
   const publishInputHint = () => {
     const hint = inputHint();
     hintedBox.value = hint?.box ?? null;
     hintLabel.value = hint?.label ?? "";
+    for (const [field, moved] of pressing)
+      if (!field.isConnected) pressing.delete(field);
+      else if (moved()) field.requestUpdate();
   };
   // `sends` states the box's own submit action, and `action` the symbol its control
   // shows. Composers send by default; a caller whose action differs, such as adding an
@@ -573,6 +583,13 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const lineHint = focusedHere.value && !status ? lineKey : "";
       const entering = suffix && typeof offered === "string" ? offered : "";
       const pressText = press ? [press.word, ...pressKeys].join(" ") : "";
+      /** @param {string | BoxPress} reading */
+      const said = (reading) =>
+        typeof reading === "string"
+          ? ""
+          : [reading.word, ...(advertisesKeys() ? reading.keys : [])].join(" ");
+      if (press) pressing.set(field, () => said(untracked(enters)) !== pressText);
+      else pressing.delete(field);
       const placeholder =
         (suffix || press) && !status
           ? `${word}${entering ? ` · ${entering}` : ""}${suffix ? ` ${suffix}` : ""}${pressText ? ` · ${pressText}` : ""}${lineHint ? ` · ${NEW_LINE} ${lineHint}` : ""}`

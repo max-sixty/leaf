@@ -17,8 +17,7 @@ import {
 } from "./semantic-state.js";
 import { announce, offerPress } from "./notifications.js";
 import { inputCount } from "./focus.js";
-import { executeCommand } from "./keyboard/dispatch.js";
-import { declarationFor } from "./registry.js";
+import { pressCommand } from "./keyboard/dispatch.js";
 import { hasObligationSource } from "./obligations/source.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { watchPendingTraffic } from "./traffic.js";
@@ -92,34 +91,34 @@ import { raiseError } from "./errors.js";
 
 const commandDispatch = createCommandDispatch();
 
-// An answer the user sends the agent: their words, or a widget's verb other than one
-// that records what they are still working on, as a playground's settings do before its
-// submission (`unsent`).
-/** @param {import("./pending/state.js").DeliveryHandle["event"]} event */
-const answers = (event) =>
-  isMessageEvent(event) ||
-  (event.kind === "action" &&
-    !declarationFor(document.getElementById(event.widget), "x-state")?.[event.action]
-      ?.unsent);
-// After an answer, with more on the user, the floating panel's field offers the next
-// item On me lists, `m`'s press, at its end (notifications.js, `offerPress`). The user
-// chose this on 6 November 2026 over the field's Comment… and c, from three weeks of
-// their keys, in which `m` came next after 29% of picks and 21% of comments and replies.
-// It waits for the server's reading of the answer, which says what is still on the
-// user, so it never offers the item just answered, and only while the user hasn't moved
-// since. It goes at their next input, or once nothing is left On me.
+// After a gesture of the user's answers something On me lists, while On me still lists
+// anything, the floating panel's field offers the next item there, `m`'s press, at its
+// end (notifications.js, `offerPress`). The user chose this on 6 November 2026 over the
+// field's Comment… and c, from three weeks of their keys, in which `m` came next after
+// 29% of picks and 21% of comments and replies. Which items a gesture answered is the
+// server's reading, each obligation's `answer.event` (obligations.py), so a pick, a
+// settling reaction and a reply count alike, and a playground's unsent settings never
+// do; the offer waits for that reading, so it never offers the item just answered, and
+// only while the user hasn't moved since. It goes at their next input, or once nothing
+// is left On me. A reply or comment sent from the panel's field keeps the caret there,
+// whose end then says the keys that send, so leaving it is the input that withdraws the
+// offer: the press follows picks, settling reactions and replies sent from a card.
 /** @type {import("./notifications.js").NoticePress} */
 const nextOnMe = {
   action: "next-on-me",
   command: "queue.next",
-  run: () => executeCommand("queue.next"),
+  run: () => pressCommand("queue.next"),
   stands: () => onUserCount() > 0,
 };
 /** @param {import("./pending/state.js").DeliveryHandle} entry */
 const offerNextOnMe = (entry) => {
   const since = inputCount();
-  void entry.read.then(() => {
-    if (inputCount() === since && nextOnMe.stands()) offerPress(nextOnMe);
+  void entry.read.then((logged) => {
+    if (inputCount() !== since || !nextOnMe.stands()) return;
+    const answered = readObligations().all.some(
+      (obligation) => obligation.answer?.event?.id === logged.id,
+    );
+    if (answered) offerPress(nextOnMe);
   });
 };
 
@@ -233,7 +232,7 @@ function createApplication(dependencies) {
 
   /** @param {import("./pending/state.js").DeliveryHandle} entry */
   function afterEnqueue(entry) {
-    if (answers(entry.event)) offerNextOnMe(entry);
+    offerNextOnMe(entry);
     // Enqueue has already published and claimed its presentation, whose coordinator
     // reports any failed paint. The entry's answer describes the server's durable
     // decision, so a local announcement failure is reported here rather

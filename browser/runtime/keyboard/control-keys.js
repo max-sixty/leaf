@@ -41,16 +41,11 @@ const stepsIn = (scope, row) => [...stepsBefore(scope), labelOf(row)].filter(Boo
  * command id rather than by row identity: a scope may carry another owner's command as a
  * row of its own — a `g` destination wraps the declaration it stands for — and the
  * shortcut the user presses is the one that scope prefixes. */
-/** @param {string} id A command's id, or one of its routes', whose shortcut is that
- * route's binding alone, as `t` is the thread walk's Next open thread. */
+/** @param {string} id */
 export function commandSteps(id) {
   for (const scope of pageScopes().filter((scope) => scope !== ELEMENTS))
-    for (const row of scope?.rows ?? []) {
+    for (const row of scope?.rows ?? [])
       if (row.id === id && bindings(row).length) return stepsIn(scope, row);
-      const route = commandRoutes(row).find((route) => route.id === id);
-      if (route?.binding !== undefined && bindings(row).includes(route.binding))
-        return [...stepsBefore(scope), spell(route.binding)];
-    }
   return [];
 }
 

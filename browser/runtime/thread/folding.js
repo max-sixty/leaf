@@ -33,7 +33,7 @@
    Rejected: the words the thread is about, which `z` then named by its name. */
 import { inputCount } from "../focus.js";
 import { randomId } from "../ids.js";
-import { executeCommand } from "../keyboard/dispatch.js";
+import { pressCommand } from "../keyboard/dispatch.js";
 import { paintKeys } from "../keyboard/scopes.js";
 import { notice } from "../notifications.js";
 import { bindQueuedWork } from "../queued-work.js";
@@ -57,7 +57,7 @@ const nextStep = (resolving, undo) =>
     ? {
         action: "next-thread",
         command: "thread.next",
-        run: () => executeCommand("thread.next"),
+        run: () => pressCommand("thread.next"),
         stands: () => undo.stands() && anyOpenThread(),
       }
     : undo;

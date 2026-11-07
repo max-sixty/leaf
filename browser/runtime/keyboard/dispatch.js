@@ -514,13 +514,17 @@ export const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
 // (close-requests.js): whether a press would take a step now, and taking it, through
 // the row's `keep` where it declares one (bindings.js).
 const escapePress = () => new window.KeyboardEvent("keydown", { key: "Escape" });
-export const escapeTakesAStep = () => {
+/** The step Escape would take now, or null: what a surface that names Escape's step
+ * reads, as the floating panel's Close says `esc` only while Escape takes the stance
+ * off. */
+export const escapeInvocation = () => {
   const matched = resolveKey(escapePress());
-  return Boolean(matched) && matched !== INPUT_PENDING;
+  return matched && matched !== INPUT_PENDING ? matched : null;
 };
+export const escapeTakesAStep = () => Boolean(escapeInvocation());
 export function answerCloseRequest() {
-  const matched = resolveKey(escapePress());
-  if (!matched || matched === INPUT_PENDING) return;
+  const matched = escapeInvocation();
+  if (!matched) return;
   const keep = matched.row.keep;
   // The log names what ran: a row's `keep` is not its title's step.
   announceInvocation(matched, keep ? "keep" : null);
@@ -652,6 +656,21 @@ export function invokePress({ id, row, binding }) {
   announceInvocation(invocation);
   invocation.run();
   return true;
+}
+// A control standing in for a page command's key, as the floating panel's field-end
+// presses do (floating-panel.js, `noticePress`): the command's row by its id or by one
+// of its routes', made as a press of that route's key, so it acts wherever the caret
+// stands, as a menu row or a touch control does, where the key would be a letter typed.
+/** @param {string} id */
+export function pressCommand(id) {
+  for (const scope of pageScopes())
+    if (typeof scope !== "symbol")
+      for (const row of scope.rows) {
+        const route = commandRoutes(row).find((route) => route.id === id);
+        if (route || row.id === id)
+          return invokePress({ id, row, binding: route?.binding ?? bindings(row)[0] });
+      }
+  return false;
 }
 /** @param {string} id */
 export function executeCommand(id) {

@@ -4746,7 +4746,8 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     and as a Tab's step; neither answers a command. Any key but Escape puts away the
     preview a pointer reads and goes on to its command, and off a served page, where the
     register holds no page scopes, the listener takes the preview's Escape step
-    (preview.js). The
+    (preview.js). An Escape reads again whether the page holds a close watcher before its
+    close request reaches one (close-requests.js), and answers nothing. The
     interaction log records keys and answers none. A control standing over a page block, such as a code block's Copy, hands Tab back to its block. A span Leaf offers as
     a button takes a button's Enter and Space as their default action
     (role-button-press.js), on any page; the register names that press as native
@@ -4769,6 +4770,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     assert by_file == {
         "controller.js": 2,
         "aim.js": 1,
+        "close-requests.js": 1,
         "bootstrap.js": 2,
         "document-inputs.js": 1,
         "focus.js": 2,

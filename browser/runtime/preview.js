@@ -280,6 +280,7 @@ import {
 import { PREVIEW, PREVIEW_ENDED } from "./widget-upgrade.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
 import { nextRender, sizeObserver } from "./rendering.js";
+import { repaint } from "./repaint.js";
 import { atClock, clockNow } from "./presence.js";
 import { watchOwner } from "./arrivals.js";
 import { actionClass } from "./control-faces.js";
@@ -671,6 +672,19 @@ function readOutward(node, route) {
 
 /** @type {Shown | null} */
 let shown = null;
+// Whether a preview stands for Escape to put away, its first step (the `preview` scope).
+// The page holds a close watcher while Escape has a step to take, which it reads in the
+// repaint frame (keyboard/close-requests.js), and a preview coming or going asks for no
+// frame of its own, so each change of the step asks for one (`stepMoved`): a watcher
+// left from a preview put away took the next Escape and did nothing, so inside an open
+// popover the Escape after the preview's closed nothing.
+const standsForEscape = () => Boolean(shown && !shown.away);
+let stoodForEscape = false;
+function stepMoved() {
+  if (standsForEscape() === stoodForEscape) return;
+  stoodForEscape = !stoodForEscape;
+  repaint();
+}
 // When the last preview went, for the warm switch.
 let cooled = -Infinity;
 // What a hovering pointer rests on, in two layers, each kept until whoever said it says
@@ -739,6 +753,7 @@ function away(record) {
   closeNativeLayer(tip);
   anchored = null;
   awaitView(record.holder);
+  stepMoved();
   return false;
 }
 // Whether the release just heard ended a hold that read, whose touch's end it cancels.
@@ -1305,6 +1320,7 @@ function stand(record, reading, standing, aim = false) {
   fit(reading, held >= height ? Infinity : held);
   record.away = false;
   awaitView(null);
+  stepMoved();
   return true;
 
   // How far a place may grow from its edge before it meets what it is about.
@@ -1447,6 +1463,7 @@ function hide() {
   // writes nothing.
   closeNativeLayer(tip);
   cooled = performance.now();
+  stepMoved();
   ended(record);
 }
 // The element whose preview `record` read hears that it ended (`PREVIEW_ENDED`), with
@@ -1816,7 +1833,7 @@ export function mountPreviews(chrome) {
   pageScope("preview", {
     title: "A preview",
     escape: "inner",
-    at: () => Boolean(shown && !shown.away),
+    at: standsForEscape,
     rows: [
       {
         id: "preview.dismiss",
@@ -1834,7 +1851,7 @@ export function mountPreviews(chrome) {
         // Offline the register admits no page scope, this one's included, so the
         // preview takes the press whole itself, as its scope would, and a modal dialog
         // around it stays open.
-        if (offlineInteractive && shown && !shown.away) {
+        if (offlineInteractive && standsForEscape()) {
           event.preventDefault();
           quieten();
         }

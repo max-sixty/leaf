@@ -441,12 +441,15 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
             one_frame(page)
             pixels = Image.open(io.BytesIO(message.screenshot())).convert("RGB")
             # The scrollport can clip the message's top edge. Sample inside the
-            # sticky header's visible paint, clear of its words and controls.
+            # sticky header's visible paint, clear of its words and controls: a card
+            # beside its passage rises as one piece on a send, which leaves the
+            # pointer on the new message's Copy, lit in its own hover face.
             head_point = message.evaluate(
                 """node => {
                   const box = node.getBoundingClientRect();
                   const head = node.querySelector('.lf-msg-head').getBoundingClientRect();
-                  return [Math.round(head.right - box.left) - 2,
+                  const controls = node.querySelector('.lf-msg-controls').getBoundingClientRect();
+                  return [Math.round(controls.left - box.left) - 12,
                     Math.round(head.top + head.height / 2 - box.top)];
                 }"""
             )

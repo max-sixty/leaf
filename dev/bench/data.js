@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793965355440,
+  "lastUpdate": 1794051533640,
   "repoUrl": "https://github.com/max-sixty/leaf",
   "entries": {
     "Bench at 64 sections": [
@@ -371,6 +371,378 @@ window.BENCHMARK_DATA = {
           {
             "name": "threads: comment shown",
             "value": 330.1,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "leaf-agent",
+            "username": "leaf-agent",
+            "email": "l@leaf.page"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "391c24622d06c03d62eeb1e8862fbf6e1fc81998",
+          "message": "Draw the contents map inside its sidebar track (#5637)\n\nThe contents map in a document sidebar is now an ordinary block in its\ntrack, with its labels always shown, instead of a fixed 24px spine that\nrevealed labels over the body on hover. That deletes the overlay and the\npatches each side carried for it, and the sidebar's reserved width now\nholds the labels instead of standing blank (#5619). Approved direction:\n[#5619\n(comment)](https://github.com/max-sixty/leaf/issues/5619#issuecomment-6705043478).\n\n**Before** (`contents-map-keyboard`, 1440×900, focus on a map link): the\nlabels lie over the first words of the prose.\n\n\n![Before](https://github.com/user-attachments/assets/6f8dfbe7-3976-42e1-892e-35afa111b033)\n\n**After**: the same map in its own track. Nothing covers the prose, and\nthe column starts where it did.\n\n\n![After](https://github.com/user-attachments/assets/1539b02b-af76-4a06-8a51-842ff6dac939)\n\n**Removed**\n- `layouts.css`: the aside's `z-index` and the body's `isolation`, which\nexisted only so the revealed labels covered the body (#5117).\n- `toc.css`: the reveal machinery (`:hover` / `[data-lf-focus-within]` /\ngo-to widening, the press strip on the spine, `pointer-events` toggling,\nthe label fade) and the `lf-toc + :not(.lf-ui)` clearance rule with its\nrestyle-cost notes (#5309, #5363, #5370).\n- Render checks: `restsOverPage`, the resting-overlay exemption from the\nwidth floor and from the margin readings (#3109).\n\n**What users see change**\n- No quiet resting state: the labels always show, and pressing a label\nfollows it directly.\n- The map's height fits the stuck track at the document's end, so its\nstart stays in the window (about 700px at a 900px window, was 828). Once\nits sidebar ends, the map scrolls away with it, as any sticky block\ndoes.\n- A block after the map in the track now follows it below, where\nscrolling the track reaches it. Before, it stood at the track's top\nbeside the spine. `page-layout.md` and `page-authoring.md` now say this\nand suggest putting a status the reader should see at once at the top of\nthe body. No example or `docs/` page puts anything after the map.\n- Labels wrap at the track's width (~210px, was ~320px), so close\nsections pack together one label apart sooner.\n\n`--lf-sidebar-slot` stays. It still tells the map (margin) apart from\nthe open outline (beside); merging the two is a separate call.\n\n**Verification**: I ran these locally and they pass: the rewritten\njourney\n`test_a_margin_table_of_contents_maps_the_document_in_its_track`,\n`tests/browser/test_render_toc_disclosure.py`, the contents tests in\n`test_contents_and_glosses.py`, the go-to hints test, and the render\ngate on `sidebar-contents`. The npm-based gates (`pnpm run check`,\nprettier, eslint) have no `node_modules` in this sandbox, so they're\nleft to CI.\n\n<details><summary>Test changes</summary>\n\n- Rewritten to the in-track map: the margin-map journey (the reveal,\nhover and spine-width steps are gone; it now checks the map stays clear\nof the body, stays put while its track is stuck, and stays clear of the\npanel's room), the history, hidden-sidebar and crowded-map tests, the\n\"map only beside the body\" test, and the go-to hints test.\n- The status-line test now asserts the status follows the map and a\npress on it reaches it.\n- Deleted, since their subject is gone:\n`test_the_revealed_margin_map_covers_every_box_the_body_paints` and\n`test_the_gate_passes_a_contents_map_resting_as_its_spine`.\n- Stills: `contents-over-reading` is deleted, and\n`contents-spine-keyboard` is renamed `contents-map-keyboard`.\n\n</details>\n\nCloses #5619\n\n---------\n\nCo-authored-by: leaf-agent <318509791+leaf-agent@users.noreply.github.com>\nCo-authored-by: Claude <noreply@anthropic.com>",
+          "timestamp": "2026-11-07T10:19:59Z",
+          "url": "https://github.com/max-sixty/leaf/commit/391c24622d06c03d62eeb1e8862fbf6e1fc81998"
+        },
+        "date": 1794051532463,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "asks: load cpu",
+            "value": 1120.78,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: click cpu",
+            "value": 47.85,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: key cpu",
+            "value": 10.29,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: leave cpu",
+            "value": 48,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: tab cpu",
+            "value": 26.02,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: scroll cpu",
+            "value": 5.33,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: revision cpu",
+            "value": 309.25,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: stamp cpu",
+            "value": 309.14,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: select cpu",
+            "value": 93.55,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: comment cpu",
+            "value": 346.5,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: reply cpu",
+            "value": 95.84,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: status cpu",
+            "value": 28.52,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: click shown",
+            "value": 50.75,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: comment shown",
+            "value": 300.5,
+            "unit": "ms"
+          },
+          {
+            "name": "document: load cpu",
+            "value": 607.8,
+            "unit": "ms"
+          },
+          {
+            "name": "document: click cpu",
+            "value": 52.39,
+            "unit": "ms"
+          },
+          {
+            "name": "document: key cpu",
+            "value": 15.93,
+            "unit": "ms"
+          },
+          {
+            "name": "document: leave cpu",
+            "value": 40.64,
+            "unit": "ms"
+          },
+          {
+            "name": "document: tab cpu",
+            "value": 47.35,
+            "unit": "ms"
+          },
+          {
+            "name": "document: scroll cpu",
+            "value": 8.9,
+            "unit": "ms"
+          },
+          {
+            "name": "document: revision cpu",
+            "value": 140.87,
+            "unit": "ms"
+          },
+          {
+            "name": "document: stamp cpu",
+            "value": 128.36,
+            "unit": "ms"
+          },
+          {
+            "name": "document: select cpu",
+            "value": 91.47,
+            "unit": "ms"
+          },
+          {
+            "name": "document: comment cpu",
+            "value": 291.51,
+            "unit": "ms"
+          },
+          {
+            "name": "document: reply cpu",
+            "value": 117.79,
+            "unit": "ms"
+          },
+          {
+            "name": "document: status cpu",
+            "value": 43.95,
+            "unit": "ms"
+          },
+          {
+            "name": "document: click shown",
+            "value": 37.45,
+            "unit": "ms"
+          },
+          {
+            "name": "document: comment shown",
+            "value": 206.5,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: load cpu",
+            "value": 469.64,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: click cpu",
+            "value": 28.48,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: key cpu",
+            "value": 10.14,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: leave cpu",
+            "value": 32.24,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: tab cpu",
+            "value": 28.14,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: scroll cpu",
+            "value": 2.75,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: revision cpu",
+            "value": 58.69,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: stamp cpu",
+            "value": 63.48,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: select cpu",
+            "value": 58.33,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: comment cpu",
+            "value": 212.7,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: reply cpu",
+            "value": 77.34,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: status cpu",
+            "value": 20.76,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: click shown",
+            "value": 37.35,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: comment shown",
+            "value": 185.8,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: load cpu",
+            "value": 496.86,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: click cpu",
+            "value": 28.51,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: key cpu",
+            "value": 9.48,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: leave cpu",
+            "value": 39.88,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: tab cpu",
+            "value": 55.08,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: scroll cpu",
+            "value": 4.1,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: revision cpu",
+            "value": 72.64,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: stamp cpu",
+            "value": 72.26,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: select cpu",
+            "value": 52.96,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: comment cpu",
+            "value": 195.86,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: reply cpu",
+            "value": 78.54,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: status cpu",
+            "value": 19.44,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: click shown",
+            "value": 31.7,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: comment shown",
+            "value": 206.7,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: load cpu",
+            "value": 642.47,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: click cpu",
+            "value": 53.7,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: key cpu",
+            "value": 10.18,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: leave cpu",
+            "value": 45.96,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: tab cpu",
+            "value": 55.81,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: scroll cpu",
+            "value": 4.32,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: revision cpu",
+            "value": 98.94,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: stamp cpu",
+            "value": 115.38,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: select cpu",
+            "value": 70.76,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: comment cpu",
+            "value": 315.65,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: reply cpu",
+            "value": 91,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: status cpu",
+            "value": 25.89,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: click shown",
+            "value": 48.8,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: comment shown",
+            "value": 233.3,
             "unit": "ms"
           }
         ]

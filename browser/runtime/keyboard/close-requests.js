@@ -30,9 +30,9 @@
  * Whether to hold a watcher is read in the repaint frame (repaint.js), where the
  * register is read, so it follows whatever changes Escape's answer. A watcher that
  * closes is spent, which no other owner sees, so its close asks for the frame that
- * takes the next one. An Escape keydown reads it again before anything hears the
- * press, since a step can go between frames, as a preview put away by the press
- * before goes: a watcher left from it took the next Escape's close request and did
+ * takes the next one. An owner whose step comes and goes between frames reads it again
+ * as the step moves, as a preview does as it shows and goes (preview.js, `stepMoved`):
+ * a watcher left from a preview put away took the next Escape's close request and did
  * nothing, so the popover under it stayed open for one press more.
  */
 import { answerCloseRequest, escapeTakesAStep } from "./dispatch.js";
@@ -46,13 +46,6 @@ let watcher = null;
 /** @type {ReturnType<typeof nativeLayers>} */
 let under = [];
 watchLayerChanges(() => repaint());
-window.addEventListener(
-  "keydown",
-  (event) => {
-    if (event.key === "Escape") paintCloseRequests();
-  },
-  { capture: true },
-);
 
 export function paintCloseRequests() {
   // Safari lacks CloseWatcher.

@@ -3,6 +3,7 @@ acts on it, to a resting pointer, to the keyboard and to a held finger
 (runtime/preview.js). The margin entry's preview, its label, is held in
 `browser/margin/test_entries.py`."""
 
+import hashlib
 import re
 from datetime import UTC, datetime, timedelta
 
@@ -15,6 +16,7 @@ from render_cases_interaction import (
     live_url,
     panel_comment,
 )
+from render_cases_layout import solid_png
 from render_cases_navigation import _publish
 from render_harness import (
     RELEASE_FOCUS,
@@ -172,6 +174,67 @@ def test_a_range_and_a_select_preview_their_names_and_a_thread_card_none(
     assert not preview.is_visible(), preview.inner_text()
     page.keyboard.press("Escape")
     expect(thread).not_to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_inside_a_modal_takes_escape_before_the_modal(engine, request, serve):
+    """The image viewer is a modal dialog, and its Close previews inside it. While the
+    preview stands, Escape puts it away and leaves the viewer open, as over any other
+    surface; the next Escape closes the viewer."""
+    image = solid_png(400, 300, (200, 210, 220))
+    path = f"/media/{hashlib.sha256(image).hexdigest()[:16]}.png"
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Image", f'<p><a href="{path}"><img src="{path}" alt="A chart"></a></p>'
+            ),
+            media={path: image},
+        ),
+    )
+    page.get_by_role("link", name="A chart").click()
+    viewer = page.get_by_role("dialog", name="Image preview")
+    expect(viewer).to_be_visible()
+    preview = page.locator(PREVIEW)
+    viewer.get_by_role("button", name="Close image preview").hover()
+    expect(preview.locator(".lf-preview-word")).to_have_text("Close image preview")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    expect(viewer).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(viewer).to_be_hidden()
+
+
+def test_a_back_gesture_after_a_preview_put_away_closes_the_popover_under_it(
+    browser, serve
+):
+    """A Tab into an open popover shows its control's preview, and Escape puts it away.
+    A back gesture then takes the next step, closing the popover, as a second Escape
+    would: the page holds no close watcher of its own once no step of Leaf's stands
+    (keyboard/close-requests.js). Chromium alone, as the other back gestures are."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Popover",
+                '<button id="open" popovertarget="pop">Open</button>'
+                '<div id="pop" popover="auto"><p>Words to copy.</p>'
+                '<button id="copy" aria-label="Copy the words">⧉</button></div>',
+            )
+        ),
+    )
+    page.locator("#open").click()
+    popover = page.locator("#pop")
+    expect(popover).to_be_visible()
+    page.keyboard.press("Tab")
+    expect(page.locator("#copy")).to_be_focused()
+    preview = page.locator(PREVIEW)
+    expect(preview).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    expect(popover).to_be_visible()
+    back_gesture(page)
+    expect(popover).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

@@ -280,7 +280,7 @@ import {
 import { PREVIEW, PREVIEW_ENDED } from "./widget-upgrade.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
 import { nextRender, sizeObserver } from "./rendering.js";
-import { repaint } from "./repaint.js";
+import { paintCloseRequests } from "./keyboard/close-requests.js";
 import { atClock, clockNow } from "./presence.js";
 import { watchOwner } from "./arrivals.js";
 import { actionClass } from "./control-faces.js";
@@ -673,17 +673,18 @@ function readOutward(node, route) {
 /** @type {Shown | null} */
 let shown = null;
 // Whether a preview stands for Escape to put away, its first step (the `preview` scope).
-// The page holds a close watcher while Escape has a step to take, which it reads in the
-// repaint frame (keyboard/close-requests.js), and a preview coming or going asks for no
-// frame of its own, so each change of the step asks for one (`stepMoved`): a watcher
-// left from a preview put away took the next Escape and did nothing, so inside an open
-// popover the Escape after the preview's closed nothing.
+// The page holds a close watcher while Escape has a step to take, read in the repaint
+// frame (keyboard/close-requests.js), and a preview comes and goes between frames, so
+// each change of the step reads it again at once (`stepMoved`): a watcher left from a
+// preview put away took the next Escape, or the next back gesture, and did nothing, so
+// inside an open popover the press after the preview's closed nothing, even a frame
+// later.
 const standsForEscape = () => Boolean(shown && !shown.away);
 let stoodForEscape = false;
 function stepMoved() {
   if (standsForEscape() === stoodForEscape) return;
   stoodForEscape = !stoodForEscape;
-  repaint();
+  paintCloseRequests();
 }
 // When the last preview went, for the warm switch.
 let cooled = -Infinity;
@@ -1829,10 +1830,13 @@ export function mountPreviews(chrome) {
   // Escape is the preview's own step while one shows, ahead of every other, which does
   // nothing else; any other key puts a pointer's away and goes on to its work. A
   // suspended focus reading shows nothing to put away, so Escape goes on to its work
-  // and leaves the reading to come back with its subject.
+  // and leaves the reading to come back with its subject. The step is rooted where the
+  // preview shows, so inside a modal dialog, which makes every scope rooted outside it
+  // inert, it stays the first step there too (keyboard/dispatch.js, `stack`).
   pageScope("preview", {
     title: "A preview",
     escape: "inner",
+    root: () => tip,
     at: standsForEscape,
     rows: [
       {

@@ -4441,6 +4441,15 @@ export function createFloatingPanel({
     keeps(host, "data-lf-offers", !top && !search && reading.offers ? "" : null);
     keeps(host, "data-lf-tone", status().tone || null);
     keeps(host, "data-lf-asks", status().asks ? "" : null);
+    // A notice of the user's own command marks the panel with its beat's parity, so a
+    // flash keyed on it plays again for each press, one repeating the words standing
+    // included (notifications.js, `beat`); news nobody asked for gives no beat.
+    const { beat } = noticeReading();
+    keeps(
+      host,
+      "data-lf-beat",
+      reading.says === "notice" && beat ? (beat % 2 ? "odd" : "even") : null,
+    );
 
     render(panelTemplate(), host);
     noteDrawnSections();

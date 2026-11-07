@@ -50,12 +50,16 @@ let userContext = false;
 let userHoldTimer = 0;
 // What the seat says, whether it shows, and the press it offers, or null: the action
 // it is, the page command whose key makes the same press, what it does, and whether it
-// still can, as `{action, command, run, stands}`. Errors are no notices: they go
-// through errors.js, which keeps them until they are dealt with.
-/** @type {import("@preact/signals-core").Signal<Readonly<{message: Words, visible: boolean, press: NoticePress | null}>>} */
+// still can, as `{action, command, run, stands}`. A notice of the user's own command
+// carries its ordinal among them (`beat`), so the seat can answer each press, one
+// repeating the words already shown included; news nobody asked for carries none.
+// Errors are no notices: they go through errors.js, which keeps them until they are
+// dealt with.
+/** @type {import("@preact/signals-core").Signal<Readonly<{message: Words, visible: boolean, press: NoticePress | null, beat: number | null}>>} */
 const noticePresentation = signal(
-  Object.freeze({ message: "", visible: false, press: null }),
+  Object.freeze({ message: "", visible: false, press: null, beat: null }),
 );
+let beats = 0;
 
 export const noticeReading = () => noticePresentation.value;
 const noticeVisible = () => noticePresentation.peek().visible;
@@ -70,9 +74,10 @@ export const noticeWords = (message) =>
 
 // The reading changes in the gesture's task. Its seat paints visible news immediately
 // and coalesces a withdrawal until the script ends, so replacing a notice paints once.
-/** @param {Words} message @param {boolean} visible @param {NoticePress | null} [press] */
-const presentNotice = (message, visible, press = null) => {
-  noticePresentation.value = Object.freeze({ message, visible, press });
+/** @param {Words} message @param {boolean} visible @param {NoticePress | null} [press]
+ * @param {number | null} [beat] */
+const presentNotice = (message, visible, press = null, beat = null) => {
+  noticePresentation.value = Object.freeze({ message, visible, press, beat });
 };
 
 /** @param {Words} msg */
@@ -96,7 +101,7 @@ addEventListener(ANNOUNCE, (event) => announce(event.detail));
 // what pressing the words does reads in them.
 /** @param {Words} msg @param {Background | null} background @param {NoticePress | null} [press] */
 function showNotice(msg, background = null, press = null) {
-  presentNotice(msg, true, press);
+  presentNotice(msg, true, press, background ? null : ++beats);
   showingBackground = background;
   clearTimeout(noticeTimer);
   stopWatchingPress();

@@ -1094,6 +1094,53 @@ def option_picked(page: Page) -> None:
     expect(page.locator(".lf-live")).to_contain_text("Chose “")
 
 
+def option_answered(page: Page) -> None:
+    """The panel's row once the server has read a pick that leaves more On me, where the
+    field's end offers the next item On me lists."""
+    page.locator("#off-release-hold").click()
+    expect(page.locator(".lf-fp-on-user .lf-fp-num")).to_have_text("2")
+
+
+def panel_resolved(page: Page) -> None:
+    """The panel's row just after Resolve in its view of a thread moves the user on to
+    the next one, the field saying which thread was resolved and, at its end, the press
+    the moment offers."""
+    floating_thread(page)
+    page.locator(panel_view("thread")).focus()
+    page.keyboard.press("r")
+    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "data-lf-says", "notice"
+    )
+
+
+def panel_draw_mode(page: Page) -> None:
+    """The panel's row in Draw mode, the field naming the mode, with its way out."""
+    page.keyboard.press("w")
+    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "data-lf-says", "stance"
+    )
+
+
+def panel_selection(page: Page) -> None:
+    """The panel's row quoting words a script selected on the page, which a press on the
+    field comments on."""
+    page.locator("main p").first.evaluate(
+        """p => {
+          const text = [...p.childNodes].find(
+            (node) => node.nodeType === Node.TEXT_NODE && node.length > 30,
+          );
+          const range = document.createRange();
+          range.setStart(text, 0);
+          range.setEnd(text, Math.min(40, text.length));
+          getSelection().removeAllRanges();
+          getSelection().addRange(range);
+        }"""
+    )
+    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "data-lf-says", "selection"
+    )
+
+
 def option_references(page: Page) -> None:
     """The patch decision, whose two options both name the stall block above them."""
     page.locator("#off-workaround-review").scroll_into_view_if_needed()
@@ -2550,6 +2597,10 @@ STATES = (
         window=Window((1440, 300)),
     ),
     State("plan-option-picked", "review-a-plan", option_picked, region=".lf-fp-row"),
+    State("ship-option-answered", "ship-review", option_answered, region=".lf-fp-row"),
+    State("panel-resolved", "ship-review", panel_resolved, region=".lf-fp-row"),
+    State("panel-draw-mode", "review-a-plan", panel_draw_mode, region=".lf-fp-row"),
+    State("panel-selection", "review-a-plan", panel_selection, region=".lf-fp-row"),
     State(
         "plan-option-card-picked",
         "review-a-plan",

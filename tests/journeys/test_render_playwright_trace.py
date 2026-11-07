@@ -1881,7 +1881,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
             // or the right edge of a label pointing back from the scale's end.
             offsets: marks.map(mark => {
               const r = mark.getBoundingClientRect();
-              const at = track.left + edge + Number(mark.style.getPropertyValue('--t')) * span;
+              const at = track.left + edge + Number(mark.style.getPropertyValue('--lf-axis-at')) * span;
               return Math.abs((mark.hasAttribute('data-lf-flip') ? r.right : r.left) - at);
             }),
             flags: [...node.querySelectorAll('.lf-trace-moment-pin')].map(pin => {

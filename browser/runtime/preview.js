@@ -6,8 +6,9 @@
 
    - A control previews its name and its keys without declaring either: its accessible
      name where its face shows a symbol or a mark or doesn't say that name, and each
-     press that reaches it (control-keys.js, `controlKeys`) as key chips beside its
-     name, which a coarse pointer leaves out with every other advertised key. A control
+     press that reaches it from where the user is (control-keys.js, `controlKeys`) as
+     key chips beside its name, which a coarse pointer leaves out with every other
+     advertised key. A control
      whose face says its name and that no key reaches previews nothing. A field the user
      types in previews nothing: its words are what they read. A control is any native
      or ARIA press, a range and a select among them (control-selectors.js, `PRESSES`),

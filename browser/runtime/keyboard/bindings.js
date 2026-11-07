@@ -116,14 +116,14 @@
    it never reimplements the press.
 
    `aria-keyshortcuts` is another projection of the register. Element scopes expose their
-   currently available rows, including the scope's capability gate. Projected shortcuts
-   on native command buttons describe the dispatcher's currently reachable routes,
-   including contextual aliases and nearer key reservations. A directly attached element
-   scope also names its local keys. `Mod` expands to both Meta and Control because the
-   dispatcher accepts both. The attribute cannot express a sequential sequence: spaces
-   separate alternatives. An associated `control` in a sequence scope therefore omits
-   `aria-keyshortcuts` and exposes the complete route through its preview's key chips
-   (preview.js) and the keyboard command reference. Call `paintKeys` when a state change moves row liveness so this projection
+   currently available rows, including the scope's capability gate. A control a row or
+   route names also lists the keys that reach it from where the user is now, the
+   dispatcher's reachable routes, contextual aliases and nearer key reservations included
+   (control-keys.js), which its preview's key chips draw too. `Mod` expands to both Meta
+   and Control because the dispatcher accepts both. The attribute cannot express a
+   sequential sequence: spaces separate alternatives. A sequence's destination is reached
+   only once its first key is pressed, so the complete route stays in the keyboard command
+   reference. Call `paintKeys` when a state change moves row liveness so this projection
    and the visible surfaces change together. */
 export { PRESS, rowArrows } from "../control-keys.js";
 import { coarsePointer } from "../pointer.js";

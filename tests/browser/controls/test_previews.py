@@ -48,17 +48,22 @@ BOXES = """() => [...document.querySelectorAll(
 def test_a_control_previews_its_word_and_every_key_that_presses_it(
     engine, request, serve
 ):
-    """A thread's Resolve shows its symbol, so its preview says its word and `r`, which
-    presses it from anywhere in the thread, as a key chip: after a short rest of the
+    """A thread's Resolve shows its symbol, so its preview says its word and, as key
+    chips, the keys that press it from where the user is: after a short rest of the
     pointer, at once under the keyboard's focus, and with no tooltip of the platform's
-    beside it. The preview moves nothing, the pointer can cross onto it and read it
-    there, and the next control the pointer reaches says its own at once. While it stands, Escape puts it away and does
-    nothing else, so the thread it covers stays open; the next Escape leaves it."""
+    beside it. `r` presses it from the thread, but the caret in its reply types an r,
+    so there it says no key. The preview moves nothing, the pointer can cross onto it
+    and read it there, and the next control the pointer reaches says its own at once.
+    While it stands, Escape puts it away and does nothing else, so the thread it covers
+    stays open; the next Escape leaves it."""
     url = serve(PANEL_PAGE)
     thread = panel_comment(serve.page_dir, "Could the mobile cohort wait a week?")
     page = open_page(request.getfixturevalue(engine), url)
     view = open_panel_thread(page, thread)
     resolve = page.locator(".lf-fp-thread-controls .lf-resolve")
+    reply = page.get_by_role(
+        "textbox", name="Reply to Could the mobile cohort wait a week?"
+    )
     preview = page.locator(PREVIEW)
     expect(resolve).to_be_visible()
     # Off Leaf its word is the browser's tooltip; on Leaf it writes no title, so the
@@ -66,17 +71,28 @@ def test_a_control_previews_its_word_and_every_key_that_presses_it(
     assert resolve.get_attribute("title") is None, (
         "the browser's tooltip would show too"
     )
+    expect(reply).to_be_focused()
     rendered(page)
     before = page.evaluate(BOXES)
 
     resolve.hover()
     expect(preview).to_be_visible()
     expect(preview.locator(".lf-preview-word")).to_have_text("Resolve thread")
+    expect(preview.locator("kbd.lf-key-badge")).to_have_count(0)
+    # And a screen reader hears no key there either.
+    assert "r" not in (resolve.get_attribute("aria-keyshortcuts") or "").split()
+    rendered(page)
+    assert page.evaluate(BOXES) == before, "showing the preview moved the thread"
+    page.mouse.move(0, 0)
+    expect(preview).to_be_hidden()
+    # Out of the reply, on the thread, `r` presses Resolve, and the preview says so.
+    page.keyboard.press("Escape")
+    expect(reply).not_to_be_focused()
+    expect(view).to_be_visible()
+    resolve.hover()
     expect(preview.locator("kbd.lf-key-badge")).to_have_text(["r"])
     # The chip's key is the one a screen reader hears it has.
     assert "r" in resolve.get_attribute("aria-keyshortcuts").split()
-    rendered(page)
-    assert page.evaluate(BOXES) == before, "showing the preview moved the thread"
     tip = preview.bounding_box()
     # The pointer onto the preview keeps it, and reads it there (WCAG 1.4.13).
     page.mouse.move(tip["x"] + tip["width"] / 2, tip["y"] + tip["height"] / 2)

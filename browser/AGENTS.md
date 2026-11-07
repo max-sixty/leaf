@@ -228,7 +228,7 @@ playable").
 
 - **A preview reads and never acts.** It says where a thread stands, what a link points
   at, what caused a change or the time behind an age; a control's says its word and
-  every key that presses it, each as a key chip. Every preview wears one face, its name
+  each key that presses it from where the user is, as a key chip. Every preview wears one face, its name
   and key chips on the first line and its detail under them. It stands over the page
   beside what it previews, where the browser keeps it as the target moves, clear of
   the target's focus ring and inside the window, covering none of the targets beside
@@ -637,7 +637,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | What a place on the page shows as a preview, and the place a link into the page names                 | `place-preview.js` `placePreview`, `linkedPlace`                                   |
 | What a thread says when pointed at, on its passage mark and its margin entry                          | `thread/messages.js` `threadPreview`                                               |
 | The clock time behind an age, and what an age's `<time>` previews                                     | `presence.js` `clockTime`, `agePreview`                                            |
-| The keys that press a control                                                                         | `keyboard/control-keys.js` `controlKeys`                                           |
+| The keys that press a control from where the user is                                                  | `keyboard/control-keys.js` `controlKeys`                                           |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                              |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
 | The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |

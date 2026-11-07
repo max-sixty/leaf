@@ -770,10 +770,12 @@ async function boot() {
     chromeRoot.append(mediaViewer);
     document.body.after(chromeRoot);
     // Exports retain image inspection, but no page controls. Their other current location is
-    // what a widget's own box shows, such as an options group's addition field.
+    // what a widget's own box shows, such as an options group's addition field, and a
+    // widget's controls name the keys that reach them there as on a live page.
     mountRepaint({
       publishInputHint: inputs.publishInputHint,
       paintCloseRequests,
+      paintCoreControls,
       reflectFirstScopes,
       reflectKeys,
     });

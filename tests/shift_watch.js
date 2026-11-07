@@ -54,9 +54,11 @@
 // where news may carry controls (`appendGrowth`).
 // Layout coordinates remove scrolling; sticky descendants retain their
 // mechanical scroller's ownership. Portals with one unique anchor, in their tree or
-// inside the `anchor-scope` that limits its name, and a direct native anchor inset,
-// inline or in their tree's own rules, retain that scroller too; nested CSS
-// expressions, ambiguous names and rules that disagree receive no inferred ownership.
+// inside the `anchor-scope` that limits its name, or a popover's implicit anchor, the
+// `source` it was shown with, and a direct native anchor inset, inline or in their
+// tree's own rules, retain that scroller and their anchor's own animation too; nested
+// CSS expressions, ambiguous names and rules that disagree receive no inferred
+// ownership.
 //
 // Scrolls a gesture makes. Layout coordinates remove scrolling, so a scroll inside a
 // gesture's rendering would credit itself, though it carries the control the user
@@ -292,15 +294,18 @@
         moves(animation),
     );
   // A direct native anchor inset, not an unused var() fallback or a named
-  // different anchor inside the expression. Floating placement writes this form.
+  // different anchor inside the expression. Floating placement writes this form, and
+  // the preview an offset from a custom property: a script that changes the offset
+  // moves the box by more than its anchor's travel, which the credit never covers.
   const anchorInset = (value, axis) => {
     const side =
       axis === "left"
         ? "(?:left|right|center|start|end)"
         : "(?:top|bottom|center|start|end)";
     const anchor = `anchor\\(${side}(?:,\\s*-?[\\d.]+px)?\\)`;
+    const offset = "(?:-?[\\d.]+px|var\\(--[\\w-]+\\))";
     return new RegExp(
-      `^(?:${anchor}|calc\\((?:${anchor}\\s*[+-]\\s*-?[\\d.]+px|-?[\\d.]+px\\s*\\+\\s*${anchor}|${anchor})\\))$`,
+      `^(?:${anchor}|calc\\((?:${anchor}\\s*[+-]\\s*${offset}|${offset}\\s*\\+\\s*${anchor}|${anchor})\\))$`,
     ).test(value);
   };
   // Declarations that can win a property: an important inline one alone, else
@@ -504,27 +509,55 @@
       return null;
     return { node, key, value, axes: translationAxes(node) };
   };
+  // A popover shown with a `source` takes it as its implicit anchor, which
+  // `position-anchor: auto` follows and which no style or property names afterwards,
+  // so the call itself is read. A popover shown without one has none. Only a call that
+  // opens the popover sets its anchor: one made while it stands open, or one that
+  // throws, leaves the anchor the browser kept.
+  const implicitAnchors = new WeakMap();
+  for (const method of ["showPopover", "togglePopover"]) {
+    const native = HTMLElement.prototype[method];
+    HTMLElement.prototype[method] = function (options) {
+      const wasOpen = this.matches(":popover-open");
+      const result = native.call(this, options);
+      if (!wasOpen && this.matches(":popover-open")) {
+        const source = options instanceof Object ? options.source : null;
+        if (source instanceof Element) implicitAnchors.set(this, source);
+        else implicitAnchors.delete(this);
+      }
+      return result;
+    };
+  }
+  const implicitAnchor = (node, style) =>
+    style.positionAnchor === "auto" && node.matches(":popover-open")
+      ? (implicitAnchors.get(node) ?? null)
+      : null;
   const anchoredInset = (node, style, property, axis) => {
     const inline = node.style.getPropertyValue(property);
     if (inline && priority(node.style, property)) return anchorInset(inline, axis);
-    if (!style.positionAnchor.startsWith("--"))
+    if (!style.positionAnchor.startsWith("--") && !implicitAnchor(node, style))
       return inline ? anchorInset(inline, axis) : false;
-    const candidates = declaredValues(node, property);
+    // A rule that leaves the inset `auto`, as one undoing a popover's default inset
+    // does, is in force only where the inset is still `auto`, which Typed OM keeps as
+    // the keyword where CSSOM's resolved style gives a used pixel position; an engine
+    // without Typed OM proves nothing past such a rule.
+    const auto =
+      (node.computedStyleMap?.().get(property)?.toString() ?? "auto") === "auto";
+    const possible = (value) => auto || value.trim() !== "auto";
+    const candidates = declaredValues(node, property).filter(possible);
     if (candidates.every((value) => anchorInset(value, axis)))
       return candidates.length > 0;
     if (!candidates.some((value) => value.trim() === "revert-layer")) return false;
-    // A rollback can expose a lower tier. Prove every declared alternative,
-    // including normal rules under an important rollback, before allowing it.
-    // With none left, an inset is auto: Typed OM preserves that keyword where
-    // CSSOM's resolved style hides it as a used pixel position.
+    // A rollback can expose a lower tier, as the chrome guard's `all: revert-layer`
+    // stands under every chrome rule (styles/chrome-guard.css). Prove every declared
+    // alternative that can be in force, including normal rules under an important
+    // rollback, before allowing it. With none left, an inset is auto.
     const rules = declaredRules(node, property, false);
     const values = [...rules.normal, ...rules.important, inline].filter(
-      (value) => value && value.trim() !== "revert-layer",
+      (value) => value && value.trim() !== "revert-layer" && possible(value),
     );
     return (
-      values.length > 0 &&
-      values.every((value) => anchorInset(value, axis)) &&
-      (node.computedStyleMap?.().get(property)?.toString() ?? "auto") !== "auto"
+      values.length > 0 && values.every((value) => anchorInset(value, axis)) && !auto
     );
   };
   // The box a positioned box's `position-anchor` names. A name an `anchor-scope`
@@ -532,6 +565,7 @@
   // component still names one anchor for each; elsewhere it must be unique in its tree.
   const anchorOf = (node, style, anchors) => {
     const name = style.positionAnchor;
+    if (name === "auto") return implicitAnchor(node, style);
     if (!name.startsWith("--")) return null;
     const names = (value) => value.split(",").map((part) => part.trim());
     for (let at = up(node); at instanceof Element; at = up(at)) {

@@ -986,9 +986,9 @@ export function commandsWithin(root) {
 // bindings. Each scope's live rows are read and refused on their own; the attribute is
 // their union, since two scopes on one control may name one press: an obligation's route names
 // the intrinsic key of the command it routes to, which that command's own scope names. The
-// union also holds every one-press key that reaches the element as a control, which its
-// preview draws as key chips (control-keys.js, `controlShortcuts`, which says so here
-// with `projectControlShortcuts`, since it reads this module's readings).
+// union also holds every key that reaches the element as a control from where the user is
+// now, which its preview draws as key chips (control-keys.js, `paintCoreControls`, which
+// says so here with `projectControlShortcuts`, since it reads this module's readings).
 /** @type {(element: Element) => string} */
 let reaching = () => "";
 /** @param {(element: Element) => string} read */

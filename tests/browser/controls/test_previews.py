@@ -642,10 +642,6 @@ def test_a_link_into_the_page_previews_where_it_points(engine, request, serve):
     box = phone.locator("#to-decision").bounding_box()
     point = {"x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2}
     cdp = context.new_cdp_session(phone) if chromium else None
-    finger = """([type, x, y]) => document.elementFromPoint(x, y).dispatchEvent(
-      new PointerEvent(type, {pointerId: 7, pointerType: 'touch', isPrimary: true,
-        bubbles: true, cancelable: true, composed: true, button: 0,
-        buttons: type === 'pointerup' ? 0 : 1, clientX: x, clientY: y}))"""
 
     def touch(start):
         if cdp:
@@ -658,7 +654,7 @@ def test_a_link_into_the_page_previews_where_it_points(engine, request, serve):
             )
         else:
             kind = "pointerdown" if start else "pointerup"
-            phone.evaluate(finger, [kind, point["x"], point["y"]])
+            phone.evaluate(FINGER, [kind, point["x"], point["y"]])
 
     touch(True)
     assert long_press(phone, point) is False, "the platform's menu opened"
@@ -1605,12 +1601,47 @@ def _reads(page, selector, words):
     """What the preview names once a resting pointer has come onto `words` in the element
     `selector` names and the dwell has passed, or None where it shows nothing."""
     tip = page.locator(PREVIEW)
+    page.locator(selector).scroll_into_view_if_needed()
     at = page.evaluate(WORDS_AT, [selector, words])
     page.mouse.move(2, 2)
     page.wait_for_timeout(400)
     page.mouse.move(at["x"], at["y"], steps=3)
     page.wait_for_timeout(600)
     return tip.locator(".lf-preview-word").inner_text() if tip.is_visible() else None
+
+
+# A finger's press as a touch engine sends it, for an engine whose touch the driver
+# can't inject.
+FINGER = """([type, x, y]) => document.elementFromPoint(x, y).dispatchEvent(
+  new PointerEvent(type, {pointerId: 7, pointerType: 'touch', isPrimary: true,
+    bubbles: true, cancelable: true, composed: true, button: 0,
+    buttons: type === 'pointerup' ? 0 : 1, clientX: x, clientY: y}))"""
+
+
+def _held(page, cdp, selector, words):
+    """What the preview names once a finger has held `words` in the element `selector`
+    names past the long press, or None where it shows nothing; the touch is then
+    cancelled, which puts a held preview away. Chromium's finger is an injected touch
+    (`cdp`); elsewhere it is the pointer events a touch engine sends."""
+    tip = page.locator(PREVIEW)
+    page.locator(selector).scroll_into_view_if_needed()
+    point = page.evaluate(WORDS_AT, [selector, words])
+    if cdp:
+        cdp.send(
+            "Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [point]}
+        )
+    else:
+        page.evaluate(FINGER, ["pointerdown", point["x"], point["y"]])
+    rendered(page)
+    long_press(page, point)
+    page.wait_for_timeout(300)
+    said = tip.locator(".lf-preview-word").inner_text() if tip.is_visible() else None
+    if cdp:
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchCancel", "touchPoints": []})
+    else:
+        page.evaluate(FINGER, ["pointercancel", point["x"], point["y"]])
+    expect(tip).to_be_hidden()
+    return said
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -1678,89 +1709,156 @@ def test_a_thread_s_words_where_something_else_takes_the_pointer_preview_that(
     assert explained == ["Check every gate before expanding."]
 
 
-# A thread on words in code and on an option's chip, widgets whose content is their own.
-OWN_CONTENT = (
+# Threads on words in widgets: in code, which draws its content, and in what a widget
+# holds of the author's markup: an option's chip beside its mark, a link in an option,
+# a suggestion's old words and a playground's preview.
+WIDGET_WORDS = (
     '<lf-code id="code" language="python"><pre>marked_code = 1</pre></lf-code>'
     '<lf-options id="opts" choose><lf-option id="o1"><small class="tag">small cohort'
     "</small> <strong>Start small</strong> Then widen.</lf-option>"
-    '<lf-option id="o2"><strong>Start wide</strong> Then trim.</lf-option>'
-    "</lf-options>" + "<p>More words.</p>" * 4
+    '<lf-option id="o2"><strong>Start wide</strong> Then '
+    '<a id="o2-link" href="#destination">trim the list</a>.</lf-option></lf-options>'
+    '<lf-suggestion id="sug"><lf-old><p id="old">Refill every feeder each morning.'
+    "</p></lf-old><lf-new><p>Refill a feeder when its camera shows it half-empty.</p>"
+    "</lf-new></lf-suggestion>"
+    '<lf-playground id="pg"><lf-playground-control id="tone" name="tone" label="Tone"'
+    ' kind="choice" value="quiet"><lf-playground-choice id="tone-quiet" value="quiet"'
+    ' label="Quiet"></lf-playground-choice><lf-playground-choice id="tone-bold"'
+    ' value="bold" label="Bold"></lf-playground-choice></lf-playground-control>'
+    '<lf-playground-preview><p id="pg-words">The candidate banner reads well.</p>'
+    "</lf-playground-preview><lf-playground-output>Use"
+    ' <lf-playground-value for="tone"></lf-playground-value></lf-playground-output>'
+    "</lf-playground>"
+    + "<p>More words.</p>"
+    * 4
+    + '<section id="destination"><h2>Destination details</h2>'
+    "<p>The list once it is trimmed.</p></section>"
 )
-OWN_CONTENT_THREADS = [
-    {"section": "code", "quote": "marked_code"},
-    {"section": "o1", "quote": "small cohort"},
-]
+WIDGET_THREADS = {
+    "code": {"section": "code", "quote": "marked_code"},
+    "chip": {"section": "o1", "quote": "small cohort"},
+    "link": {"section": "o2", "quote": "trim the list"},
+    "old": {"section": "old", "quote": "every feeder"},
+    "preview": {"section": "pg-words", "quote": "candidate banner"},
+}
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_thread_s_words_in_code_or_an_option_preview_nothing_and_its_entry_does(
+def test_a_thread_s_words_in_a_widget_preview_it_unless_the_widget_draws_them(
     engine, request, serve
 ):
-    """A thread's words in a widget whose content is its own, as code or an option's
-    chip, preview nothing to a resting pointer, since the widget takes the pointer
-    there; the thread's margin entry previews it."""
-    url = serve(leaf_page("Own content", OWN_CONTENT))
-    _comment_on(serve.page_dir, OWN_CONTENT_THREADS)
+    """A thread's words in what a widget holds of the author's markup preview the
+    thread where no control there takes the pointer: an option's chip beside the
+    option's mark, a suggestion's old words, a playground's preview. A control in that
+    markup takes it, as a link in an option previews the link. Words a widget draws
+    itself, as code's, preview nothing, and the thread's margin entry previews it."""
+    url = serve(leaf_page("Widget words", WIDGET_WORDS))
+    _comment_on(serve.page_dir, WIDGET_THREADS.values())
     page = open_page(request.getfixturevalue(engine), url)
-    tip = page.locator(PREVIEW)
+    word = page.locator(PREVIEW).locator(".lf-preview-word")
     rendered(page)
-    assert [_reads(page, "#code", "marked_code"), _reads(page, "#o1", "cohort")] == [
-        None,
-        None,
-    ]
+    readings = {
+        "code": _reads(page, "#code", "marked_code"),
+        "chip": _reads(page, "#o1", "cohort"),
+        "link": _reads(page, "#o2-link", "trim"),
+        "old": _reads(page, "#old", "feeder"),
+        "preview": _reads(page, "#pg-words", "banner"),
+    }
+    assert readings == {
+        "code": None,
+        "chip": "On o1",
+        "link": "Destination details",
+        "old": "On old",
+        "preview": "On pg-words",
+    }
     # Code's entry stands for the line its words are on, which has no id.
-    for section, entry in (
-        ("code", '[data-lf-margin-for*="/lf-code:"]'),
-        ("o1", '[data-lf-margin-for="o1"]'),
-    ):
-        page.mouse.move(2, 2)
-        page.locator(f"{entry} > .lf-margin-marker").hover()
-        expect(tip.locator(".lf-preview-word")).to_have_text(f"On {section}")
+    page.mouse.move(2, 2)
+    entry = page.locator('[data-lf-margin-for*="/lf-code:"] > .lf-margin-marker')
+    entry.scroll_into_view_if_needed()
+    entry.hover()
+    expect(word).to_have_text("On code")
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_finger_holding_a_thread_s_words_reads_what_takes_the_pointer_there(
-    browser, serve
+    engine, request, serve
 ):
     """A finger held on a thread's words reads by the pointer's rule: in code, which
-    takes the pointer there, nothing; in plain prose, the thread."""
+    draws its content, nothing; in a suggestion's old words and in plain prose, the
+    thread."""
     url = serve(
         leaf_page(
-            "Own content",
-            '<p id="prose">Plain prose with marked words in it.</p>' + OWN_CONTENT,
+            "Widget words",
+            '<p id="prose">Plain prose with marked words in it.</p>' + WIDGET_WORDS,
         )
     )
     _comment_on(
         serve.page_dir,
-        [{"section": "prose", "quote": "marked words"}, OWN_CONTENT_THREADS[0]],
+        [
+            {"section": "prose", "quote": "marked words"},
+            WIDGET_THREADS["code"],
+            WIDGET_THREADS["old"],
+        ],
     )
+    browser = request.getfixturevalue(engine)
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, has_touch=True
     )
     page = open_page(browser, url, context=context)
-    cdp = context.new_cdp_session(page)
-    tip = page.locator(PREVIEW)
+    cdp = context.new_cdp_session(page) if engine == "browser" else None
     rendered(page)
+    assert [
+        _held(page, cdp, "#code", "marked_code"),
+        _held(page, cdp, "#old", "feeder"),
+        _held(page, cdp, "#prose", "marked"),
+    ] == [None, "On old", "On prose"]
 
-    def holds(selector, words):
-        """What the preview names once a finger has held `words` past the long press."""
-        point = page.evaluate(WORDS_AT, [selector, words])
-        cdp.send(
-            "Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [point]}
-        )
-        rendered(page)
-        long_press(page, point)
-        page.wait_for_timeout(300)
-        said = (
-            tip.locator(".lf-preview-word").inner_text() if tip.is_visible() else None
-        )
-        cdp.send("Input.dispatchTouchEvent", {"type": "touchCancel", "touchPoints": []})
-        expect(tip).to_be_hidden()
-        return said
 
-    assert [holds("#code", "marked_code"), holds("#prose", "marked")] == [
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_thread_s_words_slotted_into_a_titled_button_read_as_the_button(
+    engine, request, serve
+):
+    """A thread's words a component slots into its titled button stand in the button
+    where they render, so the button takes the pointer there: a resting pointer gets
+    the browser's title and no preview, and a held finger reads the button's title.
+    The same words slotted into a plain span preview their thread."""
+    url = serve(
+        leaf_page(
+            "Slotted",
+            '<p id="slotted">Press <span id="host"><span id="label">the slotted '
+            "label words</span></span> to go on.</p>"
+            '<p id="plain">Read <span id="plain-host"><span id="plain-label">the '
+            "plain label words</span></span> to go on.</p>"
+            + "<p>More words.</p>" * 6
+            + """<script type="module">
+  const draw = (id, markup) =>
+    (document.getElementById(id).attachShadow({mode: 'open'}).innerHTML = markup);
+  draw('host', '<button type="button" title="Slot control"><slot></slot></button>');
+  draw('plain-host', '<span><slot></slot></span>');
+</script>""",
+        )
+    )
+    _comment_on(
+        serve.page_dir,
+        [
+            {"section": "slotted", "quote": "label words"},
+            {"section": "plain", "quote": "label words"},
+        ],
+    )
+    browser = request.getfixturevalue(engine)
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, has_touch=True
+    )
+    page = open_page(browser, url, context=context)
+    cdp = context.new_cdp_session(page) if engine == "browser" else None
+    rendered(page)
+    assert [_reads(page, "#label", "label"), _reads(page, "#plain-label", "label")] == [
         None,
-        "On prose",
+        "On plain",
     ]
+    page.mouse.move(2, 2)
+    expect(page.locator(PREVIEW)).to_be_hidden()
+    assert _held(page, cdp, "#label", "label") == "Slot control"
 
 
 def test_a_standing_preview_says_what_a_new_revision_changed(browser, serve):

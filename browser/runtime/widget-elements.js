@@ -63,7 +63,7 @@ import { showNativeLayer } from "./keyboard/layer-stack.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { actionTemplate } from "./icons.js";
 import { renderedParent } from "./shadow.js";
-import { isElement, isNativeLayer, renderedUnder, upFrom } from "./shadow-tree.js";
+import { isElement, isNativeLayer, renderedUnder } from "./shadow-tree.js";
 
 import { keeps } from "./keeps.js";
 import { html, render, signal } from "/runtime/framework.js";
@@ -218,39 +218,42 @@ export function worksInside(node, container) {
 }
 
 /** What else the user could aim at, at `node`, at any point on the page, marked words
- * or not: the nearest element around it that takes the pointer itself, or null where
- * nothing does. One takes it where it is
+ * or not: the nearest element around it, as the page renders it (`renderedParent`, so
+ * through the slot that draws it), that takes the pointer itself, or null where nothing
+ * does. One takes it where it is
  * - a control, native or ARIA (`CONTROLS`), or an element with a title the browser
- *   shows, as a link or a titled button;
+ *   shows, as a link, a titled button or an option's mark;
  * - an element that declares its own preview (`lfPreview`), as a card that says what
  *   it holds, or a gloss;
- * - a registered widget whose content is its own: one that draws it from data
- *   (`x-content` `data` or `empty`), as code, a diff or a draft does, or acts on it
- *   (`x-state`), as options or a board do, with every member it holds.
- * A plain tab stop or scrolling box takes nothing, and neither does a widget that only
- * holds the author's words, as a pane or a tab does. A thread's words preview the
- * thread only where nothing does, on every route that reads a point (preview.js,
- * `readingAt`); presses don't ask, so a press on a thread's words acts as it always
- * has.
+ * - a registered widget that draws its content itself (`x-content` `data` or `empty`),
+ *   as code, a diff or a draft does, with all it draws.
+ * A plain tab stop or scrolling box takes nothing, and neither does what a widget
+ * holds of the author's markup, as a pane's words, an option's beside its mark, a
+ * suggestion's old and new words or a playground's preview: the verbs a widget
+ * declares (`x-state`) say what it records, not that a press on its content acts. A
+ * thread's words preview the thread only where nothing does, on every route that
+ * reads a point (preview.js, `readingAt`); presses don't ask, so a press on a thread's
+ * words acts as it always has.
  * @param {Node | null} node @returns {Element | null} */
 export function aimableAt(node) {
-  for (let at = isElement(node) ? node : upFrom(node); at; at = upFrom(at))
+  for (
+    let at = isElement(node) ? node : renderedParent(node);
+    at;
+    at = renderedParent(at)
+  )
     if (
       at.matches(CONTROLS) ||
       (at.localName !== "iframe" && Boolean(at.getAttribute("title"))) ||
       typeof at.lfPreview === "function" ||
-      ownsItsContent(registry[at.localName])
+      drawsItsContent(registry[at.localName])
     )
       return at;
   return null;
 }
-// Whether a registered widget's content is its own, by its entry: drawn from data, or
-// acted on through its verbs.
+// Whether a registered widget draws its content itself, by its entry.
 /** @param {import("../types/contract.js").WidgetDeclaration | undefined} entry */
-const ownsItsContent = (entry) =>
-  entry?.["x-content"] === "data" ||
-  entry?.["x-content"] === "empty" ||
-  Object.keys(entry?.["x-state"] ?? {}).length > 0;
+const drawsItsContent = (entry) =>
+  entry?.["x-content"] === "data" || entry?.["x-content"] === "empty";
 
 // The chrome a widget injects: a control, or the box that holds controls. Three
 // markers, one per question asked of it — `lf-ui` for apparatus identity, which

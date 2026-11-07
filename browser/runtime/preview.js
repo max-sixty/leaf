@@ -1419,7 +1419,7 @@ function aimed() {
 // there, as a thread's words, only where nothing else at that point takes the pointer
 // (widget-elements.js, `aimableAt`), and otherwise the element that previews itself
 // there, or nothing. So a link or a gloss holding a thread's words previews itself, a
-// titled button shows only its title, and a thread's words in code or an option preview
+// titled button shows only its title, and a thread's words in code or a draft preview
 // nothing, their thread reached by its margin entry, `t` and its Threads row. Focus
 // rests on an element and reads it, never a range.
 /** @param {Node | null} node @param {Element | null} element @param {Range | null} range

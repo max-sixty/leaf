@@ -786,8 +786,9 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     hold none of the page: it compacted, or another session wrote it. The
     envelope spells out the elements the gesture names, from the revision the
     user pressed on, so a later version that rewords an option does not
-    change what they chose. A gesture naming only its widget says the whole
-    widget, and an undo says what it takes back."""
+    change what they chose. Done on a group whose pick another verb records
+    says that pick, as the choice worded it, not every word of the group (#5620),
+    and an undo says what it takes back."""
     asked = PAGE.replace(
         "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
     )
@@ -841,9 +842,9 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     ]
     facts = ("subject", "threads", "says", "names")
     assert {key: in_force[key] for key in facts} == {key: chosen[key] for key in facts}
-    [(widget, whole)] = shown[0]["says"].items()
-    assert widget == "plan-choice"
-    assert "Ship behind the flag, reworded." in whole and "Backfill first" in whole
+    # Done wakes the agent alone, so it carries the answer it completes.
+    assert shown[0]["says"] == chosen["says"]
+    assert shown[0]["names"] == chosen["names"]
 
     receive_through(page_dir, last_deliverable_seq(page_dir))
     append_carried_log_record(

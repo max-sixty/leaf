@@ -610,6 +610,8 @@ export function floatingPlacement({ floating, update }) {
     },
     stop() {
       epoch += 1;
+      // The last placement's writer holds the element it anchored to.
+      stand = placedAt;
       lastAnchorStand = null;
       stopWatching?.();
       stopScrollInvalidation?.();

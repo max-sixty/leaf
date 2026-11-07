@@ -268,6 +268,70 @@ export function createFloatingResponsePlacement({
    * floating: HTMLElement, update: () => void) => () => void} EditingObserver */
   /** @type {{editing: EditingObserver, compact: typeof import("@floating-ui/dom").autoUpdate} | null} */
   let observationModes = null;
+  // Built outside `watchFabPosition`, whose scope holds the target it watches: the
+  // modes outlive every watch, and a closure made there would keep its first target
+  // alive for the session, after a revision removed it.
+  /** @param {typeof import("@floating-ui/dom").autoUpdate} autoUpdate
+   * @param {typeof import("@floating-ui/dom").getOverflowAncestors} getOverflowAncestors
+   * @returns {EditingObserver} */
+  function editingObserver(autoUpdate, getOverflowAncestors) {
+    return (reference, floating, update) => {
+      const invalidate = () => {
+        nativeAttachment = false;
+        update();
+      };
+      const stopSize = autoUpdate(reference, floating, invalidate, {
+        ancestorScroll: false,
+        layoutShift: false,
+      });
+      let x = reference.getBoundingClientRect().left;
+      // Each native scroll carrier owns its previous coordinates; there are no
+      // parallel arrays whose positions must keep naming the same ancestor.
+      const scrollers = getOverflowAncestors(reference.contextElement)
+        .filter(
+          /** @returns {node is Element | Window} */
+          (node) => "scrollX" in node || "scrollLeft" in node,
+        )
+        .map((node) => {
+          const position = () =>
+            "scrollX" in node
+              ? { x: node.scrollX, y: node.scrollY }
+              : { x: node.scrollLeft, y: node.scrollTop };
+          let previous = position();
+          return () => {
+            const current = position();
+            const changed = current.x !== previous.x || current.y !== previous.y;
+            previous = current;
+            return changed;
+          };
+        });
+      const stopMotion = autoUpdate(
+        reference,
+        floating,
+        () => {
+          const next = reference.getBoundingClientRect().left;
+          const scrolled = scrollers.map((read) => read()).some(Boolean);
+          if (scrolled) {
+            x = next;
+            return;
+          }
+          if (next === x) return;
+          x = next;
+          invalidate();
+        },
+        {
+          ancestorScroll: false,
+          ancestorResize: false,
+          elementResize: false,
+          layoutShift: true,
+        },
+      );
+      return () => {
+        stopMotion();
+        stopSize();
+      };
+    };
+  }
   /** @param {Element} target
    * @param {typeof import("@floating-ui/dom").autoUpdate} autoUpdate
    * @param {typeof import("@floating-ui/dom").getOverflowAncestors} getOverflowAncestors */
@@ -281,67 +345,10 @@ export function createFloatingResponsePlacement({
           : target.getBoundingClientRect();
       },
     };
-    if (!observationModes) {
-      observationModes = {
-        editing: (reference, floating, update) => {
-          const invalidate = () => {
-            nativeAttachment = false;
-            update();
-          };
-          const stopSize = autoUpdate(reference, floating, invalidate, {
-            ancestorScroll: false,
-            layoutShift: false,
-          });
-          let x = reference.getBoundingClientRect().left;
-          // Each native scroll carrier owns its previous coordinates; there are no
-          // parallel arrays whose positions must keep naming the same ancestor.
-          const scrollers = getOverflowAncestors(reference.contextElement)
-            .filter(
-              /** @returns {node is Element | Window} */
-              (node) => "scrollX" in node || "scrollLeft" in node,
-            )
-            .map((node) => {
-              const position = () =>
-                "scrollX" in node
-                  ? { x: node.scrollX, y: node.scrollY }
-                  : { x: node.scrollLeft, y: node.scrollTop };
-              let previous = position();
-              return () => {
-                const current = position();
-                const changed = current.x !== previous.x || current.y !== previous.y;
-                previous = current;
-                return changed;
-              };
-            });
-          const stopMotion = autoUpdate(
-            reference,
-            floating,
-            () => {
-              const next = reference.getBoundingClientRect().left;
-              const scrolled = scrollers.map((read) => read()).some(Boolean);
-              if (scrolled) {
-                x = next;
-                return;
-              }
-              if (next === x) return;
-              x = next;
-              invalidate();
-            },
-            {
-              ancestorScroll: false,
-              ancestorResize: false,
-              elementResize: false,
-              layoutShift: true,
-            },
-          );
-          return () => {
-            stopMotion();
-            stopSize();
-          };
-        },
-        compact: autoUpdate,
-      };
-    }
+    observationModes ??= {
+      editing: editingObserver(autoUpdate, getOverflowAncestors),
+      compact: autoUpdate,
+    };
     const observes = observationModes;
     fabPosition.watch(
       target,

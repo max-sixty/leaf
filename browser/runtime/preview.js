@@ -965,8 +965,9 @@ function anchorOf(record, reading) {
 }
 
 // The source the preview was last shown with, where it stood then, what it said, and
-// which side of its stage's mark it stands on.
-/** @type {Element | null} */
+// which side of its stage's mark it stands on. Held weakly, since it outlives the
+// preview and a revision may remove it.
+/** @type {WeakRef<Element> | null} */
 let anchored = null;
 /** @type {Element | null} */
 let seated = null;
@@ -991,14 +992,15 @@ function seat() {
 // other side of its mark, a change the page's watch of its writes reads as one.
 /** @param {HTMLElement} source @param {boolean} standing @param {boolean} moved */
 function open(source, standing, moved) {
-  if (standing && source === anchored && !moved) return;
+  const last = anchored?.deref();
+  if (standing && source === last && !moved) return;
   if (standing) closeNativeLayer(tip);
-  if (!moved && source !== anchored && tip.textContent === said) {
+  if (!moved && source !== last && tip.textContent === said) {
     beforeMark = !beforeMark;
     if (beforeMark) mark.before(tip);
     else mark.after(tip);
   }
-  anchored = source;
+  anchored = new WeakRef(source);
   said = tip.textContent ?? "";
   showNativeLayer(tip, { source });
 }
@@ -1460,6 +1462,7 @@ function hide() {
     record.holder.removeAttribute("data-lf-held");
   follow(null);
   awaitView(null);
+  placed = null;
   // Its words stay in the closed popover, so the next preview that says the same
   // writes nothing.
   closeNativeLayer(tip);

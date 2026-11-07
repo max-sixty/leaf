@@ -49,8 +49,18 @@ export function createStateApplication({
   notifyDataSubscribers,
   accountPending,
 }) {
-  /** @type {{reading: import("./semantic-news.js").NewsReading, observed: import("./semantic-news.js").ObservedNews} | null} */
+  /** @typedef {{reading: import("./semantic-news.js").NewsReading, observed: import("./semantic-news.js").ObservedNews}} PresentedNews */
+  /** @type {PresentedNews | null} */
   let presentedNews = null;
+  // What a queued news notice says when it shows, against the latest presented reading.
+  // Made here, not in `receiveState`, whose scope holds the activation and the document
+  // it replaced: a notice waiting its turn would keep both alive.
+  /** @param {PresentedNews} current */
+  const newsFormat =
+    (current) =>
+    /** @param {readonly import("./semantic-news.js").SemanticNews[]} value */
+    (value) =>
+      semanticNewsNotice(currentSemanticNews(value, current.reading, current.observed));
   let stateApplying = false;
   let admission = Promise.resolve();
   // Every answer handed in through any door, a state read or a gesture's POST, while
@@ -226,13 +236,7 @@ export function createStateApplication({
         if (reading.news.length) announce(semanticNewsNotice(reading.news));
         const shown = reading.news.filter((item) => item.kind !== "agent_content");
         if (shown.length) {
-          const current = presentedNews;
-          /** @param {readonly import("./semantic-news.js").SemanticNews[]} value */
-          const format = (value) => {
-            return semanticNewsNotice(
-              currentSemanticNews(value, current.reading, current.observed),
-            );
-          };
+          const format = newsFormat(presentedNews);
           notice(format(shown), {
             background: true,
             announce: false,

@@ -21,7 +21,7 @@ patchedDependencies:
     hash: a4068154e932aa84d9335be05a60e3f9d922fa91a428bb3e166796abb14317d3
     path: build/@floating-ui__dom.patch
   '@observablehq/plot@0.6.17':
-    hash: f3baed410c15630c2bf68bae12502f1a79d83fb1ad8b373fcf368f3e6cf9a0b3
+    hash: f602482c1f245ba15df1a45fef7b5cb6a1c1258918796f27cff4efabe93ba4d4
     path: build/@observablehq__plot@0.6.17.patch
   '@pierre/diffs@1.6.1':
     hash: 3cde8de80968604582f62e01f7c192deacdb0d513653bee4b026b70a226e23f1
@@ -103,7 +103,7 @@ importers:
         version: 1.0.3
       '@observablehq/plot':
         specifier: 0.6.17
-        version: 0.6.17(patch_hash=f3baed410c15630c2bf68bae12502f1a79d83fb1ad8b373fcf368f3e6cf9a0b3)
+        version: 0.6.17(patch_hash=f602482c1f245ba15df1a45fef7b5cb6a1c1258918796f27cff4efabe93ba4d4)
       '@openai/codex-sdk':
         specifier: 0.156.1
         version: 0.156.1
@@ -6513,7 +6513,7 @@ snapshots:
 
   '@nodable/entities@3.1.0': {}
 
-  '@observablehq/plot@0.6.17(patch_hash=f3baed410c15630c2bf68bae12502f1a79d83fb1ad8b373fcf368f3e6cf9a0b3)':
+  '@observablehq/plot@0.6.17(patch_hash=f602482c1f245ba15df1a45fef7b5cb6a1c1258918796f27cff4efabe93ba4d4)':
     dependencies:
       d3: 7.9.0
       interval-tree-1d: 1.0.4

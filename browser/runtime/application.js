@@ -86,12 +86,11 @@ import { raiseError } from "./errors.js";
  * state: Pick<Parameters<typeof createStateApplication>[0], "prepareActivation" | "acceptData" | "notifyDataSubscribers">,
  * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<ReturnType<typeof import("./obligations/view.js").createObligationView>, "goToObligation"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel" | "currentLocationObligation">,
  * createMarginProjection?: typeof import("./annotation-overlay/margin-projection.js").createMarginProjection | undefined,
- * threadAvailable?: boolean,
  * }} ApplicationDependencies */
 
 const commandDispatch = createCommandDispatch();
 
-// After a gesture of the user's answers something On me lists, while On me still lists
+// After a gesture of the user's answers something On Me lists, while On Me still lists
 // anything, the floating panel's field offers the next item there, `m`'s press, at its
 // end (notifications.js, `offerPress`). The user chose this on 6 November 2026 over the
 // field's Comment… and c, from three weeks of their keys, in which `m` came next after
@@ -100,7 +99,7 @@ const commandDispatch = createCommandDispatch();
 // settling reaction and a reply count alike, and a playground's unsent settings never
 // do; the offer waits for that reading, so it never offers the item just answered, and
 // only while the user hasn't moved since. It goes at their next input, or once nothing
-// is left On me. A reply or comment sent from the panel's field keeps the caret there,
+// is left On Me. A reply or comment sent from the panel's field keeps the caret there,
 // whose end then says the keys that send, so leaving it is the input that withdraws the
 // offer: the press follows picks, settling reactions and replies sent from a card.
 /** @type {import("./notifications.js").NoticePress} */
@@ -459,7 +458,6 @@ function createApplication(dependencies) {
   });
 
   threadPresenter = createThreadPresentation({
-    available: dependencies.threadAvailable ?? true,
     inlineView,
     surfaceView,
     anchorPlacement: dependencies.anchorPlacement,
@@ -776,7 +774,7 @@ function createApplication(dependencies) {
         readObligations().all,
       );
     },
-    // The On me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
+    // The On Me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
     nextObligation: /** @type {ApplicationDependencies["nextObligationWithin"]} */ (
       options,
     ) => dependencies.nextObligationWithin(options),

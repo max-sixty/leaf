@@ -283,7 +283,7 @@ reader sees always means something (`../SOUL.md`, "Let the user work as directly
   is a token or a shared rule ("Layouts, styles and controls", below, says how code
   keeps this).
 - **Green marks the user's turn; other thread controls stay blue.** Every surface paints
-  a thread's `unread` and `attention` from one value, so the On me mark's dot, Threads,
+  a thread's `unread` and `attention` from one value, so the On Me mark's dot, Threads,
   the panel, a margin entry and the Page Map change together, and marking read never
   moves the user.
 
@@ -350,7 +350,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Widget capture and lifecycle                                                                                | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js`                                           |
 | Vocabulary and public helpers                                                                               | `registry.js`, `widget-api.js`, `portable-api.js`, `widget-elements.js`, `widget-upgrade.js`                                                               |
 | External data                                                                                               | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                  |
-| Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`                                                      |
+| Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`, `change-provenance.js`                              |
 | Repaint and geometry                                                                                        | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `shown-box.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js`             |
 | Chrome and available space                                                                                  | `chrome.js`, `floating-panel.js`, `page-layout.js`, `root-headers.js`, `page-controls.js`, `preview.js`, `place-preview.js`                                |
 | Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                         |
@@ -630,6 +630,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Who says a word a seat shows about the work, and the face it says it in                               | `voice.js` `agentSays`, `leafSays`, `voiced`                                       |
 | Words as a label reads them, a count with its noun, and a label opening a sentence                    | `words.js` `labelWords`, `counted`, `capitalized`                                  |
 | Whether the page can copy here, with or without the Clipboard API                                     | `copy-control.js` `canCopy`                                                        |
+| What a version the comparison shows was saved after: the user's messages that waited                  | `change-provenance.js` `versionProvenance`                                         |
 | A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowWord`, `progressFace`, `todoWord`                    |
 | A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                             |
 | What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                    |

@@ -382,20 +382,24 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     assert wide["cardLeft"] < wide["controlsRight"], wide
 
 
-def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
+def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
     browser, serve
 ):
-    """Reading, a turn arriving extends the card downward. Drafting, so does each wrap
-    of the reply: the thread being answered and the reply's first line stay where the
-    user reads them, and Send moves down a line per wrap until the window's foot.
-    After that the card grows up from the window's foot, its transcript unscrolled,
-    until it fills the window, and then the editor scrolls internally."""
+    """Read beside its passage, a card holds its top, so a turn arriving extends it
+    downward. Written in, it holds its reply's foot: each wrap of the reply grows the
+    card up from the line typed, its transcript unscrolled, until it reaches the
+    window's head, and then the editor scrolls internally. A send leaves the caret in
+    the reply, so the answer grows the card up from the reply box too."""
     page = open_page(browser, serve(OBLIGATION_PAGE, events=[COMMENT_ON_OBLIGATION]))
     resized(page, 1920, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 160)")
     marker.click()
     preview = page.locator(".lf-margin-preview")
+    # The click's opening leaves the caret in the reply box, which holds the card's
+    # foot; Escape stands the user on the thread to read it.
+    page.keyboard.press("Escape")
+    expect(preview.locator(".lf-page-thread")).to_be_focused()
     initial = preview.evaluate(
         "node => ({top: node.getBoundingClientRect().top, height: node.getBoundingClientRect().height})"
     )
@@ -435,14 +439,14 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
         rendered(page)
         readings.append(page.evaluate(CARD_AND_REPLY))
     for now in readings:
-        for edge in ("cardTop", "turn", "editorTop"):
+        for edge in ("cardBottom", "editorBottom"):
             assert now[edge] == pytest.approx(before[edge], abs=0.5), (
                 edge,
                 before,
                 now,
             )
         assert now["scrolled"] == 0, now
-    # Layout is ready before the box's motion has carried Send to its landing.
+    # Layout is ready before the box's motion has carried the card's head to its landing.
     # Keep the per-input stability readings, then measure the completed wrap.
     page.wait_for_function(
         """() => !document.querySelector('.lf-margin-preview')
@@ -451,14 +455,14 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
                 animation.effect.getComputedTiming().iterations !== Infinity)"""
     )
     wrapped = page.evaluate(CARD_AND_REPLY)
-    for edge in ("editorBottom", "cardBottom", "send"):
-        assert wrapped[edge] > before[edge] + 30, (edge, before, wrapped)
+    for edge in ("cardTop", "turn", "editorTop"):
+        assert wrapped[edge] < before[edge] - 30, (edge, before, wrapped)
 
     source_top = marker.bounding_box()["y"]
 
-    # A draft with no room left under the card grows it up from the window's foot,
-    # keeping the turn it answers in view, until the card fills the window; then the
-    # editor scrolls.
+    # A long draft grows the card up from the reply's foot, keeping the turn it
+    # answers in view, until the card reaches the window's head; then the editor
+    # scrolls.
     write(editor, "\n".join(f"Line {n}" for n in range(60)))
     rendered(page)
     page.wait_for_function(
@@ -468,7 +472,7 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
                 animation.effect.getComputedTiming().iterations !== Infinity)"""
     )
     tall = page.evaluate(CARD_AND_REPLY)
-    assert tall["cardBottom"] == pytest.approx(tall["foot"], abs=1), tall
+    assert tall["cardBottom"] == pytest.approx(before["cardBottom"], abs=1), tall
     assert tall["cardTop"] == pytest.approx(tall["head"], abs=1), tall
     assert tall["turn"] - tall["cardTop"] == pytest.approx(
         before["turn"] - before["cardTop"], abs=0.5
@@ -500,8 +504,7 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
         send.click()
     expect(preview).to_contain_text("Sent")
     # The send leaves the caret in the reply, holding the card under the pressed
-    # Send. An answer arriving then extends it downward,
-    # holding its top, as a turn arriving while the user reads does.
+    # Send. An answer arriving then grows the card up from the reply box.
     rendered(page)
     expect(editor).to_be_focused()
     expect(preview).to_be_visible()
@@ -529,10 +532,13 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     expect(preview).to_contain_text("Noted.")
     rendered(page)
     answered = page.evaluate(CARD_AND_REPLY)
-    assert answered["cardTop"] == pytest.approx(sent["cardTop"], abs=0.5), (
-        sent,
-        answered,
-    )
+    for edge in ("editorTop", "cardBottom"):
+        assert answered[edge] == pytest.approx(sent[edge], abs=0.5), (
+            edge,
+            sent,
+            answered,
+        )
+    assert answered["cardTop"] < sent["cardTop"] - 10, (sent, answered)
     # Keep the complete send-and-answer journey exercised before the known Linux
     # native-caret boundary failure collected while the tall draft was focused.
     assert caret["caretBottom"] <= caret["boxBottom"], caret
@@ -630,7 +636,7 @@ def test_the_thread_card_survives_the_on_view_and_authored_sidebars(browser, ser
 
     toggle_queue(page)
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    # The press on the marker puts On me away and opens the card, not a thread view.
+    # The press on the marker puts On Me away and opens the card, not a thread view.
     marker.click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(PANEL_THREAD)).to_have_count(0)

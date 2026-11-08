@@ -1088,9 +1088,9 @@ SECTION_PAGE = leaf_page(
 
 
 def test_a_thread_on_a_whole_section_stands_where_the_section_stands(browser, serve):
-    """A link to a section previews it by its own name, and On me groups a thread on
+    """A link to a section previews it by its own name, and On Me groups a thread on
     the whole section under the part the section stands in: the preview says what a
-    place is, On me where it is."""
+    place is, On Me where it is."""
     url = serve(SECTION_PAGE)
     panel_comment(
         serve.page_dir,
@@ -3290,6 +3290,110 @@ def test_a_preview_no_side_holds_whole_takes_the_side_that_holds_most_lines_clea
     assert tip.locator("[data-lf-clamp], [data-lf-cut]").count() == 1
 
 
+# A control in the margin by a passage that runs on below it, near enough the window's
+# right edge that a preview from its left edge crosses it.
+EDGED = """<div style="height: 700px"></div>
+<p id="passage" style="position: fixed; left: 40px; width: 820px; top: 40px;
+  height: 300px; margin: 0">What the control is about.</p>
+<button id="edged" style="position: fixed; left: 900px; top: 50px; width: 32px;
+  height: 32px; padding: 0">E</button>"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_the_window_cuts_at_an_edge_slides_in_rather_than_cut_lines(
+    engine, request, serve
+):
+    """Below its left edge the window cuts it, below its right edge and beside it it
+    would cover what it is about, and above it the window holds a line: so it slides
+    in from its left edge until the window holds it, beside the passage and still
+    across the control, and shows every line, as a margin entry's preview by the
+    window's edge does."""
+    page = open_page(request.getfixturevalue(engine), serve(leaf_page("Edged", EDGED)))
+    page.set_viewport_size({"width": 1200, "height": 700})
+    page.evaluate(
+        """() => { document.getElementById('edged').lfPreview = () => ({name: 'Edged',
+          about: document.getElementById('passage'), detail: Array.from({length: 4},
+          (_, n) => `Detail line ${n}, long enough to fill the preview's width`)}); }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(2, 2)
+    page.locator("#edged").hover()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Edged")
+    rendered(page)
+    assert tip.get_attribute("data-lf-y") == "below"
+    assert tip.locator("[data-lf-clamp], [data-lf-cut]").count() == 0
+    assert page.evaluate(COVERS, ["passage"]) == []
+    drawn = page.evaluate(
+        "() => document.querySelector('#lf-preview .lf-preview-face')"
+        ".getBoundingClientRect().toJSON()"
+    )
+    # Up to the window's edge, within a layout unit: Firefox lays boxes out in sixtieths
+    # of a pixel, and the owner writes its offsets in sixty-fourths (keeps.js,
+    # `layoutPx`).
+    assert 900 < drawn["right"] < 1200 - 8 + 1 / 60 and drawn["left"] < 932, drawn
+
+
+# A drawing by the window's right edge, whose points a preview stands for, beside a
+# passage it is about, with another control above it.
+SLID_AIM = """<div id="drawing" style="position: fixed; left: 590px; top: 0; width: 100px;
+  height: 650px"></div>
+<p id="drawn" style="position: fixed; left: 40px; width: 520px; top: 0; height: 650px;
+  margin: 0">What the drawing is about.</p>
+<button id="other" style="position: fixed; left: 565px; top: 60px; width: 330px;
+  height: 130px">Other control</button>"""
+
+
+# The preview rides along the point it stands for as the aim moves, as a chart's does,
+# which the shift sensor counts as a move without input, as it does in
+# widgets/test_charts.py, unsurveyed for that reason.
+@pytest.mark.shifts_unsurveyed
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_slid_in_keeps_its_side_as_the_aim_moves(engine, request, serve):
+    """A point's preview the window cuts at its left edge slides in below the point,
+    and keeps that side as the aim moves 10 px down and back, since below, slid in
+    the same way, still holds it whole: above it would now fit too, and a new aim
+    keeps its side wherever that side still holds the reading whole."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(leaf_page("Slid aim", SLID_AIM))
+    )
+    page.set_viewport_size({"width": 900, "height": 700})
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfWidgetApi();
+          const drawing = document.getElementById('drawing');
+          window.at = 280;
+          drawing.lfPreview = () => ({name: 'Point', about: document.getElementById('drawn'),
+            at: {left: 600, right: 632, top: window.at, bottom: window.at + 32},
+            detail: Array.from({length: 4},
+              (_, n) => `Detail line ${n}, long enough to fill the preview's width`)});
+          // The point under the pointer, 10 px above it, as a chart's is.
+          drawing.addEventListener('pointermove', (event) => {
+            window.at = event.clientY - 10;
+            api.previewChanged(drawing, {aim: true});
+          });
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(610, 290)
+    expect(tip.locator(".lf-preview-word")).to_have_text("Point")
+    sides = []
+    for top in (280, 290, 280):
+        page.mouse.move(610, top + 10)
+        rendered(page)
+        drawn = page.evaluate(
+            "() => document.querySelector('#lf-preview .lf-preview-face')"
+            ".getBoundingClientRect().toJSON()"
+        )
+        sides.append(
+            (
+                tip.get_attribute("data-lf-y"),
+                drawn["top"] > top + 32,
+                tip.locator("[data-lf-clamp], [data-lf-cut]").count(),
+            )
+        )
+    assert sides == [("below", True, 0)] * 3, sides
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_target_filling_a_short_window_previews_a_whole_line(engine, request, serve):
     """A target that leaves no side room for even one line of its preview has it stand
@@ -3332,7 +3436,7 @@ def test_a_target_filling_a_short_window_previews_a_whole_line(engine, request, 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_count_on_a_control_s_face_names_nothing(engine, request, serve):
-    """A control whose face shows a mark and a count, as the folded On me does, says
+    """A control whose face shows a mark and a count, as the folded On Me does, says
     nothing of what it is by that count, so it previews its name to the keyboard and to
     a held finger, whose release then presses nothing."""
     url = serve(
@@ -3418,7 +3522,7 @@ def test_a_preview_over_another_target_goes_as_the_pointer_reaches_it(
     assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", centre) == (
         "under"
     )
-    expect(tip).to_be_hidden(timeout=3000)
+    expect(tip).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -3470,7 +3574,7 @@ def test_a_covering_preview_stays_while_the_pointer_is_on_it_over_inert_words(
     assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", field) == (
         "under"
     )
-    expect(tip).to_be_hidden(timeout=3000)
+    expect(tip).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -3621,7 +3725,7 @@ def test_a_covering_range_preview_stays_while_the_pointer_is_on_it_over_inert_wo
         "under" if field == "beside" else "inner"
     )
     page.evaluate("() => window.lfPointRange(null)")
-    expect(tip).to_be_hidden(timeout=3000)
+    expect(tip).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -3660,10 +3764,10 @@ def test_a_focus_preview_goes_under_a_sticky_header_and_returns_with_its_control
     page.wait_for_timeout(300)
     box = page.locator("#box")
     box.evaluate("el => { el.scrollTop = 120; }")
-    expect(tip).to_be_hidden(timeout=3000)
+    expect(tip).to_be_hidden()
     box.evaluate("el => { el.scrollTop = 0; }")
     expect(read).to_be_focused()
-    expect(tip).to_be_visible(timeout=3000)
+    expect(tip).to_be_visible()
     expect(tip.locator(".lf-preview-word")).to_have_text("Read report")
 
 
@@ -3725,7 +3829,7 @@ def test_a_held_reading_ends_as_its_control_scrolls_away(browser, serve, after):
     expect(tip).to_be_visible()
     box = page.locator("#box")
     box.evaluate("el => { el.scrollTop = 160; }")
-    expect(tip).to_be_hidden(timeout=3000)
+    expect(tip).to_be_hidden()
     assert held.evaluate("el => el.ended") == 1
     cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
     if after == "Escape":

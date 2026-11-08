@@ -1,11 +1,11 @@
 /* Placement for threads: the page's order, which every reading of the threads
    shares, and the part of the page a thing stands in (`partOver`).
 
-   On me groups every item under the part its subject stands in (`partOver` of the
+   On Me groups every item under the part its subject stands in (`partOver` of the
    element it is about): questions, conversations and to-dos alike. A link's preview
    names a place by its own name, else by the part it stands in. So for a thread on a
-   whole section, the preview names the section and On me says where that section
-   stands: the preview says what a place is, On me where it is, and they agree wherever
+   whole section, the preview names the section and On Me says where that section
+   stands: the preview says what a place is, On Me where it is, and they agree wherever
    a place has no name of its own. */
 import { addressableLabel, addressableWord, ownNaming } from "../addressable-names.js";
 import { sectionOf } from "../anchor-resolution.js";
@@ -100,7 +100,7 @@ export function headingAfter(heading) {
 
 // What names the part of the page, or of a message's markup, a node stands in: the
 // heading over it, else the nearest element holding it that the authoring contract
-// names (addressable-names.js, `ownNaming`), or null where none does. On me's bands
+// names (addressable-names.js, `ownNaming`), or null where none does. On Me's bands
 // and a link's preview read it as the header says, and an obligation's arrival
 // (obligations/view.js, `arrivalRegion`) lands on it.
 //
@@ -113,7 +113,7 @@ export function headingAfter(heading) {
 // figure or table names what it holds, and a region the author labelled is a part. A
 // run-in label, a leading <strong> that words follow before a <br> or a block element,
 // as a paragraph's or a titled option's is, names its own element and makes no part: a
-// bold label opening a line is no place a reader groups by, so On me's bands and a
+// bold label opening a line is no place a reader groups by, so On Me's bands and a
 // preview's name go on to the part holding the line. A <strong> alone on its line, over
 // a <br> or a container's blocks, names that container as a part, as a heading would.
 // Which it is is the markup's (`runsIntoLine`), not the line the browser draws: a
@@ -136,10 +136,10 @@ export function headingAfter(heading) {
 // Replaced: only a declared name or a leading heading named a container, while the
 // preview named a place by its nearest named holder first (`holderNaming`). The two
 // rules disagreed under a sub-heading inside a titled section, the preview saying the
-// section and On me the sub-heading; one rule now says the sub-heading for both.
+// section and On Me the sub-heading; one rule now says the sub-heading for both.
 //
 // The reading records what stood over each element as its walk reached it, so a call
-// costs the node's depth: On me asks it of every item it lists. A node the reading never
+// costs the node's depth: On Me asks it of every item it lists. A node the reading never
 // reached, as one the page does not draw, stands as the nearest element it reached does.
 /** @param {Element} node */
 export function partOver(node) {

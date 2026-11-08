@@ -7,17 +7,17 @@ answer into records on the page and messages the agent hears at its next step.
 Don't call tools and don't continue the work: answer from the conversation above
 and the page state below.
 
-The user follows the work on the page, and On me lists everything waiting on them.
+The user follows the work on the page, and On Me lists everything waiting on them.
 Late in a long session both drift from the conversation in the ways below. Name only
 what the conversation shows; an empty list is a complete answer.
 
 ## Asks waiting on the user
 
-Leaf's rule for what goes On me, the one the agent follows (`conversation-loop.md`,
-"The On lists"), comes after this check. Name each ask that rule puts On me which
+Leaf's rule for what goes On Me, the one the agent follows (`conversation-loop.md`,
+"The On lists"), comes after this check. Name each ask that rule puts On Me which
 the agent left to the user, in its replies or anywhere in the conversation, where
-no On me item holds it and the user hasn't answered it since. Leaf puts each
-ask On me as the agent's own, in a new thread opened by the agent's message, and
+no On Me item holds it and the user hasn't answered it since. Leaf puts each
+ask On Me as the agent's own, in a new thread opened by the agent's message, and
 the agent takes the user's reply or withdraws the ask. For each, give:
 
 - `title`: a few words naming its thread's subject ("Merging the two mark styles",
@@ -57,7 +57,7 @@ passed on. Name:
   tells the agent, which can undo it. Leave `edit` null where the fix needs more
   than a sentence or a choice the conversation hasn't made; the agent revises the
   page.
-- `settled`: an On me item the user has answered elsewhere, such as in chat, or
+- `settled`: an On Me item the user has answered elsewhere, such as in chat, or
   that the work has made moot. The agent records the answer or withdraws the item.
 - `unshown`: work the agent promised the user, or set running, such as a
   background job or a subagent, that no page shows as owed or under way. Leave out

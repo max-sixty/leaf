@@ -339,7 +339,7 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
      card's own border, a frame in a frame with the reply field a third box inside
      that. The reply field keeps its box, since that is the thing typed into. The ring is
      still the thread's focus; the card's face only carries it, and its surface while the
-     card moves. A message holding focus, as Next on me leaves the reply it lands on,
+     card moves. A message holding focus, as Next On Me leaves the reply it lands on,
      rings the card too (below), since the keys it answers act on its thread. */
   .lf-margin-preview-card:has(
     .lf-page-thread[data-lf-focus-visible],

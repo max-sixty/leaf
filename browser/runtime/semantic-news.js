@@ -16,7 +16,7 @@
    Every other kind of news is a change between readings, so the first reading
    establishes it without announcing it.
 
-   On me emptying is news, in the words its empty view says, whoever emptied it: the
+   On Me emptying is news, in the words its empty view says, whoever emptied it: the
    user's last answer, one from another tab, or a revision that took the last
    obligation away. The list is the one the panel's badge counts (queue-api.js,
    `onUserCount`). The user asked on 5 November 2026 to be told when they finish
@@ -43,7 +43,7 @@ import { NOTHING_ON_ME } from "./queues.js";
 /** @param {{attempt?: string | null, id?: string | null}} record */
 const identity = (record) => record.attempt ?? record.id;
 
-// News reads the shown revision's view: the one the page just presented, whose On me list
+// News reads the shown revision's view: the one the page just presented, whose On Me list
 // the floating panel counts. While an activation waits (a gesture defers it, or
 // the document is a pinned version), an obligation the active revision adds is not on this
 // page yet; it becomes news when a revision holding it is presented.
@@ -262,7 +262,7 @@ export function semanticNewsNotice(news) {
   if (obligations.length)
     clauses.push([
       leafSays(
-        obligations.length === 1 ? "New on me" : `${obligations.length} new on me`,
+        obligations.length === 1 ? "New On Me" : `${obligations.length} new On Me`,
       ),
     ]);
   if (news.some((item) => item.kind === "on_me_empty"))

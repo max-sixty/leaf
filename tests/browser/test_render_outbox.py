@@ -1288,8 +1288,16 @@ def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
         page.locator("#card-heater .lf-grip").focus()
-        for key in ["Enter", "ArrowRight", "Enter"]:
+        for key in ["Enter", "ArrowRight"]:
             page.keyboard.press(key)
+        # The drop lands while the card still slides from where it stood, outside the
+        # board that shrank under it: a slide held paused carries the user nowhere
+        # (user-place.js, `carried`), so it runs, too slowly to end before the refusal.
+        page.evaluate(
+            "() => __lfHeld.forEach(motion => {"
+            " motion.playbackRate = 1e-6; motion.play(); })"
+        )
+        page.keyboard.press("Enter")
     holding(page, held, 1, "the refused card move")
     attempt = held[0].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):

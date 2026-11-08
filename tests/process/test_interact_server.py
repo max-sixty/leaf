@@ -319,7 +319,6 @@ def test_samples_use_captured_resources_and_independent_event_logs(
     (page_dir / "page/pixel.png").write_bytes(pixel)
     (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
     publish(page_dir)
-    parent_before = event_model.read_events(page_dir)
     _, raw_state = fetch(f"{server}/api/state")
     parent_state = json.loads(raw_state)
     generation = parent_state["layer"]["generation"]
@@ -381,6 +380,10 @@ def test_samples_use_captured_resources_and_independent_event_logs(
             {"session": "c" * 32, "entries": [browser_observation("click")]}
         ).encode(),
     ) == (204, b"")
+    # The parent's log as the child's comment finds it: recording the interaction in the
+    # parent's trace took its changed module live as its second revision, which the
+    # parent's own log records.
+    parent_before = event_model.read_events(page_dir)
     status, answer = fetch(
         child + "/api/event",
         layer=generation,
@@ -1233,7 +1236,7 @@ def test_every_state_answer_holds_the_served_state_schema(server, page_dir):
     status, raw = fetch(f"{server}/api/view?revision=1&through_seq={latest}")
     assert status == 200, raw
     viewed = json.loads(raw)
-    assert set(viewed["browser"]["views"]) == {"1"}
+    assert viewed["document"]["revision"] == 1
     assert served_state_error(viewed, "ViewAnswer") is None, served_state_error(
         viewed, "ViewAnswer"
     )
@@ -2474,12 +2477,9 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
     status, body = fetch(f"{server}/api/view?revision=1&through_seq={first['seq']}")
 
     assert status == 200, body
-    browser = json.loads(body)["browser"]
-    assert set(browser["views"]) == {"1"}
-    view = browser["views"]["1"]
-    assert browser["basis"]["through_seq"] == first["seq"]
-    assert view["basis"] == {"revision": 1, "through_seq": first["seq"]}
-    assert view["document"]["projection"]["desired"] == [first["id"]]
+    document = json.loads(body)["document"]
+    assert document["revision"] == 1
+    assert document["projection"]["desired"] == [first["id"]]
 
 
 def test_a_comparison_view_refuses_a_future_log_boundary(server, page_dir):
@@ -4089,14 +4089,17 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
         row for row in before["browser"]["history"] if row["id"] == picked["id"]
     ]
     assert gesture["gesture"] == {"form": "choice", "chosen": ["Flag first"]}
-    comparison = service.page_browser_view(2, picked["seq"])
-    assert comparison["basis"]["through_seq"] == picked["seq"]
-    assert comparison["history"][0]["gesture"] == gesture["gesture"]
+    comparison = service.page_comparison(2, picked["seq"])
+    assert comparison["document"]["revision"] == 2
+    assert [
+        entry["event"]["id"]
+        for entry in comparison["document"]["projection"]["entries"]
+    ] == [picked["id"]]
 
     shutil.rmtree(page_dir)
 
     assert service.page_state() == before
-    assert service.page_browser_view(2, picked["seq"]) == comparison
+    assert service.page_comparison(2, picked["seq"]) == comparison
     # The page as it stood at the gesture, as `leaf page picture` serves one: the log
     # and the versions stamped by then.
     then = snapshot.through(picked["seq"]).context
@@ -4136,8 +4139,10 @@ def test_comparison_revision_reads_stay_inside_the_page_transaction(
 
     monkeypatch.setattr(read_context, "read_revision", held_revision)
     monkeypatch.setattr(read_context, "read_data", held_data)
-    status, body = fetch(f"{server}/api/view?revision=1&through_seq={latest}")
+    status, body = fetch(f"{server}/api/view?revision=1&through_seq={latest}&shown=2")
     assert status == 200, body
+    # The base is read, and the revision shown for its containment
+    # (`provenance.saved_after`).
     assert set(observed) == {1, 2}
 
 

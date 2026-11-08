@@ -266,7 +266,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
 
 @pytest.mark.parametrize("width", [900, 1200])
 def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width):
-    """On me stands over the page without moving its coordinate plane.
+    """On Me stands over the page without moving its coordinate plane.
 
     A broad authored rule may position ordinary divs, and the view may arrive over a
     target without another pointer event. Neither may move the chrome's document origin or
@@ -2565,9 +2565,10 @@ CONTROL_SHAPES = {
         [("A", "A"), ("B", "B")],
     ),
     # A control's announcement reads the prose around it, and no neighbouring control's
-    # words.
+    # words. The section has a heading of its own, since an unnamed section is named by
+    # its words, the neighbour's included.
     "spoken": (
-        '<section id="spoken"><p>Find settings <input aria-label="Search flags"> <button aria-label="Close dialog">×</button></p></section>',
+        '<section id="spoken"><h2>Flags</h2><p>Find settings <input aria-label="Search flags"> <button aria-label="Close dialog">×</button></p></section>',
         "#spoken input, #spoken button",
         [("Search flags", None), ("Close dialog", "×")],
     ),
@@ -3623,8 +3624,9 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
     gap the location ring takes, the gestures as brackets and focus whole.
 
     A table and a card with authored corners draw them alike. A mark stands over an
-    outline the page gave the target while it lasts, and the page's own comes back once
-    no mark stands there.
+    outline the page gave the target while it lasts. Focus alone is the box's focus
+    ring rather than a mark, so an outline the page gave the box outranks it, and the
+    page's own stands again once only focus is marked.
     """
     page = open_page(
         browser,
@@ -3677,7 +3679,10 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
             page.keyboard.press("Escape")
             expect(node).to_be_focused()
             expect(node).to_have_attribute("data-lf-mark", re.compile(r"\bfocus\b"))
-            boundary(node, brackets=False)
+            if target == "rounded":
+                expect(node).to_have_css("outline-style", "dashed")
+            else:
+                boundary(node, brackets=False)
             page.evaluate(RELEASE_FOCUS)
             expect(node).not_to_have_attribute("data-lf-mark", re.compile(".*"))
             if target == "rounded":

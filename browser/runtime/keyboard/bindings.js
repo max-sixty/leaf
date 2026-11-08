@@ -25,7 +25,7 @@
    - `title` is the command's required concise name, or a function when state changes
      it. The obligation, menu rows, reference, and announcements read these same words.
    - `description` is the row's tooltip in the reference, its meta line when the row
-     is selected, and a line under its title on a touch screen and on an On me card that
+     is selected, and a line under its title on a touch screen and on an On Me card that
      answers a Decision command. Most rows need none. Write one only for something the title and
      section heading leave out and a short title can't hold, such as "Keeps what is
      typed" or the action Undo would take back. If the missing words fit in the title,
@@ -39,7 +39,7 @@
    - `control` is the visible element activating the command. `decision: true` marks a
      command that starts, advances, answers, or revises an obligation; the role does not assign
      bindings. `recommended: true` marks the answer the page advises, so a surface that
-     answers the obligation away from its widget, as On me does, can say so, and
+     answers the obligation away from its widget, as On Me does, can say so, and
      `commits: true` the press that commits the answer the user has composed, such as a
      group's Done, which wears the commit face there as on its widget. `bindingBadge` independently requests an inline hint: an Element lends
      the widget's seat, null requests a corner badge, absence requests none. A route
@@ -700,7 +700,7 @@ export const ariaShortcuts = (rows, current = true, where, includes = () => true
 //
 // A letter matches on its lowercase with Shift asked for separately, because caps lock
 // writes an uppercase key out of an unshifted press and reads an unshifted one out of a
-// shifted press. Read off the glyph, `M` would match the shifted On me walk from a
+// shifted press. Read off the glyph, `M` would match the shifted On Me walk from a
 // bare letter under caps lock, and could no longer be reached with the Shift the chip
 // names. Asking
 // for the modifier is what makes the chip true in both directions.

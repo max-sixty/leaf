@@ -252,18 +252,18 @@
      (layouts.css, "Breakouts"): one number for the whole vocabulary, because a width per
      widget is how a page becomes a ransom note. It is the width at which 100 columns of
      code, the common limit of formatters such as rustfmt, read unwrapped in the widest
-     code gutter Leaf draws: a diff's, with four-digit line numbers and its sign column.
-     That row is 109 characters (the gutter's `digits + 5`, then the text) and 10px of
-     borders and padding (packages/diff/styles/geometry.css, which counts the same
-     anatomy). It is derived from --code-size rather than stated, so a code size the
-     root sets carries it. A character is taken as 0.61em: the --mono stack's widest
-     common faces advance 0.602em (Menlo, DejaVu Sans Mono; SF Mono is 0.6em), and
+     code gutter Leaf draws: a diff's, with old and new four-digit line numbers and its
+     sign column. That row is 114 characters (the gutter's `2 × digits + 6`, then the
+     text) and 10px of borders and padding (packages/diff: lf-diff.js sets the gutter,
+     widget-shadow.css its padding). It is derived from --code-size rather than stated,
+     so a code size the root sets carries it. A character is taken as 0.61em: the --mono
+     stack's widest common faces advance 0.602em (Menlo, DejaVu Sans Mono; SF Mono is 0.6em), and
      Firefox rounds that up far enough that at exactly 0.602em its diff scrolled the
      last column by a pixel. Registered (base.css) so it computes to a length where it is
      declared; unregistered, it would reach every reader as the formula. Sharing the
      prose's start edge lets a block this close to the column read as part of it.
      An `available` surface instead spans the room on both sides of the prose. */
-  --wide: calc(109 * 0.61 * var(--code-size) + 10px);
+  --wide: calc(114 * 0.61 * var(--code-size) + 10px);
   /* The widest a sidebar page (layouts.css) grows.
      Past it a board's columns and a dashboard's tiles stop gaining anything but the
      distance between them. */
@@ -584,7 +584,7 @@
   --series-5: light-dark(#8c2d2a, #b13d54);
 }
 /* What anyone wrote in a thread, wherever the thread stands (a card, the floating
-   panel, a widget's seat), the comment being typed, and an On me question: Leaf's own
+   panel, a widget's seat), the comment being typed, and an On Me question: Leaf's own
    sans, whatever the page sets its prose in, since these are the conversation about
    the page rather than the page. Declared on the root, it takes the root's rung, so a
    density the page gives its `main` leaves it alone, and on each of the chrome's parts,
@@ -647,7 +647,7 @@
   /* Whatever qualifies another line: a row's end, a status, a description, a time. */
   --font-small: var(--t-6) / var(--lf-ui-lh) var(--sans);
   /* A status or reference that names a state rather than qualifying a line: a
-     passage's or a drawing's. */
+     passage's, a drawing's, a summary's. */
   --font-status: 500 var(--t-6) / var(--lf-ui-lh) var(--sans);
   --font-heading: 600 var(--t-6) / var(--lf-ui-lh) var(--sans); /* a group's name */
   --font-title: 600 var(--t-5) / var(--lf-ui-lh) var(--sans); /* a dialog's or pane's */

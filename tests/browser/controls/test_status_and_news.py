@@ -181,7 +181,7 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
     Driven by writing the events a real one would leave, since that is what the page
     reads either way, and there is no other way to reach this half: every gesture the
     press sweep above can make is one the user made, and none of these are."""
-    # Three pending suggestions, so On me's count has somewhere to go before they run
+    # Three pending suggestions, so On Me's count has somewhere to go before they run
     # out; nine comments already, so the tenth crosses a digit; and pinned, so a v2
     # landing leaves the page where it is and offers the row's notice rather than
     # following it.
@@ -194,7 +194,7 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
     owing = f"{on_me}.split(', ')[0]"
     expect_open_threads(page, 9)
     page_at_rest(page)
-    owed = int(page.evaluate(f"() => {on_me}").removeprefix("On me: "))
+    owed = int(page.evaluate(f"() => {on_me}").removeprefix("On Me: "))
 
     def publish_v2():
         stamp_page(d, html, "two")
@@ -238,12 +238,12 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
         (
             "another tab decides two of the three pending suggestions",
             lambda: decide("sug-refill", "sug-thistle"),
-            f"() => {owing} === 'On me: {owed - 2}'",
+            f"() => {owing} === 'On Me: {owed - 2}'",
         ),
         (
             "another tab decides the last one",
             lambda: decide("sug-in-card"),
-            f"() => {owing} === '{'On me: ' + str(owed - 3) if owed > 3 else 'On me'}'",
+            f"() => {owing} === '{'On Me: ' + str(owed - 3) if owed > 3 else 'On Me'}'",
         ),
     ]:
         page.evaluate(DEFINE_BOXES)

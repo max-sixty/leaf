@@ -61,7 +61,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
 
     # A mode offers no step of its own: a stroke's undo is on its drawing's composer, so
     # each mode's way out is the field's Close, its word alone under a finger, while
-    # the On me mark keeps its seat.
+    # the On Me mark keeps its seat.
     for entry, root, mode in (
         ("command:draw.mode.enter", "html", "data-lf-draw-mode"),
         ("command:design.mode.enter", "body", "data-lf-design-mode"),

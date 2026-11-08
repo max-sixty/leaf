@@ -741,7 +741,7 @@ STORE_ASK_PAGE = leaf_page(
 
 
 def seed_thread_about_the_ask(page_dir, root, *, resolved=False):
-    """A thread on the ask the agent has answered, so the ask stays On me's."""
+    """A thread on the ask the agent has answered, so the ask stays On Me's."""
     append_carried_log_record(
         page_dir,
         {
@@ -847,7 +847,7 @@ def test_a_finger_opening_a_thread_about_an_ask_stands_in_its_view(browser, serv
 
 
 def test_an_on_me_card_represents_its_ask(browser, serve):
-    """On me's card for an ask represents the ask, as an On row did: focusing the
+    """On Me's card for an ask represents the ask, as an On row did: focusing the
     card rings the ask, and its digits answer it there."""
     page = open_page(browser, serve(STORE_ASK_PAGE))
     page.locator(".lf-fp-on-user").click()

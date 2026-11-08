@@ -101,10 +101,6 @@ const unpainted = new Map();
 // replaced command or invoke a control its owner no longer declares. The weak set
 // prevents duplicate listeners when one capability is attached in several places.
 const wiredButtons = new WeakSet();
-/** @type {WeakMap<Element, ButtonCommand>} */
-const buttonReadings = new WeakMap();
-/** @param {Element} control */
-export const buttonCommand = (control) => buttonReadings.get(control);
 /** @type {WeakMap<Element, {disabled: boolean, ariaDisabled: string | null}>} */
 const buttonBaselines = new WeakMap();
 const BUTTON_AVAILABILITY = Symbol("native command availability");
@@ -372,7 +368,6 @@ function chosenCommand(candidates) {
 function releaseButton(control) {
   const baseline = buttonBaselines.get(control);
   if (!(control instanceof HTMLButtonElement) || !baseline) return;
-  buttonReadings.delete(control);
   buttonAvailability.get(control)?.();
   buttonAvailability.delete(control);
   const { disabled, ariaDisabled } = baseline;
@@ -411,7 +406,6 @@ function reflectButton(control) {
             (scope.when && !scope.when()) ||
             !commandAvailable(row, entry === row ? null : entry);
           keeps(read, "aria-disabled", disabled ? "true" : null);
-          buttonReadings.set(read, command);
         });
       } catch (error) {
         failure = error;
@@ -943,7 +937,7 @@ export function projectCommandScope(control, projector, capability = null) {
 // declaring scope beside each row: a control presentation may be hoisted elsewhere,
 // while Decision ownership still belongs to the source that declared the command.
 // This is the shared capability reading: the dispatcher, hints and reference use
-// the same rows directly, while projections such as On me select the role they need.
+// the same rows directly, while projections such as On Me select the role they need.
 // A scope may sit on a nested control rather than the widget itself, so the walk goes
 // down from `root` as it renders (`eachRendered`). It costs the widget's size, not the
 // page's, and returns the scopes in the order they were declared.

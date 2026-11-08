@@ -446,7 +446,7 @@ describe("product-site delivery", () => {
         status: 204,
         headers: {
           "Access-Control-Allow-Origin": "*",
-          "Cache-Control": "no-store",
+          "Cache-Control": "no-cache",
           "Set-Cookie": "private-parent-cookie=1",
         },
       });
@@ -1571,6 +1571,11 @@ describe("product-site delivery", () => {
       expect(getContainer).not.toHaveBeenCalled();
       expect(response.headers.get("Set-Cookie")).toBeNull();
       expect(response.headers.get("Leaf-Session")).toBe("passive");
+      // A stored answer serves only a request naming the same data version.
+      expect(response.headers.get("Cache-Control")).toBe("no-cache");
+      expect(response.headers.get("Vary")).toBe(
+        "Leaf-Data-Version, Leaf-View-Revision",
+      );
       expect(response.headers.get("Leaf-Session-Reference")).toMatch(/^\d{12}$/);
       expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
       const state = await response.json<Pick<ServedState, "taken" | "now" | "data">>();
@@ -2432,6 +2437,68 @@ describe("website page agent", () => {
         status: 200,
       });
       expect(JSON.stringify(records)).not.toContain("private");
+    } finally {
+      logged.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("logs a model body Codex cancels with its bytes and idle time", async () => {
+    const keepalive = new TextEncoder().encode('data: {"type":"keepalive"}\r\n\r\n');
+    let upstreamCancelled = false;
+    const upstream = vi.fn(
+      async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(keepalive);
+            },
+            cancel() {
+              upstreamCancelled = true;
+            },
+          }),
+          { headers: { "x-request-id": "upstream-request" } },
+        ),
+    );
+    vi.stubGlobal("fetch", upstream);
+    const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const handler = LeafWebsiteSession.outboundByHost!["api.openai.com"];
+
+    try {
+      const response = await handler(
+        new Request("https://api.openai.com/v1/responses", {
+          method: "POST",
+          body: "{}",
+        }),
+        environment(),
+        { containerId: "user-container", className: "LeafWebsiteSession" },
+      );
+      const reader = response.body!.getReader();
+      expect((await reader.read()).value).toEqual(keepalive);
+      // Codex waits on a silent stream with a read pending when it cancels.
+      const pending = reader.read();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await reader.cancel();
+      expect((await pending).done).toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const records = logged.mock.calls.map(
+        ([record]) => record as Record<string, unknown>,
+      );
+      expect(records.map((record) => record.event)).toEqual([
+        "model_request_started",
+        "model_response_headers",
+        "model_response_first_byte",
+        "model_response_first_output",
+        "model_response_cancelled",
+      ]);
+      expect(records[4]).toMatchObject({
+        bytes: keepalive.byteLength,
+        idleMs: expect.any(Number),
+        status: 200,
+        upstreamRequestId: "upstream-request",
+      });
+      expect(upstreamCancelled).toBe(true);
     } finally {
       logged.mockRestore();
       vi.unstubAllGlobals();

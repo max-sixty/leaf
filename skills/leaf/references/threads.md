@@ -1,7 +1,7 @@
 # Threads
 
 Open a thread when the answer depends on the user. Add `--obligation` to put the
-message on their On me list until they answer. The message itself supplies the
+message on their On Me list until they answer. The message itself supplies the
 request; no widget or markup is needed, though a question whose answers you can list
 takes them as a choice instead ("Ask for a pick"). Anchor it with a quote for a passage, a section id
 for a diagram or image, a declared part for one box within a visual, or nothing for
@@ -140,14 +140,14 @@ Every answer declares whose move it leaves:
 
 - `--obligation`: the user's. It leaves them a decision, or something to try or
   review before making one, or asks them for an answer or permission. It creates
-  `message:<its id>` on On me until their next reply or a settling reaction answers
+  `message:<its id>` on On Me until their next reply or a settling reaction answers
   it, or they resolve the thread, so the answer stays on their list even where the
   decision it informs is already there. Where you can list the answers, a choice in
   `--markup` asks instead ("Ask for a pick").
 
   Where their reply left a question standing, as when they asked something back or
   the step is still to do, give `--obligation` its id, repeating the flag for each
-  such question. Their reply took the question off On me whatever it said;
+  such question. Their reply took the question off On Me whatever it said;
   `--obligation <id>` returns the same item there, standing on this message, until
   their next reply, so a plan step naming it reads open again. Anything more you need
   from them, even on the same subject, is a new question and takes no id.

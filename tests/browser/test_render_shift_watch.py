@@ -4922,6 +4922,27 @@ def test_the_verdict_checks_a_change_the_test_ends_on(browser):
     )
 
 
+def test_a_tap_s_press_letting_go_is_heard(browser):
+    """A tap leaves its control `:active` on the browser's timer after its last event,
+    so the press feedback letting go restyles it with no event; the sensor still
+    reads it (`shift_watch.js`, "Unchanged frames")."""
+    context = browser.new_context(has_touch=True)
+    page = context.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            "<!doctype html><style>button:active {transform: scale(.9875)}</style>"
+            '<button id="control">Control</button>'
+        )
+    )
+    paint(page)
+    page.locator("#control").tap()
+    page.wait_for_function("() => !document.querySelector(':active')")
+    page.evaluate(FRAMES, 4)
+    judge_watches()
+    assert take_browser_errors(page) == []
+
+
 # Each case moves the words below #field's holder with a change the sensor may not
 # announce; the shift Chrome paints still has its verdict.
 UNHEARD_SHIFTS = {

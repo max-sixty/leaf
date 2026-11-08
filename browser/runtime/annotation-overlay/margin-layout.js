@@ -442,6 +442,9 @@ const railBeside = (scroller) => flowOf(scroller).flow === pageScroller;
 /** @param {Element} target */
 export const railStandsBeside = (target) =>
   Boolean(layer) && railStands(marginColumn()) && railBeside(scrollerFor(target));
+// The column's edge the rail hangs off: the right of `main`'s prose. What stands right
+// of a box ending short of it stands over the column, not in the rail's margin.
+export const railEdge = () => proseRect(marginColumn()).right;
 // Prospective placement measures the same primitive a first contribution will draw.
 // The native cascade resolves the entry's aim floor and the row's focus clearance,
 // including package or author overrides. No existing entry, cached size, or parsed
@@ -516,12 +519,11 @@ export function marginSpot(target, point = null, passage = null) {
       return { left, right };
     }
   if (!layer || !railStandsBeside(target)) return null;
-  const main = marginColumn();
   const hang =
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--rail-hang"),
     ) || 0;
-  const left = proseRect(main).right + hang;
+  const left = railEdge() + hang;
   return { left, right: left + restingRail(layer).row };
 }
 
@@ -1110,7 +1112,7 @@ function contentBox(scroller) {
   };
 }
 
-// The rows the last pass stood folded (`seatRows`). This is the one reading of it: the
+// The rows the last pass stood folded (`seatRow`). This is the one reading of it: the
 // projection presents a row folded by asking `standsFolded`, and a row's `fold.changed`
 // tells it to ask again.
 const folded = new WeakSet();
@@ -1157,7 +1159,7 @@ function standFolded(row, fold, on) {
 // shadow hosts holding the target, so their words and controls bound its seat just as
 // the document's do.
 //
-// A pin's seats, in the order it takes them, all touch its target (`seatRows`): just
+// A pin's seats, in the order it takes them, all touch its target (`seatRow`): just
 // outside the target's top-right corner; for a run of text or a quoted passage, whose
 // corner is its own words' rather than the block's, just after its last word, where a
 // reader finishes it (each of these two only where no other block stands level with

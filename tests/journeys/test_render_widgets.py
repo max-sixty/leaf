@@ -1546,7 +1546,8 @@ body { font-family: system-ui, sans-serif; }
         for event in reversed(events_model.read_events(serve.page_dir))
         if event["kind"] == "comment"
     )
-    assert comment["anchor"]["section"] == "notification-simulator"
+    # The receipt stands in the Banner choice, the nearest element with an id.
+    assert comment["anchor"]["section"] == "format-banner"
     assert comment["anchor"]["quote"] == ("Version 2.8.0 passed all 18 release checks.")
     logged_comment = next(
         event

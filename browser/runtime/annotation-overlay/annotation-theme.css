@@ -68,7 +68,7 @@
 .lf-margin-cluster:not([data-lf-place]) {
   visibility: hidden;
 }
-/* A pin folded for want of room (`seatRows`, margin-placement.js) opens over whatever
+/* A pin folded for want of room (`seatRow`, margin-placement.js) opens over whatever
  * stands beside it, which keeps its place. */
 .lf-margin-cluster[data-lf-place="pin"][data-lf-folded][data-lf-options-open] {
   z-index: 3;

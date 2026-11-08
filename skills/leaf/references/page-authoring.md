@@ -64,7 +64,7 @@ Use `lf-gloss` for unfamiliar terms the reader can open locally.
 
 Link each pull request, issue, commit, URL, and file or source line with a known
 destination in every section, decision and reply that names it. The user reaches each
-of those on its own, from the contents or On me, and opens what it names from there to
+of those on its own, from the contents or On Me, and opens what it names from there to
 check it. A fragment link to an id on the page, such as `<a href="#decision">`, shows
 the reader where it points while they point at or focus it: the place's name and first
 lines, a question's answer, and the threads about it.
@@ -251,7 +251,7 @@ widget starts with a `<strong>`. A leading `<strong>` heads a part when the next
 after it is a `<br>`, a block element or the end of the block holding it; the end of an
 inline element around it, such as a `<span>`, doesn't count. Followed first by
 text, hidden text included, it is a run-in label: it names its own line, and what
-follows belongs to the enclosing part, which On me groups by and a link's preview
+follows belongs to the enclosing part, which On Me groups by and a link's preview
 names. A block element is any outside HTML's phrasing content, including every widget
 whose registry entry doesn't declare `x-inline`. The markup decides, not CSS: a span
 styled `display: block` or a newline `white-space` keeps doesn't end the line. A widget whose body is data, such

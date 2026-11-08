@@ -78,7 +78,7 @@ def _render_version_attempt(
     an upgrade module that never defines its declared element, an x-thread-seat whose module
     placed no matching page host, a widget upgraded into a box of no usable size,
     an element showing words with no box for a mark to hang on, so a comment anchored
-    there would outline nothing and the On me walk would travel to the top of the page,
+    there would outline nothing and the On Me walk would travel to the top of the page,
     words the user can read and can't select — each in both color schemes at the
     `desktop` viewport and a phone's, because the dark theme and responsive layout are
     real CSS nobody otherwise renders — plus, in one scheme at

@@ -563,8 +563,11 @@ def test_a_version_says_which_comments_it_was_saved_after(browser, serve):
     which change (change-provenance.js)."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
+    # The answered comment stands on the last paragraph, so its margin entry leaves the
+    # title's ⇄ preview room for every line, which a preview held shorter cuts
+    # (preview.js, `fit`).
     asked = _comment_on(
-        d, "c", "Gamma stays as it was.", text="Beta first?\nIt reads one way."
+        d, "d", "Delta reads one way.", text="Beta first?\nIt reads one way."
     )
     stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
     replied = CliRunner().invoke(

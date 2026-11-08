@@ -208,8 +208,8 @@ CASES = ("waiting", "working")
 
 def samples_path() -> Path:
     """Where this machine keeps every sample, one JSON line each, outside any
-    checkout so runs from every worktree accumulate. A stopgap until a store CI can
-    write to too (issue #4048, "Keep the agent journey's samples")."""
+    checkout so runs from every worktree accumulate. CI's samples stay in
+    `publish-site`'s run logs."""
     state = os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state"
     return Path(state) / "leaf-dev" / "journey.jsonl"
 

@@ -23,22 +23,25 @@
    on 31 October against a stop of their own, an Escape step and a menu row, which no
    other annotation has. A finger needs no row for the walk (keyboard/AGENTS.md, "Touch
    routes"): every change is marked where it stands, and its margin entry and Page Map
-   row reach it with a tap. */
-import { comparisonBase, comparisonChanges } from "./version.js";
+   row reach it with a tap.
+
+   With no comparison standing, or one that marks nothing, a press says "No changes
+   marked" in the panel (notifications.js, `notice`), as every page walk with nothing to
+   step through says so (keyboard/AGENTS.md, "Page grammar"), so the key is live on
+   every page. While a comparison `v` started is still loading, its marks aren't known
+   yet, so the key isn't taken rather than saying none are marked. */
+import { comparisonBase, comparisonChanges, selectedBase } from "./version.js";
 import { versionProvenance } from "./change-provenance.js";
 import { wordsText } from "./voice.js";
 import { removalProxy } from "./margin-bars.js";
-import { effect, untracked } from "/runtime/framework.js";
 import { pageCommand } from "./keyboard/register.js";
-import { paintKeys } from "./keyboard/scopes.js";
 import { cycledRow } from "./keyboard/bindings.js";
 import { currentLocationOrigin, stepFrom, walkOrigin } from "./current-target.js";
 import { focusDestination } from "./focus.js";
 import { alreadyShown, scrollIntoView } from "./landing-scroll.js";
 import { scrollBehavior } from "./motion.js";
 import { renderedUnder } from "./shadow-tree.js";
-import { announce } from "./notifications.js";
-import { repaint } from "./repaint.js";
+import { announce, notice } from "./notifications.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 
 /** @typedef {import("./version.js").Change} Change */
@@ -78,7 +81,7 @@ function step(dir) {
     : stepFrom(list, origin, dir, start);
   if (!change) return;
   // A gap's stand-in brings the gap into view as it takes focus (margin-bars.js).
-  if (change.blocks.length && !alreadyShown(change.at))
+  if (change.blocks.length && !alreadyShown(change.at, { block: "start" }))
     scrollIntoView(change.at, { behavior: scrollBehavior(), block: "start" });
   focusDestination(landing(change), "move");
   const said = beginWalk("change", "Change", position);
@@ -89,11 +92,9 @@ function step(dir) {
 }
 
 export function createChangeWalk() {
-  const offered = () => comparisonChanges().length > 0;
-  let wasOffered = false;
-  let watching = null;
   pageCommand({
     id: "change.walk",
+    ready: () => selectedBase() === comparisonBase(),
     touch: false,
     keys: ["h", "Shift+h"],
     routes: [
@@ -101,23 +102,11 @@ export function createChangeWalk() {
       { id: "change.previous", binding: "Shift+h", title: "Previous change" },
     ],
     title: "changes",
-    when: offered,
     repeat: true,
     travels: true,
-    runKey: (binding) => step(binding === "h" ? 1 : -1),
+    runKey: (binding) =>
+      comparisonChanges().length
+        ? step(binding === "h" ? 1 : -1)
+        : notice("No changes marked"),
   });
-  // The row stands while a comparison marks anything, so the surfaces reading the keys
-  // are repainted where the marks come or go.
-  return {
-    mount() {
-      watching ??= effect(() => {
-        if (offered() === wasOffered) return;
-        wasOffered = offered();
-        untracked(() => {
-          paintKeys();
-          repaint();
-        });
-      });
-    },
-  };
 }

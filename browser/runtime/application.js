@@ -15,7 +15,9 @@ import {
   PRESENTATION_DOM,
   readPart,
 } from "./semantic-state.js";
-import { announce } from "./notifications.js";
+import { announce, offerPress } from "./notifications.js";
+import { inputCount } from "./focus.js";
+import { pressCommand } from "./keyboard/dispatch.js";
 import { hasObligationSource } from "./obligations/source.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { watchPendingTraffic } from "./traffic.js";
@@ -35,7 +37,7 @@ import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
-import { createQueueActions } from "./queue-api.js";
+import { createQueueActions, onUserCount } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
 import { nextRender } from "./rendering.js";
 import { createReadTracking } from "./thread/read.js";
@@ -88,6 +90,38 @@ import { raiseError } from "./errors.js";
  * }} ApplicationDependencies */
 
 const commandDispatch = createCommandDispatch();
+
+// After a gesture of the user's answers something On Me lists, while On Me still lists
+// anything, the floating panel's field offers the next item there, `m`'s press, at its
+// end (notifications.js, `offerPress`). The user chose this on 6 November 2026 over the
+// field's Comment… and c, from three weeks of their keys, in which `m` came next after
+// 29% of picks and 21% of comments and replies. Which items a gesture answered is the
+// server's reading, each obligation's `answer.event` (obligations.py), so a pick, a
+// settling reaction and a reply count alike, and a playground's unsent settings never
+// do; the offer waits for that reading, so it never offers the item just answered, and
+// only while the user hasn't moved since. It goes at their next input, or once nothing
+// is left On Me. A reply or comment sent from the panel's field keeps the caret there,
+// whose end then says the keys that send, so leaving it is the input that withdraws the
+// offer: the press follows picks, settling reactions and replies sent from a card.
+/** @type {import("./notifications.js").NoticePress} */
+const nextOnMe = {
+  action: "next-on-me",
+  command: "queue.next",
+  run: () => pressCommand("queue.next"),
+  stands: () => onUserCount() > 0,
+};
+/** @param {import("./pending/state.js").DeliveryHandle} entry */
+const offerNextOnMe = (entry) => {
+  const since = inputCount();
+  void entry.read.then((logged) => {
+    if (inputCount() !== since || !nextOnMe.stands()) return;
+    const answered = readObligations().all.some(
+      (obligation) => obligation.answer?.event?.id === logged.id,
+    );
+    if (answered) offerPress(nextOnMe);
+  });
+};
+
 /** @type {ReturnType<typeof createApplication> | null} */
 let application = null;
 const app = () => {
@@ -198,6 +232,7 @@ function createApplication(dependencies) {
 
   /** @param {import("./pending/state.js").DeliveryHandle} entry */
   function afterEnqueue(entry) {
+    offerNextOnMe(entry);
     // Enqueue has already published and claimed its presentation, whose coordinator
     // reports any failed paint. The entry's answer describes the server's durable
     // decision, so a local announcement failure is reported here rather
@@ -726,7 +761,7 @@ function createApplication(dependencies) {
     queueActions,
     /** @param {string} id */
     openObligation(id) {
-      const item = readObligations().all.find((item) => item.id === id);
+      const item = readObligations().byId.get(id);
       if (!item) return Promise.resolve(false);
       if (hasObligationSource(item, "update"))
         return queueActions.open(JSON.stringify([item.source.kind, item.id]));
@@ -741,7 +776,7 @@ function createApplication(dependencies) {
         readObligations().all,
       );
     },
-    // The On me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
+    // The On Me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
     nextObligation: /** @type {ApplicationDependencies["nextObligationWithin"]} */ (
       options,
     ) => dependencies.nextObligationWithin(options),

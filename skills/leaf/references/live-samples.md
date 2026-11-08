@@ -3,7 +3,7 @@
 Use `<lf-sample interactive>` to show working widgets inline, with a sample label
 and gutter. Its contents belong to the surrounding page: choices and edits use that
 page's event log and Undo, and comments reach the same agent. Its widgets demonstrate
-rather than ask, so none of them goes on On me. Give every widget its own page-wide
+rather than ask, so none of them goes on On Me. Give every widget its own page-wide
 id. This mode has no inner page, panel, Reset or Full view controls:
 
 ```html
@@ -35,7 +35,7 @@ Put only the demonstrated page inside the template; labels, your own controls an
 instructions for using the sample go outside it.
 
 The sample uses the parent's layer and has its own event log, so its decisions and
-comments never reach the parent's log or On me. When the sample is
+comments never reach the parent's log or On Me. When the sample is
 about the window itself, such as Leaf's panel and its views, add the boolean `window`
 attribute to show a whole Leaf window at a fixed height. The user can click or Tab into
 the sample and use it fully; Escape returns to the parent, and Reset starts it fresh

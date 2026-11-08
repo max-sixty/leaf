@@ -23,6 +23,7 @@ from render_harness import (
     close_panel_menu,
     compare_with,
     draft_control,
+    expect_preview_words,
     leaf_page,
     open_page,
     open_threads,
@@ -530,7 +531,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     row = page.locator(f"{panel_view('threads')} .lf-fp-thread[data-lf-key='c1']")
     expect(row).not_to_have_attribute("data-lf-resolved", "")
     notice = page.locator(".lf-fp-joined .lf-thread-news")
-    expect(notice).to_have_attribute("title", "1 thread reopened")
+    expect_preview_words(notice, "1 thread reopened")
     notice.click()
     expect_resolved(page, "c1", resolved=False)
     open_panel_thread(page, "c1")

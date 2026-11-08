@@ -8,6 +8,7 @@ from render_cases_interaction import THREAD_DIFF_PAGE, live_url
 from render_harness import (
     leaf_page,
     open_page,
+    put_preview_away,
     resized,
     scroll_settled,
 )
@@ -114,8 +115,7 @@ def test_escape_from_a_seated_reply_send_returns_to_its_thread(browser, serve):
     page.keyboard.press("Tab")
     expect(thread.locator(".lf-thread-send")).to_be_focused()
     # The Tab showed Send's preview, Escape's first step (WCAG 1.4.13).
-    page.keyboard.press("Escape")
-    expect(page.locator("#lf-preview")).to_be_hidden()
+    put_preview_away(page)
     page.keyboard.press("Escape")
     expect(thread).to_be_focused()
     page.keyboard.press("Enter")

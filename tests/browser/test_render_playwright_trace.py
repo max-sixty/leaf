@@ -147,17 +147,45 @@ def test_trace_parts_carry_the_recording_and_place_they_were_drawn_from(browser,
     assert [{**part, "revision": rerun} for part in first] == stamps()
 
 
+# The marks under `[data-test-tip]` the preview covers, each by where the timeline's
+# scroller shows it, since one scrolled out of the band stands under nothing: whether it
+# covers `pointed`, and which others. Two boxes at one edge can report a hair apart, so
+# an overlap thinner than half a layout unit is none.
+COVERED_MARKS = """([timeline, pointed]) => {
+  const tip = document.getElementById('lf-preview').getBoundingClientRect();
+  const over = (a, b) => b - a > 1 / 128;
+  const covered = [...timeline.querySelectorAll('[data-test-tip]')].filter((mark) => {
+    const box = mark.getBoundingClientRect();
+    const band = mark.closest('.lf-trace-scroller').getBoundingClientRect();
+    const left = Math.max(box.left, band.left), right = Math.min(box.right, band.right);
+    return box.width > 0 && over(left, right) && over(left, tip.right)
+      && over(tip.left, right) && over(box.top, tip.bottom) && over(tip.top, box.bottom);
+  });
+  return {own: covered.includes(pointed),
+    others: covered.filter((mark) => mark !== pointed).map((mark) => mark.className)};
+}"""
+
+
 @pytest.mark.parametrize(
     ("engine", "width"),
-    [("browser", 1400), ("browser", 320), ("firefox_browser", 320)],
+    [
+        ("browser", 1400),
+        ("firefox_browser", 1400),
+        ("browser", 320),
+        ("firefox_browser", 320),
+    ],
 )
 def test_timeline_marks_say_their_words_beside_them_inside_the_window(
     request, serve, engine, width
 ):
-    """A narrow timeline's marks each say their whole words when pointed at, in a
-    preview beside the mark and inside the window (preview.js), including after zoom
-    changes which marks stand at its edges. Firefox also wraps a narrow preview without
-    letting its lines cover the mark.
+    """A timeline's marks each say their whole words when pointed at, in a preview
+    whole inside the window that never covers its own mark, at a desktop width and a
+    phone's, and after zoom changes which marks stand at the timeline's edges. Each
+    mark's preview is about the lane it stands in (timeline.js), so it covers none of
+    the lane's other marks, which are thinner than the owner's hit tests are apart. It
+    covers another mark only where no side holds a line clear of them, as at the end of
+    a phone's input lane, and then says so and lets the pointer through to them
+    (preview.js, `data-lf-covers`).
     """
     browser = request.getfixturevalue(engine)
     record = json.loads(
@@ -181,6 +209,8 @@ def test_timeline_marks_say_their_words_beside_them_inside_the_window(
     widget = page.locator("#journey")
     timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
     timeline.scroll_into_view_if_needed()
+    # Whether each preview read covers another mark.
+    covers = []
     for zoom in (False, True):
         if zoom:
             widget.get_by_role("button", name="Zoom in", exact=True).click()
@@ -204,19 +234,25 @@ def test_timeline_marks_say_their_words_beside_them_inside_the_window(
             tooltip = page.locator(PREVIEW)
             expect(tooltip).to_be_visible()
             rendered(page)
-            target, tip = (locator.bounding_box() for locator in (mark, tooltip))
-            # Beside its mark, whole inside the window.
-            assert (
-                tip["y"] >= target["y"] + target["height"]
-                or tip["y"] + tip["height"] <= target["y"]
-            ), (tip, target)
+            tip = tooltip.bounding_box()
             assert tip["x"] >= 0
             assert tip["x"] + tip["width"] <= page.viewport_size["width"]
+            covered = page.evaluate(
+                COVERED_MARKS, [timeline.element_handle(), mark.element_handle()]
+            )
+            assert not covered["own"], tip
+            if covered["others"]:
+                expect(tooltip).to_have_attribute("data-lf-covers", "")
+                expect(tooltip).to_have_css("pointer-events", "none")
+            covers.append(bool(covered["others"]))
             assert tooltip.text_content().strip()
             page.mouse.move(0, 0)
             expect(tooltip).to_be_hidden()
         page.get_by_role("heading", name="Inspect recorded input").hover()
         expect(page.locator(PREVIEW)).to_be_hidden()
+    # A desktop width gives every mark's preview a side clear of the other marks.
+    if width > 320:
+        assert not any(covers), covers
 
 
 def stop_time(record, checkpoint):
@@ -793,7 +829,8 @@ def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, se
           return r.top >= c.top && r.bottom <= c.bottom
             && r.left >= c.left && r.right <= c.right + 0.5
             && (hit === mark || mark.contains(hit)) ? [] : [{
-              label: mark.dataset.lfTip, bounds: r.toJSON(), coveredBy: hit?.className,
+              label: mark.textContent.trim() || mark.className,
+              bounds: r.toJSON(), coveredBy: hit?.className,
             }];
         })""")
         assert hidden == [], hidden

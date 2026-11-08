@@ -182,7 +182,6 @@ def finish_publications(page: PageTransaction, publications: list[dict]) -> None
             previous,
             revision,
             False,
-            False,
             previous,
             read_revision(page.page_dir, previous) if previous else EMPTY_READING,
         )
@@ -232,7 +231,6 @@ def _publish_checked_source(page, checked, event=None):
         predecessor = PredecessorReading(
             previous,
             revision,
-            False,
             False,
             previous,
             read_revision(page.page_dir, previous) if previous else EMPTY_READING,

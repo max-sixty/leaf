@@ -28,6 +28,7 @@ from render_harness import (
     RELEASE_FOCUS,
     CutOff,
     _traffic,
+    expect_preview_words,
     fetch_whole_state,
     heard_back,
     holding,
@@ -227,7 +228,9 @@ def test_modal_blocks_exposure_until_user_returns_to_threads(browser, serve):
         view.locator(f'.lf-msg[data-lf-message="{root}"] .lf-msg-body')
     ).to_be_visible()
     page.evaluate("window.dispatchEvent(new Event('resize'))")
-    page.wait_for_timeout(100)
+    # The pass the resize set off has run, and whatever it sent has come back.
+    rendered(page)
+    round_trip(page)
     assert _read_events(serve.page_dir) == []
     with sending(page, "the read once the modal closes"):
         page.keyboard.press("Escape")
@@ -299,7 +302,7 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     page = open_page(browser, url)
 
     mark = _on_me_mark(page)
-    expect(mark).to_have_attribute("aria-label", "On me, 1 thread with news")
+    expect(mark).to_have_attribute("aria-label", "On Me, 1 thread with news")
     expect(mark.locator(".lf-fp-news")).to_be_visible()
     thread_control_width = mark.bounding_box()["width"]
     # With news waiting and nothing on the user, the mark opens Threads, where the
@@ -321,7 +324,7 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     ]
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
-    expect(mark).to_have_attribute("aria-label", "On me")
+    expect(mark).to_have_attribute("aria-label", "On Me")
     expect(mark.locator(".lf-fp-news")).to_be_hidden()
     assert abs(mark.bounding_box()["width"] - thread_control_width) < 1
     page.reload()
@@ -385,7 +388,9 @@ def test_oversized_message_needs_contiguous_traversal(browser, serve):
     body = view.locator(f'.lf-msg[data-lf-message="{root}"] .lf-msg-body')
     assert body.bounding_box()["height"] > view.bounding_box()["height"]
     view.evaluate("element => element.scrollTop = element.scrollHeight")
-    page.wait_for_timeout(100)
+    # The pass the scroll set off has run, and whatever it sent has come back.
+    rendered(page)
+    round_trip(page)
     assert _read_events(serve.page_dir) == []
 
     view.evaluate("element => element.scrollTop = 0")
@@ -550,7 +555,7 @@ def test_a_reply_in_a_diff_thread_draws_where_the_user_is_and_waits_elsewhere(
     news = thread.locator(":scope > .lf-thread-content").get_by_role(
         "button", name="1 new", exact=True
     )
-    expect(news).to_have_accessible_description("1 new reply")
+    expect_preview_words(news, "1 new reply")
     expect(thread.locator(".lf-msg")).to_have_count(2)
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
     assert all(
@@ -647,7 +652,7 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
         expect(thread.locator(".lf-thread-news")).to_have_count(0)
         return
     expect(news).to_be_visible()
-    expect(news).to_have_accessible_description("2 new replies")
+    expect_preview_words(news, "2 new replies")
     expect(thread.locator(".lf-msg")).to_have_count(1)
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
     # The notice stands after the header's words, in a box of its own, so axe still
@@ -765,8 +770,9 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
         f"{panel_top}, so it does not test what it names"
     )
     if under_panel:
-        # Long enough for an observation pass to have sent a receipt had it counted.
-        page.wait_for_timeout(1500)
+        # The pass the scroll set off has run, and whatever it sent has come back.
+        rendered(page)
+        round_trip(page)
         assert not receipt(), "a message partly under the open panel was marked read"
         page.locator(".lf-fp-close").click()
         panel_settled(page, open=False)

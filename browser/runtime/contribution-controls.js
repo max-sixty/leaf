@@ -2,7 +2,7 @@
    retains their command scopes and presented controls, independently of the renderer
    that seats them. Every projection uses this directory for control, focus and
    containment, so a producer updates one registration whichever surface shows it. */
-import { renderedUnder } from "./shadow-tree.js";
+import { closestAcross, renderedUnder } from "./shadow-tree.js";
 import { html, render } from "/runtime/framework.js";
 import { iconTemplate } from "./icons.js";
 import { progressFace, workflowWord } from "./thread/workflow.js";
@@ -262,6 +262,7 @@ function paintAgentDescription(control) {
 // What an entry says when pointed at (preview.js): its label, the context its
 // projection gives it, and what its title says beyond the label, such as an agent's work
 // on it, each word said by whoever says it. A finger holding the entry reads the same.
+// It is about the passage it stands beside, which it leaves in view.
 /** @this {Element} */
 function entryPreview() {
   const record = records.get(this);
@@ -281,6 +282,7 @@ function entryPreview() {
     .flatMap((part, index) => (index ? [" · ", part] : [part]));
   return {
     name: record.voice ? voiced(saidBy(record.voice, label)) : label,
+    about: closestAcross(this, "[data-lf-margin-for]")?.lfTarget ?? null,
     detail: [
       // A context of several lines says each on its own (voice.js, `linesOf`).
       ...(record.context ? linesOf(record.context).map(voiced) : []),
@@ -452,15 +454,17 @@ export const contributionReceipts = elementDirective(
   presentContributionReceipts,
 );
 
-/** @param {HTMLElement} control @param {EntryInput | PresentedEntry} offered @param {HostOptions} [options] */
+/** @param {HTMLElement} control @param {EntryInput | PresentedEntry} offered
+ * @param {HostOptions & {preview?: import("./preview.js").Read | null}} [options] */
 export function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))
     syncContributionSelection(control, options.selected);
   // Its label is its preview, which a resting pointer, the keyboard and a finger
-  // holding it read (`entryPreview`).
+  // holding it read (`entryPreview`), unless its projection says what it opens more
+  // fully, as a thread's entry previews its threads.
   control.classList.toggle("lf-margin-entry", true);
-  control.lfPreview = entryPreview;
+  control.lfPreview = options.preview ?? entryPreview;
   const glyph = record.icon
     ? iconTemplate(record.icon)
     : html`<span class="lf-margin-entry-glyph" aria-hidden="true"

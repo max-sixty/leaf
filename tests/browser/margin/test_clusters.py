@@ -25,6 +25,7 @@ from render_harness import (
     margins_laid_out,
     open_page,
     panel_field,
+    put_preview_away,
     resized,
     round_trip,
     sending,
@@ -46,8 +47,6 @@ from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-# A box the margin trace stands on (target-paint.js, `paintTrace`).
 
 COMMENT_ON_SECOND_SUGGESTION = {
     "kind": "comment",
@@ -385,15 +384,16 @@ def test_keyboard_arrival_at_a_cluster_shows_all_its_entries_for_the_keys_to_wal
     horizontal arrows move between the peers it reveals.
 
     The cluster stands in the margin layer, after the page's content in the tab
-    order, so the arrival is a keyboard focus on its first stop there."""
+    order, so the arrival is a Tab from the page's last stop, a board card's move
+    control, onto its first entry."""
     page = open_page(browser, serve(MARGIN_ENTRY_KEYBOARD_PAGE))
     resized(page, 1440, 900)
     item = page.locator('[data-lf-margin-for="sug-refill"]')
     accept = item.get_by_role("button", name=re.compile(r"Accept"))
     reject = item.get_by_role("button", name=re.compile(r"Reject"))
-    page.locator("#before-margin-entries").focus()
+    last_page_stop = page.get_by_role("button", name=re.compile(r"^Move: Heated perch"))
+    last_page_stop.focus()
     page.keyboard.press("Tab")
-    accept.focus()
 
     expect(accept).to_be_focused()
     page.keyboard.press("ArrowRight")
@@ -423,9 +423,8 @@ def test_keyboard_arrival_at_a_cluster_shows_all_its_entries_for_the_keys_to_wal
     more = item.locator(":scope > .lf-margin-more")
     options = item.locator(":scope > .lf-margin-options")
     expect(more).to_be_visible()
-    page.locator("#before-margin-entries").focus()
+    last_page_stop.focus()
     page.keyboard.press("Tab")
-    accept.focus()
 
     expect(accept).to_be_focused()
     expect(more).to_be_hidden()
@@ -435,6 +434,10 @@ def test_keyboard_arrival_at_a_cluster_shows_all_its_entries_for_the_keys_to_wal
     expect(reject).to_be_focused()
     expect(more).to_be_hidden()
 
+    # The Tab showed Reject's preview, which the first Escape puts away; the second
+    # folds the cluster onto its toggle.
+    put_preview_away(page)
+    expect(reject).to_be_focused()
     page.keyboard.press("Escape")
     expect(more).to_be_focused()
     page.keyboard.press("Shift+Tab")

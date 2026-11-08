@@ -126,7 +126,7 @@ def test_a_widget_the_user_discusses_is_listed_once_through_the_comment():
     """A comment on a widget's obligation, or a reply after a widget an agent sent
     into a thread, hands the widget to the agent until the agent answers. The widget's
     record turns the agent's and the user's message publishes its own; On <agent> lists
-    the message's alone, and On me no longer lists the widget."""
+    the message's alone, and On Me no longer lists the widget."""
     document = model.leaf_page("Questions", OPTIONS)
     comment = {
         "kind": "comment",

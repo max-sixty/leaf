@@ -2,6 +2,7 @@
    (`leavesRows`), and its row among the page's controls (page-controls.js), offered
    while another page is served beside this one. */
 import { runtime } from "./context.js";
+import { authoredTitle } from "./tab-title.js";
 import { pagePresented } from "./page-paint.js";
 import { activityFacts, leafRow } from "./activity-words.js";
 import { commandSteps } from "./keyboard/control-keys.js";
@@ -41,7 +42,7 @@ const listedPages = (state) =>
   state === null
     ? []
     : [
-        { key: "self", href: null, title: document.title, entry: state },
+        { key: "self", href: null, title: authoredTitle(), entry: state },
         ...state.others.map((entry) => ({
           key: entry.page_key,
           href: entry.url,

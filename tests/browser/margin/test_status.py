@@ -21,6 +21,7 @@ from render_harness import (
     BOARD_PAGE,
     PREVIEW,
     RELEASE_FOCUS,
+    expect_preview_words,
     leaf_page,
     margins_laid_out,
     open_page,
@@ -363,6 +364,10 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).to_contain_text("Check the return visit too.")
     expect(preview).not_to_contain_text(COMMENT_ON_OBLIGATION["text"])
+    # A click on › lands in the reply (thread/focus.js, `openingPart`); Escape stands
+    # the user on the thread, from which leaving takes the card down.
+    expect(preview.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
+    page.keyboard.press("Escape")
     leave_card(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
@@ -441,7 +446,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     working_thread = open_panel_thread(page, roots[0]["id"])
     workflow = working_thread.locator(".lf-msg-sending", has_text="On it")
     expect(workflow).to_have_text("On it")
-    expect(workflow).to_have_attribute("title", f"On it · {detail}")
+    expect_preview_words(workflow, f"On it · {detail}")
 
 
 @pytest.mark.parametrize("annotations", ["margin", "page"])
@@ -613,7 +618,8 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     marker.evaluate("node => node.dataset.identityProbe = 'retained'")
     with_agent = _margin_entry_paint(marker)
     rendered(page)
-    assert preview_parts(marker) == ["Thread…"]
+    # A thread's entry previews where each of its threads stands (`threadPreview`).
+    assert not any("Your turn" in part for part in preview_parts(marker))
 
     agent_comment = append_carried_log_record(
         serve.page_dir,
@@ -631,7 +637,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     expect(marker).to_have_attribute("data-lf-turn", "user")
     expect(marker).to_have_attribute("data-identity-probe", "retained")
     rendered(page)
-    assert preview_parts(marker)[1:2] == ["Your turn"]
+    assert any("Your turn" in part for part in preview_parts(marker))
     expect(marker).to_have_attribute(
         "aria-label", re.compile(r"^Threads \(2\), Your turn,")
     )
@@ -763,7 +769,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     told(page)
     expect(marker).not_to_have_attribute("data-lf-turn", re.compile(".+"))
     rendered(page)
-    assert "Your turn" not in preview_parts(marker)
+    assert not any("Your turn" in part for part in preview_parts(marker))
     answered = {
         "background": with_agent["background"],
         "icon": token_colour(page, "--accent"),
@@ -824,7 +830,7 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     told(page)
     marker = page.locator('[data-lf-margin-for="bracket"] > .lf-margin-marker')
     rendered(page)
-    assert preview_parts(marker)[1:2] == ["Still to do"]
+    assert preview_parts(marker)[-1].startswith("Still to do")
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, Still to do,"))
 
     page.locator("#feed .lf-activity-news").click()
@@ -1060,7 +1066,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         style, so a fade that has started is in the list on the first read and a preview
         that never moves reports empty at once."""
         page.wait_for_function(
-            "() => document.getElementById('lf-preview').getAnimations().length === 0"
+            "() => document.getElementById('lf-preview')"
+            ".getAnimations({subtree: true}).length === 0"
         )
 
     def assert_status(phase, context, control=marker):
@@ -1106,14 +1113,16 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         label = page.locator(PREVIEW)
         expect(label).to_be_visible()
         words_still()
-        expect(label).to_have_css("opacity", "1")
+        # The face is what fades and is drawn (preview.js).
+        drawn = label.locator(".lf-preview-face")
+        expect(drawn).to_have_css("opacity", "1")
         hovered = face(control)
         assert {
             key: hovered[key]
             for key in ("background", "border", "ink", "iconInk", "opacity")
         } == resting_surface
-        expect(label).to_have_css("background-color", expected_label_background)
-        expect(label).to_have_css("color", expected_label_ink)
+        expect(drawn).to_have_css("background-color", expected_label_background)
+        expect(drawn).to_have_css("color", expected_label_ink)
         expect(label).to_have_text(f"{phase}{context}")
         # A rectangular trace uses the same outside stroke as target focus, on the
         # region's perimeter, in the trace's quiet ink, cut to brackets.

@@ -1,4 +1,4 @@
-/* The two lists, On me and On <agent>, the application publishes: the server's selection
+/* The two lists, On Me and On <agent>, the application publishes: the server's selection
    (`served_state.queues`), with this tab's unresolved sends placed against it. Each
    case adopts a whole reading the server folded (`tests/served_records.py`), so the
    lists it starts from are the ones `page state` prints. */
@@ -183,7 +183,7 @@ test("an item lands in the Done of the list it left, newest first", () => {
   const { app } = adopted("done");
   const { done } = published(app);
   const owners = Object.fromEntries(done.map((item) => [item.id, item.owner]));
-  // The answered obligation leaves On me; the ended to-do and the comment the agent
+  // The answered obligation leaves On Me; the ended to-do and the comment the agent
   // answered leave On <agent>.
   assert.deepEqual(owners, {
     "widget:ship": "user",

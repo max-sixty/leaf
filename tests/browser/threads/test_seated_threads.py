@@ -12,6 +12,7 @@ from render_harness import (
     PANEL,
     RELEASE_FOCUS,
     consume_browser_errors,
+    expect_preview_words,
     http_error_console,
     leaf_page,
     open_page,
@@ -107,7 +108,7 @@ def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, 
     told(page)
     notice = thread.get_by_role("button", name="1 new", exact=True)
     expect(notice).to_be_visible()
-    expect(notice).to_have_attribute("title", "Resolved")
+    expect_preview_words(notice, "Resolved")
     rendered(page)
     assert after.bounding_box() == before
     notice.click()
@@ -941,7 +942,7 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
         # on screen.
         notice = thread.locator(".lf-thread-news")
         expect(notice).to_have_text("1 new")
-        expect(notice).to_have_attribute("title", "Resolved")
+        expect_preview_words(notice, "Resolved")
         expect(thread).to_have_attribute("data-lf-resolved", "false")
         return
     page.keyboard.type(" tr")
@@ -974,7 +975,7 @@ def test_an_agent_resolving_the_thread_the_user_is_on_waits_behind_its_notice(
     )
     told(page)
     notice = thread.get_by_role("button", name="1 new", exact=True)
-    expect(notice).to_have_attribute("title", "Resolved")
+    expect_preview_words(notice, "Resolved")
     rendered(page)
     expect(thread).to_have_attribute("data-lf-resolved", "false")
     expect(thread).to_be_visible()

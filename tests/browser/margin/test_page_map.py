@@ -8,7 +8,13 @@ from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, REPORT_PAGE, live_url
+from render_cases_interaction import (
+    LOCATION_RING,
+    OBLIGATION_PAGE,
+    PANEL_PAGE,
+    REPORT_PAGE,
+    live_url,
+)
 from render_cases_navigation import CHIPS, _publish, address_code, go_to_address
 from render_harness import (
     PANEL,
@@ -161,9 +167,12 @@ def test_the_current_obligation_marks_its_selected_margin_reading(browser, serve
     )
     expect(first).to_have_attribute("data-lf-obligation", "1")
     expect(first_marker).to_have_attribute("data-lf-target-selected", "")
-    assert first_marker.evaluate(
-        "marker => getComputedStyle(marker).borderTopColor"
-    ) == first.evaluate("ask => getComputedStyle(ask, '::after').outlineColor")
+    ring_style, _, ring_color = first.evaluate(LOCATION_RING)
+    assert ring_style == "solid"
+    assert (
+        first_marker.evaluate("marker => getComputedStyle(marker).borderTopColor")
+        == ring_color
+    )
     page.keyboard.press("m")
     expect(page.locator("#bracket-decision")).to_be_focused()
     expect(first_marker).not_to_have_attribute(
@@ -709,7 +718,7 @@ def test_the_page_map_search_filters_in_place_and_walks_its_rows(
 
 def test_the_chrome_names_an_obligation_by_its_question(browser, serve):
     """An obligation is named by its heading, not its heading run into its options and their
-    chips: the card in the panel's On me view, and the Page Map group for it, whose one
+    chips: the card in the panel's On Me view, and the Page Map group for it, whose one
     row says why the obligation is there rather than naming it a second time."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
     page.keyboard.press("g")

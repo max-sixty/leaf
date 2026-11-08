@@ -302,7 +302,7 @@ def test_a_workspace_reaches_the_window_foot_and_its_readers_clear_the_panel(
 
 def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser, serve):
     """On a phone the workspace flows and the page scrolls, and its header sticks at the
-    window's top, so a tally's Next on me stays under the pointer that pressed it. The
+    window's top, so a tally's Next On Me stays under the pointer that pressed it. The
     obligation it lands on stands below the header, which the landing clears, and a
     tab set's sticky strip sticks under it."""
 
@@ -334,7 +334,7 @@ def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser,
         ),
     )
     resized(page, 390, 844)
-    button = page.locator("#left").get_by_role("button", name="Next on me")
+    button = page.locator("#left").get_by_role("button", name="Next On Me")
     before = button.bounding_box()
     button.click()
     expect(page.locator("#first-decision")).to_be_focused()
@@ -584,9 +584,9 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     assert foot_reserve(page) > 0
 
 
-def foot_reserve(page):
-    """How far #workspace-pane's reader pads its end beyond the pane inset."""
-    return page.locator("#workspace-pane > div").evaluate(
+def foot_reserve(page, pane="#workspace-pane"):
+    """How far the pane's reader pads its end beyond the pane inset."""
+    return page.locator(f"{pane} > div").evaluate(
         """reader => {
           const style = getComputedStyle(reader);
           return Math.round(
@@ -704,7 +704,12 @@ def test_an_lf_ask_gives_its_answer_what_its_context_leaves(browser, serve):
 
 def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve):
     """A document keeps its end room with a pane inside it; a workspace that flows gives
-    its last block that room, and a full-height one does not scroll."""
+    its last block that room, and a full-height one does not scroll.
+
+    Where the workspace flows, a grid of panes ends the page with the room below all its
+    panes, so the page's end clears the panel whichever pane ends it, and no pane keeps
+    the panel's row as an empty band of its own. Held, each pane's body scrolls to the
+    window's foot, and each keeps the room."""
     document = leaf_page(
         "a pane mid-document",
         f"""
@@ -749,6 +754,30 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
     resized(page, 1280, 720)
     pane_scroll_behavior(page, page.locator("#workspace-pane"), "bounded")
     fills_the_window(page, page.locator("main"), True)
+    page.close()
+
+    # Two columns at every width, the long pane first, so it ends the page on a phone.
+    grid = leaf_page(
+        "a workspace grid of panes",
+        f"""<div id="cells">
+  {LONG_PANE}
+  <lf-pane id="second-pane" label="Second"><div><p>Second</p></div></lf-pane>
+</div>""",
+        head="<style>#cells { display: grid; grid-template-columns: 1fr 1fr; }</style>",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(grid))
+    for width, height in [(390, 844), (844, 390)]:
+        resized(page, width, height)
+        pane_scroll_behavior(page, page.locator("#workspace-pane"), "flow")
+        assert foot_reserve(page) == 0, (width, height)
+        assert foot_reserve(page, "#second-pane") == 0, (width, height)
+        end = clear_of_the_bottom_chrome(page, "#pane-end")
+        assert end["clear"], (width, height, end)
+    resized(page, 1280, 720)
+    pane_scroll_behavior(page, page.locator("#workspace-pane"), "bounded")
+    assert foot_reserve(page) > 0
+    assert foot_reserve(page, "#second-pane") > 0
 
 
 @pytest.mark.parametrize(

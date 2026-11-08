@@ -51,11 +51,11 @@ For a page with contents, start at the top at desktop and phone widths and jump 
 later section without first scrolling to find the navigation. Follow the page's links
 with pointer and keyboard, and check that each destination leaves the user oriented.
 
-For a page with obligations on On me, the check also saves the window at each of the first
+For a page with obligations on On Me, the check also saves the window at each of the first
 eight as `m` reaches it from the top (`conversation-loop.md`, "The On lists"). At each,
 review the question against `authoring-on-me.md`, "On the page", and check that the
 numbers shown match the actions offered and the next `m` reaches the next item on the
-user's On me list.
+user's On Me list.
 
 If you can't see the rendered page, review the words, evidence and choices from the
 active HTML and `leaf page state <page>`, and report the visual and keyboard review as

@@ -63,7 +63,7 @@
  * of that group, which each of their tabs' descriptions names. A side list's row adds
  * the panel's `summary` under the name, then its obligations' state on a reserved line. While any
  * obligation the panel holds is unanswered, it shows an open mark and whose turn it is, by the
- * server's next actor, the reading an `lf-tally` and its Next on me use: the mark alone while one
+ * server's next actor, the reading an `lf-tally` and its Next On Me use: the mark alone while one
  * waits on the user, since the mark and the tally already say so (its description says "To
  * answer"), else "On Claude" (`agentName`) while one is the agent's, as after the user
  * comments on it, else "Open", as in a resolved thread. Once every one is answered it shows a

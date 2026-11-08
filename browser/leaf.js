@@ -71,6 +71,7 @@ import {
   resolveAnchor,
   setAnchoringReady,
 } from "./runtime/anchor-resolution.js";
+import { refuseBareText } from "./runtime/passages.js";
 import { createPageGeometry } from "./runtime/page-geometry.js";
 import {
   aimLayer,
@@ -272,10 +273,15 @@ async function boot() {
       pointer: pointerAt,
       currentLocationThreadId,
       currentLocationObligation: () => items.currentLocationIn(),
-      rowThread: () => floatingPanel?.hoveredThread() ?? null,
+      rowThread: (under) => floatingPanel?.hoveredThread(under) ?? null,
       threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
       marginThread: () => app?.overlay?.pointedThread() ?? null,
+      placedAt: (id) => anchorPlacement.placedAt(id),
+      pendingAt: () => anchorPlacement.pendingAt(),
+      settle: () => anchorPlacement.settle(),
     });
+    const painting = anchorPaint;
+    anchorPlacement.hearPlaced((change) => painting.replace(change));
   }
   const drawingPaint = createDrawingInk({
     drawings: () => [
@@ -486,7 +492,7 @@ async function boot() {
     arrive: anchorTravel.arrive,
     announce,
   });
-  const changeWalk = createChangeWalk();
+  createChangeWalk();
   const commandHints = createCommandHints({
     presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
   });
@@ -526,6 +532,7 @@ async function boot() {
     currentTarget,
     markAt: anchorPaint?.markAt,
     scrollToElement: anchorTravel.scrollToElement,
+    scrollToPassage: anchorTravel.scrollToPassage,
     scrollToRange: anchorTravel.scrollToRange,
     visualActionAnchor: anchorControls.visualActionAnchor,
     designModeActive: designMode.active,
@@ -567,7 +574,7 @@ async function boot() {
     currentTarget,
   });
   targets = createTargetPicker({
-    scrollToRange: anchorTravel.scrollToRange,
+    scrollToPassage: anchorTravel.scrollToPassage,
     hintChrome,
     commentOnTarget: responseSurface.commentOnTarget,
     updateFab: responseSurface.updateFab,
@@ -735,8 +742,6 @@ async function boot() {
     pageGeometry.mount();
     pageMapDialog.mount(chromeForeground);
     items.mount();
-    queueWalk.mount();
-    changeWalk.mount();
     commandHints.mount();
     app.mountAnnotations();
     app.overlay?.mount();
@@ -765,10 +770,12 @@ async function boot() {
     chromeRoot.append(mediaViewer);
     document.body.after(chromeRoot);
     // Exports retain image inspection, but no page controls. Their other current location is
-    // what a widget's own box shows, such as an options group's addition field.
+    // what a widget's own box shows, such as an options group's addition field, and a
+    // widget's controls name the keys that reach them there as on a live page.
     mountRepaint({
       publishInputHint: inputs.publishInputHint,
       paintCloseRequests,
+      paintCoreControls,
       reflectFirstScopes,
       reflectKeys,
     });
@@ -927,6 +934,7 @@ async function boot() {
       setAnchoringReady(false);
       throw error;
     }
+    refuseBareText();
     markPageUpgraded();
     // Restoring an editor requires a visible destination. Its placement certifies
     // drawn content, so it cannot be a prerequisite for revealing the page itself.

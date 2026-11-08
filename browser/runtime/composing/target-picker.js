@@ -15,7 +15,9 @@ import {
   pageText,
   quoteFrom,
   rangeOf,
-  segmentBlock,
+  passageStart,
+  segmentPieces,
+  segmentsBox,
 } from "../passages.js";
 import { shownBox } from "../geometry.js";
 import { skipped } from "../shadow-tree.js";
@@ -44,7 +46,7 @@ import {
   keySequenceTemplate,
   progressSteps,
 } from "../keyboard/key-sequence.js";
-import { announce } from "../notifications.js";
+import { announce, notice } from "../notifications.js";
 import { keeps } from "../keeps.js";
 import { beginWalk, walkPosition } from "../walk-position.js";
 
@@ -128,7 +130,7 @@ const searchCount = (position, total) => `${position} of ${total}`;
  * @typedef {ReturnType<typeof keyBadgePlacement>["visibleBounds"] extends (...args: never[]) => infer T ? NonNullable<T> : never} VisibleBox
  * @typedef {import("../anchor-resolution.js").AimTarget} PickerTarget
  * @typedef {Object} TargetPickerOptions
- * @property {ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToRange"]} scrollToRange
+ * @property {ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToPassage"]} scrollToPassage
  * @property {{barriers: () => import("../rect.js").Box[]}} hintChrome
  * @property {(target: PickerTarget) => unknown} commentOnTarget
  * @property {() => unknown} updateFab
@@ -140,7 +142,7 @@ const searchCount = (position, total) => `${position} of ${total}`;
  */
 /** @param {TargetPickerOptions} options */
 export function createTargetPicker({
-  scrollToRange,
+  scrollToPassage,
   hintChrome,
   commentOnTarget,
   updateFab,
@@ -207,20 +209,22 @@ export function createTargetPicker({
     return visibleTargetParts(element).length > 0;
   };
 
-  /** @param {Range} range @param {Element} owner @param {PlacementReading} reading */
-  function firstShown(range, owner, reading) {
-    if (
-      range.startContainer.parentElement &&
-      skipped(range.startContainer.parentElement)
-    )
-      return null;
-    const clip = reading.clipOver(owner);
-    if (!clip) return null;
-    return (
-      [...range.getClientRects()]
-        .map((box) => reading.clearPart(box, clip, owner))
-        .find((part) => reading.exposes(null, part)) ?? null
-    );
+  // The first part of a match's lines the user can see, each piece clipped by what
+  // clips its own block.
+  /** @param {Match} segments @param {PlacementReading} reading */
+  function firstShown(segments, reading) {
+    for (const { segment, block, lines } of segmentPieces(segments)) {
+      const holder = segment.node.parentElement;
+      if (!block || (holder && skipped(holder))) continue;
+      const clip = reading.clipOver(block);
+      const part =
+        clip &&
+        lines
+          .map((box) => reading.clearPart(box, clip, block))
+          .find((shown) => reading.exposes(null, shown));
+      if (part) return part;
+    }
+    return null;
   }
 
   /** @param {import("../rect.js").Box} a @param {import("../rect.js").Box} b */
@@ -344,23 +348,14 @@ export function createTargetPicker({
     setPageSearch(true);
   }
 
-  /** @param {Match} segments */
-  function matchOwner(segments) {
-    const first = segments[0];
-    return first ? segmentBlock(first) : null;
-  }
-
   /** @param {Match} segments @param {PlacementReading} [reading] */
   function matchRect(segments, reading = room()) {
-    const owner = matchOwner(segments);
-    return owner ? firstShown(rangeOf(segments), owner, reading) : null;
+    return firstShown(segments, reading);
   }
 
   /** @param {Match[]} found */
   function startingMatch(found) {
-    const next = found.findIndex(
-      (segments) => rangeOf(segments).getBoundingClientRect().bottom > 0,
-    );
+    const next = found.findIndex((segments) => segmentsBox(segments).bottom > 0);
     return next === -1 ? 0 : next;
   }
 
@@ -490,10 +485,12 @@ export function createTargetPicker({
     repaint();
   }
 
+  // A match out of sight is brought into it where its words start (anchor-travel.js,
+  // `scrollToPassage`).
   function showMatch() {
     const segments = matches.value[active];
-    if (!segments || matchRect(segments)) return;
-    scrollToRange(rangeOf(segments), "instant");
+    if (!segments || matchRect(passageStart(segments))) return;
+    scrollToPassage(segments, "instant");
   }
 
   /** @param {import("../keyboard/bindings.js").Step} direction */
@@ -551,11 +548,9 @@ export function createTargetPicker({
   /** @param {Match} segments @param {string} query */
   function landOnMatch(segments, query) {
     releaseFocus();
-    const range = rangeOf(segments);
-    selectEnds(
-      [range.startContainer, range.startOffset],
-      [range.endContainer, range.endOffset],
-    );
+    const first = segments[0];
+    const last = segments.at(-1);
+    if (first && last) selectEnds([first.node, first.start], [last.node, last.end]);
     updateFab();
     beginWalk("page-search", "Match", () => matchWalkPosition(query));
   }
@@ -569,7 +564,7 @@ export function createTargetPicker({
     if (!hasRows(found)) {
       repeatedSearch = null;
       active = -1;
-      announce("The page no longer contains that search.");
+      notice(`No matches left for “${repetition.query}”`);
       return repaint();
     }
     const from = Math.min(repetition.index, found.length - 1);
@@ -590,7 +585,6 @@ export function createTargetPicker({
       announce("Page search closed.");
       return;
     }
-    if (hints.backOneLetter()) return;
     closeTargetPicker(true);
     announce("Target picker closed.");
   }
@@ -648,20 +642,21 @@ export function createTargetPicker({
   const hints = createHintSession(hintOptions);
 
   // A mark for each box the match's words take, while any of it is in sight, standing
-  // over what holds the words and carried by what carries them
-  // (`anchorFor`).
+  // over the block that holds each piece's words, clipped by what clips that block and
+  // carried by what carries the piece (`anchorFor`).
   function paintSearchMatches() {
     const segments = matches.value[active];
-    const owner = segments && matchIsRangeable(segments) ? matchOwner(segments) : null;
+    if (!segments || !matchIsRangeable(segments)) return marks.place([]);
     const reading = room();
-    const clip = owner ? reading.clipOver(owner) : null;
-    const first = segments?.[0];
-    const own = owner && shownBox(owner);
-    if (!segments || !first || !owner || !clip || !own) return marks.place([]);
-    const boxes = [...rangeOf(segments).getClientRects()].filter((box) =>
-      reading.exposes(null, reading.clearPart(box, clip, owner)),
-    );
-    const anchor = anchorFor(first.node);
+    const boxes = segmentPieces(segments).flatMap(({ segment, block, lines }) => {
+      const clip = block && reading.clipOver(block);
+      const own = block && shownBox(block);
+      if (!block || !clip || !own) return [];
+      const anchor = anchorFor(segment.node);
+      return lines
+        .filter((box) => reading.exposes(null, reading.clearPart(box, clip, block)))
+        .map((box) => ({ target: block, anchor, rect: intersect(box, own) }));
+    });
     marks.place(
       boxes.map((box, index) => {
         let node = markBoxes.get(index);
@@ -669,7 +664,7 @@ export function createTargetPicker({
           node = el("span", "lf-page-search-match");
           markBoxes.set(index, node);
         }
-        return { node, target: owner, held: true, anchor, rect: intersect(box, own) };
+        return { node, held: true, ...box };
       }),
     );
   }
@@ -712,25 +707,39 @@ export function createTargetPicker({
     title: "search matches",
     repeat: true,
     travels: true,
-    when: () => Boolean(repeatedSearch),
-    runKey: (binding) => repeatSearch(binding === "n" ? 1 : -1),
+    // With no search to repeat, the press says so, as every walk with nothing to step
+    // through does (keyboard/AGENTS.md, "Page grammar").
+    runKey: (binding) =>
+      repeatedSearch
+        ? repeatSearch(binding === "n" ? 1 : -1)
+        : notice("No search to repeat"),
   };
 
+  // Escape takes back a typed hint letter, one at a time, before it closes the picker,
+  // as a step of its own (`TARGETING_LETTER`), so the way out's words, key and press
+  // always end what they name.
+  const lettersTyped = () => !pageSearchOpen() && Boolean(hints.prefix());
+  /** @type {import("../keyboard/bindings.js").Command} */
+  const TARGETING_LETTER = {
+    id: "targeting.letter.back",
+    keys: ["Escape"],
+    title: "back one letter",
+    touch: false,
+    when: lettersTyped,
+    run: () => hints.backOneLetter(),
+  };
   /** @type {import("../keyboard/bindings.js").Command} */
   const TARGETING_BACK = {
     id: "targeting.back",
-    keys: ["Escape"],
+    keys: () => (lettersTyped() ? [] : ["Escape"]),
     title: () =>
       pageSearchOpen()
         ? searchReturnsToHints
           ? "back to hints"
           : "close search"
-        : hints.prefix()
-          ? "back one letter"
-          : "close picker",
-    // The ✕ of both stances (keyboard/AGENTS.md, "Touch routes"). While the user
-    // has typed part of a hint it takes back a letter, as its words say; a finger,
-    // which types none, always closes.
+        : "close picker",
+    // The way out of both stances, which the panel offers (keyboard/AGENTS.md, "Touch
+    // routes"). Its press closes the picker, typed letters and all.
     exit: true,
     run: back,
   };
@@ -768,6 +777,7 @@ export function createTargetPicker({
           title: "choose target",
         },
       }),
+      TARGETING_LETTER,
       TARGETING_BACK,
     ],
   };
@@ -837,11 +847,17 @@ export function createTargetPicker({
     if (!pageSearchOpen() || ev.button !== 0) return false;
     refreshMatches();
     const segments = matches.value[active];
-    if (!segments || !ev.composedPath().some((node) => node === matchOwner(segments)))
-      return false;
+    if (!segments) return false;
+    const path = ev.composedPath();
     const { clientX: x, clientY: y } = ev;
-    return [...rangeOf(segments).getClientRects()].some(
-      (rect) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom,
+    return segmentPieces(segments).some(
+      ({ block, lines }) =>
+        block &&
+        path.includes(block) &&
+        lines.some(
+          (rect) =>
+            x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom,
+        ),
     );
   }
   /** @param {MouseEvent} ev */

@@ -21,6 +21,7 @@ from render_cases_interaction import (
 )
 from render_harness import (
     expect_on_me,
+    expect_preview_words,
     holding,
     leaf_page,
     open_page,
@@ -131,7 +132,7 @@ def test_a_plain_agent_question_can_be_opened_and_answered(browser, serve, secti
 def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
     browser, serve, anchor
 ):
-    """On me reaches the exact question, even when its thread has lost its passage."""
+    """On Me reaches the exact question, even when its thread has lost its passage."""
     source = leaf_page(
         "Rehearsal report",
         '<h1 id="title">Rehearsal report</h1>'
@@ -778,14 +779,14 @@ def test_held_news_says_one_count_of_all_it_holds(browser, serve):
     thread_model.post_reply(serve.page_dir, {"parent": root}, "The mounts come first.")
     told(page)
     notice = thread.get_by_role("button", name="1 new", exact=True)
-    expect(notice).to_have_accessible_description("1 new reply")
+    expect_preview_words(notice, "1 new reply")
     rendered(page)
     width = notice.bounding_box()["width"]
 
     append_user_reply(serve.page_dir, root, "And the bird bath?")
     told(page)
     notice = thread.get_by_role("button", name="2 new", exact=True)
-    expect(notice).to_have_accessible_description("1 new reply · 1 new message")
+    expect_preview_words(notice, "1 new reply · 1 new message")
     rendered(page)
     assert notice.bounding_box()["width"] == pytest.approx(width, abs=0.5)
     # The room "1 new" made holds "2 new" whole, figures of one width in both.
@@ -1015,7 +1016,7 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     # `needs_user` for recovery: the margin and panel name the action owed.
     margin = page.locator('[data-lf-margin-for="cd-q"] > .lf-margin-marker')
     expect(margin).to_have_attribute("data-lf-turn", "user")
-    assert preview_parts(margin)[1:2] == ["Send it again"]
+    assert any("Send it again" in part for part in preview_parts(margin))
 
     # Threads names the action owed on the thread's row, whole.
     status = thread_row(page, unanswered["id"]).locator(".lf-row-end")
@@ -1041,7 +1042,7 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(draft).to_have_js_property("value", "Try the south pair again.")
     page.unroute("**/api/event")
     rendered(page)
-    assert preview_parts(margin)[1:2] == ["Send it again"]
+    assert any("Send it again" in part for part in preview_parts(margin))
 
     # The failed answer remains distinct from the muted clock without a chip face, in
     # the colour of a warning and Leaf's italic.

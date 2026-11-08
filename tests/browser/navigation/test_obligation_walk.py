@@ -895,7 +895,7 @@ def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_release
         page.keyboard.press("Escape")
         page.keyboard.press(back)
         expect(page.locator("#question-2")).to_be_focused()
-    # Opened by a key, On me stands on its first row, question 1, and the walk steps on
+    # Opened by a key, On Me stands on its first row, question 1, and the walk steps on
     # from it.
     page.keyboard.press("Escape")
     page.keyboard.press("g")
@@ -1186,7 +1186,7 @@ def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
     (glossary, Current target). From the obligation, `c` continues that thread; from its
     thread in the card, the obligation keeps its ring and its digits.
     A thread about an enclosing block holds the decision inside it with the agent, so
-    On me skips that decision. From an element with no thread, `t` measures from its
+    On Me skips that decision. From an element with no thread, `t` measures from its
     place in the document, as `m` does."""
     url = serve(OBLIGATION_THREAD_PAGE)
     d = serve.page_dir
@@ -1240,7 +1240,7 @@ def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
     expect(obligation_thread).to_be_focused()
     expect(item).to_have_attribute("data-lf-obligation", "1")
 
-    # The thread on the task holds its nested decision with the agent. On me therefore
+    # The thread on the task holds its nested decision with the agent. On Me therefore
     # cycles past that decision until the agent answers the thread.
     page.keyboard.press("m")
     expect(page.locator("#ship-ask")).to_be_focused()

@@ -11,6 +11,7 @@ from process.website_server import (
 )
 from render_harness import (
     LONG_PAGE,
+    expect_preview_words,
     open_page,
     page_comment,
     panel_field,
@@ -103,7 +104,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     told(page)
     rendered(page)
     expect(receipt).to_have_text("Gone quiet")
-    expect(receipt).to_have_attribute("title", "Gone quiet · Looking at the page.")
+    expect_preview_words(receipt, "Gone quiet · Looking at the page.")
     assert receipt_words() > receipt_width, (
         initial_receipt,
         receipt_width,
@@ -117,7 +118,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     # in front of them, holding it behind its notice.
     expect(thread).to_be_visible()
     expect(news).to_have_text("1 new")
-    expect(news).to_have_attribute("title", "Resolved")
+    expect_preview_words(news, "Resolved")
     expect(metadata.locator(".lf-msg-sending")).to_have_count(0)
     if read_elsewhere:
         box = page_comment(page)

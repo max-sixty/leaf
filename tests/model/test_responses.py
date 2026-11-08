@@ -130,7 +130,7 @@ def test_an_undeclared_answer_names_what_lets_its_widget_ask(page_dir):
 
 def test_a_message_asks_by_its_widget_or_its_words_not_both(page_dir):
     """Only the user's words answer `--obligation`, so beside a widget that asks it
-    would keep the message on On me after the user picks. Both writers refuse it."""
+    would keep the message on On Me after the user picks. Both writers refuse it."""
     revisioning_model.activate_source(page_dir)
     asked = append_command(
         page_dir,

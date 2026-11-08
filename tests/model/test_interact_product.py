@@ -329,7 +329,7 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
         assert found(fragment_errors(untitled, registry), "untitled-question")
 
     # A context framing no widget, or only widgets that ask nothing, would show a
-    # question the On me list never counts; a question answered in words is a
+    # question the On Me list never counts; a question answered in words is a
     # message's obligation instead. A retired source still counts: settling a
     # decision keeps its context.
     for empty in (

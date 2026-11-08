@@ -1344,11 +1344,13 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     assert toc.evaluate(MARKS_IN_WORDS) == []
     boxes = toc.evaluate(ROW_BOXES)
 
+    # A row's preview says its counts alone, which a screen reader hears after the
+    # link's name, since the link's words already say the section.
     ledger = toc.get_by_role("link", name="Ledger")
-    assert preview_parts(ledger, route="focus") == ["Ledger", "2 threads"]
+    assert preview_parts(ledger, route="focus") == ["2 threads"]
     assert ledger.evaluate(
         "(link) => (link.ariaDescribedByElements ?? []).map((tip) => tip.textContent)"
-    ) == [page.locator("#lf-preview").text_content()]
+    ) == ["2 threads"]
     page.keyboard.press("Escape")
     # A row with nothing to count previews nothing past the words it shows.
     page.mouse.move(2, 2)
@@ -1380,8 +1382,7 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     verify = toc.locator("li", has_text="Verify")
     assert verify.evaluate(CHANGED)
     assert preview_parts(toc.get_by_role("link", name="Switch the services")) == [
-        "Switch the services",
-        "1 thread · 1 waiting on me · 1 change",
+        "1 thread · 1 waiting on me · 1 change"
     ]
 
     # Where the track stacks over the body, the outline the reader opens marks the same
@@ -1399,10 +1400,16 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     assert toc.evaluate(MARKS_IN_WORDS) == []
     assert verify.evaluate(CHANGED)
     assert preview_parts(toggle, route="focus") == [
-        "On this page",
         "Before the first section",
         "1 thread",
     ]
+    page.keyboard.press("Escape")
+    # Where the only clear room beside a row holds one line, that line is its count.
+    preview = page.locator("#lf-preview")
+    assert preview_parts(toc.get_by_role("link", name="Verify"), route="focus") == [
+        "1 change"
+    ]
+    expect(preview.locator("[data-lf-clamp], [data-lf-cut]")).to_have_count(0)
     page.keyboard.press("Escape")
     with_changes = toc.evaluate(ROW_BOXES)
     page.keyboard.press("v")

@@ -7,8 +7,8 @@ import { generatedElement, keeps, viewDocument } from "/runtime/widget-api.js";
  * start row's go on the outline's head too, its toggle or its label, which stands where
  * that row would where the row is left out. The
  * marks are aria-hidden and take no room; what they count, the row's link previews
- * (`lfPreview`), which also describes the link to a screen reader where focus lands on
- * it. */
+ * (`lfPreview`) in place of its name, which its face already says, and that preview
+ * describes the link to a screen reader where focus lands on it. */
 import { html, nothing, ref, repeat } from "/vendor/lit.js";
 import { marksWords } from "./toc-marks.js";
 
@@ -50,11 +50,13 @@ export function drawToc(host, headingReading) {
   /** @type {ReadonlyMap<Element | null, SectionMarks>} */
   let marks = new Map();
   // One preview for each row's link, kept as long as its heading, which reads the row's
-  // marks as it shows: none where the row has none, so the link previews nothing.
+  // marks as it shows: their counts alone, in place of the name the link's face already
+  // says, so a room holding one line holds the counts, and a screen reader hears them
+  // after the link's name; none where the row has none, so the link previews nothing.
   /** @param {Element | null} heading */
   const preview = (heading) => () => {
     const words = marksWords(marks.get(heading));
-    return words ? { detail: [words] } : null;
+    return words ? { name: words } : null;
   };
   /** @type {WeakMap<Element, ReturnType<typeof preview>>} */
   const previews = new WeakMap();
@@ -69,13 +71,14 @@ export function drawToc(host, headingReading) {
   // The disclosure and the outline beside the body leave the start row out, since the
   // page's title stands just above, below or beside them, so their head, the toggle or
   // the "On this page" label standing where that row would, carries its marks and
-  // previews what stands before the first section while they show (toc.css). The label
-  // takes no focus: the walks and the Page Map reach what it counts by keyboard.
+  // previews them while they show (toc.css), named for the place they stand for, which
+  // its face doesn't say. The label takes no focus: the walks and the Page Map reach
+  // what it counts by keyboard.
   /** @this {Element} */
   function beforeFirst() {
     const words = marksWords(marks.get(outline.start?.heading ?? null));
     return words && this.querySelector(":scope > .lf-toc-marks")?.checkVisibility()
-      ? { detail: ["Before the first section", words] }
+      ? { name: "Before the first section", detail: [words] }
       : null;
   }
   host.replaceChildren();

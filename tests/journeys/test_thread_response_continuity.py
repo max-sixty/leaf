@@ -87,7 +87,12 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
     from render_harness import told
 
     if place == "seat":
-        source = SEATED_OBLIGATION_PAGE
+        # Room below the seat lets the page scroll up by an agent reply drawn above
+        # the box being written in, which holds the box still (browser/AGENTS.md,
+        # "News moves what the reader reads only in the thread they are in").
+        source = SEATED_OBLIGATION_PAGE.replace(
+            "</main>", "<p>" + "Further context. " * 600 + "</p></main>"
+        )
         anchor = {"section": "jobs"}
         selector = '[data-lf-thread-seat="jobs"] > .lf-page-thread'
     else:

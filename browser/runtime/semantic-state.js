@@ -48,7 +48,7 @@ export const agentName = () => agent() || "the agent";
 export const pageClaimed = readPart(
   (root) => root.authoritative?.claim_session != null,
 );
-export const projectView = applicationState.projectView;
+export const projectDocument = applicationState.projectDocument;
 export const selectWidgets = applicationState.selectWidgets;
 /** @param {string} region */
 export const attachApplicationPresentation = (region) => presentation.attach(region);

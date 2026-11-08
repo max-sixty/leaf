@@ -1529,8 +1529,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
             }"""
     )
     assert answer["status"] == 200
-    assert answer["body"]["browser"]["basis"]["through_seq"] == answer["through"]
-    assert set(answer["body"]["browser"]["views"]) == {"1"}
+    assert answer["body"]["document"]["revision"] == 1
 
 
 def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):

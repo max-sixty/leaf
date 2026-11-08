@@ -831,7 +831,9 @@ test("historical view projection uses the publisher's captured document contract
   const historical = state(2, [accepted]);
   const historicalSpec = { ...spec, historical: true };
   historical.browser.views[1].document.projection.entries[0].spec = historicalSpec;
-  const projection = app.projectView(historical.browser.views[1]);
+  const projection = app.projectDocument(
+    historical.browser.views[1].document.projection,
+  );
   assert.equal(projection.desired.get(JSON.stringify(coordinate)).e.id, "e1");
   assert.deepEqual(
     projection.desired.get(JSON.stringify(coordinate)).spec,

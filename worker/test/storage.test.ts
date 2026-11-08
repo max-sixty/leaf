@@ -72,7 +72,7 @@ describe("durable website page records", () => {
             headers: {
               "content-type": "application/javascript; charset=utf-8",
               "content-length": "16",
-              "cache-control": "private, no-store",
+              "cache-control": "private, max-age=31536000, immutable",
               etag: `"${"a".repeat(64)}"`,
               "leaf-server": "website-release",
             },
@@ -145,7 +145,10 @@ describe("durable website page records", () => {
             chunks: state,
           },
           "media/private.png": {
-            headers: { "Content-Type": "image/png" },
+            headers: {
+              "Content-Type": "image/png",
+              "Cache-Control": "private, max-age=31536000, immutable",
+            },
             chunks: image,
           },
           "revisions/leaf.js": { headers: {}, chunks: entry },
@@ -165,7 +168,10 @@ describe("durable website page records", () => {
         new Request("https://leaf.page/"),
       ))!;
       expect(Buffer.from(await response.arrayBuffer()).equals(body)).toBe(true);
-      expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+      // Served as Python captured it, so it is cached as the live answer would be.
+      expect(response.headers.get("Cache-Control")).toBe(
+        "private, max-age=31536000, immutable",
+      );
       expect(
         await restored.response("/", "api/state", new Request("https://leaf.page/")),
       ).toBeNull();

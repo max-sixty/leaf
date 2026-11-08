@@ -13,7 +13,9 @@
  * named by its hex digest. Capture and stream retention share one synchronous
  * reading. The container consumes the snapshot before replacing any local inputs.
  * Delivery identity is the pathname and sorted decoded query pairs, independent
- * of the HTTP serializer used by Python or the browser.
+ * of the HTTP serializer used by Python or the browser. A saved response keeps the
+ * headers Python captured, so it is cached as the live answer would be
+ * (`CACHE_CONTROL`, `src/leaf/http.py`).
  */
 
 import * as z from "zod/mini";
@@ -361,7 +363,6 @@ export class PageStore {
     if (rows.length === 0) return null;
     const response = rows[0];
     const headers = new Headers(JSON.parse(response.headers));
-    headers.set("Cache-Control", "private, no-store");
     headers.set("Leaf-State-Source", "durable");
     if (request.method === "HEAD") return new Response(null, { headers });
     const body = this.body(JSON.parse(response.chunks));

@@ -446,7 +446,7 @@ describe("product-site delivery", () => {
         status: 204,
         headers: {
           "Access-Control-Allow-Origin": "*",
-          "Cache-Control": "no-store",
+          "Cache-Control": "no-cache",
           "Set-Cookie": "private-parent-cookie=1",
         },
       });
@@ -1571,6 +1571,11 @@ describe("product-site delivery", () => {
       expect(getContainer).not.toHaveBeenCalled();
       expect(response.headers.get("Set-Cookie")).toBeNull();
       expect(response.headers.get("Leaf-Session")).toBe("passive");
+      // A stored answer serves only a request naming the same data version.
+      expect(response.headers.get("Cache-Control")).toBe("no-cache");
+      expect(response.headers.get("Vary")).toBe(
+        "Leaf-Data-Version, Leaf-View-Revision",
+      );
       expect(response.headers.get("Leaf-Session-Reference")).toMatch(/^\d{12}$/);
       expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
       const state = await response.json<Pick<ServedState, "taken" | "now" | "data">>();

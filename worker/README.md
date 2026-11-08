@@ -591,8 +591,11 @@ stopped. A write or a missing saved response starts Python, which restores the
 canonical page record before accepting requests. `leaf_website.storage` publishes
 canonical files and matching Python-produced responses atomically before a write
 is acknowledged; a failed publication fails the request and permits an idempotent
-retry. File modification dates survive restore, including the publication date of
-an unstamped revision. A release selects fresh demo records, while container
+retry. The Durable Object serves each saved response with the headers Python gave it,
+so the browser caches it as it would the live answer, and Back restores a page the
+visitor has acted on from the back/forward cache, as it does a locally served page
+([browser support](../notes/browser-support.md), "Page cache"). File modification
+dates survive restore, including the publication date of an unstamped revision. A release selects fresh demo records, while container
 replacement preserves the current release's records. `docs/website.html`, **Private sessions**, owns the
 storage and identity contract.
 

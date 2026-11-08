@@ -29,14 +29,15 @@ revision, and stands at its end.
 **What the fold accepts missing.** Containment decides only whether an action rests
 on an element it names for its owner to hold (`events.action_rests_on`), and so
 whether a version restating that element took the action back. The fold reads every
-place under the last revision's containment, so where an earlier revision of the
-version held such an element in another owner, and the action naming it answered a
-thread the user was waiting on, the thread reads closed or open at that revision's
-place as it would under the last one, and the line can name one message too many or
-too few. That takes an element some version restated moving between owners within
-one version, beside a choice naming it that settled a thread. Judging each revision
-under its own containment kept every action a version took back, to judge again
-where another containment took hold, at a cost every reader of the log paid
+place under the last revision's containment. So where, within one version, an
+earlier revision held a restated element in another owner than the last one does,
+the actions standing at that revision's place can differ from those its own
+containment gives: which action wins a coordinate, and so which threads stand
+closed there. The line can then name a message too many or too few, or quote one in
+the words it had at another of the version's places. That takes a restated element
+moving between owners within one version, beside an action naming it. Judging each
+revision under its own containment kept every action a version took back, to judge
+again where another containment took hold, at a cost every reader of the log paid
 (`events.InForce`), for a line that claims an order, not a cause.
 
 Each message is sent as its thread held it at the latest of the version's revisions

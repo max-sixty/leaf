@@ -299,10 +299,9 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(
 
 
 def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
-    """A comment a fork of the conversation answered carries the fork's outcome,
-    time and tokens, and no breakdown of a reply the session spent nothing on,
-    though the fork posts it as the session's; one the fork handed over carries
-    both."""
+    """A comment a fork of the conversation decided on carries the fork's outcome,
+    time and tokens beside the breakdown of the session's reply, whether the fork
+    posted a working line as it handed the thread over or Leaf handed it."""
     events = [
         {
             "kind": "comment",
@@ -355,9 +354,9 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
             "type": "fork_reply",
             "thread": "c1",
             "inputs": ["c1"],
-            "outcome": "reply",
-            "reply": "r1",
-            "text": "You asked me to serve it for review.",
+            "outcome": "hand_over",
+            "text": "Looking at how it is served.",
+            "line": "w1",
             "elapsedMs": 3200.0,
             "usage": usage,
         },
@@ -386,15 +385,20 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
         user.ids[name], user.profiles[name] = comment, profile
         user.sent.append(name)
     assert user.timing("fork-idle") == (
-        "`fork-idle` picked up after 20.0 s, answered after 4.0 s; a fork's reply "
-        "after 3200 ms on 12 in, 80 out, 9000 cache read tokens"
+        "`fork-idle` picked up after 20.0 s, answered after 4.0 s; a fork's hand_over "
+        'after 3200 ms on 12 in, 80 out, 9000 cache read tokens: "Looking at how it '
+        'is served."'
     )
     user.passed("forks", time.monotonic())
 
     [step] = user.sample()["steps"]
     answered, handed = step["comments"]["fork-idle"], step["comments"]["fork-work"]
-    assert answered["fork"] == {"outcome": "reply", "elapsedMs": 3200.0, "usage": usage}
-    assert answered["reply"] is None
+    assert answered["fork"] == {
+        "outcome": "hand_over",
+        "elapsedMs": 3200.0,
+        "usage": usage,
+    }
+    assert answered["reply"] is not None
     assert handed["fork"] == {
         "outcome": "hand_over",
         "why": "it asks for a change",

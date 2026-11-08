@@ -81,15 +81,12 @@ dialog.setAttribute("aria-label", "Page Map");
 dialog.setAttribute("aria-modal", "true");
 const dialogHead = el("div", "lf-dialog-head");
 dialogHead.append(el("strong", "lf-dialog-title", "Page Map"));
-const dialogClose = closeControl({
-  name: "Close Page Map",
-  title: "Close Page Map (Esc)",
-});
+const dialogClose = closeControl({ name: "Close Page Map" });
 dialogHead.append(dialogClose);
 const dialogSearch = searchField("lf-page-map-search", {
   name: "page-map-search",
-  label: "Find an action, status, or location in Page Map",
-  placeholder: "Find an action, status, or location",
+  label: "Find an action, status or location in Page Map",
+  placeholder: "Find an action, status or location…",
 });
 const dialogList = el("div", "lf-page-map-list");
 dialogList.toggleAttribute("data-lf-scroll", true);
@@ -106,7 +103,7 @@ dialog.addEventListener("close", () => {
 const dialogEmpty = el(
   "p",
   "lf-rows-empty",
-  "No matching actions, statuses, or locations.",
+  "No matching actions, statuses or locations.",
 );
 dialogEmpty.hidden = true;
 dialogEmpty.setAttribute("role", "status");
@@ -386,8 +383,8 @@ export function createPageMapDialog({
     keepsText(
       dialogEmpty,
       query
-        ? "No matching actions, statuses, or locations."
-        : "No margin controls, status indicators, or locations yet.",
+        ? "No matching actions, statuses or locations."
+        : "No margin controls, status indicators or locations yet.",
     );
     keepsHidden(dialogEmpty, shown !== 0);
   }

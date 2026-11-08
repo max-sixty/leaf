@@ -681,7 +681,7 @@ MESSAGE_ROOM_PAGE = leaf_page(
 )
 
 
-# What each item of the panel's On view says, as On me's card or On <agent>'s line: its
+# What each item of the panel's On view says, as On Me's card or On <agent>'s line: its
 # obligation's kind and id (queue-api.js, `queueItemKey`), the list it stands in ("you",
 # "agent" or "done"), its title, its prompt where its card is open, and what it says of
 # its ending (such as "Answered: …"), each null where the item has none, and its box.
@@ -1074,10 +1074,10 @@ IN_FORCE_PAGE = leaf_page(
 </lf-options></lf-ask>
 <lf-ask id="ab-card-decision"><h2>How should the cutover note look?</h2>
 <lf-playground id="ab-card" submit-label="Use these settings">
-  <lf-playground-control name="radius" label="Corner radius" kind="range" value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
-  <lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">
-    <lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>
-    <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
+  <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range" value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
+  <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
+    <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
+    <lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>
   </lf-playground-control>
   <lf-playground-preview id="ab-card-preview">
     <article id="ab-card-note"><strong>The cutover lands on Friday</strong><p>Read the migration notes before the freeze.</p></article>

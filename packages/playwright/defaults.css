@@ -89,17 +89,12 @@ lf-trace[hidden="until-found"] {
   justify-content: space-between;
   gap: var(--sp-2);
 }
-/* The scope's radio group (webawesome.css) at the recording's control size. */
+/* The scope's radio group (webawesome.css), at the height every view chooser takes. */
 .lf-trace-sources {
-  --wa-form-control-height: var(--lf-trace-control-size);
   display: block;
   flex: 0 1 auto;
-  min-block-size: var(--lf-trace-control-size);
   min-inline-size: 0;
   max-inline-size: 100%;
-}
-.lf-trace-source {
-  min-block-size: var(--lf-trace-control-size);
 }
 .lf-trace-viewer {
   white-space: nowrap;
@@ -146,7 +141,6 @@ lf-trace[hidden="until-found"] {
   --lf-trace-mark: color-mix(in srgb, var(--ink) 55%, var(--paper));
   --lf-trace-input: var(--accent);
   position: relative;
-  anchor-scope: --lf-trace-tip;
   display: grid;
   /* A fixed name column: a font arriving cannot move the time scale. */
   grid-template-columns: 76px minmax(0, 1fr);
@@ -439,32 +433,6 @@ lf-trace[hidden="until-found"] {
   translate: -1px 0;
   background: var(--accent);
 }
-.lf-trace-timeline [data-lf-trace-tip-anchor] {
-  anchor-name: --lf-trace-tip;
-}
-/* The tooltip may stand above its timeline, while safe inline alignment keeps its
- * full words inside that timeline's width. Native anchoring follows the mark's pan. */
-.lf-trace-tip {
-  position: absolute;
-  position-anchor: --lf-trace-tip;
-  inset-inline: 0;
-  inset-block-start: auto;
-  inset-block-end: anchor(top);
-  justify-self: anchor-center;
-  margin-block-end: 4px;
-  box-sizing: border-box;
-  inline-size: max-content;
-  z-index: 4;
-  max-inline-size: min(48ch, 100%);
-  padding: var(--sp-1) var(--sp-2);
-  border-radius: var(--r);
-  background: var(--ink);
-  color: var(--paper);
-  font: var(--font-tip);
-  white-space: pre-line;
-  pointer-events: none;
-}
-
 .lf-trace-options {
   display: flex;
   align-items: center;
@@ -886,7 +854,6 @@ lf-trace-compare {
   display: flex;
   flex-direction: column;
   min-inline-size: 0;
-  --lf-trace-control-size: 44px;
   --lf-trace-chooser-padding: var(--sp-2);
   font: var(--font-ui);
 }
@@ -922,9 +889,7 @@ lf-trace-compare lf-trace {
   lf-trace-compare:not(:defined)::before {
     content: "";
     display: block;
-    block-size: calc(
-      var(--lf-trace-control-size) + 2 * var(--lf-trace-chooser-padding) + 1px
-    );
+    block-size: calc(var(--lf-chooser) + 2 * var(--lf-trace-chooser-padding) + 1px);
   }
 }
 

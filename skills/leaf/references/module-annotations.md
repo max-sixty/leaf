@@ -48,7 +48,7 @@ of a `glyph` (text), an `action` (one of Leaf's actions, whose symbol it shows;
 `module-reading.md`, "Icons") or an `icon` (a Leaf icon, for an entry that shows what it
 holds rather than what it does). `behavior`, `tone`, `rank` and
 `state` default to an ordinary primary action; `CONTRIBUTION_ENTRY_SCHEMA` lists their
-values.
+values and, under `options`, every field an entry accepts.
 
 Pressing an entry calls `activate(activation, context)`, where an entry's `activation`
 defaults to its key. An entry for one of the widget's declared commands instead sets

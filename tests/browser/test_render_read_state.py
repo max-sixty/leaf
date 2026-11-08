@@ -28,6 +28,8 @@ from render_harness import (
     RELEASE_FOCUS,
     CutOff,
     _traffic,
+    expect_preview_words,
+    fetch_whole_state,
     heard_back,
     holding,
     http_error_console,
@@ -164,12 +166,13 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
     open_panel_thread(page, root)
     holding(page, held, 1, "automatic read")
     request = held.pop()
-    response = request.fetch(
+    response, answer = fetch_whole_state(
+        request,
         post_data=json.dumps(
             {"kind": "read", "messages": [{"message": "missing", "version": "missing"}]}
-        )
+        ),
     )
-    assert response.status == 400 and response.json()["final"] is True
+    assert response.status == 400 and answer["final"] is True
     request.fulfill(response=response)
     rendered(page)
     assert _read_events(serve.page_dir) == []
@@ -178,7 +181,7 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
       const {readApplication} = await window.__lfCheckApi();
       return readApplication().authoritative.taken;
     }""")
-        == response.json()["state"]["taken"]
+        == answer["state"]["taken"]
     )
     assert take_browser_errors(page) == [
         Finding(
@@ -225,7 +228,9 @@ def test_modal_blocks_exposure_until_user_returns_to_threads(browser, serve):
         view.locator(f'.lf-msg[data-lf-message="{root}"] .lf-msg-body')
     ).to_be_visible()
     page.evaluate("window.dispatchEvent(new Event('resize'))")
-    page.wait_for_timeout(100)
+    # The pass the resize set off has run, and whatever it sent has come back.
+    rendered(page)
+    round_trip(page)
     assert _read_events(serve.page_dir) == []
     with sending(page, "the read once the modal closes"):
         page.keyboard.press("Escape")
@@ -297,8 +302,7 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     page = open_page(browser, url)
 
     mark = _on_me_mark(page)
-    expect(mark).to_have_attribute("aria-label", "On me, 1 thread with news")
-    expect(mark).to_have_attribute("title", "On me, 1 thread with news")
+    expect(mark).to_have_attribute("aria-label", "On Me, 1 thread with news")
     expect(mark.locator(".lf-fp-news")).to_be_visible()
     thread_control_width = mark.bounding_box()["width"]
     # With news waiting and nothing on the user, the mark opens Threads, where the
@@ -320,8 +324,7 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     ]
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
-    expect(mark).to_have_attribute("aria-label", "On me")
-    expect(mark).to_have_attribute("title", "On me")
+    expect(mark).to_have_attribute("aria-label", "On Me")
     expect(mark.locator(".lf-fp-news")).to_be_hidden()
     assert abs(mark.bounding_box()["width"] - thread_control_width) < 1
     page.reload()
@@ -385,7 +388,9 @@ def test_oversized_message_needs_contiguous_traversal(browser, serve):
     body = view.locator(f'.lf-msg[data-lf-message="{root}"] .lf-msg-body')
     assert body.bounding_box()["height"] > view.bounding_box()["height"]
     view.evaluate("element => element.scrollTop = element.scrollHeight")
-    page.wait_for_timeout(100)
+    # The pass the scroll set off has run, and whatever it sent has come back.
+    rendered(page)
+    round_trip(page)
     assert _read_events(serve.page_dir) == []
 
     view.evaluate("element => element.scrollTop = 0")
@@ -550,7 +555,7 @@ def test_a_reply_in_a_diff_thread_draws_where_the_user_is_and_waits_elsewhere(
     news = thread.locator(":scope > .lf-thread-content").get_by_role(
         "button", name="1 new", exact=True
     )
-    expect(news).to_have_accessible_description("1 new reply")
+    expect_preview_words(news, "1 new reply")
     expect(thread.locator(".lf-msg")).to_have_count(2)
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
     assert all(
@@ -580,7 +585,9 @@ def test_a_reply_in_a_diff_thread_draws_where_the_user_is_and_waits_elsewhere(
         ("opened", "browser"),
         ("walked", "browser"),
         ("onto", "browser"),
+        ("pressed", "browser"),
         ("replied", "browser"),
+        ("tabbed", "browser"),
         ("opened", "firefox_browser"),
         ("onto", "firefox_browser"),
     ],
@@ -590,11 +597,14 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
 ):
     """Replies landing while a seated thread's foot is on screen wait behind one
     notice that counts them, and show together, in the order they came: when the user
-    presses the notice, when a t press walks them to the thread, when they send a turn
-    of their own, which answers the replies and so follows them. A user who stands on
-    the thread ("onto") sees them as they come, as in a chat. Nothing before the ending
-    is input, so the browser fixture's shift watch also checks that holding the replies
-    moved nothing, in Firefox as in Chromium."""
+    presses the notice, when a t press walks them to the thread, when they press one of
+    its messages, and when a press or Shift+Tab takes them into its reply row. What the
+    walk, the press or the Tab reached stays where it stood, and the replies push what
+    follows down or what precedes up; a turn the user then sends follows the replies it
+    answers. A user who stands on the thread ("onto")
+    sees them as they come, as in a chat. Nothing before the ending is input, so the
+    browser fixture's shift watch also checks that holding the replies moved nothing,
+    in Firefox as in Chromium."""
     url = serve(TASK_SEAT_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
@@ -642,7 +652,7 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
         expect(thread.locator(".lf-thread-news")).to_have_count(0)
         return
     expect(news).to_be_visible()
-    expect(news).to_have_accessible_description("2 new replies")
+    expect_preview_words(news, "2 new replies")
     expect(thread.locator(".lf-msg")).to_have_count(1)
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
     # The notice stands after the header's words, in a box of its own, so axe still
@@ -652,14 +662,38 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
     if end == "opened":
         news.click()
     elif end == "walked":
+        # The thread is already shown, so the walk lands on it where it stands.
+        stood = thread.bounding_box()["y"]
         page.keyboard.press("t")
+        expect(thread).to_be_focused()
+        expect(thread.locator(".lf-msg")).to_have_count(3)
+        assert thread.bounding_box()["y"] == pytest.approx(stood, abs=1)
+    elif end == "pressed":
+        words = thread.locator(".lf-msg .lf-msg-body").first
+        stood = words.bounding_box()["y"]
+        words.click()
+        expect(thread.locator(".lf-msg")).to_have_count(3)
+        assert words.bounding_box()["y"] == pytest.approx(stood, abs=1)
     elif end == "replied":
-        write(
-            thread.locator(":scope > .lf-thread-reply leaf-text"),
-            "Then the roof first.",
-        )
+        box = thread.locator(":scope > .lf-thread-reply leaf-text")
+        stood = box.bounding_box()["y"]
+        box.click()
+        expect(thread.locator(".lf-msg")).to_have_count(3)
+        # Chrome hides a shift for half a second after a click, so the watch can't see
+        # the box leave the pointer.
+        assert box.bounding_box()["y"] == pytest.approx(stood, abs=1)
+        write(box, "Then the roof first.")
         with sending(page, "the user's reply"):
             page.keyboard.press("Enter")
+    elif end == "tabbed":
+        # The seat's comment box stands below the thread, so Shift+Tab from it arrives
+        # in the thread's reply row, which the replies draw above.
+        page.locator(".lf-thread-seat > .lf-say leaf-text").click()
+        row = thread.locator(":scope > .lf-thread-reply")
+        stood = row.bounding_box()["y"]
+        page.keyboard.press("Shift+Tab")
+        expect(thread.locator(".lf-msg")).to_have_count(3)
+        assert row.bounding_box()["y"] == pytest.approx(stood, abs=1)
     shown = thread.locator(".lf-msg")
     expect(shown).to_have_count(4 if end == "replied" else 3)
     expect(news).to_have_count(0)
@@ -736,8 +770,9 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
         f"{panel_top}, so it does not test what it names"
     )
     if under_panel:
-        # Long enough for an observation pass to have sent a receipt had it counted.
-        page.wait_for_timeout(1500)
+        # The pass the scroll set off has run, and whatever it sent has come back.
+        rendered(page)
+        round_trip(page)
         assert not receipt(), "a message partly under the open panel was marked read"
         page.locator(".lf-fp-close").click()
         panel_settled(page, open=False)

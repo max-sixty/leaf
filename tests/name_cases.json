@@ -5,6 +5,11 @@
     "name": "Plan"
   },
   {
+    "id": "a sub-heading inside a section does not name it",
+    "markup": "<section id=\"it\"><h2>Section title</h2><p>Intro.</p><h3>Sub-heading</h3><p>Words under the sub-heading.</p></section>",
+    "name": "Section title"
+  },
+  {
     "id": "a disclosure is named by its summary",
     "markup": "<details id=\"it\"><summary>Method</summary><p>Steps.</p></details>",
     "name": "Method"

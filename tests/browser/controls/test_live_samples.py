@@ -11,6 +11,7 @@ from render_harness import (
     Traffic,
     leaf_page,
     open_page,
+    put_preview_away,
     rendered,
     resized,
     sending,
@@ -117,12 +118,15 @@ def test_tab_walks_into_and_out_of_a_full_view_sample(browser, serve):
     assert left, "Tab never came back out of the sample to the view's controls"
 
     # Back on the page, Tab past the child's last stop goes on to the page's next stop.
+    # The child's last stop is Leaf's own, whose root follows body. The Tab onto the
+    # view's control showed its preview, which the first Escape puts away.
+    put_preview_away(page)
     page.keyboard.press("Escape")
     expect(sample.get_by_role("button", name="Full view", exact=True)).to_be_focused()
     child.evaluate(
         """async () => {
           const { tabStops } = await window.__lfCheckApi();
-          tabStops(document.body).at(-1).focus();
+          tabStops(document).at(-1).focus();
         }"""
     )
     expect(frame).to_be_focused()

@@ -26,6 +26,7 @@ from render_harness import (
     consume_browser_errors,
     example_media,
     expect_panel_says,
+    expect_preview_words,
     http_error_console,
     leaf_page,
     open_page,
@@ -434,8 +435,9 @@ def test_a_rewrite_never_replaces_words_it_did_not_see(browser, serve):
     in_b.locator(".lf-msg-text").dblclick()
     editor = in_b.locator(".lf-msg-editor leaf-text")
     expect(editor).to_have_js_property("value", "Saved in B.")
-    expect(in_b.locator(".lf-edited")).to_have_attribute(
-        "title", re.compile("Before, it said: “Fit the north bracket.”")
+    expect_preview_words(
+        in_b.locator(".lf-edited"),
+        re.compile("Before, it said: “Fit the north bracket.”"),
     )
     b.keyboard.press("Enter")
     round_trip(b)

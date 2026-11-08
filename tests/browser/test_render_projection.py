@@ -8,7 +8,7 @@ from interact_support import (
     append_carried_log_record,
     working,
 )
-from journeys import first_thread_quote
+from journeys import first_thread_head
 from playwright.sync_api import expect
 from render_cases_interaction import (
     COMMAND_HUB_EXAMPLE,
@@ -337,7 +337,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     write(page.locator(".lf-composer leaf-text"), "Review this added call.")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
-    expect(first_thread_quote(page, serve.page_dir)).to_have_text(
+    expect(first_thread_head(page, serve.page_dir)).to_have_text(
         "§ added call-tree item └─ if request.token at gateway/limits.py:40"
     )
 
@@ -590,7 +590,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     round_trip(page)
     expect_obligations_answered(page, "1/5")
     expect(page.locator(".lf-fp-on-user")).to_have_attribute(
-        "aria-label", re.compile(r"^On me: [1-9]")
+        "aria-label", re.compile(r"^On Me: [1-9]")
     )
 
     honoring = re.sub(
@@ -615,7 +615,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     # drops `needed`; it is completed, not newly owed to the user.
     expect_obligations_answered(page, "1/5")
     expect(page.locator(".lf-fp-on-user")).to_have_attribute(
-        "aria-label", re.compile(r"^On me: [1-9]")
+        "aria-label", re.compile(r"^On Me: [1-9]")
     )
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")

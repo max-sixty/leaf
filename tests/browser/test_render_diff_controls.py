@@ -119,6 +119,33 @@ def test_worktree_summaries_share_columns_without_cramping_their_evidence(
                 summary.click()
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_page_search_reads_a_worktrees_label_and_branch_apart(request, serve, engine):
+    """A worktree's summary draws its label and its branch on two rows, and page search
+    finds them with a space between them."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Worktree identity",
+                '<h1>Worktree identity</h1><lf-worktree-diffs id="trees">'
+                '<lf-worktree id="drafts" label="retain-drafts" '
+                'branch="codex/retain-drafts" path="/workspace/leaf.retain-drafts" '
+                'status="changed" files="2" additions="2" deletions="2">'
+                "<p>Keep reply drafts keyed by thread.</p></lf-worktree>"
+                "</lf-worktree-diffs>",
+            ),
+            packages=("diff",),
+        ),
+    )
+    expect(page.locator("#drafts .lf-worktree-ref")).to_have_text("codex/retain-drafts")
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill(
+        "retain-drafts codex/retain-drafts"
+    )
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+
+
 def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
     browser, serve
 ):

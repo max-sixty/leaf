@@ -153,6 +153,36 @@ def test_a_capture_in_a_table_is_named_by_its_heads(browser, serve):
         expect(viewer).to_be_hidden()
 
 
+def test_a_capture_in_a_reply_s_table_is_named_by_its_column_head(browser, serve):
+    """A table of captures an agent writes in Markdown names each capture by the head over
+    its column, as the page's own tables do: a message's words are its writer's."""
+    url = serve(
+        leaf_page(
+            "Captures",
+            '<h1>Captures</h1><img src="/media/051bee487bfb5d13.png" alt="Release output">',
+        )
+    )
+    image = (
+        "[![Release output](/media/051bee487bfb5d13.png)](/media/051bee487bfb5d13.png)"
+    )
+    panel_comment(
+        serve.page_dir,
+        f"| | Light | Dark |\n|---|---|---|\n| Before | {image} | {image} |",
+        author="agent",
+    )
+    page = open_page(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    thread = page.locator(PANEL_THREAD)
+    expect(thread).to_be_visible()
+    viewer = page.get_by_role("dialog", name="Image preview")
+    for index, caption in enumerate(("Light", "Dark")):
+        thread.locator('a[href="/media/051bee487bfb5d13.png"]').nth(index).click()
+        expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(caption)
+        page.keyboard.press("Escape")
+        expect(viewer).to_be_hidden()
+
+
 # A diagram that states no size of its own, only a shape, as a diagram renderer writes one.
 DIAGRAM_SVG = (
     b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">'

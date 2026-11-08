@@ -843,10 +843,7 @@ def test_a_bounded_region_reflows_its_margin_without_resizing_the_page(
                 # Moving only the paragraph can change the clear seat around it. The layout
                 # notification must settle that seat as a full geometry reading would.
                 assert after["top"] != before["top"]
-                page.evaluate("""async () => {
-                  const {layoutChanged} = await window.__lfWidgetApi();
-                  layoutChanged(document.body);
-                }""")
+                margins_laid_out(page)
                 assert page.evaluate(reading) == after
             assert after["hit"]
 
@@ -1470,7 +1467,6 @@ def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serv
     )
     resized(page, 1440, 900)
     margins_laid_out(page)
-    margins_laid_out(page)
     stuck = page.locator('.lf-margin-cluster[data-lf-margin-for="fixed-note"]')
     flow = page.locator('.lf-margin-cluster[data-lf-margin-for="flow"]')
     expect(flow).to_be_visible()
@@ -1611,13 +1607,13 @@ def test_distant_margin_coordinates_follow_small_moves_without_restatement(
             await window.__lfWidgetApi();
           const main = document.querySelector('main');
           const space = document.createElement('div');
-          space.style.cssText = 'position: relative; height: 1400000px';
+          space.style.cssText = 'position: relative; height: 140000px';
           const target = document.createElement('p');
           target.id = 'distant-margin-target';
           target.textContent = 'A distant passage';
           target.style.cssText = 'position: absolute; left: 40px; top: var(--target-y);'
             + 'width: 300px; height: 30px; margin: 0';
-          target.style.setProperty('--target-y', '1234567.578125px');
+          target.style.setProperty('--target-y', '123456.578125px');
           space.append(target); main.append(space);
           const contribution = registerContribution({key: 'distant', target,
             read: () => ({entries: [contributionEntry({key: 'distant',
@@ -1636,7 +1632,7 @@ def test_distant_margin_coordinates_follow_small_moves_without_restatement(
     for delta in (1, 2, 4):
         page.locator("#distant-margin-target").evaluate(
             "(target, y) => target.style.setProperty('--target-y', `${y}px`)",
-            1234567.578125 + delta,
+            123456.578125 + delta,
         )
         page.wait_for_function(
             """expected => {

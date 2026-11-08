@@ -2,6 +2,7 @@
    (`leavesRows`), and its row among the page's controls (page-controls.js), offered
    while another page is served beside this one. */
 import { runtime } from "./context.js";
+import { authoredTitle } from "./tab-title.js";
 import { pagePresented } from "./page-paint.js";
 import { activityFacts, leafRow } from "./activity-words.js";
 import { commandSteps } from "./keyboard/control-keys.js";
@@ -21,26 +22,16 @@ export const leavesOffered = () =>
 // pages a week apart share one; the work each came out of is the thing the user
 // already holds in their head, so it is worth the room a hover has and a row hasn't.
 // Each serving page publishes the same compact account of its own canonical activity.
+// A pointer that can't hover has no hover to give that room, so a row there draws its
+// words whole and `rest` under them, what the account holds that the row leaves out
+// (floating-panel.css).
 //
 // One tooltip for the row rather than one per part. The innermost title wins where two
 // overlap, so a title left on the line would answer the hover most likely to be asking
 // this question — a user pointing at the words that ran out of room — with the one
 // part of the account they can already read.
-/** @param {import("../types/contract.js").ServedState | import("../types/contract.js").ServedState["others"][number]} entry
- * @param {string} title @param {string} line */
-const rowAccount = (entry, title, line) =>
-  [
-    title,
-    entry.session_cwd,
-    line,
-    // The rest of the canonical agent obligations the line summarizes, expanded for the
-    // row's hover. A raw cursor count cannot say whether those words are queued,
-    // opened in this turn, or still waiting for delivery; the line already says the
-    // queued and pending ones.
-    activityFacts(entry).owed.join("; "),
-  ]
-    .filter(Boolean)
-    .join("\n");
+/** @param {readonly (string | null)[]} facts */
+const onLines = (facts) => facts.filter(Boolean).join("\n");
 
 // The pages the list holds for a state reading: this page's own, then each live
 // neighbour. A neighbour's row is its page, keyed by `page_key`, and its link is wherever
@@ -51,7 +42,7 @@ const listedPages = (state) =>
   state === null
     ? []
     : [
-        { key: "self", href: null, title: document.title, entry: state },
+        { key: "self", href: null, title: authoredTitle(), entry: state },
         ...state.others.map((entry) => ({
           key: entry.page_key,
           href: entry.url,
@@ -67,6 +58,11 @@ export const leavesRows = (state) =>
   Object.freeze(
     listedPages(state).map(({ key, href, title, entry }) => {
       const { tone, line, parts } = leafRow(entry);
+      // The rest of the canonical agent obligations the line summarizes, expanded for
+      // the row's hover. A raw cursor count cannot say whether those words are queued,
+      // opened in this turn, or still waiting for delivery; the line already says the
+      // queued and pending ones.
+      const owed = activityFacts(entry).owed.join("; ");
       return Object.freeze({
         key,
         self: key === "self",
@@ -75,7 +71,8 @@ export const leavesRows = (state) =>
         tone,
         line,
         parts,
-        account: rowAccount(entry, title, line),
+        account: onLines([title, entry.session_cwd, line, owed]),
+        rest: onLines([entry.session_cwd, owed]),
       });
     }),
   );

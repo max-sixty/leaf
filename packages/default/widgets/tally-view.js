@@ -32,13 +32,13 @@ export function render(
             data-lf-gen="1"
             data-lf-offer="button"
             type="button"
-            title="Next on me here"
+            title="Next On Me here"
             aria-controls=${host.getAttribute("for")}
             ?disabled=${!ready || !onUser}
             @mousedown=${(/** @type {MouseEvent} */ event) => event.preventDefault()}
             @click=${onNext}
           >
-            Next on me
+            Next On Me
           </button>`
         : nothing
     }

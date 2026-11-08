@@ -43,7 +43,7 @@ Code's session messaging, so it looks as if it came from another session.
 Claude Code's session list (`claude agents`) files a session by the last line of its
 last chat message: a `needs input:` line under Needs input, a `result:` line under
 Completed. Without either, its classifier reads a closing like "the page will pick up
-new comments" as work in progress. So when the user's On me list holds anything, end
+new comments" as work in progress. So when the user's On Me list holds anything, end
 the closing reply with a line `needs input: <what you want back>` naming those items.
 Only when nothing waits on the user or on running work, end it with
 `result: <what you delivered>`. Keep the line to 200 characters or fewer, on its own

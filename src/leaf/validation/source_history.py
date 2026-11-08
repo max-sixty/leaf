@@ -25,7 +25,6 @@ class PredecessorReading(NamedTuple):
 
     active: int
     candidate: int
-    committed_active: bool
     # The candidate's captured artifact is the active revision's: its transition
     # was checked when that revision activated.
     unchanged: bool
@@ -37,7 +36,7 @@ class PredecessorReading(NamedTuple):
 
 # The predecessor of a first version or an unreadable source.
 EMPTY_READING = SourceReading(SourceDocument(""), {})
-NO_PREDECESSOR = PredecessorReading(0, 1, False, False, 0, EMPTY_READING)
+NO_PREDECESSOR = PredecessorReading(0, 1, False, 0, EMPTY_READING)
 
 
 def revision_reanchors(
@@ -155,7 +154,6 @@ def predecessor_reading(
         active
         if same_as_active and artifact is not None
         else max(list_revisions(page_dir), default=0) + 1,
-        committed_active,
         bool(active and same_as_active and artifact is not None),
         predecessor,
         read_revision(page_dir, predecessor) if predecessor else EMPTY_READING,

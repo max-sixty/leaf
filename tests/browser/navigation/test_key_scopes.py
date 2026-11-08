@@ -28,8 +28,10 @@ from render_harness import (
     LONG_PAGE,
     PANEL,
     available_commands,
+    back_gesture,
     consume_browser_errors,
     draft_control,
+    expect_panel_says,
     hold_selection,
     is_problem,
     leaf_page,
@@ -39,11 +41,14 @@ from render_harness import (
     panel_field,
     panel_settled,
     panel_view,
+    put_preview_away,
+    refuse,
     resized,
     round_trip,
     scroll_settled,
     select_words,
     told,
+    watched,
     write,
 )
 
@@ -165,7 +170,7 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
 
 def test_the_thread_walk_goes_on_from_the_place_the_panel_holds(browser, serve):
     """Stepping into the panel from a thread keeps the user in that thread on the page,
-    so `t` pressed in On me goes on to the next thread rather than back into it."""
+    so `t` pressed in On Me goes on to the next thread rather than back into it."""
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
     )
@@ -228,15 +233,17 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
         for root in roots
     ]
 
-    # Leaf's controls with no layer up: out onto the page.
+    # Leaf's controls with no layer up: focus arriving on one shows its preview
+    # (preview.js), which the first Escape puts away; the second lets go onto the page.
     expect(marker).to_be_visible()
     for control in (toggle, marker):
         control.focus()
+        put_preview_away(page)
         expect(control).to_be_focused()
         page.keyboard.press("Escape")
         assert page.evaluate(on_body)
 
-    # On me by pointer: out with the panel's view.
+    # On Me by pointer: out with the panel's view.
     toggle.click()
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
@@ -296,7 +303,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
 def test_a_view_reached_from_another_view_leaves_both_of_them_shut(browser, serve):
     """The surface a user was already in does not come back when the next one goes.
 
-    `g T` from On me puts Threads up in its place, and the one Escape that takes
+    `g T` from On Me puts Threads up in its place, and the one Escape that takes
     Threads off lands on the page rather than reopening the view the user came from.
     Nothing records that they were in it, and the descent Escape matches is the one that
     the state in front of them describes: Threads over the page.
@@ -619,6 +626,56 @@ def test_a_dialog_shown_as_a_popover_stands_as_a_popover(browser, serve):
       return {popover, modal};
     }""")
     assert kinds == {"popover": ["popover"], "modal": ["modal"]}
+
+
+HOVER_CARD_PAGE = """<!doctype html>
+<html lang="en">
+  <head><title>Escape under a hover card</title></head>
+  <body>
+    <main>
+      <p id="para">
+        <span id="word">Hover this word</span>, or focus this
+        <a id="link" href="#para">link</a>.
+      </p>
+      <div id="card" popover="manual"><button id="in-card">In the card</button></div>
+    </main>
+  </body>
+</html>
+"""
+
+
+def test_escape_passes_a_manual_popover_the_user_is_not_in(browser, serve):
+    """A manual popover the user isn't in, such as a hover card, leaves Escape its steps
+    beneath it: the panel's comment field and a link let go under it as they do with no
+    card open. A focused link previews the place it names, and the first Escape puts that
+    preview away (preview.js), so the link lets go at the second. The browser never
+    closes a manual popover on Escape, so standing the steps down under one left every
+    press dead until the card closed (#5582). Focus inside the card makes it the user's
+    layer again, and the page beneath stays out of Escape's reach."""
+    page = open_page(browser, serve(HOVER_CARD_PAGE))
+    card = page.locator("#card")
+    link = page.locator("#link")
+    show = "() => document.getElementById('card').showPopover()"
+
+    link.focus()
+    page.evaluate(show)
+    put_preview_away(page)
+    expect(link).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(link).not_to_be_focused()
+    assert card.evaluate("c => c.matches(':popover-open')")
+
+    field = panel_field(page)
+    write(field, "words")
+    expect(field).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(field).not_to_be_focused()
+    assert card.evaluate("c => c.matches(':popover-open')")
+
+    page.locator("#in-card").focus()
+    page.keyboard.press("Escape")
+    expect(page.locator("#in-card")).to_be_focused()
+    assert card.evaluate("c => c.matches(':popover-open')")
 
 
 def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser, serve):
@@ -1395,6 +1452,55 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     expect(leaves).to_be_visible()
 
 
+def test_a_walk_with_nothing_to_step_through_says_so(browser, serve):
+    """Each page walk's letter is live on every page: on a page with no open thread,
+    nothing on the user, no comparison and no search, a press says so in the panel
+    rather than doing nothing (keyboard/AGENTS.md, "Page grammar"), and Shift's
+    reverse says the same."""
+    page = open_page(
+        browser, serve(leaf_page("Quiet", "<h1>Quiet</h1><p>Nothing to answer.</p>"))
+    )
+    for key, words in (
+        ("t", "No open threads"),
+        ("m", "Nothing waiting on me"),
+        ("h", "No changes marked"),
+        ("n", "No search to repeat"),
+        ("Shift+t", "No open threads"),
+    ):
+        page.keyboard.press(key)
+        expect_panel_says(page, words)
+
+
+def test_an_offline_walk_says_its_list_cannot_be_had(browser, serve):
+    """With the server's reading refused, an empty walk doesn't claim its list is
+    empty: the page's log holds an open thread `t` can't see, so `t`, and `m` with it,
+    say their lists can't be had, as the Threads view does."""
+    url = serve(
+        leaf_page("Offline", '<h1>Offline</h1><p id="said">Words to comment on.</p>'),
+        events=[
+            {
+                "id": "held-thread",
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Walk to me.",
+                "anchor": {"section": "said"},
+            }
+        ],
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    page.route("**/api/state*", refuse)
+    page.goto(url, wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    page.keyboard.press("t")
+    expect_panel_says(
+        page, "Current threads are unavailable while the server is offline"
+    )
+    page.keyboard.press("m")
+    expect_panel_says(page, "On Me is unavailable while the server is offline")
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_key_at_a_control_scrolled_away_acts_from_what_the_user_reads(
     request, serve, engine
@@ -1560,23 +1666,6 @@ BROWSER_BACK = """() => {
   window.browserBack = 0;
   new CloseWatcher().onclose = () => (window.browserBack += 1);
 }"""
-
-
-def back_gesture(page):
-    """Make the close request Android's back gesture makes. An Escape keydown nothing
-    cancels is the same request, so the page's listeners are kept from hearing it. The
-    page makes its watcher in the repaint frame after what it closes opens, which a
-    finger can't beat but a driver can, so the gesture waits out two frames first."""
-    page.evaluate(
-        """() => new Promise((resolve) => requestAnimationFrame(() =>
-          requestAnimationFrame(() => {
-            addEventListener('keydown', (event) => {
-              if (event.key === 'Escape') event.stopImmediatePropagation();
-            }, {capture: true, once: true});
-            resolve();
-          })))"""
-    )
-    page.keyboard.press("Escape")
 
 
 def test_a_back_gesture_takes_the_step_escape_would(browser, serve):

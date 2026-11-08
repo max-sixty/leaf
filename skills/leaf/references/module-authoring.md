@@ -11,7 +11,7 @@ files beside this one:
 - [module-state.md](module-state.md): the widget controller, declared state, data
   subscriptions, and editing a bound file;
 - [module-input.md](module-input.md): commands and keyboard routes, focus, pointer
-  presses, and text entry;
+  presses, previews, and text entry;
 - [module-scroll-and-motion.md](module-scroll-and-motion.md): reading regions,
   scrolling, travel, motion, and notices;
 - [module-annotations.md](module-annotations.md): margin contributions, visual
@@ -63,6 +63,8 @@ ignore:
   `control` and has no `run`, and the widget draws it `aria-disabled` while the press
   can't act, which is the availability Leaf reads. Where a key leaves the user is the
   row's `lands(from)` (`module-input.md`, "Command rows"), which only Leaf calls.
+- A preview: an element's `lfPreview()` (`module-input.md`, "Previews"). A plain page
+  shows none.
 - A Copy control: a block's `data-lf-copy` and `lfCopy()` (`module-reading.md`,
   "Code"), and a quiet word: `data-lf-quiet` (`module-scroll-and-motion.md`,
   "Notices and spoken words"). Leaf finds these in the page and in the shadow stages

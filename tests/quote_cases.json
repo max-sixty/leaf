@@ -1,0 +1,371 @@
+{
+  "about": "Quote resolution's cases, which the browser's findQuote (passages.js) and the file's resolve_quote (anchor_capture.py) both answer: how many letters of the section, its words without the space between them, stand before the passage each resolves the anchor to, or null where it names none. A case's `registry` adds to the layer's, the browser rendering each `x-says` value it declares, and its `stage` gives each tag the shadow tree the browser stages for it, its light children slotted there, or `true` to stage the host's own children.",
+  "cases": [
+    {
+      "id": "a copy a fence parts is passed by, and the next starts past it",
+      "markup": "<p id=\"s\">A<span contenteditable=\"true\">AAA</span></p>",
+      "anchor": {
+        "section": "s",
+        "quote": "AA"
+      },
+      "before": 2
+    },
+    {
+      "id": "copies that overlap are one, the first",
+      "markup": "<p id=\"s\">aaa</p>",
+      "anchor": {
+        "section": "s",
+        "quote": "aa"
+      },
+      "before": 0
+    },
+    {
+      "id": "two copies past each other are two",
+      "markup": "<p id=\"s\">aaaa</p>",
+      "anchor": {
+        "section": "s",
+        "quote": "aa"
+      },
+      "before": null
+    },
+    {
+      "id": "the words beside a copy tell it apart",
+      "markup": "<p id=\"s\">x MARK y MARK z</p>",
+      "anchor": {
+        "section": "s",
+        "quote": "MARK",
+        "prefix": "y",
+        "suffix": "z"
+      },
+      "before": 6
+    },
+    {
+      "id": "copies nothing tells apart name no passage",
+      "markup": "<p id=\"s\">MARK and MARK</p>",
+      "anchor": {
+        "section": "s",
+        "quote": "MARK"
+      },
+      "before": null
+    },
+    {
+      "id": "a section holds its own copy",
+      "markup": "<p id=\"a\">one two</p><p id=\"b\">one two</p>",
+      "anchor": {
+        "section": "b",
+        "quote": "one two"
+      },
+      "before": 0
+    },
+    {
+      "id": "spaces beside an inline element's edges are its words' gaps",
+      "markup": "<p id=\"s\">bold <b>text</b> here</p>",
+      "anchor": {
+        "section": "s",
+        "quote": "bold text here"
+      },
+      "before": 0
+    },
+    {
+      "id": "words the page runs together are not two",
+      "markup": "<p id=\"s\">setup</p>",
+      "anchor": {
+        "section": "s",
+        "quote": "set up"
+      },
+      "before": null
+    },
+    {
+      "id": "a quote runs from one block into the next",
+      "markup": "<div id=\"s\"><p>one</p><p>two</p></div>",
+      "anchor": {
+        "section": "s",
+        "quote": "one two"
+      },
+      "before": 0
+    },
+    {
+      "id": "an inline element's edge may part two words",
+      "markup": "<p id=\"s\"><span>one</span><span>two</span></p>",
+      "anchor": {
+        "section": "s",
+        "quote": "one two"
+      },
+      "before": 0
+    },
+    {
+      "id": "an inline element's edge falls inside a word",
+      "markup": "<p id=\"s\"><span>one</span><span>two</span></p>",
+      "anchor": {
+        "section": "s",
+        "quote": "onetwo"
+      },
+      "before": 0
+    },
+    {
+      "id": "a line break is a gap",
+      "markup": "<p id=\"s\">one<br>two</p>",
+      "anchor": {
+        "section": "s",
+        "quote": "one two"
+      },
+      "before": 0
+    },
+    {
+      "id": "a block's end is a gap, not the inside of a word",
+      "markup": "<div id=\"s\"><p>bold</p><p>text</p></div>",
+      "anchor": {
+        "section": "s",
+        "quote": "boldtext"
+      },
+      "before": null
+    },
+    {
+      "id": "spans side by side outside a text block are one word",
+      "markup": "<div id=\"s\"><span>alpha</span><span>beta</span></div>",
+      "anchor": {
+        "section": "s",
+        "quote": "alphabeta"
+      },
+      "before": 0
+    },
+    {
+      "id": "spans side by side outside a text block may read as two words",
+      "markup": "<div id=\"s\"><span>alpha</span><span>beta</span></div>",
+      "anchor": {
+        "section": "s",
+        "quote": "alpha beta"
+      },
+      "before": 0
+    },
+    {
+      "id": "a table cell's end is a gap",
+      "markup": "<table id=\"s\"><tr><td>alpha</td><td>beta</td></tr></table>",
+      "anchor": {
+        "section": "s",
+        "quote": "alpha beta"
+      },
+      "before": 0
+    },
+    {
+      "id": "a list item's end is a gap",
+      "markup": "<ul id=\"s\"><li>alpha</li><li>beta</li></ul>",
+      "anchor": {
+        "section": "s",
+        "quote": "alpha beta"
+      },
+      "before": 0
+    },
+    {
+      "id": "an image's alt text is no word",
+      "markup": "<p id=\"s\">alpha<img alt=\"between\">beta</p>",
+      "anchor": {
+        "section": "s",
+        "quote": "alphabeta"
+      },
+      "before": 0
+    },
+    {
+      "id": "a line break a widget's slot holds is a gap",
+      "markup": "<div id=\"s\"><lf-gap-slot>alpha<br>beta</lf-gap-slot></div>",
+      "registry": {
+        "lf-gap-slot": {
+          "x-shadow": true
+        }
+      },
+      "stage": {
+        "lf-gap-slot": "<p><slot></slot></p>"
+      },
+      "anchor": {
+        "section": "s",
+        "quote": "alpha beta"
+      },
+      "before": 0
+    },
+    {
+      "id": "an output runs into the words beside it",
+      "markup": "<div id=\"s\">alpha<output>beta</output>gamma</div>",
+      "anchor": {
+        "section": "s",
+        "quote": "alphabetagamma"
+      },
+      "before": 0
+    },
+    {
+      "id": "a ruby's base runs into the words before it",
+      "markup": "<div id=\"s\">alpha<ruby>beta<rt>delta</rt></ruby>gamma</div>",
+      "anchor": {
+        "section": "s",
+        "quote": "alphabeta"
+      },
+      "before": 0
+    },
+    {
+      "id": "words a widget's slot draws run together",
+      "markup": "<div id=\"s\"><lf-gap-slot><span>alpha</span><span>beta</span></lf-gap-slot></div>",
+      "anchor": {
+        "section": "s",
+        "quote": "alphabeta"
+      },
+      "before": 0,
+      "registry": {
+        "lf-gap-slot": {
+          "x-shadow": true
+        }
+      },
+      "stage": {
+        "lf-gap-slot": "<p><slot></slot></p>"
+      }
+    },
+    {
+      "id": "a button's label stands apart from the words beside it",
+      "markup": "<p id=\"s\">alpha<button>beta</button>gamma</p>",
+      "anchor": {
+        "section": "s",
+        "quote": "alpha beta gamma"
+      },
+      "before": 0
+    },
+    {
+      "id": "two staged widgets side by side read apart",
+      "markup": "<div id=\"s\"><lf-word><span>alpha</span></lf-word><lf-word><span>beta</span></lf-word></div>",
+      "registry": {
+        "lf-word": {
+          "x-shadow": true
+        }
+      },
+      "stage": {
+        "lf-word": true
+      },
+      "anchor": {
+        "section": "s",
+        "quote": "alpha beta"
+      },
+      "before": 0
+    },
+    {
+      "id": "two staged widgets side by side are not one word",
+      "markup": "<div id=\"s\"><lf-word><span>alpha</span></lf-word><lf-word><span>beta</span></lf-word></div>",
+      "registry": {
+        "lf-word": {
+          "x-shadow": true
+        }
+      },
+      "stage": {
+        "lf-word": true
+      },
+      "anchor": {
+        "section": "s",
+        "quote": "alphabeta"
+      },
+      "before": null
+    },
+    {
+      "id": "a said label stands apart from its element's words",
+      "markup": "<div id=\"s\"><lf-said-label label=\"Head\">body words</lf-said-label></div>",
+      "registry": {
+        "lf-said-label": {
+          "x-says": {
+            "label": "before"
+          }
+        }
+      },
+      "anchor": {
+        "section": "s",
+        "quote": "Head body"
+      },
+      "before": 0
+    },
+    {
+      "id": "a said tip stands apart from its phrase in a text block",
+      "markup": "<p id=\"s\">lead <lf-said-tip tip=\"Tip\">gloss</lf-said-tip> tail</p>",
+      "registry": {
+        "lf-said-tip": {
+          "x-says": {
+            "tip": "after"
+          },
+          "x-inline": true
+        }
+      },
+      "anchor": {
+        "section": "s",
+        "quote": "gloss Tip"
+      },
+      "before": 4
+    },
+    {
+      "id": "a slot outside any shadow tree draws its own children",
+      "markup": "<p id=\"s\">alpha<slot>beta</slot>gamma</p>",
+      "anchor": {
+        "section": "s",
+        "quote": "alphabetagamma"
+      },
+      "before": 0
+    },
+    {
+      "id": "a flex row's label and value may read as two words",
+      "markup": "<div id=\"s\" style=\"display: flex\"><strong>Status</strong><span>Ready</span></div>",
+      "anchor": {
+        "section": "s",
+        "quote": "Status Ready"
+      },
+      "before": 0
+    },
+    {
+      "id": "an option's chip and title may read as two words",
+      "markup": "<lf-options id=\"s\"><lf-option id=\"o\"><small class=\"tag ok\">recommended</small><strong>Drop the oldest</strong> Editing continues.</lf-option></lf-options>",
+      "anchor": {
+        "section": "s",
+        "quote": "recommended Drop"
+      },
+      "before": 0
+    },
+    {
+      "id": "an option's chip and title may read as one word",
+      "markup": "<lf-options id=\"s\"><lf-option id=\"o\"><small class=\"tag ok\">recommended</small><strong>Drop the oldest</strong> Editing continues.</lf-option></lf-options>",
+      "anchor": {
+        "section": "s",
+        "quote": "recommendedDrop"
+      },
+      "before": 0
+    },
+    {
+      "id": "a context reads formatted labels apart where the page shows them apart",
+      "markup": "<div id=\"s\"><small>MARK</small><strong><em>one</em></strong> <small>MARK</small><strong><em>two</em></strong></div>",
+      "anchor": {
+        "section": "s",
+        "quote": "MARK",
+        "suffix": "one MARK two"
+      },
+      "before": 0
+    },
+    {
+      "id": "an empty inline widget's said values read apart from each other",
+      "markup": "<div id=\"s\"><lf-said-pair head=\"MARK\" tail=\"one\"></lf-said-pair> <lf-said-pair head=\"MARK\" tail=\"two\"></lf-said-pair></div>",
+      "registry": {
+        "lf-said-pair": {
+          "x-says": {
+            "head": "before",
+            "tail": "after"
+          },
+          "x-inline": true
+        }
+      },
+      "anchor": {
+        "section": "s",
+        "quote": "MARK",
+        "suffix": "one MARK two"
+      },
+      "before": 0
+    },
+    {
+      "id": "a character only Python calls whitespace is a letter of the word",
+      "markup": "<p id=\"s\">x A\u001eB y</p>",
+      "anchor": {
+        "section": "s",
+        "quote": "A B"
+      },
+      "before": null
+    }
+  ]
+}

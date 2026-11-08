@@ -20,6 +20,7 @@ from render_harness import (
     consume_browser_errors,
     expect_obligations_answered,
     expect_open_threads,
+    expect_preview_words,
     holding,
     http_error_console,
     is_problem,
@@ -1527,7 +1528,7 @@ def test_failed_primary_reader_restores_the_same_native_obligation_in_core(
 def test_the_panels_routes_to_a_thread_reach_the_reader_that_holds_its_widget(
     browser, serve
 ):
-    """On me's route and Threads' row each take the user to the primary reader that
+    """On Me's route and Threads' row each take the user to the primary reader that
     owns the thread's widget. The panel opens no view of the thread, and the widget
     arrives as the same native node."""
     page = open_page(browser, package_workspace(serve))
@@ -2208,7 +2209,7 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
     expect(workspace.locator('[data-lf-event="later-answer"]')).to_have_count(0)
     assert editor.bounding_box() == before
     notice = workspace.get_by_role("button", name="2 new", exact=True)
-    expect(notice).to_have_accessible_description("1 new reply · 1 message edited")
+    expect_preview_words(notice, "1 new reply · 1 message edited")
     notice.click()
     if mode != "Reply only":
         expect(workspace.locator('[data-lf-event="later-answer"]')).to_contain_text(

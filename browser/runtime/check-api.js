@@ -36,7 +36,7 @@ export {
   stackLevel,
   shownParts,
 } from "./geometry.js";
-export { skipped } from "./shown-box.js";
+export { skipped } from "./shadow-tree.js";
 export { windowHoldsRail } from "./content-layout.js";
 export { renderedParent, uiInside, upFrom } from "./shadow.js";
 export { authoredBody } from "./widget-elements.js";
@@ -77,8 +77,16 @@ export {
 } from "./keyboard/bindings.js";
 export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispatch.js";
 export { whereDraft, storedDraft, captureDraftEditing } from "./drafts.js";
-export { onCurrentLocation, releaseFocus, takesLetters, tabStops } from "./focus.js";
+export {
+  onCurrentLocation,
+  releaseFocus,
+  ringBox,
+  takesLetters,
+  tabStops,
+} from "./focus.js";
 export { selectionAnchor } from "./composing/capture.js";
+// A range's owner's word of where the pointer rests, as a passage mark's is.
+export { pointRange } from "./preview.js";
 export { TEXT_BLOCK } from "./kernel-facts.js";
 export { renderingState } from "./rendering.js";
 export {
@@ -126,5 +134,6 @@ export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
 
 export { observeOutputs } from "./data.js";
 export { servedElements } from "./version.js";
+export { colourableAs, colouredAs } from "./syntax.js";
 
 export { pageRange } from "./native-selection.js";

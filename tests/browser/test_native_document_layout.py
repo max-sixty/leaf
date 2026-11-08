@@ -2,6 +2,7 @@
 activate, and keeping the browser's own behavior, such as scroll anchoring."""
 
 import pytest
+from playwright.sync_api import expect
 from render_harness import displayed, leaf_page, open_page, resized, wait_until_ready
 
 DOCUMENT = """
@@ -46,6 +47,128 @@ def test_native_sidebar_and_note_are_placed_before_widget_activation(browser, se
         page.unroute("**/leaf.js")
         wait_until_ready(page)
         assert page.evaluate(read) == before
+
+
+def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
+    """An lf-ask draws no box of its own around its blocks, so they stand in the page's
+    flow: its words and its options keep the prose's edge, and a block declaring more
+    room takes it, on a page with both. A width written on the question moves nothing.
+    The words used to go with the question's box, 480px left of the page's column."""
+    options = (
+        '<lf-options id="{id}-options" choose>'
+        '<lf-option id="{id}-yes">Yes</lf-option></lf-options>'
+    )
+    question = (
+        '<lf-ask id="{id}"{width}><h2 id="{id}-head">Ship it?</h2>'
+        '<p id="{id}-premise">Because it fits.</p>{held}' + options + "</lf-ask>"
+    )
+    evidence = '<div id="{id}-evidence" data-width="available">Evidence.</div>'
+    source = leaf_page(
+        "Questions in the flow",
+        '<h1>Questions in the flow</h1><p id="prose">Prose sets the column.</p>'
+        '<section class="layout-flow">'
+        + question.format(id="plain", width="", held="")
+        + question.format(id="stated", width=' data-width="available"', held="")
+        + question.format(id="holds", width="", held=evidence.format(id="holds"))
+        + question.format(
+            id="wrapped",
+            width="",
+            held="<section>" + evidence.format(id="wrapped") + "</section>",
+        )
+        + "</section><section>"
+        + question.format(id="kept", width="", held=evidence.format(id="kept"))
+        + "</section>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1728, 900)
+    boxes = page.evaluate("""() => Object.fromEntries(
+      [...document.querySelectorAll('[id]')].filter(el => el.closest('main'))
+        .map(el => {
+          const box = el.getBoundingClientRect();
+          return [el.id, [Math.round(box.left), Math.round(box.right)]];
+        }))""")
+    column = boxes["prose"]
+    assert column == [504, 1224]
+    for question_id in ("plain", "stated", "holds", "wrapped", "kept"):
+        for part in ("head", "premise", "options"):
+            assert boxes[f"{question_id}-{part}"] == column, (question_id, part, boxes)
+    assert boxes["plain"] == boxes["stated"] == column, boxes
+    # The block takes the room and the question's box, which its marks stand on, holds it.
+    assert boxes["holds-evidence"][0] < 100 and boxes["holds-evidence"][1] > 1628, boxes
+    assert boxes["holds"] == boxes["holds-evidence"], boxes
+    # A plain section keeps what it holds, as it does outside a question, and the
+    # question's box keeps to the column with it.
+    for question_id in ("wrapped", "kept"):
+        assert boxes[f"{question_id}-evidence"] == boxes[question_id] == column, boxes
+    # What the question asks stands by its words, not at the edge of the evidence.
+    marker = page.locator("[data-lf-margin-for='holds']")
+    expect(marker).to_have_attribute("data-lf-place", "rail")
+    assert marker.bounding_box()["x"] < column[1] + 100
+
+
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, direction):
+    """Beside a contents map the room lies on one side of the column only. A question or
+    section written in the other direction from the page takes the same room as the
+    page's own blocks: an available block reaches the free side, and a wide one, whose
+    end faces the map, keeps to the prose. Both used to grow toward the map, the
+    available block 334px past the window's edge, since the flow read the room on the
+    column's start side as the room on its own."""
+    other = "rtl" if direction == "ltr" else "ltr"
+    options = '<lf-options id="{id}-o" choose><lf-option id="{id}-y">Yes</lf-option>'
+    question = (
+        f'<lf-ask id="{{id}}" dir="{other}"><h3 id="{{id}}-h">Ship it?</h3>'
+        '<div id="{id}-block" data-width="{width}">Evidence.</div>'
+        + options
+        + "</lf-options></lf-ask>"
+    )
+    source = leaf_page(
+        "Flows written the other way",
+        '<div class="layout-sidebar"><aside><div class="layout-track">'
+        '<lf-toc id="contents"></lf-toc></div></aside><div class="layout-column">'
+        '<h1>Flows written the other way</h1><p id="prose">Prose sets the column.</p>'
+        '<div id="room" data-width="available">Room.</div>'
+        + question.format(id="reaches", width="available")
+        + question.format(id="widens", width="wide")
+        + f'<section class="layout-flow" dir="{other}">'
+        '<div id="section-block" data-width="available">Evidence.</div></section>'
+        "</div></div>",
+    ).replace('<html lang="en">', f'<html lang="en" dir="{direction}">', 1)
+    page = open_page(browser, serve(source))
+    resized(page, 1726, 900)
+    boxes = page.evaluate("""() => Object.fromEntries(
+      [...document.querySelectorAll('main [id]')].map(el => {
+        const box = el.getBoundingClientRect();
+        return [el.id, [Math.round(box.left), Math.round(box.right)]];
+      }))""")
+    prose, room = boxes["prose"], boxes["room"]
+    assert room != prose and 0 <= room[0] and room[1] <= 1726, boxes
+    for block in ("reaches-block", "reaches", "section-block"):
+        assert boxes[block] == room, (block, boxes)
+    for held in ("widens-block", "widens", "reaches-h", "widens-h"):
+        assert boxes[held] == prose, (held, boxes)
+
+
+def test_a_block_in_a_workspace_question_fills_its_region(browser, serve):
+    """A workspace states no measure, so a width written on a block in a question means
+    nothing there, as it means nothing on a block beside the question."""
+    source = leaf_page(
+        "Question in a workspace",
+        """<header><h1>Question in a workspace</h1></header>
+        <div id="region"><lf-ask id="asked"><h2>Ship it?</h2>
+          <div id="wide-evidence" data-width="wide">Evidence.</div>
+          <lf-options id="choice" choose><lf-option id="yes">Yes</lf-option></lf-options>
+        </lf-ask></div>""",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1728, 900)
+    width = page.evaluate(
+        """id => document.getElementById(id).getBoundingClientRect().width""", "region"
+    )
+    for block in ("asked", "wide-evidence"):
+        box = page.locator(f"#{block}").bounding_box()
+        assert box["width"] == pytest.approx(width, abs=1), block
 
 
 def test_growth_above_the_window_moves_nothing_read_in_a_sidebar_body(browser, serve):

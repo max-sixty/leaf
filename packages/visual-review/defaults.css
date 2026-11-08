@@ -162,8 +162,9 @@ lf-visual-review {
   flex-wrap: wrap;
   gap: 8px 12px;
 }
-/* A choice (controls.css) pads its ring room; the row hangs it by that padding, so the
-   checkbox stands on the row's edge. */
+/* A choice (controls.css) pads its ring room; the row hangs it by that padding into
+   the workspace's gap beside the queue, so the checkbox stands on the row's edge. The
+   stacked desk has no such gap (below). */
 .lf-vr-approval {
   gap: 7px;
   margin-inline-start: calc(-1 * var(--choice-pad));
@@ -285,6 +286,11 @@ lf-visual-review {
   }
   .lf-vr-caption {
     padding-block: 14px 8px;
+  }
+  /* The detail stands on the review's own edge, which clips once the review scrolls
+     in a full-height workspace, so the choice keeps its ring room inside the row. */
+  .lf-vr-approval {
+    margin-inline-start: 0;
   }
 }
 @container visual-review (max-width:28rem) {

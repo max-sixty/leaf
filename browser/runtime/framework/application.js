@@ -14,7 +14,6 @@ import {
   coordinateOf,
   foldProjection,
   foldedValue,
-  foldWidgetStates,
   widgetStateReader,
   obligationValue,
   isProjectionEntry,
@@ -26,6 +25,7 @@ import {
   foldThreads,
   threadRecordReader,
   threadNames,
+  threadsBySection,
 } from "../thread/model.js";
 import {
   threadForAttempt,
@@ -210,7 +210,7 @@ function advance(entry, signal, admitted = null) {
 /** @typedef {PublishedWorkflow<ServedWorkflow>} Workflow
  */
 
-/** One row of On me or On <agent>, as `served_state.queues` serves it or this tab
+/** One row of On Me or On <agent>, as `served_state.queues` serves it or this tab
  * places it: `owner` names the list. A row names its record by `id`. `also`, on a
  * record's row, names the other records the user answers at its place; `live` says
  * whether the agent has it in hand now. `localQueues` joins the current obligation or
@@ -352,7 +352,7 @@ const NO_OBLIGATIONS = {
  * visible before its POST settles the obligation. */
 /**
  * @param {PageView | null} view
- * @param {ReturnType<typeof foldWidgetStates>} widgets
+ * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
  * @param {SemanticDocument} document
  * @param {ReturnType<typeof foldProjection>} projection
  * @returns {ObligationLists}
@@ -412,7 +412,7 @@ const NO_QUEUES = { on_user: [], on_agent: [], done: [] };
  * supply additional members to their creator without becoming widget owners. */
 /**
  * @param {SemanticDocument} document
- * @param {ReturnType<typeof foldWidgetStates>} widgets
+ * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
  * @param {ReturnType<typeof foldProjection>} projection
  */
 function currentWidgetRelations(document, widgets, projection) {
@@ -466,7 +466,7 @@ function currentWidgetRelations(document, widgets, projection) {
   return { parents, memberships };
 }
 
-/* What is on the user (On me), what is on the agent (On <agent>), and what is done:
+/* What is on the user (On Me), what is on the agent (On <agent>), and what is done:
  * the view's served lists (`served_state.queues`), with this tab's unresolved sends
  * placed against them. Every row but a to-do names an obligation record, and only the
  * agent ends a to-do, so a send moves an item the server listed only where the record
@@ -481,9 +481,9 @@ function currentWidgetRelations(document, widgets, projection) {
  * @param {readonly ServedTodo[]} todos
  * @param {ObligationLists} items
  * @param {readonly ObligationRecord[]} local
+ * @param {ReadonlyMap<string, ObligationRecord>} record each of `items` by its id
  */
-function localQueues(served, workflows, todos, items, local) {
-  const record = new Map(items.all.map((item) => [item.id, item]));
+function localQueues(served, workflows, todos, items, local, record) {
   const inventoryAt = new Map(items.all.map((item, at) => [item.id, at]));
   const todoRecord = new Map(todos.map((todo) => [todo.id, todo]));
   // The threads holding a send this tab has in flight.
@@ -647,7 +647,7 @@ function localUpdates(workflows) {
   return { workflows: named, records };
 }
 
-// The order the server lists On me in: obligations, then updates to send again;
+// The order the server lists On Me in: obligations, then updates to send again;
 // records of a kind among themselves in the order the view's inventory holds them.
 /** @param {QueueItem} item */
 const onUserRank = (item) => (item.kind === "update" ? 1 : 0);
@@ -1133,6 +1133,9 @@ export function createSemanticApplication({ presentation } = {}) {
       ],
       unanswered: [...servedItems.unanswered, ...localRecords],
     };
+    // Each obligation by its id, indexed as the reading arrives, so a reader asking for
+    // one does no walk of its own.
+    const obligationsById = new Map(all.map((item) => [item.id, item]));
     const threads = threadRecords(
       obligated,
       document,
@@ -1143,12 +1146,24 @@ export function createSemanticApplication({ presentation } = {}) {
       markingRead,
       ready,
     );
+    // The thread each name names and the threads about each element, indexed as the
+    // threads arrive, so a reader asking either does no walk of its own. Each index holds
+    // a thread's place in `threads` rather than the record, so a record has one home
+    // and sharing an index against the last reading compares numbers.
+    const placeOf = new Map(threads.map((thread, index) => [thread, index]));
+    const threadsNamed = new Map(
+      [...threadNames(threads)].map(([name, thread]) => [
+        name,
+        /** @type {number} */ (placeOf.get(thread)),
+      ]),
+    );
     const selectedQueues = localQueues(
       ready ? (view?.queues ?? NO_QUEUES) : NO_QUEUES,
       workflows,
       todos,
       items,
       localRecords,
+      obligationsById,
     );
     // A record's row reads the strongest workflow serving it, the first in the
     // published order.
@@ -1169,6 +1184,8 @@ export function createSemanticApplication({ presentation } = {}) {
       widgets,
       thread: {
         all: threads,
+        named: threadsNamed,
+        bySection: threadsBySection(threads),
         collection: {
           phase,
           threads: threads.filter(discussed),
@@ -1178,10 +1195,10 @@ export function createSemanticApplication({ presentation } = {}) {
         // reading settled (held-news.js, `gesturedOn`).
         gestured: [...new Set([...unresolved, ...settled].flatMap(threadsOfEntry))],
       },
-      obligations: { phase, ...items },
+      obligations: { phase, ...items, byId: obligationsById },
       // The agent's plan in force, as the server read it (`plans.plan_reading`).
       plan: ready ? (state?.browser.plan ?? null) : null,
-      // On me (on the user), On <agent> (on the agent), and done: the served lists
+      // On Me (on the user), On <agent> (on the agent), and done: the served lists
       // with this tab's sends placed against them (`localQueues`).
       queues: {
         phase,
@@ -1337,10 +1354,6 @@ export function createSemanticApplication({ presentation } = {}) {
   return Object.freeze({
     read: publisher.read,
     select: publisher.select,
-    // Whether a publication is still running its synchronous subscribers. A renderer
-    // driven by one paints after it, so every region has claimed this epoch before any
-    // of them touches the document.
-    publishing: () => publicationDepth > 0,
     // Version comparison receives a server projection already interpreted through the
     // requested revision's registry. Keep that admitted spec on the wire; the current
     // document contract must not reinterpret historical events.
@@ -1351,24 +1364,9 @@ export function createSemanticApplication({ presentation } = {}) {
         pendingEntries: [],
       });
     },
-    // Render checks compare authored, carried, and current states. The event filter is
-    // a semantic selection of the same root, not a presentation-owned partial fold.
-    /** @param {readonly string[] | null} [eventIds] */
-    selectWidgets(eventIds = null) {
-      if (eventIds === null) return widgetsPart.read();
-      const wanted = new Set(eventIds);
-      return publisher
-        .select((root) =>
-          foldWidgetStates(root.document.authored, {
-            ...root.effective.projection,
-            desired: new Map(
-              [...root.effective.projection.desired].filter(([, entry]) =>
-                wanted.has(entry.e.id),
-              ),
-            ),
-          }),
-        )
-        .read();
+    // Every widget's current state, which the replay render check reads.
+    selectWidgets() {
+      return widgetsPart.read();
     },
     // A widget's reading, recomputed only when one of the parts it draws moves, so a
     // publication about another widget or a thread costs each widget a comparison.

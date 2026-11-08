@@ -50,8 +50,9 @@ thread's model, system prompt and tools. Its effort can differ without missing t
 cache: since Claude Code 2.1.318 `$.model.fork` takes one, and a fork at low in a
 session at xhigh read the whole conversation from the cache (2026-11-04,
 `src/leaf/clerk.py`), though a `claude -p --resume --fork-session` fork at
-`--effort low` had read none of it (2026-10-24). The turn-end check runs at low and
-replies at the session's effort (`src/leaf/forks.py` says why).
+`--effort low` had read none of it (2026-10-24). The turn-end check runs at low, and
+the fork that writes the working line at the session's effort (`src/leaf/forks.py`
+has its measurement at low).
 
 `$.agent.spawn({ prompt, subagentType: "fork" })` starts a background subagent with
 the main thread's current transcript and all its tools. It started within 40 ms of the

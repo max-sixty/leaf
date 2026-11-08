@@ -25,19 +25,14 @@ a turn reads the message's delivery. A start would read as the session's turn,
 renewing it after an interrupt and holding the message at Working before the
 session had it, which hid it from the nudge and the overdue count.
 
-The fork thinks at the session's effort, not at the low effort Claude Code's
-`$.model.fork` takes since 2.1.318 and the turn-end check runs at (`clerk.EFFORT`).
-In the claude-code journey on 2026-11-04, with the session at xhigh, low cut a
-fork's output to 0.45 times (95% interval 0.35–0.57, 52 messages matched across six
-runs) and its time to 0.66 times: an "explain more?" took 4 s where the session's
-effort took up to 18 s. But low changed decisions. It handed over all three
-questions about a file the session had read whose answer the file states, which the
-session's effort answered rightly in 13 to 16 s, and it answered one of five
-requests to rank the page's cards, a judgment the prompt hands over and the
-session's effort handed over all six times. A hand-over then waits for the session,
-so the user's wait from message to answer barely moved (a median 25.5 s at the
-session's effort and 24.8 s at low, over 59 and 51 messages). Replaying the recorded
-thread messages at low would show which way real ones fall.
+Leaf names no effort for the fork, so it thinks at the session's, while the turn-end
+check runs at low (`clerk.EFFORT`). Low was measured for this fork in the claude-code
+journey on 2026-11-04, with the session at xhigh, when the fork still chose between
+answering and handing over. It cut the fork's output to 0.45 times (95% interval
+0.35–0.57, 52 messages matched across six runs) and its time to 0.66 times, but it
+changed some of those choices, so the fork stayed at the session's effort. The fork
+now writes only the line and makes no such choice, and low hasn't been measured on
+the prompt that asks only for the line.
 
 A thread's waiting messages are the user's messages since the agent's last answer in
 it, the newest of which owes the thread's answer. Each thread with waiting messages

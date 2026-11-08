@@ -207,11 +207,12 @@ def test_each_revision_is_judged_by_the_log_before_it():
     assert saved_after(undone_rewrite, 1, 3) == [waited("e1", "e2")]
 
 
-def test_each_revision_is_read_under_the_document_live_there():
+def test_a_version_is_read_under_its_own_document():
     """A choice closes a comment's thread; the next version restates the chosen
     option, which reopens it, so the comment waits as the version after it goes live.
     A later version moving the option into another group changes nothing an earlier
-    comparison says, since each revision's place is read under its own document."""
+    comparison says, since a comparison reads under the document of the version it
+    shows, not the page's latest."""
     registry = deepcopy(model_layer())
     registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
     first = leaf_page(
@@ -379,14 +380,14 @@ def admit(page, log, step, revision=1):
 
 def folded_at_each_revision(log, within, base, shown):
     """What the line says, read the long way: the log up to each revision of the
-    version folded under that revision's containment, and the messages its threads
-    still owe an answer where they stand open, in the words they then had."""
+    version folded under the containment of the version's last, and the messages its
+    threads still owe an answer where they stand open, in the words they then had."""
     found = {}
     for revision, place in sorted(revision_places(log).items()):
         if not base < revision <= shown:
             continue
         prefix = [event for event in log if event["seq"] < place]
-        for thread in build_threads(prefix, within[revision]).values():
+        for thread in build_threads(prefix, within[shown]).values():
             if thread["resolved"]:
                 continue
             said = {message["id"]: message for message in thread["msgs"]}
@@ -413,60 +414,12 @@ def read_line(log, documents, base, shown):
     )
 
 
-def test_a_choice_stays_conditional_beside_a_creation_of_the_same_option():
-    """A choice of `o0` that closes the comment rests on `o0` only while its group
-    holds it; an `add` that recreates `o0` there rests on it always. Restating `o0`
-    while it stands nowhere leaves the choice in force and the comment closed; the
-    next version puts `o0` back in the group, which retracts the choice, and the
-    comment waits there again."""
-    page = ModelPage(
-        *(owned_page(owners) for owners in ([0], [None], [None], [None], [0])),
-        registry=OWNED,
-    )
-    log = []
-    for step in [
-        live(1),
-        {"kind": "comment", "text": "Which one?"},
-        {
-            "kind": "action",
-            "widget": "g0",
-            "action": "choose",
-            "detail": {"value": ["o0"]},
-        },
-        live(2),
-        {
-            "kind": "action",
-            "revision": 2,
-            "widget": "g0",
-            "action": "add",
-            "detail": {"item": "o0", "text": "Again"},
-        },
-        live(3),
-        {
-            "kind": "note",
-            "revision": 3,
-            "version": 1,
-            "restated": ["o0"],
-            "text": "Ask",
-            **AGENT,
-        },
-        live(4),
-        live(5),
-    ]:
-        log.append(admit(page, log, step))
-    within = {r: enclosing_ids(document) for r, document in page.documents.items()}
-    asked = [waited("e2")]
-    assert named(folded_at_each_revision(log, within, 3, 5)) == asked
-    assert read_line(log, page.documents, 3, 5) == folded_at_each_revision(
-        log, within, 3, 5
-    )
-
-
 def test_the_line_reads_each_revision_as_a_fold_up_to_it_would():
     """On random logs of comments, replies, answers, resolutions, rewrites, undos,
     choices, created options and restatements, over versions that move, drop and
     bring back options, the line names the messages a fold of the log up to each of
-    the version's revisions under its containment finds waiting, in the same words."""
+    the version's revisions finds waiting, in the same words, each fold under the
+    containment of the version's last revision."""
     moves = ["comment", "reply", "answer", "resolve", "unresolve", "edit", "undo"]
     moves += ["save", "choose", "create", "restate"]
     for seed in range(24):

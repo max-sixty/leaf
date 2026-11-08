@@ -17,14 +17,27 @@ judged by the log up to that place: a comment taken back after one revision went
 live waited there. `events.build_threads` can't stop between events, since it reads
 which gestures were ever taken back before its pass, but its histories keep the place
 of everything they hold. So one fold of the log before the version's last revision
-went live reads every message as it was said, none taken back, and from its
-histories each message's waits follow, each turn of it from its own place until the
-first of its answer (`events.settlements`), its being taken back, or the message's,
-cut where its thread stood closed (``closures``). A bisect of the version's sorted
+went live, under that revision's containment, reads every message as it was said,
+none taken back, and from its histories each message's waits follow, each turn of it
+from its own place until the first of its answer (`events.settlements`), its being
+taken back, or the message's, cut where its thread stood closed (``closures``). A bisect of the version's sorted
 places finds the latest it waited at, after one pass over each thread's closings, so
 the work grows with the log and the turns, not with the threads times the
 revisions. The reply or note that answered a message may itself have published the
 revision, and stands at its end.
+
+**What the fold accepts missing.** Containment decides only whether an action rests
+on an element it names for its owner to hold (`events.action_rests_on`), and so
+whether a version restating that element took the action back. The fold reads every
+place under the last revision's containment, so where an earlier revision of the
+version held such an element in another owner, and the action naming it answered a
+thread the user was waiting on, the thread reads closed or open at that revision's
+place as it would under the last one, and the line can name one message too many or
+too few. That takes an element some version restated moving between owners within
+one version, beside a choice naming it that settled a thread. Judging each revision
+under its own containment kept every action a version took back, to judge again
+where another containment took hold, at a cost every reader of the log paid
+(`events.InForce`), for a line that claims an order, not a cause.
 
 Each message is sent as its thread held it at the latest of the version's revisions
 it waited at (`EventFacts.message_at`): with its latest rewrite before that place not
@@ -63,7 +76,6 @@ changed the element a comment stands on need not have answered it.
 
 from bisect import bisect_left, bisect_right
 from collections.abc import Callable
-from functools import partial
 from math import inf
 from operator import itemgetter
 from typing import TYPE_CHECKING
@@ -104,17 +116,13 @@ def saved_after(
     every revision between them has a place among `places`. `facts` reads the page's
     log, and `reading` a revision (`read_revision`).
 
-    One fold of the log before `shown` went live (`events.build_threads`) reads every
-    message as it was said, none taken back, with each of those revisions'
-    containment taking hold at its place, so its histories keep, at each, what the
-    page read there: the place of each turn, answer, closing, reopening and rewrite,
-    beside the place each gesture was taken back. A message waited at a revision's
-    place where, by the log before it, it had been sent and not taken back, had no
-    answer yet, and its thread stood open; the reply or note that answered it stands at
-    its end. A revision's containment is read only
-    where a decision could rest otherwise under it, and from the second on, only the
-    elements whose holders it moved since the one before are compared
-    (`events.InForce.contain`, `SourceReading.moved_since`)."""
+    One fold of the log before `shown` went live (`events.build_threads`), under the
+    containment `reading` gives `shown`, reads every message as it was said, none
+    taken back, so its histories keep the place of each turn, answer, closing,
+    reopening and rewrite, beside the place each gesture was taken back. A message
+    waited at a revision's place where, by the log before it, it had been sent and not
+    taken back, had no answer yet, and its thread stood open; the reply or note that
+    answered it stands at its end."""
     if any(base < revision < shown for revision in stamped):
         return None
     span = sorted(
@@ -128,21 +136,7 @@ def saved_after(
     events = facts.events
     prefix = events[: bisect_left(events, at[-1], key=itemgetter("seq"))]
     undone = {event["undoes"]: event["seq"] for event in prefix if "undoes" in event}
-    threads = build_threads(
-        prefix,
-        {},
-        withdrawn=set(),
-        containments=[
-            (
-                place,
-                partial(_within, reading, revision),
-                partial(_moved, reading, span[index - 1][1], revision)
-                if index
-                else None,
-            )
-            for index, (place, revision) in enumerate(span)
-        ],
-    )
+    threads = build_threads(prefix, reading(shown).within, withdrawn=set())
     # Each message that waited: its reading, its thread, the latest place it waited.
     found: dict[str, tuple[dict, dict, int]] = {}
     for thread in threads.values():
@@ -171,16 +165,6 @@ def saved_after(
             found.values(), key=lambda each: each[0]["seq"]
         )
     ]
-
-
-def _within(reading: "Callable[[int], SourceReading]", revision: int) -> dict:
-    return reading(revision).within
-
-
-def _moved(
-    reading: "Callable[[int], SourceReading]", earlier: int, revision: int
-) -> frozenset[str]:
-    return reading(revision).moved_since(reading(earlier))
 
 
 def _latest_open(

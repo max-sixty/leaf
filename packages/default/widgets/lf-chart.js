@@ -43,7 +43,7 @@
  * from under the reader's eye.
  *
  * The vendored bundle loads once, on the first draw rather than with this module: a chart
- * in a shut panel has no box, so measure holds its draw, and the 384KB bundle waits with
+ * in a shut panel has no box, so measure holds its draw, and the 379KB bundle waits with
  * it instead of loading in front of a user who never opens that panel.
  *
  * It imports only the helpers that load in any document, so a plain HTML page that maps

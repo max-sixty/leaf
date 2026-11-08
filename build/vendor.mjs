@@ -15,15 +15,18 @@
  * the lock settles the rest of the closure. An upstream module a bundle adapts is
  * edited as esbuild loads it, through `adapt`: a `seam` replaces text that must occur
  * exactly as often as stated, and a `.patch` beside this file applies a recorded
- * upstream backport. A changed seam, a patch that no longer applies, or an adaptation
- * whose module the bundle no longer loads fails the build, so an upgrade rechecks
- * each one. `node_modules` is never written.
+ * upstream backport. A changed seam, a patch that no longer applies, an adaptation
+ * whose module the bundle no longer loads, or an `inlined` package the bundle reaches
+ * by itself fails the build, so an upgrade rechecks each one. `node_modules` is never
+ * written.
  *
  * Every output passes through `build/browser/shipped.mjs`: it refuses a module an
  * export cannot load, and each bundle's `<name>.LICENSES.txt` states the packages that
- * reached it. `build/browser/build.mjs` writes and checks these outputs with its own.
+ * reached it, with those its row's `inlined` names inside another's published build,
+ * which esbuild never opens. `build/browser/build.mjs` writes and checks these outputs
+ * with its own.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -507,7 +510,7 @@ const bundles = {
   }),
 
   // Observable Plot, which lf-chart hands a page's author. Nothing published is
-  // loadable as it stands: `src/index.js` imports d3 by bare specifier,
+  // loadable as it stands: `dist/plot.js` imports d3 by bare specifier,
   // `dist/plot.umd.min.js` reads a `d3` global the page would have to load first, and
   // a CDN's prebuilt ESM (jsdelivr's `+esm`) is smaller only because it imports d3
   // from a second URL, while the layer loads nothing from the network so a chart
@@ -517,7 +520,7 @@ const bundles = {
   // Plot goes in, since an author writes the chart in Plot's own API.
   //
   // Which channels a tip says, how its `format` words each, and the lines it says
-  // them in are decided inside the tip mark's module, by functions it doesn't export.
+  // them in are decided inside Plot's one module, by functions it doesn't export.
   // The chart's preview says a point by those decisions, so the module exports them
   // (`tipSources` and `tipRows` in the entry), each line naming the channel it says.
   plot: () => ({
@@ -525,7 +528,7 @@ const bundles = {
     entryPoints: [input("entries/plot/entry.mjs")],
     adapt: [
       {
-        file: /@observablehq\/plot\/src\/marks\/tip\.js$/,
+        file: /@observablehq\/plot\/dist\/plot\.js$/,
         edit: (source) =>
           seam(
             seam(
@@ -546,6 +549,12 @@ const bundles = {
           ),
       },
     ],
+    // Plot and d3's packages publish built files that carry these inside them.
+    inlined: {
+      "@observablehq/plot": ["interval-tree-1d", "isoformat"],
+      "d3-array": ["internmap"],
+      "d3-delaunay": ["delaunator"],
+    },
     banner: {
       js:
         `/*! @observablehq/plot ${version("@observablehq/plot")} — ISC — https://observablehq.com/plot\n` +
@@ -745,6 +754,48 @@ const bundles = {
   }),
 };
 
+/**
+ * The packages whose code a bundle carries inside another package's published build.
+ * esbuild never opens them, so `bundledPackages` can't name them. A row's `inlined`
+ * lists each under the package whose build carries it, and each listed package's own
+ * dependencies count too, since that build took them in as well. The build fails when
+ * a listed package reaches the bundle by itself or its host no longer reaches it, so
+ * an upgrade rechecks the list.
+ */
+function inlinedIn(inlined, packages) {
+  const manifest = (at) =>
+    JSON.parse(readFileSync(path.join(at, "package.json"), "utf8"));
+  const reached = new Map(packages.map((at) => [manifest(at).name, at]));
+  // Where Node loads `name` from, required in the package at `from`.
+  const installed = (from, name) => {
+    for (let at = from; at !== path.dirname(at); at = path.dirname(at)) {
+      const candidate = path.join(at, "node_modules", name);
+      if (existsSync(candidate)) return realpathSync(candidate);
+    }
+    throw new Error(`${name} is not installed where ${from} requires it`);
+  };
+  const found = new Map();
+  // `name` and what it depends on, each that the bundle doesn't reach by itself.
+  const take = (from, name) => {
+    if (found.has(name) || reached.has(name)) return;
+    const at = installed(from, name);
+    found.set(name, at);
+    for (const dependency of Object.keys(manifest(at).dependencies ?? {}))
+      take(at, dependency);
+  };
+  for (const [host, names] of Object.entries(inlined)) {
+    const at = reached.get(host);
+    if (!at)
+      throw new Error(`the bundle no longer reaches ${host}, which inlines ${names}`);
+    for (const name of names) {
+      if (reached.has(name))
+        throw new Error(`the bundle reaches ${name} by itself, not inside ${host}`);
+      take(at, name);
+    }
+  }
+  return [...found.values()];
+}
+
 /** One bundle's outputs, its license notices last, keyed by repository path. */
 async function bundle(spec) {
   const {
@@ -754,6 +805,7 @@ async function bundle(spec) {
     typeEntry: _typeEntry,
     finish = (source) => source,
     adapt: adaptations = [],
+    inlined = {},
     place = {},
     plugins = [],
     ...options
@@ -801,6 +853,7 @@ async function bundle(spec) {
     }
     packages = bundledPackages(result.metafile, root);
   }
+  packages = [...packages, ...inlinedIn(inlined, packages)];
   for (const [name, bytes] of outputs)
     if (name.endsWith(".js")) checkModule(bytes.toString(), name);
   const notices = `${path.posix.dirname(out)}/${path.posix.basename(out).split(".")[0]}.LICENSES.txt`;

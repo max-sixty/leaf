@@ -904,7 +904,7 @@ def test_addressed_progress_uses_active_revision_and_starts_work_atomically(page
     assert files_model.latest_revision(page_dir) == active
     assert source.read_text() == "<lf-unknown>Unfinished draft</lf-unknown>"
     events = events_model.read_events(page_dir)
-    assert [event["kind"] for event in events] == ["activation", "comment", "reply"]
+    assert [event["kind"] for event in events] == ["comment", "reply"]
     assert progress is not None
     assert progress["start"]["item"] == comment["id"]
     assert todos_model.item_starts(events)[comment["id"]]["id"] == progress["id"]

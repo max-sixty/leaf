@@ -34,11 +34,16 @@ stages the revision's files, appends the event naming the staged bundle in
 writes the page.
 
 A revision a read activates has no reply or note to name it, so its activation
-appends an `activation` event naming the bundle, before the reanchors it causes.
-Either way the first event of a publication names its bundle: that is the
-publication's prerequisite, which `finish_publications` completes, and its seq is the
-revision's place in the log (`provenance.py`). A refused reply or note appends
-nothing, its revision included.
+appends an `activation` event naming the bundle, before the reanchors it causes,
+where the revision can be compared against an earlier one. The event gives the
+revision its place in the log, and a comparison reads only the places of the
+revisions after its base (`provenance.saved_after`), so a revision with none live
+before it appends nothing: a fresh page, a sample and a published page's first read
+write nothing to the log. An event naming the bundle is the first of its
+publication: the publication's prerequisite, which `finish_publications` completes,
+and its seq is the revision's place. A first revision has no prerequisite, so one
+interrupted before its marker stays absent until a read activates the source again.
+A refused reply or note appends nothing, its revision included.
 """
 
 from contextlib import nullcontext
@@ -241,7 +246,7 @@ def _publish_checked_source(page, checked, event=None):
             predecessor,
             candidate_revision=revision,
         )
-    elif publication:
+    elif publication and checked.revision.active:
         append_admitted(
             page,
             {

@@ -319,7 +319,6 @@ def test_samples_use_captured_resources_and_independent_event_logs(
     (page_dir / "page/pixel.png").write_bytes(pixel)
     (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
     publish(page_dir)
-    parent_before = event_model.read_events(page_dir)
     _, raw_state = fetch(f"{server}/api/state")
     parent_state = json.loads(raw_state)
     generation = parent_state["layer"]["generation"]
@@ -381,6 +380,10 @@ def test_samples_use_captured_resources_and_independent_event_logs(
             {"session": "c" * 32, "entries": [browser_observation("click")]}
         ).encode(),
     ) == (204, b"")
+    # The parent's log as the child's comment finds it: recording the interaction in the
+    # parent's trace took its changed module live as its second revision, which the
+    # parent's own log records.
+    parent_before = event_model.read_events(page_dir)
     status, answer = fetch(
         child + "/api/event",
         layer=generation,

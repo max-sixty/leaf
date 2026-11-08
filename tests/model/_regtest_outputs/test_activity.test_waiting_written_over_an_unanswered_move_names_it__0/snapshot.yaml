@@ -8,9 +8,9 @@ before reply:
     agent: Claude
     session: s1
     state: waiting
-    id: event-3
+    id: event-2
     attention: false
-    seq: 3
+    seq: 2
   note:
     - code: page-open-owes
       severity: advice
@@ -29,7 +29,7 @@ after reply:
     agent: Claude
     session: s1
     state: waiting
-    id: event-5
+    id: event-4
     attention: false
-    seq: 5
+    seq: 4
   note: []

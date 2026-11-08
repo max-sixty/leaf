@@ -520,6 +520,11 @@ const bundles = {
   // them in are decided inside the tip mark's module, by functions it doesn't export.
   // The chart's preview says a point by those decisions, so the module exports them
   // (`tipSources` and `tipRows` in the entry), each line naming the channel it says.
+  // The installed module already carries the `src/marks/tip.js` hunk of
+  // `@observablehq__plot@0.6.17.patch`, Plot 0.6.18's fix for observablehq/plot#2237
+  // (#2239): a tip leaves out every channel whose values are all literal, not only
+  // colours, so a symbol channel naming its symbols says no "[object Object]". The
+  // hunk goes away with the upgrade to 0.6.18 or later.
   plot: () => ({
     out: `${packageVendor("default")}/plot.esm.js`,
     entryPoints: [input("entries/plot/entry.mjs")],

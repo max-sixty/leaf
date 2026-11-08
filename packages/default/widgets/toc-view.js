@@ -4,7 +4,8 @@ import { generatedElement, keeps, viewDocument } from "/runtime/widget-api.js";
  * section's marks (toc-marks.js): a mark for its open threads and one for its On me
  * items, and, while the changes view is on, `data-lf-toc-changed` on its row, which
  * toc.css draws in the gutter the outline's rule or the contents spine stands in; the
- * start row's go on the disclosure's toggle too, which stands where that row would. The
+ * start row's go on the outline's head too, its toggle or its label, which stands where
+ * that row would where the row is left out. The
  * marks are aria-hidden and take no room; what they count, the row's link previews
  * (`lfPreview`), which also describes the link to a screen reader where focus lands on
  * it. */
@@ -19,7 +20,7 @@ const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 
 /** @param {SectionMarks | undefined} marks */
 const markView = (marks) =>
-  marks?.threads || marks?.onMe
+  marks
     ? html`<span class="lf-toc-marks" aria-hidden="true"
         >${marks.threads ? html`<i data-lf-toc-mark="thread"></i>` : nothing}${
           marks.onMe ? html`<i data-lf-toc-mark="on-me"></i>` : nothing
@@ -65,15 +66,18 @@ export function drawToc(host, headingReading) {
     if (!kept) previews.set(heading, (kept = preview(heading)));
     return kept;
   };
-  // The disclosure leaves the start row out, since the page's title stands just above or
-  // below it, so its toggle, standing where that row would, previews what stands before
-  // the first section while the outline is open.
-  const beforeFirst = () => {
+  // The disclosure and the outline beside the body leave the start row out, since the
+  // page's title stands just above, below or beside them, so their head, the toggle or
+  // the "On this page" label standing where that row would, carries its marks and
+  // previews what stands before the first section while they show (toc.css). The label
+  // takes no focus: the walks and the Page Map reach what it counts by keyboard.
+  /** @this {Element} */
+  function beforeFirst() {
     const words = marksWords(marks.get(outline.start?.heading ?? null));
-    return words && native().disclosure.open
+    return words && this.querySelector(":scope > .lf-toc-marks")?.checkVisibility()
       ? { detail: ["Before the first section", words] }
       : null;
-  };
+  }
   host.replaceChildren();
   /** @type {ReturnType<typeof readFrame> | undefined} */
   let frame;
@@ -129,7 +133,14 @@ export function drawToc(host, headingReading) {
           aria-label="On this page"
           ${generated(false)}
         >
-          <p class="lf-toc-heading lf-label" ${generated(true)}>On this page</p>
+          <p
+            class="lf-toc-heading lf-label"
+            ${generated(true)}
+            ?data-lf-toc-changed=${Boolean(first?.changes)}
+            .lfPreview=${beforeFirst}
+          >
+            On this page${markView(first)}
+          </p>
           <details class="lf-toc-disclosure" ?open=${open}>
             <summary
               class="lf-toc-toggle lf-label"

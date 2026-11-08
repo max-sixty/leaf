@@ -1299,13 +1299,13 @@ ROW_BOXES = """(toc) => [...toc.querySelectorAll('li, .lf-toc-start')]
 MARKS_IN_WORDS = """(toc) => [...toc.querySelectorAll('[data-lf-toc-mark]')]
   .filter((mark) => mark.checkVisibility())
   .filter((mark) => {
-    const link = mark.closest('a, summary');
+    const link = mark.closest('a, summary, p');
     const text = [...link.childNodes].find((node) => node.nodeType === 3 && node.data.trim());
     const words = document.createRange();
     words.selectNodeContents(text);
     return mark.getBoundingClientRect().right > words.getClientRects()[0].left - 2;
   })
-  .map((mark) => mark.closest('a, summary').textContent.trim())"""
+  .map((mark) => mark.closest('a, summary, p').textContent.trim())"""
 # Whether a row draws its section as changed.
 CHANGED = """(row) => getComputedStyle(row, '::after').content !== 'none'
   && parseFloat(getComputedStyle(row, '::after').height) > 0"""
@@ -1334,9 +1334,9 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
         "Retire the old password": "on-me",
     }
     title = "Rotate the payments database credentials"
-    # Each row's, the title row's and the toggle's.
+    # Each row's, the title row's, and the toggle's and the label's, which carry it.
     page.wait_for_function(
-        "(toc) => toc.querySelectorAll('[data-lf-toc-mark]').length === 8",
+        "(toc) => toc.querySelectorAll('[data-lf-toc-mark]').length === 9",
         arg=toc.element_handle(),
     )
     assert toc.evaluate(ROW_MARKS) == {title: "thread", **held}
@@ -1409,6 +1409,43 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     expect(toc.locator("[data-lf-toc-changed]")).to_have_count(0)
     rendered(page)
     assert toc.evaluate(ROW_BOXES) == with_changes, "a mark moved the outline"
+
+
+def test_the_outline_beside_the_body_marks_its_introduction_on_its_label(
+    browser, serve
+):
+    """Beside the body the outline leaves the title row out, since the title stands
+    beside it, so its "On this page" label carries the marks of what stands before the
+    first section, clear of its words, and a pointer resting on it reads them."""
+    source = leaf_page(
+        "sidebar contents",
+        '<header><h1>Review</h1></header><aside id="rail"><div class="layout-track">'
+        '<lf-toc id="contents"></lf-toc></div></aside><div id="body">'
+        '<p id="lede">Why the review moved.</p>'
+        '<section id="s1"><h2>Inputs</h2><p id="inputs">Three teams.</p></section>'
+        '<section id="s2"><h2>Outputs</h2><p>Finance.</p></section></div>',
+        layout="sidebar",
+    )
+    comment = {"kind": "comment", "author": "user", "revision": 1, "text": "Which?"}
+    page = open_page(
+        browser,
+        serve(
+            source,
+            events=[
+                {**comment, "anchor": {"section": "lede"}},
+                {**comment, "anchor": {"section": "inputs"}},
+            ],
+        ),
+    )
+    resized(page, 1440, 900)
+    toc = page.locator("lf-toc")
+    label = toc.locator(".lf-toc-heading")
+    expect(toc.locator("summary")).to_be_hidden()
+    expect(label.locator("[data-lf-toc-mark='thread']")).to_be_visible()
+    expect(toc.locator(".lf-toc-start")).to_be_hidden()
+    assert toc.evaluate(ROW_MARKS) == {"Inputs": "thread"}
+    assert toc.evaluate(MARKS_IN_WORDS) == []
+    assert preview_parts(label) == ["Before the first section", "1 thread"]
 
 
 def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, serve):

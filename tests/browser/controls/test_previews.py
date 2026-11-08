@@ -3269,6 +3269,67 @@ def test_a_preview_the_window_cuts_at_an_edge_slides_in_rather_than_cut_lines(
     assert 900 < drawn["right"] < 1200 - 8 + 1 / 60 and drawn["left"] < 932, drawn
 
 
+# A drawing by the window's right edge, whose points a preview stands for, beside a
+# passage it is about, with another control above it.
+SLID_AIM = """<div id="drawing" style="position: fixed; left: 590px; top: 0; width: 100px;
+  height: 650px"></div>
+<p id="drawn" style="position: fixed; left: 40px; width: 520px; top: 0; height: 650px;
+  margin: 0">What the drawing is about.</p>
+<button id="other" style="position: fixed; left: 565px; top: 60px; width: 330px;
+  height: 130px">Other control</button>"""
+
+
+# The preview rides along the point it stands for as the aim moves, as a chart's does,
+# which the shift sensor counts as a move without input, as it does in
+# widgets/test_charts.py, unsurveyed for that reason.
+@pytest.mark.shifts_unsurveyed
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_slid_in_keeps_its_side_as_the_aim_moves(engine, request, serve):
+    """A point's preview the window cuts at its left edge slides in below the point,
+    and keeps that side as the aim moves 10 px down and back, since below, slid in
+    the same way, still holds it whole: above it would now fit too, and a new aim
+    keeps its side wherever that side still holds the reading whole."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(leaf_page("Slid aim", SLID_AIM))
+    )
+    page.set_viewport_size({"width": 900, "height": 700})
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfWidgetApi();
+          const drawing = document.getElementById('drawing');
+          window.at = 280;
+          drawing.lfPreview = () => ({name: 'Point', about: document.getElementById('drawn'),
+            at: {left: 600, right: 632, top: window.at, bottom: window.at + 32},
+            detail: Array.from({length: 4},
+              (_, n) => `Detail line ${n}, long enough to fill the preview's width`)});
+          // The point under the pointer, 10 px above it, as a chart's is.
+          drawing.addEventListener('pointermove', (event) => {
+            window.at = event.clientY - 10;
+            api.previewChanged(drawing, {aim: true});
+          });
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(610, 290)
+    expect(tip.locator(".lf-preview-word")).to_have_text("Point")
+    sides = []
+    for top in (280, 290, 280):
+        page.mouse.move(610, top + 10)
+        rendered(page)
+        drawn = page.evaluate(
+            "() => document.querySelector('#lf-preview .lf-preview-face')"
+            ".getBoundingClientRect().toJSON()"
+        )
+        sides.append(
+            (
+                tip.get_attribute("data-lf-y"),
+                drawn["top"] > top + 32,
+                tip.locator("[data-lf-clamp], [data-lf-cut]").count(),
+            )
+        )
+    assert sides == [("below", True, 0)] * 3, sides
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_target_filling_a_short_window_previews_a_whole_line(engine, request, serve):
     """A target that leaves no side room for even one line of its preview has it stand

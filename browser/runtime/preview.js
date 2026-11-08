@@ -120,11 +120,11 @@
    sweeps it, and a longer reading grows away from its point or stands afresh. Afresh, as for a new target or a corner whose room no longer holds a line, it takes
    the first side whose room holds it whole, in order: below, then above, from the
    box's start edge and then its end edge, so a right-to-left target's starts at its
-   right edge; beside, toward the nearer window edge first; then centred across the
-   window; then below and above from an edge the window cuts it at, slid in until the
-   window holds it, still across the box; a finger's and a point's trying above first.
-   Else it takes the side whose room holds the most whole lines, held there, so it cuts
-   lines only where no side holds them all. Only where no side's room
+   right edge, each slid in along that edge until the window holds it, still across
+   the box; beside, toward the nearer window edge first; then centred across the
+   window, a finger's and a point's trying above first. Else it takes the side whose
+   room holds the most whole lines, held there, so it cuts lines only where no side
+   holds them all. Only where no side's room
    holds a line does it stand over what it covers, on the side the window gives the most
    room, over the target itself where no side holds a line at all, and take no pointer,
    so the pointer reaches what it covers (`data-lf-covers`); where even that holds none,
@@ -875,12 +875,11 @@ function show(from, route, read = null, at, again = false, aim = false) {
 // by hit tests every `REACH` out from its edge (`clearRoom`), and of what the preview is
 // about. Where it stands now holds while its room holds a whole line. Afresh, its side
 // is the first whose room holds it whole of: below, then above, each from the box's start
-// edge and then its end edge; beside, toward the nearer window edge and then the other;
-// centred across the window below, then above; below, then above, from an edge of the
-// box the window cuts it at, slid in until the window holds it; else the one whose room
-// holds the most whole lines, the preview fitted to it (`fit`). A finger's and a point's
-// try above first, since the finger covers what lies below and a point's axis stands
-// under it.
+// edge and then its end edge, slid in along it until the window holds it; beside,
+// toward the nearer window edge and then the other; centred across the window below,
+// then above; else the one whose room holds the most whole lines, the preview fitted
+// to it (`fit`). A finger's and a point's try above first, since the finger covers
+// what lies below and a point's axis stands under it.
 // Only where no side's room holds a line does the side the window gives the most room
 // stand over what it covers and let the pointer through to it (`data-lf-covers`).
 const EDGE = 8;
@@ -1148,14 +1147,18 @@ function stand(record, reading, standing, aim = false) {
       : y === "above"
         ? box.top - gap - room.top
         : room.bottom - box.top;
+  // By the box's start or end edge, slid in along it until the window holds it, still
+  // across the box, so the same side builds the same place from the same geometry.
   // Centred, it stands as near the window's middle as it can while it still stands across
   // its target, so it never reads as standing for something else far off.
+  /** @param {number} left */
+  const slid = (left) => Math.min(Math.max(left, room.left), room.right - width);
   /** @param {Placement["x"]} x */
   const leftOf = (x) =>
     x === "left"
-      ? box.left
+      ? slid(box.left)
       : x === "right"
-        ? box.right - width
+        ? slid(box.right - width)
         : x === "after"
           ? box.right + gap
           : x === "before"
@@ -1222,17 +1225,6 @@ function stand(record, reading, standing, aim = false) {
     placements.push(...toward.map((x) => placement("top", x)));
   }
   placements.push(...rows.map((y) => placement(y, "center")));
-  // A place by the box's start or end edge that the window cuts, slid in until the
-  // window holds it, still across the box, after every place that keeps to the box's
-  // edges: a margin entry's preview near the window's edge then stands in the margin
-  // beside what it is about, rather than over it or cut short.
-  for (const y of rows)
-    for (const x of [start, end]) {
-      const at = placement(y, x);
-      if (inside(at)) continue;
-      const left = Math.min(Math.max(at.box.left, room.left), room.right - width);
-      placements.push(placeAt(y, x, at.from, at.room, left));
-    }
   const { rooms } = faceLines(reading);
   const least = Math.min(...rooms, height);
   // How many whole lines a room holds.

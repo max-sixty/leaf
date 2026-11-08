@@ -2571,7 +2571,7 @@ def test_a_stamp_lands_on_a_page_that_moves_during_every_check(monkeypatch, page
 
 
 def test_page_state_folds_the_log_onto_the_published_page(page_dir):
-    """`page state` is /api/state folded for the agent: the On me list,
+    """`page state` is /api/state folded for the agent: the On Me list,
     the current state replay paints, as one queryable
     object — the position a session picking up a persistent page would otherwise
     re-derive from the raw log."""
@@ -3635,7 +3635,7 @@ def test_a_quoted_obligation_does_not_hide_a_real_request_in_the_same_goal(page_
 
 
 def test_an_interactive_sample_records_a_pick_without_asking_for_it(page_dir):
-    """A page's On me holds only what the page asks. A decision in an interactive
+    """A page's On Me holds only what the page asks. A decision in an interactive
     sample takes the reader's pick into the page's log, as a demonstration: it asks
     for nothing, and the pick wakes no agent."""
     markup = (

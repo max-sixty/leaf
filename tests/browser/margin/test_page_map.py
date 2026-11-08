@@ -718,7 +718,7 @@ def test_the_page_map_search_filters_in_place_and_walks_its_rows(
 
 def test_the_chrome_names_an_obligation_by_its_question(browser, serve):
     """An obligation is named by its heading, not its heading run into its options and their
-    chips: the card in the panel's On me view, and the Page Map group for it, whose one
+    chips: the card in the panel's On Me view, and the Page Map group for it, whose one
     row says why the obligation is there rather than naming it a second time."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
     page.keyboard.press("g")

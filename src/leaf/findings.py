@@ -2047,7 +2047,7 @@ _TEXT = {
     ),
     "obligation-beside-widget": lambda at, v: (
         f"the <{v['tag']} id={v['id']!r}> in --markup already waits on the user's"
-        " answer; drop --obligation, which would keep the message on their On me list"
+        " answer; drop --obligation, which would keep the message on their On Me list"
         " after they answer it, and ask anything the widget doesn't answer in a message"
         " of its own"
     ),

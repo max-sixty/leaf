@@ -94,7 +94,7 @@ vars:
         still one visit.
       - Keep today's undo and delete the note and its TODO item. No work.
 
-    Rewrite the undo-reach decision so the user can answer it where On me takes
+    Rewrite the undo-reach decision so the user can answer it where On Me takes
     them. The script is not reachable from here, so reply with the replacement
     `dec("undo-reach", ...)` call.
 assert:

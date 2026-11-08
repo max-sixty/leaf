@@ -266,7 +266,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
 
 @pytest.mark.parametrize("width", [900, 1200])
 def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width):
-    """On me stands over the page without moving its coordinate plane.
+    """On Me stands over the page without moving its coordinate plane.
 
     A broad authored rule may position ordinary divs, and the view may arrive over a
     target without another pointer event. Neither may move the chrome's document origin or

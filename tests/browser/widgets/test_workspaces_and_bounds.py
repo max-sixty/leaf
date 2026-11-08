@@ -302,7 +302,7 @@ def test_a_workspace_reaches_the_window_foot_and_its_readers_clear_the_panel(
 
 def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser, serve):
     """On a phone the workspace flows and the page scrolls, and its header sticks at the
-    window's top, so a tally's Next on me stays under the pointer that pressed it. The
+    window's top, so a tally's Next On Me stays under the pointer that pressed it. The
     obligation it lands on stands below the header, which the landing clears, and a
     tab set's sticky strip sticks under it."""
 
@@ -334,7 +334,7 @@ def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser,
         ),
     )
     resized(page, 390, 844)
-    button = page.locator("#left").get_by_role("button", name="Next on me")
+    button = page.locator("#left").get_by_role("button", name="Next On Me")
     before = button.bounding_box()
     button.click()
     expect(page.locator("#first-decision")).to_be_focused()

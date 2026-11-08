@@ -943,7 +943,7 @@ export function projectCommandScope(control, projector, capability = null) {
 // declaring scope beside each row: a control presentation may be hoisted elsewhere,
 // while Decision ownership still belongs to the source that declared the command.
 // This is the shared capability reading: the dispatcher, hints and reference use
-// the same rows directly, while projections such as On me select the role they need.
+// the same rows directly, while projections such as On Me select the role they need.
 // A scope may sit on a nested control rather than the widget itself, so the walk goes
 // down from `root` as it renders (`eachRendered`). It costs the widget's size, not the
 // page's, and returns the scopes in the order they were declared.

@@ -1088,9 +1088,9 @@ SECTION_PAGE = leaf_page(
 
 
 def test_a_thread_on_a_whole_section_stands_where_the_section_stands(browser, serve):
-    """A link to a section previews it by its own name, and On me groups a thread on
+    """A link to a section previews it by its own name, and On Me groups a thread on
     the whole section under the part the section stands in: the preview says what a
-    place is, On me where it is."""
+    place is, On Me where it is."""
     url = serve(SECTION_PAGE)
     panel_comment(
         serve.page_dir,
@@ -3268,7 +3268,7 @@ def test_a_target_filling_a_short_window_previews_a_whole_line(engine, request, 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_count_on_a_control_s_face_names_nothing(engine, request, serve):
-    """A control whose face shows a mark and a count, as the folded On me does, says
+    """A control whose face shows a mark and a count, as the folded On Me does, says
     nothing of what it is by that count, so it previews its name to the keyboard and to
     a held finger, whose release then presses nothing."""
     url = serve(

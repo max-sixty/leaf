@@ -122,7 +122,7 @@ customElements.define(
       this.counts = offer("p", "counts");
       this.queues = Object.fromEntries(
         ["on_user", "on_agent", "done"].map((key, i) => {
-          const heading = offer("h4", "", ["On me", "On Claude", "Done"][i]);
+          const heading = offer("h4", "", ["On Me", "On Claude", "Done"][i]);
           const list = offer("ul");
           const group = offer("div", "group");
           group.append(heading, list);

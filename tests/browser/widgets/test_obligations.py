@@ -586,7 +586,7 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve, subtests):
     # The overlay and the dispatcher offer it because there is something to reach.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-command-reference")).to_contain_text("Next on me")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Next On Me")
     page.keyboard.press("Escape")
     assert "m" in available_commands(page).get("queue.walk", [])
 
@@ -1502,7 +1502,7 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     and so was anyone who had just selected a paragraph to comment on.
 
     Reading an obligation is being at it without being on it, so the walk arrives
-    there. The panel's On me mark is no place: pressing it opens On me and leaves the
+    there. The panel's On Me mark is no place: pressing it opens On Me and leaves the
     focus in the panel, which holds the user's place on the page, so the walk after it
     steps on from the obligation they stood on rather than restarting. A selected
     passage now enters its comment field immediately; while that field stands, letters
@@ -1520,7 +1520,7 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page)
 
-    # The mark's press opens On me and takes the focus into the panel, which holds the
+    # The mark's press opens On Me and takes the focus into the panel, which holds the
     # suggestion as the user's place, so the walk steps on rather than restarting.
     panel_control(page, "queue").click()
     page.keyboard.press("m")
@@ -1711,7 +1711,7 @@ def test_a_commented_obligation_does_not_wear_its_ring_on_the_runtime_s_own_note
 
     The order is why nothing caught it. The note is written after the marks are placed,
     so the first paint of a page sees no note and the ring is right; it moves onto the
-    pixel on the next pass — which the On me walk always is, the user having pressed a
+    pixel on the next pass — which the On Me walk always is, the user having pressed a
     key. So the fault needs a comment on the page *and* a repaint, and shows as a 1px
     ring beside the change instead of on it.
 
@@ -1752,7 +1752,7 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     """The user's own remark must not lock the control it is a remark about.
 
     A thread standing in the widget's seat takes the decision off the user's
-    list — On me stops counting it — but answers nothing, so the press that would
+    list — On Me stops counting it — but answers nothing, so the press that would
     answer it is still live. This is the browser half of the split, and the half the
     user meets first: the POST door only sees a hand-posted event, while here
     the controller reading paints the control and its dispatcher guards the press, and

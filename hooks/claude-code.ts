@@ -545,7 +545,7 @@ export const register: Register = (on) => {
       );
       const counts = [
         ...(on_user
-          ? [dim(" · "), h(Text, { color: "warning" }, `On me ${on_user}`)]
+          ? [dim(" · "), h(Text, { color: "warning" }, `On Me ${on_user}`)]
           : []),
         // A resolved thread can still hold unread words.
         ...(threads.open || threads.unread ? [dim(` · Threads ${threads.open}`)] : []),

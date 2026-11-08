@@ -283,7 +283,7 @@ reader sees always means something (`../SOUL.md`, "Let the user work as directly
   is a token or a shared rule ("Layouts, styles and controls", below, says how code
   keeps this).
 - **Green marks the user's turn; other thread controls stay blue.** Every surface paints
-  a thread's `unread` and `attention` from one value, so the On me mark's dot, Threads,
+  a thread's `unread` and `attention` from one value, so the On Me mark's dot, Threads,
   the panel, a margin entry and the Page Map change together, and marking read never
   moves the user.
 

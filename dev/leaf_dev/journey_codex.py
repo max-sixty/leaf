@@ -361,7 +361,7 @@ def steps(
                     item["thread"] == posted and item["next_actor"] == "user"
                     for item in cmd_page_state(page)["obligations"]
                 ),
-                "the question has no On me obligation in its thread",
+                "the question has no On Me obligation in its thread",
             )
         require(
             title(read_events(page), posted) is not None,

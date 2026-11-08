@@ -66,10 +66,10 @@ Where the rows need the element, pass a function of it, such as
 A row's `id` is a stable, lowercase dotted name such as `draft.save`; keep it when keys
 or words change. `title` names the command and may be a function where state changes
 it, and `label` replaces the keycap. `description` is the command reference's tooltip
-for it and the line under its title where a touch menu or an On me card offers it. A
+for it and the line under its title where a touch menu or an On Me card offers it. A
 `decision: true` row answers an obligation, `recommended: true` marks the answer
-the page advises, which an On me card names, and `commits: true` marks the press that
-commits an answer the user composed, such as a group's Done, which an On me card draws
+the page advises, which an On Me card names, and `commits: true` marks the press that
+commits an answer the user composed, such as a group's Done, which an On Me card draws
 as that commit rather than as one more answer.
 
 `keys` lists bindings in canonical spelling, such as `"a"`, `"Shift+a"` or
@@ -149,7 +149,7 @@ shows, as its `::before`, turning with its state; the widget's own rules place i
 from the enclosing `lf-ask`'s question and from its margin controls and threads. Number
 a widget's choices by the choice, not by what is available: a classifier declares Pass
 as `1` and Keep as `2`, and disabling `1` must not turn `2` into something else. The
-page keeps `m` and `Shift+m` for moving through On me.
+page keeps `m` and `Shift+m` for moving through On Me.
 
 `decision: true`, which needs a `control`, marks a command that starts, advances,
 answers or revises the obligation holding it; it forwards no keys by itself. A forwarded

@@ -1830,7 +1830,7 @@ def panel_field(page):
 def field_press(page):
     """The press the panel field's end offers while the field says its words at rest
     (composing/input.js, `pressAtRest`), the moment's own: a notice's, such as a
-    Resolve's Next thread, the next On me item after an answer, or a stance's Close
+    Resolve's Next thread, the next On Me item after an answer, or a stance's Close
     (floating-panel.js, `fieldReading`). Its word is `.lf-compose-press-word`, and the
     key that makes it the `kbd` after it."""
     return page.locator(".lf-fp-field .lf-compose-press")
@@ -1942,7 +1942,7 @@ OPEN_THREAD_COUNT = """async () => {
 def expect_open_threads(page, count):
     """Wait until the page's reading holds `count` open threads (`OPEN_THREAD_COUNT`).
 
-    The count stands on the Threads tab, behind a press on the On me mark, so this
+    The count stands on the Threads tab, behind a press on the On Me mark, so this
     reads it without one, leaving focus, the open view and any card as they are; where
     the tab itself is the subject, read `threads_tab`'s `.lf-fp-count`."""
     page.evaluate(OPEN_THREAD_COUNT)
@@ -1959,7 +1959,7 @@ def expect_open_threads(page, count):
 
 def expect_on_me(page, count):
     """Wait until the panel counts `count` items waiting on the user. The folded leaf's
-    badge carries the count the On me mark does, whatever view stands open, where the
+    badge carries the count the On Me mark does, whatever view stands open, where the
     mark gives its seat to the view's ✕, and whatever news its name goes on to say."""
     expect(page.locator(".lf-fp-badge")).to_have_text(str(count) if count else "")
 
@@ -2009,7 +2009,7 @@ def panel_control(page, key, at=None):
     """Return the panel's control for the page's control row `key`, opening the leaf's
     menu, and the list `at` names (`panel_menu`), where the row stands there.
 
-    On me (`queue`) is the row's mark, standing while no view or stance does, and
+    On Me (`queue`) is the row's mark, standing while no view or stance does, and
     Threads (`threads`) the tab at the foot of On, which the mark opens to reach it
     (`leaf_dev.browser.threads_tab`). Every other row is the menu's, by its key:
     `versions`, `leaves` (All pages, under `navigate` where other pages are live),

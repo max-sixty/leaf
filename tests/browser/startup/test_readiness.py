@@ -309,7 +309,7 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
     """Chrome may not publish stale obligations before the log has answered.
 
     The log has accepted the page's one suggestion. Holding the first replay makes the
-    dangerous interval deterministic: discussion stays available, but the On me mark
+    dangerous interval deterministic: discussion stays available, but the On Me mark
     claims no count, and the stale bulk action stays withheld. Replay then paints the
     accepted state, counts nothing on the user and offers no Accept all."""
     url = serve(SHORT_SUGGESTION)
@@ -334,7 +334,7 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
     # The mark stands on every page, and claims no count before the log has answered:
     # not the authored suggestion's 1, which the log has already decided.
     on_me = page.locator(".lf-fp-on-user")
-    expect(on_me).to_have_attribute("aria-label", "On me")
+    expect(on_me).to_have_attribute("aria-label", "On Me")
     # The blanket answer claims no action before the first state answer.
     expect_panel_offers(page, "blanket:accept", offered=False)
 
@@ -350,7 +350,7 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
     wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     # Nothing waits on the user, which the mark says by counting nothing.
-    expect(on_me).to_have_attribute("aria-label", "On me")
+    expect(on_me).to_have_attribute("aria-label", "On Me")
     expect_obligations_answered(page, "1/1")
     expect_panel_offers(page, "blanket:accept", offered=False)
 

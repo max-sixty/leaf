@@ -255,7 +255,7 @@ export function createObligationView({
   // their focus rested on — a second thread on the child rather than the next line of their
   // own. The agent's reply put both back. Nothing the user did moved either. An
   // answered obligation leaves both worklists but stays in the active inventory: the
-  // On me's Done rows can return the user to it, and being there restores
+  // On Me's Done rows can return the user to it, and being there restores
   // the same numeric action route so they can revise the recorded answer.
   function currentLocationObligation(held = focused()) {
     if (!held || held === document.body) return null;
@@ -357,7 +357,7 @@ export function createObligationView({
   // same place was marked or not by how the user had reached it.
   //
   // Pointer and keyboard arrivals share this location reading, as they share the
-  // focused control's ring. An On me row's press lands the focus by script
+  // focused control's ring. An On Me row's press lands the focus by script
   // after a click, and the obligation it brought the user to must show where they are.
   //
   // The obligation wears the mark, and so does every box it shows through (shownParts):
@@ -420,7 +420,7 @@ export function createObligationView({
   // place that cannot misfire, because it holds a lent tab stop rather than a decision:
   // the widget's context routes are live there and Space decides nothing.
   //
-  // Chrome is excluded because it has nothing to restore: an On me row and a
+  // Chrome is excluded because it has nothing to restore: an On Me row and a
   // margin entry for the same obligation are keyed by that id already, so a patch hands each of
   // them back as the same element, still holding the focus the user put on it.
   function captureCurrentLocation() {
@@ -561,7 +561,7 @@ export function createObligationView({
   }
 
   // Being on one obligation: what m and Shift+m do once the queue walk has decided on an obligation
-  // (queue-walk.js), what an On me row does, and what a Page Map entry does having
+  // (queue-walk.js), what an On Me row does, and what a Page Map entry does having
   // been told outright. One
   // function because it is one act — a second would be a second answer to "how do I put
   // the user on an obligation", and the two would drift the first time either the reveal or the

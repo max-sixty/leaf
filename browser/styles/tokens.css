@@ -584,7 +584,7 @@
   --series-5: light-dark(#8c2d2a, #b13d54);
 }
 /* What anyone wrote in a thread, wherever the thread stands (a card, the floating
-   panel, a widget's seat), the comment being typed, and an On me question: Leaf's own
+   panel, a widget's seat), the comment being typed, and an On Me question: Leaf's own
    sans, whatever the page sets its prose in, since these are the conversation about
    the page rather than the page. Declared on the root, it takes the root's rung, so a
    density the page gives its `main` leaves it alone, and on each of the chrome's parts,

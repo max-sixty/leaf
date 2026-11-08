@@ -262,7 +262,7 @@ deletes an event or invents a counter-event.
 The registry keys each widget action and report by its widget, the unit of that
 widget's state it changes, and its verb (`events.md`). From one consistent read
 of the log, Python computes which action wins each key, what was withdrawn, the
-state of each On me obligation and thread, and the user's updates, and serves that to the
+state of each On Me obligation and thread, and the user's updates, and serves that to the
 browser.
 
 In the browser, only `applicationState` (`runtime/semantic-state.js`) combines the

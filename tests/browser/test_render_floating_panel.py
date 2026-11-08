@@ -775,13 +775,13 @@ def test_the_thread_walk_stands_on_each_thread_it_opens(browser, serve):
 def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     browser, serve
 ):
-    """The On view has no name of its own: its title is the open tab's, On me or On
+    """The On view has no name of its own: its title is the open tab's, On Me or On
     Claude, which the tabs beside it already show, so the title names the view to
     assistive tech alone. The agent's tab goes by the name the page gives the agent:
     on a page no session holds, the voice that last wrote there, so it says Claude
     where Claude's messages do. Under each list stands what left it, under Done. A
     reply the agent sent leaves its list, so it stands under On Claude's Done, said as
-    sent. The On me tab turns the view back to the user's list, and the ✕ in the mark's
+    sent. The On Me tab turns the view back to the user's list, and the ✕ in the mark's
     seat closes it. Done stands folded under its band until the user unfolds it."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
@@ -799,15 +799,15 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     )
     page = floating(browser, url)
     # Nothing waits on the user but the agent's unread reply, so the mark opens Threads,
-    # and On me is its tab.
+    # and On Me is its tab.
     page.locator(".lf-fp-on-user").click()
     title = page.locator(".lf-fp-title")
     expect(title).to_have_text("Threads")
-    panel_tab(page, "On me").click()
-    expect(title).to_have_text("On me")
+    panel_tab(page, "On Me").click()
+    expect(title).to_have_text("On Me")
     assert title.bounding_box()["width"] <= 1
     expect(page.locator(".lf-fp-filters button")).to_have_text(
-        ["Menu", "On me 0", "On Claude 0", "Threads 1"]
+        ["Menu", "On Me 0", "On Claude 0", "Threads 1"]
     )
     expect(
         page.locator(".lf-fp-on-list > .lf-rows-group > .lf-rows-head")
@@ -827,9 +827,9 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     expect(sent.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
         re.compile(r"^Answered")
     )
-    # The On me tab turns the open view back to the user's list, and the ✕ closes it.
-    panel_tab(page, "On me").click()
-    expect(title).to_have_text("On me")
+    # The On Me tab turns the open view back to the user's list, and the ✕ closes it.
+    panel_tab(page, "On Me").click()
+    expect(title).to_have_text("On Me")
     page.locator(".lf-fp-controls .lf-fp-close").click()
     expect(title).to_have_count(0)
 
@@ -856,7 +856,7 @@ def test_on_shows_an_obligation_as_its_message_and_reply_comes_back(browser, ser
     card.locator(".lf-fp-answers button", has_text="Reply").click()
     expect(page.locator(panel_view("thread"))).to_be_visible()
     back = page.locator(".lf-fp-back")
-    expect(back).to_have_attribute("aria-label", "Back to On me")
+    expect(back).to_have_attribute("aria-label", "Back to On Me")
     back.click()
     expect(page.locator(panel_view("queue"))).to_be_visible()
 
@@ -1152,7 +1152,7 @@ def test_on_a_phone_turning_on_s_tabs_moves_nothing(browser, serve, subtests):
             stood = closed = None
             for tab, view in (
                 ("Menu", "menu"),
-                ("On me", "queue"),
+                ("On Me", "queue"),
                 ("On Claude", "queue"),
                 ("Threads", "threads"),
                 ("Menu", "menu"),
@@ -1526,7 +1526,7 @@ def test_search_keeps_the_unfinished_comment_and_its_caret(
 
 def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     """Threads fits the rows it lists, growing from its top edge as the user turns to it
-    from On me, so the Threads tab just pressed and Close, among the controls at its
+    from On Me, so the Threads tab just pressed and Close, among the controls at its
     foot, stay under the pointer; a thread arriving after that moves none of its rows,
     waiting behind a notice. A reply that arrives while its thread is open
     waits behind the thread's notice."""
@@ -1546,7 +1546,7 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     page = floating(browser, url)
     open_threads(page)
     inventory = page.locator(panel_view("threads"))
-    panel_tab(page, "On me").click()
+    panel_tab(page, "On Me").click()
     queue = page.locator(panel_view("queue"))
     expect(queue).to_be_visible()
     settled(page)
@@ -3992,7 +3992,7 @@ def test_a_pointer_folds_the_panel_from_its_corner(browser, serve):
 
 
 def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
-    """On me lists what waits on the user, and each obligation takes its answer there, by the
+    """On Me lists what waits on the user, and each obligation takes its answer there, by the
     widget's own choice: the event is the widget's action. The answered card keeps its
     place and height, so the next obligation does not move under the pointer, and
     Undo takes the answer back."""
@@ -4004,9 +4004,9 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     expect(chip.locator("svg")).not_to_have_attribute("data-lf-icon", "question")
     chip.click()
     view = page.locator(panel_view("queue"))
-    # While the view stands, its On me tab carries the count the mark gave up its seat
+    # While the view stands, its On Me tab carries the count the mark gave up its seat
     # with.
-    owed = panel_tab(page, "On me").locator(".lf-fp-count")
+    owed = panel_tab(page, "On Me").locator(".lf-fp-count")
     expect(owed).to_have_text("2")
     cards = view.locator(".lf-fp-on-item")
     expect(cards).to_have_count(2)
@@ -4039,12 +4039,12 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
 
 
 def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser, serve):
-    """While the agent's plan gives the user a step, On me groups by it until the user
+    """While the agent's plan gives the user a step, On Me groups by it until the user
     picks another grouping: under each goal's band the items its steps name, in step
     order, and those no goal names last, each card saying its item's place. On Claude, which replaced
     the Plan tab, is headed at its foot by the plan's progress, which discloses the
     goal and its steps over the list; a step waiting on the user turns the view to On
-    me, and focus with it."""
+    Me, and focus with it."""
     url = serve(OBLIGATION_PAGE)
     steps = [
         {"depth": 0, "title": "Ship the migration", "state": "working"},
@@ -4060,7 +4060,7 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     page = floating(browser, url)
     page.locator(".lf-fp-on-user").click()
     view = page.locator(panel_view("queue"))
-    expect(page.get_by_role("combobox", name="Group On me")).to_have_value("plan")
+    expect(page.get_by_role("combobox", name="Group On Me")).to_have_value("plan")
     # Each goal holds one item under its band, and each card says its place, and no
     # kind.
     expect(
@@ -4074,7 +4074,7 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     expect(view.locator(".lf-fp-on-place")).to_have_text(["Ask", "Ask"])
 
     tabs = page.locator(".lf-fp-filters button")
-    expect(tabs).to_have_text(["Menu", "On me 2", "On Claude 0", "Threads 0"])
+    expect(tabs).to_have_text(["Menu", "On Me 2", "On Claude 0", "Threads 0"])
     panel_tab(page, "On Claude").click()
     expect(page.locator(".lf-fp-title")).to_have_text("On Claude")
     head = page.locator(".lf-fp-plan-head")
@@ -4089,13 +4089,13 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     expect(plan_steps).to_have_count(4)
     expect(plan_steps.nth(0).get_by_role("img")).to_have_accessible_name("Done")
     plan_steps.nth(2).locator(".lf-fp-plan-tag").click()
-    expect(page.locator(".lf-fp-title")).to_have_text("On me")
-    expect(panel_tab(page, "On me")).to_be_focused()
+    expect(page.locator(".lf-fp-title")).to_have_text("On Me")
+    expect(panel_tab(page, "On Me")).to_be_focused()
 
 
 def test_only_an_open_thread_says_new_in_threads(browser, serve):
     """Threads marks the row with the news dot, which says New to assistive tech, only
-    on an open thread the user hasn't read, as the On me mark's dot counts: a resolved
+    on an open thread the user hasn't read, as the On Me mark's dot counts: a resolved
     thread's unread message, under the Resolved heading, says nothing new."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?", author="agent")
@@ -4394,7 +4394,7 @@ def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(
     browser, serve
 ):
     """While the page shows a version older than the latest, the row says which beside
-    the On me mark, which keeps its seat, since the field gives up the room; its one
+    the On Me mark, which keeps its seat, since the field gives up the room; its one
     press, which the keyboard reaches in the row's order, opens the latest, and the
     notice goes with it: in place on a tab the agent has since revised, and from a
     version the user travelled back to."""
@@ -4495,8 +4495,8 @@ def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, s
 def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, serve):
     """Annotations, a row of the leaf's menu, opens a list whose Draw mode the field
     names in the status's place, ending in Close and its key, the mode's way out, while
-    the On me mark keeps its seat; Close leaves the mode. While the user writes in the
-    mode, the way out is the ✕ at the row's end, where the On me mark ends, as close to
+    the On Me mark keeps its seat; Close leaves the mode. While the user writes in the
+    mode, the way out is the ✕ at the row's end, where the On Me mark ends, as close to
     the field as the leaf stands at the row's start, and typing moves neither the field
     nor its ✕, since the ✕ keeps its seat while the user writes. Annotations also lists
     Select mode for a mouse, with the `s` that reaches it from the keyboard, since
@@ -4555,7 +4555,7 @@ def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, se
 def test_the_leaf_s_menu_marks_what_opens_a_list_and_leaves_key_conveniences_out(
     browser, serve
 ):
-    """The row holds the leaf, the field and the On me mark, and the leaf's menu holds
+    """The row holds the leaf, the field and the On Me mark, and the leaf's menu holds
     the rest. A menu row that opens a list of its own ends in a chevron, a Leaf icon like
     any other: drawn in the row's muted ink rather than filled in the browser's black,
     and at one size whatever its row ends with, so the chevrons stand in one column.
@@ -4777,7 +4777,7 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
     head = panel_menu(page).locator(".lf-fp-state")
     summary = head.locator("> .lf-fp-summary")
     expect(summary).to_have_text(line)
-    expect(panel_tab(page, "On me").locator(".lf-fp-count")).to_have_text("2")
+    expect(panel_tab(page, "On Me").locator(".lf-fp-count")).to_have_text("2")
     expect(panel_tab(page, "On Claude").locator(".lf-fp-count")).to_have_text("1")
     expect(head.locator("> *")).to_have_count(1)
     assert summary.evaluate(
@@ -4838,12 +4838,12 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
         panel_comment(serve.page_dir, text)
     page = floating(browser, url)
     on_mark = page.locator(".lf-fp-on-user")
-    expect(on_mark).to_have_attribute("aria-label", "On me: 2")
+    expect(on_mark).to_have_attribute("aria-label", "On Me: 2")
 
     on_mark.click()
     queue = page.locator(panel_view("queue"))
     expect(queue).to_be_focused()
-    expect(page.get_by_role("button", name="On me 2", exact=True)).to_be_visible()
+    expect(page.get_by_role("button", name="On Me 2", exact=True)).to_be_visible()
     expect(panel_tab(page, "Threads").locator(".lf-fp-count")).to_have_text("2")
     cards = queue.locator(".lf-fp-on-item")
     expect(cards).to_have_count(2)
@@ -5153,7 +5153,7 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
 
 def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
     """Each mark keeps its count's room whether or not it has a number, under a finger
-    as under a mouse, so a question arriving in a reply puts On me's count in that room
+    as under a mouse, so a question arriving in a reply puts On Me's count in that room
     and moves nothing beside it. The finger's larger aim floor once stood in place of
     that room, so the mark widened by the digit as the count came."""
     url = serve(LONG_PAGE)
@@ -5456,7 +5456,7 @@ def test_a_thread_s_words_start_on_its_head_s_edge(browser, serve):
 
 
 def test_the_go_to_doors_open_the_panel_s_views(browser, serve):
-    """`g T` and `g M` open Threads and On me in the panel, and the same keys put them
+    """`g T` and `g M` open Threads and On Me in the panel, and the same keys put them
     away again."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")

@@ -17,9 +17,9 @@
  * centre, while depth also changes the labels' inset. Labels stop at two lines, so prose never
  * distorts the document-scale rows.
  * The open and paper forms retain the complete words.
- * A section's marks for its threads, On me items and changes follow its words in the
- * outline, and on the map stand between its marker and its label, its changes drawn as
- * its stretch of the spine; paper leaves them out. */
+ * A section's marks for its threads and On me items stand in the gutter beside the
+ * outline's rule, or just right of the map's spine, and its changes are its stretch of
+ * that rule or spine; paper leaves them out. */
 lf-toc {
   display: block;
   margin: var(--sp-4) 0 30px;
@@ -99,6 +99,7 @@ lf-toc ol {
 }
 lf-toc li {
   --lf-toc-indent: 0px;
+  position: relative;
   margin: 0 0 0 var(--lf-toc-indent);
 }
 lf-toc li[data-lf-depth="1"] {
@@ -126,24 +127,29 @@ lf-toc a:hover,
 lf-toc a[data-lf-focus] {
   color: var(--accent);
 }
-/* A section's marks (toc-view.js): a short dash each for its open threads in the
- * accent, its On me items in the green that marks the user's turn, and, while the
- * changes view is on, its changes in the warning ink. After a row's words they stand in a
- * box no wider than nothing, so a row carrying marks breaks its lines as one without
- * them and no mark moves the outline. They take no presses: the link under them is the
- * only thing to press. */
+/* A section's marks (toc-view.js) stand in the gutter between the outline's rule and its
+ * words, as an editor marks lines beside its text: an upright bar a line tall for its
+ * open threads in the accent and one for its On me items in the green that marks the
+ * user's turn, in one column at every depth, centred on the row's first line; and, while
+ * the changes view is on, a changed section's stretch of the rule in the face a change
+ * wears in the margin (`--lf-change-bar`, chrome.css). Out of the words and taller than
+ * any letter, no mark reads as part of them, and out of flow, none moves a row. They
+ * take no presses: the link is the only thing to press. A dash after the words, tried
+ * first, read as an en dash; dashes ticked off the rule, with every label inset 6px
+ * further on the map, stacked into a letter E beside a changed row and rewrapped
+ * labels on every map. The rule stands `--sp-3` left of each row's indent. */
 lf-toc .lf-toc-marks {
-  display: inline-flex;
-  width: 0;
-  gap: 2px;
-  vertical-align: middle;
+  position: absolute;
+  top: calc(max(2px, (var(--aim-floor) - 1lh) / 2) + 0.5lh);
+  left: calc(3px - var(--sp-3) - var(--lf-toc-indent));
+  display: flex;
+  gap: 1px;
+  translate: 0 -50%;
   pointer-events: none;
-  translate: 0.4em 0;
 }
 lf-toc .lf-toc-marks > i {
-  flex: none;
-  width: 6px;
-  height: 3px;
+  width: 2px;
+  height: 1lh;
   border-radius: 1px;
   background: var(--lf-toc-mark);
 }
@@ -153,11 +159,19 @@ lf-toc [data-lf-toc-mark="thread"] {
 lf-toc [data-lf-toc-mark="on-me"] {
   --lf-toc-mark: var(--ok);
 }
-lf-toc [data-lf-toc-mark="change"] {
-  --lf-toc-mark: var(--warn);
+lf-toc :is(.lf-toc-start, li)[data-lf-toc-changed]::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(-2px - var(--sp-3) - var(--lf-toc-indent));
+  width: 3px;
+  border-radius: 1.5px;
+  background: var(--lf-change-bar, var(--ok));
 }
 @media print {
-  lf-toc .lf-toc-marks {
+  lf-toc .lf-toc-marks,
+  lf-toc :is(.lf-toc-start, li)[data-lf-toc-changed]::after {
     display: none;
   }
 }
@@ -300,36 +314,20 @@ lf-toc [data-lf-toc-mark="change"] {
     lf-toc .lf-toc-start a {
       font: var(--font-title);
     }
-    /* A section's thread and On me marks stand between its marker and its label, centred
-       on the marker as the label's first line is, one over the other where it has both,
-       as an overview ruler's ticks stand along its track: inside the link's start
-       padding, where its clipping leaves them whole. */
-    lf-toc .lf-toc-marks {
-      position: absolute;
-      top: 0.5lh;
-      left: 6px;
-      flex-direction: column;
-      translate: 0 -50%;
-    }
-    lf-toc .lf-toc-marks > i {
-      width: 5px;
-    }
-    lf-toc .lf-toc-marks > [data-lf-toc-mark="change"] {
-      display: none;
-    }
-    /* While the changes view is on, a changed section's stretch of the spine runs from
+    /* The spine is the map's rule: a section's marks stand just right of it, centred on
+       its marker as the label's first line is, inside the link's start padding where its
+       clipping leaves them whole; and a changed section's stretch of the spine runs from
        its marker to the next one, under the lens, so the lens still shows the part in
        view. */
+    lf-toc .lf-toc-marks {
+      top: 0.5lh;
+      left: 6px;
+    }
     lf-toc :is(.lf-toc-start, li)[data-lf-toc-changed]::after {
-      content: "";
-      position: absolute;
       top: var(--lf-toc-row-shift, 0px);
       left: calc(var(--lf-toc-spine-width) / 2);
-      width: 3px;
       height: var(--lf-toc-reach, 100%);
-      border-radius: 1.5px;
       translate: -50% 0;
-      background: var(--warn);
     }
     lf-toc
       :is(.lf-toc-start a, li a[aria-current="location"]):not(:hover, [data-lf-focus]) {
@@ -350,26 +348,25 @@ lf-toc [data-lf-toc-mark="change"] {
     }
     /* When the labels themselves exceed the map's height, this is an ordinary open,
        * scrollable outline instead. */
+    /* With no spine it takes the column's rule and the gutter beside it, where the marks
+       stand as they do in the column. */
     lf-toc[data-lf-outline] .lf-toc-nav {
       overflow-y: auto;
+      border-left: 1px solid var(--border-2);
+      padding-left: var(--sp-3);
     }
     lf-toc[data-lf-outline] .lf-toc-rows::before,
     lf-toc[data-lf-outline] .lf-toc-window,
-    lf-toc[data-lf-outline] :is(.lf-toc-start, li)::before,
-    lf-toc[data-lf-outline] :is(.lf-toc-start, li)::after {
+    lf-toc[data-lf-outline] :is(.lf-toc-start, li)::before {
       display: none;
     }
-    /* With no spine, the marks follow the words, as in the column. */
     lf-toc[data-lf-outline] .lf-toc-marks {
-      position: static;
-      flex-direction: row;
-      translate: 0.4em 0;
+      top: calc(3px + 0.5lh);
+      left: calc(3px - var(--sp-3) - var(--lf-toc-indent));
     }
-    lf-toc[data-lf-outline] .lf-toc-marks > i {
-      width: 6px;
-    }
-    lf-toc[data-lf-outline] .lf-toc-marks > [data-lf-toc-mark="change"] {
-      display: block;
+    lf-toc[data-lf-outline] :is(.lf-toc-start, li)[data-lf-toc-changed]::after {
+      left: calc(-2px - var(--sp-3) - var(--lf-toc-indent));
+      translate: none;
     }
     lf-toc[data-lf-outline] .lf-toc-heading {
       display: block;
@@ -391,6 +388,7 @@ lf-toc [data-lf-toc-mark="change"] {
     lf-toc[data-lf-outline] :is(.lf-toc-start, li) a {
       position: relative;
       display: block;
+      overflow: visible;
       max-height: none;
       padding: 3px 0;
       transform: none;

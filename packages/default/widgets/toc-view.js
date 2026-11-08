@@ -1,11 +1,12 @@
 import { generatedElement, keeps, viewDocument } from "/runtime/widget-api.js";
 /* The contents view draws its frame and outline from the complete document.
  * The live widget supplies the canonical heading and chrome readings, and each
- * section's marks (toc-marks.js): after a row's words, a mark for its open threads, one
- * for its On me items and, while the changes view is on, one for its changes, which
- * toc.css stands beside the row's dot on the contents spine. The marks are aria-hidden
- * and take no room; what they count, the row's link previews (`lfPreview`), which also
- * describes the link to a screen reader where focus lands on it. */
+ * section's marks (toc-marks.js): a mark for its open threads and one for its On me
+ * items, and, while the changes view is on, `data-lf-toc-changed` on its row, which
+ * toc.css draws in the gutter the outline's rule or the contents spine stands in. The
+ * marks are aria-hidden and take no room; what they count, the row's link previews
+ * (`lfPreview`), which also describes the link to a screen reader where focus lands on
+ * it. */
 import { html, nothing, ref, repeat } from "/vendor/lit.js";
 import { marksWords } from "./toc-marks.js";
 
@@ -17,11 +18,11 @@ const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 
 /** @param {SectionMarks | undefined} marks */
 const markView = (marks) =>
-  marks
+  marks?.threads || marks?.onMe
     ? html`<span class="lf-toc-marks" aria-hidden="true"
         >${marks.threads ? html`<i data-lf-toc-mark="thread"></i>` : nothing}${
           marks.onMe ? html`<i data-lf-toc-mark="on-me"></i>` : nothing
-        }${marks.changes ? html`<i data-lf-toc-mark="change"></i>` : nothing}</span
+        }</span
       >`
     : nothing;
 

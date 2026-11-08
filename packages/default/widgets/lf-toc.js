@@ -46,9 +46,9 @@ import { sectionMarks } from "./toc-marks.js";
  * of each its section holds. The element is a `LeafElement` for this alone: its
  * `render()` reads those readings, so it draws again exactly when they change, in the
  * nodes the outline already has; the frame, the outline and the map's geometry stay
- * this module's own work, which no reading starts. The marks move nothing: on the spine
- * they stand inside the link's start padding and a changed stretch under the lens, and
- * after the words they take no room (toc.css).
+ * this module's own work, which no reading starts. The marks move nothing: they stand
+ * out of flow in the gutter beside the outline's rule or the map's spine, and a changed
+ * section is drawn as its stretch of that rule or spine (toc.css).
  *
  * Every link is a real fragment link. The
  * browser owns its navigation, history, :target state, wheel input, and scroll

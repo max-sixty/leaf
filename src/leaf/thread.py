@@ -99,7 +99,7 @@ def _attribute_written(attr: str, values: list) -> str:
 
 def refuse_second_request(asking: dict | None) -> None:
     """A message asks once. `--obligation` beside a widget that asks would stay on
-    On me after the user answers the widget, since only their words answer it."""
+    On Me after the user answers the widget, since only their words answer it."""
     if asking is not None:
         raise Rejected(
             [
@@ -395,7 +395,10 @@ class Receipt:
     already picked up is left to the writer following that turn. With `fence`, the
     receipt writes only while `fence` holds of the page under the lock its append
     takes, as a fork's reply writes only while Leaf still holds its thread from the
-    session."""
+    session. A receipt's progress, such as the working line a fork posts as it hands
+    a thread to the session, takes nothing in hand: its writer is not the turn that
+    will answer, and a start would read as that turn's, renewing it and holding the
+    update at Working before the session has it."""
 
     only_if_unclaimed: bool = False
     fence: Callable[[PageTransaction], bool] | None = None
@@ -467,7 +470,7 @@ def post_reply(
     update in hand with its text as the line (`todos.start_reading`), which is why that
     text is one line: the update reads Working beside its thread and in the page's status, and
     the user's message gets the agent's first words and its Working line from one
-    write.
+    write. A `Receipt`'s progress takes nothing in hand.
     """
     text = checked_text(page_dir, text)
     if markup:
@@ -675,7 +678,7 @@ def _resolve_obligation(
                         )
                     ]
                 )
-        elif ephemeral:
+        elif ephemeral and not isinstance(settlement, Receipt):
             in_hand = responds
         # The open reply reservation decides who may write, whatever the
         # captured `writer` hint or a caller-supplied retry key says.

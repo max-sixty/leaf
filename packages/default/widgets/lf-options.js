@@ -118,6 +118,7 @@ import {
   markdownWords,
   offer,
   offerAction,
+  placePreview,
   pressIsKeyboardActivation,
   quoted,
   reachedForWords,
@@ -140,7 +141,7 @@ const label = (option) => wrote(option.querySelector(":scope > strong") ?? optio
 // What choosing an option gives the user: the sentence after a card's title, as the
 // registry's card shape lays it out, written inline or as the paragraph that follows the
 // title, up to any picture or other block below it. A label-only option says nothing
-// beyond its name. On me shows these words under the option's name, where the user
+// beyond its name. On Me shows these words under the option's name, where the user
 // answers away from the card. The command row reads them only when a surface shows
 // them: the computed display below forces a layout in Firefox, which taken between the
 // render's own insertions leaves a row of cards off their shared title baseline
@@ -304,7 +305,7 @@ customElements.define(
       // removed option's number so undo never changes another action's binding.
       if (this.#choosable) {
         for (const option of this.#options()) this.#contextKeys(`choose:${option.id}`);
-        if (!inChrome(this)) this.#contextKeys("write");
+        if (this.#addition.offered) this.#contextKeys("write");
         if (this.hasAttribute("multiple")) this.#contextKeys("done");
       }
       const named = new Set(
@@ -588,7 +589,8 @@ customElements.define(
     // The block this option is about. A pointer, not a voice: it names the block by the
     // name the chrome gives it (`addressableLabel`), else by its word, and by the id
     // only where no block in the option's document answers to it. After § a kind word
-    // such as "section" says nothing, so the name stands alone. It is chrome
+    // such as "section" says nothing, so the name stands alone, and pointing at it
+    // previews the block, as a link into the page does (`placePreview`). It is chrome
     // throughout — a thing to work and nothing else, so paper drops it.
     /** @param {Element} option */
     #reference(option) {
@@ -598,7 +600,10 @@ customElements.define(
       const label = `§ ${addressableLabel(block) || addressableWord(block) || target}`;
       const ref = offer("a", "lf-ref", label);
       ref.href = `#${target}`;
-      ref.title = `Jump to ${label}`;
+      ref.lfPreview = () => {
+        const named = elementById(target, authoredScope(this));
+        return named ? placePreview(named) : null;
+      };
       option.append(ref);
     }
 

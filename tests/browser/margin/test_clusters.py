@@ -15,6 +15,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_harness import (
+    PREVIEW,
     RELEASE_FOCUS,
     _traffic,
     _until,
@@ -24,6 +25,7 @@ from render_harness import (
     margins_laid_out,
     open_page,
     panel_field,
+    put_preview_away,
     resized,
     round_trip,
     sending,
@@ -45,8 +47,6 @@ from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-# A box the margin trace stands on (target-paint.js, `paintTrace`).
 
 COMMENT_ON_SECOND_SUGGESTION = {
     "kind": "comment",
@@ -384,15 +384,16 @@ def test_keyboard_arrival_at_a_cluster_shows_all_its_entries_for_the_keys_to_wal
     horizontal arrows move between the peers it reveals.
 
     The cluster stands in the margin layer, after the page's content in the tab
-    order, so the arrival is a keyboard focus on its first stop there."""
+    order, so the arrival is a Tab from the page's last stop, a board card's move
+    control, onto its first entry."""
     page = open_page(browser, serve(MARGIN_ENTRY_KEYBOARD_PAGE))
     resized(page, 1440, 900)
     item = page.locator('[data-lf-margin-for="sug-refill"]')
     accept = item.get_by_role("button", name=re.compile(r"Accept"))
     reject = item.get_by_role("button", name=re.compile(r"Reject"))
-    page.locator("#before-margin-entries").focus()
+    last_page_stop = page.get_by_role("button", name=re.compile(r"^Move: Heated perch"))
+    last_page_stop.focus()
     page.keyboard.press("Tab")
-    accept.focus()
 
     expect(accept).to_be_focused()
     page.keyboard.press("ArrowRight")
@@ -422,9 +423,8 @@ def test_keyboard_arrival_at_a_cluster_shows_all_its_entries_for_the_keys_to_wal
     more = item.locator(":scope > .lf-margin-more")
     options = item.locator(":scope > .lf-margin-options")
     expect(more).to_be_visible()
-    page.locator("#before-margin-entries").focus()
+    last_page_stop.focus()
     page.keyboard.press("Tab")
-    accept.focus()
 
     expect(accept).to_be_focused()
     expect(more).to_be_hidden()
@@ -434,6 +434,10 @@ def test_keyboard_arrival_at_a_cluster_shows_all_its_entries_for_the_keys_to_wal
     expect(reject).to_be_focused()
     expect(more).to_be_hidden()
 
+    # The Tab showed Reject's preview, which the first Escape puts away; the second
+    # folds the cluster onto its toggle.
+    put_preview_away(page)
+    expect(reject).to_be_focused()
     page.keyboard.press("Escape")
     expect(more).to_be_focused()
     page.keyboard.press("Shift+Tab")
@@ -529,11 +533,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(more).to_be_visible()
     for button in (suggestion_item.locator("[data-lf-margin-entry-key=accept]"), more):
         expect(button).to_have_class(re.compile(r"lf-margin-entry"))
-    expect(
-        suggestion_item.locator(
-            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
-        )
-    ).to_be_hidden()
+    expect(page.locator(PREVIEW)).to_be_hidden()
     expect(
         suggestion_item.locator("[data-lf-margin-entry-key=accept]")
     ).to_have_attribute("data-lf-behavior", "action")
@@ -614,12 +614,12 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
 
     before_hover = more.bounding_box()
     more.hover()
-    expect(more.locator(".lf-margin-entry-label")).to_be_visible()
+    expect(page.locator(PREVIEW)).to_be_visible()
     assert more.bounding_box() == before_hover, (
         "the transient label moved its margin entry"
     )
     page.mouse.move(0, 0)
-    expect(more.locator(".lf-margin-entry-label")).to_be_hidden()
+    expect(page.locator(PREVIEW)).to_be_hidden()
 
     # In the rail; a pin's entries are smaller, since a pin covers what it stands on.
     shapes = page.locator(
@@ -659,7 +659,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(ok).to_have_attribute("aria-label", "keep")
     expect(ok).not_to_have_attribute("title", re.compile(".+"))
     ok.hover()
-    expect(ok.locator(".lf-margin-entry-label")).to_have_text("keep")
+    expect(page.locator(PREVIEW)).to_have_text("keep")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     page.evaluate(
         "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
@@ -678,29 +678,11 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     resized(page, 2400, 900)
     page.mouse.move(0, 0)
     page.evaluate("() => document.activeElement.blur()")
-    expect(
-        suggestion_item.locator(
-            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
-        )
-    ).to_be_hidden()
+    expect(page.locator(PREVIEW)).to_be_hidden()
     accept.hover()
-    expect(
-        suggestion_item.locator(
-            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
-        )
-    ).to_be_visible()
+    expect(page.locator(PREVIEW)).to_be_visible()
     page.mouse.move(0, 0)
-    expect(
-        suggestion_item.locator(
-            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
-        )
-    ).to_be_hidden()
-    accept.focus()
-    expect(
-        suggestion_item.locator(
-            "[data-lf-margin-entry-key=accept] .lf-margin-entry-label"
-        )
-    ).to_be_visible()
+    expect(page.locator(PREVIEW)).to_be_hidden()
     page.mouse.move(0, 0)
     accept.focus()
     page.keyboard.press("e")
@@ -989,7 +971,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
         expect(primary).to_be_focused()
         expect(page.locator(f"#{target}")).to_have_attribute("data-lf-traced", "")
         primary.hover()
-        label = item.locator('[data-lf-margin-entry-key="save"] .lf-margin-entry-label')
+        label = page.locator(PREVIEW)
         expect(label).to_be_visible()
         box = label.bounding_box()
         assert box["x"] >= 0 and box["x"] + box["width"] <= width
@@ -1000,7 +982,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
         expect(dialog).to_be_visible()
         expect(
             dialog.get_by_role(
-                "searchbox", name="Find an action, status, or location in Page Map"
+                "searchbox", name="Find an action, status or location in Page Map"
             )
         ).to_be_focused()
         assert (

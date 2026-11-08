@@ -25,18 +25,19 @@
  * it out a level.
  * A fence is left as a code span is, by typing its marks, wherever the code's last line
  * ends, and the next words go below it (field-editor.js, `fenceBreak`). Down from the
- * draft's last line leaves it too (`leaveFence`).
+ * draft's last line leaves it too, and leaves the indented code a body reads
+ * (`leaveCode`).
  *
  * A field that edits words where they are shown, as a draft's does over its prose, names
  * the element that shows them (`facesOf`) and draws them in that display's faces
  * instead of the message's: each heading and code block in the type, padding and indent
  * the page gives it there, each quote's inset, and the display's gap between two
  * outermost blocks in place of the blank lines that part them in the source, so no
- * word moves as the editor opens (browser/AGENTS.md, "Editing in place"). Such a
- * display is a Markdown body, which reads as a file, so the field draws a line break
- * inside a paragraph as a space, and Return among a paragraph's words writes a hard
- * break, which the body draws as a line too (field-editor.js, `joints`, `newLine`). The
- * cascade answers what those faces are: as the editor builds, and when its width
+ * word moves as the editor opens (browser/AGENTS.md, "Editing something keeps it where
+ * it stood and as it read"). Such a display is a Markdown body, which reads as a file,
+ * so the field draws a line break inside a paragraph as a space, and Return among a
+ * paragraph's words writes a hard break, which the body draws as a line too
+ * (field-editor.js, `joints`, `newLine`). The cascade answers what those faces are: as the editor builds, and when its width
  * changes, an empty copy of that element holding one of each block stands hidden
  * beside the field, where the page's own rules and density reach it, and is read and
  * removed in the same task. The rules it yields go in a sheet of the field's own, which
@@ -81,7 +82,14 @@
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
  * a box wants more than one run of text there, such as a label and the key that sends.
  * It is drawn in the theme's muted ink; a box that wants another face for it styles
- * `::part(placeholder)`, which a slotted child inherits.
+ * `::part(placeholder)`, which a slotted child inherits. The words are hidden from
+ * assistive technology, which reads them as the content node's `aria-placeholder`.
+ * A child in slot `end` is a press of the box's own at the placeholder's far end, such
+ * as a Resolve's Next thread: it wears the placeholder's face and stands exactly while the
+ * words do, the words shorten before it, and it stays in the accessibility tree and
+ * takes the pointer, so a press on it is its own and never a press on the field.
+ * Rejected: the press among the slotted words, whose `aria-hidden` took it out of the
+ * accessibility tree (found in review, 6 November 2026).
  *
  * A connected field holding words draws them in its editor. An empty one builds its
  * editor when the user arrives in it (`#build`), since a page can show many empty
@@ -222,10 +230,18 @@ sheet.replaceSync(`
   /* The placeholder is one line that never widens the box — a response bar sizes to the
      words — and shortens with an ellipsis where the box is narrow, so it reads the same
      height whether it shows the plain words or a keyed hint. */
-  .lf-field-placeholder { pointer-events: none; white-space: nowrap;
-    contain: inline-size; overflow-x: clip; text-overflow: ellipsis;
-    color: var(--muted); }
+  .lf-field-placeholder { pointer-events: none; display: flex; align-items: baseline;
+    block-size: 1lh; contain: inline-size; color: var(--muted); }
+  .lf-field-placeholder-words { flex: 1 1 auto; min-width: 0; white-space: nowrap;
+    overflow-x: clip; text-overflow: ellipsis; }
   :host(:not(:state(placeholder-shown))) .lf-field-placeholder { visibility: hidden; }
+  /* The box's own press at the far end takes the pointer where it reads, so while one
+     stands the placeholder stands over the empty line; the rest of it passes the
+     pointer on to the line beneath, as any placeholder does. A box offers one only
+     while its field is empty and the caret is elsewhere (composing/input.js,
+     \`pressAtRest\`), so it stands over no caret. */
+  .lf-field-end::slotted(*) { flex: none; pointer-events: auto; }
+  :host(:state(end-held)) .lf-field-placeholder { z-index: 1; }
   /* The trailing action's room, on every line. */
   .lf-field { padding-inline-end: var(--lf-field-end-room); }
   /* A draft wears the sent message's faces, or where it stands in place, those its
@@ -285,7 +301,8 @@ sheet.replaceSync(`
   .lf-md-picture { max-width: 100%; height: auto; vertical-align: middle; }
   /* A rule's line is the sent hr, a line tall with its stroke through the middle
      (reading.css, \`.lf-msg-body hr\`), its source on that line under the caret, so
-     reaching it moves nothing (browser/AGENTS.md, "Stability"). */
+     reaching it moves nothing (browser/AGENTS.md, "The page holds still under the
+     user's aim"). */
   .lf-md-rule {
     background: linear-gradient(var(--rule), var(--rule)) center / 100% 1px no-repeat; }
   /* A press on a task's box reaches the line, which puts the caret in its brackets, as a
@@ -384,6 +401,7 @@ class LeafText extends HTMLElement {
   }
   #placeholderLayer = document.createElement("div");
   #placeholderText = document.createTextNode("");
+  #end = document.createElement("slot");
   #frame = document.createElement("div");
   #readOnly = false;
   #sizes = sizeObserver(() => {
@@ -554,12 +572,21 @@ class LeafText extends HTMLElement {
     this.#root = this.attachShadow({ mode: "closed", delegatesFocus: true });
     this.#frame.className = "lf-field";
     this.#placeholderLayer.className = "lf-field-placeholder";
-    this.#placeholderLayer.setAttribute("aria-hidden", "true");
     this.#placeholderLayer.setAttribute("part", "placeholder");
+    const words = document.createElement("span");
+    words.className = "lf-field-placeholder-words";
+    words.setAttribute("aria-hidden", "true");
     const hint = document.createElement("slot");
     hint.name = "placeholder";
     hint.append(this.#placeholderText);
-    this.#placeholderLayer.append(hint);
+    words.append(hint);
+    this.#end.name = "end";
+    this.#end.className = "lf-field-end";
+    this.#end.addEventListener("slotchange", () => {
+      if (this.#end.assignedElements().length) this.#internals.states.add("end-held");
+      else this.#internals.states.delete("end-held");
+    });
+    this.#placeholderLayer.append(words, this.#end);
     this.#rest.className = "lf-field-rest";
     // The break an empty editable line holds, as the editor's own empty line does, so
     // the place reads the same value to assistive technology.
@@ -951,7 +978,12 @@ class LeafText extends HTMLElement {
   // CodeMirror's to place.
   /** @param {MouseEvent} event */
   #pressPadding(event) {
-    if (event.button !== 0) return;
+    // A press on the box's own press at the placeholder's end is that press's. The
+    // slot is in a closed root, so the event's path seen from the host leaves it out;
+    // the press itself is the host's child.
+    const target = /** @type {Node} */ (event.target);
+    const onEnd = this.#end.assignedElements().some((press) => press.contains(target));
+    if (event.button !== 0 || onEnd) return;
     if (!this.#view) {
       // The field is empty, so wherever the press lands the caret stands at its start.
       // Another button's press focuses the empty line's place natively, which builds the

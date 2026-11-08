@@ -18,6 +18,7 @@ from render_cases_interaction import (
 from render_cases_layout import current_location_ring, rings_drawn
 from render_harness import (
     PANEL,
+    PREVIEW,
     RELEASE_FOCUS,
     comment_note,
     leaf_page,
@@ -589,14 +590,14 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
 
     marker.hover()
     expect(preview).to_be_hidden()
-    expect(marker.locator(".lf-margin-entry-label")).to_be_visible()
+    expect(page.locator(PREVIEW)).to_be_visible()
     marker.focus()
     expect(preview).to_be_hidden()
 
     marker.click()
     expect(marker).to_have_attribute("aria-expanded", "true")
     expect(preview).to_be_visible()
-    expect(marker.locator(".lf-margin-entry-label")).to_be_hidden()
+    expect(page.locator(PREVIEW)).to_be_hidden()
     # The thread the user now stands in marks its element; no trace doubles it.
     expect(page.locator('[data-lf-mark~="here"]')).to_have_id("bracket")
     expect(page.locator("#bracket")).not_to_have_attribute("data-lf-traced", "")
@@ -648,10 +649,9 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(reply).to_be_focused()
     page.locator("h1").click()
     expect(preview).to_be_hidden()
+    # A click opens the thread in its reply (thread/focus.js).
     marker.click()
     expect(reply).to_be_visible()
-    expect(reply).not_to_be_focused()
-    reply.click()
     expect(reply).to_be_focused()
     write(reply, "Keep this draft visible.")
     page.locator(".lf-margin-preview-close").click()

@@ -555,8 +555,11 @@ containing user text.
 
 The outbound model handler adds `model_request_started`, `model_response_headers`,
 `model_response_first_byte`, `model_response_first_output`, and
-`model_response_completed` or `model_request_failed`, each with Codex's thread and turn
-ids, a per-request id, status, and byte count. The hosted Codex provider uses HTTP
+`model_response_completed`, `model_response_cancelled` or `model_request_failed`, each
+with Codex's thread and turn ids, a per-request id, status, and byte count. A body Codex
+cancels, as when the container ends a turn whose stream went silent, logs
+`model_response_cancelled` with `idleMs`, the time since its last chunk, which tells a
+stream still sending keepalives from one that stopped. The hosted Codex provider uses HTTP
 directly (`codex-config.toml`).
 
 When a hosted turn cannot answer, the user's update gets a failure receipt: a reply

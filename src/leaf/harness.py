@@ -912,6 +912,10 @@ _ENVIRONMENT_HARNESSES: tuple[type[EnvironmentHarness], ...] = (
 # The harnesses whose hooks Leaf registers, by the name a registration passes
 # (`hook_harness`).
 HOOK_HARNESSES = {harness.name: harness for harness in _ENVIRONMENT_HARNESSES}
+# The time every harness gives the prompt and Stop hooks: each registration's
+# `timeout` (`hooks/hooks.json`, `hooks/codex.json`) and Pi extension's bound
+# (`hooks/pi.ts`), which `test_hook_registration` holds to this.
+HOOK_TIMEOUT_S = 20
 HARNESSES: dict[str, type[Harness]] = {
     harness.name: harness for harness in (*_ENVIRONMENT_HARNESSES, EmbeddedHarness)
 }

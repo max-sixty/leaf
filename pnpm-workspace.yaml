@@ -1,4 +1,4 @@
-# This repository has one contributor package; Pi is an independent harness fixture.
+# This repository has one contributor package.
 packages:
   - .
 verifyDepsBeforeRun: error

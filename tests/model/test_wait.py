@@ -132,7 +132,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
     assert activity_reading(page_dir)["detail"] == "revising the plan"
 
     # A worker's report wakes the watcher like a user event — it is the
-    # orchestrator's to fold into a version — but the user's On me count
+    # orchestrator's to fold into a version — but the user's On Me count
     # deliberately leaves it out: a report is news the agent owes the page, not
     # something the user owes an answer.
     append_carried_log_record(
@@ -355,6 +355,44 @@ def test_a_revival_that_does_not_hold_ends_the_wait(
         f"{page_dir}: server is not running; restart it with "
         f"`leaf server start {page_dir}`"
     ) in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("hook", ["Stop", "UserPromptSubmit"])
+def test_the_watch_between_turns_leaves_a_server_it_cannot_revive_to_the_next_prompt(
+    claimed, interactive, monkeypatch, hook
+):
+    """A watch whose every page lost its server, and failed to revive it, ends
+    without waking the session: the next prompt's hook serves the page again or
+    says why it can't (`reconnect`). Its wake had told the agent to run `leaf
+    server start`, and a prompt's watch woke the turn it followed, whose prompt
+    hook said the same; each wake opened a prompt whose watch woke again."""
+    leases_model.mark_hooks("s1")
+    write_record(
+        claimed / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": available_loopback_port(),
+            "enabled": True,
+            "lifetime": "session",
+            "server_id": "retired-server",
+        },
+    )
+    session_model.cmd_waiting(claimed)
+
+    def refused_start(*_args, **_kwargs):
+        raise StartRefused("the port is taken")
+
+    monkeypatch.setattr(hosting_model, "start_server", refused_start)
+
+    assert (
+        hooks_model.cmd_watch(
+            "claude-code", {"hook_event_name": hook, "session_id": "s1"}
+        )
+        is None
+    )
+    [ended] = read_interactions(claimed, types=("watch",))
+    assert ended["ended"] == "server-down"
 
 
 def test_a_page_without_a_declaration_leaves_the_sessions_wait_running(
@@ -669,10 +707,17 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     monkeypatch.setattr(harness_model, "process_argv", launched)
 
     initialized = threading.Event()
+    passes = []
+    # Set, each pass waits for no news, so the watch reconsiders its input as fast as it
+    # can rather than once per `REVIVAL_CHECK_S` (tests/AGENTS.md, "Absences").
+    brisk = threading.Event()
     await_news = session_model.Watch.await_news
 
     def after_first_pass(watch, mark, *args, **kwargs):
         initialized.set()
+        passes.append(mark)
+        if brisk.is_set():
+            return await_news(watch, mark, timeout=0)
         return await_news(watch, mark, *args, **kwargs)
 
     monkeypatch.setattr(session_model.Watch, "await_news", after_first_pass)
@@ -710,7 +755,15 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     )
     outcome = []
     watch = watching(outcome)
-    time.sleep(session_model.REVIVAL_CHECK_S / 5)
+    # Two more passes reconsider the pending input, and neither wakes for it.
+    brisk.set()
+    since = len(passes)
+    wait_for(
+        lambda: (len(passes), watch.is_alive()),
+        lambda now: now[0] >= since + 2 or not now[1],
+        failure="the watch made no further pass",
+    )
+    brisk.clear()
     assert outcome == []
     cleanup_model.close_session_turn("s1")
     watch.join(timeout=STATED_TIMEOUT)

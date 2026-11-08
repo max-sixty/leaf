@@ -38,11 +38,17 @@ import { readingBlock } from "./reading-place.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { threadIn } from "./thread/focus.js";
-import { threadList } from "./thread/state.js";
+import {
+  NO_OPEN_THREADS,
+  THREADS_OFFLINE,
+  anyOpenThread,
+  readThreads,
+  threadList,
+} from "./thread/state.js";
 import { inPageOrder } from "./thread/placement.js";
 import { under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
-import { announce } from "./notifications.js";
+import { announce, notice } from "./notifications.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 import { savedReadingSettled } from "./keyboard/bindings.js";
 
@@ -60,10 +66,6 @@ const openThreads = (placedAt) =>
     threadList().filter((thread) => !thread.resolved),
     placedAt,
   ).map((thread) => thread.id);
-// Whether the walk has anywhere to go, which the keys ask on every input: the open
-// threads' order is the walk's business, and sorting them for a count cost a sort of
-// every thread per input.
-const anyOpenThread = () => threadList().some((thread) => !thread.resolved);
 
 // The thread the walk stands on: the one the origin's current location is in,
 // wherever it is drawn. Its target, with the thread's card beside it, is at the thread,
@@ -297,14 +299,19 @@ export function createNavigation({ threadDestinations, placedAt }) {
       },
     ],
     title: "threads",
-    when: anyOpenThread,
     repeat: true,
     travels: true,
     // The walk moves the user laterally: it is the surface it reaches through, rather
     // than the walk, that Escape takes off. It stands them on a thread a widget seats on
     // the page, or opens the margin's thread view, or the floating panel's, for a thread
-    // with no seat, and that view's own step dismisses it.
-    runKey: (binding) => walkThreads(binding === "t" ? 1 : -1),
+    // with no seat, and that view's own step dismisses it. With no open thread, the press
+    // says so in the panel, or that the threads can't be had while the server is
+    // offline, as every page walk with nothing to step through does
+    // (keyboard/AGENTS.md, "Page grammar").
+    runKey: (binding) =>
+      anyOpenThread()
+        ? walkThreads(binding === "t" ? 1 : -1)
+        : notice(readThreads().phase === "offline" ? THREADS_OFFLINE : NO_OPEN_THREADS),
   });
   // A sample's spent step arrives at its frame (sample.js). It goes on only while the
   // user is still in that frame: one that lands after they have left was not theirs to

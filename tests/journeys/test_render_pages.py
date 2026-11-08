@@ -109,9 +109,7 @@ def test_sort_film_comment_restores_its_input_and_step(browser, serve):
     expect(moment).to_have_attribute("data-part", "moment:nearly:7:0")
     comment = next(event for event in events if event["kind"] == "comment")
     view = open_panel_thread(page, comment["id"])
-    expect(view.locator(".lf-thread-quote")).to_contain_text(
-        "Random, shuffle 7, step 1"
-    )
+    expect(view.locator(".lf-quote-label")).to_contain_text("Random, shuffle 7, step 1")
     page.locator(".lf-fp-close").click()
     page.get_by_role("button", name="1 comment").press("Enter")
     expect(moment).to_have_attribute("data-part", "moment:random:7:0")

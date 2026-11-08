@@ -58,6 +58,7 @@ from render_harness import (
     FOLLOWER_MARK,
     LONG_PAGE,
     PANEL,
+    PREVIEW,
     RELEASE_FOCUS,
     REPLAYED_PAGE,
     SUBJECT_MARK,
@@ -265,7 +266,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
 
 @pytest.mark.parametrize("width", [900, 1200])
 def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width):
-    """On me stands over the page without moving its coordinate plane.
+    """On Me stands over the page without moving its coordinate plane.
 
     A broad authored rule may position ordinary divs, and the view may arrive over a
     target without another pointer event. Neither may move the chrome's document origin or
@@ -1783,8 +1784,9 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
     )
 
 
-def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
-    """A transient chrome label paints above the page-level trace it summons."""
+def test_a_margin_preview_stands_clear_of_the_target_trace(browser, serve, monkeypatch):
+    """A margin marker's preview is about its target, so it stands clear of the target
+    and of the trace it summons around it, rather than painting over that trace."""
     single = OBLIGATION_PAGE.replace(
         '<lf-options id="jobs" choose multiple>', '<lf-options id="jobs" choose>'
     )
@@ -1810,7 +1812,7 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
         "aria-label", re.compile(r"^Still queued for \w+,")
     )
     marker.hover()
-    label = marker.locator(":scope > .lf-margin-entry-label")
+    label = page.locator(PREVIEW)
     traced = page.locator("#jobs")
     expect(label).to_be_visible()
     expect(traced).to_have_attribute("data-lf-traced", "")
@@ -1819,31 +1821,13 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     )
 
     label_box = label.bounding_box()
-    # The trace's right run, the outer edge of the target's outline.
-    trace_right = traced.evaluate(MARK)["ring"]["right"]
-    assert label_box["x"] < trace_right < label_box["x"] + label_box["width"], (
-        "the status label does not cross the target trace"
-    )
-    with_trace = Image.open(io.BytesIO(label.screenshot())).convert("RGB")
-    traced.evaluate(
-        "node => { node.style.setProperty('outline-style', 'none', 'important') }"
-    )
-    untraced = Image.open(io.BytesIO(label.screenshot())).convert("RGB")
-    # Taking the trace off can change Chrome's text antialiasing without changing
-    # which surface covers the trace. Compare the solid label background at the
-    # trace's crossing instead of its glyph pixels.
-    edge = round((trace_right - label_box["x"]) * untraced.width / label_box["width"])
-    background = untraced.getpixel((5, 5))
-    crossing = [
-        (x, y)
-        for x in range(max(3, edge - 3), min(untraced.width - 3, edge + 4))
-        for y in range(3, untraced.height - 3)
-        if untraced.getpixel((x, y)) == background
-    ]
-    assert crossing
-    assert all(with_trace.getpixel(point) == background for point in crossing), (
-        "the target trace paints over the status label"
-    )
+    ring = traced.evaluate(MARK)["ring"]
+    assert (
+        label_box["x"] >= ring["right"]
+        or label_box["x"] + label_box["width"] <= ring["left"]
+        or label_box["y"] >= ring["bottom"]
+        or label_box["y"] + label_box["height"] <= ring["top"]
+    ), (label_box, ring)
 
 
 def test_an_aim_at_a_seam_promises_the_element_its_press_takes(
@@ -2207,7 +2191,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     # on the thread in the panel's thread view.
     panel = page.locator(PANEL_THREAD)
     expect(panel).to_be_visible()
-    expect(page.locator(".lf-thread-quote")).to_contain_text(
+    expect(page.locator(".lf-quote-label")).to_contain_text(
         "design · lf-option · opt-shim"
     )
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
@@ -2581,9 +2565,10 @@ CONTROL_SHAPES = {
         [("A", "A"), ("B", "B")],
     ),
     # A control's announcement reads the prose around it, and no neighbouring control's
-    # words.
+    # words. The section has a heading of its own, since an unnamed section is named by
+    # its words, the neighbour's included.
     "spoken": (
-        '<section id="spoken"><p>Find settings <input aria-label="Search flags"> <button aria-label="Close dialog">×</button></p></section>',
+        '<section id="spoken"><h2>Flags</h2><p>Find settings <input aria-label="Search flags"> <button aria-label="Close dialog">×</button></p></section>',
         "#spoken input, #spoken button",
         [("Search flags", None), ("Close dialog", "×")],
     ),
@@ -3417,7 +3402,11 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
 
     point = midpoint(decoration)
     page.mouse.move(point["x"], point["y"])
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-over-mark\b"))
+    page.wait_for_function(
+        "({x, y}) => getComputedStyle(document.elementFromPoint(x, y)).cursor"
+        " === 'pointer'",
+        arg=point,
+    )
     page.mouse.click(point["x"], point["y"])
     expect(
         page.locator(
@@ -3562,7 +3551,7 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
         {"section": "flow", "visual": "node:S"}
     ]
     open_panel_thread(page, posted[0]["id"])
-    expect(page.locator(".lf-thread-quote")).to_have_text("§ diagram · Start request")
+    expect(page.locator(".lf-quote-label")).to_have_text("§ diagram · Start request")
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     expect_comment_notes(page, "#flow", 1)
@@ -3635,8 +3624,9 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
     gap the location ring takes, the gestures as brackets and focus whole.
 
     A table and a card with authored corners draw them alike. A mark stands over an
-    outline the page gave the target while it lasts, and the page's own comes back once
-    no mark stands there.
+    outline the page gave the target while it lasts. Focus alone is the box's focus
+    ring rather than a mark, so an outline the page gave the box outranks it, and the
+    page's own stands again once only focus is marked.
     """
     page = open_page(
         browser,
@@ -3689,7 +3679,10 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
             page.keyboard.press("Escape")
             expect(node).to_be_focused()
             expect(node).to_have_attribute("data-lf-mark", re.compile(r"\bfocus\b"))
-            boundary(node, brackets=False)
+            if target == "rounded":
+                expect(node).to_have_css("outline-style", "dashed")
+            else:
+                boundary(node, brackets=False)
             page.evaluate(RELEASE_FOCUS)
             expect(node).not_to_have_attribute("data-lf-mark", re.compile(".*"))
             if target == "rounded":
@@ -3896,7 +3889,7 @@ def test_the_aim_shows_over_the_widgets_own_paint(browser, serve):
     changed nothing a user could see. The aim's veil fills the box; the pixel diff
     here is armed against unarmed with the pointer held still, so the widget's own
     hover wash is in both frames and the difference is the promise alone."""
-    from PIL import Image, ImageChops  # a dev dependency already, for the demo recorder
+    from PIL import ImageChops  # a dev dependency already, for the demo recorder
 
     page = open_page(browser, serve(AIM_PAINT_PAGE))
     card = page.locator("#card-star")

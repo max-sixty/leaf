@@ -35,7 +35,8 @@ Events keep their stored fields and log order, and add:
 
 - `subject`: the page, thread, or widget the event changes.
 - `says`: the words of what the user pressed, such as each picked option, as the
-  page they pressed on wrote them. A later rewording does not change them.
+  page they pressed on wrote them. A later rewording does not change them. Done on a
+  group says the options picked when the user pressed it, and nothing when none were.
 - `names`: the same elements by id, named by their declared name or leading title,
   with their full words used when neither is present. An option's title names the
   choice separately from its tag labels and explanation.

@@ -48,14 +48,17 @@
 // children joining in its place, as the working message does to the answer. A
 // scrollport that grows at its foot by no more than that growth, as a floating card
 // sized to its thread does, is stationary for this: it keeps its other edges. One that declares it stands on its
-// foot (`data-lf-rises`), as the floating panel's thread view stands on its row, may
-// instead rise at its head by no more than that growth, carrying all it holds, and its
-// own head, up by its rise: the one case where news may carry controls (`appendGrowth`).
+// foot (`data-lf-rises`), as the floating panel's thread view stands on its row and
+// a margin card on the edge it holds, may instead rise at its head by no more than
+// that growth, carrying all it holds, and its own head, up by its rise: the one case
+// where news may carry controls (`appendGrowth`).
 // Layout coordinates remove scrolling; sticky descendants retain their
 // mechanical scroller's ownership. Portals with one unique anchor, in their tree or
-// inside the `anchor-scope` that limits its name, and a direct native anchor inset,
-// inline or in their tree's own rules, retain that scroller too; nested CSS
-// expressions, ambiguous names and rules that disagree receive no inferred ownership.
+// inside the `anchor-scope` that limits its name, or a popover's implicit anchor, the
+// `source` it was shown with, and a direct native anchor inset, inline or in their
+// tree's own rules, retain that scroller and their anchor's own animation too; nested
+// CSS expressions, ambiguous names and rules that disagree receive no inferred
+// ownership.
 //
 // Scrolls a gesture makes. Layout coordinates remove scrolling, so a scroll inside a
 // gesture's rendering would credit itself, though it carries the control the user
@@ -130,21 +133,24 @@
 // last complete reading and its population instead of reading every node again.
 // Every passive verdict starts from a layout-shift entry, and an entry, whether the
 // observer hears it or a paint checkpoint takes it, makes the reading that judges
-// it complete: every node is read, and the entry's paint is read then where the
-// following frame kept an unchanged reading, unless a later input already makes
-// that endpoint ambiguous. So whatever moved a landmark without input, its verdict
-// compares complete readings. Announcements keep the readings between entries
-// current, which input ownership and typing's verdicts rest on: a frame reads
-// completely when a change was announced since the last complete reading, and on
-// the frame after one that read an announced change, since native anchoring
-// follows its scroller a frame late. Each announcement is made in the task of the
-// change it covers: DOM writes in the document and every shadow root; a running
-// animation anywhere in the composed tree, or one that stopped or left the set,
-// except a scroll-driven one, which moves only as the scroll and layout announced
-// here move it; input, focus, scroll, drag, resize, load, reset and beforetoggle
-// events; the emulated media tests change; this frame's own visibility; and the
-// calls that restyle without a DOM write (custom states, constructed and adopted
-// sheets, form-control values and ranges, animation mutators). A child cannot
+// it complete: every node outside skipped content is read, and the entry's paint is
+// read then where the following frame kept an unchanged reading, unless a later
+// input already makes that endpoint ambiguous. So whatever moved a landmark
+// without input, its verdict compares complete readings. Announcements keep the
+// readings between entries current, which input ownership and typing's verdicts
+// rest on: a frame reads completely when a change was announced since the last
+// complete reading, and on the frame after one that read an announced change, since
+// native anchoring follows its scroller a frame late. Each announcement is made in
+// the task of the change it covers: DOM writes in the document and every shadow
+// root; a running animation anywhere in the composed tree, or one that stopped or
+// left the set, except a scroll-driven one, which moves only as the scroll and
+// layout announced here move it; input, focus, scroll, drag, resize, load, reset,
+// beforetoggle and contentvisibilityautostatechange events; the emulated media tests
+// change; this frame's own visibility; the press a pointer released on taking or
+// leaving `:active`, which a tap keeps on a timer after its last event and a button's
+// press feedback scales; and the calls that restyle without a DOM
+// write (custom states, constructed and adopted sheets, form-control values and
+// ranges, animation mutators). A child cannot
 // observe every change in its embedding page, so child-frame readings remain
 // complete. Every
 // VERIFY-th unannounced frame, and the first one once the fixture asks for the test's
@@ -153,6 +159,19 @@
 // leaving the readings between entries stale. A page that writes while it is read
 // announces its change by that write. A change to this gate runs the suite with
 // VERIFY = 1, which checks every frame.
+//
+// Skipped content. The browser draws nothing in the content it skips (`skipped`,
+// shadow-tree.js): a shut tab's panel, a closed disclosure's content, the contents of
+// an off-screen `content-visibility: auto` box. Nothing there can move on screen, and
+// asking any box there for its style or rect makes the browser style and lay out the
+// whole skipped subtree first. So a complete reading leaves skipped content out, as
+// the runtime's own readings do. On the feature gallery, whose shut tabs hold most of
+// its nodes, reading them was more than half of the sensor's work. A node the last
+// reading read while it was drawn gets one more reading, the one that sees it go, so
+// a fold that shrinks and moves into closed history in one task still credits the
+// boxes its shrinking carried. A node is read again from the frame it is drawn again:
+// a DOM write or a `contentvisibilityautostatechange` reveals it, and both are
+// announcements.
 //
 // Unpresented frames. Until the runtime stamps `data-lf-presented`, movement without
 // input is exempt (Scope: the page before it presents). While such a page is still
@@ -277,15 +296,18 @@
         moves(animation),
     );
   // A direct native anchor inset, not an unused var() fallback or a named
-  // different anchor inside the expression. Floating placement writes this form.
+  // different anchor inside the expression. Floating placement writes this form, and
+  // the preview an offset from a custom property: a script that changes the offset
+  // moves the box by more than its anchor's travel, which the credit never covers.
   const anchorInset = (value, axis) => {
     const side =
       axis === "left"
         ? "(?:left|right|center|start|end)"
         : "(?:top|bottom|center|start|end)";
     const anchor = `anchor\\(${side}(?:,\\s*-?[\\d.]+px)?\\)`;
+    const offset = "(?:-?[\\d.]+px|var\\(--[\\w-]+\\))";
     return new RegExp(
-      `^(?:${anchor}|calc\\((?:${anchor}\\s*[+-]\\s*-?[\\d.]+px|-?[\\d.]+px\\s*\\+\\s*${anchor}|${anchor})\\))$`,
+      `^(?:${anchor}|calc\\((?:${anchor}\\s*[+-]\\s*${offset}|${offset}\\s*\\+\\s*${anchor}|${anchor})\\))$`,
     ).test(value);
   };
   // Declarations that can win a property: an important inline one alone, else
@@ -489,27 +511,55 @@
       return null;
     return { node, key, value, axes: translationAxes(node) };
   };
+  // A popover shown with a `source` takes it as its implicit anchor, which
+  // `position-anchor: auto` follows and which no style or property names afterwards,
+  // so the call itself is read. A popover shown without one has none. Only a call that
+  // opens the popover sets its anchor: one made while it stands open, or one that
+  // throws, leaves the anchor the browser kept.
+  const implicitAnchors = new WeakMap();
+  for (const method of ["showPopover", "togglePopover"]) {
+    const native = HTMLElement.prototype[method];
+    HTMLElement.prototype[method] = function (options) {
+      const wasOpen = this.matches(":popover-open");
+      const result = native.call(this, options);
+      if (!wasOpen && this.matches(":popover-open")) {
+        const source = options instanceof Object ? options.source : null;
+        if (source instanceof Element) implicitAnchors.set(this, source);
+        else implicitAnchors.delete(this);
+      }
+      return result;
+    };
+  }
+  const implicitAnchor = (node, style) =>
+    style.positionAnchor === "auto" && node.matches(":popover-open")
+      ? (implicitAnchors.get(node) ?? null)
+      : null;
   const anchoredInset = (node, style, property, axis) => {
     const inline = node.style.getPropertyValue(property);
     if (inline && priority(node.style, property)) return anchorInset(inline, axis);
-    if (!style.positionAnchor.startsWith("--"))
+    if (!style.positionAnchor.startsWith("--") && !implicitAnchor(node, style))
       return inline ? anchorInset(inline, axis) : false;
-    const candidates = declaredValues(node, property);
+    // A rule that leaves the inset `auto`, as one undoing a popover's default inset
+    // does, is in force only where the inset is still `auto`, which Typed OM keeps as
+    // the keyword where CSSOM's resolved style gives a used pixel position; an engine
+    // without Typed OM proves nothing past such a rule.
+    const auto =
+      (node.computedStyleMap?.().get(property)?.toString() ?? "auto") === "auto";
+    const possible = (value) => auto || value.trim() !== "auto";
+    const candidates = declaredValues(node, property).filter(possible);
     if (candidates.every((value) => anchorInset(value, axis)))
       return candidates.length > 0;
     if (!candidates.some((value) => value.trim() === "revert-layer")) return false;
-    // A rollback can expose a lower tier. Prove every declared alternative,
-    // including normal rules under an important rollback, before allowing it.
-    // With none left, an inset is auto: Typed OM preserves that keyword where
-    // CSSOM's resolved style hides it as a used pixel position.
+    // A rollback can expose a lower tier, as the chrome guard's `all: revert-layer`
+    // stands under every chrome rule (styles/chrome-guard.css). Prove every declared
+    // alternative that can be in force, including normal rules under an important
+    // rollback, before allowing it. With none left, an inset is auto.
     const rules = declaredRules(node, property, false);
     const values = [...rules.normal, ...rules.important, inline].filter(
-      (value) => value && value.trim() !== "revert-layer",
+      (value) => value && value.trim() !== "revert-layer" && possible(value),
     );
     return (
-      values.length > 0 &&
-      values.every((value) => anchorInset(value, axis)) &&
-      (node.computedStyleMap?.().get(property)?.toString() ?? "auto") !== "auto"
+      values.length > 0 && values.every((value) => anchorInset(value, axis)) && !auto
     );
   };
   // The box a positioned box's `position-anchor` names. A name an `anchor-scope`
@@ -517,6 +567,7 @@
   // component still names one anchor for each; elsewhere it must be unique in its tree.
   const anchorOf = (node, style, anchors) => {
     const name = style.positionAnchor;
+    if (name === "auto") return implicitAnchor(node, style);
     if (!name.startsWith("--")) return null;
     const names = (value) => value.split(",").map((part) => part.trim());
     for (let at = up(node); at instanceof Element; at = up(at)) {
@@ -670,6 +721,27 @@
     "(prefers-contrast: more)",
   ].map((query) => matchMedia(query));
   for (const query of presentationMedia) query.addEventListener("change", announce);
+  // A tap's `:active` comes and goes on the browser's timer, after the pointer's last
+  // event, so the node a pointer released on is asked each frame whether it still is.
+  let released = null;
+  for (const type of ["pointerup", "pointercancel"])
+    listen(
+      window,
+      type,
+      (event) => {
+        const node = event.composedPath()[0];
+        released =
+          node instanceof Element ? { node, pressed: node.matches(":active") } : null;
+      },
+      { capture: true, passive: true },
+    );
+  const pressChanged = () => {
+    if (!released) return false;
+    const pressed = released.node.matches(":active");
+    if (pressed === released.pressed) return false;
+    released.pressed = pressed;
+    return true;
+  };
   // Page state that matches selectors or applies style without a DOM write.
   const announcing = (proto, names) => {
     for (const name of names) {
@@ -805,6 +877,11 @@
     }
     return readings;
   };
+  // "Skipped content" above: the nodes the last complete reading read while they were
+  // drawn, and the skipped nodes the current population holds for the reading that
+  // sees them go.
+  const readDrawn = new WeakSet();
+  let leaving = new Set();
   const everything = () => {
     const nodes = [...document.querySelectorAll("*")];
     // The HTML parser creates declarative roots without calling attachShadow.
@@ -830,7 +907,39 @@
           !node.matches("script, style"),
       ),
     );
-    return [...nodes.filter((node) => !cameraNodes.has(node)), ...words];
+    const drawnNow = new Map();
+    const isDrawn = (element) => {
+      if (!drawnNow.has(element))
+        drawnNow.set(element, element.checkVisibility({ contentVisibilityAuto: true }));
+      return drawnNow.get(element);
+    };
+    // An element under one that is not drawn either stands in whatever that one stands
+    // in, so `skipped` is asked only where drawing stops.
+    const standsInSkipped = new Map();
+    const inSkipped = (element) => {
+      if (!standsInSkipped.has(element)) {
+        const parent = up(element);
+        standsInSkipped.set(
+          element,
+          !isDrawn(element) &&
+            (parent instanceof Element && !isDrawn(parent)
+              ? inSkipped(parent)
+              : skipped(element)),
+        );
+      }
+      return standsInSkipped.get(element);
+    };
+    leaving = new Set();
+    const kept = (node, element) => {
+      if (!inSkipped(element)) return true;
+      if (!readDrawn.has(node)) return false;
+      leaving.add(node);
+      return true;
+    };
+    return [
+      ...nodes.filter((node) => !cameraNodes.has(node) && kept(node, node)),
+      ...words.filter((word) => kept(word, up(word))),
+    ];
   };
   // Each frame keeps its node population; geometry and paint evidence keep changes
   // only. Later hiding, clipping, reparenting or removal cannot erase a sampled box.
@@ -1238,6 +1347,7 @@
     // hide or move it without telling it; only a hidden tab announces itself here.
     const drawn = !document.hidden;
     const active =
+      pressChanged() ||
       fresh ||
       drawn !== wasDrawn ||
       running ||
@@ -1281,6 +1391,9 @@
     )
       misses.push([null, ["population"]]);
     held = nodes;
+    for (const node of nodes)
+      if (leaving.has(node)) readDrawn.delete(node);
+      else readDrawn.add(node);
     const anchors = new Map();
     for (const node of nodes.filter((node) => node instanceof Element)) {
       const tree = node.getRootNode();
@@ -2214,14 +2327,17 @@
   // every other edge, and counts as stationary.
   //
   // A scrollport that declares it stands on its foot (`data-lf-rises`), as the floating
-  // panel's thread view stands on its row, instead rises at its head as it grows with
+  // panel's thread view stands on its row and a margin card on the edge it holds
+  // (thread-preview.js), instead rises at its head as it grows with
   // that growth, by no more than it, keeping its other edges. Its holdings are then
   // read from its head, which carries them all up by its rise, and so does every box
   // standing on its foot with it (its stand): what stands in that stand above the
   // scrollport, such as the view's name, rises with it by the same distance and no
-  // more. This is the one place news may carry what is read without a gesture
-  // (the user's choice, recorded at `answersAtOnce` in `floating-panel.js`: an answer the
-  // user waits for grows the panel's thread view).
+  // more. This is the one place news may carry what is read without a gesture (the
+  // user's choices, recorded at `answersAtOnce` in `floating-panel.js`, where an answer
+  // the user waits for grows the panel's thread view, and in thread-preview.js's header,
+  // where news lifts a margin card's head as it holds its foot or rises beside its
+  // subject).
   const appendGrowth = (around) => {
     if (around.length !== 3) return [];
     const first = around[0].at,
@@ -3550,10 +3666,12 @@
       // A newer input already dispatched makes this observation an ambiguous
       // endpoint. Retain the native entry for the ordinary frame ledger instead.
       if (renderings.some(({ start }) => start > entry.startTime)) continue;
+      // The population the reading at `at` covers, whether that reading was taken
+      // now or kept from the last complete one.
       const at = read(nativePerformance.now(), false);
       observedPaint.set(entry, {
         at,
-        nodes: everything(),
+        nodes: held,
         motion: frames[frame].motion,
       });
     }

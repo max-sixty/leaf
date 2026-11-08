@@ -60,10 +60,12 @@ const reading = ({
   pageObligations = [],
   threadObligations = [],
   workflows = [],
+  onMe = 0,
 } = {}) => ({
   obligations: [...pageObligations, ...threadObligations],
   thread: { threads },
   workflows,
+  onMe,
 });
 const kinds = (result) => result.news.map((item) => item.kind);
 const responseFailure = (source, kind = "failed") =>
@@ -147,7 +149,7 @@ test("structural questions own their thread obligation and reopening starts a ne
     reopened.news.map(({ kind, thread, source }) => [kind, thread, source]),
     [["user_obligation", "t", "choice"]],
   );
-  assert.equal(said(reopened.news), "New on me");
+  assert.equal(said(reopened.news), "New On Me");
   const queued = combineSemanticNews(first.news, reopened.news);
   assert.equal(queued.length, 4);
   const current = currentSemanticNews(queued, reopenedReading, reopened.observed);
@@ -158,7 +160,7 @@ test("structural questions own their thread obligation and reopening starts a ne
       ["user_obligation", "t", "choice"],
     ],
   );
-  assert.equal(said(current), "2 new on me");
+  assert.equal(said(current), "2 new On Me");
   assert.deepEqual(combineSemanticNews(reopened.news, reopened.news), reopened.news);
   assert.deepEqual(observeSemanticNews(reopened.observed, owed).news, []);
 });
@@ -335,7 +337,10 @@ test("page obligations come from the shown revision, not a waiting activation", 
   const shown = reading({ pageObligations: [item("shown")] });
   const waiting = reading({ pageObligations: [item("waiting")] });
   const selected = semanticNewsReading({
-    effective: { view: { obligations: shown.obligations, thread: shown.thread } },
+    effective: {
+      view: { obligations: shown.obligations, thread: shown.thread },
+      queues: { on_user: [item("shown")] },
+    },
     authoritative: {
       active: { revision: 2 },
       browser: {
@@ -348,6 +353,29 @@ test("page obligations come from the shown revision, not a waiting activation", 
     },
   });
   assert.deepEqual(selected.obligations, [item("shown")]);
+  assert.equal(selected.onMe, 1);
+});
+
+test("a reading that empties On Me says so while the list stays empty", () => {
+  // A list empty from the first reading is no news.
+  const baseline = observeSemanticNews(null, reading());
+  assert.deepEqual(baseline.news, []);
+  const owed = observeSemanticNews(
+    baseline.observed,
+    reading({ pageObligations: [item("only")], onMe: 1 }),
+  );
+  const emptied = observeSemanticNews(owed.observed, reading());
+  assert.deepEqual(kinds(emptied), ["on_me_empty"]);
+  assert.equal(said(emptied.news), "Nothing waiting on me");
+  assert.deepEqual(observeSemanticNews(emptied.observed, reading()).news, []);
+  // A list that fills again before the notice shows takes it back.
+  const refilled = reading({ pageObligations: [item("next")], onMe: 1 });
+  const again = observeSemanticNews(emptied.observed, refilled);
+  const queued = combineSemanticNews(emptied.news, again.news);
+  assert.equal(
+    said(currentSemanticNews(queued, refilled, again.observed)),
+    "New On Me",
+  );
 });
 
 test("a new message speaks for itself, with what it asks of the user", () => {
@@ -380,7 +408,7 @@ test("a new message speaks for itself, with what it asks of the user", () => {
   const both = observeSemanticNews(baseline.observed, more);
   assert.equal(
     said(currentSemanticNews(both.news, more, both.observed)),
-    "Does this answer your question? · New on me",
+    "Does this answer your question? · New On Me",
   );
 });
 
@@ -429,7 +457,7 @@ test("a notice sets the agent's words apart from Leaf's news", () => {
       [" · ", "leaf"],
       ["Not answered", "leaf"],
       [" · ", "leaf"],
-      ["New on me", "leaf"],
+      ["New On Me", "leaf"],
     ],
   );
   const edited = message("m2", { edited: { id: "edit", seq: 2 } });

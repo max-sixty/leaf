@@ -108,7 +108,7 @@ test("read-only fields keep paragraph and list words when Return is pressed", as
  * and pastes as CodeMirror dispatches them, in a view that knows no layout: a vertical
  * step keeps the column on the line beside, carrying it as CodeMirror carries its goal,
  * and stays put at the draft's ends. */
-async function draftField(source, caret = source.length) {
+async function draftField(source, caret = source.length, message = true) {
   const { fieldState } = await loadFieldEditor();
   const { EditorSelection } = await import("/vendor/codemirror.esm.js");
   const view = {
@@ -118,7 +118,7 @@ async function draftField(source, caret = source.length) {
         typed: (_native, insert) => insert(),
         returned: () => true,
         oneLine: () => false,
-        message: () => true,
+        message: () => message,
         revealed: () => {},
         focused: () => {},
         readOnly: false,
@@ -219,6 +219,20 @@ test("a fence is left by typing its marks, or by Down from the draft's last line
   }
 });
 
+test("Down leaves the indented code a body reads", async () => {
+  assert.equal(await loadMarkdown(), true);
+  for (const [source, expected] of [
+    ["Run:\n\n    code", "Run:\n\n    code\n\nafter"],
+    ["> Run:\n>\n>     code\n>     ", "> Run:\n>\n>     code\n> \n> after"],
+    // Code of only spaces, as Shift+Enter and four spaces leave it.
+    ["Run:\n\n    ", "Run:\n\nafter"],
+    ["    ", "    \n\nafter"],
+  ]) {
+    const field = await draftField(source, undefined, false);
+    assert.equal(field.type("↓after"), expected, source);
+  }
+});
+
 test("a paste keeps a fence's marks and its containers", async () => {
   assert.equal(await loadMarkdown(), true);
   for (const [name, source, pasted, expected] of [
@@ -250,5 +264,117 @@ test("a paste keeps a fence's marks and its containers", async () => {
       selection: { anchor: from, head: name.startsWith("over") ? source.length : from },
     });
     assert.equal(field.paste("a\nb"), expected, name);
+  }
+});
+
+// Every draft of one or two blocks built from these parts, written as the blocks a user
+// means the message to hold: prose, or code entered by typing or a paste and left by
+// each way out, in a quote, a list item or neither. Each is typed, and its sent message
+// held to the blocks it meant. Each way into code meets each way out and each block
+// after it, and a failure, named by its keys in the notation of the tables above, is
+// small enough to join one of them.
+const LEAVE = ["```", "```⏎", "⏎```⏎", "```↓", "↓", "⏎↓", "↑↓↓"];
+const PROSE = { kind: "prose", text: "it says:" };
+const CODE = [false, true].flatMap((pasted) =>
+  ["", "py"].flatMap((lang) =>
+    [["Read access to code"], ["Read access to code", "x = 1", "echo hi"]].map(
+      (lines) => ({ kind: "code", lang, lines, pasted }),
+    ),
+  ),
+);
+const DRAFTS = ["", "> ", "- "].flatMap((container) => {
+  const last = [PROSE, ...CODE];
+  const left = CODE.flatMap((code) => LEAVE.map((leave) => ({ ...code, leave })));
+  return [
+    ...last.map((block) => ({ container, blocks: [block] })),
+    ...[PROSE, ...left].flatMap((block) =>
+      last.map((next) => ({ container, blocks: [block, next] })),
+    ),
+  ];
+});
+
+/** The keys that write `draft` (`draftField`, `type`), and the pastes between them. */
+function keysOf({ container, blocks }) {
+  /** @type {({keys: string} | {paste: string})[]} */
+  const steps = [{ keys: container }];
+  blocks.forEach((block, at) => {
+    const next = blocks[at + 1];
+    if (block.kind === "prose") {
+      steps.push({ keys: `${block.text}${next ? "⏎" : ""}` });
+      return;
+    }
+    steps.push({ keys: `\`\`\`${block.lang}` });
+    if (block.pasted) steps.push({ paste: block.lines.join("\n") });
+    else steps.push({ keys: block.lines.map((line) => `⏎${line}`).join("") });
+    if (!next) return;
+    // Backticks typed after closing marks lengthen them, so a new block starts a line.
+    const leave = block.leave === "```" && next.kind === "code" ? "```⏎" : block.leave;
+    steps.push({ keys: leave });
+  });
+  return steps;
+}
+
+// Prose one block after another reads as lines of one: in a paragraph, or in list
+// items Shift+Enter began.
+/** @param {{kind: string, text: string}[]} blocks */
+const joined = (blocks) =>
+  blocks.reduce((out, block) => {
+    const before = out.at(-1);
+    if (block.kind === "prose" && before?.kind === "prose")
+      before.text += `\n${block.text}`;
+    else out.push({ ...block });
+    return out;
+  }, []);
+
+/** The blocks the message renders `source` as, inside its quote or list items. */
+function sentBlocks(source, renderMarkdown) {
+  const body = document.createElement("div");
+  body.innerHTML = renderMarkdown(source);
+  for (const br of body.querySelectorAll("br")) br.replaceWith("\n");
+  const holders = body.querySelectorAll(":scope > blockquote, :scope > ul > li");
+  const blocks = [];
+  for (const holder of holders.length ? holders : [body]) {
+    // A tight list item holds its words with no paragraph around them.
+    for (const node of holder.childNodes) {
+      const code = node.nodeName === "PRE";
+      const text = code ? node.textContent.replace(/\n$/, "") : node.textContent.trim();
+      if (code || text) blocks.push({ kind: code ? "code" : "prose", text });
+    }
+  }
+  return joined(blocks);
+}
+
+test("what a draft's keys meant is what its message holds", async () => {
+  const { loadMarkdown, renderMarkdown } = await import("/runtime/markdown.js");
+  assert.equal(await loadMarkdown(), true);
+  for (const draft of DRAFTS) {
+    const steps = keysOf(draft);
+    const keys = steps
+      .map((step) =>
+        "paste" in step ? `[paste ${JSON.stringify(step.paste)}]` : step.keys,
+      )
+      .join("");
+    const field = await draftField("");
+    let source = "";
+    try {
+      for (const step of steps)
+        source = "paste" in step ? field.paste(step.paste) : field.type(step.keys);
+    } catch (error) {
+      assert.fail(`${keys}\nthrew ${error.stack}`);
+    }
+    const sent = JSON.stringify(sentBlocks(source, renderMarkdown));
+    const meant = JSON.stringify(
+      joined(
+        draft.blocks.map((block) =>
+          block.kind === "code"
+            ? { kind: "code", text: block.lines.join("\n") }
+            : block,
+        ),
+      ),
+    );
+    if (sent !== meant)
+      assert.fail(
+        `${keys}\nleft ${JSON.stringify(source)}\nsent ${sent}\nmeant ${meant}`,
+      );
   }
 });

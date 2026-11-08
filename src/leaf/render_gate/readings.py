@@ -248,7 +248,10 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     unmarkable = evaluate_probe(page, "unmarkableElements")
     missing_threads = []
     retired = []
+    drawn = []
     if context.light:
+        # A drawing's height is scheme-blind; each render reads its own viewport's.
+        drawn = evaluate_probe(page, "drawnHeights")
         # x-thread-seat promises one page view per matching instance. A widget in
         # thread chrome already has the thread's reply surface and threadBox
         # deliberately returns none there. Everywhere else, ask the merged registry
@@ -265,7 +268,12 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     found += map(Finding.read, missing_threads)
     found += map(Finding.read, retired)
     found += context.unsettled
+    found += (Finding.read(height, severity="advice") for height in drawn)
     if context.light:
+        found += (
+            Finding.read(block, severity="advice")
+            for block in evaluate_probe(page, "uncolouredCode")
+        )
         found += _unreduced_motion(page)
     return found
 
@@ -403,9 +411,7 @@ def settle_at(page, width: int, height: int) -> None:
     when the reading is taken.
 
     The motion the resize started is finished first (`finishMoving`, runtime.js), so
-    the reading is the page it ends on. A sidebar's contents map fades its labels out
-    over the column when the window grows wide enough to lay the map in the margin,
-    and a reading mid-fade reported them covering the column's words."""
+    the reading is the page it ends on."""
     page.set_viewport_size({"width": width, "height": height})
     # What the resize set moving in script (an observer, the layout that observer's
     # write causes, and whatever that chains into) has run and been laid out.

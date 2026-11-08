@@ -135,7 +135,7 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
       const owner = await window.__lfWidgetApi();
       const chrome = document.querySelector('.lf-chrome');
       const arrival = document.createElement('button');
-      arrival.className = 'lf-margin-entry';
+      arrival.className = 'lf-margin-face';
       arrival.dataset.lfAgentArrival = '1';
       chrome.append(arrival);
       const cssArrival = getComputedStyle(arrival).animationDuration;

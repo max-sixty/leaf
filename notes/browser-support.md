@@ -89,16 +89,6 @@ The Chromium behavior and interruption contract are covered by
 `test_pointer_tab_underline_moves_without_delaying_the_view` in
 `tests/browser/widgets/test_tabs.py`.
 
-### Scroll-state containers
-
-Firefox 157 and Playwright Firefox and WebKit 26.6 lacked CSS scroll-state
-containers on 2026-10-14. `browser/layouts.css` declares `normal` before
-`scroll-state` so breakout tables keep their intended width in those engines;
-other tables keep the `inline-size` container from
-`browser/styles/components/reading.css`. Recheck table width with
-`test_a_table_of_prose_wraps_inside_its_box_in_every_engine` in
-`tests/browser/test_render_pages.py` before removing the fallback.
-
 ### Baseline content-alignment
 
 Option cards laid across align their titles with `align-content: first baseline`
@@ -236,6 +226,33 @@ closures on 2026-10-21; Firefox 155 closed immediately. Firefox's intrinsic
 interpolation is not near ("Intrinsic block retirement motion" has the bugs,
 checked 2026-10-25). Recheck both capabilities and keyboard access when
 changing this enhancement.
+
+### A short name in a table's first column
+
+`browser/styles/components/reading.css` keeps code in a row's first cell on one
+line up to 20ch or a quarter of its container, with `calc-size()` behind
+`@supports`. Engines without `calc-size()` keep the name breakable anywhere, so
+in a column of short option names beside a column of sentences, `--output-dir`
+reads as `--output-` over `dir`. The table still fits and every name stays
+readable, so this is an accepted visual difference. No fallback caps the
+minimum the same way, since `min()` takes no `max-content`.
+
+On 2026-11-06, Playwright 1.64.1's Firefox 157.0 (build 1555) and WebKit
+(Safari 27.2, build 2370) on Linux reported no `calc-size()` support. On the
+three-row table in the test below, the names `--plugin`, `--dry-run` and
+`--output-dir` took 1, 2 and 3 lines in Firefox at 1600 and 800px and 2, 2
+and 3 at 420px, and 2, 2 and 3 lines in WebKit at all three widths. The Chromium
+headless shell 156.0.8078.4 (build 1248) kept each on one line. Firefox tracks
+`calc-size()` in
+[bug 1896734](https://bugzilla.mozilla.org/show_bug.cgi?id=1896734)
+("Intrinsic block retirement motion" has its status), and WebKit in
+[bug 274177](https://bugs.webkit.org/show_bug.cgi?id=274177).
+
+Recheck by running
+`test_a_short_name_in_a_rows_first_cell_stays_on_one_line` in
+`tests/browser/test_render_gate.py` with `firefox_browser` or `webkit_browser`
+in place of `browser`; it fails while the gap holds. When both engines pass,
+parametrize the test over them.
 
 ### Browser dictation in comment boxes
 
@@ -645,6 +662,29 @@ scroller when a horizontal strip's edge extended just beyond its band.
 Recheck a partly clipped strip's inner and outer scroll offsets before
 replacing Leaf's bounded walk with native reveal.
 
+### A repeated reveal of an anchored fixed box in Chromium
+
+Chromium and WebKit reveal a caret in a `position: fixed` box anchored to page
+content by scrolling the page, which carries the box, and Chromium reveals the
+box itself the same way (`scrollIntoView`, focus). Playwright Chromium
+156.0.8078.4 (build 1248), on 2026-11-05, scrolled the page again for each such
+reveal made before the next frame, as if the first had not moved the box. Give
+a 4000px body an absolutely positioned anchor at `top: 2000px`, a 20px fixed
+box at `top: anchor(top)` through `position-anchor`, and the root
+`scroll-padding-bottom: 100px`; scroll the anchor 830px down an 860px window
+and call `scrollIntoView({block: "nearest"})` on the box. One call scrolled
+90px, two 180px and three 270px. Typing four keys back to back into such a
+box's contenteditable at the window's foot scrolled 240px where one key
+scrolled 60px. Playwright WebKit 27.2 (build 2370) scrolled 0px for the calls
+and 60px for the keys, however many; Playwright Firefox 157 (build 1555)
+reveals no fixed box through the page.
+
+In Leaf the root drops its scroll padding while the user writes in a floating
+box (`base.css`, `data-lf-floating-editor`), so only a caret outside the window
+is revealed, and each key that lands in the same frame adds another reveal's
+scroll; #5417 accepted that overshoot. Recheck the three calls in Chromium; a
+90px scroll means the gap has closed.
+
 ### `calc()` in `overflow-clip-margin` in Chromium
 
 Playwright Chromium 153.0.8010.12 rejected `overflow-clip-margin: calc(2px + 5px)`
@@ -812,3 +852,105 @@ placement stood it; Firefox's blur still leaves focus on `body` after Back.
 and Firefox. To recheck, intercept a traversal with `scroll: "manual"`, scroll in the
 handler, and read the offset after `popstate`; once Firefox keeps the handler's offset
 and neither engine reveals or scrolls to the target, that step can go.
+
+### Highlight hit testing
+
+`CSS.highlights.highlightsFromPoint(x, y, {shadowRoots})` (CSS Custom Highlight API)
+names the highlights under a point and the ranges of each there, and Playwright's
+Chromium headless shell 156.0.8078.4, Firefox 157 and WebKit 27.2 all ship it. On
+2026-11-05 it answered correctly at a range's edges and inside a shadow tree passed in
+`shadowRoots`, which it needs in every engine. Two things keep a thread's passage
+marks from using it to say which mark the pointer is on
+(`browser/runtime/annotation-overlay/anchor-paint.js`, `markHit`):
+
+- Its cost grows with the ranges the page's highlights hold, every one of them read
+  on each call. At the last of a paragraph's marks, one call took 20 µs at 32 and
+  320 µs at 512 in Chromium, and 15 µs and 100 µs in Firefox. Read again on
+  2026-11-06 over a mark in the middle of a page of 32 and of 512 paragraphs, one
+  thread each, it took 15 µs and 235 µs in Chromium 156.0.8078.4 and 15 µs and 80 µs
+  in Firefox 157, against 1 µs and 5 µs for `caretPositionFromPoint` at both sizes.
+  A hover's work must not grow with the page (root `AGENTS.md`, "Responsiveness").
+- Firefox and WebKit name a highlight under a box covering its words, as the chrome
+  over the page is; Chromium names none there.
+
+So `markHit` takes the caret lookup's text node and offset, reads the one or two
+characters' boxes around the offset, and finds the marks covering that character in
+an index of the marks' live ranges, the ones the highlight paints. After a change to
+the page's words, anchor placement places again only the threads whose quotes the
+page's index of quotes says changed (passages.js, `quotesChanged`), and the index reads
+again only those threads' ranges. Recheck by timing
+`highlightsFromPoint` over a mark on pages of 32 and 512 marks, and at a point under a
+covering box; once its cost holds still and every engine names nothing under a cover,
+`markHit` can ask it instead of keeping its own index.
+
+### A popover's implicit anchor after a hide and show in one task in Firefox
+
+Firefox bug. On 2026-11-05, Playwright Firefox 157 (build 1555, macOS), in a fresh
+context with no Leaf code, stood a popover by the source it was last shown with when it
+was hidden and shown again by another source in one task
+(`showPopover({source: b})`): it stood by `a`. A frame between the hide and the show
+stood it by `b`, as did any change to the popover itself before the show, such as its
+words. Chromium 156.0.8078.4 (headless shell build 1248) stood it by `b` every time. On
+this page the manual and auto popovers stand 380 px off and the hint one, there, did not;
+on a Leaf page the hint one does:
+
+```html
+<style>
+  .tip {
+    position: fixed;
+    inset: auto;
+    margin: 0;
+    position-anchor: auto;
+    position-area: block-end span-inline-end;
+  }
+  button {
+    position: fixed;
+  }
+</style>
+<button id="a" style="left: 20px; top: 20px">A</button>
+<button id="b" style="left: 400px; top: 200px">B</button>
+<div class="tip" popover="manual">Words</div>
+<script type="module">
+  const tip = document.querySelector(".tip");
+  tip.showPopover({ source: a });
+  await new Promise(requestAnimationFrame);
+  tip.hidePopover();
+  tip.showPopover({ source: b }); // with a frame before this line, it stands by B
+  await new Promise(requestAnimationFrame);
+  console.log(tip.getBoundingClientRect().left - b.getBoundingClientRect().left);
+</script>
+```
+
+The preview (`browser/runtime/preview.js`, `open`) is one popover a warm switch hides
+and shows again by its next target in one task, so two targets with the same words in
+turn would stand the second preview by the first. Where a new source comes with the
+words the last one had, it moves the preview to the other side of a sibling, its
+stage's mark, which re-lays it out and which the page's write watch reads as a change,
+as a re-insertion at the same place it would not. To recheck, run the page in Firefox;
+once it logs 0, drop the move in `open`.
+
+### A touch long press in WebKit
+
+WebKit gap. A WebKit touch engine, iOS and iPadOS Safari and every iOS browser, sends no
+event as a touch press becomes a long press: no `contextmenu`
+([WebKit bug 213953](https://bugs.webkit.org/show_bug.cgi?id=213953), open, its last
+comment 2026-03-28), where Chromium on Android sends one at the long-press timeout the
+user set and Gecko on Android one at its own. Read in WebKit's source at main 58fe6ea4b
+(2026-11-05), `Source/WebKit/UIProcess/ios/WKContentViewInteraction.mm`: the long press
+WebKit recognizes is UIKit's, at 0.12 s for its highlight (`highlightDelay`, line 539)
+and 0.75 s for its sheet (`tapAndHoldDelay`, line 540), and neither reaches the page as
+an event. The highlight one, enabled only where an app uses no context menus or allows no
+link previews (line 1849), sends a click when the touch ends, however long it was held
+(lines 3787–3790), unless a touch event the page cancelled cleared it (lines
+2496–2502). Safari uses context menus, so its click after a long hold is UIKit's tap
+recognizer's to give, which WebKit sets no duration on.
+
+So a held finger reads a preview (`browser/runtime/preview.js`, the hold) at
+`contextmenu` where the engine sends it, and after 500 ms, UIKit's default for a long
+press, where `GestureEvent` says the engine is WebKit, which exposes it in desktop
+Safari too, where only a touch starts a hold and no touch comes; the touch's end is
+cancelled there as everywhere, which stops WebKit's own click. The cost: on iOS a press
+held past 500 ms reads rather than presses whatever the user set in Touch
+Accommodations, which no page can read. To recheck, hold a finger on an element with a
+`contextmenu` listener in Safari on an iPhone or the simulator; once it logs, drop the
+timer and `holdsUntold` in `preview.js`.

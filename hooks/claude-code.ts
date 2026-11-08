@@ -2,7 +2,8 @@
  * Leaf's Claude Code hooks module: the band above the prompt that shows the
  * session's pages, the drawing of Leaf's own rows in the conversation, the fork
  * of the conversation Leaf's clerk asks at each turn's end (`clerk`), and the
- * fork that answers a thread's waiting messages at once (`forkReply`). Claude
+ * fork that writes the agent's working line on a thread's waiting messages at
+ * once (`forkReply`). Claude
  * Code loads it from the installed plugin (measured at 2.1.305). It neither
  * watches nor wakes the session: `hooks.json`'s background Stop registration
  * keeps the watch between turns. A watch here would wake with a prompt, which
@@ -54,7 +55,7 @@
  * --if-claimed --pages`) prints that list whenever it changes and exits once the
  * session holds no page; the launcher answers it without starting uv in a session
  * holding none. It is also the session's forks lane (`src/leaf/forks.py`): each
- * page it lists carries the threads Leaf holds for a fork to answer. The session
+ * page it lists carries the threads Leaf holds for a fork's line. The session
  * takes a page only through a `leaf` command, so the
  * module starts the follower as the session starts, after each Bash call that
  * runs `leaf`, and as a turn starts or a main-loop turn ends, once none is
@@ -77,7 +78,7 @@ import type {
 let claudePid = "";
 // Whether the user reached this machine over SSH, read once by the band.
 let remote: boolean | undefined;
-// Whether a fork answers held thread messages (`forkReply`), read once with Claude
+// Whether a fork writes held thread messages' line (`forkReply`), read once with Claude
 // Code's process: `LEAF_FORK_REPLIES=off` in Claude Code's environment leaves every
 // message to the session, as the claude-code journey's delivery steps need.
 let repliesFork = true;
@@ -395,14 +396,15 @@ const NAMED = ["command", "description", "file_path", "pattern", "url", "prompt"
 // The held threads a fork has been made for, by page, thread and newest message.
 const replied = new Set<string>();
 
-/** Fork the conversation to answer a held thread's waiting messages, or hand them
- * to the session (`src/leaf/forks.py`, whose header holds the states a thread
- * moves through). Leaf writes the prompt and checks again that the thread is
- * held; the module adds the calls the session is running, makes the fork, and
- * hands back the answer, or the failure, which hands the thread over. Forks for
+/** Fork the conversation for the agent's working line on a held thread's waiting
+ * messages, which Leaf posts before it hands them to the session
+ * (`src/leaf/forks.py`, whose header holds the states a thread moves through).
+ * Leaf writes the prompt and checks again that the thread is held; the module
+ * adds the calls the session is running, makes the fork, and
+ * hands back the line, or the failure, which hands the thread over. Forks for
  * different threads run side by side, and the follower lists a held thread until
  * its fork decides, so each is made once. Its outcomes go to the debug log and the
- * page's diagnostics, since the user meets the reply only as the agent's. */
+ * page's diagnostics, since the user meets the line only as the agent's. */
 function forkReply($: EngineInterface, session: string, held: Held) {
   const key = `${held.page} ${held.thread} ${held.inputs.at(-1)}`;
   if (replied.has(key)) return;
@@ -552,7 +554,7 @@ export const register: Register = (on) => {
       );
       const counts = [
         ...(on_user
-          ? [dim(" · "), h(Text, { color: "warning" }, `On me ${on_user}`)]
+          ? [dim(" · "), h(Text, { color: "warning" }, `On Me ${on_user}`)]
           : []),
         // A resolved thread can still hold unread words.
         ...(threads.open || threads.unread ? [dim(` · Threads ${threads.open}`)] : []),

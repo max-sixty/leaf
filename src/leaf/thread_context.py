@@ -11,6 +11,7 @@ from leaf.events import (
     build_threads,
     conversation_turns,
     event_coordinate,
+    progress_completions,
     retractions,
     taken_back,
 )
@@ -499,11 +500,18 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         # Keep the newest exchange verbatim. The suggested range is one exact,
         # contiguous uncovered run before it, so following the hint can never hide
         # a new message or create a summary on top of one already in force.
+        # Completed progress is not drawn, so a run folds it; pending
+        # progress is still being said, so a run stops at it. The earliest run that
+        # qualifies is suggested, so a summary never leaves older discussion in
+        # full above it when an older run would do.
         prefix = {message["id"] for message in conversation_turns(threads[t])[:-2]}
+        completed = progress_completions(threads[t])
         runs = []
         run = []
         for message in threads[t]["msgs"]:
-            if message["id"] in covered or message.get("ephemeral"):
+            if message["id"] in covered or (
+                message.get("ephemeral") and message["id"] not in completed
+            ):
                 if run:
                     runs.append(run)
                     run = []
@@ -511,16 +519,18 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
                 run.append(message)
         if run:
             runs.append(run)
-        candidates = [
-            run
-            for run in runs
-            if len(run) >= 2
-            and (
-                len(run) >= 4
-                or sum(len(message.get("text", "")) for message in run) >= 2000
-            )
-        ]
-        candidate = max(candidates, key=len, default=[])
+        candidate = next(
+            (
+                run
+                for run in runs
+                if len(run) >= 2
+                and (
+                    len(run) >= 4
+                    or sum(len(message.get("text", "")) for message in run) >= 2000
+                )
+            ),
+            [],
+        )
         if candidate:
             # The range only: what the agent does with it is a `handling` clause.
             digest["summary_hint"] = {

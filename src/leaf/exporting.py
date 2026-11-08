@@ -1,9 +1,25 @@
 """A captured revision as one HTML file that opens offline.
 
 The export packages the captured revision, its resources, the exporting Leaf's
-runtime (`runtime_selection`), and the page's authoritative state reading, which that
-runtime reads, into one file. Neighboring live pages are omitted: their access URLs
-grant machine-wide server access and have no place in an offline record.
+runtime (`runtime_selection`), and a state reading of the page, which that runtime
+reads, into one file. Neighboring live pages are omitted: their access URLs grant
+machine-wide server access and have no place in an offline record.
+
+An export goes to people who shouldn't see what the user and the agent said to each
+other, so the file holds the page and none of the conversation. Its reading is folded
+from `_page_log`, the part of the log that changes the page, with no process facts
+(`capture_page_snapshot`'s `process`). Threads, obligations, queues, to-dos, activity
+and history are all readings of that log, so none of them has a message to carry, and
+a new kind of event stays out until `_page_log` names it. A widget in a message can
+bind a data source and an image can be attached to a message, so the file holds only
+the data the page's own markup binds (`_page_data`) and the media that markup and data
+name.
+
+Two other designs were rejected. Exports used to embed the threads and turn their
+surface off, which hid the discussion from the page's reader and left it readable in
+the file's source. Showing the threads read-only would put the discussion in front of
+the same people.
+
 Its resource owner allocates one object URL per embedded body before handing the
 composed document to the native HTML parser; Leaf's normal
 runtime then boots from that document. The normal composer also supplies the
@@ -36,7 +52,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from leaf.data import deferred_fields
+from leaf.data import deferred_fields, read_data
+from leaf.data_contracts import data_bindings
 from leaf.files import (
     published_versions,
     version_name,
@@ -44,6 +61,7 @@ from leaf.files import (
 )
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.refusals import Refused
+from leaf.registry.kernel import verb_writers
 from leaf.revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -64,7 +82,6 @@ from leaf.runtime_selection import executing
 from leaf.served_state.service import PageStateService
 from leaf.service import PageTransaction
 from leaf.structure import UTF8_BOM, SourceDocument
-from leaf.thread_context import logged_fragment
 
 ResourceReader = Callable[[str], Resource]
 
@@ -251,19 +268,19 @@ class ReadableAssets(_Assets):
 
 
 def _module_urls(
-    artifact: RevisionArtifact, markup: list[SourceDocument], inliner: AssetInliner
+    artifact: RevisionArtifact, document: SourceDocument, inliner: AssetInliner
 ) -> dict[str, str]:
     """Embed the module graph this file can reach, and no other module.
 
     The computed imports an exported page makes are widget modules, asked for only
     where the widget's tag stands in markup about to be upgraded (`importWidgets` in
-    `runtime/widget-loader.js`). Offline that markup is the captured page and the frozen
-    markup its messages carry, since the embedded reading never activates another
-    revision. Every other import is literal, so the runtime entry, the page's own
-    modules, and the modules of the widgets that markup names close the graph: a page
-    that draws no diff carries no diff renderer.
+    `runtime/widget-loader.js`). Offline that markup is the captured page, since the
+    embedded reading never activates another revision and holds no message. Every
+    other import is literal, so the runtime entry, the page's own modules, and the
+    modules of the widgets its markup names close the graph: a page that draws no diff
+    carries no diff renderer.
     """
-    tags = {record["tag"] for document in markup for record in document.lf_elements}
+    tags = {record["tag"] for record in document.lf_elements}
     required = {f"/widgets/{tag}.js" for tag in tags}
     widgets = {
         alias: source
@@ -290,6 +307,50 @@ def _module_urls(
         source = bind_imports(resource.data, imports, lambda path: f"leaf:{path}")
         urls[path] = inliner.embed(Resource(source, resource.mime))
     return urls | {alias: urls[path] for alias, path in widgets.items()}
+
+
+def _page_log(events: list[dict]) -> list[dict]:
+    """The log an export's reading folds (the module header): each action and report on
+    a page widget (`verb_writers`), each undo of one, and each stamp, which maps a
+    version to its revision and names the decisions it takes back.
+
+    A widget frozen into a message belongs to its thread, so the file leaves its actions
+    out with the thread. A stamp's changelog is the agent's words to the user, so a
+    blank replaces it, since the record's schema requires text. An event's `session`
+    names the agent's session, and the page has no use for it.
+    """
+    widget_state = {
+        event["id"]
+        for event in events
+        if event["kind"] in verb_writers() and event["meaning"]["scope"] == "page"
+    }
+    page_log = []
+    for event in events:
+        if event["kind"] == "note":
+            event = {**event, "text": " "}
+        elif not (event["id"] in widget_state or event.get("undoes") in widget_state):
+            continue
+        page_log.append(
+            {key: value for key, value in event.items() if key != "session"}
+        )
+    return page_log
+
+
+def _page_data(page_dir: Path, document: SourceDocument, registry: dict) -> dict:
+    """The stored data the file holds (the module header): each source `document`
+    binds, which leaves out a source only a message's widget or an earlier revision
+    binds. A widget a page's script creates finds its source only if the page's markup
+    binds it too."""
+    stored = read_data(page_dir, registry)
+    bound = {source for *_, source in data_bindings(document.lf_elements, registry)}
+    return {
+        **stored,
+        "sources": {
+            source: reading
+            for source, reading in stored["sources"].items()
+            if source in bound
+        },
+    }
 
 
 def export_document(
@@ -322,7 +383,6 @@ def export_document(
     }
     state = {
         **state,
-        "others": [],
         "data": {
             **state["data"],
             "sources": {
@@ -347,18 +407,7 @@ def export_document(
     ]
     while any(inliner.prefix in text for text in authored_text):
         inliner.prefix = f"urn:leaf-resource:{uuid.uuid4().hex}:"
-    modules = _module_urls(
-        artifact,
-        [
-            document,
-            *(
-                logged_fragment(event)
-                for event in state["events"]
-                if event.get("markup")
-            ),
-        ],
-        inliner,
-    )
+    modules = _module_urls(artifact, document, inliner)
     embedded_resources = {
         path: inliner.address(path)
         for path, resource in resources.items()
@@ -478,7 +527,7 @@ def cmd_export(
     Draft export activates source through the same check as a live page, preserving
     decisions and reanchors without adding a version checkpoint. Selection and the
     authoritative snapshot share one page transaction. The file has no host command
-    or transport capability.
+    or transport capability, and no conversation (the module header).
     """
     if draft and version is not None:
         raise Refused("--draft and --version cannot be used together")
@@ -513,7 +562,15 @@ def cmd_export(
             )
         artifact = executing(read_artifact(page_dir, revision))
         snapshot = capture_page_snapshot(
-            page_dir, document, revision, url=url, artifact=artifact, transaction=page
+            page_dir,
+            document,
+            revision,
+            url=url,
+            artifact=artifact,
+            transaction=page,
+            process=False,
+            log=_page_log(page.events),
+            data=_page_data(page_dir, document, artifact.registry),
         )
     state = PageStateService(
         page_dir,

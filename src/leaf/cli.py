@@ -745,7 +745,8 @@ def export(page_dir: Path, out: Path, version: int | None, draft: bool) -> dict:
     The result names the captured revision in either mode.
 
     The file runs the page's own runtime against its captured state, with no Leaf
-    server or host behind it.
+    server or host behind it. It holds the page and the decisions recorded on its
+    widgets, and nothing of the conversation: no threads, to-dos, plan or changelogs.
     """
     from leaf.exporting import cmd_export
 

@@ -189,8 +189,6 @@ def read_and_tell(page_dir: Path) -> bool:
     if lease is None:
         return False
     try:
-        signal.alarm(DEADLINE_S)
-        os.nice(NICENESS)
         activate_source(page_dir)
         revision = latest_revision(page_dir)
         before = read_reading(page_dir)
@@ -202,6 +200,18 @@ def read_and_tell(page_dir: Path) -> bool:
     finally:
         release_lease(lease)
     return True
+
+
+def cmd_read(page_dir: Path) -> None:
+    """`leaf page _read`, the process a server starts for each reading
+    (`HandoverPass._read`): it reads at `NICENESS`, its own alarm ends it at
+    `DEADLINE_S`, and it exits `BUSY` where another reading holds the lease. Both
+    settings last as long as the process, so only this process makes them: an alarm
+    left armed in another caller of `read_and_tell` would end it `DEADLINE_S` later."""
+    signal.alarm(DEADLINE_S)
+    os.nice(NICENESS)
+    if not read_and_tell(page_dir):
+        sys.exit(BUSY)
 
 
 def _read_and_tell(page_dir: Path, before: dict | None) -> None:

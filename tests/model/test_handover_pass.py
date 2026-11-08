@@ -3,7 +3,6 @@ once, one reading at a time on the machine, a failure wakes the agent, and advic
 with what next reaches it."""
 
 import json
-import os
 import signal
 import subprocess
 from pathlib import Path
@@ -214,7 +213,6 @@ def test_a_server_started_again_mid_reading_reads_nothing_twice(claimed, monkeyp
         raise AssertionError("read a version a reading had read")
 
     monkeypatch.setattr("leaf.validation.command.cmd_check", read_again)
-    monkeypatch.setattr(os, "nice", lambda _increment: 0)
     assert handover_pass_model.read_and_tell(claimed) is True
     assert [e for e in events_of(claimed) if e["kind"] == "render"] == []
 
@@ -264,7 +262,6 @@ def told(claimed, monkeypatch):
             "leaf.validation.command.cmd_check",
             lambda page_dir, **_options: leave_reading(page_dir, findings),
         )
-        monkeypatch.setattr(os, "nice", lambda _increment: 0)
         handover_pass_model.read_and_tell(claimed)
         return [e for e in events_of(claimed) if e["kind"] == "render"]
 
@@ -373,7 +370,6 @@ def test_a_save_past_the_version_read_leaves_its_findings_to_the_next_reading(
         save(page_dir, "moved on")
 
     monkeypatch.setattr("leaf.validation.command.cmd_check", moved_on)
-    monkeypatch.setattr(os, "nice", lambda _increment: 0)
     handover_pass_model.read_and_tell(claimed)
     assert [e for e in events_of(claimed) if e["kind"] == "render"] == []
 

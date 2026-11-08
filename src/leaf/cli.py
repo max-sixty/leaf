@@ -535,12 +535,10 @@ def check(page_dir: Path, render: bool) -> Reported:
 @page.command("_read", hidden=True)
 @page_argument(renew=False)
 def _read(page_dir: Path) -> None:
-    """Private child process of a page's server (`render_gate.handover_pass`), which
-    exits `BUSY` where another reading holds the lease."""
-    from leaf.render_gate.handover_pass import BUSY, read_and_tell
+    """Private child process of a page's server (`render_gate.handover_pass`)."""
+    from leaf.render_gate.handover_pass import cmd_read
 
-    if not read_and_tell(page_dir):
-        sys.exit(BUSY)
+    cmd_read(page_dir)
 
 
 @page.command(

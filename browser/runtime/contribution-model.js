@@ -47,14 +47,7 @@ const entryRecords = new WeakSet();
 export const isContributionEntry = (entry) =>
   entry !== undefined && entryRecords.has(entry);
 
-export const CONTRIBUTION_ENTRY_SCHEMA = Object.freeze({
-  tones: Object.freeze(Object.keys(TONES)),
-  behaviors: Object.freeze(Object.keys(BEHAVIORS)),
-  states: Object.freeze(Object.keys(STATE_PRIORITY)),
-  ranks: Object.freeze(Object.keys(RANK_PRIORITY)),
-});
-
-const ENTRY_OPTIONS = new Set([
+const ENTRY_OPTION_NAMES = Object.freeze([
   "key",
   "glyph",
   "action",
@@ -78,6 +71,15 @@ const ENTRY_OPTIONS = new Set([
   "title",
   "scope",
 ]);
+const ENTRY_OPTIONS = new Set(ENTRY_OPTION_NAMES);
+
+export const CONTRIBUTION_ENTRY_SCHEMA = Object.freeze({
+  tones: Object.freeze(Object.keys(TONES)),
+  behaviors: Object.freeze(Object.keys(BEHAVIORS)),
+  states: Object.freeze(Object.keys(STATE_PRIORITY)),
+  ranks: Object.freeze(Object.keys(RANK_PRIORITY)),
+  options: ENTRY_OPTION_NAMES,
+});
 // What a contribution reading or contribution is, and the face and word it wears. A
 // kind whose word is Leaf's account of an update on its way to the agent says so in
 // its `voice`, as each of its receipts does alone (`workflowWord`).

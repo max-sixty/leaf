@@ -53,7 +53,7 @@ def _refreshes_restate_no_margin_name(page, population):
     its own reading: a watched attribute that ends the pass somewhere new repaints
     the page's keys, and that is a change rather than a restatement.
 
-    Every row lives in the margin layer, whatever it holds, and `syncInlineOffers`
+    Every row lives in the margin layer, whatever it holds, and `inline-contributions.js`
     builds another host in place wherever an offer's target stands in chrome. So
     the watch is rooted at the layer, the Map door, the inline hosts, and the page's
     boxes. The reach is asserted the way the

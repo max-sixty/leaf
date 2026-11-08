@@ -519,7 +519,8 @@ export function createUndo({
   }
 
   // The press a notice of the gesture made under `attempt` offers (notifications.js,
-  // `press`), as a Resolve's "Resolved “…”" offers Undo (thread/folding.js). It takes
+  // `press`), as a Reopen's notice, or a Resolve's that leaves no thread open, offers
+  // Undo (thread/folding.js, `nextStep`). It takes
   // back that gesture as `z` takes the list's head, never what `z` would take by then,
   // and stands while the page can still take the gesture back, so the log refusing it,
   // or its withdrawal by any route, takes the notice away.

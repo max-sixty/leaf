@@ -104,7 +104,6 @@ nothing binds the two today. An `lf-draft` records each `edit` of its body and
 after Send but before the agent acts leaves the approved wording unnamed. A feed
 needs its approval to name the text it approves.
 
-Related open work:
-[issue #4058](https://github.com/max-sixty/leaf/issues/4058),
-"Explore independent jobs", asks who owns and
-continues a job's result; a feed's background pass is one such job.
+Related open work: `notes/threads.md`, "Independent jobs, delegation, and
+continuation", asks who owns and continues a job's result; a feed's background
+pass is one such job.

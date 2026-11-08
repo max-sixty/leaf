@@ -99,9 +99,11 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
 def test_words_typed_over_formatted_words_replace_them_in_firefox(
     firefox_browser, serve
 ):
-    """Typing over a selection replaces it when the selection crosses formatting. In a
-    shadow root, Firefox inserted the words beside such a selection and left it in
-    place (field-editor.js, `beforeinput`)."""
+    """Typing over a selection replaces it when the selection crosses formatting, and
+    so do an input method's words. In a shadow root, Firefox inserted typed words beside
+    such a selection and left it in place, and dropped a composition begun over it
+    (field-editor.js, `beforeinput`). Playwright's `insert_text` reaches Firefox as a
+    composition."""
     page = open_page(firefox_browser, serve(LONG_PAGE), init_script=MARGIN_EDITOR_ROOTS)
     box = page_comment(page)
     page.keyboard.type("aa **bold** zz")
@@ -109,15 +111,16 @@ def test_words_typed_over_formatted_words_replace_them_in_firefox(
         "box => window.marginEditorRoots.get(box)?.querySelector('.cm-content strong')",
         arg=box.element_handle(),
     )
-    for select in (["ControlOrMeta+a"], ["End", *["Shift+ArrowLeft"] * 5]):
-        for key in select:
-            page.keyboard.press(key)
-        page.keyboard.type("Q")
-        expect(box).to_have_js_property(
-            "value", "Q" if len(select) == 1 else "aa **boldQ"
-        )
-        page.keyboard.press("ControlOrMeta+z")
-        expect(box).to_have_js_property("value", "aa **bold** zz")
+    for put in (page.keyboard.type, page.keyboard.insert_text):
+        for select in (["ControlOrMeta+a"], ["End", *["Shift+ArrowLeft"] * 5]):
+            for key in select:
+                page.keyboard.press(key)
+            put("Q")
+            expect(box).to_have_js_property(
+                "value", "Q" if len(select) == 1 else "aa **boldQ"
+            )
+            page.keyboard.press("ControlOrMeta+z")
+            expect(box).to_have_js_property("value", "aa **bold** zz")
 
 
 def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, serve):
@@ -665,28 +668,29 @@ def test_a_focused_box_that_holds_lines_says_which_key_makes_one(browser, serve)
 
     field = page.locator("#jobs > .lf-another leaf-text")
     field.click()
-    expect(field).to_have_attribute("placeholder", "Add another option ⏎")
+    expect(field).to_have_attribute("placeholder", "Add another option… ⏎")
     shown = field.locator(".lf-compose-placeholder").evaluate(PLACEHOLDER_SHOWN)
-    assert shown["parts"] == ["Add another option", "⏎"], shown
+    assert shown["parts"] == ["Add another option…", "⏎"], shown
 
 
 def test_a_narrow_box_shortens_its_label_before_its_keys(browser, serve):
-    """Where a box is narrow, its label shortens first and both keys stay, and nothing
-    the placeholder shows stands on the field's actions: the panel's page comment, and
-    a seat's box, whose actions stand in its corner."""
+    """Where a box is narrow, its label shortens first and its keys stay, and nothing
+    the placeholder shows stands on the field's actions: the panel's page comment,
+    whose Comment… leaves room for both keys at a phone's width, and a seat's box,
+    whose actions stand in its corner and whose label shortens there."""
     context = browser.new_context(viewport={"width": 320, "height": 700})
     page = open_page(browser, serve(SEATED_OBLIGATION_PAGE), context=context)
     page_comment(page)
     hint = page.locator(".lf-fp-field .lf-compose-placeholder")
     shown = hint.evaluate(PLACEHOLDER_SHOWN)
-    assert shown["shortened"] and NEW_LINE.fullmatch(shown["parts"][-1]), shown
+    assert NEW_LINE.fullmatch(shown["parts"][-1]), shown
     assert not shown["covers"], shown
 
     seat = page.locator('.lf-thread-seat[data-lf-thread-seat="jobs"] leaf-text')
     seat.click()
     expect(seat).to_be_focused()
     shown = seat.locator(".lf-compose-placeholder").evaluate(PLACEHOLDER_SHOWN)
-    assert "⏎" in shown["parts"], shown
+    assert shown["shortened"] and "⏎" in shown["parts"], shown
     assert not shown["covers"], shown
 
 

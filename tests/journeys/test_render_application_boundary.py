@@ -4,7 +4,6 @@ import pytest
 from browser.test_render_application_boundary import (
     PAGE_MODULE,
     activation_page,
-    package_workspace,
 )
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -12,6 +11,7 @@ from render_cases_interaction import (
     LIVE_V1,
     LIVE_V2,
     live_url,
+    package_workspace,
 )
 from render_harness import (
     before_landing_frame,
@@ -75,7 +75,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
         told(page)
 
         assert page.evaluate("performance.timeOrigin") == first_document
-        expect(page).to_have_title("Live first")
+        expect(page).to_have_title("(1) Live first")
         expect(focused_control).to_be_focused()
         assert len(held) == 1
 
@@ -267,11 +267,10 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
             "Control+Enter"
         )
     expect(workspace.get_by_text("A shared draft", exact=True)).to_be_visible()
-    # One reply answers both questions; the separate proofread task remains due.
-    # Counts include them, while the compact answer summary names only widget
-    # choices instead of repeating words.
+    # One reply answers both questions. Counts include them, while the compact
+    # answer summary names only widget choices instead of repeating words.
     expect(workspace.locator(".counts")).to_have_text(
-        "1 waiting on me · 3 answered · Email"
+        "0 waiting on me · 3 answered · Email"
     )
     with sending(page, "create a real conversation from a package"):
         workspace.get_by_role("textbox", name="New conversation").fill(

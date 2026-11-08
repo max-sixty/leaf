@@ -29,7 +29,7 @@
  * Back does after a followed link. Leaf once let a run of steps share one entry while
  * the last landing still showed, so one Back undid a whole `t` or `m` walk. That skipped
  * the item a step left: after `t` then `m`, Back passed over the thread, and once the
- * user answered an obligation, which takes it out of On me, neither Back nor Shift+m
+ * user answered an obligation, which takes it out of On Me, neither Back nor Shift+m
  * returned to it. Limiting the sharing to one walk still missed the second case, so no
  * steps share an entry. A fragment link's
  * navigation step (`followFragment`) uses the history entry the browser added for the link as
@@ -53,17 +53,22 @@ import {
 } from "./anchor-resolution.js";
 import { placeHolder, showsContents } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
-import { renderedParent } from "./shadow-tree.js";
+import { renderedParent, under } from "./shadow-tree.js";
 import { nextFrame } from "./rendering.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
 import { prepareEntry, replaceEntry } from "./history.js";
 import { pageScroller, stopScroll } from "./scrolling.js";
-import { alreadyShown, landedBox, scrollIntoView } from "./landing-scroll.js";
+import {
+  alreadyShown,
+  fitsWhole,
+  landedBox,
+  scrollIntoView,
+} from "./landing-scroll.js";
 import { reveal } from "./widget-elements.js";
 import { threadNamed } from "./thread/state.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
-import { rangeOf } from "./passages.js";
+import { passageStart, rangeOf } from "./passages.js";
 import { livePoint } from "./pointed-place.js";
 import { notice } from "./notifications.js";
 
@@ -254,7 +259,9 @@ export function createAnchorTravel({
                 {
                   at: current.where,
                   behavior: "instant",
-                  when: () => !alreadyShown(current.where) || !alreadyShown(input),
+                  when: () =>
+                    !alreadyShown(current.where, { block: "center" }) ||
+                    !alreadyShown(input),
                 },
                 // The subject and editor can occupy different parts of a tall
                 // page. Finish on the box the user asked to write in.
@@ -291,12 +298,16 @@ export function createAnchorTravel({
   // arrival region), built on the reading it is handed.
   /** @param {URL} [url] @returns {NavigationStep} */
   function prepareNavigationStep(url) {
+    // Travel lands a destination at its start or centre, alike for one taller than its
+    // room, so it is already there where that landing would move nothing.
+    /** @param {Destination} where */
+    const travelShown = (where) => alreadyShown(where, { block: "start" });
     const write = prepareEntry();
     /** @type {boolean | undefined} */
     let moving;
     return {
       plan(where, { there } = {}) {
-        moving = !(where && (there ? there(alreadyShown) : alreadyShown(where)));
+        moving = !(where && (there ? there(travelShown) : travelShown(where)));
         return moving;
       },
       commit() {
@@ -417,7 +428,13 @@ export function createAnchorTravel({
           where && {
             where,
             focus: focus ? where : null,
-            scroll: [{ at: where, block: "start", when: () => !alreadyShown(where) }],
+            scroll: [
+              {
+                at: where,
+                block: "start",
+                when: () => !alreadyShown(where, { block: "start" }),
+              },
+            ],
           }
         );
       },
@@ -508,6 +525,14 @@ export function createAnchorTravel({
     const { replacedView } = reveal(holder, retainUserIntent());
     placeScroll({ at: where, behavior }, replacedView);
   }
+  // A passage is scrolled to where its words start (passages.js, `passageStart`), as a
+  // thread is travelled to (`threadDestination`): a search's match, the comment box
+  // brought back to its passage.
+  /** @param {readonly import("./passages.js").Segment[]} segments @param {ScrollBehavior} [behavior] */
+  function scrollToPassage(segments, behavior = scrollBehavior()) {
+    const start = passageStart(segments);
+    if (start.length) scrollToRange(rangeOf(start), behavior);
+  }
 
   // Hydration may outlive its gesture. After it settles, validate the retained intent
   // and synchronously repaint before reading placement. The second refresh after reveal
@@ -520,9 +545,9 @@ export function createAnchorTravel({
   /** @param {string} id */
   const threadDestination = (id) => {
     const placement = anchors.placedAt(id);
-    const segment = targetSegments(placement)[0];
-    const where = segment
-      ? rangeOf([segment])
+    const start = passageStart(targetSegments(placement));
+    const where = start.length
+      ? rangeOf(start)
       : (targetElement(placement) ?? targetPlace(placement));
     return (
       livePoint(targetElement(placement) ?? targetPlace(placement), placement?.point) ??
@@ -581,7 +606,16 @@ export function createAnchorTravel({
         /** @type {ScrollPlacement[]} */
         const scroll = [];
         if (target) scroll.push({ at: target, block: "nearest" });
-        scroll.push({ at: where, when: () => !alreadyShown(where) });
+        // Then the place lands unless it already shows. A part inside a place taller
+        // than its room, as a seat's thread can be inside its element, skips that
+        // landing, since landing the place would scroll the part back out of view.
+        const inside =
+          target !== where && where instanceof Element && under(target, where);
+        scroll.push({
+          at: where,
+          when: () =>
+            !alreadyShown(where, { block: "center" }) && !(inside && !fitsWhole(where)),
+        });
         return { where, focus: target, scroll };
       },
       {
@@ -604,6 +638,7 @@ export function createAnchorTravel({
     returnToFragment,
     navigateToDatum,
     scrollToElement,
+    scrollToPassage,
     scrollToRange,
     scrollToThread,
     threadDestination,

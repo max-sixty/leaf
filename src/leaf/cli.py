@@ -632,7 +632,7 @@ def page_list() -> list:
     serves it), and the session that holds it: `claim_session`, the name its
     harness gives it now (`session_name`), the directory it claimed from
     (`session_cwd`), and whether it still runs (`session_alive`). A serving
-    page also carries how many rows On me holds (`on_user`) and its open and
+    page also carries how many rows On Me holds (`on_user`) and its open and
     unread thread counts (`threads`). `page state PAGE` reads one page whole."""
     from leaf.presence import page_list as listing
 
@@ -657,7 +657,7 @@ def state(
     page_dir: Path, target: str | None, after: int | None, limit: int | None
 ) -> dict:
     """Print the page as it is now, as one JSON object: the active revision's
-    file, the current widget actions and workers' reports, the user's On me list and
+    file, the current widget actions and workers' reports, the user's On Me list and
     yours, thread summaries, versions, presence, and bound data. Read the active
     revision's HTML beside it for the document.
 
@@ -1266,7 +1266,7 @@ def page_open(page_dir: Path) -> dict:
 
     This clears every task start; to-dos and unanswered updates stay owed.
     To request an answer, send a thread message with --obligation so the
-    question appears in On me. Opening a page creates no obligation.
+    question appears in On Me. Opening a page creates no obligation.
     """
     from leaf.session import cmd_waiting
 
@@ -1305,12 +1305,17 @@ def wait(page_dir: Path | None) -> int:
     return cmd_wait(page_dir)
 
 
-def _obligation_option(command):
-    return click.option(
-        "--obligation",
-        is_flag=True,
-        help="put this message on On me until the user replies or settles it",
-    )(command)
+def _asked_questions(_ctx, _param, given: tuple[str, ...]) -> bool | list[str]:
+    """What `thread reply --obligation` declares (`obligations.question_ids`): `True`
+    for a new question, from the flag alone, or the ids of questions to ask again."""
+    if "" not in given:
+        return list(given) or False
+    if len(given) > 1:
+        raise click.UsageError(
+            "--obligation takes the ids of questions to ask again, or no id for one "
+            "new question, not both"
+        )
+    return True
 
 
 def _title_option(command):
@@ -1333,7 +1338,11 @@ def _title_option(command):
 @body_options("the comment's text")
 @click.option("--markup", help="HTML fragment after the text, validated here")
 @_title_option
-@_obligation_option
+@click.option(
+    "--obligation",
+    is_flag=True,
+    help="put this message on On Me until the user replies or settles it",
+)
 def thread_create(
     page_dir: Path,
     quote: str,
@@ -1350,7 +1359,7 @@ def thread_create(
     the work as a whole.
 
     Use --obligation when the next move is the user's: the message waits on
-    On me until their reply or settling reaction. A question whose answers you
+    On Me until their reply or settling reaction. A question whose answers you
     can list takes an `lf-options` choice in --markup instead, which waits on
     the user until they pick. Refuses a quote the active revision does not
     hold, or holds more than once. The comment's id is the thread's.
@@ -1387,7 +1396,19 @@ def thread_create(
 )
 @click.option("--ephemeral", is_flag=True, help="one-line progress, without answering")
 @_title_option
-@_obligation_option
+@click.option(
+    "--obligation",
+    metavar="[ID]",
+    multiple=True,
+    is_flag=False,
+    flag_value="",
+    callback=_asked_questions,
+    help=(
+        "put this message on On Me until the user replies or settles it; with the ID "
+        "of a question their reply left standing, ask that question again, once per "
+        "question"
+    ),
+)
 @click.option("--quote", help="new passage text to move this thread onto")
 @click.option("--section", metavar="ID", help="new element ID, or scope for --quote")
 @click.option("--part", metavar="ID", help="new declared visual part within --section")
@@ -1431,7 +1452,7 @@ def thread_reply(
         for flag, given in (
             ("--done", done),
             ("--todo", options["todo"] is not None),
-            ("--obligation", options["obligation"]),
+            ("--obligation", bool(options["obligation"])),
         )
         if given
     ]
@@ -1553,10 +1574,10 @@ def task_end(page_dir: Path, task_id: str, outcome: str, detail: str | None) -> 
     the result is, such as the version or reply holding it, or why there is none.
 
     For a message obligation (`message:<id>`) or a question widget answered in
-    words (`widget:<id>`), done records that the user answered elsewhere, --text
-    saying where; dropped withdraws the question. These outcomes record no answer
-    from the user. A widget answered through its controls ends through its state
-    or an authored withdrawal.
+    words (`widget:<id>`), done records that the user answered elsewhere, or that
+    you saw a step's effect, --text saying where or what you saw; dropped withdraws
+    the question. These outcomes record no answer from the user. A widget answered
+    through its controls ends through its state or an authored withdrawal.
     """
     from leaf.todos import cmd_end
 

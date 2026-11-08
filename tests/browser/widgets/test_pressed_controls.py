@@ -57,7 +57,7 @@ MARK_CONTROLS = f"""(within) => {{
       found.push(`${{holder.localName}}#${{holder.id}} ${{JSON.stringify(words)}}`);
     }}
   }};
-  walk(document.body);
+  walk(document.documentElement);
   return found;
 }}"""
 
@@ -223,15 +223,13 @@ def press_each_control(page, within, restore=None):
         rendered(page)
         travelling = page.evaluate(FACE_AT, point)
         pressed = page.evaluate(UNRESOLVED)
+        changed = False
         # A press that left no control under the pointer leaves nothing to flicker.
         if pressed != before and travelling:
             new = [entry for entry in pressed if entry not in before]
             sent += [(name, kind) for _attempt, kind, _unsent in new]
             if travelling != face:
-                failures.append(
-                    f"{name}: {face} before the press, {travelling} while its "
-                    "gesture travelled"
-                )
+                changed = True
             # A control the press replaced, as Undo takes Accept's seat, is another
             # control, whose press may rightly send nothing.
             elif not all(unsent for *_, unsent in new) and page.evaluate(
@@ -251,4 +249,11 @@ def press_each_control(page, within, restore=None):
         page.unroute("**/api/event")
         page.wait_for_function(DELIVERED)
         rendered(page)
+        # A face the answer keeps is the press's own result, such as the next
+        # thread a Resolve moves on to; one it takes away again was a flicker.
+        if changed and travelling != page.evaluate(FACE_AT, point):
+            failures.append(
+                f"{name}: {face} before the press, {travelling} while its "
+                "gesture travelled"
+            )
     return pressed_names, sent, failures

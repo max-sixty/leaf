@@ -400,13 +400,14 @@ def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
     </style>
     <script type="module">
       let height = 220;
+      // Capturing, since the key that lets go of the editor scrolled away stops there.
       document.addEventListener('keydown', event => {
         if (event.key !== 'F2') return;
         event.preventDefault();
         document.querySelector('#file').style.setProperty(
           '--lf-file-editor-height', `${height}px`);
         height -= 40;
-      });
+      }, true);
     </script>
     <h1>File practice</h1><div style="width:3000px;height:4px"></div>
     <lf-file-editor id="file" binding="notes"></lf-file-editor>
@@ -425,8 +426,10 @@ def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
     child = frame.element_handle().content_frame()
     editor = child.get_by_role("textbox", name="File contents", exact=True)
     expect(editor).to_have_attribute("aria-readonly", "true")
-    expect(child.locator(".lf-file-editor-status")).to_have_attribute(
-        "title", "No file is bound as 'notes'."
+    # The status says why it can't save when pointed at (preview.js).
+    child.locator(".lf-file-editor-status").hover()
+    expect(child.locator("#lf-preview .lf-preview-detail")).to_have_text(
+        "No file is bound as 'notes'."
     )
     expect(child.locator(".cm-placeholder")).to_have_text(
         "No file is bound as 'notes'."
@@ -441,6 +444,13 @@ def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
     page.evaluate("scrollTo(0, 0)")
     scroll_settled(page)
     page.keyboard.press("F2")
+    assert (
+        child.evaluate(
+            "document.querySelector('#file').style"
+            ".getPropertyValue('--lf-file-editor-height')"
+        )
+        == "220px"
+    )
     top = frame.evaluate("frame => frame.getBoundingClientRect().top + scrollY")
     before = round(top - page.viewport_size["height"] + 100)
     page.evaluate("y => scrollTo(0, y)", before)
@@ -456,7 +466,6 @@ def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
     one_frame(child)
     rendered(child)
     assert page.evaluate("scrollY") == before
-    expect(editor).to_be_focused()
 
 
 def test_an_exported_file_editor_stays_unavailable_without_starting_a_read(

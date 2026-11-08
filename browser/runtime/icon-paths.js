@@ -36,7 +36,7 @@ const ICONS = {
   grip: '<g fill="currentColor" stroke="none"><circle cx="6" cy="4" r="1.1"/><circle cx="10" cy="4" r="1.1"/><circle cx="6" cy="8" r="1.1"/><circle cx="10" cy="8" r="1.1"/><circle cx="6" cy="12" r="1.1"/><circle cx="10" cy="12" r="1.1"/></g>',
   fold: '<path d="M3 8h10M5.5 2.75 8 5.25l2.5-2.5M5.5 13.25 8 10.75l2.5 2.5"/>',
   more: '<circle cx="3.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="1" fill="currentColor" stroke="none"/>',
-  // What waits on the user, an inbox's tray: the On me mark. The question mark stays
+  // What waits on the user, an inbox's tray: the On Me mark. The question mark stays
   // with an obligation and with help (`?`).
   inbox:
     '<path d="M2.75 9.25h2.9l1 1.6h2.7l1-1.6h2.9M2.75 9.25 4.4 4h7.2l1.65 5.25v2.75H2.75z"/>',
@@ -137,7 +137,12 @@ export const ACTIONS = {
   next: { name: "Next", icon: "next" },
   // A find bar's steps run up and down its matches, as a browser's do.
   "next-match": { name: "Next match", icon: "down" },
-  "on-me": { name: "On me", icon: "inbox" },
+  // The next steps the floating panel's field offers at its end (floating-panel.js,
+  // `noticePress`): after a Resolve, and after an answer with more on the user, in the
+  // title case the user asked for on 6 November 2026.
+  "next-on-me": { name: "Next On Me", icon: "inbox" },
+  "next-thread": { name: "Next thread", icon: "next" },
+  "on-me": { name: "On Me", icon: "inbox" },
   pause: { name: "Pause", icon: "pause" },
   play: { name: "Play", icon: "play" },
   previous: { name: "Previous", icon: "previous" },
@@ -212,36 +217,34 @@ const drawAction = (node, role, action) =>
 
 /**
  * The role constructors (`control-faces.js`, `ACTION_FACES`) with each symbol and mark
- * drawn from its action: `offerAction(role, className, label, {title, action})`, and
+ * drawn from its action: `offerAction(role, className, label, {action})`, and
  * `offerActionElement(node, …)` for a template's element. The runtime builds its own
  * from these (widget-elements.js).
  * @param {{
- * offerAction: (role: LeafActionRole, className?: string, label?: string, options?: {title?: string}) => HTMLButtonElement,
- * offerActionElement: <T extends Element>(node: T, role: LeafActionRole, className?: string, label?: string, options?: {title?: string}) => T
+ * offerAction: (role: LeafActionRole, className?: string, label?: string) => HTMLButtonElement,
+ * offerActionElement: <T extends Element>(node: T, role: LeafActionRole, className?: string, label?: string) => T
  * }} base
  */
 export function actionOffers(base) {
-  /** @param {string | undefined} title */
-  const titled = (title) => (title === undefined ? undefined : { title });
   return {
     /**
      * @param {LeafActionRole} role @param {string} [className] @param {string} [label]
-     * @param {{title?: string, action?: string}} [options]
+     * @param {{action?: string}} [options]
      */
-    offerAction(role, className, label, { title, action } = {}) {
+    offerAction(role, className, label, { action } = {}) {
       const face = actionFace(role, label, action);
-      const node = base.offerAction(role, className, face.label, titled(title));
+      const node = base.offerAction(role, className, face.label);
       if (face.action !== undefined) drawAction(node, role, face.action);
       return node;
     },
     /**
      * @template {Element} T
      * @param {T} node @param {LeafActionRole} role @param {string} [className]
-     * @param {string} [label] @param {{title?: string, action?: string}} [options]
+     * @param {string} [label] @param {{action?: string}} [options]
      */
-    offerActionElement(node, role, className, label, { title, action } = {}) {
+    offerActionElement(node, role, className, label, { action } = {}) {
       const face = actionFace(role, label, action);
-      base.offerActionElement(node, role, className, face.label, titled(title));
+      base.offerActionElement(node, role, className, face.label);
       if (face.action !== undefined) drawAction(node, role, face.action);
       return node;
     },

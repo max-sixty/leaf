@@ -425,13 +425,100 @@ def test_a_question_in_a_reply_waits_on_the_user_until_their_next_message():
     assert lists(state) == ([], ["update:r"], [])
 
 
+def reopened(*later):
+    """The question above answered by a reply that asks back, the agent's reply
+    reopening it, then `later`."""
+    return answered_in_words(
+        {
+            "kind": "reply",
+            "id": "r",
+            "author": "user",
+            "parent": "t",
+            "text": "What's the difference?",
+        },
+        {
+            "kind": "reply",
+            "id": "again",
+            "author": "agent",
+            "parent": "r",
+            "responds": "r",
+            "text": "Daily costs more. Weekly or daily?",
+            "obligation": ["message:asking"],
+        },
+        *later,
+    )
+
+
+def test_a_reopened_question_keeps_its_id_and_words_and_stands_on_the_reply():
+    """A question the agent reopens waits on the user again under the id and words it
+    had, so a plan step naming it keeps its title, and stands on the reopening reply:
+    what they said before it no longer answers it, and their next message does."""
+    state = model.reading(page(""), reopened())
+    [item] = served_obligations(state)["all"]
+    assert (item["id"], item["status"], item["next_actor"]) == (
+        "message:asking",
+        "open",
+        "user",
+    )
+    assert item["message"] == "again"
+    assert item["prompt"]["text"] == "Weekly or daily?"
+    assert item["answer"] is None
+    assert lists(state)[0] == ["message:asking"]
+
+    state = model.reading(
+        page(""),
+        reopened(
+            {
+                "kind": "reply",
+                "id": "settled",
+                "author": "user",
+                "parent": "again",
+                "text": "Weekly",
+            }
+        ),
+    )
+    [item] = served_obligations(state)["all"]
+    assert (item["id"], item["status"]) == ("message:asking", "answered")
+    assert item["answer"]["value"] == {"text": "Weekly"}
+
+
+def test_a_reopening_outlasts_an_end_before_it_and_can_be_ended_again():
+    """An end retires the question it names as it then stood, so a later reopening
+    stands, and the agent can end the question again."""
+    ended = {
+        "kind": "todo_end",
+        "id": "first-end",
+        "author": "agent",
+        "todo": "message:asking",
+        "outcome": "dropped",
+    }
+    again = {
+        "kind": "reply",
+        "id": "again",
+        "author": "agent",
+        "parent": "t",
+        "text": "Weekly or daily, after all?",
+        "obligation": ["message:asking"],
+    }
+    state = model.reading(page(""), answered_in_words(ended, again))
+    [item] = served_obligations(state)["all"]
+    assert (item["status"], item["end"]) == ("open", None)
+    state = model.reading(
+        page(""),
+        answered_in_words(ended, again, {**ended, "id": "second-end"}),
+    )
+    [item] = served_obligations(state)["all"]
+    assert item["status"] == "withdrawn"
+    assert item["end"]["event"]["id"] == "second-end"
+
+
 def test_a_frame_around_a_decision_widget_stays_one_obligation():
     [item] = page_obligations(model.reading(page(context="frame"), []))["all"]
     assert (item["id"], item["prompt"]["target"]) == ("widget:choice", "frame")
 
 
 def lists(state) -> tuple[list, list, list]:
-    """On me and On <agent> as served, and the open widget obligations whose next move
+    """On Me and On <agent> as served, and the open widget obligations whose next move
     is the agent's, which On <agent> lists through the update that handed them over."""
     queues = state["views"]["1"]["queues"]
     items = state["views"]["1"]["obligations"]
@@ -536,7 +623,7 @@ def test_a_comment_on_an_obligation_is_the_agents_turn_until_the_agent_replies(
     anchor, held
 ):
     """The user's comment about an open obligation hands it to the agent without answering
-    it: the obligation leaves On me while the comment's answer stands on On <agent>, and comes
+    it: the obligation leaves On Me while the comment's answer stands on On <agent>, and comes
     back once the agent replies, or once the agent ends the work its reply promised, which
     a resolution leaves standing: that is how a decision the user put off until other
     work lands stays off their list. A comment on one obligation, or on the part of the

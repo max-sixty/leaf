@@ -16,6 +16,7 @@ from render_harness import (
     LONG_PAGE,
     _traffic,
     consume_browser_errors,
+    expect_preview_words,
     holding,
     http_error_console,
     leaf_page,
@@ -38,12 +39,55 @@ pytestmark = pytest.mark.shifts_unsurveyed
 OFFLINE = re.compile(r"^Lost the connection")
 
 
+# Counts, in the page, each freshness look and each state read it asks, so a count is
+# current when an ordered event has come and gone: Playwright hands a request or a
+# route to Python on its own schedule, after the page's call.
+COUNT_ASKS = """
+window.__lfAsked = {news: 0, state: 0};
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (...args) => {
+  const url = String(args[0] instanceof Request ? args[0].url : args[0]);
+  if (url.includes("api/news")) window.__lfAsked.news += 1;
+  else if (url.includes("api/state")) window.__lfAsked.state += 1;
+  return nativeFetch(...args);
+};
+"""
+
+
+def looked_since(page):
+    """Wait until the page has handled a freshness look asked after this call.
+
+    The page asks each look only once it has handled the one before, so the second look
+    asked after this call starts once the first has been handled."""
+    since = page.evaluate("window.__lfAsked.news")
+    page.wait_for_function("since => window.__lfAsked.news >= since + 2", arg=since)
+
+
+# The page's shared clock (`TICK_MS` in runtime/state-feed.js), which asks again after a
+# failed read and otherwise only repaints.
+TICK_MS = 2000
+
+
+def ran_its_clock(page):
+    """Wait until the page's shared clock has come round, and every look it had due.
+
+    A timer the page sets now, for longer than one round of the clock, fires after each
+    timer that falls due before it, since the page runs its timers in deadline order:
+    the clock's next round and any freshness look still scheduled come first, however
+    slowly the machine runs them."""
+    page.evaluate(
+        "ms => new Promise(resolve => setTimeout(resolve, ms))", TICK_MS + 500
+    )
+
+
 def test_a_quiet_page_reads_only_freshness_and_hears_changes(browser, serve):
     """Quiet freshness looks do not rebuild state; an external append does."""
-    page = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE), init_script=COUNT_ASKS)
     open_threads(page)
     asked = _traffic(page).asked
-    page.wait_for_timeout(3000)
+    # A round of the clock, and a look handled after it.
+    ran_its_clock(page)
+    looked_since(page)
     assert _traffic(page).asked == asked, "a quiet page asked for state on a timer"
 
     append_carried_log_record(
@@ -53,7 +97,7 @@ def test_a_quiet_page_reads_only_freshness_and_hears_changes(browser, serve):
     told(page)
     assert _traffic(page).asked == asked + 1
     notice = page.locator(".lf-fp-joined .lf-thread-news")
-    expect(notice).to_have_attribute("title", "1 new thread")
+    expect_preview_words(notice, "1 new thread")
     notice.click()
     expect(page.locator(".lf-fp-thread", has_text="News.")).to_have_count(1)
 
@@ -68,6 +112,7 @@ def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
                 '<h1>Durable draft</h1><lf-draft id="draft"><pre>Original</pre></lf-draft>',
             )
         ),
+        init_script=COUNT_ASKS,
     )
     page.locator("#draft .lf-draft-body").dblclick()
     editor = page.locator("#draft leaf-text")
@@ -90,7 +135,14 @@ def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
     ) as restarted:
         serve.httpd.server_id = "replacement-server"
     assert restarted.value.text() == reading
-    page.wait_for_timeout(500)
+    # The page asks its next look only once it has handled the one that heard the new
+    # server, so a reload it decided on is under way by then; a document it reloaded
+    # into ends the wait at once.
+    since = page.evaluate("window.__lfAsked.news")
+    page.wait_for_function(
+        "since => !window.__originalDocument || window.__lfAsked.news >= since + 2",
+        arg=since,
+    )
     assert page.evaluate("window.__originalDocument === true")
     expect(editor).to_be_focused()
     assert (
@@ -106,10 +158,10 @@ def test_a_hidden_page_stops_its_freshness_reads_until_it_is_visible(browser, se
     The overridden platform reading is the lifecycle input Chromium's headless
     shell cannot otherwise produce: all its tabs report visible.
     """
-    page = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE), init_script=COUNT_ASKS)
     asked = _traffic(page).asked
 
-    page.evaluate(
+    looks = page.evaluate(
         """() => {
           window.__lfTestVisibility = 'hidden';
           Object.defineProperty(document, 'visibilityState', {
@@ -117,6 +169,7 @@ def test_a_hidden_page_stops_its_freshness_reads_until_it_is_visible(browser, se
             get: () => window.__lfTestVisibility,
           });
           document.dispatchEvent(new Event('visibilitychange'));
+          return window.__lfAsked.news;
         }"""
     )
     # Once a canceled request has drained, news arrives while the tab is hidden.
@@ -125,11 +178,13 @@ def test_a_hidden_page_stops_its_freshness_reads_until_it_is_visible(browser, se
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "While away."},
     )
-    # Two 250ms opportunities expose a hidden page that failed to stop checking.
-    page.wait_for_timeout(500)
-    assert _traffic(page).asked == asked, (
-        "a hidden page still heard or polled for state"
+    # A look the page failed to cancel was due before the clock's next round, which
+    # would also ask for the news it missed.
+    ran_its_clock(page)
+    assert page.evaluate("window.__lfAsked.news") == looks, (
+        "a hidden page still looked for news"
     )
+    assert _traffic(page).asked == asked, "a hidden page still polled for state"
 
     with page.expect_request("**/api/news"):
         page.evaluate(
@@ -149,9 +204,9 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
 ):
     """A short-lived real wait lease inside a state read cannot strand its answer.
 
-    Presence may return to the same cached freshness token after state captured a
-    different live lock observation. The shared recovery clock must reconcile the
-    mismatch even though no page file or subsequent token changes.
+    The state read sees the lease held, and once it is released the page comes back
+    to the current lease. This page is unclaimed, so its wait lease is a file in the
+    page directory: taking it moves the news token, and the look asks again.
     """
     url = live_url(serve(LONG_PAGE))
     lease_path = waiter_lease_path(serve.page_dir, None)
@@ -170,8 +225,15 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
                 route.continue_()
                 return
             assert lease_path is not None
+            # Ask for a whole answer, which says whether the lease was held, rather
+            # than a patch from the reading the tab holds (`served_state.tail`).
+            headers = {
+                name: value
+                for name, value in route.request.headers.items()
+                if name != "leaf-held-basis"
+            }
             with take_wait_lease(lease_path):
-                response = route.fetch()
+                response = route.fetch(headers=headers)
                 assert response.json()["listening"] is True
             crossed.append(response.json()["reading"])
             route.fulfill(response=response)
@@ -192,39 +254,46 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     Freshness looks may announce several new readings while the container is still
     answering one. They collapse into one trailing read, which takes the newest state.
     """
-    page = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE), init_script=COUNT_ASKS)
     d = serve.page_dir
     status = panel_field(page)
 
     def declare(detail):
         declare_work(d, detail)
 
+    def reads():
+        return page.evaluate("window.__lfAsked.state")
+
+    # The state reads the page has asked so far, the startup read among them.
+    before = reads()
     # Every ask is held; the test answers each admitted read by hand.
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
     with page.expect_request("**/api/state*"):
         declare("first")
-    declare("second")
-    page.wait_for_timeout(500)
-    assert len(held) == 1
-
-    # The admitted read sees the latest file state. The queued news then earns exactly
-    # one follow-up read, not one read per status write.
+    while not held:
+        page.wait_for_timeout(20)
     first = held[0]
-    second = first.fetch().json()
-    with page.expect_request("**/api/state*"):
-        first.fulfill(json=second)
-    expect(status).to_have_attribute("placeholder", re.compile(r"second"))
-    assert len(held) == 2
-
-    trailing = held[1]
+    # An answer taken before the writes the looks hear next.
+    older = first.fetch().json()
+    declare("second")
     declare("third")
-    page.wait_for_timeout(500)
-    assert len(held) == 2
-    third = trailing.fetch().json()
-    trailing.fulfill(json=third)
-    told(page)
+    looked_since(page)
+    assert reads() == before + 1
+
+    # The news the answer doesn't name earns exactly one follow-up read, not one read
+    # per status write.
+    with page.expect_request("**/api/state*"):
+        first.fulfill(json=older)
+    while len(held) < 2:
+        page.wait_for_timeout(20)
+
+    # That read takes the latest file state, so the page has nothing left to ask for.
+    trailing = held[1]
+    trailing.fulfill(json=trailing.fetch().json())
     expect(status).to_have_attribute("placeholder", re.compile(r"third"))
+    looked_since(page)
+    assert reads() == before + 2
 
 
 def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
@@ -429,7 +498,7 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     dropped request in the world — is asked again on the page's own tick, the
     spacing a failed exchange has always had. Without that a page would sit under
     an offline status until something else happened to it."""
-    page = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE), init_script=COUNT_ASKS)
     open_threads(page)
     page.route("**/api/state*", refuse)
     with page.expect_event(
@@ -441,14 +510,17 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
         )
     expect(panel_field(page)).to_have_attribute("placeholder", OFFLINE)
     # A failed answer does not turn every unchanged freshness look into another
-    # expensive state read. At most one recovery tick fits in this interval.
-    asked = _traffic(page).asked
-    page.wait_for_timeout(1000)
-    assert _traffic(page).asked <= asked + 1
+    # expensive state read: over eight looks the page asks at most once for each round
+    # of its clock, by the page's own time, and once more for a round under way.
+    asked, began = page.evaluate("[window.__lfAsked.state, performance.now()]")
+    for _ in range(4):
+        looked_since(page)
+    reads, ended = page.evaluate("[window.__lfAsked.state, performance.now()]")
+    assert reads - asked <= (ended - began) // TICK_MS + 1
     page.unroute("**/api/state*")
     told(page)
     notice = page.locator(".lf-fp-joined .lf-thread-news")
-    expect(notice).to_have_attribute("title", "1 new thread")
+    expect_preview_words(notice, "1 new thread")
     notice.click()
     expect(page.locator(".lf-fp-thread", has_text="Missed.")).to_have_count(1)
     expect(panel_field(page)).not_to_have_attribute("placeholder", OFFLINE)

@@ -53,7 +53,7 @@ def reply(page, *titles: str, passage: str = "") -> str:
 
 def test_the_clerk_asks_what_the_reply_left_and_the_next_step_hears_it(claimed, capsys):
     """Each ask the fork names opens a thread of its own on the page, the agent's
-    message asking the whole question with nothing marking the fork, and lands On me
+    message asking the whole question with nothing marking the fork, and lands On Me
     until the user answers; the next tool boundary tells the agent each one and its
     words, once. A question the agent already asked isn't asked again, and a question
     the agent withdrew stays withdrawn: the next fork is shown it as settled, and Leaf
@@ -63,7 +63,7 @@ def test_the_clerk_asks_what_the_reply_left_and_the_next_step_hears_it(claimed, 
     question = asked()
     assert str(page) in question["prompt"]
     assert (
-        "On me, what the page lists as waiting on the user:\n(none)"
+        "On Me, what the page lists as waiting on the user:\n(none)"
         in question["prompt"]
     )
 
@@ -107,7 +107,7 @@ def test_the_clerk_asks_what_the_reply_left_and_the_next_step_hears_it(claimed, 
 
     context = hook(capsys, "PostToolBatch")
     assert (
-        f'Leaf asked the user "The retry limit" On me, in a new thread on {page} as a '
+        f'Leaf asked the user "The retry limit" On Me, in a new thread on {page} as a '
         "whole," in context
     )
     assert "> The retry limit: which would you like?" in context
@@ -161,11 +161,11 @@ def test_an_ask_about_a_passage_stands_on_it_or_else_on_the_page(claimed, capsys
     assert all(record["obligation"] for record in wrote)
     context = hook(capsys, "PostToolBatch")
     assert f'in a new thread on the words "The cutoff lives in" in {page},' in context
-    assert f'"The retry budget" On me, in a new thread on {page} as a whole,' in context
+    assert f'"The retry budget" On Me, in a new thread on {page} as a whole,' in context
 
 
 def test_the_fork_is_asked_the_skills_account_of_the_check(claimed, capsys):
-    """The fork reads the check as the skill ships it, Leaf's rule for On me as the
+    """The fork reads the check as the skill ships it, Leaf's rule for On Me as the
     agent reads it, then each page's facts, among
     them each item the agent has started with its line, which tells the fork what the
     page shows under way."""
@@ -174,11 +174,11 @@ def test_the_fork_is_asked_the_skills_account_of_the_check(claimed, capsys):
     todos_model.cmd_start(claimed, todo["id"], "revising the plan")
     prompt = asked()["prompt"]
     assert clerk_model.REFERENCE.read_text().strip() in prompt
-    # The asks follow the On me rule the agent reads, sent whole.
+    # The asks follow the On Me rule the agent reads, sent whole.
     rule = clerk_model.on_me_rule()
-    assert rule.startswith("The user's **On me** list holds everything waiting on them")
+    assert rule.startswith("The user's **On Me** list holds everything waiting on them")
     assert rule.endswith("is not an obligation.")
-    assert f"## Leaf's rule for On me\n\n{rule}\n\n" in prompt
+    assert f"## Leaf's rule for On Me\n\n{rule}\n\n" in prompt
     assert (
         "Started items, which the page shows as under way, each with its line:\n"
         f'- {todo["id"]}, the agent\'s to-do "Revise the plan": "revising the plan"'

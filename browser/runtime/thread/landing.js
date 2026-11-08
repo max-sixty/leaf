@@ -24,7 +24,7 @@ import { closestAcross } from "../passages.js";
 import { SAYS_IN, THREAD, threadPart, wholeThread } from "./selectors.js";
 import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
-import { dismissReplyAt, replyDraftContext } from "./replies.js";
+import { beginReplyAt, dismissReplyAt, replyDraftContext } from "./replies.js";
 import { copyTrigger } from "../copy-control.js";
 import { threadList } from "./state.js";
 import { focusedThreadTarget, focusThread, threadReplyInput } from "./focus.js";
@@ -123,22 +123,19 @@ pageScope("text entry", {
 });
 
 // Coming back out of a thread's box onto the thread, by Escape or by a send, is no
-// arrival. A thread too tall to show whole, some of which is in front of the user
-// (geometry.js, `seenRect`), stands around the box, and landing its title would take the
-// user away from the turn they were answering, so it is a `return` that leaves it where
-// it is. One that fits, or one the user has scrolled out of view since, is a `move`,
-// brought into view where it is not already shown. While the box the user left still
+// arrival but a `return`, which previews nothing (preview.js). A thread too tall to show
+// whole, some of which is in front of the user (geometry.js, `seenRect`), stands around
+// the box, and landing its title would take the user away from the turn they were
+// answering, so it is left where it is. One that fits, or one the user has scrolled out
+// of view since, is brought into view where it is not already shown. While the box the user left still
 // stands in front of them, nothing scrolls: it stands beside the gesture, and a landing
 // would carry it, by the room the thread's focus ring asks at its foot or by bringing
 // back a head they scrolled above the window. A box the send gave up, as a seat's does
 // to the thread it starts, leaves nothing there to carry.
 /** @param {Element} thread */
 function returnToThread(thread) {
-  if (!fitsWhole(thread) && seenRect(thread, new Map())) {
-    focusThread(thread, "return");
-    return;
-  }
-  focusThread(thread, "move");
+  focusThread(thread, "return");
+  if (!fitsWhole(thread) && seenRect(thread, new Map())) return;
   const box = threadReplyInput(thread);
   if (!(box && seenRect(box, new Map()))) scrollIntoView(thread, { block: "nearest" });
 }
@@ -193,6 +190,7 @@ export function createThreadLanding() {
     // margin card included.
     bringBackSurfaceOf(box);
     focusDestination(box, "move");
+    beginReplyAt(box);
     scrollIntoView(box, { block: "nearest", behavior: "instant" });
     return true;
   };
@@ -257,27 +255,23 @@ export function declareThreadKeys(landIn, threadHere) {
           else resolutionControl(thread)?.click();
         },
       },
+      // `r` presses the thread's own Resolve or Reopen, whose command answers it, so the
+      // control's preview names `r` (control-keys.js).
       {
         id: "thread.resolution.toggle",
         touch: false,
         keys: ["r"],
         title: () =>
           resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
-        when: () =>
-          Boolean(
-            resolutionControl(threadHere())?.matches(
-              ':not(:disabled, [aria-disabled="true"])',
-            ),
-          ),
-        run: () => resolutionControl(threadHere())?.click(),
+        control: () => resolutionControl(threadHere()),
       },
       {
         id: "message.copy",
         touch: false,
         keys: ["Mod+c"],
         title: "copy message as Markdown",
-        when: () => Boolean(messageCopy(threadHere()) && getSelection()?.isCollapsed),
-        run: () => messageCopy(threadHere())?.click(),
+        when: () => Boolean(getSelection()?.isCollapsed),
+        control: () => messageCopy(threadHere()),
       },
     ],
   });

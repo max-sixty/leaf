@@ -61,6 +61,7 @@ import {
 import { scrollThreadIntoView } from "./reply-landing.js";
 import { foldBlock, motionPlays } from "../motion.js";
 import { voiced } from "../voice.js";
+import { agePreview } from "../presence.js";
 
 // The names a reader finds a drawn message by (messages.js), which a folding one gives up.
 const MESSAGE_NAMES = ["data-lf-message", "data-lf-event", "data-lf-attempt"];
@@ -85,7 +86,9 @@ function workingView(working, controls = nothing, observe = null) {
           ? html`<span class="lf-msg-meta"
               >${
                 working.timestamp
-                  ? html`<time datetime=${working.timestamp}>${working.age}</time>`
+                  ? html`<time datetime=${working.timestamp} .lfPreview=${agePreview}
+                      >${working.age}</time
+                    >`
                   : nothing
               }${
                 working.condition
@@ -151,6 +154,8 @@ export class Transcript {
   #id = ++nextTranscriptId;
   // Counts the ids this transcript gives covered messages.
   #named = 0;
+  /** @type {unknown} */
+  #awaited = nothing;
 
   /**
    * @param {object} options
@@ -214,7 +219,11 @@ export class Transcript {
   // behind its run's face among them, stand in the transcript hidden, so the last
   // message alone may show nothing.
   get foot() {
-    return [...this.node.children].findLast((node) => showsContents(node)) ?? null;
+    return (
+      [...this.node.children].findLast(
+        (node) => !node.matches(".lf-awaited") && showsContents(node),
+      ) ?? null
+    );
   }
 
   // Whether the progress behind the working message stood open when last drawn, opened by
@@ -260,10 +269,12 @@ export class Transcript {
    * disclosure that took over the one the user was on, where this draw replaced it, as
    * the answer's head takes progress over from the working message.
    * @param {import("./thread-card.js").ThreadViewModel} model
-   * @param {{arrived?: boolean}} [options]
+   * @param {{arrived?: boolean, awaited?: unknown}} [options] `awaited` is what the
+   *   reader says stands after the messages: New reply (thread-card.js).
    * @returns {HTMLElement | null}
    */
-  present(model, { arrived = false } = {}) {
+  present(model, { arrived = false, awaited = nothing } = {}) {
+    this.#awaited = awaited;
     const prior = this.#model;
     const currentLocation = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
@@ -585,11 +596,11 @@ export class Transcript {
 
   #paint() {
     render(
-      repeat(
+      html`${repeat(
         this.#rows,
         (row) => row.key,
         (row) => (typeof row.body === "function" ? row.body(!!row.tail) : row.body),
-      ),
+      )}${this.#awaited}`,
       this.node,
     );
   }
@@ -627,11 +638,6 @@ export class Transcript {
                   : nothing
               }
             </div>`
-      }
-      ${
-        progress && range.forced
-          ? html`<div class="lf-summary-required">${range.requiredText}</div>`
-          : nothing
       }
     </section>`;
   }

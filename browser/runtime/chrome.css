@@ -83,13 +83,15 @@
 /* Holding ⌥ changes what a click means. The aim's mark (`[data-lf-aimed]`, surfaces.css)
    answers which item a press takes; the cursor answers whether it takes any: the hand over an item, the
    arrow elsewhere (claimPress). Derived at the paint from what refreshAim resolved, so
-   cursor and mark cannot disagree. A control stating its own cursor keeps it while
-   armed; covering that would need an important universal rule. One declaration on the
-   body, inherited; the chrome holds itself out from inside its own scope. */
-body:is(.lf-aiming, [data-lf-design-mode]) {
+   cursor and mark cannot disagree. The arrow is one declaration on the body, inherited,
+   which changes as the page arms; the hand stands on the element under the pointer
+   (page-geometry.js), so a crossing restyles only what that element holds. A control
+   keeps its own cursor while armed. The chrome holds itself out from inside its own
+   scope. */
+body:is([data-lf-aiming], [data-lf-design-mode]) {
   cursor: default;
 }
-body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item {
+body:is([data-lf-aiming], [data-lf-design-mode]) [data-lf-over-item] {
   cursor: pointer;
 }
 /* Region capture and draw mode take presses on the whole plane. Region capture's
@@ -227,7 +229,7 @@ html[data-lf-region-capture]
      off the chrome (chrome-guard.css) but inheritance still reaches it; and user-select, because a
      drag that reaches any selectable part of the chrome extends the range through
      everything between, so the root answers for every surface and what may still be
-     copied says so itself (.lf-quote, .lf-msg-body). */
+     copied says so itself (.lf-thread-quote, .lf-msg-body). */
   :scope:not(:root > *),
   .lf-legend {
     position: static;
@@ -316,19 +318,11 @@ html[data-lf-region-capture]
      island still runs the range from the document through everything between
      (user-select: contain is unimplemented), so this bounds the accident; what reads a
      selection into a quote answers the rest. */
-  :is(.lf-quote, .lf-msg-body) {
+  :is(.lf-thread-quote, .lf-msg-body) {
     user-select: text;
     -webkit-user-select: text;
   }
 
-  /* A thread and the room a resolved one is still giving back (foldOut) are the same
-     box, so the fold starts from the box the user was looking at rather than from
-     a second description of it. The retiring box says the outcome in paint without
-     also stating that in metrics the fold is animating. */
-
-  /* The response bar and thread card are fixed and anchored to what they point at, and
-     placed only while the visible boundary holds them (floating.js), so they never sit
-     pinned over content that is not theirs. */
   /* Where a control stands decides its face: in the runtime's furniture a press is a
      .lf-btn; beside page content it is the shared .lf-margin-entry. The shadow is what
      this one adds, since it floats over page content rather than the empty rail. */
@@ -385,8 +379,6 @@ html[data-lf-region-capture]
   .lf-drawing-mark.lf-drawing-parked path {
     stroke-dasharray: 7 6;
   }
-  /* A suggestion renders verbatim — its characters are what the next version
-     carries (see msgNode) — so this is where they keep their own line breaks. */
   .lf-live {
     position: fixed;
     width: 1px;
@@ -410,7 +402,8 @@ html[data-lf-region-capture]
     overflow: hidden;
     display: none;
     margin: 0;
-    background: var(--card);
+    --lf-ground: var(--card);
+    background: var(--lf-ground);
     border: 1px solid var(--border-2);
     border-radius: var(--r-l);
     box-shadow: var(--raise-3);
@@ -619,22 +612,36 @@ html[data-lf-region-capture]
     white-space: nowrap;
     text-overflow: ellipsis;
   }
-  /* The results reach 10px into the dialog's padding, so a row's wash (6px beyond its
-     words) and its focus ring outside that keep their room inside the scroller. */
+  /* The results run the dialog's width, so its sections' bands (controls.css,
+     `.lf-rows-group`) do, and a scroller starts the sticky-header slot and its landing
+     band again at its own top. They keep 10px of the dialog's padding, which with a
+     row's own inset (controls.css, `.lf-row`) makes the dialog's 18px, so the rows'
+     words start where the title and the search do. Every row stays under this one
+     parent (command-reference.js, `commandReferenceItems`), so a section's box holds
+     only its band and takes no box of its own: each row takes its section's band in
+     the slot here, and the band keeps the gap below it that a band keeps over its
+     first row (controls.css). */
   .lf-command-reference-results {
+    --lf-top: 0px;
+    --lf-top-covered: 0px;
+    --lf-landing-room: 0px;
+    --lf-rows-bleed: 10px;
     min-height: 0;
     overflow-y: auto;
-    margin-inline: -10px;
-    padding-inline: 10px;
+    margin-inline: -18px;
+    padding-inline: var(--lf-rows-bleed);
   }
-  /* The reference's rows reach past its words by their wash's room, so its heading and
-     its empty line, standing where the rows' words start, keep no inset of their own. */
-  .lf-command-reference h3 {
-    margin: 16px 0 4px;
-    padding: 0;
+  .lf-command-reference-results > .lf-rows-group {
+    display: contents;
   }
-  .lf-command-reference .lf-rows-empty {
-    padding-inline: 0;
+  .lf-command-reference-results > .lf-rows-group > .lf-rows-head {
+    margin-block-end: 4px;
+  }
+  .lf-command-reference-results > .lf-rows-group:not(:first-child) > .lf-rows-head {
+    margin-block-start: 10px;
+  }
+  .lf-command-reference-results > [role="group"] {
+    --lf-top: var(--lf-rows-band);
   }
   /* The reference is a list a reader scans for a command and then reads its keys, so
      each key leads the words it runs, as Gmail's `?` sets it: its keys, set against
@@ -646,7 +653,7 @@ html[data-lf-region-capture]
      width from their words; and one column after the widest command. Before those, a
      table whose key column was a fixed 104px stood a lone key some 80px from its
      command and wore the document's data-table rule, a hairline under every cell.
-     Rows part by their own room, and a section by the space above its heading.
+     Rows part by their own room, and a section by its band.
 
      A description stays out of sight at rest, as references set none and palettes set
      theirs small and on the title's line: it shows, on its row's one line and cut short
@@ -658,12 +665,11 @@ html[data-lf-region-capture]
 
      Each row is its command's press, an option of the results' listbox
      (command-reference.js), so a press anywhere on it runs the command, and the row
-     face (controls.css, `.lf-row`) draws its wash and its ring inside it. It runs the
-     list's width and 6px past it at either end, as wide as its wash. */
+     face (controls.css, `.lf-row`) draws its wash and its ring inside it. */
   .lf-command-reference-row:not([hidden]) {
     position: relative;
     box-sizing: border-box;
-    width: calc(100% + 12px);
+    width: 100%;
     display: grid;
     grid-template-columns: 5.6em minmax(0, max-content) minmax(0, 1fr);
     grid-template-areas: "key action desc";
@@ -671,9 +677,8 @@ html[data-lf-region-capture]
     align-content: center;
     column-gap: 10px;
     min-height: var(--aim-floor);
-    margin-inline: -6px;
     /* The row face's stripe room (controls.css, `.lf-row`) takes 2px of the start. */
-    padding-inline: 4px 6px;
+    padding-inline: 6px 8px;
   }
   .lf-command-reference-row > * {
     min-width: 0;
@@ -767,8 +772,7 @@ html[data-lf-region-capture]
   .lf-page-map-action:is(button, [role="button"]):not([aria-disabled="true"]) {
     cursor: pointer;
   }
-  .lf-page-map-action-label-word,
-  .lf-page-map-group h3 {
+  .lf-page-map-action-label-word {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -791,7 +795,8 @@ html[data-lf-region-capture]
     padding: 14px;
     border: 1px solid var(--border-2);
     border-radius: var(--r-l);
-    background: var(--paper);
+    --lf-ground: var(--paper);
+    background: var(--lf-ground);
     color: var(--ink);
     box-shadow: var(--raise-3);
     /* Its column stands while a closing sheet fades out, after [open] has gone. */
@@ -878,19 +883,23 @@ html[data-lf-region-capture]
     width: 100%;
     margin-top: 10px;
   }
-  /* The list, and the line standing in its rows' place, reach into the sheet's padding
-     by the rows' inset (controls.css, `.lf-row`), so the rows' marks and their group
-     headings start where the title and the search do, and the rows' ends stop where
-     the search does, as the command reference sets its rows; each row's wash keeps
-     that room past its words. */
-  .lf-page-map-list,
-  .lf-page-map-dialog > .lf-rows-empty {
-    margin-inline: -8px;
-  }
+  /* The list runs the sheet's width, so its groups' bands (controls.css,
+     `.lf-rows-group`) do; it scrolls (`data-lf-scroll`), so it starts the sticky-header
+     slot again at its own top. It keeps 6px of the sheet's padding, which with a row's
+     own inset (controls.css, `.lf-row`) makes the sheet's 14px, so the rows' marks and
+     their bands' names start where the title and the search do, and the rows' ends stop
+     where the search does, as the command reference sets its rows. The line standing in
+     the rows' place stands on the same edge. */
   .lf-page-map-list {
-    margin-top: 6px;
+    --lf-rows-bleed: 6px;
+    margin-inline: -14px;
+    padding-inline: var(--lf-rows-bleed);
+    margin-top: 10px;
     overflow: auto;
     min-height: 0;
+  }
+  .lf-page-map-dialog > .lf-rows-empty {
+    margin-inline: -8px;
   }
   .lf-page-map-actions {
     row-gap: 2px;
@@ -1164,6 +1173,236 @@ html[data-lf-region-capture]
     }
     :scope :is([aria-pressed="true"], [aria-checked="true"], [aria-current]) {
       border-color: Highlight !important;
+    }
+  }
+  /* A preview (runtime/preview.js): what pointing at a mark, control or value reads,
+     standing beside it over the page, in one face whatever it previews: the tooltip's
+     ground and ink (`--tip-*`, tokens.css), its name on the first line at the face's
+     weight with the key chips that press it, then each line of detail in the same type,
+     a step dimmer. Its rules are the chrome's, so they go wherever it stands, a modal
+     dialog in a shadow tree included (keyboard/layer-stack.js, `carryChromeStyles`).
+
+     The owner decides where it stands and how tall, from the box the browser will
+     draw, and the browser draws exactly that, with no fallback of its own: below its
+     anchor's box (`data-lf-y`), above, or level with its top, from the box's left or
+     right edge (`data-lf-x`), beside it, or centred across the part of the window the
+     user sees, held to the room the owner measured (`--lf-preview-room`) and no wider
+     than that part (`--lf-preview-span`). The anchor is the element the preview was
+     shown by (`showPopover({source})`, `position-anchor: auto`), and its edges stand
+     at offsets from that element's (`--lf-preview-{top,bottom,left,right}`), its top
+     or, above, its bottom, and its left or its right, or, centred, at the left the
+     window gives it, so the preview goes with the element through every scroll and
+     resize, and out of view with it. No preview scrolls: one
+     longer than its room shows the lines that fit (`fit`, preview.js), the last ending in
+     an ellipsis, or a list's count at the foot. A pointer's preview takes the pointer,
+     so the pointer can cross onto it and read it there (WCAG 1.4.13, "Hoverable"),
+     unless it covers another target or stands for a point inside its element, which
+     the pointer goes on reading beneath it (`data-lf-covers`); a focus's or a finger's
+     takes none. It fades in for a pointer or a finger, as a word that rose into place would
+     move under nobody's input; under the keyboard's focus it is there at once. A preview
+     that quotes a block of the page, such as the place a link opens, takes the excerpt
+     room: the same face, wider. */
+  .lf-preview {
+    position: fixed;
+    inset: auto;
+    margin: 0;
+    position-anchor: auto;
+    position-visibility: anchors-visible;
+    box-sizing: border-box;
+    width: max-content;
+    max-width: min(320px, var(--lf-preview-span));
+    padding: 0;
+    border: 0;
+    background: none;
+    overflow: visible;
+    pointer-events: none;
+  }
+  /* The face, which alone fades: the box around it is anchored, and an anchored box
+     that fades is placed again in every frame of the fade. */
+  .lf-preview-face {
+    position: relative;
+    box-sizing: border-box;
+    max-block-size: var(--lf-preview-room, none);
+    overflow: clip;
+    padding: var(--tip-pad);
+    border-radius: var(--tip-r);
+    background: var(--tip-bg);
+    color: var(--tip-ink);
+    box-shadow: var(--raise-1);
+    font: var(--font-tip);
+    text-align: start;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    opacity: 1;
+    transition: opacity 90ms ease;
+    @starting-style {
+      opacity: 0;
+    }
+  }
+  .lf-preview:is([data-lf-y="below"], [data-lf-y="top"]) {
+    top: calc(anchor(top) + var(--lf-preview-top));
+  }
+  .lf-preview[data-lf-y="above"] {
+    bottom: calc(anchor(top) - var(--lf-preview-bottom));
+  }
+  .lf-preview:is([data-lf-x="left"], [data-lf-x="after"]) {
+    left: calc(anchor(left) + var(--lf-preview-left));
+  }
+  .lf-preview[data-lf-x="center"] {
+    left: var(--lf-preview-left);
+  }
+  .lf-preview:is([data-lf-x="right"], [data-lf-x="before"]) {
+    right: calc(anchor(right) + var(--lf-preview-right));
+  }
+  .lf-preview[data-lf-route="pointer"]:not([data-lf-covers]) {
+    pointer-events: auto;
+  }
+  .lf-preview[data-lf-route="focus"] > .lf-preview-face {
+    transition: none;
+  }
+  .lf-preview[data-lf-face="excerpt"] {
+    max-width: min(26rem, var(--lf-preview-span));
+  }
+  .lf-preview-name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 8px;
+    font-weight: 600;
+  }
+  .lf-preview-keys {
+    display: inline-flex;
+    gap: 2px;
+  }
+  /* Its key chips are the keys' own face, drawn in the tooltip's ink. */
+  .lf-preview .lf-key-badge {
+    background: transparent;
+    border-color: color-mix(in srgb, currentColor 45%, transparent);
+    color: inherit;
+    font-weight: 400;
+  }
+  .lf-preview-detail {
+    display: block;
+    margin-block-start: 2px;
+    color: color-mix(in srgb, var(--tip-ink) 76%, transparent);
+  }
+  /* A thread's line in the user's turn takes the turn's green ("Visual treatment
+     carries meaning"; thread/messages.js, `threadPreview`), drawn halfway to the
+     tooltip's ink, which reads at 4.8:1 or more on the inked ground in either scheme. */
+  .lf-preview-detail [data-lf-turn="user"] {
+    color: color-mix(in srgb, var(--ok) 50%, var(--tip-ink));
+  }
+  /* The last line a preview held to its room keeps says there is more, by a line
+     clamp's own ellipsis, which never wraps a line nor makes one: in the block the room
+     ends in, and in a block before the room's end, clamped to the lines it has, where a
+     line of no height after its words is more for the clamp to hold back. With
+     `overflow: hidden`, Firefox counts no such line, and with any height it would add
+     to the block's scrollHeight, which the next fit reads. */
+  .lf-preview [data-lf-cut]::after {
+    content: "\200b";
+    display: block;
+    line-height: 0;
+    font-size: 0;
+  }
+  .lf-preview [data-lf-clamp] {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: var(--lf-preview-lines);
+    overflow: hidden;
+  }
+  /* A list's count of the items its room leaves out, at the face's foot. */
+  .lf-preview-more {
+    position: absolute;
+    inset-inline: 0;
+    inset-block-end: 0;
+    padding: var(--tip-pad);
+    padding-block-start: 0;
+    background: var(--tip-bg);
+    color: color-mix(in srgb, var(--tip-ink) 76%, transparent);
+  }
+  /* A place's preview (place-preview.js), what a link into the page opens, in the
+     excerpt room: under the place's name, its first parts as the page reads them, each a
+     line of detail the face fits to its room (`fit`, preview.js), a list's items, a
+     table's cells and a code block's lines each cut to one, then the conversations about
+     it under a rule. The tooltip's ground is the page's ink, so its marks mix the
+     tooltip's own ink rather than the paper's colours. */
+  .lf-place-heading,
+  .lf-place-cell[data-lf-head] {
+    font-weight: 600;
+  }
+  .lf-place-list {
+    display: flex;
+    flex-direction: column;
+  }
+  .lf-place-item,
+  .lf-place-cell,
+  .lf-place-code {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lf-place-item::before {
+    content: "•";
+    margin-inline-end: 6px;
+    color: color-mix(in srgb, currentColor 72%, transparent);
+  }
+  /* A member the widget's answer picks, checked as paper marks a chosen option
+     (options.css). */
+  .lf-place-item[data-lf-chosen] {
+    font-weight: 600;
+  }
+  .lf-place-item[data-lf-chosen]::before {
+    content: "✓";
+    color: inherit;
+  }
+  .lf-place-table {
+    display: grid;
+    grid-template-columns: repeat(var(--lf-columns), minmax(0, auto));
+    gap: 2px 12px;
+  }
+  .lf-place-row {
+    display: contents;
+  }
+  .lf-place-more {
+    grid-column: 1 / -1;
+    color: color-mix(in srgb, currentColor 72%, transparent);
+  }
+  .lf-place-code {
+    display: block;
+    white-space: pre;
+    font: var(--font-code);
+  }
+  .lf-place-figure {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .lf-place-figure > img {
+    display: block;
+    max-width: 100%;
+    max-height: 8rem;
+    object-fit: contain;
+    object-position: left;
+  }
+  .lf-place-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 10px;
+    margin-block-start: 2px;
+    padding-block-start: 4px;
+    border-block-start: 1px solid color-mix(in srgb, currentColor 28%, transparent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lf-preview-face {
+      transition: none;
+    }
+  }
+  @media (forced-colors: active) {
+    .lf-preview-face {
+      border: 1px solid CanvasText;
+    }
+    .lf-preview-detail {
+      color: inherit;
     }
   }
 }

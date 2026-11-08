@@ -261,13 +261,17 @@ Tend's. Change these owners, not model names throughout the tree.
 Prepare a pull request upgrading a default to its suitable stable successor,
 preserving each role's purpose and weighing quality, latency and cost; a newer model
 in a different tier is a candidate to evaluate, not an automatic replacement.
-Verify the exact model id and availability through the actual harness and login,
-and run a small representative eval or journey for the affected role, including
-grading when a judge changes. Record the old and new models, upstream sources
-and validation, and keep model pins the same across arms in a Leaf comparison.
-Regenerate Tend workflows from its config when Tend's default changes, and follow
-**Landing** for changes requiring the control-plane owner's approval. If access
-or a material tradeoff prevents a bump, report what remains to establish.
+Bump prospectively: check the exact id against the provider's current models
+page, run whatever eval or journey for the affected role the session can reach
+(including grading when a judge changes), and land the bump without waiting on a
+check that needs a harness or login the session lacks; the role's own runs after
+landing, such as `publish-site`'s hosted journey, validate it, and a failure there
+comes back as a CI report. Record the old and new models, upstream sources, the
+validation that ran and the validation left to those runs, and keep model pins the
+same across arms in a Leaf comparison. Regenerate Tend workflows from its config
+when Tend's default changes, and follow **Landing** for changes requiring the
+control-plane owner's approval. If a material tradeoff prevents a bump, report what
+remains to establish.
 
 ### Harness opportunities
 

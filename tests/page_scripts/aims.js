@@ -284,8 +284,7 @@
     const seen = new Set();
     for (const el of document.querySelectorAll(
       '[data-lf-offer], .lf-chrome button, .lf-chrome [role="button"],' +
-        ' .lf-chrome [role="checkbox"], .lf-chrome [role="tab"], .lf-chrome .lf-btn,' +
-        " .lf-chrome .lf-quote",
+        ' .lf-chrome [role="checkbox"], .lf-chrome [role="tab"], .lf-chrome .lf-btn',
     )) {
       if (seen.has(el)) continue;
       seen.add(el);

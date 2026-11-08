@@ -96,7 +96,7 @@ import {
   inputCount,
 } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
-import { focusedInView } from "./user-place.js";
+import { focusPlace } from "./user-place.js";
 import { SourcePairs, patchTree, patchRetains } from "./dom-children.js";
 import { savedReadingSettled } from "./keyboard/bindings.js";
 import { commandSteps } from "./keyboard/control-keys.js";
@@ -108,6 +108,7 @@ import { backgroundFlash, flashDuration } from "./motion.js";
 import {
   authored,
   elementById,
+  focusInPage,
   inChrome,
   inPage,
   LEAF_SURFACE,
@@ -1908,6 +1909,11 @@ export function createVersionController({
         owner === pageDocument() ? inPage(node) : under(node, owner),
       declared: upgraded,
       body: authoredBody,
+      // `main` holds nearly all of a page's content, so a page module that moves or
+      // replaces one of its children is patched around, as it was when `main` was the
+      // patch root, rather than rebuilding the page beneath the user.
+      traversed: (element) =>
+        element.localName === "main" && element.parentElement === pageDocument(),
       reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
       same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
       sameValue: (held, value) => sameValue(held, value, arrivingRoot),
@@ -1923,8 +1929,8 @@ export function createVersionController({
       draftEditing,
       replyThread: draftEditing?.mirrored ? heldThreadId() : null,
       // A replaced reply box takes focus back either way, but is brought into view only
-      // where it marked the user's place (user-place.js, `focusedInView`).
-      replyInView: focusedInView() !== null,
+      // where it was where the user is (user-place.js, `focusPlace`).
+      replyInView: focusPlace() !== null,
       // Obligation location is the fallback for unnamed controls. An exact editor already
       // has a replacement identity, so its parent obligation does not also own focus.
       obligationCurrentLocation: draftEditing
@@ -2179,7 +2185,8 @@ export function createVersionController({
   // (layer-client.js, `sourceMovedOn`).
   // Whether the move happens now is asked at the commit: an unresolved delivery,
   // `midComposition`, or an open menu defers it, unless the chip was pressed (goActive)
-  // — the one override, spent by the install it forced.
+  // — the one override, spent by the install it forced or by a load that failed, after
+  // which the lit chip asks for a new press.
   /** @param {import("../types/contract.js").ServedReading} state */
   async function prepareActivation(state) {
     const target = state.active;
@@ -2223,6 +2230,7 @@ export function createVersionController({
       // revision introduces would otherwise reject every later state read for good.
       await preloadWidgets(source);
     } catch (error) {
+      forceActivation = false;
       reportPageError(error, `revision ${target.revision} failed to load`);
       return null;
     }
@@ -2321,7 +2329,7 @@ export function createVersionController({
     const regions = new Map(readingRegions().map((region) => [region.id, region]));
     const active =
       (view.activeRegion === undefined ? undefined : regions.get(view.activeRegion)) ??
-      containingReadingRegionFor(focusedInView()) ??
+      containingReadingRegionFor(focusPlace()) ??
       readingRegionFor(pageReadingBlock());
     if (active) reveal(active.host, currentIntent);
     const restored = new Set();
@@ -2369,14 +2377,14 @@ export function createVersionController({
   }
 
   // The revision handoff restores the region the user works first, so that a box two
-  // regions share lands where that one left it. Focus names a region only while in view
-  // (user-place.js, `focusedInView`): a pane the reader scrolled away from, though it
-  // keeps their focus, would take them back to it.
+  // regions share lands where that one left it. Focus names a region only while it is
+  // where the user is (user-place.js, `focusPlace`): a pane the reader scrolled away
+  // from, though it keeps their focus, would take them back to it.
   const activeReadingRegion = (
     candidates = readingRegions(),
     blocks = textBlocks(),
   ) => {
-    const focusedRegion = containingReadingRegionFor(focusedInView());
+    const focusedRegion = containingReadingRegionFor(focusPlace());
     if (focusedRegion && candidates.some(({ id }) => id === focusedRegion.id))
       return focusedRegion;
     const recent = candidates.find(({ id }) => id === recentReadingRegion()?.id);
@@ -2963,7 +2971,7 @@ export function createVersionController({
     const settling = new Map();
     const recordCurrentLocation = () => {
       const at = focused();
-      if (!at || !inPage(at)) return;
+      if (!at || !focusInPage(at)) return;
       const box = boxOf(at);
       recordPlaces([box], { currentLocation: true });
       cancelRender(settling.get(box));

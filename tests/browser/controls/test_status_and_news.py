@@ -28,6 +28,7 @@ from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
     expect_open_threads,
+    expect_preview_words,
     http_error_console,
     nudge,
     open_page,
@@ -180,7 +181,7 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
     Driven by writing the events a real one would leave, since that is what the page
     reads either way, and there is no other way to reach this half: every gesture the
     press sweep above can make is one the user made, and none of these are."""
-    # Three pending suggestions, so On me's count has somewhere to go before they run
+    # Three pending suggestions, so On Me's count has somewhere to go before they run
     # out; nine comments already, so the tenth crosses a digit; and pinned, so a v2
     # landing leaves the page where it is and offers the row's notice rather than
     # following it.
@@ -193,7 +194,7 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
     owing = f"{on_me}.split(', ')[0]"
     expect_open_threads(page, 9)
     page_at_rest(page)
-    owed = int(page.evaluate(f"() => {on_me}").removeprefix("On me: "))
+    owed = int(page.evaluate(f"() => {on_me}").removeprefix("On Me: "))
 
     def publish_v2():
         stamp_page(d, html, "two")
@@ -237,12 +238,12 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
         (
             "another tab decides two of the three pending suggestions",
             lambda: decide("sug-refill", "sug-thistle"),
-            f"() => {owing} === 'On me: {owed - 2}'",
+            f"() => {owing} === 'On Me: {owed - 2}'",
         ),
         (
             "another tab decides the last one",
             lambda: decide("sug-in-card"),
-            f"() => {owing} === '{'On me: ' + str(owed - 3) if owed > 3 else 'On me'}'",
+            f"() => {owing} === '{'On Me: ' + str(owed - 3) if owed > 3 else 'On Me'}'",
         ),
     ]:
         page.evaluate(DEFINE_BOXES)
@@ -278,16 +279,14 @@ def test_a_panel_row_follows_its_pages_status_live(
     expect(row).to_contain_text("recording the demo")
     # A neighbour waiting on its own user says so in this seat's shorter words, and
     # in the same term its own status uses: All pages is where a user picks which
-    # page to go to. The hover holds it whole, since the line ellipsizes at the
-    # panel's width, and it is the row's hover and not a part's, the innermost title
-    # winning where two overlap.
+    # page to go to. The row's preview holds it whole, since the line ellipsizes at
+    # the panel's width, and no part of the row has a title of its own, whose
+    # tooltip the browser would show in its place.
     end_work(other_dir)
     declare(other_dir, "waiting")
     told(page)
     expect(row).to_contain_text("Ready")
-    expect(row).to_have_attribute(
-        "title", f"The other leaf\n{tmp_path / 'other-work'}\nReady"
-    )
+    expect_preview_words(row, f"The other leaf\n{tmp_path / 'other-work'}\nReady")
     assert row.locator("[title]").count() == 0, (
         "a part of the row carries a tooltip of its own, which wins under the pointer "
         "over the row's whole account"

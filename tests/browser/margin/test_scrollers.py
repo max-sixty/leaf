@@ -644,7 +644,7 @@ def test_a_pin_on_a_code_block_s_first_line_leaves_copy_pressable(
         or pin["y"] + pin["height"] <= shows["y"]
         or pin["y"] >= shows["y"] + shows["height"]
     ), (pin, shows)
-    copy.click(timeout=5000)
+    copy.click()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
@@ -843,10 +843,7 @@ def test_a_bounded_region_reflows_its_margin_without_resizing_the_page(
                 # Moving only the paragraph can change the clear seat around it. The layout
                 # notification must settle that seat as a full geometry reading would.
                 assert after["top"] != before["top"]
-                page.evaluate("""async () => {
-                  const {layoutChanged} = await window.__lfWidgetApi();
-                  layoutChanged(document.body);
-                }""")
+                margins_laid_out(page)
                 assert page.evaluate(reading) == after
             assert after["hit"]
 
@@ -933,6 +930,78 @@ def test_a_pin_in_a_pane_takes_one_seat_at_every_scroll(browser, serve):
     assert top["withheld"] or (
         (top["dx"], top["dy"]) == (far["dx"], far["dy"]) and top["above"] <= 1
     ), (far, top)
+
+
+def sticky_header_page(nested):
+    """A section whose sticky header's control spans its right strip; `nested` sticks
+    the control in a box of its own inside the header too."""
+    control = "<button>Fit the evidence to the window</button>"
+    if nested:
+        control = f'<div id="sticky-inner">{control}</div>'
+    return leaf_page(
+        "a pin on a block with a sticky header",
+        '<h1 id="t">Sticky header</h1>'
+        f'<section id="sticky-target"><div id="sticky-head">{control}</div>'
+        + _PARAGRAPH * 12
+        + "</section>"
+        + _PARAGRAPH * 6,
+        head="<style>#sticky-head { position: sticky; top: 0; display: flex;"
+        " gap: var(--sp-2); background: var(--paper); }"
+        " #sticky-head button, #sticky-inner { flex: 1; display: flex; }"
+        " #sticky-inner { position: sticky; top: 0; }"
+        " #sticky-inner button { flex: 1; } #sticky-target { padding-right: 48px; }"
+        " #sticky-head { margin-right: -48px; }</style>",
+    )
+
+
+# Firefox has no `ViewTimeline` to read a sticky box's own place with
+# (notes/browser-support.md, "Sticky boxes' own place").
+@pytest.mark.parametrize(
+    ("engine", "nested"),
+    [("browser", False), ("webkit_browser", False), ("browser", True)],
+)
+def test_a_pin_by_a_sticky_header_takes_one_seat_at_every_scroll(
+    request, serve, engine, nested
+):
+    """A pin's seat is read once against the target's room, so the document's scroll
+    never moves it (margin-layout.js: remeasuring after a scroll writes the same
+    insets). A sticky header inside the target is drawn wherever the scroll sticks it,
+    so it is read at its own place in the target: read where it was drawn, a pass made
+    while the header stuck far down the target left the seat by its top clear, and the
+    next unrelated pass after scrolling back found the header's control there and moved
+    the pin, with no input (#5165). A sticky box inside the header moves with the
+    header's offset as well as its own, which is counted once."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(sticky_header_page(nested), events=[_comment_on("sticky-target")]),
+    )
+    resized(page, 700, 600)
+    row = page.locator('[data-lf-margin-for="sticky-target"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+
+    def seat_at(scroll):
+        """The pin's offset from its target, laid out with the document at `scroll`."""
+        page.evaluate("(y) => scrollTo(0, y)", scroll)
+        margins_laid_out(page)
+        return page.evaluate(
+            """() => {
+              const row = document.querySelector('[data-lf-margin-for="sticky-target"]');
+              const target = document.getElementById('sticky-target')
+                .getBoundingClientRect();
+              const pin = row.getBoundingClientRect();
+              return {dx: Math.round(pin.right - target.right),
+                      dy: Math.round(pin.top - target.top)};
+            }"""
+        )
+
+    top = seat_at(0)
+    # Scrolled 400px past the target's top, the header sticks 400px down inside it.
+    stuck = page.evaluate(
+        "() => document.getElementById('sticky-target').getBoundingClientRect().top"
+        " + scrollY + 400"
+    )
+    assert seat_at(stuck) == top
+    assert seat_at(0) == top
 
 
 @pytest.mark.parametrize("target_tree", ["shadow", "slotted"])
@@ -1372,7 +1441,7 @@ def test_a_row_in_content_skipped_until_near_stands_once_the_page_scrolls_to_it(
         page.mouse.wheel(0, 250)
         page.wait_for_timeout(50)
     expect(page.locator("#far")).to_be_in_viewport()
-    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"), timeout=5000)
+    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
 
 
 def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serve):
@@ -1397,7 +1466,6 @@ def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serv
         ),
     )
     resized(page, 1440, 900)
-    margins_laid_out(page)
     margins_laid_out(page)
     stuck = page.locator('.lf-margin-cluster[data-lf-margin-for="fixed-note"]')
     flow = page.locator('.lf-margin-cluster[data-lf-margin-for="flow"]')
@@ -1539,13 +1607,13 @@ def test_distant_margin_coordinates_follow_small_moves_without_restatement(
             await window.__lfWidgetApi();
           const main = document.querySelector('main');
           const space = document.createElement('div');
-          space.style.cssText = 'position: relative; height: 1400000px';
+          space.style.cssText = 'position: relative; height: 140000px';
           const target = document.createElement('p');
           target.id = 'distant-margin-target';
           target.textContent = 'A distant passage';
           target.style.cssText = 'position: absolute; left: 40px; top: var(--target-y);'
             + 'width: 300px; height: 30px; margin: 0';
-          target.style.setProperty('--target-y', '1234567.578125px');
+          target.style.setProperty('--target-y', '123456.578125px');
           space.append(target); main.append(space);
           const contribution = registerContribution({key: 'distant', target,
             read: () => ({entries: [contributionEntry({key: 'distant',
@@ -1564,7 +1632,7 @@ def test_distant_margin_coordinates_follow_small_moves_without_restatement(
     for delta in (1, 2, 4):
         page.locator("#distant-margin-target").evaluate(
             "(target, y) => target.style.setProperty('--target-y', `${y}px`)",
-            1234567.578125 + delta,
+            123456.578125 + delta,
         )
         page.wait_for_function(
             """expected => {

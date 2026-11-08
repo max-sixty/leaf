@@ -185,7 +185,9 @@ def probe(
     SOURCE is an example or fixture name, an authored .html path built fresh
     from this working tree, or any http(s) URL. A path takes its companions from
     beside it (examples/AGENTS.md, "Companions"), so a copy of an example that
-    imports /page/theme.css needs its STEM.page/ copied too. --base builds the base's
+    imports /page/theme.css needs its STEM.page/ copied too. Its /media/ files come from
+    a media/ beside it, so a page directory's index.html builds as it stands, a fresh
+    copy without the page's log. --base builds the base's
     page from this working tree's source too, so only Leaf differs between the arms;
     --authored builds it from the base's own copy, to show an edit to the page.
 

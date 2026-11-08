@@ -29,7 +29,7 @@
    null when none identifies a page location. A selected tab starts a walk inside its
    controlled panel without changing comment targets.
 
-   Every walk (`t`, `m`, a tally's Next on me) pages through its stops by one rule, read
+   Every walk (`t`, `m`, a tally's Next On Me) pages through its stops by one rule, read
    from one origin (`walkOrigin`): the node the user's place was read from, the place
    it stands for, and whether that is a current location. The user is on a stop while
    their current location is in the stop's destination, where the walk's own arrival
@@ -41,7 +41,10 @@
    the user let go of (focus.js, `onLetGo`) while they still see it, since letting go
    leaves them beside it rather than anywhere else, until they go on from there by
    standing on another page place or by pressing, wheeling or touching the page; failing
-   that, at the first visible reading block. Neither is on a stop. Stepping into Leaf's
+   that, at what they read (reading-place.js, `pageReadingBlock`). Only what they saw as
+   they let go leaves them beside it: a key pressed after scrolling away lets go of focus
+   they no longer see (keyboard/controller.js), and scrolling back to it doesn't put
+   them there again. Neither is on a stop. Stepping into Leaf's
    panel from either keeps it, the panel holding no other page place. So a walk, Escape
    and the walk again returns to the stop the user left, and a second press goes on from
    it. Each press reads the origin afresh. `stepFrom` orders destinations by rendered
@@ -244,11 +247,12 @@ function* locations() {
 }
 
 // What the user let go of, until they go on from it. Chrome holding no page place,
-// such as On me's list or the comment field, is not somewhere else on the page.
+// such as On Me's list or the comment field, is not somewhere else on the page.
 /** @type {WeakRef<Element> | null} */
 let letGone = null;
 onLetGo((node) => {
-  letGone = new WeakRef(node);
+  const place = placeOf(node);
+  letGone = place && seenRect(place, new Map()) ? new WeakRef(node) : null;
 });
 onCurrentLocation((node) => {
   if (node && placeOf(node)) letGone = null;

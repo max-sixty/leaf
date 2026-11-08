@@ -99,7 +99,7 @@ def _attribute_written(attr: str, values: list) -> str:
 
 def refuse_second_request(asking: dict | None) -> None:
     """A message asks once. `--obligation` beside a widget that asks would stay on
-    On me after the user answers the widget, since only their words answer it."""
+    On Me after the user answers the widget, since only their words answer it."""
     if asking is not None:
         raise Rejected(
             [
@@ -395,7 +395,10 @@ class Receipt:
     already picked up is left to the writer following that turn. With `fence`, the
     receipt writes only while `fence` holds of the page under the lock its append
     takes, as a fork's reply writes only while Leaf still holds its thread from the
-    session."""
+    session. A receipt's progress, such as the working line a fork posts as it hands
+    a thread to the session, takes nothing in hand: its writer is not the turn that
+    will answer, and a start would read as that turn's, renewing it and holding the
+    update at Working before the session has it."""
 
     only_if_unclaimed: bool = False
     fence: Callable[[PageTransaction], bool] | None = None
@@ -430,7 +433,7 @@ def post_reply(
     validate_source: bool = False,
     todo: str | None = None,
     asks_back: bool = False,
-    obligation: bool = False,
+    obligation: bool | list[str] = False,
     ephemeral: bool = False,
     quote: str = "",
     section: str = "",
@@ -467,7 +470,7 @@ def post_reply(
     update in hand with its text as the line (`todos.start_reading`), which is why that
     text is one line: the update reads Working beside its thread and in the page's status, and
     the user's message gets the agent's first words and its Working line from one
-    write.
+    write. A `Receipt`'s progress takes nothing in hand.
     """
     text = checked_text(page_dir, text)
     if markup:
@@ -592,7 +595,7 @@ def _repeated_reply(
     ephemeral: bool,
     failed: bool,
     todo: str | None,
-    obligation: bool,
+    obligation: bool | list[str],
 ) -> dict | None:
     """The reply an earlier write with this `attempt` appended, or None; refuses an
     attempt that named another kind of write: progress, a failure receipt and an
@@ -616,7 +619,7 @@ def _repeated_reply(
         or not same_scope
     ):
         raise Rejected([Finding("attempt-conflict", values={"attempt": attempt})])
-    if existing.get("todo") != todo or bool(existing.get("obligation")) != obligation:
+    if existing.get("todo") != todo or existing.get("obligation", False) != obligation:
         # A repeat that promises differently would otherwise return the first
         # answer and drop what this one declares.
         raise Rejected(
@@ -675,7 +678,7 @@ def _resolve_obligation(
                         )
                     ]
                 )
-        elif ephemeral:
+        elif ephemeral and not isinstance(settlement, Receipt):
             in_hand = responds
         # The open reply reservation decides who may write, whatever the
         # captured `writer` hint or a caller-supplied retry key says.
@@ -740,7 +743,7 @@ def _compose_and_append(
     validate_source: bool,
     todo: str | None,
     asks_back: bool,
-    explicit_obligation: bool,
+    explicit_obligation: bool | list[str],
     ephemeral: bool,
     quote: str,
     section: str,
@@ -883,7 +886,7 @@ def _compose_and_append(
             **({"turn": turn} if turn else {}),
         }
     if explicit_obligation:
-        event["obligation"] = True
+        event["obligation"] = explicit_obligation
     if todo is not None:
         event["todo"] = todo
     if markup:

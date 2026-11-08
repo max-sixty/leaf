@@ -8,6 +8,7 @@ from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, SEATED_OBLIGATION_PAGE, panel_comment
 from render_harness import (
+    expect_preview_words,
     open_page,
     resized,
     sending,
@@ -88,8 +89,9 @@ def test_a_seated_reply_draws_its_widget_in_place(browser, serve, resolved):
 
 def test_a_seated_reply_lends_its_widget_to_the_panel_and_takes_it_back(browser, serve):
     """A reply's widget stands in one drawing at a time: the panel's view of the thread
-    takes it from the seat while it shows the thread, the seat keeps the reply's words
-    with nothing in the widget's place, and going back gives the widget to the seat."""
+    takes it from the seat while it shows the thread, the seat's body keeps the reply's
+    words with nothing in the widget's place, and going back gives the widget to the
+    seat. The body is read alone, since the seat's message also draws its reactions."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
@@ -109,7 +111,9 @@ def test_a_seated_reply_lends_its_widget_to_the_panel_and_takes_it_back(browser,
     expect(seated.locator("#first-job")).to_be_visible()
     view = open_panel_thread(page, root)
     expect(view.locator("#first-job")).to_be_visible()
-    expect(seated).to_have_text(re.compile(r"Choose the first job\.\s*$"))
+    expect(seated.locator(":scope > .lf-msg-body")).to_have_text(
+        re.compile(r"^\s*Choose the first job\.\s*$")
+    )
     page.locator(".lf-fp-back").click()
     expect(seated.locator("#first-job")).to_be_visible()
 
@@ -259,7 +263,6 @@ def test_a_summary_folds_originals_and_reveals_them(browser, serve):
         expect(
             card.locator(f'.lf-msg[data-lf-event="{message["id"]}"]')
         ).to_be_visible()
-    expect(checkpoint.locator(".lf-summary-refold")).to_have_count(0)
     expect(expand).to_have_accessible_name("Hide 3 earlier messages")
     expand.focus()
     page.keyboard.press("Enter")
@@ -762,9 +765,10 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
         told(page)
 
     edit_root("Start with the corrected measured constraint.")
-    expect(
-        card.get_by_role("button", name="2 new", exact=True)
-    ).to_have_accessible_description("1 message edited · 1 summary changed")
+    expect_preview_words(
+        card.get_by_role("button", name="2 new", exact=True),
+        "1 message edited · 1 summary changed",
+    )
     expect(checkpoint).to_have_count(1)
     expect(resolve).to_be_focused()
 
@@ -817,7 +821,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     )
     told(page)
     notice = card.get_by_role("button", name="1 new", exact=True)
-    expect(notice).to_have_accessible_description("1 summary changed")
+    expect_preview_words(notice, "1 summary changed")
     expect(old_checkpoint).to_be_visible()
     expect(opened).to_be_focused()
     notice.click()

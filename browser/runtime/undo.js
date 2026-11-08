@@ -392,8 +392,7 @@ export function createUndo({
 
   // Put the user on a thread, under the intent of the gesture that asked for it: in the
   // reader a settlement named (thread/folding.js), else where they see it drawn on the
-  // page, since opening it could choose another surface for it, as a margin card for a
-  // thread seated in a widget.
+  // page, which needs no travel, else where a route to it opens it.
   /** @param {string} id @param {UserIntent} intent @param {Reader} [reader] */
   async function returnToThread(id, intent, reader = null) {
     if (reader) return openThread(id, { part: "thread", intent, reader });
@@ -520,7 +519,8 @@ export function createUndo({
   }
 
   // The press a notice of the gesture made under `attempt` offers (notifications.js,
-  // `press`), as a Resolve's "Resolved “…” · Undo" does (thread/folding.js). It takes
+  // `press`), as a Reopen's notice, or a Resolve's that leaves no thread open, offers
+  // Undo (thread/folding.js, `nextStep`). It takes
   // back that gesture as `z` takes the list's head, never what `z` would take by then,
   // and stands while the page can still take the gesture back, so the log refusing it,
   // or its withdrawal by any route, takes the notice away.

@@ -1,6 +1,9 @@
 import { canvas2D } from "/runtime/widget-api.js";
 import { says } from "/runtime/widget-api.js";
 import {
+  colourableAs,
+  colouredAs,
+  inPage,
   quoteFrom,
   textNodesUnder,
   upFrom,
@@ -401,6 +404,22 @@ export function unreadSyntax() {
   return [...found.values()];
 }
 
+// The page's own code blocks that declare a language Leaf colours and go uncoloured,
+// since no reading face reaches them (syntax.js), as on a page that takes no theme.
+// Nothing else says so: the block reads as text, and its author learns only from the
+// render, while a reader can take the plain block for a broken one. It is advice,
+// since a page of its own design may leave its code the colour of its ink. A widget's
+// own tree is held out, since its sheet decides how its code reads.
+export function uncolouredCode() {
+  return [...document.querySelectorAll("pre > code[class]")]
+    .filter((code) => inPage(code) && colourableAs(code) && !colouredAs(code))
+    .map((code) => ({
+      code: "uncoloured-code",
+      at: at(code),
+      language: colourableAs(code),
+    }));
+}
+
 // Words a declaration promised and the page never got. Every other reading here works
 // from what the browser drew, and that is exactly what cannot see this one: a word that
 // never arrived looks the same as an attribute with nothing to say. The registry is what
@@ -441,8 +460,8 @@ export function silentWords(declarations) {
   return found;
 }
 
-// The drawing idiom sets labels at 10–12px in viewBox units; its 9px step glyph is
-// one bold numeral. Both the live reading and the gate use this heuristic, and a
+// The smallest size the drawing idiom sets its labels at, in viewBox units
+// (`--drawing-small-size`). Both the live reading and the gate use this heuristic, and a
 // reading carries the threshold so its consumer can distinguish it from a failure.
 const SHRUNK_LABEL_THRESHOLD_PX = 10;
 
@@ -466,8 +485,8 @@ export function shrunkLabelReading() {
 // A label counts when the drawing made it smaller than it was set and smaller than
 // `floor`. Drawn size is what decides, since halving a 28px heading leaves it legible
 // and a fifth off an 11px label does not. The first half is what makes it the drawing's
-// finding: a label set small and drawn at that size is a choice the source states (the
-// theme's own step glyph is 9px, bold on its dot), and a widget that keeps its
+// finding: a label set small and drawn at that size is a choice the source states (a
+// page's own step glyph at 9px, bold on its dot), and a widget that keeps its
 // renderer's natural size — a diagram scrolls rather than shrink, a chart draws at the
 // width it measured — never scales one at all.
 //

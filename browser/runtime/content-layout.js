@@ -13,6 +13,7 @@ import { union } from "./rect.js";
 import { syncLayoutRegion } from "./reading-regions.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { readPageHead } from "./root-headers.js";
+import { inChrome } from "./shadow-tree.js";
 
 let documentLayoutOpen = false;
 /** @type {((changed: boolean) => unknown) | null | undefined} */
@@ -31,7 +32,9 @@ function readDocumentLayout() {
   // the one is never read as the other (root-headers.js).
   readPageHead();
   syncLayoutRegion();
-  const header = layoutBox()?.querySelector(":scope > header") ?? null;
+  const header =
+    [...(layoutBox()?.children ?? [])].find((child) => child.localName === "header") ??
+    null;
   if (header !== watchedHead) {
     headSizes ??= sizeObserver(scheduleDocumentLayout);
     if (watchedHead) headSizes.unobserve(watchedHead);
@@ -70,7 +73,16 @@ export function settleDocumentLayout() {
 export function openDocumentLayout({ onRead }) {
   readFinished = onRead;
   documentLayoutOpen = true;
-  document.addEventListener("toggle", scheduleDocumentLayout, { capture: true });
+  // A disclosure or popover the page opens can move its prose; one in Leaf's chrome,
+  // such as a preview standing over the page (preview.js), moves none of it.
+  document.addEventListener(
+    "toggle",
+    (event) => {
+      if (!inChrome(/** @type {Node | null} */ (event.target)))
+        scheduleDocumentLayout();
+    },
+    { capture: true },
+  );
   window.addEventListener("resize", scheduleDocumentLayout);
   readDocumentLayout();
 }

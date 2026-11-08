@@ -111,17 +111,21 @@ export function beginRead() {
 // cannot guarantee its state read succeeded. Healthy pages read state only on change.
 /** @param {{
  * stateApplying: () => boolean,
+ * stateInHand: () => import("../types/contract.js").ServedState | null,
  * invalidateDom: () => Promise<unknown>,
  * receiveState: (state: import("./layer-client.js").CompletedState) => Promise<unknown>,
  * prepareActivation: ReturnType<typeof import("./version.js").createVersionController>["prepareActivation"]
  * }} dependencies */
 export function createStateFeed({
   stateApplying,
+  stateInHand,
   invalidateDom,
   receiveState,
   prepareActivation,
 }) {
   let readAnswered = false;
+  // What the page has adopted or has in hand, and so needs no read for.
+  const readingInHand = () => stateInHand()?.reading ?? null;
 
   // A read that did not land: the page asks again on the next tick and says why. A fault
   // its producer already reported (a paint, a state application) is reported once.
@@ -223,14 +227,21 @@ export function createStateFeed({
     // answer arriving while it is still unanswered queues a trailing read behind it instead
     // of opening a second one alongside.
     let reading = true;
-    let readQueued = false;
+    // What the trailing read is for: the news a look heard while the slot was held,
+    // null when a tick or a failed look asked for no reading in particular, and
+    // undefined while nothing waits.
+    /** @type {string | null | undefined} */
+    let queued;
     let applyingReads = 0;
     // Give the read slot back, and start the trailing read a tick or freshness answer
-    // queued behind the read that held it.
+    // queued behind the read that held it, unless the answer that read just handed in
+    // is the reading the look heard of. A read that began before a save can wait out
+    // the save's activation and answer with its revision.
     const releaseSlot = () => {
       reading = false;
-      if (!readQueued) return;
-      readQueued = false;
+      const asked = queued;
+      queued = undefined;
+      if (asked === undefined || (asked !== null && asked === readingInHand())) return;
       item();
     };
     // Nothing is being read or applied: what the page shows is the latest it holds.
@@ -281,9 +292,10 @@ export function createStateFeed({
         failed(error);
       }
     };
-    const item = () => {
+    /** @param {string | null} [observed] the news that asks, if a look heard it */
+    const item = (observed = null) => {
       if (reading) {
-        readQueued = true;
+        queued = queued === null || observed === null ? null : observed;
         return;
       }
       reading = true;
@@ -299,6 +311,10 @@ export function createStateFeed({
     let listening = null;
     /** @type {string | null} */
     let freshness = null;
+    // What the page had in hand when the last look heard the news name another
+    // reading, or null when the two agreed. The page may hold no reading yet.
+    /** @type {{held: string | null} | null} */
+    let crossed = null;
     /** @type {ReturnType<typeof setTimeout> | undefined} */
     let nextLook;
     const stopListening = () => {
@@ -307,6 +323,7 @@ export function createStateFeed({
       listening?.abort();
       listening = null;
       freshness = null;
+      crossed = null;
     };
     const listen = () => {
       if (!feedStarted || !pageIsVisible() || !sessionIsActive() || listening) return;
@@ -329,7 +346,9 @@ export function createStateFeed({
           if (!response.ok) throw new Error(`news returned HTTP ${response.status}`);
           const observed = await response.text();
           if (listening === interval) {
-            if (observed !== freshness && observed !== runtime.reading) item();
+            const held = readingInHand();
+            crossed = observed === held ? null : { held };
+            if (observed !== freshness && observed !== held) item(observed);
             else if (returned !== null && observed === runtime.reading && feedQuiet()) {
               // There is no newer state to ask for. Still present what this tab
               // held before the absence, then protect its new baseline again.
@@ -376,18 +395,20 @@ export function createStateFeed({
       // One shared clock serves temporal paint, deferred work, and failed reads.
       setInterval(() => {
         if (!pageIsVisible()) return;
-        // A state read can cross a short-lived process lease and name a different
-        // observation than the unchanged freshness token. Repair that crossing on
-        // the same clock as failed reads, rather than repeating state at every look.
-        if (
-          readAnswered &&
-          sessionIsActive() &&
-          (activityTransitionDue(runtime.state) ||
-            (freshness !== null && freshness !== runtime.reading))
-        )
-          void item();
+        // Ask again after a read that failed, when the state in hand says its
+        // activity has come due, or when the last look heard the news name a
+        // reading other than the one the page still has in hand: a state read
+        // crossed a short-lived process lease the news never named, or the page
+        // dropped an answer it could not adopt. Repair each on this clock rather
+        // than repeating state at every look. A read in flight, or an answer handed
+        // in since that look, settles it instead, and if it fails the next tick asks.
+        const asks =
+          !readAnswered ||
+          (sessionIsActive() &&
+            (activityTransitionDue(stateInHand()) ||
+              (crossed !== null && crossed.held === readingInHand())));
+        if (asks && !reading) void item();
         else if (readAnswered) void heartbeat();
-        else void item();
         // A presentation that failed is retried here as the poll retried it, since
         // a quiet page may see no read to chain it onto.
         void present();

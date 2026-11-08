@@ -47,10 +47,9 @@ COMMENTS = {
     "first": ("triage-lede", "Who owns the migration fix?"),
     "ending": ("triage-why", "When could that fix land?"),
     "compacting": ("triage-lede", "Which risk worries you most for this release?"),
-    # Questions the conversation already answers, which a fork of it can, and a
-    # request for work, which only the session can do.
+    # A question the conversation already answers and a request for work, on each of
+    # which a fork posts the agent's working line before the session answers.
     "fork-idle": ("triage-lede", "What did I ask you to do with this page?"),
-    "fork-busy": ("triage-why", "Which release did I say passed its checks?"),
     "fork-work": (
         "triage-why",
         "Rename this heading to ‘Why the migration alone blocks the release’.",

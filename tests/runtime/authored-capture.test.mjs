@@ -55,6 +55,7 @@ test("native idioms never become widget descriptors or authored widget ancestors
   document.body.innerHTML =
     '<main><table id="native"><tbody><tr><td><lf-nested id="nested">Value</lf-nested></td></tr></tbody></table></main>';
   adoptRegistry({
+    $layer: { generation: "native-idioms" },
     "lf-nested": {},
     table: { description: "A table idiom.", "x-example": "<table></table>" },
     "lf-nested.selected": {

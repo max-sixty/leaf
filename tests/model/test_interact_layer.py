@@ -1724,8 +1724,8 @@ def test_an_untyped_has_leads_only_to_a_typed_subject():
     Chromium tests the root's `:has()` on every element of that type, and adding or
     removing a node inside any of them restyled the page: with `@scope (div:has(>
     lf-toc))`, a heading's link moving into the chrome restyled 20,255 of the 28,335
-    elements of the 512-section asks page of `leaf-dev scaling`, against 58 with
-    toc.css's `lf-toc + *`, which asks no `:has()` at all."""
+    elements of the 512-section asks page of `leaf-dev bench`, against 58 with
+    toc.css's rule for the block after the map, which asks no `:has()` at all."""
     found = []
 
     def keyed(compound):
@@ -2337,7 +2337,7 @@ _LAYER_SHEET_ORDER = [
     for sheet in (
         root / name
         for name in (
-            ("shadow.css", "base.css")
+            ("styles/control-face.css", "shadow.css", "base.css")
             if root == schema_model.ASSETS
             else schema_model.PACKAGE_STYLES
         )
@@ -2349,10 +2349,13 @@ _LAYER_SHEET_ORDER = [
 def test_the_injected_control_face_is_one_default_in_both_trees():
     """Document and declared-shadow controls share one default before component rules.
 
-    It weighs nothing and comes first, so every component rule outranks it, and
-    markup's reading face, a layer below, loses to it. Only native controls and those
-    carrying a face class receive it: a widget's apparatus marked `lf-ui`, such as diff
-    line numbers, retains the component's own typography.
+    It weighs nothing and comes first in the document, so every component rule
+    outranks it, and markup's reading face, a layer below, loses to it. A shadow tree
+    places the same sheet below what a widget adopts, which
+    `test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rules`
+    holds. Only native controls and those carrying a face class receive it: a widget's
+    apparatus marked `lf-ui`, such as diff line numbers, retains the component's own
+    typography.
     """
     faces = [
         (sheet, selector)
@@ -2363,8 +2366,8 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
         if any(name in _FACE for name, _value in declarations)
     ]
     assert faces, "no face was read from the layer's sheets — the reading is broken"
-    # Both delivery trees use the same face classes and cascade order.
-    shadow = schema_model.ASSETS / "shadow.css"
+    # One sheet gives both delivery trees the default.
+    face_sheet = schema_model.ASSETS / "styles/control-face.css"
     control_face = (
         ":where( :is(:root, :host) .lf-ui-face, :is(:root, :host) .button, "
         ":is(:root, :host) .field, "
@@ -2372,7 +2375,7 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
         ":host :is(button, input, select, textarea) )"
     )
     control_ink = ":where(.lf-ui-face, .button, .field)"
-    default = [(shadow, control_face), (shadow, control_ink)]
+    default = [(face_sheet, control_face), (face_sheet, control_ink)]
     assert faces[:2] == default, faces[:2]
     defaults = [
         face
@@ -4615,6 +4618,38 @@ def test_a_revision_reads_its_package_copy_after_the_selection_moves_on(
     assert "/widgets/helper.js" in layer_files_of_revision(page, 1)
 
 
+def test_package_instructions_do_not_change_a_revisions_browser_address(
+    tmp_path, monkeypatch
+):
+    from leaf.revision_artifact import read_artifact
+    from leaf.revisioning import activate_source
+    from leaf.runtime_selection import executing
+
+    monkeypatch.chdir(tmp_path)
+    custom = tmp_path / "custom"
+    (custom / "instructions").mkdir(parents=True)
+    (custom / "instructions" / "author.md").write_text("Initial instructions.\n")
+    page = tmp_path / "page"
+    init = ["page", "init", "--package", "./custom", str(page)]
+    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
+    (page / "index.html").write_text(PLAIN_PAGE)
+    assert activate_source(page).error is None
+    artifact = read_artifact(page, 1)
+    record = json.loads(artifact.manifest)["layer"]
+    first_layer = registry_storage.selected(record, page)
+    first = executing(artifact)
+
+    (custom / "instructions" / "author.md").write_text("Revised instructions.\n")
+    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
+    second_layer = registry_storage.selected(record, page)
+    second = executing(artifact)
+
+    assert second_layer.fingerprint != first_layer.fingerprint
+    assert second.package_copies != first.package_copies
+    assert second.resources == first.resources
+    assert second.identity == first.identity
+
+
 def layer_files_of_revision(page: Path, revision: int) -> dict[str, bytes]:
     from leaf.revision_artifact import read_artifact
 
@@ -4697,8 +4732,9 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     types in a loop counts as written.
 
     Each allowed one is named here. The dispatcher has a capture listener for
-    shortcut characters, before nested libraries' typeahead, and a bubble listener
-    for other keys, after controls' own handling; both use the same register.
+    shortcut characters, before nested libraries' typeahead, and for a key that lets go
+    of focus the user can't see, and a bubble listener for other keys, after controls'
+    own handling; both use the same register.
     The aim latch is not a binding at all: holding ⌥ arms nothing and answers no
     press, it paints what
     a click would take, and its keyup half has no place in a table of presses. The
@@ -4707,7 +4743,10 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     other listener enters its browsing context on trusted input without answering a
     key; the same listener handles pointer input. document-inputs.js records inputs
     from the document's first script. focus.js reads keys as the end of a label press
-    and as a Tab's step; neither answers a command. The
+    and as a Tab's step; neither answers a command. Any key but Escape puts away the
+    preview a pointer reads and goes on to its command, and off a served page, where the
+    register holds no page scopes, the listener takes the preview's Escape step
+    (preview.js). The
     interaction log records keys and answers none. A control standing over a page block, such as a code block's Copy, hands Tab back to its block. A span Leaf offers as
     a button takes a button's Enter and Space as their default action
     (role-button-press.js), on any page; the register names that press as native
@@ -4735,6 +4774,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         "focus.js": 2,
         "interaction-log.js": 1,
         "block-controls.js": 1,
+        "preview.js": 1,
         "role-button-press.js": 1,
     }, (
         f"the runtime's keydown listeners changed: {listed}. A key belongs in the "

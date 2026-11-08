@@ -498,8 +498,10 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
 ):
     """The range travel has two jobs: reveal a passage inside its nested scrollports,
     then centre it vertically in the document. `scrollIntoView` also moved the document,
-    jumping it to the nearest edge synchronously before the intended smooth centred navigation step
-    began. Both local axes must remain immediate, while the page makes only one move."""
+    jumping it to the nearest edge in the press's own task before the smooth centred
+    navigation step began. Both local axes must move in that task, while the page waits
+    for its glide (scrolling.js, `glideTo`), whose frames carry it to the centre in one
+    trip: each one further down, never turning back."""
     lead = "".join(
         f"<p>Reading context before the passage, line {i}.</p>" for i in range(32)
     )
@@ -530,26 +532,30 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
         """() => {
           document.scrollingElement.scrollTo({top: 0, behavior: 'instant'});
           document.querySelector('#rail').scrollLeft = 0;
-          window.lfFirstPageScroll = null;
+          window.lfPageTrip = [];
+          window.lfAfterPress = null;
           document.addEventListener('scroll', (event) => {
-            if (event.target === document && window.lfFirstPageScroll === null)
-              window.lfFirstPageScroll = document.scrollingElement.scrollTop;
+            if (event.target === document)
+              window.lfPageTrip.push(document.scrollingElement.scrollTop);
+          }, {capture: true});
+          // Registered after the runtime's own listener, which answers a shortcut as
+          // the document captures it, so this reads the press's task once the walk has.
+          document.addEventListener('keydown', () => {
+            window.lfAfterPress = {
+              page: document.scrollingElement.scrollTop,
+              rail: document.querySelector('#rail').scrollLeft,
+              local: document.querySelector('#local').scrollTop,
+              localXFits: document.querySelector('#local').scrollWidth
+                <= document.querySelector('#local').clientWidth,
+            };
           }, {capture: true});
         }"""
     )
 
     page.keyboard.press("t")
-    page.wait_for_function("() => window.lfFirstPageScroll !== null")
-    immediate = page.evaluate(
-        """() => ({
-          firstPage: window.lfFirstPageScroll,
-          rail: document.querySelector('#rail').scrollLeft,
-          local: document.querySelector('#local').scrollTop,
-          localXFits: document.querySelector('#local').scrollWidth
-            <= document.querySelector('#local').clientWidth,
-        })"""
-    )
-    assert immediate["firstPage"] < 100, (
+    page.wait_for_function("() => window.lfAfterPress !== null")
+    immediate = page.evaluate("() => window.lfAfterPress")
+    assert immediate["page"] == 0, (
         f"the thread walk jumped the page before its smooth navigation step began: {immediate}"
     )
     assert immediate["rail"] > 0, (
@@ -574,6 +580,10 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
           return Math.abs((rect.top + rect.bottom) / 2 - (top + bottom) / 2) < 2;
         }"""
     )
+    trip = page.evaluate("() => window.lfPageTrip")
+    assert trip and trip == sorted(trip), (
+        f"the page made more than one trip to the passage: {trip}"
+    )
     expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
 
 
@@ -588,7 +598,7 @@ CARD_ROUTES = {
     "reply, back to the thread": (["t", "c", "Escape"], True),
     "arrive at the mark": (["@mark"], True),
     "arrive at the mark, step back": (["@mark", "Escape"], True),
-    "press the marker": (["@marker"], True),
+    "press the marker, back to the thread": (["@marker", "Escape"], True),
 }
 
 
@@ -745,13 +755,15 @@ def test_an_inline_thread_rings_its_card_for_keyboard_focus(browser, serve):
     }"""
 
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').first.click()
-    expect(thread).to_be_focused()
+    expect(preview.locator("leaf-text")).to_be_focused()
     pointer = face.evaluate(paint)
     assert pointer["outline"] == "none"
     drawn = rings_drawn(page)
-    assert not any(ring["sample"] for ring in drawn), drawn
+    assert [".lf-compose-field" in ring["rule"] for ring in drawn] == [True], drawn
     assert not ring_faults(drawn, "the thread opened by pointer")
 
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("t")
     expect(thread).to_be_focused()
@@ -778,6 +790,9 @@ def test_an_inline_thread_rings_its_card_for_keyboard_focus(browser, serve):
     # same field ring, without returning it to the enclosing card.
     thread.click(position={"x": 3, "y": 3})
     expect(thread).to_be_focused()
+    assert face.evaluate(paint)["outline"] == "none"
+    drawn_on_thread = rings_drawn(page)
+    assert not any(ring["sample"] for ring in drawn_on_thread), drawn_on_thread
     reply.click()
     expect(reply).to_be_focused()
     pointer_reply = rings_drawn(page)
@@ -785,6 +800,39 @@ def test_an_inline_thread_rings_its_card_for_keyboard_focus(browser, serve):
     assert pointer_reply[0]["rule"] == drawn[0]["rule"]
     assert pointer_reply[0]["sample"], pointer_reply
     assert not ring_faults(pointer_reply, "the reply box focused by pointer")
+
+
+def test_a_walk_lands_on_a_thread_in_its_seat_in_view(browser, serve):
+    """A walk to a thread an element seats lands on it there, not in a card beside the
+    element showing the same thread, and in view: the element its seat makes taller
+    than the window is no reason to take the thread back out of view."""
+    url = serve(
+        SEATED_OBLIGATION_PAGE.replace(
+            "</main>",
+            "".join(f"<p id='f{i}'>{'Words. ' * 120}</p>" for i in range(8))
+            + "</main>",
+        )
+    )
+    roots = [
+        panel_comment(
+            serve.page_dir,
+            f"Thread {n}. " + "These jobs can share one visit. " * 4,
+            {"section": "jobs"},
+        )
+        for n in range(6)
+    ]
+    page = open_page(browser, url)
+    resized(page, 1280, 600)
+    page.locator("#f6").click()
+    page.keyboard.press("End")
+    page.wait_for_function("() => scrollY > 1500")
+    scroll_settled(page)
+    page.keyboard.press("Shift+t")
+    last = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{roots[-1]}"]')
+    expect(last).to_be_focused()
+    scroll_settled(page)
+    expect(last).to_be_in_viewport()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
 
 def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):

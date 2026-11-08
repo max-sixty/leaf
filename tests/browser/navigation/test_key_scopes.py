@@ -28,8 +28,10 @@ from render_harness import (
     LONG_PAGE,
     PANEL,
     available_commands,
+    back_gesture,
     consume_browser_errors,
     draft_control,
+    expect_panel_says,
     hold_selection,
     is_problem,
     leaf_page,
@@ -39,10 +41,14 @@ from render_harness import (
     panel_field,
     panel_settled,
     panel_view,
+    put_preview_away,
+    refuse,
     resized,
     round_trip,
+    scroll_settled,
     select_words,
     told,
+    watched,
     write,
 )
 
@@ -164,7 +170,7 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
 
 def test_the_thread_walk_goes_on_from_the_place_the_panel_holds(browser, serve):
     """Stepping into the panel from a thread keeps the user in that thread on the page,
-    so `t` pressed in On me goes on to the next thread rather than back into it."""
+    so `t` pressed in On Me goes on to the next thread rather than back into it."""
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
     )
@@ -227,15 +233,17 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
         for root in roots
     ]
 
-    # Leaf's controls with no layer up: out onto the page.
+    # Leaf's controls with no layer up: focus arriving on one shows its preview
+    # (preview.js), which the first Escape puts away; the second lets go onto the page.
     expect(marker).to_be_visible()
     for control in (toggle, marker):
         control.focus()
+        put_preview_away(page)
         expect(control).to_be_focused()
         page.keyboard.press("Escape")
         assert page.evaluate(on_body)
 
-    # On me by pointer: out with the panel's view.
+    # On Me by pointer: out with the panel's view.
     toggle.click()
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
@@ -252,15 +260,17 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     # element that thread is about: the marker the card hangs from is not a landing.
     marker.click()
     expect(preview).to_be_visible()
-    expect(threads[0]).to_be_focused()
+    expect(preview.locator("leaf-text")).to_be_focused()
     rendered(page)
-    # The pointer route keeps keyboard standing without showing a keyboard ring.
+    # The pointer route shows no keyboard ring around the card.
     assert (
         preview.locator(".lf-margin-preview-card").evaluate(
             "node => getComputedStyle(node).outlineStyle"
         )
         == "none"
     )
+    page.keyboard.press("Escape")
+    expect(threads[0]).to_be_focused()
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
     out()
@@ -268,6 +278,8 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     # The mark on the page is the same door and the same way out.
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(preview).to_be_visible()
+    expect(preview.locator("leaf-text")).to_be_focused()
+    page.keyboard.press("Escape")
     expect(threads[0]).to_be_focused()
     out()
 
@@ -291,7 +303,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
 def test_a_view_reached_from_another_view_leaves_both_of_them_shut(browser, serve):
     """The surface a user was already in does not come back when the next one goes.
 
-    `g T` from On me puts Threads up in its place, and the one Escape that takes
+    `g T` from On Me puts Threads up in its place, and the one Escape that takes
     Threads off lands on the page rather than reopening the view the user came from.
     Nothing records that they were in it, and the descent Escape matches is the one that
     the state in front of them describes: Threads over the page.
@@ -614,6 +626,56 @@ def test_a_dialog_shown_as_a_popover_stands_as_a_popover(browser, serve):
       return {popover, modal};
     }""")
     assert kinds == {"popover": ["popover"], "modal": ["modal"]}
+
+
+HOVER_CARD_PAGE = """<!doctype html>
+<html lang="en">
+  <head><title>Escape under a hover card</title></head>
+  <body>
+    <main>
+      <p id="para">
+        <span id="word">Hover this word</span>, or focus this
+        <a id="link" href="#para">link</a>.
+      </p>
+      <div id="card" popover="manual"><button id="in-card">In the card</button></div>
+    </main>
+  </body>
+</html>
+"""
+
+
+def test_escape_passes_a_manual_popover_the_user_is_not_in(browser, serve):
+    """A manual popover the user isn't in, such as a hover card, leaves Escape its steps
+    beneath it: the panel's comment field and a link let go under it as they do with no
+    card open. A focused link previews the place it names, and the first Escape puts that
+    preview away (preview.js), so the link lets go at the second. The browser never
+    closes a manual popover on Escape, so standing the steps down under one left every
+    press dead until the card closed (#5582). Focus inside the card makes it the user's
+    layer again, and the page beneath stays out of Escape's reach."""
+    page = open_page(browser, serve(HOVER_CARD_PAGE))
+    card = page.locator("#card")
+    link = page.locator("#link")
+    show = "() => document.getElementById('card').showPopover()"
+
+    link.focus()
+    page.evaluate(show)
+    put_preview_away(page)
+    expect(link).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(link).not_to_be_focused()
+    assert card.evaluate("c => c.matches(':popover-open')")
+
+    field = panel_field(page)
+    write(field, "words")
+    expect(field).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(field).not_to_be_focused()
+    assert card.evaluate("c => c.matches(':popover-open')")
+
+    page.locator("#in-card").focus()
+    page.keyboard.press("Escape")
+    expect(page.locator("#in-card")).to_be_focused()
+    assert card.evaluate("c => c.matches(':popover-open')")
 
 
 def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser, serve):
@@ -1390,29 +1452,220 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     expect(leaves).to_be_visible()
 
 
+def test_a_walk_with_nothing_to_step_through_says_so(browser, serve):
+    """Each page walk's letter is live on every page: on a page with no open thread,
+    nothing on the user, no comparison and no search, a press says so in the panel
+    rather than doing nothing (keyboard/AGENTS.md, "Page grammar"), and Shift's
+    reverse says the same."""
+    page = open_page(
+        browser, serve(leaf_page("Quiet", "<h1>Quiet</h1><p>Nothing to answer.</p>"))
+    )
+    for key, words in (
+        ("t", "No open threads"),
+        ("m", "Nothing waiting on me"),
+        ("h", "No changes marked"),
+        ("n", "No search to repeat"),
+        ("Shift+t", "No open threads"),
+    ):
+        page.keyboard.press(key)
+        expect_panel_says(page, words)
+
+
+def test_an_offline_walk_says_its_list_cannot_be_had(browser, serve):
+    """With the server's reading refused, an empty walk doesn't claim its list is
+    empty: the page's log holds an open thread `t` can't see, so `t`, and `m` with it,
+    say their lists can't be had, as the Threads view does."""
+    url = serve(
+        leaf_page("Offline", '<h1>Offline</h1><p id="said">Words to comment on.</p>'),
+        events=[
+            {
+                "id": "held-thread",
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Walk to me.",
+                "anchor": {"section": "said"},
+            }
+        ],
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    page.route("**/api/state*", refuse)
+    page.goto(url, wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    page.keyboard.press("t")
+    expect_panel_says(
+        page, "Current threads are unavailable while the server is offline"
+    )
+    page.keyboard.press("m")
+    expect_panel_says(page, "On Me is unavailable while the server is offline")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_key_at_a_control_scrolled_away_acts_from_what_the_user_reads(
+    request, serve, engine
+):
+    """Focus stays on a control the user scrolls away from, but a key they press there
+    lets go of it first and acts from what they read: Enter follows no link, an arrow
+    moves no radio's choice, End steps no select, Space checks no radio and pages on,
+    and Tab goes on from the paragraph on screen, from a text field too, which keeps
+    only the keys that type. Chromium would move the radio's choice at the control the
+    arrow was aimed at (notes/browser-support.md)."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Controls scrolled away",
+                '<h1>Controls scrolled away</h1><p><a id="link" href="#far">Far</a></p>'
+                "<fieldset><legend>Route</legend>"
+                '<label><input type="radio" name="route" id="left" checked> Left</label>'
+                '<label><input type="radio" name="route" id="right"> Right</label>'
+                '</fieldset><select id="pick" size="3"><option selected>One</option>'
+                "<option>Two</option><option>Three</option></select>"
+                '<textarea id="notes"></textarea>'
+                '<div style="height:2400px"></div><p id="reading">The '
+                "paragraph the reader scrolls to and reads, with words enough to name a "
+                'place on the page.</p><p><button id="next">Next</button></p>'
+                '<div style="height:2400px"></div><h2 id="far">Far below</h2>',
+            )
+        ),
+    )
+    left = page.locator("#left")
+
+    def away(control, key):
+        page.locator(control).focus()
+        page.evaluate(
+            """() => scrollTo({behavior: 'instant',
+              top: document.getElementById('reading').offsetTop - 200})"""
+        )
+        scroll_settled(page)
+        scrolled = page.evaluate("scrollY")
+        page.keyboard.press(key)
+        rendered(page)
+        expect(page.locator(control)).not_to_be_focused()
+        return scrolled
+
+    away("#link", "Enter")
+    assert page.evaluate("location.hash") == ""
+    away("#left", "ArrowDown")
+    expect(left).to_be_checked()
+    away("#pick", "End")
+    expect(page.locator("#pick")).to_have_value("One")
+    scrolled = away("#right", " ")
+    expect(left).to_be_checked()
+    page.wait_for_function("(at) => scrollY > at", arg=scrolled)
+    scroll_settled(page)
+    away("#link", "Tab")
+    expect(page.locator("#next")).to_be_focused()
+    away("#notes", "Tab")
+    expect(page.locator("#next")).to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_key_at_a_control_out_of_sight_in_a_fixed_box_lets_go_of_it(
+    request, serve, engine
+):
+    """A fixed box stands in front of the user whatever the page scrolls, so a key at a
+    control in it acts there. One the box's own scroller has taken out of sight, or one
+    a narrower window has left beside it, is a control they can't see, and a key lets go
+    of it, in a modal dialog too, whose inert page takes no landing."""
+    press = "onclick=\"this.dataset.pressed = 'yes'\""
+    scroller = "width:300px;height:120px;overflow:auto"
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Fixed boxes",
+                f'<div id="box" style="position:fixed;top:300px;left:40px;{scroller}">'
+                f'<button id="control" {press}>Press</button>'
+                '<div style="height:1000px"></div></div>'
+                f'<button id="beside" {press} style="position:fixed;top:40px;'
+                'left:1000px">Beside</button>'
+                f'<dialog id="modal" style="{scroller}">'
+                f'<button id="inside" {press}>Inside</button>'
+                '<div style="height:1000px"></div></dialog><p>Words on the page.</p>',
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+
+    def lets_go(control):
+        page.keyboard.press("Enter")
+        rendered(page)
+        expect(control).not_to_be_focused()
+        expect(control).not_to_have_attribute("data-pressed", "yes")
+
+    control = page.locator("#control")
+    control.focus()
+    page.keyboard.press("Enter")
+    expect(control).to_have_attribute("data-pressed", "yes")
+    control.evaluate("node => node.removeAttribute('data-pressed')")
+    page.locator("#box").evaluate("box => { box.scrollTop = 500; }")
+    scroll_settled(page, "#box")
+    lets_go(control)
+
+    beside = page.locator("#beside")
+    beside.focus()
+    resized(page, 800, 900)
+    lets_go(beside)
+    resized(page, 1440, 900)
+
+    modal = page.locator("#modal")
+    modal.evaluate("dialog => dialog.showModal()")
+    inside = page.locator("#inside")
+    expect(inside).to_be_focused()
+    modal.evaluate("dialog => { dialog.scrollTop = 500; }")
+    scroll_settled(page, "#modal")
+    lets_go(inside)
+
+
+@pytest.mark.parametrize("old", ["button", "input"])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_tab_at_a_control_scrolled_away_goes_on_in_the_column_the_pointer_is_in(
+    request, serve, engine, old
+):
+    """A key pressed at focus scrolled away names no place, so the column the pointer
+    rests in stays the one the user reads, and Tab goes on from there, from a text field
+    too, since Tab types nothing."""
+    column = (
+        '<section id="{0}"><p id="{0}-reading">The {0} column has words enough to name '
+        'a place on the page.</p><button id="{0}-next">Next</button></section>'
+    )
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Columns",
+                f'<{old} id="old">{"Old</button>" if old == "button" else ""}'
+                '<div style="height:2400px"></div>'
+                '<div id="cols" style="display:grid;grid-template-columns:1fr 1fr;'
+                'gap:40px">'
+                + column.format("left")
+                + column.format("right")
+                + '</div><div style="height:2400px"></div>',
+                head="<style>main { max-width: none !important; }</style>",
+            )
+        ),
+    )
+    resized(page, 1200, 800)
+    page.locator("#old").focus()
+    page.evaluate(
+        """() => scrollTo({behavior: 'instant',
+          top: document.getElementById('cols').offsetTop - 100})"""
+    )
+    scroll_settled(page)
+    box = page.locator("#right-reading").bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + 5)
+    page.keyboard.press("Tab")
+    expect(page.locator("#right-next")).to_be_focused()
+
+
 # The browser's own back: a close watcher standing before any of the page's, which
 # hears a close request only where the page holds none of its own.
 BROWSER_BACK = """() => {
   window.browserBack = 0;
   new CloseWatcher().onclose = () => (window.browserBack += 1);
 }"""
-
-
-def back_gesture(page):
-    """Make the close request Android's back gesture makes. An Escape keydown nothing
-    cancels is the same request, so the page's listeners are kept from hearing it. The
-    page makes its watcher in the repaint frame after what it closes opens, which a
-    finger can't beat but a driver can, so the gesture waits out two frames first."""
-    page.evaluate(
-        """() => new Promise((resolve) => requestAnimationFrame(() =>
-          requestAnimationFrame(() => {
-            addEventListener('keydown', (event) => {
-              if (event.key === 'Escape') event.stopImmediatePropagation();
-            }, {capture: true, once: true});
-            resolve();
-          })))"""
-    )
-    page.keyboard.press("Escape")
 
 
 def test_a_back_gesture_takes_the_step_escape_would(browser, serve):

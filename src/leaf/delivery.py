@@ -332,6 +332,16 @@ _DELIVERED_EVENT = {
                     ),
                 },
             ),
+            "settled": described(
+                "On the user's message in a thread, the agent's questions in words it "
+                "answered by rule, whatever it says, so they have left On Me "
+                "(`obligations.settled_by_message`). Each is the obligation's `id` and "
+                "the `text` that asked it.",
+                {
+                    "type": "array",
+                    "items": object_schema({"id": STRING, "text": STRING}),
+                },
+            ),
             "answer": described(
                 "The response the event owed at capture "
                 "(`obligations.response_address`); absent where it owes none.",
@@ -533,20 +543,26 @@ def batch_data(
     for its transport: the address of a thread reply, and the `handling` that follows
     from it."""
     from .event_facts import EventFacts
-    from .obligations import waiting_about, waiting_in_thread
+    from .obligations import settled_by_message, waiting_about, waiting_in_thread
     from .served_state.context import read_page
-    from .thread_context import batch_threads
+    from .thread_context import batch_threads, thread_names
 
     events = transaction.events
     reader = EventFacts(page_dir, events, _registry(page_dir))
     facts = reader(batch)
-    # The obligations are read only where an event can carry `waiting`: an action,
-    # or the user's reply on a page whose agent messages carry markup that may ask.
-    reads_obligations = any(event["kind"] == "action" for event in batch) or (
-        any(map(_users_words_in_a_thread, batch))
-        and any(
-            event.get("markup") and event.get("author") == "agent" for event in events
-        )
+    # The obligations are read only where an event can carry `waiting` or `settled`:
+    # an action, or the user's words in a thread where the agent's messages may ask.
+    replies = [event for event in batch if _users_words_in_a_thread(event)]
+    names = thread_names(events) if replies else {}
+    asking = {
+        names[event["id"]]
+        for event in events
+        if replies
+        and event.get("author") == "agent"
+        and (event.get("markup") or event.get("obligation"))
+    }
+    reads_obligations = any(event["kind"] == "action" for event in batch) or any(
+        asking.intersection(facts[event["id"]]["threads"]) for event in replies
     )
     reading = (
         read_page(page_dir, events) if responses is None or reads_obligations else None
@@ -557,6 +573,11 @@ def batch_data(
         assert reading is not None
     durable = (
         reading.work.durable if reading is not None and reads_obligations else None
+    )
+    settled = (
+        settled_by_message(durable.all_obligations["all"])
+        if durable is not None
+        else {}
     )
 
     captured = []
@@ -590,6 +611,8 @@ def batch_data(
             else None
         ):
             entry["waiting"] = waiting
+        if _users_words_in_a_thread(event) and event["id"] in settled:
+            entry["settled"] = settled[event["id"]]
         captured.append(entry)
     return {
         "page": str(page_dir),
@@ -1117,8 +1140,9 @@ def deliverable(
     why (`hook_transport.remedies`).
 
     Less, too, each waiting message of a thread a fork of the owner's conversation
-    is deciding on (`forks.held`), until the fork answers or hands it over, which
-    keeps the watch from waking the session for it as it arrives.
+    is deciding on (`forks.held`), until the fork posts its line and hands it over
+    or the hold runs out, which keeps the watch from waking the session for it as
+    it arrives.
 
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. Codex's tool hook runs after every tool call, so it passes

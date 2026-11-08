@@ -472,7 +472,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(show_resolved(page)).to_have_count(1)
 
 
-# On me stands for the panel's views: its mark is the row's control, and Threads, a tab
+# On Me stands for the panel's views: its mark is the row's control, and Threads, a tab
 # of On, shares its branch.
 @pytest.mark.parametrize(
     ("command", "suffix", "surface"),

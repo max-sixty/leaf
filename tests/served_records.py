@@ -54,7 +54,7 @@ QUESTION = {
 }
 
 # Something of every kind on each list: a widget obligation, a question, a reply that
-# failed and a page action whose pickup failed are on On me; a comment owed a reply and
+# failed and a page action whose pickup failed are on On Me; a comment owed a reply and
 # a to-do the agent has in hand are on On <agent>.
 BOTH_SIDES = (
     {"kind": "comment", "text": "Weekly?"},
@@ -316,7 +316,7 @@ def build() -> dict:
                     ),
                 )
             },
-            # The agent asked the user a question, the only thing On me holds.
+            # The agent asked the user a question, the only thing On Me holds.
             "question": served_answer(PAGE, (QUESTION,)),
             "queues on both sides": served_reading(
                 OBLIGATION_PAGE,
@@ -443,7 +443,7 @@ OBLIGATION_PAGE = leaf_page(
 
 
 def _served_obligation_row() -> dict:
-    """One obligation's row as On me lists it (`served_state.queues`)."""
+    """One obligation's row as On Me lists it (`served_state.queues`)."""
     state = served_reading(OBLIGATION_PAGE, BOTH_SIDES)
     return next(
         row

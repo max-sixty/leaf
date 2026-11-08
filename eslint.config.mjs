@@ -57,6 +57,7 @@ const browserGlobals = Object.fromEntries(
     "CustomEvent",
     "DOMException",
     "DOMParser",
+    "DOMPoint",
     "DOMRect",
     "Document",
     "Element",
@@ -1424,8 +1425,8 @@ export default [
   {
     // Playwright's Node drivers also execute callbacks in the page's realm.
     files: [
+      "evals/ui-review-detection/hooks.mjs",
       "evals/ui-review-detection/provider.mjs",
-      "evals/widget-formats/interaction.mjs",
     ],
     languageOptions: { globals: browserGlobals },
   },
@@ -1440,6 +1441,7 @@ export default [
           "caretKeys",
           "clippingAxes",
           "renderedParent",
+          "skipped",
           "elementAxes",
           "scrollAxes",
           "nativePerformance",
@@ -1513,7 +1515,7 @@ export default [
   {
     files: [
       "dev/leaf_dev/startup.js",
-      "dev/leaf_dev/commands/bench_latency.js",
+      "dev/leaf_dev/painted.js",
       "dev/leaf_dev/commands/stills_baselines.js",
     ],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
@@ -1521,10 +1523,7 @@ export default [
   {
     // Browser diagnostics resolve published runtime entries from the page under
     // test. Those scoped URLs are data rather than static dependency edges.
-    files: [
-      "dev/leaf_dev/commands/verify_site_browser.js",
-      "dev/leaf_dev/commands/bench_latency.js",
-    ],
+    files: ["dev/leaf_dev/commands/verify_site_browser.js", "dev/leaf_dev/painted.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: {
       "no-restricted-syntax": [
@@ -1676,8 +1675,8 @@ export default [
           // The shared CodeMirror adapter places its own native editor.
           "browser/runtime/editor-view.js",
           // A held release stands in for the browser's own press, so it focuses the
-          // control as that press does, ringless; focus.js reads it as the press's.
-          "browser/runtime/held-word.js",
+          // target as that press does, ringless; focus.js reads it as the press's.
+          "browser/runtime/preview.js",
         ],
       ],
       "architecture/open-layers": [

@@ -34,17 +34,20 @@
      thread's held news or a quote's Full quote, drawn as words in the accent at the
      line's size with no frame. One that announces news waiting says so with
      `data-lf-news` and keeps the accent the unread dot wears, and one whose words say
-     a warning with `data-lf-tone="warn"` takes the warning's ink.
+     a warning with `data-lf-tone="warn"` takes the warning's ink. One standing among
+     a box's empty words (`data-lf-hint`), as a passing notice's Undo does at the
+     floating panel field's end, wears those words' dim face, as the word and key that
+     enter the box do (composing/input.js, `pressAtRest`).
    - `row`: one row of a list or menu, whose words are what the reader scans, so they
      stand in the ink; the row under the pointer or the keys is washed, and the row
      the list stands on (`aria-current`) wears the accent's stripe and tint. A step
      still ahead of it (`data-lf-ahead`) stands in the muted ink, and the row of the
      thread whose passage the pointer is on (`.lf-mark-hover`) in that passage's
-     wash. A row that is its group's band (`data-lf-band`), as On's Done heading is,
+     wash. A row that is its group's band (`data-lf-band`), as Done and Resolved are,
      takes the band's ink. A thread's row on the user's turn says so in its closing
      words.
    - `answer`: one of the answers a question offers, such as a decision's choices on
-     an On me card, framed so the set reads as one to pick from, the chosen one
+     an On Me card, framed so the set reads as one to pick from, the chosen one
      (`aria-pressed`) marked in the ok tone as the page marks its chosen option.
    - `entry`: a margin entry, a glyph out in the page's margin whose label a pointer
      or a key reveals, framed by what it promises: an action raised, a disclosure

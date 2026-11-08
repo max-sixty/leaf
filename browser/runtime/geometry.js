@@ -59,7 +59,7 @@ export const visualViewport = nativeViewport;
      and what this page shows of a sample it holds, and `watchRoom` for when any of
      those readings may have changed.
 
-   `skipped` (shown-box.js) is asked first by a reading that can leave out a box the
+   `skipped` (shadow-tree.js) is asked first by a reading that can leave out a box the
    browser is not drawing, since reading one in skipped content forces that content's
    style and layout.
 
@@ -147,11 +147,9 @@ export function shownWindow({
   const right = Math.min(offsetLeft + width, within?.right ?? Infinity) - gap;
   let top = Math.max(offsetTop, within?.top ?? -Infinity);
   let bottom = Math.min(offsetTop + height, within?.bottom ?? Infinity);
-  const middle = offsetTop + height / 2;
   for (const box of coverBoxes(item)) {
     if (!overlapsAcross(box, across ?? { left, right })) continue;
-    if (box.top + box.bottom < 2 * middle) top = Math.max(top, box.bottom);
-    else bottom = Math.min(bottom, box.top);
+    ({ top, bottom } = coverCut(box, top, bottom, { offsetTop, height }));
   }
   top += gap;
   bottom -= gap;
@@ -213,11 +211,14 @@ export function shownBand(el) {
 //
 // `landingBand` is where a landing may put something: the shown band less the
 // `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours.
+// The root states its band apart (`landingInsets`), which its padding copies but for
+// while a floating editor holds focus, when the browser's own caret reveal is given
+// none.
 // It clears what stands over the whole scroller (a page tab strip); a header
 // over part of it, a diff's file header, is cleared by the `scroll-margin` of the rows
-// it stands over. It is also where scroll anchoring looks for the box it keeps still:
-// the spec's optimal viewing region, which Chrome reads from `scroll-padding` too
-// (`motionBand`).
+// it stands over. Scroll anchoring looks for the box it keeps still in the band the
+// padding leaves: the spec's optimal viewing region, which Chrome reads from
+// `scroll-padding` too (`motionBand`).
 //
 // A box scrolls, for these readings, when its computed overflow makes it a scroll
 // container: `auto` and `scroll`, and `hidden` too, which a script or a landing can
@@ -441,11 +442,100 @@ function sticks(sticky) {
   if (Math.abs(box.bottom - footLine) <= 1) return true;
   return box.bottom > footLine && holder.bottom > box.bottom + 1;
 }
+// How far sticking moves `sticky` from its own place in its holder, `{x, y}` in client
+// pixels, zero for a box that is not sticky or stands in its own place. Its own place
+// is the one reading of a sticky box that holds at every scroll. Layout answers
+// nothing else from where the box is drawn: its client rect and `offsetTop` both
+// include the offset, and a box that stuck has lost the place it stuck from. A view
+// timeline on the box knows that place, since the timeline's range runs from it. With
+// the scrollport's end inset by all of its length, a box that sticks at its top starts
+// its range at its own top, and one that sticks at its foot ends it at its own foot,
+// counted in its scroller's scrolled content, at any scroll. Chromium and WebKit agree
+// on that reading. Where a view timeline can't say where its range starts, the shift
+// reads zero, which leaves a sticky box read where it is drawn (notes/browser-support.md,
+// "Sticky boxes' own place").
+//
+// That place leaves out the offset of every sticky box in the scroller, so for a sticky
+// box inside another in the same scroller the outer box's offset is taken off and the
+// answer is the inner box's own: a walk down the boxes adds each one's shift to those
+// around it.
+/** @type {boolean | null} */
+let timelineOffsets = null;
+// Firefox 157 lacks `ViewTimeline`; Firefox 159 builds one and throws NotSupportedError
+// on reading its `startOffset` and `endOffset`.
+function readsTimelineOffsets() {
+  if (timelineOffsets !== null) return timelineOffsets;
+  if (!("ViewTimeline" in globalThis)) return (timelineOffsets = false);
+  try {
+    void new globalThis.ViewTimeline({ subject: document.documentElement }).startOffset;
+    timelineOffsets = true;
+  } catch (error) {
+    if (!(error instanceof DOMException && error.name === "NotSupportedError"))
+      throw error;
+    timelineOffsets = false;
+  }
+  return timelineOffsets;
+}
+/** @param {Element} sticky @param {CSSStyleDeclaration} [style] */
+export function stuckShift(sticky, style = getComputedStyle(sticky)) {
+  const shift = { x: 0, y: 0 };
+  if (style.position !== "sticky" || !readsTimelineOffsets()) return shift;
+  for (const axis of /** @type {const} */ (["y", "x"])) {
+    const own = displaced(sticky, style, axis);
+    if (!own) continue;
+    let outer = renderedParent(sticky);
+    for (
+      ;
+      outer?.nodeType === 1 && outer !== own.scroller;
+      outer = renderedParent(outer)
+    ) {
+      const around = getComputedStyle(outer);
+      if (around.position !== "sticky") continue;
+      own.by -= displaced(outer, around, axis)?.by ?? 0;
+      break;
+    }
+    if (Math.abs(own.by) >= 0.5) shift[axis] = own.by;
+  }
+  return shift;
+}
+const SIDES = /** @type {const} */ ({
+  y: { start: "top", end: "bottom", size: "height" },
+  x: { start: "left", end: "right", size: "width" },
+});
+// How far a sticky box is drawn from its own place on one axis, and the scroller that
+// place is counted in, or null where the box sticks on neither of that axis's sides.
+/** @param {Element} sticky @param {CSSStyleDeclaration} style @param {"x" | "y"} axis */
+function displaced(sticky, style, axis) {
+  const { start, end, size } = SIDES[axis];
+  const fromStart = style[start] !== "auto";
+  if (!fromStart && style[end] === "auto") return null;
+  const timeline = new globalThis.ViewTimeline({
+    subject: sticky,
+    axis,
+    inset: "0px 100%",
+  });
+  const scroller = timeline.source;
+  const range = fromStart ? timeline.startOffset : timeline.endOffset;
+  if (!scroller || !range) return null;
+  const box = sticky.getBoundingClientRect();
+  // Where the scrolled content's origin stands in the window.
+  const frame =
+    scroller === scroller.ownerDocument.scrollingElement
+      ? { top: 0, left: 0 }
+      : scroller.getBoundingClientRect();
+  const origin =
+    axis === "y"
+      ? frame.top + scroller.clientTop - scroller.scrollTop
+      : frame.left + scroller.clientLeft - scroller.scrollLeft;
+  const own = origin + range.to("px").value - (fromStart ? 0 : box[size]);
+  return { by: own - box[start], scroller };
+}
 /** @param {Element} scroller */
-export function landingBand(scroller) {
+export const landingBand = (scroller) => insetBand(scroller, landingInsets(scroller));
+/** @param {Element} scroller @param {ReturnType<typeof scrollPadding>} inset */
+function insetBand(scroller, inset) {
   const band = shownBand(scroller);
   if (!band) return null;
-  const inset = landingInsets(scroller);
   return {
     left: band.left + inset.left,
     top: band.top + inset.top,
@@ -453,12 +543,37 @@ export function landingBand(scroller) {
     bottom: band.bottom - inset.bottom,
   };
 }
+// The root's band at the window's foot, in pixels, which the floating panel states as
+// it writes the root's `scroll-padding-bottom` (floating-panel.js, `followBox`), or
+// null where no panel stands, as on an export. Returns whether the band changed.
+/** @type {number | null} */
+let footBand = null;
+/** @param {number} band */
+export function stateFootBand(band) {
+  if (band === footBand) return false;
+  footBand = band;
+  return true;
+}
 // How far each edge of `landingBand` stands in from the scroller's shown band: the
-// `scroll-padding` it declares. Callers that measure from the scroller's own box take
-// the clearance here rather than reading the style themselves.
+// band the scroller states, else the `scroll-padding` it declares. The root states its
+// top in `--lf-landing-top` (base.css), and the floating panel its foot
+// (`stateFootBand`), both of which a floating editor's override hides from the browser
+// alone. Callers that measure from the scroller's own box take the clearance here
+// rather than reading the style themselves.
 /** @param {Element} scroller */
 export function landingInsets(scroller) {
   const style = getComputedStyle(scroller);
+  const padding = scrollPadding(style);
+  const top = Number.parseFloat(style.getPropertyValue("--lf-landing-top"));
+  const root = scroller === document.documentElement;
+  return {
+    ...padding,
+    top: Number.isNaN(top) ? padding.top : top,
+    bottom: root && footBand !== null ? footBand : padding.bottom,
+  };
+}
+/** @param {CSSStyleDeclaration} style */
+function scrollPadding(style) {
   /** @param {"Top" | "Right" | "Bottom" | "Left"} side */
   const inset = (side) => Number.parseFloat(style[`scrollPadding${side}`]) || 0;
   return {
@@ -540,9 +655,9 @@ export function shownRect(item, clips) {
 }
 // What of an item the user sees: what every box over it lets through, within the visible
 // viewport's height, less the boxes the chrome covers (`coverBoxes`), or null when none
-// of it shows. A cover reaching into the item's columns takes the band it stands in, and
-// the item keeps the larger of its parts above and below that band, so what is left is
-// one box the user sees whole; a cover beside the item takes nothing. The viewport cuts
+// of it shows. A cover reaching into the item's columns takes the item from the cover to
+// the window's edge it stands nearer (`coverCut`), so what is left is one box the user
+// sees whole; a cover beside the item takes nothing. The viewport cuts
 // only the item's top and foot; its sides stay the clip walk's, the layout viewport's,
 // since a pinch zoom's visual viewport is a pan across the page and not a clip, and read
 // with its sides a message wider than the zoomed view was never seen whole across, and
@@ -572,29 +687,50 @@ export function inFront(box, item) {
     item,
   );
 }
+// The span `top` to `bottom` less what a cover in its columns takes: everything from the
+// cover to the edge of `viewport` it stands nearer, the visible viewport unless the
+// caller reads another, as the floating panel at the window's foot leaves no room under
+// it. The page the gap between it and that edge shows is no room to read in, and
+// counting a box seen there would leave a landing short of a message the panel hides.
+// A span wholly past that edge keeps all of itself, as a seat scrolled below the window
+// is under no cover there. `shownWindow` cuts by it in the viewport it reads, `uncovered`
+// in the visible one.
+/** @param {Box} over @param {number} top @param {number} bottom
+ * @param {{offsetTop: number, height: number}} [viewport] */
+function coverCut(over, top, bottom, { offsetTop, height } = visualViewport) {
+  if (over.top + over.bottom < 2 * offsetTop + height)
+    return bottom <= offsetTop
+      ? { top, bottom }
+      : { top: Math.max(top, over.bottom), bottom };
+  return top >= offsetTop + height
+    ? { top, bottom }
+    : { top, bottom: Math.min(bottom, over.top) };
+}
 // What of `box` the boxes the chrome covers leave (`coverBoxes`), but for one holding
 // `item`, or null where they leave none of it: a cover reaching into the box's columns
-// takes the band it stands in, and the box keeps the larger of its parts above and below
-// that band. `seenRect` and paint stacked above the chrome (`paintClips`) cut by it.
+// takes it from the cover to the window's edge it stands nearer (`coverCut`). `seenRect`
+// and paint stacked above the chrome (`paintClips`) cut by it.
 /** @param {Box} box @param {Node} item @param {boolean} [rest] */
 function uncovered({ left, top, right, bottom }, item, rest = false) {
   for (const over of coverBoxes(item, { rest })) {
-    if (over.left >= right || over.right <= left) continue;
-    if (over.top >= bottom || over.bottom <= top) continue;
-    if (over.top - top >= bottom - over.bottom) bottom = over.top;
-    else top = over.bottom;
+    if (!overlapsAcross(over, { left, right })) continue;
+    ({ top, bottom } = coverCut(over, top, bottom));
   }
   return bottom > top ? { left, top, right, bottom } : null;
 }
 // Whether the boxes the chrome covers will stand over any of `box` for `item`, by the
 // rule `seenRect` cuts with, read where each comes to rest: a surface asks it before
 // giving way to a place a landing is about to show (floating-panel.js, `clearFor`), and
-// a view still opening will cover what its drawn box doesn't reach yet.
+// a view still opening will cover what its drawn box doesn't reach yet. A cover's cut
+// answers, not whether anything is left, so an empty box, such as a seat with nothing
+// in it yet, is covered only where a cover stands over it.
 /** @param {Box} box @param {Node} item */
-export function covered(box, item) {
-  const left = uncovered(box, item, true);
-  return !left || left.top > box.top || left.bottom < box.bottom;
-}
+export const covered = (box, item) =>
+  coverBoxes(item, { rest: true }).some((over) => {
+    if (!overlapsAcross(over, box)) return false;
+    const left = coverCut(over, box.top, box.bottom);
+    return left.top > box.top || left.bottom < box.bottom;
+  });
 // Whether the page draws `node` with what it holds: rendered (`checkVisibility`, with its
 // `options`) and not hidden until found. An element `hidden="until-found"` keeps a box
 // of its own while the browser skips its contents, until find-in-page or `reveal`
@@ -685,8 +821,9 @@ export function watchRoom(callback) {
 // moves everything after it in the boxes that scroll it, in every column, so the band
 // spans what the clips over `item` and the chrome leave of the window's height, read as
 // `seenRect` reads it but across the whole width. Scroll anchoring keeps still the first
-// box in the scroller's landing band (`landingBand`: the spec's optimal viewing region,
-// which Chrome and WebKit take from `scroll-padding`), so a change above that band moves
+// box in the band the scroller's `scroll-padding` leaves (the spec's optimal viewing
+// region, which Chrome and WebKit take from it, and the root's landing band but while a
+// floating editor holds focus: `landingBand`), so a change above that band moves
 // only what stands above the change. Chrome forfeits that for a layout in which a
 // `details` both opens or shuts and changes what it holds, so a writer doing both lays
 // out the disclosure first (thread-card.js, an outlet thread settling). The band
@@ -719,7 +856,7 @@ function motionBand(item, clips) {
   const anchorBand = !scroller
     ? cut
     : scroller.scrollTop > 0
-      ? landingBand(scroller)
+      ? insetBand(scroller, scrollPadding(getComputedStyle(scroller)))
       : shownBand(scroller);
   return anchorBand && anchorBand.top < room.bottom
     ? { top: anchorBand.top, bottom: room.bottom }

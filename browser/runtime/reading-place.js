@@ -37,9 +37,10 @@
  * `capturePlace` reads one, of the page or of a reading region, and `restorePlace`
  * returns the user to it: the passage is found again by its words, so a place survives
  * what moved the pixels under it — a new revision, a resize, a view that was hidden
- * while its width changed. A focused destination in view (user-place.js,
- * `focusedInView`) is the live place while that gesture still holds focus in this
- * region. Focus on the reading surface itself keeps its passage as the place, and so
+ * while its width changed. A focused destination where the user is (user-place.js,
+ * `focusPlace`), and not riding a stuck box (geometry.js, `stuckBox`), is the live place
+ * while that gesture still holds focus in this region. Focus on the reading surface
+ * itself keeps its passage as the place, and so
  * does focus on a container holding that passage, as a section a fragment landed on. The
  * destination's DOM identity stays local; serialized places and replaced elements use
  * the ordinary passage reading, and the node is held weakly, since a place can outlive
@@ -52,10 +53,13 @@
  * continuity (version.js) across revisions, reading-region shifts and the subjects a
  * region shows in turn, a root tab set (lf-tabs) for each of its views. History's
  * working-place checkpoints separately own an entry's viewport offset (history.js).
- * `readingBlock` is the first block on screen in one region or the page;
- * `sectionsInView` names the sections of every block and drawing on screen, which a page
- * comment records; `pageReadingBlock` is the block the user is reading, where a walk starts, and
- * `landingPlace` is where a let-go puts them, beside what they let go of where they see it.
+ * `readingBlock` is the block on screen the reader reads in one region or the page,
+ * across the column their pointer or focus names, the column a captured place reads its
+ * line from; `sectionsInView` names the sections of every block and drawing on screen,
+ * which a page comment records; `pageReadingBlock` is what the user is reading where
+ * focus is not where they are (user-place.js, `focusPlace`), where a walk starts; and
+ * `landingPlace` is where a let-go puts them, beside what they let go of where they see
+ * it.
  */
 import { setScroll } from "./arrivals.js";
 import {
@@ -67,7 +71,7 @@ import {
   userScrollport,
   stuckBox,
 } from "./geometry.js";
-import { skipped, skipper } from "./shown-box.js";
+import { skipped, skipper } from "./shadow-tree.js";
 import {
   blockAt,
   closestAcross,
@@ -79,6 +83,7 @@ import {
   quoteFrom,
   rangeOf,
   readingFrom,
+  segmentsBox,
 } from "./passages.js";
 import {
   ADDRESSABLE,
@@ -109,8 +114,9 @@ import { inUi, renderedOrder, renderedParent, under, upFrom } from "./shadow.js"
 import { runtime } from "./context.js";
 import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";
-import { focusedInView } from "./user-place.js";
+import { focusPlace, readingAt } from "./user-place.js";
 import { scrollIntoView } from "./landing-scroll.js";
+import { holderOf } from "./scroll-containers.js";
 import { union } from "./rect.js";
 import { pointerAt } from "./pointer.js";
 
@@ -342,21 +348,33 @@ export function* blocksOnScreen(region = null, blocks = textBlocks(), band = nul
     if (onScreen.length) yield [block, rect, onScreen.map(({ segments }) => segments)];
   }
 }
-// The first visible block in a reading region, or with none given in the page outside
-// the regions that bound themselves, for alignment when nothing is selected. A stuck
+// The block the reader reads in a reading region, or with none given in the page outside
+// the regions that bound themselves, of those `within` an element where one is given:
+// the first on screen across their column (`readerColumn`), the column a captured place
+// takes its line from, else the first on screen. So where blocks stand side by side, a
+// walk, a let-go and alignment start where the reader's pointer or focus is rather than
+// at the top of the first column. A stuck
 // box, such as a site header fixed over the page, rides along with every scroll, so
 // it is never the block the reader is on (geometry.js, `stuckBox`). Where every block
 // on screen reads as stuck, as in an app shell fixed over the window that scrolls its
 // own content, the first stands.
-/** @param {ReadingRegion | null} [region] */
-export const readingBlock = (region = null) => {
+/** @param {ReadingRegion | null} [region] @param {Element} [within] */
+export function readingBlock(region = null, within = region?.body) {
+  const bounds = readingBounds(region);
+  const body = region?.body ?? pageDocument();
+  const column = bounds && body ? readerColumn(bounds, body) : null;
+  /** @type {Element | null} */
   let first = null;
-  for (const [block] of blocksOnScreen(region, textBlocks(region?.body))) {
+  /** @type {Element | null} */
+  let unstuck = null;
+  for (const [block, rect] of blocksOnScreen(region, textBlocks(within))) {
     first ??= block;
-    if (!stuckBox(block, region?.body ?? null)) return block;
+    if (stuckBox(block, region?.body ?? null)) continue;
+    if (column === null || spans(block, rect, column)) return block;
+    unstuck ??= block;
   }
-  return first;
-};
+  return unstuck ?? first;
+}
 
 // The block the user is reading on the page, for a walk's origin, the keyboard
 // reference's hand-back and a let-go's landing: in the page region they last acted in
@@ -377,8 +395,17 @@ function pageReading({ bodies }) {
     if (block) return block;
     if (bodies && shownRegionBounds(region)) return region.body;
   }
-  return readingBlock();
+  return readingBlock() ?? shownAtLine();
 }
+// What the user is at where the screen shows no text block, as a stretch of blank space
+// between two asks or a figure: what stands at the reading line (user-place.js,
+// `readingAt`), so a walk steps on from there and a let-go lands there, rather than at
+// the top of the page.
+const shownAtLine = () => {
+  const at = readingAt(pageDocument());
+  const node = at && holderOf(at);
+  return node && node !== document.body ? node : null;
+};
 export const pageReadingBlock = () => pageReading({ bodies: false });
 
 // The sections whose words or pictures the user sees, by id in page order: the
@@ -442,7 +469,7 @@ function readerColumn(bounds, body) {
       ? x
       : null;
   }
-  const at = focusedInView();
+  const at = focusPlace();
   if (!at || !under(at, body)) return null;
   const rect = shownBox(at);
   return (rect.left + rect.right) / 2;
@@ -599,11 +626,13 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     [READ_BOX]: new WeakRef(box),
   };
   if (box.scrollTop === 0) view.start = true;
-  const currentLocation = focusedInView();
+  // Focus names a place in what it stands over only where it rides with it.
+  const at = focusPlace();
+  const currentLocation = at && !stuckBox(at) ? at : null;
   const body = region?.body ?? pageDocument();
   if (!body) return null;
   const currentLocationBody = readingRegionFor(currentLocation)?.body ?? body;
-  const focusPlace =
+  const focusedRecord =
     recentPlaceInput() === "focus" &&
     currentLocation &&
     under(currentLocation, body) &&
@@ -618,7 +647,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   if (region && followingItsEnd(box))
     return {
       ...view,
-      ...(focusPlace && { [FOCUSED_PLACE]: focusPlace }),
+      ...(focusedRecord && { [FOCUSED_PLACE]: focusedRecord }),
       end: true,
     };
   const bounds = readingBounds(region);
@@ -726,8 +755,8 @@ export function capturePlace(region = null, blocks = textBlocks()) {
       view[DRAWN_PLACE] = { node: new WeakRef(drawn.box), through: drawn.through };
     }
   }
-  if (focusPlace && !(named && under(named, currentLocation)))
-    view[FOCUSED_PLACE] = focusPlace;
+  if (focusedRecord && !(named && under(named, currentLocation)))
+    view[FOCUSED_PLACE] = focusedRecord;
   return view;
 }
 
@@ -756,7 +785,7 @@ function landmarkOf(view) {
   if (first)
     return {
       node: first.node,
-      top: () => rangeOf(segments).getBoundingClientRect().top,
+      top: () => segmentsBox(segments).top,
     };
   const section =
     view.section && targetElement(resolveAnchor({ section: view.section }));
@@ -834,10 +863,7 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
       if (drawn && under(drawn.node, body)) {
         moveScrollerBy(box, drawn.top() - boxTop);
       } else if (segments.length && view.quote) {
-        moveScrollerBy(
-          box,
-          rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop,
-        );
+        moveScrollerBy(box, segmentsBox(segments).top - boxTop - view.quoteTop);
       } else if (!currentLocation) {
         // An unresolved or concealed passage leaves live focus as the precise
         // destination; section and raw-offset fallbacks belong to readings without one.

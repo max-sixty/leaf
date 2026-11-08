@@ -50,6 +50,7 @@ import { paintProxyRing } from "./target-paint.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { upFrom } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
+import { standsAt } from "./user-place.js";
 import { offer, reveal } from "./widget-elements.js";
 
 // element -> { notes, authored }; a note -> its element and the reading of what a
@@ -84,6 +85,8 @@ function standsFor(node) {
   return owner && (owner.standsFor(node) ?? owner.element);
 }
 declareSide(standsFor);
+// A proxy shows nothing of its own, so the user is where what it stands for is.
+standsAt(".lf-details-shelf *", standsFor);
 
 // The element the proxy ring stands round, null while it stands nowhere.
 /** @type {Element | null} */

@@ -62,15 +62,24 @@ each case it misses shows the wrong state until the reading arrives. Where the
 reading takes longer than 100 ms, make that path faster.
 
 These times hold on a large page too. A page's size is how much it holds:
-elements, widgets, headings, obligations, threads, events and revisions. The work
-an input does, such as a keystroke, a click or a wheel step, depends on what the
-input changes, and never grows faster than the page. Loading a page, and computing
-or applying a reading of it, grow no faster than the page times the logarithm of
-its size. A step that walks one of those collections for each member of another,
-as finding each obligation's heading by reading every heading did, grows with the
-square of the page. So does a style or layout pass forced once per element, since
-each pass can cover the whole page (`browser/AGENTS.md`, "Runtime ownership").
-`leaf-dev scaling` measures how each cost grows with the page.
+elements, widgets, headings, obligations, threads, events and revisions. An
+input's work depends on what it changes and on what the window shows, not on how
+much the page holds. A keystroke, a wheel step or a hover costs the same on a page
+of ten sections as of five hundred. So work that a pass would redo for the whole
+page, such as a layout, a scan of the page's controls or a derivation of every
+record, runs only for the change that makes it necessary, which its owner records
+when the change happens. Neither an input's work in the browser nor the bytes it
+moves grows with how long the session has run. Loading a page, and computing or
+applying a reading of it, grow no faster than the page times the logarithm of its
+size. The server admits each event against such a reading, so its work per event
+may grow with the events the log holds. On the largest page `leaf-dev bench`
+generates, a keystroke and a wheel step each fit in 8 ms of main-thread time, and a
+click shows the server's reading within 100 ms. A step that walks one of those
+collections for each member of another, as finding each obligation's heading by
+reading every heading did, grows with the square of the page. So does a style or
+layout pass forced once per element, since each pass can cover the whole page
+(`browser/AGENTS.md`, "Runtime ownership"). `leaf-dev bench` measures how each
+cost grows with the page.
 
 ## Pages across Leaf updates
 
@@ -151,7 +160,8 @@ browser assets and the packages into a page's layer.
 - `hooks/`: each harness's registration of `leaf hook` (`hooks.json` for Claude
   Code, `codex.json` for Codex), the scripts they run, Claude Code's hooks
   module `claude-code.ts`, and the Pi extension `pi.ts`.
-- `evals/`: cases a headless agent answers, scoring the shipped instructions.
+- `evals/`: cases a headless agent answers, scoring the shipped instructions, and
+  experiments with their own Promptfoo configs (`dev/AGENTS.md`, "Experiments").
 - `examples/`: the pages the site publishes, also the render corpus
   (`examples/AGENTS.md`).
 - `tests/`: the suite, with the runtime's Node tests under `tests/runtime/`
@@ -252,7 +262,7 @@ deletes an event or invents a counter-event.
 The registry keys each widget action and report by its widget, the unit of that
 widget's state it changes, and its verb (`events.md`). From one consistent read
 of the log, Python computes which action wins each key, what was withdrawn, the
-state of each On me obligation and thread, and the user's updates, and serves that to the
+state of each On Me obligation and thread, and the user's updates, and serves that to the
 browser.
 
 In the browser, only `applicationState` (`runtime/semantic-state.js`) combines the
@@ -316,8 +326,8 @@ detaches instead of falling back to order or offsets.
 Each fact Leaf derives about the page is derived once, and each place that
 reports the page selects what its purpose needs. Whatever a delivery tells the
 agent about an event, apart from what it asks of the agent at the time (`answer`,
-`handling`, `waiting`), `leaf page state` tells a later session about the same
-event, or the message as it now reads, under the same name and from the same code
+`handling`, `waiting`, `settled`), `leaf page state` tells a later session about the
+same event, or the message as it now reads, under the same name and from the same code
 (`event_facts.py`). A fact about the past, such as the settings the user had open
 when they wrote, is derived from the log and never stored as a second copy.
 

@@ -697,9 +697,9 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
 
 
 def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
-    """Focus stays in an ask the user has scrolled off screen, but its digits answer it
-    only while they can see it: scrolled away, `2` chooses nothing, and back in view the
-    digits show again and `2` chooses."""
+    """Focus stays in an ask the user has scrolled off screen, but a key pressed there
+    lets go of it first: scrolled away, `2` chooses nothing, and back in view the ask's
+    digits stay gone until the user goes to it again, when `2` chooses."""
     page = open_page(
         browser,
         serve(
@@ -737,7 +737,17 @@ def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
     page.keyboard.press("2")
     rendered(page)
     assert answer() is None
+    assert page.evaluate(
+        "() => !document.getElementById('route').matches(':focus-within')"
+    )
     scroll(down=False)
+    rendered(page)
+    expect(digit).to_be_hidden()
+    page.keyboard.press("2")
+    rendered(page)
+    assert answer() is None
+    page.keyboard.press("m")
+    page.keyboard.press("Tab")
     expect(digit).to_be_visible()
     with sending(page, "the answer"):
         page.keyboard.press("2")
@@ -885,7 +895,7 @@ def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_release
         page.keyboard.press("Escape")
         page.keyboard.press(back)
         expect(page.locator("#question-2")).to_be_focused()
-    # Opened by a key, On me stands on its first row, question 1, and the walk steps on
+    # Opened by a key, On Me stands on its first row, question 1, and the walk steps on
     # from it.
     page.keyboard.press("Escape")
     page.keyboard.press("g")
@@ -1176,7 +1186,7 @@ def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
     (glossary, Current target). From the obligation, `c` continues that thread; from its
     thread in the card, the obligation keeps its ring and its digits.
     A thread about an enclosing block holds the decision inside it with the agent, so
-    On me skips that decision. From an element with no thread, `t` measures from its
+    On Me skips that decision. From an element with no thread, `t` measures from its
     place in the document, as `m` does."""
     url = serve(OBLIGATION_THREAD_PAGE)
     d = serve.page_dir
@@ -1230,7 +1240,7 @@ def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
     expect(obligation_thread).to_be_focused()
     expect(item).to_have_attribute("data-lf-obligation", "1")
 
-    # The thread on the task holds its nested decision with the agent. On me therefore
+    # The thread on the task holds its nested decision with the agent. On Me therefore
     # cycles past that decision until the agent answers the thread.
     page.keyboard.press("m")
     expect(page.locator("#ship-ask")).to_be_focused()

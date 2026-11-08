@@ -133,9 +133,9 @@ def test_an_empty_threads_opened_by_key_wears_its_ring_on_the_stage(browser, ser
 
 
 def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
-    """On me's Show on a question asked in a thread's words opens the thread's card on
-    the page with the user in it. The arrival stood them on the message On me drew,
-    and On me closing then dropped them on the page."""
+    """On Me's Show on a question asked in a thread's words opens the thread's card on
+    the page with the user in it. The arrival stood them on the message On Me drew,
+    and On Me closing then dropped them on the page."""
     page = open_page(browser, serve(named_source("ship-review")))
     page.locator(".lf-fp-on-user").click()
     card = page.locator(f"{panel_view('queue')} .lf-fp-on-item").filter(
@@ -231,7 +231,7 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
 
 
 def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, serve):
-    """Putting On me away hands the user back the page, however they opened it.
+    """Putting On Me away hands the user back the page, however they opened it.
 
     Opened with the pointer, the view takes focus; opened from the keyboard, its first
     row does. Either way Escape lands on the page rather than on the mark that opened
@@ -596,9 +596,9 @@ def test_a_scrolling_box_takes_a_stop_unless_tab_reaches_a_control_in_it(
 EDGE_CONTROLS = {
     "radio": '<p><label><input id="at" type="radio" name="r" checked> Pick</label></p>',
     "playground": (
-        '<lf-playground id="pg"><lf-playground-control name="tone" label="Tone" kind="choice"'
-        ' value="quiet"><lf-playground-choice value="quiet" label="Quiet">'
-        '</lf-playground-choice><lf-playground-choice value="bold" label="Bold">'
+        '<lf-playground id="pg"><lf-playground-control id="tone" name="tone" label="Tone" kind="choice"'
+        ' value="quiet"><lf-playground-choice id="tone-quiet" value="quiet" label="Quiet">'
+        '</lf-playground-choice><lf-playground-choice id="tone-bold" value="bold" label="Bold">'
         "</lf-playground-choice></lf-playground-control><lf-playground-preview>"
         "<p>Preview</p></lf-playground-preview><lf-playground-output>Use"
         ' <lf-playground-value for="tone"></lf-playground-value></lf-playground-output>'
@@ -608,11 +608,21 @@ EDGE_CONTROLS = {
         '<lf-options id="op" choose><lf-option id="op-a">Alpha</lf-option>'
         '<lf-option id="op-b">Beta, the second choice</lf-option></lf-options>'
     ),
+    "filter": (
+        '<lf-diff id="patch"><pre>'
+        + "".join(
+            f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n"
+            "@@ -1,1 +1,1 @@\n-old\n+new\n"
+            for name in ("one.py", "two.py")
+        )
+        + "</pre></lf-diff>"
+    ),
 }
 EDGE_TARGETS = {
     "radio": "#at",
     "playground": "#pg input:checked",
     "options": "#op-b .lf-pick",
+    "filter": "#patch .lf-diff-search input",
     "table": "#wide td:nth-child(11) a",
 }
 
@@ -646,6 +656,7 @@ def edges_page(control):
                 ("radio", -2, "inside", "Tab"),
                 ("options", 6, "past", "Tab"),
                 ("options", 6, "past", "End"),
+                ("filter", 3, "past", "Tab"),
                 ("table", 6, "past", "Tab"),
             ]
             for engine in ["browser", "firefox_browser"]
@@ -666,20 +677,24 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
     it kept its ring cut; a link 6px past a wide table's end stayed cut in both
     engines; and a joined option group's row and a playground choice's face, each
     wearing its control's ring, stayed cut in both, the face once its radio stood 7px
-    inside, the row whether Tab or End reached it. `past` is how far beyond the edge
-    the box wearing the ring stood before the key; each now shows its ring."""
+    inside, the row whether Tab or End reached it; and a diff's file filter, holding
+    focus in its own shadow tree, stayed cut in both and under the log's fade. `past` is
+    how far beyond the edge the box wearing the ring stood before the key; each now
+    shows its ring, unfaded."""
     page = open_page(request.getfixturevalue(engine), serve(edges_page(control)))
-    resized(page, 1280, 560)
+    # Tall enough that the log's foot stands clear of the floating panel, so the stop the
+    # key leaves is where the user is, rather than a stop the key would let go of.
+    resized(page, 1280, 720)
     side = "right" if control == "table" else "bottom"
     target = page.locator(EDGE_TARGETS[control])
     # Which box wears the ring is the paint's answer: the nearest box out from the
     # control whose outline is the ring.
-    target.evaluate("el => el.focus({preventScroll: true})")
+    target.focus()
     rendered(page)
     target.evaluate(
         """(el) => {
           const w = getComputedStyle(el).getPropertyValue('--focus-ring-w').trim();
-          for (let n = el; n; n = n.parentElement) {
+          for (let n = el; n; n = n.parentElement ?? n.getRootNode().host) {
             const cs = getComputedStyle(n);
             if (cs.outlineStyle === 'solid' && cs.outlineWidth === w)
               return void (window.ringed = n);
@@ -689,10 +704,10 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
     if key == "Tab":
         page.keyboard.press("Shift+Tab")
     else:
-        page.locator("#op-a .lf-pick").evaluate("el => el.focus({preventScroll: true})")
+        page.locator("#op-a .lf-pick").focus()
     page.evaluate(
         """([side, past]) => {
-          const box = window.ringed.closest(side === 'bottom' ? '#log' : '#wide');
+          const box = document.querySelector(side === 'bottom' ? '#log' : '#wide');
           const port = box.getBoundingClientRect();
           const at = window.ringed.getBoundingClientRect();
           if (side === 'bottom')
@@ -711,7 +726,7 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
     read = page.evaluate(
         """(side) => {
           const el = window.ringed;
-          const box = el.closest(side === 'bottom' ? '#log' : '#wide');
+          const box = document.querySelector(side === 'bottom' ? '#log' : '#wide');
           const port = box.getBoundingClientRect();
           const at = el.getBoundingClientRect();
           const style = getComputedStyle(el);
@@ -720,11 +735,13 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
               ? port.top + box.clientTop + box.clientHeight - at.bottom
               : port.left + box.clientLeft + box.clientWidth - at.right,
             ring: parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset),
+            fade: getComputedStyle(box).maskImage,
           };
         }""",
         side,
     )
     assert read["room"] >= read["ring"], read
+    assert read["fade"] == "none", read
 
 
 GROUPED_SIDE_LIST = leaf_page(

@@ -55,6 +55,7 @@ UNCLAIMED = {
     "status": {"state": "waiting"},
     "listening": False,
     "cursor": 0,
+    "forked": [],
     "pending": 0,
     "agent": "Agent",
     "session_alive": None,
@@ -66,6 +67,7 @@ UNCLAIMED = {
     "turn_opened": None,
     "turn_takes_input": False,
     "input_wakes": False,
+    "fork_lane": None,
     "session_cwd": None,
 }
 
@@ -176,9 +178,8 @@ class _FoldedPage(LivePage):
         return []
 
     @contextmanager
-    def state_read(self, *, with_token: bool = False):
-        token = f"fold-{len(self.context.events)}" if with_token else None
-        yield self.context, token, None
+    def state_read(self):
+        yield self.context, f"fold-{len(self.context.events)}", None
 
 
 def _fold(

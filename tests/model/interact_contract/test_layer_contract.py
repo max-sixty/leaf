@@ -532,6 +532,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             "waiting": [{"id": "widget:w1", "text": "Which store should own it?"}],
             **owes("reply"),
         },
+        "reply in words that answered the agent's question": {
+            "kind": "reply",
+            **titled,
+            "settled": [{"id": "message:m1", "text": "Can you try the build?"}],
+            **owes("reply"),
+        },
         "reaction on a message": {"kind": "reply", "token": "+1"},
         "rewritten message": {
             "kind": "edit",

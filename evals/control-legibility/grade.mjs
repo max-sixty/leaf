@@ -6,6 +6,7 @@
  * The score is the share of controls read as one of their actions. The reason lists
  * every control read otherwise, with the reading, so a run says which control to fix.
  */
+import { JUDGE_MODELS } from "../../dev/leaf_dev/arms.mjs";
 import { answerArray, ask } from "./provider.mjs";
 
 const SYSTEM =
@@ -42,7 +43,7 @@ export default async function grade(output, context) {
     return { pass: false, score: 0, reason: `Unscored: ${error.message}` };
   }
   const { text } = await ask({
-    model: context.test.vars.judgeModel,
+    model: JUDGE_MODELS["claude-code"],
     system: SYSTEM,
     content: [{ type: "text", text: task(controls, readings, vocabulary) }],
   });

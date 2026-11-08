@@ -2470,7 +2470,12 @@ describe("website page agent", () => {
       );
       const reader = response.body!.getReader();
       expect((await reader.read()).value).toEqual(keepalive);
+      // Codex waits on a silent stream with a read pending when it cancels.
+      const pending = reader.read();
+      await new Promise((resolve) => setTimeout(resolve, 0));
       await reader.cancel();
+      expect((await pending).done).toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
       const records = logged.mock.calls.map(
         ([record]) => record as Record<string, unknown>,

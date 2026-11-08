@@ -115,9 +115,13 @@ function observeModelBody(
   // logged with the bytes received and how long the body had been quiet.
   const reader = body.getReader();
   let lastChunk = started;
+  let cancelled = false;
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       const { done, value } = await reader.read();
+      // Cancelling the upstream reader ends a read still pending here, which is
+      // the cancel's end, not the response's.
+      if (cancelled) return;
       if (done) {
         if (firstOutput) {
           parser.feed(decoder.decode() + "\n\n");
@@ -147,6 +151,7 @@ function observeModelBody(
       controller.enqueue(value);
     },
     async cancel(reason) {
+      cancelled = true;
       const now = Date.now();
       modelLog("model_response_cancelled", request, {
         durationMs: now - started,

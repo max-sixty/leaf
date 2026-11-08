@@ -3226,6 +3226,46 @@ def test_a_preview_no_side_holds_whole_takes_the_side_that_holds_most_lines_clea
     assert tip.locator("[data-lf-clamp], [data-lf-cut]").count() == 1
 
 
+# A control in the margin by a passage that runs on below it, near enough the window's
+# right edge that a preview from its left edge crosses it.
+EDGED = """<div style="height: 700px"></div>
+<p id="passage" style="position: fixed; left: 40px; width: 820px; top: 40px;
+  height: 300px; margin: 0">What the control is about.</p>
+<button id="edged" style="position: fixed; left: 900px; top: 50px; width: 32px;
+  height: 32px; padding: 0">E</button>"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_the_window_cuts_at_an_edge_slides_in_rather_than_cut_lines(
+    engine, request, serve
+):
+    """Below its left edge the window cuts it, below its right edge and beside it it
+    would cover what it is about, and above it the window holds a line: so it slides
+    in from its left edge until the window holds it, beside the passage and still
+    across the control, and shows every line, as a margin entry's preview by the
+    window's edge does."""
+    page = open_page(request.getfixturevalue(engine), serve(leaf_page("Edged", EDGED)))
+    page.set_viewport_size({"width": 1200, "height": 700})
+    page.evaluate(
+        """() => { document.getElementById('edged').lfPreview = () => ({name: 'Edged',
+          about: document.getElementById('passage'), detail: Array.from({length: 4},
+          (_, n) => `Detail line ${n}, long enough to fill the preview's width`)}); }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(2, 2)
+    page.locator("#edged").hover()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Edged")
+    rendered(page)
+    assert tip.get_attribute("data-lf-y") == "below"
+    assert tip.locator("[data-lf-clamp], [data-lf-cut]").count() == 0
+    assert page.evaluate(COVERS, ["passage"]) == []
+    drawn = page.evaluate(
+        "() => document.querySelector('#lf-preview .lf-preview-face')"
+        ".getBoundingClientRect().toJSON()"
+    )
+    assert 900 < drawn["right"] <= 1200 - 8 and drawn["left"] < 932, drawn
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_target_filling_a_short_window_previews_a_whole_line(engine, request, serve):
     """A target that leaves no side room for even one line of its preview has it stand

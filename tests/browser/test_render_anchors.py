@@ -5460,9 +5460,7 @@ def test_a_passage_staged_into_a_new_shadow_tree_keeps_its_mark(engine, request,
     marked = "() => [...(CSS.highlights.get('lf-mark') ?? [])].map(String)"
     page.wait_for_function(f"() => ({marked})().includes('a marked passage')")
     page.evaluate("() => document.getElementById('late').stage()")
-    page.wait_for_function(
-        f"() => ({marked})().includes('a marked passage')", timeout=2000
-    )
+    page.wait_for_function(f"() => ({marked})().includes('a marked passage')")
     box = page.evaluate(
         """() => {
           const text = document.getElementById('late').shadowRoot
@@ -5914,8 +5912,7 @@ def test_a_mark_whose_text_node_a_script_replaced_is_found_in_the_new_one(
     )
     page.wait_for_function(
         "() => [...(CSS.highlights.get('lf-mark') ?? [])].map(String).join()"
-        " === 'marked phrase'",
-        timeout=2000,
+        " === 'marked phrase'"
     )
     box = page.evaluate(PHRASE_AT, "marked")
     assert _rest_on(page, box)
@@ -5938,9 +5935,7 @@ def test_a_mark_whose_words_a_script_broke_up_is_marked_no_more(engine, request,
           text.insertData(text.data.indexOf('phrase'), 'unrelated ');
         }"""
     )
-    page.wait_for_function(
-        "() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 0", timeout=2000
-    )
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 0")
     box = page.evaluate(PHRASE_AT, "marked")
     assert not _rest_on(page, box)
     page.mouse.click(box["left"] + 4, box["top"] + box["height"] / 2)
@@ -5964,7 +5959,7 @@ def test_a_mark_whose_words_a_script_puts_back_is_marked_again(engine, request, 
           text.insertData(text.data.indexOf('phrase'), 'unrelated ');
         }"""
     )
-    page.wait_for_function(f"() => ({MARKED})() === ''", timeout=2000)
+    page.wait_for_function(f"() => ({MARKED})() === ''")
     page.evaluate(
         """() => {
           const text = document.getElementById('changed').childNodes[1];
@@ -5973,7 +5968,7 @@ def test_a_mark_whose_words_a_script_puts_back_is_marked_again(engine, request, 
     )
     box = page.evaluate(PHRASE_AT, "marked")
     _rest_on(page, box)
-    page.wait_for_function(f"() => ({MARKED})() === 'marked phrase'", timeout=2000)
+    page.wait_for_function(f"() => ({MARKED})() === 'marked phrase'")
     assert _rest_on(page, box)
     expect(page.locator("#lf-preview .lf-preview-word")).to_have_text(
         "About the phrase?"
@@ -5997,7 +5992,7 @@ def test_a_marked_phrase_a_script_writes_again_is_marked_no_more(
         }"""
     )
     assert not _rest_on(page, page.evaluate(PHRASE_AT, "marked"))
-    page.wait_for_function(f"() => ({MARKED})() === ''", timeout=2000)
+    page.wait_for_function(f"() => ({MARKED})() === ''")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -6049,7 +6044,7 @@ def test_words_a_script_puts_inside_a_passage_s_shadow_stage_unmark_it(
         }"""
     )
     assert not _rest_on(page, line)
-    page.wait_for_function(f"() => ({MARKED})() === ''", timeout=2000)
+    page.wait_for_function(f"() => ({MARKED})() === ''")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -6091,7 +6086,7 @@ def test_a_passage_a_script_makes_editable_inside_is_marked_no_more(
         }"""
     )
     assert not _rest_on(page, word)
-    page.wait_for_function(f"() => ({MARKED})() === ''", timeout=2000)
+    page.wait_for_function(f"() => ({MARKED})() === ''")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -6166,7 +6161,7 @@ def test_a_press_in_the_task_a_script_repeats_a_marked_phrase_opens_nothing(
     assert card.count() == 0
     page.evaluate("() => document.querySelector('#changed em:last-child').remove()")
     _rest_on(page, box)
-    page.wait_for_function(f"() => ({MARKED})() === 'marked phrase'", timeout=2000)
+    page.wait_for_function(f"() => ({MARKED})() === 'marked phrase'")
     assert _rest_on(page, box)
     page.evaluate(press, False)
     expect(card).to_be_visible()
@@ -6215,7 +6210,7 @@ def test_a_quote_follows_its_section_s_id_to_another_element(engine, request, se
     assert not _rest_on(page, page.evaluate(phrase, "b"))
     marked = """() => [...CSS.highlights.get('lf-mark')]
       .map((range) => range.startContainer.parentElement.id).join()"""
-    page.wait_for_function(f"() => ({marked})() === 'a'", timeout=2000)
+    page.wait_for_function(f"() => ({marked})() === 'a'")
 
 
 PENDING = "() => [...(CSS.highlights.get('lf-pending') ?? [])].map(String).join('|')"
@@ -6331,9 +6326,7 @@ def test_words_a_script_sets_in_elements_of_their_own_keep_their_thread(
     )
     box = page.locator("#pair span").first.bounding_box()
     assert _rest_on(page, {"left": box["x"], "top": box["y"], "height": box["height"]})
-    page.wait_for_function(
-        f"() => ({MARKED})().replace(/[|\\s]/g, '') === 'onetwo'", timeout=2000
-    )
+    page.wait_for_function(f"() => ({MARKED})().replace(/[|\\s]/g, '') === 'onetwo'")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

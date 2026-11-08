@@ -302,6 +302,8 @@ def test_browser_trace_leaves_out_a_password_fields_characters(browser, serve):
     # A show-password toggle makes the field a text field; it stays a secret.
     page.evaluate("document.querySelector('#trace-secret').type = 'text'")
     page.locator("#trace-secret").press_sequentially("x")
+    # Once it is a text field, Chromium fires selectionchange at the field itself.
+    page.locator("#trace-secret").select_text()
     with page.expect_response(holds_entry):
         page.locator("#trace-entry").press_sequentially("visible")
 
@@ -314,12 +316,17 @@ def test_browser_trace_leaves_out_a_password_fields_characters(browser, serve):
     typed = [
         row
         for row in rows
-        if row.get("type") in ("keydown", "beforeinput", "input")
+        if row.get("type") in ("keydown", "beforeinput", "input", "selectionchange")
         and any("input#trace-secret" in part for part in row["target"])
     ]
-    assert {row["type"] for row in typed} == {"keydown", "beforeinput", "input"}
+    assert {row["type"] for row in typed} == {
+        "keydown",
+        "beforeinput",
+        "input",
+        "selectionchange",
+    }
     for row in typed:
-        assert not {"key", "code", "data", "value"} & row.keys(), row
+        assert not {"key", "code", "data", "value", "selection"} & row.keys(), row
 
 
 def test_browser_trace_records_where_touch_events_are_not_exposed(browser, serve):

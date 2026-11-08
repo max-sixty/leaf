@@ -196,7 +196,7 @@ function describe(event) {
   if (target instanceof window.HTMLInputElement && target.type === "password")
     secretFields.add(target);
   if (target instanceof window.HTMLInputElement && secretFields.has(target))
-    for (const field of ["key", "code", "data", "clipboard", "value"])
+    for (const field of ["key", "code", "data", "clipboard", "value", "selection"])
       delete entry[field];
   return entry;
 }

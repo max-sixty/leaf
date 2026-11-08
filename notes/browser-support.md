@@ -824,7 +824,7 @@ theme's `.eyebrow + :is(h1, h2, h3)` against every heading, so a paragraph added
 the top of `main` restyled the whole page: 280 to 310 ms over 97,000 rows, and 24 ms
 with the trims written as `:first-child` and `:last-child` and the two sibling rules
 taken out. The first is Firefox's to change; rewriting the rules is
-open (#4781).
+open (#5194).
 
 To recheck, build a `pre` of 97,000 `div` rows in runs of 128 with
 `content-visibility: auto`, each row numbered by a `::before` counter, let it paint,

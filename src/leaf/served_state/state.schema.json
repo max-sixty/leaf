@@ -274,7 +274,7 @@
           "anyOf": [{ "$ref": "#/$defs/Browser" }, { "type": "null" }]
         },
         "events": {
-          "description": "The log, as logged: a message's text is Markdown the page's vendored runtime renders, and its markup the fragment the CLI gate validated. The wire adds nothing, so the only vocabulary a page's frozen layer has to keep speaking is the log's own, which `$events` already stamps.",
+          "description": "The log, as logged: a message's text is Markdown the page's vendored runtime renders, and its markup the fragment the CLI gate validated. The wire adds nothing, so the only vocabulary a page's frozen layer has to keep speaking is the log's own, which `$events` already stamps. An export's reading is folded from less of it (`exporting._page_log`).",
           "type": "array",
           "items": { "$ref": "#/$defs/Event" }
         },

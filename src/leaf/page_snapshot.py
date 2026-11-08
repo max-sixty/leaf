@@ -122,11 +122,15 @@ def capture_page_snapshot(
     artifact: RevisionArtifact | None = None,
     transaction: PageTransaction | None = None,
     process: bool = True,
+    log: list[dict] | None = None,
+    data: dict | None = None,
 ) -> PageSnapshot:
     """Freeze a candidate and every page authority it is projected against.
 
     A host publishing from an existing transition lends its held transaction;
-    other callers take the page's append lease for the complete capture.
+    other callers take the page's append lease for the complete capture. `log` and
+    `data` are the part of the page's log and stored data to freeze in place of all of
+    them, which every reading of the capture folds from (`exporting`).
     """
     if artifact is not None and artifact.html != document.data:
         raise ValueError("preview artifact does not contain the checked document")
@@ -135,7 +139,7 @@ def capture_page_snapshot(
         if transaction is not None
         else PageTransaction(page_dir) as page
     ):
-        events = tuple(copy.deepcopy(page.events))
+        events = tuple(copy.deepcopy(page.events if log is None else log))
         revisions = list_revisions(page_dir)
         versions = tuple(copy.deepcopy(version_descriptors(list(events), revisions)))
         artifacts: dict[int, RevisionArtifact] = {
@@ -162,7 +166,7 @@ def capture_page_snapshot(
         artifacts = {number: executing(value) for number, value in artifacts.items()}
         selected = artifacts[revision]
         registry = copy.deepcopy(selected.registry)
-        data = read_data(page_dir, registry)
+        data = read_data(page_dir, registry) if data is None else data
         # External data remains current even in a historical document. Its media
         # belongs to this frozen reading, not the immutable authored revision.
         data_urls = {

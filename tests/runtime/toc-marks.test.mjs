@@ -12,9 +12,10 @@ import { marksWords, sectionMarks } from "../../packages/default/widgets/toc-mar
 // The contents of `markup` as lf-toc lists them, and each section's marks, by the words
 // of the heading leading it ("" for an untitled start), from threads about the elements
 // `threads` names (`{id, resolved}`), On me items at the widgets `onMe` names, and
-// changes over the blocks each of `changes` names, or a removal beside `at`.
+// changes over the blocks each of `changes` names, or a removal whose gap stands
+// `before`, `after` or `in` the element `at` names.
 /** @param {string} markup
- * @param {{threads?: {id: string, resolved?: boolean}[], onMe?: string[], changes?: {blocks?: string[], at?: string}[], toc?: string}} items */
+ * @param {{threads?: {id: string, resolved?: boolean}[], onMe?: string[], changes?: {blocks?: string[], at?: string, gap?: "before" | "after" | "in"}[], toc?: string}} items */
 function marked(markup, { threads = [], onMe = [], changes = [], toc = "" } = {}) {
   document.body.innerHTML = `<aside><lf-toc id="contents" ${toc}></lf-toc><p id="aside-note">Aside.</p></aside><main>${markup}</main>`;
   const host = /** @type {HTMLElement} */ (document.querySelector("lf-toc"));
@@ -31,9 +32,10 @@ function marked(markup, { threads = [], onMe = [], changes = [], toc = "" } = {}
   const marks = sectionMarks(main, drawing.sections(), {
     threads: threads.map(({ id, resolved }) => ({ resolved, anchor: { section: id } })),
     onMe: onMe.map((id) => ({ source: { id } })),
-    changes: changes.map(({ blocks = [], at }) => ({
+    changes: changes.map(({ blocks = [], at = blocks[0] ?? "", gap = null }) => ({
       blocks: blocks.map(byId),
-      at: at ? byId(at) : blocks[0] ? byId(blocks[0]) : null,
+      at: byId(at),
+      gap,
     })),
   });
   return Object.fromEntries(
@@ -58,7 +60,10 @@ test("an item counts in the section of the heading over it, and before any in th
           { id: "aside-note" },
         ],
         onMe: ["access-question"],
-        changes: [{ blocks: ["access", "switch"] }, { at: "switch-more" }],
+        changes: [
+          { blocks: ["access", "switch"] },
+          { at: "switch-more", gap: "before" },
+        ],
       },
     ),
     {
@@ -66,6 +71,30 @@ test("an item counts in the section of the heading over it, and before any in th
       Prepare: { threads: 1, onMe: 0, changes: 0 },
       "Check access": { threads: 2, onMe: 1, changes: 1 },
       Switch: { threads: 0, onMe: 0, changes: 2 },
+    },
+  );
+});
+
+test("a removal counts in the section it was taken from, a section's end included", () => {
+  assert.deepEqual(
+    marked(
+      `<h2>Prepare</h2><p id="prepare">Book it.</p>
+      <h2 id="switch-heading">Switch</h2><p id="switch">Restart.</p>
+      <h3>Check</h3><div id="check-notes"></div>`,
+      {
+        changes: [
+          // Prepare's last paragraph, taken out: its gap stands before Switch's heading.
+          { at: "switch-heading", gap: "before" },
+          { at: "prepare", gap: "after" },
+          { at: "switch", gap: "before" },
+          { at: "check-notes", gap: "in" },
+        ],
+      },
+    ),
+    {
+      Prepare: { threads: 0, onMe: 0, changes: 2 },
+      Switch: { threads: 0, onMe: 0, changes: 1 },
+      Check: { threads: 0, onMe: 0, changes: 1 },
     },
   );
 });

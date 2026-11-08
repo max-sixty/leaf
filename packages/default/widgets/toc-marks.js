@@ -15,7 +15,9 @@
  * outline's document holds, by the rule every count of a region's obligations reads
  * (`obligationsIn`), each at the widget that asks it; a question answered in words
  * stands nowhere on the page, so it counts here only as its thread. A change counts once
- * in each section its blocks stand in, or, for a removal, where its gap stands.
+ * in each section its blocks stand in, and a removal in the section it was taken from,
+ * by where its gap stands: a paragraph taken from a section's end, whose gap stands
+ * before the next section's heading, counts in the section that held it.
  *
  * Climbing costs a node's depth for each part it passes, and every element met on the
  * way keeps the row it reached, so the items under one heading climb it once. */
@@ -26,7 +28,7 @@ import { elementById, partOver, under } from "/runtime/widget-api.js";
 /** @typedef {{
  *   threads: readonly {resolved?: unknown, anchor: {section?: string | null} | null}[],
  *   onMe: readonly {source: {id: string}}[],
- *   changes: readonly {blocks: readonly Element[], at: Element | null}[],
+ *   changes: readonly {blocks: readonly Element[], at: Element, gap: "before" | "after" | "in" | null}[],
  * }} MarkedReadings */
 
 /** Each section's marks, by its heading (the start row's may be null), for those that
@@ -68,6 +70,15 @@ export function sectionMarks(scope, sections, { threads, onMe, changes }) {
     for (const at of climbed) reached.set(at, row);
     return row;
   };
+  // The row a removal was taken from: the one holding the element its gap stands after
+  // or in, and for a gap before an element, the part over that element as the page's
+  // reading reached it, which a heading opening the next section is not in.
+  /** @param {MarkedReadings["changes"][number]} removal */
+  const removedFrom = ({ at, gap }) => {
+    if (gap !== "before") return rowFor(at);
+    const over = partOver(at);
+    return over ? rowFor(over) : start;
+  };
   /** @param {MarkedSection} row @param {keyof SectionMarks} kind */
   const count = (row, kind) => {
     const held = marks.get(row.heading) ?? { threads: 0, onMe: 0, changes: 0 };
@@ -85,8 +96,9 @@ export function sectionMarks(scope, sections, { threads, onMe, changes }) {
     if (element) count(rowFor(element), "onMe");
   }
   for (const change of changes) {
-    const elements = change.blocks.length ? change.blocks : [change.at];
-    const touched = new Set(elements.flatMap((at) => (at ? [rowFor(at)] : [])));
+    const touched = new Set(
+      change.blocks.length ? change.blocks.map(rowFor) : [removedFrom(change)],
+    );
     for (const row of touched) count(row, "changes");
   }
   return marks;

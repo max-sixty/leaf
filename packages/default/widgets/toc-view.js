@@ -3,7 +3,8 @@ import { generatedElement, keeps, viewDocument } from "/runtime/widget-api.js";
  * The live widget supplies the canonical heading and chrome readings, and each
  * section's marks (toc-marks.js): a mark for its open threads and one for its On me
  * items, and, while the changes view is on, `data-lf-toc-changed` on its row, which
- * toc.css draws in the gutter the outline's rule or the contents spine stands in. The
+ * toc.css draws in the gutter the outline's rule or the contents spine stands in; the
+ * start row's go on the disclosure's toggle too, which stands where that row would. The
  * marks are aria-hidden and take no room; what they count, the row's link previews
  * (`lfPreview`), which also describes the link to a screen reader where focus lands on
  * it. */
@@ -64,6 +65,15 @@ export function drawToc(host, headingReading) {
     if (!kept) previews.set(heading, (kept = preview(heading)));
     return kept;
   };
+  // The disclosure leaves the start row out, since the page's title stands just above or
+  // below it, so its toggle, standing where that row would, previews what stands before
+  // the first section while the outline is open.
+  const beforeFirst = () => {
+    const words = marksWords(marks.get(outline.start?.heading ?? null));
+    return words && native().disclosure.open
+      ? { detail: ["Before the first section", words] }
+      : null;
+  };
   host.replaceChildren();
   /** @type {ReturnType<typeof readFrame> | undefined} */
   let frame;
@@ -111,6 +121,7 @@ export function drawToc(host, headingReading) {
         keeps(host, "data-lf-toc-empty", outline.items.length ? null : "");
       }
       const { start, items } = outline;
+      const first = marks.get(start?.heading ?? null);
       return html`
         <nav
           class="lf-toc-nav lf-ui"
@@ -120,20 +131,25 @@ export function drawToc(host, headingReading) {
         >
           <p class="lf-toc-heading lf-label" ${generated(true)}>On this page</p>
           <details class="lf-toc-disclosure" ?open=${open}>
-            <summary class="lf-toc-toggle lf-label" ${generated(true)}>
-              On this page
+            <summary
+              class="lf-toc-toggle lf-label"
+              ${generated(true)}
+              ?data-lf-toc-changed=${Boolean(first?.changes)}
+              .lfPreview=${beforeFirst}
+            >
+              On this page${markView(first)}
             </summary>
             <div class="lf-toc-rows">
               <span class="lf-toc-window" aria-hidden="true"></span>
               <div
                 class="lf-toc-start"
                 data-lf-depth="0"
-                ?data-lf-toc-changed=${Boolean(marks.get(start?.heading ?? null)?.changes)}
+                ?data-lf-toc-changed=${Boolean(first?.changes)}
               >
                 <a
                   href=${href(start?.destination)}
                   .lfPreview=${previewOf(start?.heading ?? null)}
-                  >${start?.label ?? "Top"}${markView(marks.get(start?.heading ?? null))}</a
+                  >${start?.label ?? "Top"}${markView(first)}</a
                 >
               </div>
               <ol>

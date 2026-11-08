@@ -1299,13 +1299,13 @@ ROW_BOXES = """(toc) => [...toc.querySelectorAll('li, .lf-toc-start')]
 MARKS_IN_WORDS = """(toc) => [...toc.querySelectorAll('[data-lf-toc-mark]')]
   .filter((mark) => mark.checkVisibility())
   .filter((mark) => {
-    const link = mark.closest('a');
+    const link = mark.closest('a, summary');
     const text = [...link.childNodes].find((node) => node.nodeType === 3 && node.data.trim());
     const words = document.createRange();
     words.selectNodeContents(text);
     return mark.getBoundingClientRect().right > words.getClientRects()[0].left - 2;
   })
-  .map((mark) => mark.closest('a').textContent.trim())"""
+  .map((mark) => mark.closest('a, summary').textContent.trim())"""
 # Whether a row draws its section as changed.
 CHANGED = """(row) => getComputedStyle(row, '::after').content !== 'none'
   && parseFloat(getComputedStyle(row, '::after').height) > 0"""
@@ -1314,15 +1314,18 @@ CHANGED = """(row) => getComputedStyle(row, '::after').content !== 'none'
 def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_stand(
     browser, serve
 ):
-    """The runbook fixture holds open threads under four headings, a resolved one under
-    a fifth, a question waiting on the user in two sections, and an earlier version.
-    Each row of its contents marks its section's open threads and On me items in the
-    gutter before its words, beside the map's spine or the column outline's rule, and its
-    link previews how many, which a screen reader hears where Tab lands on it. A thread
-    arriving marks its section; the changes view draws each changed section as its
-    stretch of the spine or the rule. No mark moves a row or stands among its words."""
+    """The runbook fixture holds open threads on its lede and under four headings, a
+    resolved one under a fifth, a question waiting on the user in two sections, and an
+    earlier version. Each row of its contents marks its section's open threads and On me
+    items in the gutter before its words, beside the map's spine or the column outline's
+    rule, and its link previews how many, which a screen reader hears where Tab lands on
+    it; what stands before the first section is the map's title row's, and in the column,
+    whose disclosure leaves that row out, its open toggle's. A thread arriving marks its
+    section; the changes view draws each changed section as its stretch of the spine or
+    the rule. No mark moves a row or stands among its words."""
     page = open_page(browser, serve(named_source("sidebar-contents")))
     toc = page.locator("lf-toc")
+    toggle = toc.locator(".lf-toc-toggle")
     held = {
         "Record the baseline": "thread",
         "Create the new credentials": "thread",
@@ -1330,11 +1333,13 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
         "Ledger": "thread",
         "Retire the old password": "on-me",
     }
+    title = "Rotate the payments database credentials"
+    # Each row's, the title row's and the toggle's.
     page.wait_for_function(
-        "(toc) => toc.querySelectorAll('[data-lf-toc-mark]').length === 6",
+        "(toc) => toc.querySelectorAll('[data-lf-toc-mark]').length === 8",
         arg=toc.element_handle(),
     )
-    assert toc.evaluate(ROW_MARKS) == held
+    assert toc.evaluate(ROW_MARKS) == {title: "thread", **held}
     rendered(page)
     assert toc.evaluate(MARKS_IN_WORDS) == []
     boxes = toc.evaluate(ROW_BOXES)
@@ -1363,7 +1368,11 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     )
     told(page)
     expect(toc.locator("li", has_text="Confirm access").locator("i")).to_have_count(1)
-    assert toc.evaluate(ROW_MARKS) == {**held, "Confirm access": "thread"}
+    assert toc.evaluate(ROW_MARKS) == {
+        title: "thread",
+        **held,
+        "Confirm access": "thread",
+    }
     page.keyboard.press("v")
     expect(toc.locator("[data-lf-toc-changed]")).to_have_count(3)
     rendered(page)
@@ -1381,12 +1390,20 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     resized(page, 700, 900)
     rendered(page)
     expect(toc.locator("details")).not_to_have_attribute("open", "")
-    toc.locator(".lf-toc-toggle").click()
+    expect(toggle.locator("[data-lf-toc-mark]")).to_be_hidden()
+    toggle.click()
     expect(toc.locator("details")).to_have_attribute("open", "")
     rendered(page)
     assert toc.evaluate(ROW_MARKS) == {**held, "Confirm access": "thread"}
+    expect(toggle.locator("[data-lf-toc-mark='thread']")).to_be_visible()
     assert toc.evaluate(MARKS_IN_WORDS) == []
     assert verify.evaluate(CHANGED)
+    assert preview_parts(toggle, route="focus") == [
+        "On this page",
+        "Before the first section",
+        "1 thread",
+    ]
+    page.keyboard.press("Escape")
     with_changes = toc.evaluate(ROW_BOXES)
     page.keyboard.press("v")
     expect(toc.locator("[data-lf-toc-changed]")).to_have_count(0)

@@ -16,7 +16,10 @@
  * dots. The current destination fills its marker. All markers share the spine's
  * centre, while depth also changes the labels' inset. Labels stop at two lines, so prose never
  * distorts the document-scale rows.
- * The open and paper forms retain the complete words. */
+ * The open and paper forms retain the complete words.
+ * A section's marks for its threads, On me items and changes follow its words in the
+ * outline, and on the map stand between its marker and its label, its changes drawn as
+ * its stretch of the spine; paper leaves them out. */
 lf-toc {
   display: block;
   margin: var(--sp-4) 0 30px;
@@ -123,6 +126,41 @@ lf-toc a:hover,
 lf-toc a[data-lf-focus] {
   color: var(--accent);
 }
+/* A section's marks (toc-view.js): a short dash each for its open threads in the
+ * accent, its On me items in the green that marks the user's turn, and, while the
+ * changes view is on, its changes in the warning ink. After a row's words they stand in a
+ * box no wider than nothing, so a row carrying marks breaks its lines as one without
+ * them and no mark moves the outline. They take no presses: the link under them is the
+ * only thing to press. */
+lf-toc .lf-toc-marks {
+  display: inline-flex;
+  width: 0;
+  gap: 2px;
+  vertical-align: middle;
+  pointer-events: none;
+  translate: 0.4em 0;
+}
+lf-toc .lf-toc-marks > i {
+  flex: none;
+  width: 6px;
+  height: 3px;
+  border-radius: 1px;
+  background: var(--lf-toc-mark);
+}
+lf-toc [data-lf-toc-mark="thread"] {
+  --lf-toc-mark: var(--accent);
+}
+lf-toc [data-lf-toc-mark="on-me"] {
+  --lf-toc-mark: var(--ok);
+}
+lf-toc [data-lf-toc-mark="change"] {
+  --lf-toc-mark: var(--warn);
+}
+@media print {
+  lf-toc .lf-toc-marks {
+    display: none;
+  }
+}
 
 /* The native sidebar track publishes its slot from its CSS-computed wrapping
  * state. Only a fine-pointer margin slot draws the proportional map; ordinary
@@ -157,8 +195,11 @@ lf-toc a[data-lf-focus] {
     lf-toc .lf-toc-disclosure {
       display: contents;
     }
+    /* Its own stacking context, so the rows' markers and labels stand over the lens, and
+       a changed stretch under it, among themselves alone. */
     lf-toc .lf-toc-rows {
       position: relative;
+      isolation: isolate;
       display: flex;
       /* A details element with display: contents gives percentages no height. */
       height: calc(var(--lf-toc-height) - 2 * var(--sp-4));
@@ -196,7 +237,6 @@ lf-toc a[data-lf-focus] {
     lf-toc li {
       --lf-toc-indent: 0px;
       position: relative;
-      z-index: 2;
       display: block;
       flex: var(--lf-toc-span, 1) 1 0px;
       min-height: 0;
@@ -260,6 +300,37 @@ lf-toc a[data-lf-focus] {
     lf-toc .lf-toc-start a {
       font: var(--font-title);
     }
+    /* A section's thread and On me marks stand between its marker and its label, centred
+       on the marker as the label's first line is, one over the other where it has both,
+       as an overview ruler's ticks stand along its track: inside the link's start
+       padding, where its clipping leaves them whole. */
+    lf-toc .lf-toc-marks {
+      position: absolute;
+      top: 0.5lh;
+      left: 6px;
+      flex-direction: column;
+      translate: 0 -50%;
+    }
+    lf-toc .lf-toc-marks > i {
+      width: 5px;
+    }
+    lf-toc .lf-toc-marks > [data-lf-toc-mark="change"] {
+      display: none;
+    }
+    /* While the changes view is on, a changed section's stretch of the spine runs from
+       its marker to the next one, under the lens, so the lens still shows the part in
+       view. */
+    lf-toc :is(.lf-toc-start, li)[data-lf-toc-changed]::after {
+      content: "";
+      position: absolute;
+      top: var(--lf-toc-row-shift, 0px);
+      left: calc(var(--lf-toc-spine-width) / 2);
+      width: 3px;
+      height: var(--lf-toc-reach, 100%);
+      border-radius: 1.5px;
+      translate: -50% 0;
+      background: var(--warn);
+    }
     lf-toc
       :is(.lf-toc-start a, li a[aria-current="location"]):not(:hover, [data-lf-focus]) {
       color: var(--ink-2);
@@ -284,8 +355,21 @@ lf-toc a[data-lf-focus] {
     }
     lf-toc[data-lf-outline] .lf-toc-rows::before,
     lf-toc[data-lf-outline] .lf-toc-window,
-    lf-toc[data-lf-outline] :is(.lf-toc-start, li)::before {
+    lf-toc[data-lf-outline] :is(.lf-toc-start, li)::before,
+    lf-toc[data-lf-outline] :is(.lf-toc-start, li)::after {
       display: none;
+    }
+    /* With no spine, the marks follow the words, as in the column. */
+    lf-toc[data-lf-outline] .lf-toc-marks {
+      position: static;
+      flex-direction: row;
+      translate: 0.4em 0;
+    }
+    lf-toc[data-lf-outline] .lf-toc-marks > i {
+      width: 6px;
+    }
+    lf-toc[data-lf-outline] .lf-toc-marks > [data-lf-toc-mark="change"] {
+      display: block;
     }
     lf-toc[data-lf-outline] .lf-toc-heading {
       display: block;
@@ -331,6 +415,11 @@ lf-toc a[data-lf-focus] {
   lf-toc .lf-toc-start::before,
   lf-toc li[data-lf-depth="0"]::before {
     background: Canvas;
+  }
+  lf-toc .lf-toc-marks > i,
+  lf-toc :is(.lf-toc-start, li)[data-lf-toc-changed]::after {
+    forced-color-adjust: none;
+    background: CanvasText;
   }
   lf-toc .lf-toc-window,
   lf-toc :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {

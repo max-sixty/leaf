@@ -201,7 +201,9 @@ A row is *withheld* while no part of its target shows in its region, as inside a
 
 `lf-toc` requests the **contents outline**, navigation built from the page's headings.
 Where the margin has room it may show the **contents spine** instead, which spreads
-the headings over the document's height.
+the headings over the document's height. Each row's **section marks** say whether its
+section holds open threads, On me items and, while the changes view is on, changes;
+its link's preview counts them.
 
 ## Keyboard interactions
 

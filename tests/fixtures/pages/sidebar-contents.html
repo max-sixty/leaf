@@ -4,7 +4,7 @@
     <title>Rotate the payments database credentials</title>
     <meta
       name="description"
-      content="A runbook whose contents stands in the sidebar's margin as a reading map."
+      content="A runbook whose contents stands in the sidebar's margin as a reading map, marking where its threads, open questions and changes stand."
     />
   </head>
   <body>
@@ -38,7 +38,7 @@
             either.
           </p>
           <h3 id="rotation-baseline">Record the baseline</h3>
-          <p>
+          <p id="rotation-baseline-note">
             Note the connection count and the p95 query latency on the primary. The
             checks after each step compare against these two numbers.
           </p>
@@ -66,7 +66,7 @@
             password for the application role; the old one keeps working until the last
             step.
           </p>
-          <p>
+          <p id="rotation-create-check">
             Run the role's login check against the primary and both replicas with the
             new password. All three must accept it before any service is told to use it.
           </p>
@@ -78,6 +78,16 @@
             Update the vault entry the services read, then restart them one region at a
             time, starting with the region that has the least traffic at this hour.
           </p>
+          <lf-options id="rotation-first-region" choose>
+            <lf-option id="rotation-first-apac">
+              <strong>Asia-Pacific first</strong> Its traffic is lowest in a European
+              morning window.
+            </lf-option>
+            <lf-option id="rotation-first-west">
+              <strong>US West first</strong> Its traffic is lowest just after the payout
+              batch.
+            </lf-option>
+          </lf-options>
           <h3 id="rotation-checkout">Checkout</h3>
           <p>
             Restart checkout's pods in batches of a quarter. Watch the declined payments
@@ -85,7 +95,7 @@
             the rotation.
           </p>
           <h3 id="rotation-ledger">Ledger</h3>
-          <p>
+          <p id="rotation-ledger-drain">
             The ledger holds long transactions, so drain each instance before its
             restart. A drained instance shows zero open transactions in its status page.
           </p>
@@ -111,11 +121,21 @@
             history. Keep the change ticket open for a day in case a batch job that runs
             only nightly still holds the old one.
           </p>
+          <lf-options id="rotation-retire-when" choose>
+            <lf-option id="rotation-retire-next-day">
+              <strong>The next morning</strong> After the nightly batch has run once on
+              the new password.
+            </lf-option>
+            <lf-option id="rotation-retire-week">
+              <strong>After a week</strong> After the weekly reconciliation job has run
+              too.
+            </lf-option>
+          </lf-options>
         </section>
 
         <section id="rotation-rollback">
           <h2>Roll back</h2>
-          <p>
+          <p id="rotation-rollback-note">
             Until the old password is removed, rolling back is a vault change and a
             restart: point the vault entry at the old password and restart the services
             in the same order. After it is removed, create a new pair instead of trying

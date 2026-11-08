@@ -13,12 +13,14 @@ from render_harness import (
     leaf_page,
     open_page,
     open_threads,
+    preview_parts,
     resized,
     scroll_settled,
     told,
 )
 
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1278,6 +1280,105 @@ def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
     )
     expect(second).to_have_attribute("aria-current", "location")
     expect(first).not_to_have_attribute("aria-current", "location")
+
+
+# Each contents row's words and the marks it carries, for the rows carrying any.
+ROW_MARKS = """(toc) => Object.fromEntries([...toc.querySelectorAll('li, .lf-toc-start')]
+  .map((row) => [row.querySelector('a').textContent.trim(),
+    [...row.querySelectorAll('[data-lf-toc-mark]')]
+      .filter((mark) => mark.checkVisibility())
+      .map((mark) => mark.dataset.lfTocMark).join(' ')])
+  .filter(([, marks]) => marks))"""
+# Where each shown row's link and marker stand, which no mark may move.
+ROW_BOXES = """(toc) => [...toc.querySelectorAll('li, .lf-toc-start')]
+  .filter((row) => row.checkVisibility())
+  .map((row) => [row.querySelector('a').getBoundingClientRect(),
+    row.getBoundingClientRect()]
+    .map((box) => [box.x, box.y, box.width, box.height].map(Math.round).join(',')))"""
+
+
+def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_stand(
+    browser, serve
+):
+    """The runbook fixture holds open threads under three headings, a resolved one
+    under a fourth, a question waiting on the user in two sections, and an earlier
+    version. Each row of its contents marks its section's open threads and On me items,
+    on the map beside its marker and in the column's outline after its words, and its
+    link previews how many, which a screen reader hears where Tab lands on it. A thread
+    arriving marks its section; the changes view marks each changed section, drawn on
+    the map as its stretch of the spine. No mark moves a row or its words."""
+    page = open_page(browser, serve(named_source("sidebar-contents")))
+    toc = page.locator("lf-toc")
+    held = {
+        "Record the baseline": "thread",
+        "Create the new credentials": "thread",
+        "Switch the services": "on-me",
+        "Ledger": "thread",
+        "Retire the old password": "on-me",
+    }
+    page.wait_for_function(
+        "(toc) => toc.querySelectorAll('[data-lf-toc-mark]').length === 5",
+        arg=toc.element_handle(),
+    )
+    assert toc.evaluate(ROW_MARKS) == held
+    rendered(page)
+    boxes = toc.evaluate(ROW_BOXES)
+
+    ledger = toc.get_by_role("link", name="Ledger")
+    assert preview_parts(ledger, route="focus") == ["Ledger", "2 threads"]
+    assert ledger.evaluate(
+        "(link) => (link.ariaDescribedByElements ?? []).map((tip) => tip.textContent)"
+    ) == [page.locator("#lf-preview").text_content()]
+    page.keyboard.press("Escape")
+    # A row with nothing to count previews nothing past the words it shows.
+    page.mouse.move(2, 2)
+    toc.get_by_role("link", name="Confirm access").hover()
+    page.wait_for_timeout(400)
+    expect(page.locator("#lf-preview")).to_be_hidden()
+
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 2,
+            "text": "Who grants the vault access?",
+            "anchor": {"section": "rotation-access"},
+        },
+    )
+    told(page)
+    expect(toc.locator("li", has_text="Confirm access").locator("i")).to_have_count(1)
+    assert toc.evaluate(ROW_MARKS) == {**held, "Confirm access": "thread"}
+    page.keyboard.press("v")
+    expect(toc.locator("[data-lf-toc-changed]")).to_have_count(3)
+    rendered(page)
+    assert toc.evaluate(ROW_BOXES) == boxes, "a mark moved the map"
+    stretch = toc.locator("li", has_text="Verify").evaluate(
+        "(row) => getComputedStyle(row, '::after').height"
+    )
+    assert float(stretch.removesuffix("px")) > 0
+    assert preview_parts(toc.get_by_role("link", name="Switch the services")) == [
+        "Switch the services",
+        "1 waiting on me · 1 change",
+    ]
+
+    # Where the track stacks over the body, the outline the reader opens marks the same
+    # sections after their words, a change among them.
+    page.evaluate(RELEASE_FOCUS)
+    resized(page, 700, 900)
+    rendered(page)
+    expect(toc.locator("details")).not_to_have_attribute("open", "")
+    toc.locator(".lf-toc-toggle").click()
+    expect(toc.locator("details")).to_have_attribute("open", "")
+    rendered(page)
+    marked = toc.evaluate(ROW_MARKS)
+    assert marked["Verify"] == "change"
+    assert marked["Switch the services"] == "on-me change"
+    with_changes = toc.evaluate(ROW_BOXES)
+    page.keyboard.press("v")
+    expect(toc.locator("[data-lf-toc-changed]")).to_have_count(0)
+    rendered(page)
+    assert toc.evaluate(ROW_BOXES) == with_changes, "a mark moved the outline"
 
 
 def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, serve):

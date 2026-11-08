@@ -2360,6 +2360,25 @@ def contents_by_keyboard(page: Page) -> None:
     page.locator("lf-toc li a").first.focus()
 
 
+def contents_marks(page: Page) -> None:
+    """Where each section's threads and On me items stand along the contents: on the
+    map where the track stands beside the body, and in the outline the reader opened
+    where the track stacks over it."""
+    toggle = page.locator("lf-toc .lf-toc-toggle")
+    if toggle.is_visible():
+        toggle.click()
+        expect(page.locator("lf-toc details")).to_have_attribute("open", "")
+    settle(page)
+
+
+def contents_marks_changes(page: Page) -> None:
+    """The contents' marks with the changes view on, each changed section marked."""
+    contents_marks(page)
+    page.keyboard.press("v")
+    expect(page.locator(".lf-ins-block").first).to_be_attached()
+    settle(page)
+
+
 def topic_contents(page: Page) -> None:
     """The topic's inline index in the gallery's page-tabs sample."""
     page.locator("#bg-gallery-tabs").get_by_role(
@@ -2961,6 +2980,15 @@ STATES = (
         "contents-map-keyboard",
         "sidebar-contents",
         contents_by_keyboard,
+    ),
+    State(
+        "contents-marks", "sidebar-contents", contents_marks, region="#rotation-route"
+    ),
+    State(
+        "contents-marks-changes",
+        "sidebar-contents",
+        contents_marks_changes,
+        region="#rotation-route",
     ),
     State("playground-controls", "notification-playground", playground_controls),
     State("playground-instruction", "notification-playground", playground_instruction),

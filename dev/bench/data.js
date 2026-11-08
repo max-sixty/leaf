@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794051533640,
+  "lastUpdate": 1794137997532,
   "repoUrl": "https://github.com/max-sixty/leaf",
   "entries": {
     "Bench at 64 sections": [
@@ -743,6 +743,378 @@ window.BENCHMARK_DATA = {
           {
             "name": "threads: comment shown",
             "value": 233.3,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "leaf-agent",
+            "username": "leaf-agent",
+            "email": "l@leaf.page"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "f926f4fa77db74971e9445ea1b903788ddb7ebfb",
+          "message": "test: let 24 preview, mark and chart waits take the suite's deadline (#5701)\n\nThe nightly journey `test_a_wait_takes_the_suites_deadline` has failed\nsince scheduled run\n[42365682113](https://github.com/max-sixty/leaf/actions/runs/42365682113).\nIt found 24 waits with literal 2 s or 3 s timeouts, added by #5617\n(`test_previews.py`, `test_charts.py`) and #5618\n(`test_render_anchors.py`). This PR drops each `timeout=` argument, so\nthose waits take the suite's default deadline (`SERVED_TIMEOUT_MS`,\nwhich `render_harness` sets). What each wait waits for doesn't change.\nThe literal values were sized to a fast machine, which is why the check\nrejects them.\n\nVerification on main `fcad5fa09`: the check fails before this change,\nlisting all 24 sites, and passes after it. The 19 browser tests that\nhold those waits pass under `--run-main` (42 cases).\n\nThe same check went red for the same reason on Nov 5, and #5455 fixed\nthat. It's a 2–6 s static scan of the test sources, but it lives in\n`tests/journeys/`, which only the scheduled run reaches. So a pull\nrequest that adds a literal deadline passes its own CI, and main finds\nout the next day. The durable fix is to run this check on every pull\nrequest; I'm filing that separately.\n\nRefs #4225 — automated triage\n\nCo-authored-by: leaf-agent <318509791+leaf-agent@users.noreply.github.com>",
+          "timestamp": "2026-11-08T08:36:06Z",
+          "url": "https://github.com/max-sixty/leaf/commit/f926f4fa77db74971e9445ea1b903788ddb7ebfb"
+        },
+        "date": 1794137996498,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "asks: load cpu",
+            "value": 1016.07,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: click cpu",
+            "value": 41.31,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: key cpu",
+            "value": 8.67,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: leave cpu",
+            "value": 41.03,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: tab cpu",
+            "value": 30.74,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: scroll cpu",
+            "value": 4.49,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: revision cpu",
+            "value": 284.28,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: stamp cpu",
+            "value": 269.96,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: select cpu",
+            "value": 89.75,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: comment cpu",
+            "value": 339.65,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: reply cpu",
+            "value": 85.36,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: status cpu",
+            "value": 22.29,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: click shown",
+            "value": 42.95,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: comment shown",
+            "value": 269.5,
+            "unit": "ms"
+          },
+          {
+            "name": "document: load cpu",
+            "value": 517.11,
+            "unit": "ms"
+          },
+          {
+            "name": "document: click cpu",
+            "value": 48.25,
+            "unit": "ms"
+          },
+          {
+            "name": "document: key cpu",
+            "value": 14.31,
+            "unit": "ms"
+          },
+          {
+            "name": "document: leave cpu",
+            "value": 39.89,
+            "unit": "ms"
+          },
+          {
+            "name": "document: tab cpu",
+            "value": 52.73,
+            "unit": "ms"
+          },
+          {
+            "name": "document: scroll cpu",
+            "value": 9.08,
+            "unit": "ms"
+          },
+          {
+            "name": "document: revision cpu",
+            "value": 139.39,
+            "unit": "ms"
+          },
+          {
+            "name": "document: stamp cpu",
+            "value": 132.37,
+            "unit": "ms"
+          },
+          {
+            "name": "document: select cpu",
+            "value": 75.13,
+            "unit": "ms"
+          },
+          {
+            "name": "document: comment cpu",
+            "value": 228.01,
+            "unit": "ms"
+          },
+          {
+            "name": "document: reply cpu",
+            "value": 106.62,
+            "unit": "ms"
+          },
+          {
+            "name": "document: status cpu",
+            "value": 39.81,
+            "unit": "ms"
+          },
+          {
+            "name": "document: click shown",
+            "value": 37.5,
+            "unit": "ms"
+          },
+          {
+            "name": "document: comment shown",
+            "value": 191.7,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: load cpu",
+            "value": 413.53,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: click cpu",
+            "value": 26.07,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: key cpu",
+            "value": 8.93,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: leave cpu",
+            "value": 27.13,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: tab cpu",
+            "value": 30.29,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: scroll cpu",
+            "value": 2.97,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: revision cpu",
+            "value": 56.55,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: stamp cpu",
+            "value": 80.76,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: select cpu",
+            "value": 54.69,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: comment cpu",
+            "value": 202.34,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: reply cpu",
+            "value": 86.22,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: status cpu",
+            "value": 19.91,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: click shown",
+            "value": 31.4,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: comment shown",
+            "value": 157.7,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: load cpu",
+            "value": 440.5,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: click cpu",
+            "value": 24.16,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: key cpu",
+            "value": 8.25,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: leave cpu",
+            "value": 39.07,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: tab cpu",
+            "value": 56.57,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: scroll cpu",
+            "value": 4.85,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: revision cpu",
+            "value": 70.23,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: stamp cpu",
+            "value": 71.93,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: select cpu",
+            "value": 51.63,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: comment cpu",
+            "value": 194.37,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: reply cpu",
+            "value": 74.9,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: status cpu",
+            "value": 18.47,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: click shown",
+            "value": 32.25,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: comment shown",
+            "value": 195.2,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: load cpu",
+            "value": 535.89,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: click cpu",
+            "value": 45.04,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: key cpu",
+            "value": 8.82,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: leave cpu",
+            "value": 41.12,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: tab cpu",
+            "value": 55.86,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: scroll cpu",
+            "value": 3.99,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: revision cpu",
+            "value": 98.33,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: stamp cpu",
+            "value": 95.73,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: select cpu",
+            "value": 72.2,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: comment cpu",
+            "value": 247.06,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: reply cpu",
+            "value": 99.86,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: status cpu",
+            "value": 22.82,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: click shown",
+            "value": 44.75,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: comment shown",
+            "value": 227.2,
             "unit": "ms"
           }
         ]

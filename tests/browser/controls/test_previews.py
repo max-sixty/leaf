@@ -3263,7 +3263,10 @@ def test_a_preview_the_window_cuts_at_an_edge_slides_in_rather_than_cut_lines(
         "() => document.querySelector('#lf-preview .lf-preview-face')"
         ".getBoundingClientRect().toJSON()"
     )
-    assert 900 < drawn["right"] <= 1200 - 8 and drawn["left"] < 932, drawn
+    # Up to the window's edge, within a layout unit: Firefox lays boxes out in sixtieths
+    # of a pixel, and the owner writes its offsets in sixty-fourths (keeps.js,
+    # `layoutPx`).
+    assert 900 < drawn["right"] < 1200 - 8 + 1 / 60 and drawn["left"] < 932, drawn
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

@@ -1540,7 +1540,7 @@ def test_a_reading_goes_as_its_point_scrolls_out_of_the_box_the_chart_scrolls_in
         }"""
     )
     assert shown > 100, shown
-    expect(preview).to_be_hidden(timeout=3000)
+    expect(preview).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -1581,10 +1581,10 @@ def test_a_focused_point_s_reading_returns_as_its_box_scrolls_it_back(
             - box.getBoundingClientRect().top + 20;
         }"""
     )
-    expect(preview).to_be_hidden(timeout=3000)
+    expect(preview).to_be_hidden()
     page.locator("#box").evaluate("el => { el.scrollTop = 0; }")
     expect(chart).to_be_focused()
-    expect(preview).to_be_visible(timeout=3000)
+    expect(preview).to_be_visible()
     assert said(page) == ["Higher", *(f"line {n}" for n in range(2, 7))]
     expect(ring).to_be_visible()
 
@@ -1652,8 +1652,8 @@ def test_a_titled_link_beneath_a_reading_takes_the_pointer_from_it(
     assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", on) == (
         "titled"
     )
-    expect(preview).to_be_hidden(timeout=3000)
-    expect(ring).to_be_hidden(timeout=3000)
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -1739,8 +1739,8 @@ def test_a_tap_after_a_hold_takes_the_reading_and_its_ring_away(browser, serve):
     expect(preview).to_be_visible()
     touch("touchStart", start)
     touch("touchEnd")
-    expect(preview).to_be_hidden(timeout=3000)
-    expect(ring).to_be_hidden(timeout=3000)
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
     assert page.evaluate("document.getElementById('hours').lfPreview()") is None
 
 

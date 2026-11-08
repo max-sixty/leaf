@@ -3354,7 +3354,7 @@ def test_a_preview_over_another_target_goes_as_the_pointer_reaches_it(
     assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", centre) == (
         "under"
     )
-    expect(tip).to_be_hidden(timeout=3000)
+    expect(tip).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -3406,7 +3406,7 @@ def test_a_covering_preview_stays_while_the_pointer_is_on_it_over_inert_words(
     assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", field) == (
         "under"
     )
-    expect(tip).to_be_hidden(timeout=3000)
+    expect(tip).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -3557,7 +3557,7 @@ def test_a_covering_range_preview_stays_while_the_pointer_is_on_it_over_inert_wo
         "under" if field == "beside" else "inner"
     )
     page.evaluate("() => window.lfPointRange(null)")
-    expect(tip).to_be_hidden(timeout=3000)
+    expect(tip).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -3596,10 +3596,10 @@ def test_a_focus_preview_goes_under_a_sticky_header_and_returns_with_its_control
     page.wait_for_timeout(300)
     box = page.locator("#box")
     box.evaluate("el => { el.scrollTop = 120; }")
-    expect(tip).to_be_hidden(timeout=3000)
+    expect(tip).to_be_hidden()
     box.evaluate("el => { el.scrollTop = 0; }")
     expect(read).to_be_focused()
-    expect(tip).to_be_visible(timeout=3000)
+    expect(tip).to_be_visible()
     expect(tip.locator(".lf-preview-word")).to_have_text("Read report")
 
 
@@ -3661,7 +3661,7 @@ def test_a_held_reading_ends_as_its_control_scrolls_away(browser, serve, after):
     expect(tip).to_be_visible()
     box = page.locator("#box")
     box.evaluate("el => { el.scrollTop = 160; }")
-    expect(tip).to_be_hidden(timeout=3000)
+    expect(tip).to_be_hidden()
     assert held.evaluate("el => el.ended") == 1
     cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
     if after == "Escape":

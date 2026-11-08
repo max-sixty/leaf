@@ -1823,11 +1823,6 @@ def test_a_chart_s_author_picks_which_marks_say_their_values_and_their_words(
 # to read as lf-chart reads it: the axis the author named or the mark's points stand
 # along, and the mark's frame anchor, which Plot's own tip leaves at the frame's middle.
 # Each datum's title names it, so the chart's reading and Plot's `input` name one datum.
-# Plot alone draws each mark's tip unpooled, and the test takes the nearest tip it
-# shows. Since 0.6.18 Plot pools the tips of a chart's marks and facets and shows only
-# the nearest pick, but a pointer that picks nothing enters that pool at its full
-# reach. It then hides a pick farther from the aim than the reach, which a tip picking
-# along one axis can make (pointer.js, `update`).
 FACETED_ROWS = (
     "[0, 2, 4, 6, 8].map((x) => ({id: `a${x}`, k: 'a', x, y: x % 4}))"
     ".concat([1, 3, 5, 7, 9].map((x) => ({id: `b${x}`, k: 'b', x: x + 0.1, y: 9 - x})))"
@@ -1852,12 +1847,9 @@ LINKED_ROWS = (
     ' {x: 7, y: 8, c: "blue", u: "https://a.example/two"}]'
 )
 POINTER_CASES = {
-    # Picked along both axes, so each pick stands within reach of the aim. Plot pools
-    # a mark's facets even when its tip is unpooled, so a facet that picks nothing
-    # would hide a pick made along one axis.
     "faceted": (
-        f'Plot.dot({FACETED_ROWS}, {{x: "x", y: "y", fy: "k", title: "id", tip: "xy"}})',
-        f'Plot.dot({FACETED_ROWS}, {{x: "x", y: "y", fy: "k", title: "id", tip: "xy"}})',
+        f'Plot.dot({FACETED_ROWS}, {{x: "x", y: "y", fy: "k", title: "id", tip: "x"}})',
+        f'Plot.dot({FACETED_ROWS}, {{x: "x", y: "y", fy: "k", title: "id", tip: "x"}})',
     ),
     "anchored": (
         f'Plot.dotX({ANCHORED_ROWS}, {{x: "x", frameAnchor: "bottom", title: "id"}})',
@@ -2037,9 +2029,6 @@ def test_a_chart_picks_the_point_plot_s_own_pointer_picks(engine, request, serve
             """async ([name, marks, scales, width, height]) => {
               const {Plot} = await import('/vendor/plot.esm.js');
               const options = new Function('Plot', `return {${scales}marks: [${marks}]};`)(Plot);
-              for (const mark of options.marks)
-                if (mark.tip)
-                  mark.tip = {...(typeof mark.tip === 'string' ? {pointer: mark.tip} : mark.tip), pool: false};
               const figure = Plot.plot({...options, width, height});
               figure.id = `${name}-alone`;
               const chart = document.getElementById(name);

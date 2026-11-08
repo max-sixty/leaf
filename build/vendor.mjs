@@ -530,22 +530,33 @@ const bundles = {
       {
         file: /@observablehq\/plot\/dist\/plot\.js$/,
         edit: (source) =>
+          // Since 0.6.18 Plot's pointer pools the picks of a chart's marks and facets
+          // and shows the nearest, but it ranks a pointer that picked nothing at its
+          // full reach. That pointer outranks a pick farther away, as one made along
+          // a single axis can be, and Plot shows no tip at all (`update` in Plot's
+          // `pointerK`). The last seam ranks only the pointers that picked something;
+          // delete it once Plot's own pool does.
           seam(
             seam(
               seam(
-                source,
-                "\nfunction getSourceChannels(channels, scales) {",
-                "\nexport function getSourceChannels(channels, scales) {",
-                "Plot tip sources",
+                seam(
+                  source,
+                  "\nfunction getSourceChannels(channels, scales) {",
+                  "\nexport function getSourceChannels(channels, scales) {",
+                  "Plot tip sources",
+                ),
+                "\nfunction* formatChannels(i, index, channels, scales, values) {",
+                "\nexport function* formatChannels(i, index, channels, scales, values) {",
+                "Plot tip rows",
               ),
-              "\nfunction* formatChannels(i, index, channels, scales, values) {",
-              "\nexport function* formatChannels(i, index, channels, scales, values) {",
-              "Plot tip rows",
+              "yield {",
+              "yield {key,",
+              "Plot tip row channel",
+              4,
             ),
-            "yield {",
-            "yield {key,",
-            "Plot tip row channel",
-            4,
+            "if (!best || c.ri < best.ri) best = c;",
+            "if (c.ii != null && (!best || c.ri < best.ri)) best = c;",
+            "Plot pointer pool",
           ),
       },
     ],

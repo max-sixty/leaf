@@ -1,12 +1,32 @@
 import { generatedElement, keeps, viewDocument } from "/runtime/widget-api.js";
 /* The contents view draws its frame and outline from the complete document.
- * The live widget supplies the canonical heading and chrome readings. */
+ * The live widget supplies the canonical heading and chrome readings, and each
+ * section's marks (toc-marks.js): a mark for its open threads and one for its On me
+ * items, and, while the changes view is on, `data-lf-toc-changed` on its row, which
+ * toc.css draws in the gutter the outline's rule or the contents spine stands in; the
+ * start row's go on the outline's head too, its toggle or its label, which stands where
+ * that row would where the row is left out. The
+ * marks are aria-hidden and take no room; what they count, the row's link previews
+ * (`lfPreview`) in place of its name, which its face already says, and that preview
+ * describes the link to a screen reader where focus lands on it. */
 import { html, nothing, ref, repeat } from "/vendor/lit.js";
+import { marksWords } from "./toc-marks.js";
 
 /** @typedef {{label: (heading: Element) => string, chrome: (element: Element) => boolean, lends: boolean}} HeadingReading */
 /** @typedef {{key: string | Element, heading: Element, label: string, destination: Element, depth: number}} OutlineItem */
 /** @typedef {{start: {label: string, destination: Element, heading: Element | null} | null, items: OutlineItem[]}} Outline */
+/** @typedef {import("./toc-marks.js").SectionMarks} SectionMarks */
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
+
+/** @param {SectionMarks | undefined} marks */
+const markView = (marks) =>
+  marks
+    ? html`<span class="lf-toc-marks" aria-hidden="true"
+        >${marks.threads ? html`<i data-lf-toc-mark="thread"></i>` : nothing}${
+          marks.onMe ? html`<i data-lf-toc-mark="on-me"></i>` : nothing
+        }</span
+      >`
+    : nothing;
 
 // The outline belongs to the document holding it (`viewDocument`), or for contents
 // standing beside the page's main, that main. Scope follows document ownership, not
@@ -27,6 +47,40 @@ export function drawToc(host, headingReading) {
     destination?.id ? `#${destination.id}` : nothing;
   const generated = (/** @type {boolean} */ says) =>
     ref((node) => node && generatedElement(node, { says }));
+  /** @type {ReadonlyMap<Element | null, SectionMarks>} */
+  let marks = new Map();
+  // One preview for each row's link, kept as long as its heading, which reads the row's
+  // marks as it shows: their counts alone, in place of the name the link's face already
+  // says, so a room holding one line holds the counts, and a screen reader hears them
+  // after the link's name; none where the row has none, so the link previews nothing.
+  /** @param {Element | null} heading */
+  const preview = (heading) => () => {
+    const words = marksWords(marks.get(heading));
+    return words ? { name: words } : null;
+  };
+  /** @type {WeakMap<Element, ReturnType<typeof preview>>} */
+  const previews = new WeakMap();
+  const untitled = preview(null);
+  /** @param {Element | null} heading */
+  const previewOf = (heading) => {
+    if (!heading) return untitled;
+    let kept = previews.get(heading);
+    if (!kept) previews.set(heading, (kept = preview(heading)));
+    return kept;
+  };
+  // The disclosure and the outline beside the body leave the start row out, since the
+  // page's title stands just above, below or beside them, so their head, the toggle or
+  // the "On this page" label standing where that row would, carries its marks and
+  // previews them while they show (toc.css), named for the place they stand for, which
+  // its face doesn't say. The label takes no focus: the walks and the Page Map reach
+  // what it counts by keyboard.
+  /** @this {Element} */
+  function beforeFirst() {
+    const words = marksWords(marks.get(outline.start?.heading ?? null));
+    return words && this.querySelector(":scope > .lf-toc-marks")?.checkVisibility()
+      ? { name: "Before the first section", detail: [words] }
+      : null;
+  }
   host.replaceChildren();
   /** @type {ReturnType<typeof readFrame> | undefined} */
   let frame;
@@ -60,12 +114,21 @@ export function drawToc(host, headingReading) {
     get summary() {
       return native().summary;
     },
+    /** Each section's marks, by its heading, which the next render draws.
+     * @param {ReadonlyMap<Element | null, SectionMarks>} next */
+    mark(next) {
+      marks = next;
+    },
+    /** The frame and outline, read again from the document with `reading`, or as last
+     *  read with null.
+     * @param {HeadingReading | null} [reading] */
     render(reading = headingReading) {
       if (reading) {
         outline = readOutline(host, reading);
         keeps(host, "data-lf-toc-empty", outline.items.length ? null : "");
       }
       const { start, items } = outline;
+      const first = marks.get(start?.heading ?? null);
       return html`
         <nav
           class="lf-toc-nav lf-ui"
@@ -73,23 +136,50 @@ export function drawToc(host, headingReading) {
           aria-label="On this page"
           ${generated(false)}
         >
-          <p class="lf-toc-heading lf-label" ${generated(true)}>On this page</p>
+          <p
+            class="lf-toc-heading lf-label"
+            ${generated(true)}
+            ?data-lf-toc-changed=${Boolean(first?.changes)}
+            .lfPreview=${beforeFirst}
+          >
+            On this page${markView(first)}
+          </p>
           <details class="lf-toc-disclosure" ?open=${open}>
-            <summary class="lf-toc-toggle lf-label" ${generated(true)}>
-              On this page
+            <summary
+              class="lf-toc-toggle lf-label"
+              ${generated(true)}
+              ?data-lf-toc-changed=${Boolean(first?.changes)}
+              .lfPreview=${beforeFirst}
+            >
+              On this page${markView(first)}
             </summary>
             <div class="lf-toc-rows">
               <span class="lf-toc-window" aria-hidden="true"></span>
-              <div class="lf-toc-start" data-lf-depth="0">
-                <a href=${href(start?.destination)}>${start?.label ?? "Top"}</a>
+              <div
+                class="lf-toc-start"
+                data-lf-depth="0"
+                ?data-lf-toc-changed=${Boolean(first?.changes)}
+              >
+                <a
+                  href=${href(start?.destination)}
+                  .lfPreview=${previewOf(start?.heading ?? null)}
+                  >${start?.label ?? "Top"}${markView(first)}</a
+                >
               </div>
               <ol>
                 ${repeat(
                   items,
                   ({ key }) => key,
                   (item) => html`
-                    <li data-lf-depth=${item.depth}>
-                      <a href=${href(item.destination)}>${item.label}</a>
+                    <li
+                      data-lf-depth=${item.depth}
+                      ?data-lf-toc-changed=${Boolean(marks.get(item.heading)?.changes)}
+                    >
+                      <a
+                        href=${href(item.destination)}
+                        .lfPreview=${previewOf(item.heading)}
+                        >${item.label}${markView(marks.get(item.heading))}</a
+                      >
                     </li>
                   `,
                 )}

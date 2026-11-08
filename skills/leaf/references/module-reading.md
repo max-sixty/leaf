@@ -255,6 +255,12 @@ too, passing `readObligations().user` for those waiting on the user.
 open ones by next actor, and `tallyWords(count, agentName())` words it as `lf-tally`
 does, such as "2 left to answer · 1 on Claude", so every count of a queue reads alike.
 
+`partOver(node)` is the part of the page `node` stands in: the heading over it, else
+the nearest element holding it that its author named, such as a captioned figure, or
+`null`. On me groups its items by it and a link's preview names a place by it, so a
+module that counts items per heading, where no element holds the heading's section,
+climbs it from each item's element to the first heading it counts, as `lf-toc` does.
+
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
 it is gone. `obligationActions.next({within, dir})` steps to the next obligation
 waiting on the user inside `within`, or the previous with `dir: -1`, as `m` does in On

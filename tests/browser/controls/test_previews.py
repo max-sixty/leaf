@@ -8,7 +8,7 @@ import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, element_declaration
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -2476,6 +2476,70 @@ def test_a_preview_stands_where_it_covers_no_small_target_and_fits_any_window(
         }"""
     )
     assert held["top"] >= 0 and held["bottom"] <= held["window"] and held["cut"], held
+
+
+# A widget that draws its own content (`x-content: empty`), as `lf-toc` does, which so
+# takes the pointer (widget-elements.js, `aimableAt`) though no press acts on it: a
+# column of links across the page's column, the middle one previewing a line of detail
+# under its name, as a contents row with marks does.
+ROUTE = {
+    **{
+        key: value
+        for key, value in element_declaration("lf-route", upgrade=True).items()
+        if key != "x-verbatim"
+    },
+    "x-content": "empty",
+    "x-example": '<lf-route id="route"></lf-route>',
+}
+ROUTE_WIDGET = """
+customElements.define('lf-route', class extends HTMLElement {
+  connectedCallback() {
+    if (this.firstChild) return;
+    const words = ['Before the window', 'Confirm access', 'Record the baseline',
+      'Create the new credentials', 'Switch the services'];
+    for (const [n, said] of words.entries()) {
+      const row = document.createElement('div');
+      const link = document.createElement('a');
+      link.id = `route-${n}`;
+      link.href = `#t`;
+      link.textContent = said;
+      link.style.cssText = 'display: inline-block; padding-block: 3px';
+      if (n === 2) link.lfPreview = () => ({detail: ['1 thread']});
+      row.append(link);
+      this.append(row);
+    }
+  }
+});
+"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_keeps_clear_only_of_the_controls_inside_a_widget_it_stands_in(
+    engine, request, serve
+):
+    """A link inside a widget that draws its own content, which takes the pointer only to
+    be read, previews whole and clear of the links beside it, as anywhere on the page:
+    the widget around its subject stands under the preview, as any box around it does,
+    and the links it holds are what stays reachable. Counted as one control there, the
+    widget left no side inside it room for a line, so the preview stood over the next
+    link and let the pointer through to it."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page("Route", '<h1 id="t">Route</h1><lf-route id="route"></lf-route>'),
+            layer_registry={"lf-route": ROUTE},
+            layer_widgets={"lf-route.js": ROUTE_WIDGET},
+        ),
+    )
+    page.set_viewport_size({"width": 700, "height": 900})
+    rendered(page)
+    tip = page.locator(PREVIEW)
+    tab_onto(page.locator("#route-2"))
+    expect(tip.locator(".lf-preview-word")).to_have_text("Record the baseline")
+    rendered(page)
+    assert tip.get_attribute("data-lf-covers") is None
+    assert page.evaluate(COVERS, [f"route-{n}" for n in (0, 1, 3, 4)]) == []
+    assert tip.locator("[data-lf-clamp], [data-lf-cut]").count() == 0
 
 
 def test_focus_a_command_places_in_a_surface_it_opens_shows_no_preview(browser, serve):

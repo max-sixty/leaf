@@ -105,8 +105,9 @@
    room is the room it holds clear, inside the part of the window the user sees, of
    every other control, tested every 23 px across the box it would draw, and of what
    the preview is about (the box it stands by and the declaration's `about`); a box
-   around the target is a control there only where it takes the pointer, as a card a
-   press opens around a chart does and a scrolling box doesn't. For a finger, whose
+   around the target is a control there only where a press acts on it, as a card a
+   press opens around a chart is and a scrolling box or a widget drawing its own
+   content isn't. For a finger, whose
    hand hides what lies below the touch, below holds none. Where it stands now comes
    first, its top corner on the edge it stands by at the same offsets from the box it
    stands by, and it stays there while
@@ -1369,12 +1370,13 @@ function stand(record, reading, standing, aim = false) {
 function clearRoom(at, reach, holder) {
   const own = holder.getBoundingClientRect();
   const around = new Set(climb(holder));
+  // The boxes around `holder` a press acts on (`targetAt`).
   /** @type {Set<Element>} */
   const taking = new Set();
   for (let up = renderedParent(holder); up; up = renderedParent(up)) {
     const takes = aimableAt(up);
     if (!takes) break;
-    taking.add(takes);
+    if (takes.matches(CONTROL)) taking.add(takes);
     up = takes;
   }
   const down = at.y !== "above";
@@ -1438,8 +1440,12 @@ function hitAt(x, y) {
 // of the page beneath the preview, the nearest around what the point finds. A box
 // around `holder` (`around`) stands under the preview wherever it stands, so it is no
 // control to keep clear of where it takes nothing (widget-elements.js, `aimableAt`),
-// as a scrolling box, a stop Leaf lends code or a tab panel doesn't, and is one where
-// it takes the pointer (`taking`), as a card a press opens around a chart does.
+// as a scrolling box, a stop Leaf lends code or a tab panel doesn't, nor where it takes
+// the pointer only to be read, as a widget drawing its own content or a box that
+// previews, whose controls are tested for themselves; and is one where a press acts on
+// it (`taking`), as a card a press opens around a chart is. Until 8 November 2026 every
+// box around it that took the pointer counted, so inside `lf-toc`, drawn across the
+// column, no side held a line and a row's preview stood over the next row.
 /** @param {number} x @param {number} y @param {Element} holder @param {Set<Element>} around @param {Set<Element>} taking */
 function targetAt(x, y, holder, around, taking) {
   const hit = hitAt(x, y);

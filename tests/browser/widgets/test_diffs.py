@@ -20,11 +20,14 @@ from render_cases_widgets import (
     PANE_DIFF_PAGE,
 )
 from render_harness import (
+    PREVIEW,
     RELEASE_FOCUS,
     consume_browser_errors,
     displayed,
+    expect_preview_words,
     holding,
     leaf_page,
+    long_press,
     open_page,
     resized,
     said,
@@ -32,6 +35,7 @@ from render_harness import (
     select,
     selection_field,
     sending,
+    tab_onto,
     told,
     write,
 )
@@ -330,9 +334,12 @@ def test_diff_wraps_prose_by_default_and_accepts_an_overflow_choice(browser, ser
         alignment = page.locator("#prose .lf-diff-line-comment").evaluate_all(
             """buttons => buttons.map(button => {
               const source = button.nextElementSibling;
+              // The number's ink: its cells' text, not their line-high boxes.
               const range = document.createRange();
-              range.selectNodeContents(button);
-              const number = range.getBoundingClientRect();
+              const ink = [...button.children].filter(cell => cell.textContent)
+                .map(cell => (range.selectNodeContents(cell), range.getBoundingClientRect()));
+              const number = {top: Math.min(...ink.map(box => box.top)),
+                right: Math.max(...ink.map(box => box.right))};
               range.selectNodeContents(source);
               const text = range.getBoundingClientRect();
               const row = button.parentElement.getBoundingClientRect();
@@ -472,6 +479,83 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
     assert read["tab"]["scrolled"] == 400, read
     assert read["tab"]["scrollportGap"] == pytest.approx(0, abs=1.5), read
     assert read["option"] == pytest.approx(read["top"], abs=1), read
+
+
+def test_a_file_s_comment_opens_inline_where_the_file_ends_below_the_window(
+    browser, serve
+):
+    """A file's Comment opens its box in the file's thread, at the file's end, even when
+    a long hunk leaves that end below the window: the box's focus brings it in. Only a
+    seat the chrome covers sends the box to its floating home."""
+    body = "".join(f"+line {n}\n" for n in range(80))
+    patch = (
+        "diff --git a/app.py b/app.py\n--- /dev/null\n+++ b/app.py\n"
+        f"@@ -0,0 +1,80 @@\n{body}"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Long file",
+                '<h1>Review</h1><lf-diff id="patch"><pre>' + patch + "</pre></lf-diff>",
+            )
+        ),
+    )
+    resized(page, 1200, 700)
+    page.locator("lf-diff .lf-diff-file-comment").click()
+    composer = page.locator(
+        'lf-diff .lf-fab-bar[data-lf-presentation="inline"] .lf-composer[data-lf-open]'
+    )
+    expect(composer).to_have_count(1)
+    field = composer.locator("leaf-text")
+    expect(field).to_be_focused()
+    expect(field).to_be_in_viewport()
+
+
+def test_a_diff_gutter_numbers_each_file_in_its_own_column(browser, serve):
+    """Once a hunk adds lines the old and new numberings drift apart, so one column
+    holding whichever number a row has ran out of order (15, 16, 15, 17) in the next
+    hunk. Each row shows the old file's number and the new file's in a column each."""
+    patch = (
+        "diff --git a/notes.txt b/notes.txt\n--- a/notes.txt\n+++ b/notes.txt\n"
+        "@@ -1,4 +1,6 @@\n line 1\n line 2\n+added a\n+added b\n line 3\n line 4\n"
+        "@@ -13,5 +15,5 @@ line 12\n line 13\n line 14\n-line 15\n+line 15 changed\n"
+        " line 16\n line 17\n"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Gutter",
+                '<h1>Gutter</h1><lf-diff id="patch"><pre>' + patch + "</pre></lf-diff>",
+            )
+        ),
+    )
+    numbers = page.locator("lf-diff .lf-diff-line-comment")
+    expect(numbers).to_have_count(12)
+    cells = numbers.evaluate_all(
+        "buttons => buttons.map(b => [...b.children].map(c => c.textContent))"
+    )
+    assert cells == [
+        ["1", "1"],
+        ["2", "2"],
+        ["", "3"],
+        ["", "4"],
+        ["3", "5"],
+        ["4", "6"],
+        ["13", "15"],
+        ["14", "16"],
+        ["15", ""],
+        ["", "17"],
+        ["16", "18"],
+        ["17", "19"],
+    ], cells
+    # The two columns line up from row to row: each cell's right edge is the same.
+    edges = numbers.evaluate_all(
+        """buttons => buttons.map(b => [...b.children]
+          .map(c => c.getBoundingClientRect().right))"""
+    )
+    assert all(edge == edges[0] for edge in edges), edges
 
 
 def test_inline_diff_lines_and_files_can_start_comments(browser, serve):
@@ -736,16 +820,18 @@ def diff_refresh_keeps_selection(page, serve, diff, source, value, edit):
     rendered(page)
     assert page.evaluate("() => getSelection().toString()") == before, diff
     # Each drawn row pairs its own numbered control with its source line: the
-    # number is the line's own in its datum (the new number for a context line).
+    # number in its side's cell is the line's own in its datum (the new number for a
+    # context line).
     gutters = page.locator(f"{diff} .lf-diff-line").evaluate_all(
         """rows => rows.map(row => {
       const comments = row.querySelectorAll('.lf-diff-line-comment');
       const line = comments[0]?.nextElementSibling;
       const datum = JSON.parse(line?.dataset.lfDatum ?? 'null');
+      const [old, now] = [...(comments[0]?.children ?? [])].map(cell => cell.textContent);
       return {
         datum: line?.dataset.lfDatum,
         commentCount: comments.length,
-        label: comments[0]?.textContent,
+        label: datum?.[1] === 'old' ? old : now,
         expected: datum && String(datum.at(-1)),
         lineTypeMatches: row.dataset.lineType === line?.dataset.lineType,
       };
@@ -895,7 +981,7 @@ def diff_file_keeps_focus(page, serve, diff, source, value, rename, starts_as_re
 
 def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
     """A file that a revision turns from a rename into a changed file gets a new row,
-    and that row, too, says whether it cuts its path short."""
+    and that row, too, previews its whole path while it cuts the path short."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config/deeply/handlers.py"
     rename = (
         f"diff --git a/old.py b/{path}\n"
@@ -911,10 +997,9 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
     told(page)
     rendered(page)
     head = page.locator("lf-diff .lf-diff-head").first
-    expect(head).to_have_attribute("data-lf-path-cut", "")
-    expect(head.locator(".lf-diff-path")).to_have_attribute("title", path)
+    expect_preview_words(head, path)
 
-    # A changed source path can retain exactly the old clipped width. Its title
+    # A changed source path can retain exactly the old clipped width. Its preview
     # must follow the new identity even when no size changes and the disclosure stays.
     head.evaluate("node => window.retainedDiffHead = node")
     for source in ("legacy/original.py", "legacy/previous.py"):
@@ -929,9 +1014,7 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve):
         )
         told(page)
         rendered(page)
-        expect(head.locator(".lf-diff-path")).to_have_attribute(
-            "title", f"{source} → {path}"
-        )
+        expect_preview_words(head, f"{source} → {path}")
         assert head.evaluate("node => node === window.retainedDiffHead")
 
 
@@ -1731,7 +1814,6 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(
             reserved: parseFloat(getComputedStyle(
                 head.parentElement.querySelector('[data-line]')
             ).scrollMarginTop),
-            title: path.title,
             bases: bases.map(base => ({text: base.textContent,
                 cut: base.scrollWidth > base.clientWidth,
                 width: base.getBoundingClientRect().width})),
@@ -1741,14 +1823,9 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(
         return reading;
     }"""
     )
-    page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
-    page.locator("lf-diff .lf-diff-head").focus()
-    said = page.locator("lf-diff .lf-diff-path").evaluate(
-        """path => {
-        const word = getComputedStyle(path, '::after');
-        return [word.content.replace(/\\u200b/g, ''), parseFloat(word.width)];
-    }"""
-    )
+    tab_onto(page.locator("lf-diff .lf-diff-head"))
+    expect(page.locator(PREVIEW)).to_be_visible()
+    said = page.locator(PREVIEW).inner_text()
     assert head["height"] == pytest.approx(head["reserved"], abs=0.5), head
     assert [base["text"] for base in head["bases"]] == (
         ["original.md", "config.md"] if renamed else ["config.md"]
@@ -1762,19 +1839,17 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(
         assert head["arrow"]["right"] < head["path"]["right"], head
     else:
         assert not head["bases"][0]["cut"], head
-    assert head["title"] == (f"{previous} → {path}" if renamed else path), head
-    assert path in said[0] and said[1] > 0, said
+    assert said == (f"{previous} → {path}" if renamed else path), said
 
 
 def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     browser, serve
 ):
-    """A file's row gives way from its folders, and its title reaches only a pointer
-    resting on it. The keyboard location on the row, and a finger held on it, read the
-    whole path in a box under the row, a folded file's too, over the next file's row.
-    Releasing the hold folds the file, as a tap does. Touch focus keeps the path
-    visible until it leaves. A row that shows its whole path at the width it has
-    now shows no box and has no title."""
+    """A file's row gives way from its folders, and says its whole path as its preview:
+    to the keyboard's location on the row, under it, and to a finger held on it, above
+    it, a folded file's too. Releasing the hold leaves the file as it was and the path
+    standing until the next touch, and a tap folds it and reads nothing. A row that shows its whole path at the width it has now
+    previews nothing."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config/deeply/nested/file.md"
     patch = "".join(
         f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n"
@@ -1796,50 +1871,40 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     )
     page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
     head = page.locator("lf-diff .lf-diff-head").first
-    # The box is generated content, which takes no hit unless a rule lets it: this
-    # test's own rule does, so a hit-test at the box's corner says what stands on top.
-    head.evaluate("""head => {
-        const sheet = new CSSStyleSheet();
-        sheet.replaceSync('.lf-diff-path::after { pointer-events: auto !important; }');
-        const root = head.getRootNode();
-        root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
-    }""")
+    preview = page.locator(PREVIEW)
     read = """head => {
-        const path = head.querySelector('.lf-diff-path');
-        const word = getComputedStyle(path, '::after');
+        const tip = document.getElementById('lf-preview');
+        const shown = tip.matches(':popover-open');
         const at = head.getBoundingClientRect();
-        const hit = word.content === 'none' ? null : head.getRootNode().elementFromPoint(
-            at.left + head.clientLeft + parseFloat(word.left) + 6,
-            at.top + head.clientTop + parseFloat(word.top) + 6,
-        );
+        const box = tip.getBoundingClientRect();
         return {
             open: head.parentElement.open,
-            word: word.content === 'none' ? null
-                : word.content.replace(/\\u200b/g, ''),
-            shown: word.visibility === 'visible',
-            below: parseFloat(word.top) >= at.height,
-            fits: parseFloat(word.left) + parseFloat(word.width) <= at.width + 0.5,
-            onTop: hit === path,
+            word: shown ? tip.innerText : null,
+            below: shown && box.top >= at.bottom,
+            above: shown && box.bottom <= at.top,
+            inside: shown && box.left >= 0 && box.right <= innerWidth,
         };
     }"""
-    whole = f'"{path}" / ""'
     assert head.evaluate(read)["word"] is None
 
-    page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
-    head.focus()
+    # The keyboard steps onto it, the user's own move, so the focus is visible and
+    # reads.
+    tab_onto(head)
+    expect(preview).to_be_visible()
     focused = head.evaluate(read)
     assert focused == {
         "open": True,
-        "word": whole,
-        "shown": True,
+        "word": path,
         "below": True,
-        "fits": True,
-        "onTop": True,
+        "above": False,
+        "inside": True,
     }, focused
     page.keyboard.press("Enter")
+    rendered(page)
     assert head.evaluate(read) == {**focused, "open": False}
     page.keyboard.press("Enter")
     head.evaluate("head => head.blur()")
+    expect(preview).to_be_hidden()
 
     cdp = context.new_cdp_session(page)
     box = head.bounding_box()
@@ -1852,50 +1917,39 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
         )
 
     touch("touchStart")
-    rendered(page)
-    expect(head).to_have_attribute("data-lf-held-word", "")
-    page.wait_for_function(
-        """() => getComputedStyle(document.querySelector('lf-diff').shadowRoot
-            .querySelector('.lf-diff-path'), '::after').visibility === 'visible'"""
-    )
+    long_press(page, point)
+    expect(preview).to_be_visible()
+    expect(head).to_have_attribute("data-lf-held", "")
     held = head.evaluate(read)
-    assert held["word"] == whole and held["open"], held
+    assert (held["word"], held["open"], held["above"]) == (path, True, True), held
     touch("touchEnd")
     rendered(page)
-    assert head.evaluate(read)["open"] is False, "the release folds the file"
-    expect(head).to_be_focused()
-    expect(head).to_have_attribute("data-lf-focus", "")
-    assert head.evaluate(read)["word"] == whole
+    assert head.evaluate(read) == held, "the release presses nothing"
     page.evaluate(RELEASE_FOCUS)
-    assert head.evaluate(read)["word"] is None
 
     page.touchscreen.tap(point["x"], point["y"])
     rendered(page)
-    assert head.evaluate(read)["open"] is True, "a tap unfolds it"
-    expect(head).to_be_focused()
-    expect(head).to_have_attribute("data-lf-focus", "")
-    assert head.evaluate(read)["word"] == whole
+    assert head.evaluate(read)["open"] is False, "a tap folds it"
+    assert head.evaluate(read)["word"] is None, "a tap reads the path"
     page.evaluate(RELEASE_FOCUS)
-    assert head.evaluate(read)["word"] is None
 
-    # A row that shows its whole path shows no box and has no title, and a row's box
-    # and title follow the width the row is given while the keyboard stays on it.
+    # A row that shows its whole path previews nothing, and what a row previews
+    # follows the width it is given.
     page.keyboard.press("Shift")
-    titled = "head => head.querySelector('.lf-diff-path').getAttribute('title')"
     short = page.locator("lf-diff .lf-diff-head").nth(1)
     short.focus()
+    rendered(page)
     assert short.evaluate(read)["word"] is None, "a short path is said twice"
-    assert short.evaluate(titled) is None, "a short path's title repeats it"
-    head.focus()
-    assert head.evaluate(read)["word"] == whole and head.evaluate(titled) == path
     page.set_viewport_size({"width": 1400, "height": 844})
     rendered(page)
+    head.focus()
+    rendered(page)
     assert head.evaluate(read)["word"] is None, "a path the row shows whole is said"
-    assert head.evaluate(titled) is None
+    short.focus()
     page.set_viewport_size({"width": 390, "height": 844})
     rendered(page)
-    assert head.evaluate(read)["word"] == whole, "a narrowed row hides its path"
-    assert head.evaluate(titled) == path
+    head.focus()
+    expect(preview).to_have_text(path)
 
 
 def test_author_notes_follow_source_lines_and_survive_deferred_refresh(browser, serve):

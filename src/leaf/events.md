@@ -312,7 +312,7 @@ While a thread is open, the user's message after a state-answered obligation in 
 that obligation to the agent, still open, until the agent answers that turn or ends the
 to-do a reply promised (`obligations.thread_obligation_readings`). A thread anchored on
 a page obligation does the same, so an obligation the user has commented on leaves their
-On me list while the reply owed to the comment stands on the agent's, and a promised
+On Me list while the reply owed to the comment stands on the agent's, and a promised
 to-do keeps that obligation the agent's even after the thread is resolved
 (`obligations.anchors_with_agent`). A question asked in words (`obligation: true`)
 is answered by that message instead, along with every open question before it, or by a reaction whose token

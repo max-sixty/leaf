@@ -36,7 +36,7 @@ def detached_threads(page, thread_ids):
     for thread_id in thread_ids:
         view = open_panel_thread(page, thread_id)
         expect(view).to_be_visible()
-        if view.locator(".lf-thread-quote[data-lf-detached]").count():
+        if view.locator(".lf-thread-quote-head[data-lf-detached]").count():
             detached.add(thread_id)
     if page.locator(PANEL).get_attribute("data-lf-open") is not None:
         page.locator(".lf-fp-close").click()
@@ -44,14 +44,15 @@ def detached_threads(page, thread_ids):
     return detached
 
 
-def first_thread_quote(page, page_dir):
-    """The quote heading the first thread's view in the panel, opened for it."""
+def first_thread_head(page, page_dir):
+    """The head of the first thread's view in the panel, opened for it: the words the
+    thread quotes and where they stand."""
     first = next(
         event["id"]
         for event in events_model.read_events(page_dir)
         if event["kind"] == "comment"
     )
-    return open_panel_thread(page, first).locator(".lf-thread-quote")
+    return open_panel_thread(page, first).locator(".lf-thread-quote-head")
 
 
 def expect_showing(page, version):

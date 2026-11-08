@@ -834,6 +834,20 @@ export function watchCurrentLocationIn(root) {
 }
 watchCurrentLocationIn(document);
 watchCurrentLocationAround(deepFocus());
+// Focus the document took before this module loaded, as `autofocus` gives it, fired no
+// event it heard, so its paint starts from it. The platform's `:focus-visible` says
+// whether an element wears its ring, but never a frame, whose ring follows the input
+// that put the user there (`visibleFocus`), which this module did not hear. A frame
+// starts as a press into it leaves it (`inputInFrame`), without a ring the user may
+// not have asked for, and its next reported input decides.
+{
+  const at = deepFocus();
+  if (at && at !== document.body) {
+    if (isHTML(at, "iframe")) pressedPath = [new WeakRef(at)];
+    paintDestination = new WeakRef(at);
+    queueFocusPaint();
+  }
+}
 // Leaving for nowhere from a node still drawn is the user's own move, and so a
 // placement: body holds no stop, so a press on the page's words takes focus off the
 // control and puts it nowhere with no `focusin` to count, and a hold still waiting
@@ -1071,10 +1085,10 @@ function overPress(ended) {
 }
 /** @param {Press} ended */
 const overSoon = (ended) => setTimeout(() => overPress(ended));
-// A press that commits at its release, as a held word does or the panel's field handing
-// selected words to the comment box, leaves the browser's own click after it to land on
-// whatever the release put under the pointer. The release claims that click, the one the
-// press under way owes; a keyboard's carries no count and is never it.
+// A press that commits at its release, as the panel's field handing selected words to
+// the comment box does, leaves the browser's own click after it to land on whatever the
+// release put under the pointer. The release claims that click, the one the press under
+// way owes; a keyboard's carries no count and is never it.
 export const claimReleaseClick = () => {
   if (press) press.clickClaimed = true;
 };
@@ -1236,7 +1250,13 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
     (event) => {
       if (type === "pointerdown")
         pressedPath = event.composedPath().map((node) => new WeakRef(node));
-      else if (type === "keydown") pressedPath = null;
+      else if (type === "keydown") {
+        pressedPath = null;
+        // A key gives the node focus is already on its ring with no focus event, and a
+        // rule reading the mark can style that key's own default, as a fold Enter
+        // closes from the keyboard skips its motion, so the mark lands before it.
+        queueFocusPaint();
+      }
       stepping = null;
       if (type === "keydown" || type === "pointerdown") {
         const step = event instanceof KeyboardEvent && sequential(event) ? event : null;
@@ -1259,8 +1279,8 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
 // rather than the control declares it there, `--lf-wears-ring: 1` (base.css), as a
 // playground's choice rings its radio and words together; the nearest such box around
 // the control is the one. Anything else wears its own. Those rules ring the face of the
-// control the focus paint marks, so only that control has one. A landing in the
-// focus task reads the carrier from native focus before Leaf paints. Reading the
+// control the focus paint marks, so only that control has one, and a landing made in the
+// focus task finds it only after the paint (`rowWalk`, walk-position.js). Reading the
 // ring must not paint an intermediate focus destination: a return in the same
 // task would otherwise remove and restore the previous focus marks.
 /** @template {Element | Range} T @param {T} node @returns {T | Element} */
@@ -1423,6 +1443,22 @@ const openers = new WeakMap();
 /** @param {object} layer @param {Element | null} [opener] */
 export function openLayer(layer, opener = focused()) {
   openers.set(layer, opener && opener !== document.body ? opener : null);
+  layerOpened(layer);
+}
+// The user's input each layer last opened under (`inputCount`): every layer opened
+// through `openLayer`, and every native layer as it opens (keyboard/layer-stack.js).
+// Focus arriving in a layer that opened since the user's last input is the layer placing
+// them as it opens, and focus arriving in one that stood before is the user's own move.
+/** @type {WeakMap<object, number>} */
+const openings = new WeakMap();
+/** @param {object} layer */
+export const layerOpened = (layer) => void openings.set(layer, inputs.count);
+// Whether `node` stands in a layer that opened since the user's last input.
+/** @param {Element} node */
+export function openedThisInput(node) {
+  for (let at = /** @type {Element | null} */ (node); at; at = renderedParent(at))
+    if (openings.get(at) === inputs.count) return true;
+  return false;
 }
 /** @param {object} layer */
 export const openerOf = (layer) => openers.get(layer) ?? null;

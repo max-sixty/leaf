@@ -727,8 +727,10 @@ def _starting_server(
     harness: Harness | None,
     acquire: bool = False,
     claim: dict | None = None,
+    timeout: float | None = None,
 ):
-    """Prepare a private serving resource and expose its owner before accepting."""
+    """Prepare a private serving resource and expose its owner before accepting,
+    refusing a start that is not ready within `timeout`."""
     with starting_detached(
         [
             "server",
@@ -745,6 +747,7 @@ def _starting_server(
         ],
         harness=harness,
         what=f"the server for {page_dir}",
+        timeout=timeout,
     ) as ready:
         yield PageStart(ready["url"], ready["claim"], page_dir)
 
@@ -778,6 +781,7 @@ def claim_and_start(
     persistent: bool = False,
     *,
     prepared_claim: dict | None = None,
+    timeout: float | None = None,
 ):
     """Prepare delivery and serving, expose their acquisition, then commit.
 
@@ -786,9 +790,14 @@ def claim_and_start(
     URL only after exit confirms publication. Once accepted, cancellation cannot
     restore a superseded owner; the captured acquisition governs owner cleanup.
 
-    A detached preview receives a claim prepared by its launcher, which holds
-    delivery preparation through this commit. That child uses the captured
-    lifetime and cwd rather than discovering its detached process's ancestry.
+    A caller whose environment does not imply the harness it acts for passes a
+    claim it prepared, and holds delivery preparation through this commit: a
+    detached preview's launcher, whose child uses the captured lifetime and cwd
+    rather than discovering its own ancestry, and a prompt hook, whose payload names
+    the session (`reconnect`). Neither selects a checkout here. The hook also bounds
+    the wait with `timeout`, since a server binding a port another process holds
+    retries for PORT_WAIT_SECONDS, past the hook's own timeout; a start not ready by
+    then is refused.
     """
     harness = claim_harness(prepared_claim) if prepared_claim else session_harness()
     claim = prepared_claim
@@ -803,7 +812,13 @@ def claim_and_start(
     with delivery:
         try:
             with _starting_server(
-                page_dir, host, persistent, harness=harness, acquire=True, claim=claim
+                page_dir,
+                host,
+                persistent,
+                harness=harness,
+                acquire=True,
+                claim=claim,
+                timeout=timeout,
             ) as ready:
                 yield ready
         except BaseException:

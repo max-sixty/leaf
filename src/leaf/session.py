@@ -17,8 +17,7 @@ from .detached import StartRefused
 from .file_changes import FileChanges, target_paths
 from .files import file_stamp
 from .findings import Finding, note
-from .harness import Harness, claim_harness, session_harness
-from .hook_transport import HOOK_TIMEOUT_S
+from .harness import HOOK_TIMEOUT_S, Harness, claim_harness, session_harness
 from .interaction_log import record_command, record_watch
 from .leases import (
     end_if_terminated,
@@ -801,13 +800,11 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
                 woke_after(harness.session)
                 return reading.delivered
             if reading.outcome is not None:
+                # No page it watches has a server, and reviving them failed. It
+                # ends without waking the session: the next prompt's hook serves
+                # a session page again or says why it can't (`reconnect`).
                 ended = "server-down"
-                return "\n".join(
-                    f"{tick.page_dir}: server is not running; restart it with "
-                    f"`leaf server start {tick.page_dir}`"
-                    for tick in reading.readings
-                    if tick.lost
-                )
+                return None
             if not reading.live:
                 ended = "no-pages"
                 return None

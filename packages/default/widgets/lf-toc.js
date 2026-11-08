@@ -6,15 +6,14 @@ import { drawToc } from "./toc-view.js";
  * whenever the document's headings change, and measures and moves the map.
  *
  * In the roomy margin the outline becomes a reading map. Each row receives the length
- * of the section it leads as its flex share, so the quiet spine describes the document
- * before its labels appear. Crowded destinations are fitted together just enough for
+ * of the section it leads as its flex share, so the spine describes the document's
+ * proportions beside its labels. Crowded destinations are fitted together just enough for
  * their labels to remain distinct; destination marker, label, and viewport lens all
  * use that one fitted scale. A marker's center is its coordinate; its label's first line
  * is centered there too, and the viewport lens reads those same coordinates. The first
  * label can extend above the track into the map's existing padding, rather than moving
  * the document's origin to make room for type. The map ends inside main's trailing
- * padding. Revealing the outline neither moves it nor withholds
- * its words.
+ * padding.
  * A destination inside a closed disclosure or inactive tab joins the margin map when it
  * joins the displayed document; the ordinary outline keeps its native fragment link.
  * The darker lens is the part of the document in the viewport. The scroll moves it, as

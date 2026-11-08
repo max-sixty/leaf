@@ -28,7 +28,7 @@ uv run leaf-dev journey-chart
 # Where each reply's time went, waiting and working, by harness.
 uv run leaf-dev journey-chart --replies [--since ISO]
 # In-tab feedback.
-uv run leaf-dev bench-latency --runs 3
+uv run leaf-dev bench triage-board corpus --read paint --rounds 3
 # Status evaluations.
 uv run leaf-dev eval plan-shows-multi-step-work plan-skips-quick-work \
   parent-keeps-leaf-responsive 'parent-keeps-leaf-responsive/known-answer' \
@@ -64,11 +64,11 @@ keeps its sample in `$XDG_STATE_HOME/leaf-dev/journey.jsonl` on its machine.
 
 The targets are proposed budgets. The readings are this Mac's runs on 2026-10-20,
 on main at `e5113c687` with this note's change, with the load average between 6
-and 12 on 18 cores: `bench-latency --runs 3` for the paint rows, and for the
-rest two journeys per harness with the comments posted over HTTP, ranges covering
-every comment of every step. The journey reads pickup but not the receipt before
-it, so the receipt row has no reading of its own; an idle session's pickup bounds
-it.
+and 12 on 18 cores: `bench-latency --runs 3`, which `leaf-dev bench --read paint`
+replaced, for the paint rows, and for the rest two journeys per harness with the
+comments posted over HTTP, ranges covering every comment of every step. The journey
+reads pickup but not the receipt before it, so the receipt row has no reading of its
+own; an idle session's pickup bounds it.
 
 | Transition                                 | Target                                      | Reading on 2026-10-20                                                              |
 | ------------------------------------------ | ------------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -123,8 +123,8 @@ reaches the tab by one of two routes, depending on which comes first:
   revision the read activated. A stamp with `--replace` writes and checks the
   source under the lock, so the tab's read waits for its whole check.
 
-`uv run leaf-dev bench-latency --base --page corpus --transition revision` reads both;
-`results.json` gives each request's start and end beside the transition's, which
+`uv run leaf-dev bench corpus --read paint --input stamp --base` reads both;
+`results.json` gives each request's start and end beside the input's, which
 says which route a run took, and `--profile` on the same command gives the
 browser's tasks. Fifteen paired runs over three invocations at load 4–7 on 18
 cores, on `e440ca191` against its merge base `f38882d51`:
@@ -302,6 +302,49 @@ process: an earlier batch at a load average near 27 read 1.0–3.7 s.
 - **The hosted opening's cost:** whether the hosted agent's opening line delays its
   answer needs runs without one, such as an arm whose `CODEX_INSTRUCTIONS` drop the
   acknowledgement.
+- **The model's own progress while an update reads Delivered, on Claude Code:** a
+  `turn.step` hook in Leaf's module sees the main thread's response stream as it
+  arrives, and `$.http.fetch` posts to the page server in about 1 ms with no effect on
+  the stream (a probe on Claude Code 2.1.318, 2026-11-05, in
+  `/private/tmp/chunkprobe.ZEvu41`, which may be gone). By default the thinking
+  chunks carry no text, only a pulse every 1–1.5 s. With the user setting
+  `showThinkingSummaries`, they carry first-person summaries ("Checking 1009, 1013,
+  1019 and 1021 against the small primes; …") in bursts every 2.5–4 s, the first
+  about 3 s after the response's first byte; the setting also shows those summaries
+  in the terminal, and a plugin's `settings.read` hook did not turn it on. The
+  response's first byte came 0.4–16 s after the request. Streaming the summaries
+  into the update's working line needs a page-server route the module posts to,
+  keyed as the browser's requests are; Codex's provisional reply
+  (`PageTransaction.set_stream_reply`) is the nearest existing path.
+- **Streaming the reply itself, on Claude Code:** the agent's reply reaches Leaf
+  inside a tool call, `leaf thread reply <ref> --text "…"` in a Bash command, which
+  Claude Code runs only once the model has written all of it. The same `turn.step`
+  hook sees that call as it is written: a `tool` chunk names it, then `input` chunks
+  carry its arguments' JSON. In a probe a Bash call's 749 characters arrived as 35
+  pieces of about 22 characters, one every 50 ms, after 16 s of thinking. So the
+  source is the module reading the reply's text out of the half-written command, the
+  sink a page-server route the module posts the growing text to, which sets the
+  page's provisional reply as Codex's adapter does; the browser already draws that as
+  Replying, and the reply the command posts replaces it. No setting is needed, since
+  this is the reply rather than the thinking. Reading a half-written shell command is
+  fragile (quoting, heredocs), so a reply tool of Leaf's own, whose arguments are JSON
+  (`$.tool.register`), is the sturdier source. A `$.model.fork` fork streams nothing
+  a hook can see: its text comes back whole. A subagent's steps reach every hook but
+  the one that spawned it, with its `agentId`, so a fork made with `$.agent.spawn`
+  could stream its reply the same way.
+- **A message that waited behind a long command, on Claude Code:** page input
+  reaches a busy session only between its tool calls. Of 58 thread messages from 1
+  to 5 November, 37 reached a busy session, after a median 16 s (p90 99 s), and 6
+  waited over a minute. Four of those six waited on one session's foreground
+  commands: a `sleep 280` it ran seven times to wait for CI and for the user's
+  picks, and a 104 s benchmark. That session followed a standing instruction in the
+  user's agent memory to wait inside its turn, which now waits in steps of about a
+  minute. Fresh sessions background long commands with or without SKILL.md's
+  sentence on it (`parent-keeps-leaf-responsive`), so the misses come late in a
+  session, where rewording rarely helps. The delivery at the next tool boundary
+  could say how long its input waited for the call that just ended, while that
+  call is in view. It needs its precision and recall measured on real sessions
+  first (`leaf-dev response-times`).
 - **Cheap claims:** test a typed harness operation against the CLI path before adding
   another interface. The [Codex brief](codex-integration.md#typed-operations) owns
   that experiment.

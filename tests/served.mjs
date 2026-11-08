@@ -74,7 +74,7 @@ export function servedReading(name) {
   return structuredClone(RECORDS.readings[name]);
 }
 
-// The On me row naming `obligation`; `changes` set where it stands, for a test whose served
+// The On Me row naming `obligation`; `changes` set where it stands, for a test whose served
 // reading states its obligations by hand.
 export const servedObligationRow = (item, changes) =>
   served("obligation_row", { id: item.id, thread: item.thread, ...changes });

@@ -53,6 +53,21 @@ export function keepsText(node, text) {
   if (node && node.textContent !== said) node.textContent = said;
 }
 
+// A flag one element wears at a time, as a cursor's paint stands on the element under
+// the pointer (annotation-overlay/anchor-paint.js, page-geometry.js): the returned call
+// moves it to `element`, or takes it off with null, writing only when that changes.
+/** @param {string} name */
+export function keepsOnOne(name) {
+  /** @type {Element | null} */
+  let on = null;
+  return (/** @type {Element | null} */ element) => {
+    if (element === on) return;
+    on?.removeAttribute(name);
+    element?.setAttribute(name, "");
+    on = element;
+  };
+}
+
 /** @param {number} length */
 export const atLayoutPrecision = (length) => Math.round(length * 64) / 64;
 

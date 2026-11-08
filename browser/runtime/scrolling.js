@@ -41,7 +41,7 @@ import {
 } from "./arrivals.js";
 import { inputs } from "./inputs.js";
 import { reducedMotion } from "./motion.js";
-import { skipped } from "./shown-box.js";
+import { skipped } from "./shadow-tree.js";
 
 // The browser's document scrollport. Keeping the platform's root as the one page
 // scroller lets fragment links, history restoration, wheel/touch input, and browser UI

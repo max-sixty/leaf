@@ -24,7 +24,8 @@
    view covers is out of sight there, its part beside the view included. Where a chip may
    stand is a different question, answered by the boxes it keeps clear of whole
    (`reserve`, `paint`): a chip can move somewhere legible, so it keeps off every pixel of
-   the chrome, the side of a view included. */
+   the chrome, the side of a view included, but for the surface holding its control,
+   whose own controls' chips stand on it (geometry.js, `coverBoxes`). */
 import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
 import { PRESSES } from "../control-selectors.js";
 import {
@@ -64,8 +65,12 @@ export function keyBadgePlacement() {
   /** @type {import("../geometry.js").ClipCache} */
   const clips = new Map();
   const room = layoutWindow();
-  const chrome = coverBoxes();
-  const kept = [...chrome];
+  /** @type {Box[]} */
+  const kept = [];
+  // Whether `box` keeps clear of the chrome over `owner` and of every box reserved so far.
+  /** @param {Box} box @param {Element} owner */
+  const clear = (box, owner) =>
+    ![...coverBoxes(owner), ...kept].some((other) => overlaps(box, other));
 
   // What the user can see of a box: the window.
   //
@@ -137,14 +142,9 @@ export function keyBadgePlacement() {
 
   // A page-local target hint cannot be moved by the chrome pass, but it reserves its own
   // visible box so later chrome badges cannot claim the same pixels.
-  /** @param {Box | null | undefined} box */
-  function reserve(box) {
-    if (
-      !box ||
-      box.right <= box.left ||
-      box.bottom <= box.top ||
-      kept.some((other) => overlaps(box, other))
-    )
+  /** @param {Box | null | undefined} box @param {Element} owner */
+  function reserve(box, owner) {
+    if (!box || box.right <= box.left || box.bottom <= box.top || !clear(box, owner))
       return false;
     kept.push(box);
     return true;
@@ -184,11 +184,9 @@ export function keyBadgePlacement() {
       ...one,
       ...seats.measure(one.seat, one.corner),
     }));
-    /** @param {Box} box */
-    const free = (box) =>
-      box.right > box.left &&
-      box.bottom > box.top &&
-      !kept.some((other) => overlaps(box, other));
+    /** @param {Box} box @param {Element} owner */
+    const free = (box, owner) =>
+      box.right > box.left && box.bottom > box.top && clear(box, owner);
     const seated = [];
     for (const { chip, seat, owner, corner, box: start } of measured) {
       /** @type {[number, number][]} */
@@ -214,12 +212,13 @@ export function keyBadgePlacement() {
       };
       const places = corners.map(placeAt);
       const box =
-        places.find((place) => free(place) && !coversAnotherControl(place, owner)) ??
-        placeAt([corner.left, corner.top]);
+        places.find(
+          (place) => free(place, owner) && !coversAnotherControl(place, owner),
+        ) ?? placeAt([corner.left, corner.top]);
       seated.push({
         seat,
         chip,
-        shows: reserve(box),
+        shows: reserve(box, owner),
         target: owner,
         at: corner,
         start,

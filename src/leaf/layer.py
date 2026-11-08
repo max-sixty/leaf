@@ -198,7 +198,8 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 
 
 # The document's cascade tiers, lowest first. The chrome's form-control clearing
-# (`lf-reset`, runtime/chrome.css) stays below everything that chooses a face. The
+# (`lf-reset`, runtime/chrome.css) stays below everything that chooses a face, as does a
+# shadow tree's default control face (styles/control-face.css). The
 # kernel, every widget package, and each widget module's adopted sheet
 # (runtime/base-layer.js) share one layer, so specificity, then order, rank their
 # rules. The kernel's Layouts sit above it. Package overrides
@@ -439,8 +440,11 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     (`chrome_restyle`, `revision_delivery.delivery_sheets`). Each sheet
     is read with its relative imports (`stylesheet`).
 
-    The kernel supplies the base and shared shadow defaults. Its Layouts and semantic
-    state retain their own tiers. Page CSS remains unlayered.
+    The kernel supplies the base and shared shadow defaults. The default face of a
+    native control (styles/control-face.css) heads lf-base in the document and stands
+    in lf-reset in a shadow tree, below the rules a widget adopts there, as that
+    sheet's header explains. The kernel's Layouts and semantic state retain their own
+    tiers. Page CSS remains unlayered.
     """
     kernel, *packages = inputs
     if not (kernel / "base.css").is_file():
@@ -457,6 +461,8 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
 
     if (leading := kernel / "styles/shadow-leading.css").is_file():
         shadow.insert(0, stylesheet(leading, kernel))
+    place(theme, "lf-base", kernel, "styles/control-face.css")
+    place(shadow, "lf-reset", kernel, "styles/control-face.css")
     place(theme, "lf-base", kernel, "shadow.css")
     place(shadow, "lf-shadow", kernel, "shadow.css")
     place(theme, "lf-base", kernel, "base.css")
@@ -486,7 +492,8 @@ def portable_sheet(inputs: list[Path], tags: list[str]) -> bytes:
 
     It holds the kernel's tokens, Web Awesome's (its theme's custom properties) and
     Leaf's values for them, since the faces Leaf takes from that library read them,
-    then the kernel's shared sheet (shadow.css) nested under `:where(<the layer's tags>)`, then the sheets of each package that ships
+    then the default control face and the kernel's shared sheet (styles/control-face.css,
+    shadow.css) nested under `:where(<the layer's tags>)`, then the sheets of each package that ships
     widgets (widget-shadow.css and defaults.css), all in lf-base, the tier a widget
     module's adopted rules take off Leaf too (runtime/base-layer.js). The nesting keeps
     the shared sheet's page-wide control faces (`.button`, `.field`, a native control's
@@ -516,7 +523,8 @@ def portable_sheet(inputs: list[Path], tags: list[str]) -> bytes:
         if (tokens := kernel / name).is_file():
             place(stylesheet(tokens, kernel))
     if (shared := kernel / "shadow.css").is_file() and tags:
-        place(f":where({', '.join(tags)}) {{\n{stylesheet(shared, kernel)}}}\n")
+        face = stylesheet(kernel / "styles/control-face.css", kernel)
+        place(f":where({', '.join(tags)}) {{\n{face}{stylesheet(shared, kernel)}}}\n")
     for root in packages:
         if not (root / "widgets").is_dir():
             continue

@@ -40,9 +40,10 @@ def test_user_news_interrupts_and_then_restores_background_news(browser, serve):
     live = page.locator(".lf-live")
     notice = panel_field(page)
     expect(live).to_have_text("Agent replied — open Threads")
-    # The placeholder ends with the key that enters the field where keys are shown.
+    # The placeholder ends with Comment, and the key that enters the field where keys
+    # are shown.
     expect(notice).to_have_attribute(
-        "placeholder", re.compile(r"^Agent replied — open Threads( c)?$")
+        "placeholder", re.compile(r"^Agent replied — open Threads · Comment…( c)?$")
     )
     rendered(page)
     assert page.evaluate(
@@ -53,9 +54,11 @@ def test_user_news_interrupts_and_then_restores_background_news(browser, serve):
 
     page.evaluate("async () => (await window.__lfWidgetApi()).notice('Saved')")
     expect(live).to_have_text("Saved")
-    expect(notice).to_have_attribute("placeholder", re.compile(r"^Saved( c)?$"))
     expect(notice).to_have_attribute(
-        "placeholder", re.compile(r"^Agent replied — open Threads( c)?$")
+        "placeholder", re.compile(r"^Saved · Comment…( c)?$")
+    )
+    expect(notice).to_have_attribute(
+        "placeholder", re.compile(r"^Agent replied — open Threads · Comment…( c)?$")
     )
     assert (
         page.evaluate(

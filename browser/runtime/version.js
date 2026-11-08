@@ -1909,6 +1909,11 @@ export function createVersionController({
         owner === pageDocument() ? inPage(node) : under(node, owner),
       declared: upgraded,
       body: authoredBody,
+      // `main` holds nearly all of a page's content, so a page module that moves or
+      // replaces one of its children is patched around, as it was when `main` was the
+      // patch root, rather than rebuilding the page beneath the user.
+      traversed: (element) =>
+        element.localName === "main" && element.parentElement === pageDocument(),
       reaches: (before, after) => reachesMembers(before, after, arrivingRoot),
       same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
       sameValue: (held, value) => sameValue(held, value, arrivingRoot),
@@ -2180,7 +2185,8 @@ export function createVersionController({
   // (layer-client.js, `sourceMovedOn`).
   // Whether the move happens now is asked at the commit: an unresolved delivery,
   // `midComposition`, or an open menu defers it, unless the chip was pressed (goActive)
-  // — the one override, spent by the install it forced.
+  // — the one override, spent by the install it forced or by a load that failed, after
+  // which the lit chip asks for a new press.
   /** @param {import("../types/contract.js").ServedReading} state */
   async function prepareActivation(state) {
     const target = state.active;
@@ -2224,6 +2230,7 @@ export function createVersionController({
       // revision introduces would otherwise reject every later state read for good.
       await preloadWidgets(source);
     } catch (error) {
+      forceActivation = false;
       reportPageError(error, `revision ${target.revision} failed to load`);
       return null;
     }

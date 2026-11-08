@@ -180,11 +180,11 @@ CONTROL_STABILITY_PAGE = leaf_page(
 
 <lf-ask id="stable-playground-decision"><h2>How should the release card look?</h2>
 <lf-playground id="stable-playground" submit-label="Use these settings">
-  <lf-playground-control name="radius" label="Corner radius" kind="range"
+  <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range"
     value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
-  <lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">
-    <lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>
-    <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
+  <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
+    <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
+    <lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>
   </lf-playground-control>
   <lf-playground-preview id="stable-playground-preview">
     <article id="stable-playground-card"><strong>Release card</strong><p>The ceiling doubles per approval.</p></article>
@@ -418,8 +418,8 @@ RING_CASES = (
         (),
         {"ship-review": ((".lf-react-palette:popover-open .lf-react", FLOOR_RING),)},
     ),
-    # On me opens on its view; the walk's first step lands on a card.
-    ("On me", ("ArrowDown",), {"ship-review": ((None, FLOOR_RING),)}),
+    # On Me opens on its view; the walk's first step lands on a card.
+    ("On Me", ("ArrowDown",), {"ship-review": ((None, FLOOR_RING),)}),
     ("All pages", ("g", "Shift+l", "ArrowDown"), {RING_CHROME: ((None, FLOOR_RING),)}),
     # The leaf's menu, opened by its press into its search; ↓ lands on a row.
     ("the leaf's menu", ("ArrowDown",), {RING_CHROME: ((None, FLOOR_RING),)}),
@@ -512,7 +512,7 @@ RING_SCOPE_SURFACE = {
     # frame and shows only for an anchor.
     "target hints": ".lf-target-picker-hint.lf-current",
     "the response bar": ".lf-fab-bar .lf-composer[data-lf-open]",
-    "On me": '.lf-floating-panel[data-lf-open="queue"]',
+    "On Me": '.lf-floating-panel[data-lf-open="queue"]',
     "All pages": '.lf-floating-panel[data-lf-open="leaves"]',
     "the leaf's menu": '.lf-floating-panel[data-lf-open="menu"]',
     "the versions menu": '.lf-floating-panel[data-lf-open="versions"]',
@@ -523,7 +523,7 @@ RING_SCOPE_SURFACE = {
 
 RING_SCOPE_OPENER = {
     "an inline response": "#pr-exact-patch .lf-diff-file-comment",
-    "On me": ".lf-fp-on-user",
+    "On Me": ".lf-fp-on-user",
     "the leaf's menu": ".lf-fp-leaf",
     "a thread card": '.lf-margin-marker[data-lf-kinds~="comment"]',
     "a reaction palette": f"{PANEL_THREAD} .lf-msg-controls > .lf-react-trigger",
@@ -1188,7 +1188,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     sweep("focused in the page comment")
     page.keyboard.press("Escape")
 
-    # All pages and On me, the panel's other views. Waited out rather than pressed past:
+    # All pages and On Me, the panel's other views. Waited out rather than pressed past:
     # the close is animated, so the next surface would otherwise be read with this one
     # still leaving behind it.
     page.keyboard.press("g")
@@ -1200,7 +1200,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
-    sweep("focused in On me")
+    sweep("focused in On Me")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 
@@ -1289,7 +1289,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
         ):
             break
     else:
-        raise AssertionError("Tab never reached the panel's On me mark")
+        raise AssertionError("Tab never reached the panel's On Me mark")
     rendered(page)
 
     assert seen_stop(page) is None, (
@@ -1509,7 +1509,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     rendered(page)
                     # A key press makes the focus that follows keyboard focus. Shift
                     # moves nothing: a Tab could stand in the panel's field, whose
-                    # caret puts the On me mark aside (floating-panel.js, `quickHidden`).
+                    # caret puts the On Me mark aside (floating-panel.js, `quickHidden`).
                     page.keyboard.press("Shift")
                     target.focus()
                     # A note on the details shelf is reached from the element that
@@ -1802,7 +1802,6 @@ def test_a_recorded_move_is_announced_and_shown_only_where_it_was_made(browser, 
     expect(page.locator(".lf-live")).to_have_text("Moved to Done")
     round_trip(page)
     assert "Moved to Done" not in panel_says(page), "the panel's field repeats the move"
-    assert page.locator(".lf-toast").count() == 0, "a second surface says the news"
 
 
 @pytest.mark.parametrize(

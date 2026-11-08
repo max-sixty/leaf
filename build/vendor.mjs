@@ -323,17 +323,47 @@ const bundles = {
     adapt: [
       {
         file: /pele\/dist\/pele\.js$/,
-        // Pele consumes every HTML-looking label tag, discarding unsupported
-        // tags such as a literal <img> code sample. Consume only the formatting
-        // tags its tokenizer recognizes; other characters stay in its text buffer
-        // and the SVG builder escapes them. Breaks are handled before this scan.
         edit: (source) =>
-          seam(
-            source,
-            "if(b||o_.has(m)){c+=u[0].length;continue}",
-            "if(b){c+=u[0].length;continue}",
-            "Pele literal unsupported label tags",
-          ),
+          [
+            // Pele consumes every HTML-looking label tag, discarding unsupported
+            // tags such as a literal <img> code sample. Consume only the formatting
+            // tags its tokenizer recognizes; other characters stay in its text buffer
+            // and the SVG builder escapes them. Breaks are handled before this scan.
+            [
+              "if(b||o_.has(m)){c+=u[0].length;continue}",
+              "if(b){c+=u[0].length;continue}",
+              "Pele literal unsupported label tags",
+            ],
+            // Pele's flowchart renderers write an edge's classes on its group, but
+            // its converters replace the authored classes with fixed ones, and an
+            // edge label's group takes none. Carry the authored classes to both, as
+            // a node's reach its group, so page CSS can mark an edge in theme tokens.
+            [
+              'classes:"edge-thickness-normal edge-pattern-solid flowchart-link",arrowTypeStart:"none"',
+              'classes:"edge-thickness-normal edge-pattern-solid flowchart-link "+y.classes.join(" "),arrowTypeStart:"none"',
+              "Pele edge classes",
+            ],
+            [
+              'classes:A.stroke==="invisible"?"":"edge-thickness-normal edge-pattern-solid flowchart-link",',
+              'classes:(A.stroke==="invisible"?"":"edge-thickness-normal edge-pattern-solid flowchart-link ")+A.classes.join(" "),',
+              "Pele edge classes",
+            ],
+            [
+              'function rn(e,t,n,r,o,s){let a=t.width+8,i=t.height;return`<g class="pele-edge-label" data-id',
+              'function rn(e,t,n,r,o,s,cl=""){let a=t.width+8,i=t.height;return`<g class="pele-edge-label${cl}" data-id',
+              "Pele edge label classes",
+            ],
+            [
+              'rn(Y.id,G,Q,v,z?.text??"",p)',
+              'rn(Y.id,G,Q,v,z?.text??"",p,Z)',
+              "Pele edge label classes",
+            ],
+            [
+              'rn(Y.id,G,Q,v,se?.text??"",b)',
+              'rn(Y.id,G,Q,v,se?.text??"",b,_t(Y.classes.replace(/edge-thickness-normal|edge-pattern-solid|flowchart-link/g,"")))',
+              "Pele edge label classes",
+            ],
+          ].reduce((text, edit) => seam(text, ...edit), source),
       },
     ],
     platform: "browser",
@@ -485,9 +515,37 @@ const bundles = {
   // for, in one module with no specifier left in it; vendoring d3 whole beside it
   // would be 100KB more and two files whose versions can drift apart. The whole of
   // Plot goes in, since an author writes the chart in Plot's own API.
+  //
+  // Which channels a tip says, how its `format` words each, and the lines it says
+  // them in are decided inside the tip mark's module, by functions it doesn't export.
+  // The chart's preview says a point by those decisions, so the module exports them
+  // (`tipSources` and `tipRows` in the entry), each line naming the channel it says.
   plot: () => ({
     out: `${packageVendor("default")}/plot.esm.js`,
     entryPoints: [input("entries/plot/entry.mjs")],
+    adapt: [
+      {
+        file: /@observablehq\/plot\/src\/marks\/tip\.js$/,
+        edit: (source) =>
+          seam(
+            seam(
+              seam(
+                source,
+                "\nfunction getSourceChannels(channels, scales) {",
+                "\nexport function getSourceChannels(channels, scales) {",
+                "Plot tip sources",
+              ),
+              "\nfunction* formatChannels(i, index, channels, scales, values) {",
+              "\nexport function* formatChannels(i, index, channels, scales, values) {",
+              "Plot tip rows",
+            ),
+            "yield {",
+            "yield {key,",
+            "Plot tip row channel",
+            4,
+          ),
+      },
+    ],
     banner: {
       js:
         `/*! @observablehq/plot ${version("@observablehq/plot")} — ISC — https://observablehq.com/plot\n` +

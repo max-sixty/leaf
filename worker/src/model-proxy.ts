@@ -4,9 +4,9 @@
  * The container holds a dummy OpenAI credential and no internet route except this
  * host, so the Worker's key never enters a model-visible process. The handler admits
  * only the Responses HTTP request, applies the per-container model rate limit, and
- * logs request, header, first-byte, first-output and completion timings. Of the
- * streamed response it records only the type of the first output event and its item,
- * never content. `worker/README.md`, "Sandbox and rate limits" and "Hosted turns",
+ * logs request, header, first-byte, first-output and completion or cancellation
+ * timings. Of the streamed response it records only the type of the first output
+ * event and its item, never content. `worker/README.md`, "Sandbox and rate limits" and "Hosted turns",
  * describe both.
  */
 
@@ -110,24 +110,19 @@ function observeModelBody(
     },
   });
 
-  return body.pipeThrough(
-    new TransformStream<Uint8Array, Uint8Array>({
-      transform(chunk, controller) {
-        bytes += chunk.byteLength;
-        if (firstByte) {
-          modelLog("model_response_first_byte", request, {
-            durationMs: Date.now() - started,
-            status,
-            upstreamRequestId,
-          });
-          firstByte = false;
-        }
-        if (firstOutput) {
-          parser.feed(decoder.decode(chunk, { stream: true }));
-        }
-        controller.enqueue(chunk);
-      },
-      flush() {
+  // A pull source rather than a TransformStream, so a cancel from Codex, such as the
+  // container ending a turn whose stream went silent, reaches this observer and is
+  // logged with the bytes received and how long the body had been quiet.
+  const reader = body.getReader();
+  let lastChunk = started;
+  let cancelled = false;
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await reader.read();
+      // Cancelling the upstream reader ends a read still pending here, which is
+      // the cancel's end, not the response's.
+      if (cancelled) return;
+      if (done) {
         if (firstOutput) {
           parser.feed(decoder.decode() + "\n\n");
         }
@@ -137,9 +132,37 @@ function observeModelBody(
           bytes,
           upstreamRequestId,
         });
-      },
-    }),
-  );
+        controller.close();
+        return;
+      }
+      lastChunk = Date.now();
+      bytes += value.byteLength;
+      if (firstByte) {
+        modelLog("model_response_first_byte", request, {
+          durationMs: lastChunk - started,
+          status,
+          upstreamRequestId,
+        });
+        firstByte = false;
+      }
+      if (firstOutput) {
+        parser.feed(decoder.decode(value, { stream: true }));
+      }
+      controller.enqueue(value);
+    },
+    async cancel(reason) {
+      cancelled = true;
+      const now = Date.now();
+      modelLog("model_response_cancelled", request, {
+        durationMs: now - started,
+        idleMs: now - lastChunk,
+        status,
+        bytes,
+        upstreamRequestId,
+      });
+      await reader.cancel(reason);
+    },
+  });
 }
 
 // The container's only route out: Codex's Responses API request, with the dummy

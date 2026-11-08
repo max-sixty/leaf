@@ -606,7 +606,7 @@ def _parent_error(event: dict, events: list) -> Finding | None:
 def _named_question_error(event: dict, events: list) -> Finding | None:
     """A message's `obligation` names questions its own thread asks in words, each by
     the id it keeps (`obligations.question_ids`). An event naming any other would put
-    nothing back on On me."""
+    nothing back on On Me."""
     if not isinstance(event.get("obligation"), list):
         return None
     threads = thread_names(events)

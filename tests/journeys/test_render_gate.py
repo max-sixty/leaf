@@ -84,6 +84,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf.revision_artifact import read_revision
+from leaf_dev.browser import chromium_metrics
 from leaf_dev.example_data import authored_sources, named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -162,47 +163,40 @@ def _layout_passes_batch_without_refolding_controls(page):
     # warmup invalidation before recording the work of the five passes below.
     margins_laid_out(page)
     rendered(page)
-    session = page.context.new_cdp_session(page)
-    session.send("Performance.enable")
-    before = {
-        metric["name"]: metric["value"]
-        for metric in session.send("Performance.getMetrics")["metrics"]
-    }
-    page.evaluate(
-        """async () => {
-          const {layoutChanged} = await window.__lfWidgetApi();
-          const rows = [...document.querySelectorAll('.lf-margin-cluster')];
-          const boxes = () => rows.map(row => {
-            const {x, y, width, height} = row.getBoundingClientRect();
-            return {x, y, width, height};
-          });
-          const before = boxes();
-          // Collected from the callback rather than by `takeRecords` alone: letting a
-          // frame settle passes a microtask checkpoint, which delivers the records to
-          // the callback and empties the queue a bare `takeRecords` would read.
-          const seen = [];
-          const observer = new MutationObserver(list => seen.push(...list));
-          observer.observe(document.body, {subtree: true, attributes: true,
-            attributeFilter: ['data-lf-margin-entry-primary', 'data-lf-margin-entry-overflow']});
-          window.__lfFinishMarginPasses = () => {
-            const mutations = seen.length + observer.takeRecords().length;
-            observer.disconnect();
-            delete window.__lfFinishMarginPasses;
-            return {before, after: boxes(), mutations};
-          };
-          for (let i = 0; i < 5; i++) await new Promise(done => {
-            document.addEventListener('lf-margin-layout', done, {once: true});
-            layoutChanged(document.body);
-          });
-        }"""
-    )
-    rendered(page)
-    reading = page.evaluate("window.__lfFinishMarginPasses()")
-    after = {
-        metric["name"]: metric["value"]
-        for metric in session.send("Performance.getMetrics")["metrics"]
-    }
-    session.detach()
+    with chromium_metrics(page) as metrics:
+        before = metrics()
+        page.evaluate(
+            """async () => {
+              const {layoutChanged} = await window.__lfWidgetApi();
+              const rows = [...document.querySelectorAll('.lf-margin-cluster')];
+              const boxes = () => rows.map(row => {
+                const {x, y, width, height} = row.getBoundingClientRect();
+                return {x, y, width, height};
+              });
+              const before = boxes();
+              // Collected from the callback rather than by `takeRecords` alone:
+              // letting a frame settle passes a microtask checkpoint, which delivers
+              // the records to the callback and empties the queue a bare
+              // `takeRecords` would read.
+              const seen = [];
+              const observer = new MutationObserver(list => seen.push(...list));
+              observer.observe(document.body, {subtree: true, attributes: true,
+                attributeFilter: ['data-lf-margin-entry-primary', 'data-lf-margin-entry-overflow']});
+              window.__lfFinishMarginPasses = () => {
+                const mutations = seen.length + observer.takeRecords().length;
+                observer.disconnect();
+                delete window.__lfFinishMarginPasses;
+                return {before, after: boxes(), mutations};
+              };
+              for (let i = 0; i < 5; i++) await new Promise(done => {
+                document.addEventListener('lf-margin-layout', done, {once: true});
+                layoutChanged(document.body);
+              });
+            }"""
+        )
+        rendered(page)
+        reading = page.evaluate("window.__lfFinishMarginPasses()")
+        after = metrics()
     assert reading["mutations"] == 0
     assert reading["after"] == reading["before"]
     work = {
@@ -215,31 +209,24 @@ def _layout_passes_batch_without_refolding_controls(page):
 
 def _refreshes_force_layout_by_refresh_count(page):
     """A viewport refresh cannot force layout once per Page Map location."""
-    session = page.context.new_cdp_session(page)
-    session.send("Performance.enable")
-    before = {
-        metric["name"]: metric["value"]
-        for metric in session.send("Performance.getMetrics")["metrics"]
-    }
     refreshes = 5
-    page.evaluate(
-        """async refreshes => {
-          const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
-          for (let i = 0; i < refreshes; i++) {
-            window.dispatchEvent(new Event('resize'));
-            await frame();
-          }
-        }""",
-        refreshes,
-    )
-    # A frame callback is before ResizeObserver delivery and the rereads it queues.
-    # Include the complete work caused by these refreshes before reading the count.
-    rendered(page)
-    after = {
-        metric["name"]: metric["value"]
-        for metric in session.send("Performance.getMetrics")["metrics"]
-    }
-    session.detach()
+    with chromium_metrics(page) as metrics:
+        before = metrics()
+        page.evaluate(
+            """async refreshes => {
+              const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+              for (let i = 0; i < refreshes; i++) {
+                window.dispatchEvent(new Event('resize'));
+                await frame();
+              }
+            }""",
+            refreshes,
+        )
+        # A frame callback is before ResizeObserver delivery and the rereads it
+        # queues. Include the complete work caused by these refreshes before reading
+        # the count.
+        rendered(page)
+        after = metrics()
     work = {
         name: after[name] - before[name]
         for name in (
@@ -1341,11 +1328,22 @@ def test_every_table_the_theme_sets_honestly_passes_the_gate(browser, serve):
         start = page.index(first)
         return page[start : page.rindex("</main>")]
 
+    def without(page, start, end):
+        cut = page.index(start)
+        return page[:cut] + page[page.index(end, cut) + len(end) :]
+
     option = INLINE_PAGE[INLINE_PAGE.index("<lf-ask") :]
     option = option[: option.index("</lf-ask>") + len("</lf-ask>")]
+    # The question the granted figure holds takes its words off the column, which the
+    # gate rightly advises against (`words-off-column`); the figure's table stays.
+    framed = without(
+        tables(FRAMED_TABLES_PAGE, '<table id="bare">'),
+        '<lf-ask id="figure-asked">',
+        "</lf-ask>",
+    )
     page = AUTHORED_LINES_PAGE.replace(
         "</main>",
-        tables(FRAMED_TABLES_PAGE, '<table id="bare">')
+        framed
         + tables(IDENTIFIERS_IN_CODE_PAGE, '<table id="held">')
         + option
         + "</main>",

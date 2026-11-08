@@ -227,7 +227,7 @@ class PageStateService:
         this publication on its next look. Owed updates and reply bodies stay in
         the page's projection; the row carries their counts, never their copies.
         The user's counts are the active view's, as the Leaf panel's marks count
-        them: its On me list, and its threads by `thread_counts`.
+        them: its On Me list, and its threads by `thread_counts`.
         """
         from ..server_rows import compact_activity
 

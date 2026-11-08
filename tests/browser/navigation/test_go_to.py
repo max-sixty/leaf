@@ -153,8 +153,8 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
     """A visible page route stays addressable when its widget generated the anchors.
 
     The roomy table of contents is page navigation even though its links are generated
-    chrome. Arming the sequence reveals those labels, gives every visible row a hint, and
-    following one lands at the heading through the ordinary link route.
+    chrome. Arming the sequence gives every visible row a hint, and following one lands
+    at the heading through the ordinary link route.
     """
     page = open_page(
         browser,
@@ -178,7 +178,6 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
     nav = page.get_by_role("navigation", name="On this page")
     links = nav.get_by_role("link")
     expect(links).to_have_count(4)
-    expect(links.first).to_have_css("opacity", "0")
 
     page.keyboard.press("g")
     chips = page.locator(f'{CHIPS}[data-lf-go-to-kind="Link"]')
@@ -490,7 +489,7 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
     expect(sheet).to_be_visible()
     expect(
         sheet.get_by_role(
-            "searchbox", name="Find an action, status, or location in Page Map"
+            "searchbox", name="Find an action, status or location in Page Map"
         )
     ).to_be_focused()
     # The one close control every surface wears: the cross, named for what it closes,
@@ -504,7 +503,7 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
         header_box["x"] + header_box["width"], abs=0.5
     ), (header_box, close_box)
     expect(sheet).to_contain_text(
-        "No margin controls, status indicators, or locations yet"
+        "No margin controls, status indicators or locations yet"
     )
     expect(sheet.locator(".lf-page-map-action")).to_have_count(0)
 

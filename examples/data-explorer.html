@@ -398,7 +398,7 @@
   <body>
     <main class="layout-workspace density-working" id="release-query-workspace">
       <header><h1>Shape a release query</h1></header>
-      <lf-ask id="release-query-ask" data-width="available">
+      <lf-ask id="release-query-ask">
         <h2>Which release query should the agent build?</h2>
         <lf-playground
           id="release-query-playground"
@@ -406,6 +406,7 @@
           submit-label="Build query"
         >
           <lf-playground-control
+            id="limit"
             name="limit"
             label="Maximum results"
             kind="range"
@@ -414,10 +415,10 @@
             max="6"
             step="1"
           ></lf-playground-control>
-          <lf-playground-preset label="Up to 4 results">
+          <lf-playground-preset id="preset-up-to-4-results" label="Up to 4 results">
             <lf-playground-setting for="limit" value="4"></lf-playground-setting>
           </lf-playground-preset>
-          <lf-playground-preset label="Up to 6 results">
+          <lf-playground-preset id="preset-up-to-6-results" label="Up to 6 results">
             <lf-playground-setting for="limit" value="6"></lf-playground-setting>
           </lf-playground-preset>
           <lf-playground-preview id="release-query-preview">

@@ -43,7 +43,11 @@
  * room show (`landable`), along each axis where it fits its room; and where it is taller
  * than its room, a nearest landing's own moves bring no more of it in, so a box taller
  * than the window that the user sees only part of still comes in as far as it fits,
- * and a fold the user goes to opens from its start. Its edges are compared at
+ * and a fold the user goes to opens from its start. Travel and the walks land a
+ * destination at its start or centre rather than nearest, and ask the question of that
+ * landing (`block`): a box taller than its room is shown there only where that landing
+ * would move nothing, so travel to a section the user is reading inside, or to a file
+ * of a diff they have read down, still lands its opening. Its edges are compared at
  * layout precision (keeps.js, `atLayoutPrecision`): a box a landing put flush at an
  * edge reads back a float's rounding past it in Firefox, and a reading that counted it
  * unseen would land it again and enter travel's history. A box a motion under way is
@@ -312,8 +316,8 @@ function seenAhead(shown, seen) {
 const ringed = (where) =>
   where instanceof Element && where.matches(":focus-within, [data-lf-focus-within]");
 
-/** @param {Destination} where */
-export function alreadyShown(where) {
+/** @param {Destination} where @param {{block?: ScrollLogicalPosition}} [options] */
+export function alreadyShown(where, { block = "nearest" } = {}) {
   const shown = shownFor(where);
   const box = destinationBox(where);
   const out = ringed(where) ? marginBox(where, box) : box;
@@ -322,10 +326,10 @@ export function alreadyShown(where) {
   const room = landingRoom(where);
   const want = landable(shown, out);
   if (!seesWhole(seen, box, want, room)) return false;
-  // A box longer than its room is shown where a nearest landing would bring no more of
-  // it in, by the landing's own moves (`landsStill`): filling its boxes, or as far as
-  // they can scroll.
-  if (box.height > room.height && !landsStill(where)) return false;
+  // A box longer than its room is shown where the landing would bring no more of it in,
+  // by its own moves (`landsStill`): a nearest landing filling its boxes, or as far as
+  // they can scroll, and one at its start or centre with its opening at the band's top.
+  if (box.height > room.height && !landsStill(where, block)) return false;
   if (box.width > room.width && seen.right - seen.left < room.width) return false;
   const ahead = seenAhead(shown, seen);
   if (!ahead) return true;
@@ -500,21 +504,22 @@ function* innerMoves(where, targetScroller, within, sideways) {
   }
 }
 
-// Whether a nearest landing on `where` would move no box down or up: neither the walk
-// before its reading region nor the region and those around it (`readingBandMoves`).
+// Whether a landing on `where` at `block` would move no box down or up: neither the walk
+// before its reading region, which lands it nearest whatever the block, nor the region
+// and those around it (`readingBandMoves`).
 // Each move is read where the destination stands now, which holds while every move
 // before it is none, and every one is asked rather than their sum: a pane bringing in
 // more of a box while the page carries the pane back leaves the box where it stood,
 // and still shows more of it.
-/** @param {Destination} where */
-function landsStill(where) {
+/** @param {Destination} where @param {ScrollLogicalPosition} block */
+function landsStill(where, block) {
   const holder = holderOf(where);
   const targetScroller = scrollersOf(holder).next().value;
   for (const { by } of innerMoves(where, targetScroller, null, false))
     if (atLayoutPrecision(by.top) || atLayoutPrecision(by.left)) return false;
   return (
     !targetScroller ||
-    readingBandMoves(where, holder, "nearest").moves.every(
+    readingBandMoves(where, holder, block).moves.every(
       ({ moved }) => Math.abs(moved) < 1,
     )
   );

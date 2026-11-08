@@ -27,9 +27,9 @@ vars:
     conversation, selected from short, long, resolved, and exchange fixtures.
     The proposed panel can use a shared-conversation frame or a card frame.
     The first draft declares these controls:
-      <lf-playground-control name="face" label="Conversation frame" kind="choice"
+      <lf-playground-control id="face" name="face" label="Conversation frame" kind="choice"
         value="shared">...shared and card choices...</lf-playground-control>
-      <lf-playground-control name="scenario" label="Conversation" kind="choice"
+      <lf-playground-control id="scenario" name="scenario" label="Conversation" kind="choice"
         value="exchange">...short, long, resolved, exchange choices...</lf-playground-control>
     Its Shared conversation and Card in panel presets set only face. Its output
     asks to build the selected frame and demonstrate it on representative threads.

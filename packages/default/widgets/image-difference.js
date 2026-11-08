@@ -864,6 +864,48 @@ export function compareImagePixels(a, b) {
   return changedPixels(pixels(a), pixels(b));
 }
 
+// The side of a thumbnail `paperOf` counts, enough that a screenshot's background
+// outnumbers everything drawn on it.
+const PAPER_SAMPLE = 48;
+
+/** The colour most of an image lies on, with the scheme whose inks read on it: a
+ * screenshot's page background, for the Pixels view to fade the image toward. Null where
+ * most of the image is transparent, since it then lies on whatever stands behind it.
+ * A thumbnail costs little enough to read in the task that chooses the view.
+ * @param {HTMLImageElement} image
+ * @returns {{color: string, scheme: "light" | "dark"} | null} */
+export function paperOf(image) {
+  const context = canvas2D(new OffscreenCanvas(PAPER_SAMPLE, PAPER_SAMPLE), {
+    willReadFrequently: true,
+  });
+  context.drawImage(image, 0, 0, PAPER_SAMPLE, PAPER_SAMPLE);
+  const { data } = context.getImageData(0, 0, PAPER_SAMPLE, PAPER_SAMPLE);
+  /** @type {Map<number, number>} */
+  const counts = new Map();
+  let paper = -1;
+  let most = 0;
+  for (let at = 0; at < data.length; at += 4) {
+    const r = /** @type {number} */ (data[at]);
+    const g = /** @type {number} */ (data[at + 1]);
+    const b = /** @type {number} */ (data[at + 2]);
+    // A nearly transparent pixel's channels say nothing, so all of them share one count.
+    const key =
+      /** @type {number} */ (data[at + 3]) < 128 ? -1 : (r << 16) | (g << 8) | b;
+    const count = (counts.get(key) ?? 0) + 1;
+    counts.set(key, count);
+    if (count > most) {
+      most = count;
+      paper = key;
+    }
+  }
+  if (paper < 0) return null;
+  const [r, g, b] = [paper >> 16, (paper >> 8) & 255, paper & 255];
+  return {
+    color: `rgb(${r} ${g} ${b})`,
+    scheme: 0.2126 * r + 0.7152 * g + 0.0722 * b < 128 ? "dark" : "light",
+  };
+}
+
 /** @param {SizedImage} image */
 function pixels(image) {
   const width = "naturalWidth" in image ? image.naturalWidth : image.width;

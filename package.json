@@ -34,7 +34,6 @@
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.309",
     "@awesome.me/webawesome": "3.14.0",
-    "@blazediff/core": "1.10.0",
     "@cloudflare/containers": "0.3.7",
     "@cloudflare/workers-types": "5.20261101.1",
     "@codemirror/autocomplete": "6.20.4",
@@ -116,7 +115,6 @@
       "@observablehq/plot@0.6.17": "build/@observablehq__plot@0.6.17.patch",
       "pele@1.9.0": "build/pele@1.9.0.patch",
       "@awesome.me/webawesome@3.14.0": "build/@awesome.me__webawesome@3.14.0.patch",
-      "@blazediff/core@1.10.0": "build/@blazediff__core@1.10.0.patch",
       "@pierre/diffs@1.6.1": "build/@pierre__diffs@1.6.1.patch"
     }
   }

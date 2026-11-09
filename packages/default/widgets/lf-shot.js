@@ -480,7 +480,7 @@ export class Shot extends HTMLElement {
 
   /** @param {[HTMLImageElement, HTMLImageElement]} images */
   async #pixelMask(images) {
-    const { width, height, data } = await compareImagePixels(...images);
+    const { width, height, data } = compareImagePixels(...images);
     const canvas = new OffscreenCanvas(width, height);
     canvas2D(canvas).putImageData(new ImageData(data, width, height), 0, 0);
     const url = URL.createObjectURL(await canvas.convertToBlob({ type: "image/png" }));

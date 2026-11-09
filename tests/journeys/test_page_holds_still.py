@@ -757,7 +757,7 @@ def put_on_me_turned_back(page, built):
     cards = page.locator(".lf-fp-on-item")
     expect(cards).to_have_count(ASKS)
     tabs = page.locator(".lf-fp-controls .lf-fp-filters button")
-    tabs.filter(has_text=re.compile(r"^\s*On (?!me)")).click()
+    tabs.filter(has_text=re.compile(r"^\s*On (?!Me)")).click()
     expect(cards).to_have_count(0)
     tabs.filter(has_text="On Me").click()
     expect(cards).to_have_count(ASKS)

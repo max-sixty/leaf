@@ -811,7 +811,9 @@ def test_the_leaf_nods_for_each_notice_of_the_users_own_key(browser, serve):
         }"""
     )
     nods = "() => window.__lfNods"
-    frames = "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    frames = (
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
 
     stamp_page(
         serve.page_dir,

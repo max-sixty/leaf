@@ -390,7 +390,7 @@ def test_on_me_s_tabs_stand_where_a_view_names_itself(browser, serve):
 
 
 def test_an_on_list_the_page_cannot_read_counts_nothing(browser, serve):
-    """With the server's reading refused, On me says it can't be had, and neither On
+    """With the server's reading refused, On Me says it can't be had, and neither On
     list's tab gives a count, as Threads' doesn't: a 0 there would claim an empty list
     the page never read, on a page that asks the user for several decisions."""
     page = browser.new_page(viewport={"width": 1440, "height": 900})
@@ -400,9 +400,9 @@ def test_an_on_list_the_page_cannot_read_counts_nothing(browser, serve):
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     on_me = open_on_me(page)
     expect(on_me.locator(".lf-rows-empty")).to_have_text(
-        "On me is unavailable while the server is offline."
+        "On Me is unavailable while the server is offline."
     )
-    for tab in ("On me", "On the agent", "Threads"):
+    for tab in ("On Me", "On the agent", "Threads"):
         expect(panel_tab(page, tab)).to_be_visible()
         expect(panel_tab(page, tab).locator(".lf-fp-count")).to_have_count(0)
 

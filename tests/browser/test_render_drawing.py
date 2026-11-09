@@ -862,7 +862,7 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     page = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.press("w")
 
-    exit_mode = page.get_by_role("button", name="Exit Draw mode")
+    exit_mode = field_press(page).filter(has_text="Close")
     expect(exit_mode).to_be_visible()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")

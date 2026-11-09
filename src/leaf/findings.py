@@ -212,6 +212,26 @@ def _squeezed(at: str, v: dict) -> str:
     )
 
 
+def _squeezed_code(at: str, v: dict) -> str:
+    # In a table cell the table's own advice holds: a column sizes to what its cells
+    # can't break, so the fix is what the cell holds rather than a width for it.
+    shown = (
+        f"{at} has {v['inside']}px for its lines and scrolls {v['scrolls']}px of them"
+    )
+    if v["cell"]:
+        return (
+            f"{shown} sideways in its table cell, which a code block asks for no width;"
+            " move a long command out of the table, or write a short one as inline"
+            " <code>, which breaks inside the cell"
+        )
+    return (
+        f"{shown} sideways: a code block asks what holds it for no width, so a box that"
+        " takes its width from its content, such as a flex item, a grid auto track"
+        " beside an fr track or a box sized to fit, leaves it almost none; give the"
+        " block or that box a width, such as a fixed width or a 1fr track"
+    )
+
+
 def _drawn_height(at: str, v: dict) -> str:
     # `box` is the height the element holds now: past `before`, what follows it moved
     # as it drew; past `drawn`, a stated height larger than the drawing left room.
@@ -725,14 +745,7 @@ _TEXT = {
         ' that needs the room, and give this wrapper class="layout-flow"'
     ),
     "squeezed-table": _squeezed,
-    "squeezed-code": lambda at, v: (
-        f"{at} is {v['width']}px wide and scrolls {v['scrolls']}px sideways where"
-        f" there is room for {v['room']}px: a code block asks what holds it for no"
-        " width, so a box sized to its content, such as a flex item, a grid auto"
-        " track or a table cell, sizes without it; give the block or that box a"
-        " width, such as a min-width on the block, flex: 1 on the flex item or a 1fr"
-        " track"
-    ),
+    "squeezed-code": _squeezed_code,
     "drawn-height": _drawn_height,
     "shrunk-labels": lambda at, v: (
         f"{at} draws labels below {v['threshold']}px, {v['labels']} at"

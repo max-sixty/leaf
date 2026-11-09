@@ -30,7 +30,7 @@ const breaksOut = (el) =>
 // gate takes only as these samples, across its sweep and at each render's own size
 // (render_gate/version.py), each field read by its own consumer in readings.py. These readers are synchronous: taking them in one browser turn
 // preserves their findings while removing the protocol round trips between fields. All
-// but `squeezedBoxes` are read-only; it adds and removes its probing sheets, so it reads
+// but `squeezedBoxes` are read-only; it adds and removes a wrapping rule, so it reads
 // last and the others read the page as laid out. Resize and rendering completion belong
 // to the caller, so a sample neither advances the page nor waits for a different layout.
 /** @param {string[]} open */
@@ -706,11 +706,9 @@ export function misplacedBoxes() {
   });
 }
 
-// A box the theme scrolls sideways, a table or a code block, that scrolls words it could
-// show: a table with a cell in it wrapped, or a code block narrower than the room its
-// holder has for its lines. Each is read only where it scrolls with visible words past
-// its inner box, and each by a sheet that changes what decides its width, read and
-// taken away before the next.
+// A box the theme scrolls sideways that costs the reader its words: a table with a cell
+// in it wrapped, or a code block too narrow to read. Each is read only where it scrolls
+// with visible words past its inner box.
 //
 // A table scrolling sideways with a cell in it wrapped. The theme's three cases for a
 // table — take the measure only when asked, wrap the cells past that, scroll when even
@@ -791,25 +789,26 @@ export function misplacedBoxes() {
 // A table that scrolls with nothing left to wrap is the theme's honest third case.
 //
 // A code block is contained (reading.css, `pre`), so it asks what holds it for no
-// width, and a box that takes its width from its content (a flex item, a grid `auto`
-// track, a table cell, a box sized to fit) sizes without it: two short commands in a
-// flex row stood 30px wide each, showing a letter or two of their lines. A block is
-// squeezed when it stands wider with its containment lifted and its lines let wrap
-// anywhere. Lifted, it asks for its lines' width again; wrapping anywhere holds its
-// minimum to about a character, as the containment held it to none, so a holder whose
-// width comes from its items' minimum or from none of what they hold (the column, a
-// `flex: 1` item, a `1fr` track) gives it what it gave before, and only one sized to
-// what its items ask for gives it more. Lifting the containment alone widened two
-// `flex: 1` halves scrolling long lines, which read well, from 163px to 688px. The
-// finding carries the width the block stands at and the width it would take. The
-// table's sheet is taken away before the block's goes on, so a column holding a block
-// is read with the block contained, as the page sets it.
+// width, and a box that takes its width from its content (a flex item at its default
+// `flex`, a grid `auto` track beside an `fr` track, a table cell, a box sized to fit)
+// sizes without it: two short commands in a flex row stood 30px wide each, with no
+// room inside for a character of their lines. A block is squeezed when it scrolls with
+// less than four times its font size inside, about six characters of a monospace face.
+// Every block such a holder left measured 0–34px inside at 360–1920px, under 2.6 times
+// its 13.5px font, whether nothing else in the holder or a heading or a cell's column
+// set its width. Every block that read well measured 77px or more, from a `flex-grow`
+// column beside a nav at 360px to the column. A sheet that lifted the containment, to
+// read the width the block's holder would give it, also reported a `flex: auto` item
+// beside another, whose basis grew with its lines and took room from its sibling, and
+// it reset every scrolling block to its start. The finding carries the width inside the
+// block and whether a table cell holds it, since the remedy there is the table's: move
+// a long command out, or write a short one as inline <code>.
 //
 // Whether a box scrolls depends on the window, so the gate reads this at every width
 // of its sweep, and reports it as advice: the box still scrolls with every word in
 // reach, and the remedy is the author's choice of composition. Each finding carries its
 // box's place (locate.js) beside its code, so the sweep tells one box's run of widths
-// from another's. A page with no scrolling box adds neither sheet.
+// from another's. A page with no scrolling table never adds the wrapping rule.
 export function squeezedBoxes() {
   const page = pageDocument();
   if (!page) return [];
@@ -845,27 +844,33 @@ export function squeezedBoxes() {
     }
     return false;
   };
-  // Run `read` with `css` on the page, and take the sheet away before anything else reads.
-  /** @param {string} css @param {() => void} read */
-  const withSheet = (css, read) => {
-    const sheet = document.createElement("style");
-    sheet.textContent = css;
-    document.head.append(sheet);
-    read();
-    sheet.remove();
-  };
   /** @param {Element} box */
   const scrolls = (box) =>
     inPage(box) &&
     box.checkVisibility() &&
     box.scrollWidth - box.clientWidth > 1 &&
     wordsOutside(box);
+  const found = [];
+  for (const block of page.querySelectorAll("pre")) {
+    if (!scrolls(block)) continue;
+    const style = getComputedStyle(block);
+    const inside =
+      block.clientWidth -
+      parseFloat(style.paddingLeft) -
+      parseFloat(style.paddingRight);
+    if (inside >= 4 * parseFloat(style.fontSize)) continue;
+    found.push({
+      code: "squeezed-code",
+      at: at(block),
+      place: place(block),
+      scrolls: block.scrollWidth - block.clientWidth,
+      inside: Math.round(inside),
+      cell: block.closest("td, th") !== null,
+    });
+  }
   const tables = [...page.querySelectorAll("table")].filter(scrolls);
-  // Each code block's width as the page sets it, before its sheet.
-  const blocks = [...page.querySelectorAll("pre")]
-    .filter(scrolls)
-    .map((block) => ({ block, width: block.getBoundingClientRect().width, room: 0 }));
-  // Each table's columns by left edge, each with its cells, before its sheet.
+  if (!tables.length) return found;
+  // Each table's columns by left edge, each with its cells, before the probe.
   /** @typedef {{heading: string | null, head: boolean, width: number, first: Element, wraps: boolean}} TableColumn */
   /** @type {Map<HTMLTableElement, TableColumn[]>} */
   const read = new Map();
@@ -903,28 +908,16 @@ export function squeezedBoxes() {
       [...columns].sort((a, b) => (rtl ? b[0] - a[0] : a[0] - b[0])).map(([, c]) => c),
     );
   }
-  if (read.size)
-    withSheet(
-      "th:not([colspan]), td:not([colspan])," +
-        ` th:not([colspan]) *:not(${TEXT_BOX}), td:not([colspan]) *:not(${TEXT_BOX})` +
-        " { text-wrap: nowrap !important; flex-wrap: nowrap !important }",
-      () => {
-        for (const columns of read.values())
-          for (const column of columns)
-            column.wraps =
-              column.first.getBoundingClientRect().width > column.width + 1;
-      },
-    );
-  if (blocks.length)
-    withSheet(
-      "pre { contain: none !important }" +
-        " pre, pre * { text-wrap: wrap !important; overflow-wrap: anywhere !important }",
-      () => {
-        for (const entry of blocks)
-          entry.room = entry.block.getBoundingClientRect().width;
-      },
-    );
-  const found = [];
+  const probe = document.createElement("style");
+  probe.textContent =
+    "th:not([colspan]), td:not([colspan])," +
+    ` th:not([colspan]) *:not(${TEXT_BOX}), td:not([colspan]) *:not(${TEXT_BOX})` +
+    " { text-wrap: nowrap !important; flex-wrap: nowrap !important }";
+  document.head.append(probe);
+  for (const columns of read.values())
+    for (const column of columns)
+      column.wraps = column.first.getBoundingClientRect().width > column.width + 1;
+  probe.remove();
   for (const [table, columns] of read) {
     if (!columns.some((c) => c.wraps)) continue;
     found.push({
@@ -933,17 +926,6 @@ export function squeezedBoxes() {
       place: place(table),
       scrolls: table.scrollWidth - table.clientWidth,
       columns: columns.map(({ heading, width, wraps }) => ({ heading, width, wraps })),
-    });
-  }
-  for (const { block, width, room } of blocks) {
-    if (room <= width + 1) continue;
-    found.push({
-      code: "squeezed-code",
-      at: at(block),
-      place: place(block),
-      scrolls: block.scrollWidth - block.clientWidth,
-      width: Math.round(width),
-      room: Math.round(room),
     });
   }
   return found;

@@ -97,13 +97,14 @@
      * down; a block an author bounds says how it scrolls down.
      *
      * The same rule costs a block in a box that takes its width from its content (a flex
-     * item, a grid `auto` track), which sizes without it: two short commands in a flex
-     * row stood 30px wide each. `page check --render` reports a block narrower than the
-     * room its holder has for its lines (`squeezedBoxes`, render-checks/layout.js), and
-     * the author gives the block or its holder a width. A one-column grid inside the
-     * block would size it by its lines and still let it shrink, but its text-only lines
-     * lost the room after their last character (1px against a block's 15px), and a block
-     * mixing text and tags stood each run in a row of its own. */
+     * item, a grid `auto` track beside an `fr` track, a box sized to fit), which sizes
+     * without it: two short commands in a flex row stood 30px wide each. `page check
+     * --render` reports a block left too narrow to read (`squeezedBoxes`,
+     * render-checks/layout.js), and the author gives the block or its holder a width. A
+     * one-column grid inside the block would size it by its lines and still let it
+     * shrink, but its text-only lines lost the room after their last character (1px
+     * against a block's 15px), and a block mixing text and tags stood each run in a row
+     * of its own. */
     pre {
       overflow: auto hidden;
       contain: inline-size;

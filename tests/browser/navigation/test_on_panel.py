@@ -731,6 +731,49 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     ).to_have_text(re.compile(r"Nothing waiting on \S+\."))
 
 
+def test_the_leaf_nods_for_each_notice_of_the_users_own_key(browser, serve):
+    """The panel's leaf nods once for each notice the user's own key gives, so `m`
+    pressed again over an empty On me shows it landed though its words already stand.
+    The news that On me emptied, which no key asked for, gives no nod."""
+    source = leaf_page(
+        "One decision",
+        '<h1>One decision</h1><lf-ask id="only-decision"><h2>Pick one</h2>'
+        '<lf-options id="only" choose>'
+        '<lf-option id="first">First</lf-option>'
+        '<lf-option id="second">Second</lf-option></lf-options></lf-ask>',
+    )
+    url = serve(source)
+    page = open_page(browser, live_url(url))
+    page.evaluate(
+        """() => {
+          window.__lfNods = [];
+          document.addEventListener('animationstart', (event) => {
+            if (event.target.closest('.lf-fp-leaf'))
+              window.__lfNods.push(event.animationName);
+          });
+        }"""
+    )
+    nods = "() => window.__lfNods"
+    frames = "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+
+    stamp_page(
+        serve.page_dir,
+        leaf_page("No decisions", "<h1>No decisions remain</h1>"),
+        "remove the last obligation",
+    )
+    wait_for_revision(page, 2)
+    expect_panel_says(page, "Nothing waiting on me")
+    page.evaluate(frames)
+    assert page.evaluate(nods) == []
+
+    page.keyboard.press("m")
+    page.wait_for_function(f"({nods})().length === 1")
+    page.keyboard.press("m")
+    page.wait_for_function(f"({nods})().length === 2")
+    assert page.evaluate(nods) == ["lf-fp-nod-odd", "lf-fp-nod-even"]
+    expect_panel_says(page, "Nothing waiting on me")
+
+
 def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):
     """With On me open, `m` lands a suggestion the view would cover above the view,
     since every landing clears the panel's whole box rather than its row alone

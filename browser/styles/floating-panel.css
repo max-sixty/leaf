@@ -82,6 +82,7 @@
     --lf-motion-panel-fold: 280ms;
     --lf-motion-view-in: 90ms;
     --lf-motion-view-out: 60ms;
+    --lf-motion-panel-nod: 320ms;
   }
 
   /* The surface (runtime/box-motion.js, chrome.css): a layer over the whole window,
@@ -201,6 +202,35 @@
   .lf-fp-leaf > svg[data-lf-icon="leaf"] {
     inline-size: 19px;
     block-size: 19px;
+  }
+  /* The leaf nods once for each notice the user's own key gives, a repeated one
+     included, so a press that changes nothing else on screen still shows it landed.
+     The user picked the nod over the words brightening and the panel tinting
+     (9 November 2026). It plays on the beat's parity (floating-panel.js,
+     `data-lf-beat`), under two names for one motion, since a style that keeps its
+     animation's name never plays it again. News nobody asked for gives no beat, and
+     reduced motion stills the nod with the rest of Leaf's motion (state.css). */
+  @keyframes lf-fp-nod-odd {
+    35% {
+      transform: rotate(-12deg) scale(1.15);
+    }
+    70% {
+      transform: rotate(6deg);
+    }
+  }
+  @keyframes lf-fp-nod-even {
+    35% {
+      transform: rotate(-12deg) scale(1.15);
+    }
+    70% {
+      transform: rotate(6deg);
+    }
+  }
+  .lf-floating-panel[data-lf-beat="odd"] .lf-fp-leaf > svg[data-lf-icon="leaf"] {
+    animation: lf-fp-nod-odd var(--lf-motion-panel-nod) ease-out;
+  }
+  .lf-floating-panel[data-lf-beat="even"] .lf-fp-leaf > svg[data-lf-icon="leaf"] {
+    animation: lf-fp-nod-even var(--lf-motion-panel-nod) ease-out;
   }
   /* An error waiting unseen in the leaf's menu marks the leaf's corner. */
   .lf-fp-error-dot {

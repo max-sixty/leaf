@@ -8,7 +8,7 @@
 // CSS anchor positioning, through its anchor's scroll; and native animation, scroll-
 // driven included, through sampled translation or reflow from size changes.
 // Beside those, it credits only what that rule itself declares:
-// a gesture's rendering, the page before it
+// a gesture's rendering, the document while it parses, the page before it
 // presents or as it returns from a hidden tab, and runtime regions declared with
 // `data-lf-reflow`. A script that moves a box by writing its geometry has no credit
 // of its own, however the page means it, so a surface that should follow something
@@ -2250,11 +2250,30 @@
       );
     }
   });
+  // Any page, Leaf's or not, presents first while the HTML parser is still adding its
+  // markup: Chrome may paint a half-parsed document, such as a select before its
+  // options, and the rest of the markup moves what that paint showed. That runs until
+  // the second frame after the parser finishes.
+  let parsed = document.readyState === "loading" ? Infinity : -Infinity;
+  if (parsed === Infinity)
+    listen(document, "readystatechange", () => {
+      if (parsed !== Infinity || document.readyState === "loading") return;
+      parsed = null;
+      nativeFrame(() =>
+        nativeFrame((at) => {
+          parsed = at;
+        }),
+      );
+    });
   const presenting = ({ startTime }) =>
-    document.querySelector("script[data-lf-entry]") &&
-    (presented === null ||
-      startTime < presented ||
-      returns.some(({ start, through }) => startTime >= start && startTime <= through));
+    parsed === null ||
+    startTime < parsed ||
+    (document.querySelector("script[data-lf-entry]") &&
+      (presented === null ||
+        startTime < presented ||
+        returns.some(
+          ({ start, through }) => startTime >= start && startTime <= through,
+        )));
   const unpresented = () =>
     presented === null &&
     renderings.length === 0 &&

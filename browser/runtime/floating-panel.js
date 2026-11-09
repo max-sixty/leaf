@@ -1842,6 +1842,8 @@ export function createFloatingPanel({
   function streamSend() {
     following.stream();
   }
+  let writtenBand = 0;
+  let bandFrame = 0;
   function followBox() {
     // How far the box reaches up from the window's foot, which the root's
     // `scroll-padding-bottom` keeps every landing clear of, with the gap above the box
@@ -1861,8 +1863,18 @@ export function createFloatingPanel({
       .map(Number.parseFloat);
     const band = atLayoutPrecision(Math.max(rest, reach + clear));
     if (stateFootBand(band)) {
-      setRuntimeRootStyle(root, "scroll-padding-bottom", `${band}px`);
-      announceRoom();
+      // This runs in the box's size delivery, which may write only what no one observes
+      // (page-layout.js). The root's style is a page attribute the margin hears, and its
+      // pass places an open thread card in the same delivery, resizing a box shallower
+      // than any the delivery can still reach: a ResizeObserver loop. So the padding and
+      // the news of the room wait for the frame; Leaf's own landings read the band
+      // stated above at once.
+      writtenBand = band;
+      bandFrame ||= nextRender(() => {
+        bandFrame = 0;
+        setRuntimeRootStyle(root, "scroll-padding-bottom", `${writtenBand}px`);
+        announceRoom();
+      });
     }
     const compact = host.dataset.lfRest === "mark";
     const duration = compact

@@ -278,7 +278,6 @@ def cmd_pages(payload: dict) -> None:
         return
 
     from .presence import PRESENCE_CACHE_S, live_leaves
-    from .registry.kernel import installed_protocol, kernel_protocol
 
     forking = bool(payload.get("forks"))
     if forking:
@@ -295,7 +294,7 @@ def cmd_pages(payload: dict) -> None:
     shown = None
     try:
         while True:
-            if installed_protocol() != kernel_protocol():
+            if _moved_on():
                 return
             held = {page.resolve() for page in owned_pages(sid)}
             leaves = live_leaves(held) if held else []
@@ -354,6 +353,19 @@ def cmd_pages(payload: dict) -> None:
             release_lease(lane)
             renamed.close()
             _let_go(sid, looked)
+
+
+def _moved_on() -> bool:
+    """Whether the Leaf installed where this process was loaded speaks another page
+    protocol than the one it loaded. An install removed or half-written under it
+    reads as unmoved: a follower started from it again couldn't start, so this one
+    keeps running."""
+    from .registry.kernel import installed_protocol, kernel_protocol
+
+    try:
+        return installed_protocol() != kernel_protocol()
+    except (OSError, ValueError, KeyError):
+        return False
 
 
 def _let_go(sid: str, looked: dict) -> None:

@@ -54,14 +54,26 @@ const FACE = {
 // the live page the words that differ deepen, painted through the highlight registry
 // so no node is wrapped (Paint; don't wrap) and cleared when the suggestion settles.
 // `movedWords` keeps alignment and the similarity threshold in one reading before
-// this module turns its offsets into highlight ranges. The two highlights are
-// shared sets each suggestion adds its own ranges to and deletes them from, so
-// upgrading or deciding one suggestion costs its own ranges, not every other's.
+// this module turns its offsets into highlight ranges.
+//
+// The two highlights are registered once and shared. A suggestion's ranges arrive
+// and leave through `arriving` and `leaving`, applied together in a microtask at the
+// end of the task, so the paint still lands before the next frame. In Firefox a
+// highlight changed one range at a time costs more the larger it is: it walks the
+// list to delete a range, and an add made as each suggestion upgraded grew with the
+// highlight too. So applying each suggestion's ranges as it came, like rebuilding
+// both highlights from every suggestion for each one, cost the square of the ranges
+// when a page upgraded or removed many suggestions. A removal rebuilds each
+// highlight once from the ranges it keeps, as lf-text-document.js's `unpaint` does.
 const EMPHASIS = { del: "lf-sug-del", ins: "lf-sug-ins" };
 /** @type {Map<Element, Range[]>} */
 const emphasized = new Map(); // suggestion element → its ranges in either highlight
 /** @type {{del: Highlight, ins: Highlight} | null} */
 let painted = null;
+const arriving = { del: /** @type {Range[]} */ ([]), ins: /** @type {Range[]} */ ([]) };
+/** @type {Set<AbstractRange>} */
+const leaving = new Set();
+let flushing = false;
 
 /** @param {string} before @param {string} after */
 function movedWords(before, after) {
@@ -106,24 +118,44 @@ function highlights() {
   return painted;
 }
 
+function schedulePaint() {
+  if (flushing) return;
+  flushing = true;
+  queueMicrotask(paintEmphasis);
+}
+
+function paintEmphasis() {
+  flushing = false;
+  const paint = highlights();
+  for (const kind of /** @type {const} */ (["del", "ins"])) {
+    const highlight = paint[kind];
+    if (leaving.size) {
+      const kept = [...highlight].filter((range) => !leaving.has(range));
+      highlight.clear();
+      for (const range of kept) highlight.add(range);
+    }
+    for (const range of arriving[kind]) if (!leaving.has(range)) highlight.add(range);
+    arriving[kind] = [];
+  }
+  leaving.clear();
+}
+
 /** @param {Element} suggestion */
 function clearEmphasis(suggestion) {
   const ranges = emphasized.get(suggestion);
-  if (!ranges || !painted) return;
+  if (!ranges) return;
   emphasized.delete(suggestion);
-  for (const range of ranges) {
-    painted.del.delete(range);
-    painted.ins.delete(range);
-  }
+  for (const range of ranges) leaving.add(range);
+  schedulePaint();
 }
 
 /** @param {Element} suggestion @param {{del: Range[], ins: Range[]}} ranges */
 function emphasize(suggestion, ranges) {
   clearEmphasis(suggestion);
-  const paint = highlights();
-  for (const range of ranges.del) paint.del.add(range);
-  for (const range of ranges.ins) paint.ins.add(range);
+  arriving.del.push(...ranges.del);
+  arriving.ins.push(...ranges.ins);
   emphasized.set(suggestion, [...ranges.del, ...ranges.ins]);
+  schedulePaint();
 }
 
 // [from, to) offsets in a slot's concatenated text → Ranges over its text nodes. One

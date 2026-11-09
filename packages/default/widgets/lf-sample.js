@@ -29,7 +29,9 @@
  * types or presses a key inside the child, which makes every later resize of that
  * document theirs, though not a wheel or touch that scrolls past it; a resize
  * after Reset or Return to page, or one of a frame the reader saw as it mounted, is
- * theirs and applies at once. The status line keeps its room through loading, ready
+ * theirs and applies at once. A load that waited on its server arrives as news, held
+ * the same way, whoever asked for it: after minutes of waiting the reader may have
+ * moved on. The status line keeps its room through loading, ready
  * and failure, so the frame below it stays put; a failure's words that run past it
  * stand in a disclosure the reader opens over the frame.
  * Reset stays focusable

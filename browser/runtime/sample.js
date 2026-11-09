@@ -558,10 +558,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
         if (wait === undefined || Date.now() + wait >= giveUp) throw error;
         waiting();
         for (const queued of loadWaiters) queued.waiting();
-        await Promise.race([
-          new Promise((resolve) => setTimeout(resolve, wait)),
-          aborted(signal),
-        ]);
+        await new Promise((resolve) => setTimeout(resolve, wait));
         signal.throwIfAborted();
       }
     }

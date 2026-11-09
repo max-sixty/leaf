@@ -751,7 +751,7 @@ def test_a_sample_queued_behind_a_rollout_leaves_the_page_live(browser, serve):
 
 def test_a_sample_removed_during_a_rollout_stops_asking(browser, serve):
     """A sample removed while it waits out the rollout asks the server no more, so it
-    allocates nothing when the rollout ends and holds no load slot meanwhile."""
+    allocates nothing when the rollout ends."""
     page = browser.new_page(viewport={"width": 1200, "height": 1800})
     watched(page)
     asked, end = rolling_out(page)

@@ -17,15 +17,15 @@ import {
   scrollLimit,
   stopGlide,
 } from "./scrolling.js";
-import { landingBand, shownRect } from "./geometry.js";
-import { intersect } from "./rect.js";
+import { landingBand, layoutWindow, shownRect } from "./geometry.js";
+import { hasArea, intersect } from "./rect.js";
 import {
   chooseReadingRegion,
   chosenReadingRegion,
   effectiveScroller,
-  readingRegionsBySize,
   regionScrollBehavior,
   shownRegionBounds,
+  unconcealedReadingRegions,
   userReadingRegion,
   readingRegionFor,
   scrollChainOf,
@@ -203,8 +203,10 @@ export function placeThreadEdge(thread, edge) {
 // returns the page's own scroll rather than leaving it behind a pane it can't pass. On a
 // long page, a `j` at its end that moved a log leaves the next `k` to the page.
 //
-// Only a step the page can't take with none named chooses, and choosing measures only
-// the largest regions, not every one (`readingRegionsBySize`).
+// Only a step the page can't take with none named chooses. Choosing ranks the regions by
+// their boxes clipped to the window, which no region shows more of, and measures what a
+// region shows only down to the first box smaller than the most a region has shown, so
+// the regions off screen are passed over by their boxes alone.
 /** @param {Element} box @param {import("./geometry.js").ClipCache} clips */
 const readingStep = (box, clips) => {
   const shown = shownRect(box, clips);
@@ -234,14 +236,27 @@ const takesStep = (box, amount) => {
   const goal = scrollGoal(box);
   return amount > 0 ? !atScrollEnd(box, goal) : goal > 0;
 };
+// A box's area within `view`, in whole pixels as the ranking counts it, or 0 where
+// none of it is there.
+/** @param {Element} box @param {import("./rect.js").Box} view */
+const areaWithin = (box, view) => {
+  const within = intersect(box.getBoundingClientRect(), view);
+  return hasArea(within)
+    ? Math.round(within.right - within.left) * Math.round(within.bottom - within.top)
+    : 0;
+};
 /** @param {number} amount */
 const regionForStep = (amount) => {
   /** @type {ReturnType<typeof userReadingRegion>} */
   let most;
   let mostArea = 0;
   let mostRange = 0;
-  for (const { region, box } of readingRegionsBySize()) {
-    // A region shows no more than its box, so no smaller box can show more.
+  const view = layoutWindow();
+  const sized = unconcealedReadingRegions()
+    .map((region) => ({ region, box: areaWithin(region.body, view) }))
+    .sort((a, b) => b.box - a.box);
+  for (const { region, box } of sized) {
+    // A region shows no more than its box within the window, so no smaller box can.
     if (!box || box < mostArea) break;
     const { host, body } = region;
     const bounds =

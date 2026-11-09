@@ -425,13 +425,12 @@ def test_the_page_hands_a_step_it_cannot_take_to_its_largest_pane_and_takes_it_b
 def test_of_two_panes_the_same_size_on_screen_the_one_with_more_to_scroll_takes_the_step(
     browser, serve, pressed
 ):
-    """The step reads the panes largest box first and stops at a box smaller than the
-    most a pane has shown. With nothing beside `main`, the page never scrolls, so both
-    panes show their whole boxes and tie at that edge: the second must still be read, or
-    the first, the shorter, takes every step. A footer clips both panes as the page
-    scrolls, which hides the tie from the test above. A `j` held while the runtime loads
-    replays before the size observer has delivered any box, and a box of unknown size
-    must be measured rather than passed over, or the held key moves nothing."""
+    """The step ranks the panes by their boxes within the window and stops at a box
+    smaller than the most a pane has shown. With nothing beside `main`, the page never
+    scrolls, so both panes show their whole boxes and tie at that edge: the second must
+    still be read, or the first, the shorter, takes every step. A footer clips both panes
+    as the page scrolls, which hides the tie from the test above. A `j` held while the
+    runtime loads takes the same step once the page upgrades."""
     url = serve(
         leaf_page(
             "a rail and two panes",

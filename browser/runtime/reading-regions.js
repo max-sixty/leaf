@@ -34,12 +34,6 @@
    its summary shows: none of what it holds does, so there is no place in it to read.
    Cleanup removes live DOM bindings, so a replacement can reclaim an id.
 
-   The same observer watches each region's body, so `readingRegionsBySize` lists the
-   regions largest box first without measuring any. A reader after the region that
-   shows the most, as the reading keys are when they choose one (navigation.js,
-   `regionForStep`), stops at the first box smaller than the most it has found shown,
-   since no region shows more than its box.
-
    The reach pass paints continuation at the body's scroll edges. An owner whose
    chrome covers the upper edge can supply `paintContinuation(above)` to paint that
    cue at its actual edge, on the same scroll and size observations. It receives
@@ -150,14 +144,10 @@ export function registerReadingRegion({
   };
   const stopReaching = reachReadingScroller(body, paintContinuation);
   regions.set(id, region);
-  bySize = null;
   sizes.observe(host);
-  if (body !== host) sizes.observe(body);
   return () => {
     if (regions.get(id) === region) regions.delete(id);
-    bySize = null;
     sizes.unobserve(host);
-    if (body !== host) sizes.unobserve(body);
     stopReaching();
   };
 }
@@ -236,29 +226,10 @@ export const readingRegions = () =>
 
 // Keep a region in the inventory while an authored disclosure or tab conceals it,
 // but never ask its geometry merely to decide whether to sample it.
-/** @param {RegionRegistration} region */
-const unconcealed = (region) =>
-  live(region) && !concealed(region) && !skipped(region.body);
 export const unconcealedReadingRegions = () =>
-  [...regions.values()].filter(unconcealed).map(regionRecord);
-
-// Each body's border-box area as the size observer last delivered it, in whole pixels,
-// and the regions in order of it, largest first, sorted again only after an area or the
-// registry changes (see the header). A body the observer has yet to deliver could be any
-// size, so it comes first, and a reader measures it rather than passing it over: a key
-// held through startup replays before the observer's first delivery.
-/** @type {WeakMap<Element, number>} */
-const areas = new WeakMap();
-/** @type {RegionRegistration[] | null} */
-let bySize = null;
-/** @param {RegionRegistration} region */
-const areaOf = (region) => areas.get(region.body) ?? Infinity;
-export function* readingRegionsBySize() {
-  bySize ??= [...regions.values()].sort((a, b) => areaOf(b) - areaOf(a) || 0);
-  for (const region of bySize)
-    if (unconcealed(region))
-      yield { region: regionRecord(region), box: areaOf(region) };
-}
+  [...regions.values()]
+    .filter((region) => live(region) && !concealed(region) && !skipped(region.body))
+    .map(regionRecord);
 
 /** @param {Node | null | undefined} node */
 const regionAt = (node) => {
@@ -581,17 +552,7 @@ function measureRegions() {
   pageSeen = now;
   if (shifted.length) notify({ phase: "shift", shifted });
 }
-const sizes = sizeObserver((entries) => {
-  for (const { target, borderBoxSize } of entries) {
-    const { inlineSize, blockSize } = /** @type {ResizeObserverSize} */ (
-      borderBoxSize[0]
-    );
-    const area = Math.round(inlineSize) * Math.round(blockSize);
-    if (areas.get(target) !== area) bySize = null;
-    areas.set(target, area);
-  }
-  measureRegions();
-});
+const sizes = sizeObserver(measureRegions);
 sizes.observe(pageScroller);
 // A flowing region need not resize when only the window's height changes.
 // Share the observer's comparison so one reflow produces one shift reading.

@@ -117,11 +117,8 @@ keeping another in view. The sidebar and body are authored siblings; the sidebar
 
 ```html
 <main class="layout-sidebar">
-  <aside id="status">
-    <div class="layout-track">
-      <lf-toc id="contents"></lf-toc>
-      <p>…</p>
-    </div>
+  <aside id="route">
+    <div class="layout-track"><lf-toc id="contents"></lf-toc></div>
   </aside>
   <article id="evidence" class="layout-column">
     <h1>…</h1>
@@ -131,24 +128,26 @@ keeping another in view. The sidebar and body are authored siblings; the sidebar
 </main>
 ```
 
-Use a `layout-column` body for a reading document with wider exhibits. Its prose
-starts beside the sidebar, and exhibits use the remaining body width. For a board or
-dashboard, the body can instead be an ordinary `div` with the page's own layout; a
-`header` and `footer` on the outer Layout span both regions.
+Use a `layout-column` body for a reading document with wider exhibits. Where its
+sidebar comes before the body and its track holds only the contents map, under a mouse
+the sidebar is a narrow rail: the map shows its labels over the page when the reader
+points at it, the prose starts just past the rail, and exhibits use the remaining body
+width. Under touch, after the body, or with anything else in the track, the sidebar
+keeps a column's room. So put a status the
+reader should see at once at the top of the body rather than beside the map. For a
+board or dashboard, the body can instead be an ordinary `div` with the page's own
+layout; a `header` and `footer` on the outer Layout span both regions.
 
 The browser wraps the regions in source order when they no longer fit. Put the
 `aside` before the body when its contents should be read first on a narrow screen,
 and after it when they should follow the body. Set `--aside` on the Layout to a
 length or share, such as `20rem` or `25%`, to choose its width; its contents fit that
 width. The default dashboard shares are two thirds body and one third sidebar.
-A document sidebar takes the shared sidebar measure, leaving prose its own measure.
 
 Beside the body, `layout-track` sticks within its sidebar and scrolls within the
 window when tall. Stacked, it flows whole with the page. The authored wrapper is the
 same node from the first paint through revisions: Leaf inserts no body around it.
-Style its blocks by their classes or ids, or as `.layout-track > p`. A contents map
-beside a `layout-column` body stands as tall as the window allows, so a block after
-it in the track is reached by scrolling the track.
+Style its blocks by their classes or ids, or as `.layout-track > p`.
 
 Add `layout-notes` to the `layout-column` that should leave room beside its
 prose for notes, such as `<main class="layout-column layout-notes">`. This is an
@@ -278,10 +277,11 @@ whether `data-height` was missing, too small or too large.
 
 ## The rail and the margin
 
-A document's explicit sidebar keeps its route beside the body. A contents map there
-draws the document's sections to scale beside a spine on a wide fine-pointer screen;
-stacked, it returns to its native outline. A dashboard sidebar keeps its outline open
-beside the body. These placements are CSS layout, present before widgets load. Page CSS does not read runtime placement
+A document's explicit sidebar keeps its route beside the body. Before the body and
+holding only a contents map, under a mouse it is a narrow rail, where the map draws the document's sections to
+scale beside a spine and shows their labels over the page when the reader points at
+it; stacked, it returns to its native outline. A dashboard sidebar, or a document's
+under touch, keeps its outline open beside the body. These placements are CSS layout, present before widgets load. Page CSS does not read runtime placement
 attributes. To change where a route stands, compose its sidebar and body explicitly.
 
 `data-rail="right"` on `body` gives a sidebar page a rail, and `data-rail="none"` gives

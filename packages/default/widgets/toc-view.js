@@ -5,7 +5,8 @@ import { generatedElement, keeps, viewDocument } from "/runtime/widget-api.js";
  * items, and, while the changes view is on, `data-lf-toc-changed` on its row, which
  * toc.css draws in the gutter the outline's rule or the contents spine stands in; the
  * start row's go on the outline's head too, its toggle or its label, which stands where
- * that row would where the row is left out. The
+ * that row would where the row is left out. A row's marks stand beside its link rather
+ * than in it, so they still show while the map rests with its labels faded out. The
  * marks are aria-hidden and take no room; what they count, the row's link previews
  * (`lfPreview`) in place of its name, which its face already says, and that preview
  * describes the link to a screen reader where focus lands on it. */
@@ -163,8 +164,8 @@ export function drawToc(host, headingReading) {
                 <a
                   href=${href(start?.destination)}
                   .lfPreview=${previewOf(start?.heading ?? null)}
-                  >${start?.label ?? "Top"}${markView(first)}</a
-                >
+                  >${start?.label ?? "Top"}</a
+                >${markView(first)}
               </div>
               <ol>
                 ${repeat(
@@ -178,8 +179,8 @@ export function drawToc(host, headingReading) {
                       <a
                         href=${href(item.destination)}
                         .lfPreview=${previewOf(item.heading)}
-                        >${item.label}${markView(marks.get(item.heading))}</a
-                      >
+                        >${item.label}</a
+                      >${markView(marks.get(item.heading))}
                     </li>
                   `,
                 )}

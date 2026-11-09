@@ -710,6 +710,36 @@
     max-inline-size: none;
     --aside: calc(var(--sidebar) - var(--sp-4));
   }
+  /* A document's sidebar whose track holds only an element that rests in a rail
+   * (`x-rail`, painted `data-lf-rail`), as the contents map does, is a rail on a screen
+   * where a fine pointer can reach into it, so the prose starts beside it and the room a
+   * column would take goes to the body's exhibits. The aside comes before the body, so
+   * what the element reveals spreads from the rail toward the inline end, over the body.
+   * The rail's track carries `--lf-track-rail: 1`, and only there does the element take
+   * its resting form (toc.css). The track doesn't clip, the aside paints over the body,
+   * and the body is one stacking context, so nothing it holds paints over what the
+   * element reveals, whatever its z-index. Every other sidebar keeps a column's room: a
+   * track holding anything else, an aside after the body, every track under touch,
+   * where nothing reaches in by pointing, and paper, where nothing reaches in at all.
+   * Rejected (9 November 2026): making every document sidebar a rail. It broke a
+   * paragraph in one into a few letters a line, and the render check passed it. */
+  @media screen and (hover: hover) and (pointer: fine) {
+    .layout-sidebar:has(> aside:only-of-type ~ .layout-column):has(
+        > aside > .layout-track:only-child > [data-lf-rail]:only-child
+      ) {
+      --aside: var(--sidebar-rail);
+      & > aside {
+        z-index: 1;
+      }
+      & > aside > .layout-track {
+        overflow: visible;
+        --lf-track-rail: 1;
+      }
+      & > .layout-column {
+        isolation: isolate;
+      }
+    }
+  }
   /* Beside the sidebar, the body's prose starts at its edge, and its padding at the
    * end holds the rest of the body's width, the room a breakout grows into. The body
    * is the whole flex item rather than a centred box, so its room is a length. The
@@ -754,12 +784,6 @@
       sign(round(var(--lf-track-parent-width) - 100cqi, 1px)),
       1
     );
-  }
-  .layout-track {
-    --lf-sidebar-slot: beside;
-  }
-  .layout-sidebar:has(> .layout-column) > aside > .layout-track {
-    --lf-sidebar-slot: margin;
   }
   @media screen and (min-height: 480px) {
     .layout-sidebar,

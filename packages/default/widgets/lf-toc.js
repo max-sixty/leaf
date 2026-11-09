@@ -6,15 +6,17 @@ import { sectionMarks } from "./toc-marks.js";
  * `toc-view.js`'s. The module redraws the outline in those same nodes
  * whenever the document's headings change, and measures and moves the map.
  *
- * In the roomy margin the outline becomes a reading map. Each row receives the length
- * of the section it leads as its flex share, so the spine describes the document's
- * proportions beside its labels. Crowded destinations are fitted together just enough for
+ * In a track beside the body too narrow for words, such as a document's rail, the
+ * outline becomes a reading map. Each row receives the length of the section it leads
+ * as its flex share, so the quiet spine describes the document before its labels
+ * appear over the page. Crowded destinations are fitted together just enough for
  * their labels to remain distinct; destination marker, label, and viewport lens all
  * use that one fitted scale. A marker's center is its coordinate; its label's first line
  * is centered there too, and the viewport lens reads those same coordinates. The first
  * label can extend above the track into the map's existing padding, rather than moving
  * the document's origin to make room for type. The map ends inside main's trailing
- * padding.
+ * padding. The labels keep their measure while faded out, so revealing them neither
+ * moves the map nor refits it.
  * A destination inside a closed disclosure or inactive tab joins the margin map when it
  * joins the displayed document; the ordinary outline keeps its native fragment link.
  * The darker lens is the part of the document in the viewport. The scroll moves it, as

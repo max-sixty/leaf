@@ -386,6 +386,14 @@ sessionChannel?.addEventListener("message", (event) => {
   if (event.data?.active === true) activateSession(false);
 });
 
+// Whether the page's next write has to launch its agent's container first, by the last
+// answer: leaf.page answers a page with no private copy yet at the edge
+// (`Leaf-Session: passive`), and one whose container has stopped from its saved record
+// (`Leaf-State-Source: durable`), and a write to either waits while the container
+// starts (`worker/src/index.ts`). A server that names no session runs its agent beside
+// it.
+let agentStopped = false;
+
 /** @param {Response} response */
 function observeSession(response) {
   const reference = response.headers.get("Leaf-Session-Reference");
@@ -394,9 +402,13 @@ function observeSession(response) {
   const mode = response.headers.get("Leaf-Session");
   if (mode === "active") activateSession(true);
   else if (mode === "passive" && sessionMode !== "active") sessionMode = "passive";
+  if (mode !== null)
+    agentStopped =
+      mode === "passive" || response.headers.get("Leaf-State-Source") === "durable";
 }
 
 export const sessionIsActive = () => sessionMode === "active";
+export const writeLaunchesAgent = () => agentStopped;
 
 // The server answers a request without this page's key with 401 and nothing else does,
 // whichever route was asked (`http.py`, `_answer`). Any other answer passed the key

@@ -321,8 +321,10 @@ class Place:
     that marks it, as a page function that finds it afresh at each reading (`box`), and
     what stands around it that a change can grow (`around`, a role to its target).
 
-    `during` is the user's own act, a scroll, made as the change arrives, and `travel`
-    how far it moves the box. A scroll that glides is `midway`: the change draws while
+    `during` is the user's own act, a scroll, made as the change arrives: a driver
+    call, or a page statement the page runs in the task that starts watching the
+    scroll, so a glide can't end in the round trip between them. `travel` is how far
+    it moves the box. A scroll that glides is `midway`: the change draws while
     it is still under way, where the engine lets the case hand it over then (`midway`
     in `arriving`)."""
 
@@ -332,7 +334,7 @@ class Place:
     box: "Found | str"
     around: dict
     travel: float = 0
-    during: Callable | None = None
+    during: Callable | str | None = None
     midway: bool = False
 
 
@@ -554,9 +556,8 @@ def wheel(page):
     page.mouse.wheel(0, SCROLL)
 
 
-def smooth(page):
-    """A scroll that glides, as a key's or a landing's does."""
-    page.evaluate("by => scrollBy({top: by, behavior: 'smooth'})", SCROLL)
+# A scroll that glides, as a key's or a landing's does.
+SMOOTH = f"scrollBy({{top: {SCROLL}, behavior: 'smooth'}})"
 
 
 def map_row(page, label):
@@ -899,7 +900,7 @@ PLACES = [
         Found(reply_box("jobs")),
         {"thread above": "jobs", "page above": None},
         travel=-SCROLL,
-        during=smooth,
+        during=SMOOTH,
         midway=True,
     ),
     Place(
@@ -1030,8 +1031,12 @@ def arriving(page, place, write, drawn):
         page.route("**/api/state*", hold)
         write()
         holding(page, held, 1, "the page's read of the change")
-        place.during(page)
-        page.evaluate(RELEASE, [SCROLL / 10, SCROLL, midway(page, place), QUIET_MS])
+        if callable(place.during):
+            place.during(page)
+            release = RELEASE
+        else:
+            release = f"async (args) => {{ {place.during}; return ({RELEASE})(args); }}"
+        page.evaluate(release, [SCROLL / 10, SCROLL, midway(page, place), QUIET_MS])
         # The read goes before the route is taken down, which can take a while.
         released = list(held)
         for route in released:
@@ -1517,7 +1522,7 @@ READ = """() => {
   return {start: record.start, end: record.at(), frames: record.frames,
           marks: record.marks, scrolled: page.scrollTop - record.scroll,
           grew: page.scrollHeight - record.height, release: record.release ?? null,
-          atGrowth: record.atGrowth};
+          atGrowth: record.atGrowth, scrolls: record.scrolls};
 }"""
 
 
@@ -1669,7 +1674,8 @@ def test_the_page_holds_still_under_the_user(
     # measured something else.
     if midway(page, place):
         assert reading["release"] == "under way", (
-            "the scroll had ended before the page's read of the change could go"
+            "the scroll had ended before the page's read of the change could go; "
+            f"it stood at {[round(at) for at in reading['scrolls']]}px at its scroll events"
         )
         progress = reading["atGrowth"]
         assert progress is not None and abs(progress) < SCROLL - TOLERANCE, (

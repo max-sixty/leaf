@@ -22,9 +22,9 @@ import {
   chooseReadingRegion,
   chosenReadingRegion,
   effectiveScroller,
+  readingRegionsBySize,
   regionScrollBehavior,
   shownRegionBounds,
-  unconcealedReadingRegions,
   userReadingRegion,
   readingRegionFor,
   scrollChainOf,
@@ -198,8 +198,10 @@ export function placeThreadEdge(thread, edge) {
 // ahead of it in both directions until the user acts (`chosenReadingRegion`). The page
 // carries the pane, so the reader sees the text move by each step either way, and `k`
 // returns the page's own scroll rather than leaving it behind a pane it can't pass. On a
-// long page, a `j` at its end that moved a log leaves the next `k` to the page. Choosing
-// reads every region, and only a step the page can't take with none named pays for it.
+// long page, a `j` at its end that moved a log leaves the next `k` to the page.
+//
+// Only a step the page can't take with none named chooses, and choosing measures only
+// the largest regions, not every one (`readingRegionsBySize`).
 /** @param {Element} box @param {import("./geometry.js").ClipCache} clips */
 const readingStep = (box, clips) => {
   const shown = shownRect(box, clips);
@@ -235,12 +237,14 @@ const regionForStep = (amount) => {
   let most;
   let mostArea = 0;
   let mostRange = 0;
-  for (const region of unconcealedReadingRegions()) {
+  for (const { region, box } of readingRegionsBySize()) {
+    // A region shows no more than its box, so no smaller box can show more.
+    if (!box || box < mostArea) break;
     const { host, body } = region;
     const bounds =
-      inPage(host) &&
-      regionScrollBehavior(region) === "bounded" &&
       takesStep(body, amount) &&
+      regionScrollBehavior(region) === "bounded" &&
+      inPage(host) &&
       nativeModalAdmits(body) &&
       shownRegionBounds(region);
     if (!bounds) continue;

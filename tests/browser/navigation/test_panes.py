@@ -33,6 +33,7 @@ from render_harness import (
 from browser.navigation import (
     READING_REGIONS_PAGE,
 )
+from browser.startup import _hold_startup
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
@@ -418,6 +419,54 @@ def test_the_page_hands_a_step_it_cannot_take_to_its_largest_pane_and_takes_it_b
     assert first["y"] + first["height"] <= page.locator(long).bounding_box()["y"]
     page.keyboard.press("m")
     expect(page.locator("#second")).to_be_focused()
+
+
+@pytest.mark.parametrize("pressed", ["loaded", "held"])
+def test_of_two_panes_the_same_size_on_screen_the_one_with_more_to_scroll_takes_the_step(
+    browser, serve, pressed
+):
+    """The step reads the panes largest box first and stops at a box smaller than the
+    most a pane has shown. With nothing beside `main`, the page never scrolls, so both
+    panes show their whole boxes and tie at that edge: the second must still be read, or
+    the first, the shorter, takes every step. A footer clips both panes as the page
+    scrolls, which hides the tie from the test above. A `j` held while the runtime loads
+    replays before the size observer has delivered any box, and a box of unknown size
+    must be measured rather than passed over, or the held key moves nothing."""
+    url = serve(
+        leaf_page(
+            "a rail and two panes",
+            '<header><h1>Queue</h1></header><div id="regions">'
+            '<lf-pane id="rail" label="Rail"><div>'
+            '<p style="min-height: 8000px">The words of the rail.</p></div></lf-pane>'
+            '<lf-pane id="short" label="Short"><div>'
+            '<p style="min-height: 1200px">The words of the short pane.</p></div>'
+            '</lf-pane><lf-pane id="long" label="Long"><div>'
+            '<p style="min-height: 3000px">The words of the long pane.</p></div>'
+            "</lf-pane></div>",
+            head=regions_side_by_side("regions", "1fr 2fr 2fr"),
+            layout="workspace",
+        )
+    )
+    if pressed == "held":
+        page = browser.new_page(viewport={"width": 1440, "height": 900})
+        held, release = _hold_startup(page, "module")
+        page.goto(url, wait_until="commit")
+        holding(page, held, 1, "the runtime module")
+        expect(page.locator("#long")).to_be_attached()
+        page.keyboard.press("j")
+        release()
+    else:
+        page = open_page(browser, url)
+        resized(page, 1440, 900)
+        pane_scroll_behavior(page, page.locator("#long"), "bounded")
+        page.keyboard.press("j")
+    long = "#long > :not(header, footer)"
+    page.wait_for_function(f"() => document.querySelector('{long}').scrollTop > 0")
+    scroll_settled(page, long)
+    assert page.evaluate("""() => [
+      document.scrollingElement,
+      ...['#rail', '#short'].map((id) => document.querySelector(`${id} > div`)),
+    ].map((box) => box.scrollTop)""") == [0, 0, 0]
 
 
 @pytest.mark.parametrize("workspace", [False, True], ids=["long-page", "workspace"])

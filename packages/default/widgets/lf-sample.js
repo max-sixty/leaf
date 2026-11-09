@@ -13,7 +13,8 @@
  * lf-sample-ready with its sample element after upgrade, on first mount, Reset and
  * reload; its loading saved state does not hold the parent.
  * Each child starts loading as its sample mounts, but the containing page presents
- * before it unless the frame's resize on arrival would move what the reader sees then.
+ * before it unless the frame's resize on arrival would move what the reader sees then,
+ * and stops waiting for it once the host says its server asked it to wait (`waiting`).
  * The sample's arrival is its child's: the child's presentation and then whatever that
  * document deferred, its own samples included, so the page reads as still arriving
  * until every child has arrived. Each document the frame loads, on mount, Reset or a
@@ -160,6 +161,8 @@ export class Sample extends HTMLElement {
       this.#embed();
     if (!this.#pageView || this.#host || this.#mounting) return;
     this.#mounting = true;
+    /** @type {PromiseWithResolvers<void>} */
+    const { promise: waiting, resolve: waited } = Promise.withResolvers();
     const ready = mountSample(this.#frame, {
       template: this.#template.id,
       window: this.hasAttribute("window") || isNativeLayer(this.#view),
@@ -184,6 +187,13 @@ export class Sample extends HTMLElement {
         host.on("loading", () => {
           this.#focusedContent = false;
           this.#track(host.ready);
+        });
+        // A child whose server can't take it yet may take minutes, as a leaf.page
+        // deploy does: the page presents without it, and it arrives as one below the
+        // window does, its growth held while seen.
+        host.on("waiting", () => {
+          this.#unclaimed = true;
+          waited();
         });
         host.on("current-location", ({ focused }) => {
           this.#focusedContent = focused;
@@ -225,7 +235,7 @@ export class Sample extends HTMLElement {
       growthIsSeen(this.#frame);
     this.#asked = presented;
     const shown = this.#track(ready).catch(() => {});
-    if (presented) widgetController(this).present(shown);
+    if (presented) widgetController(this).present(Promise.race([shown, waiting]));
   }
 
   // Removal closes a modal Full view at once, so the view returns to its embedded

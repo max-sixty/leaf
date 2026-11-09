@@ -15,10 +15,12 @@ from render_harness import (
     is_problem,
     leaf_page,
     open_page,
+    page_comment,
     panel_control,
     panel_field,
     refuse,
     watched,
+    write,
 )
 
 from leaf import event_log as events_model
@@ -668,8 +670,10 @@ def test_a_sample_waits_out_a_release_still_rolling_out(browser, serve):
     """For the minutes after a deploy that a visitor's container still runs the
     previous release, leaf.page's edge answers it with 503 and the seconds to wait
     (`worker/src/index.ts`, `rollingOut`). A sample allocated then reads as loading
-    through the wait the answer names, asks again, and arrives."""
-    page = browser.new_page()
+    through the wait the answer names, asks again, and arrives. The sample is in view
+    as the page opens, where its load would hold the page's presentation, but the
+    page doesn't wait with it: the page comes up and takes a comment meanwhile."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     asked = []
     held = []
@@ -694,9 +698,19 @@ def test_a_sample_waits_out_a_release_still_rolling_out(browser, serve):
     assert asked[1] - asked[0] >= 1
     status = page.locator("#practice .lf-sample-status")
     expect(status).to_have_text("Loading sample…")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    box = page_comment(page)
+    write(box, "Written while the sample waits")
+    expect(box).to_have_js_property("value", "Written while the sample waits")
+    frame = page.locator("#practice iframe")
+    height = "frame => frame.getBoundingClientRect().height"
+    waiting_height = frame.evaluate(height)
     page.unroute("**/api/samples")
     held[0].continue_()
     page.locator("#practice").evaluate("sample => sample.ready")
     wait_until_ready(page)
     expect(status).to_have_text("")
+    # It arrives as news under the reader's eyes, so its frame keeps its height until
+    # they act in it, as a sample's below the window does.
+    assert frame.evaluate(height) == waiting_height
     consume_browser_errors(page, http_error_console(503))

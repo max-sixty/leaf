@@ -297,21 +297,23 @@ export function retryWait(response) {
 // file the server holds newer than the draft, its `current`.
 // A request the server can't take yet (`retryWait`) is sent again after the wait the
 // server names, for as long as the waits fit in `patience` milliseconds; past that it
-// fails with the 503. The server may already have run the request: the website's edge
-// refuses a container's answer only after the container has handled it. So a request
-// that must not run twice, such as one that may incur a charge, keeps the default
-// patience of 0.
+// fails with the 503. `waiting` is called as each wait begins, so the caller can stop
+// holding anything else on the answer. The server may already have run the request:
+// the website's edge refuses a container's answer only after the container has
+// handled it. So a request that must not run twice, such as one that may incur a
+// charge, keeps the default patience of 0.
 /** The server owns the response contract named by each endpoint caller.
  * @template T @param {string} url @param {RequestInit} init @param {string} what
- * @param {number} [patience]
+ * @param {{patience?: number, waiting?: () => void}} [notYet]
  * @returns {Promise<T>} */
-export async function requestJson(url, init, what, patience = 0) {
+export async function requestJson(url, init, what, { patience = 0, waiting } = {}) {
   const giveUp = Date.now() + patience;
   const send = () => fetch(url, { ...init, headers: layerHeaders(init.headers) });
   let response = await send();
   for (;;) {
     const wait = retryWait(response);
     if (wait === null || Date.now() + wait >= giveUp) break;
+    waiting?.();
     await new Promise((resolve) => setTimeout(resolve, wait));
     response = await send();
   }

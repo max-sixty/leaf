@@ -3,7 +3,9 @@
  * presentation commands and observations cross a private port as values.
  * Allocation captures the owning widget's immutable revision and builds either its
  * named template or a supplied full HTML source. Both become ordinary validated
- * child pages; supplied source starts with an empty history. Reset replaces the
+ * child pages; supplied source starts with an empty history. An allocation the
+ * server can't take yet is asked again as the server says, and each wait is
+ * announced as `waiting` (`ROLLOUT_MS`). Reset replaces the
  * allocation, admitting its initial document with a credentialless HEAD before
  * native navigation. A later authored navigation keeps the frame and disables its
  * private port; an ordinary reload reconnects.
@@ -138,13 +140,14 @@ export function sampleFrameImage(frame, crop) {
 
 // For the minutes after a leaf.page deploy that a visitor's container still runs the
 // previous release, the edge refuses an allocation and names a wait (`requestJson`).
-// The allocation waits those out while the sample shows it is loading. Measured
-// rollouts ended within 381 s; a release that still refuses after ten minutes has
-// failed, and the sample shows the failure.
+// The allocation waits those out, announcing `waiting` to the owner. Measured rollouts
+// ended within 381 s; a release that still refuses after ten minutes has failed, and
+// the allocation fails with it.
 const ROLLOUT_MS = 10 * 60_000;
 
-/** @param {string | URL} url @param {object} body @param {Record<string, string>} [headers] @param {number} [patience] */
-const request = (url, body, headers = {}, patience = 0) =>
+/** @param {string | URL} url @param {object} body @param {Record<string, string>} [headers]
+ * @param {Parameters<typeof requestJson>[3]} [notYet] */
+const request = (url, body, headers = {}, notYet = {}) =>
   requestJson(
     String(url),
     {
@@ -154,7 +157,7 @@ const request = (url, body, headers = {}, patience = 0) =>
       keepalive: true,
     },
     "sample",
-    patience,
+    notYet,
   );
 
 /** @param {unknown} value @returns {value is {type: "leaf-sample-connect", sample: string, nonce: string}} */
@@ -247,6 +250,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     "current-location": new Set(),
     arrived: new Set(),
     loading: new Set(),
+    waiting: new Set(),
     departed: new Set(),
   };
   /** @template {keyof SampleNotices} K @param {K} type @param {SampleNotices[K]} detail */
@@ -541,7 +545,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
           pageUrl("api/samples"),
           { template, source, message },
           revision ? { "Leaf-View-Revision": String(revision) } : {},
-          ROLLOUT_MS,
+          { patience: ROLLOUT_MS, waiting: () => notify("waiting", undefined) },
         );
         current = new URL(url, location.href).href;
         samplePage = page;

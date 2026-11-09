@@ -74,6 +74,7 @@ from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
+from leaf import publishing as publishing_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import state as cleanup_model
@@ -210,16 +211,44 @@ ANCHOR_SOURCES = (
 def stamp_page(
     page_dir: Path, html: str, text: str, *, completes: tuple[str, ...] = ()
 ) -> dict:
-    """Save HTML as the next revision and stamp that exact source."""
+    """Save HTML as the next revision and stamp that exact source.
+
+    The source and its stamp land in one step (`page stamp --replace`): a live tab's
+    news poll activates any changed source it reads, so a separate write would let
+    the poll activate the revision itself and add an `activation` event to the log.
+    """
     order = max(files_model.list_revisions(page_dir), default=0) + 1
     source = html.replace("</body>", f"<!-- test revision {order} -->\n</body>")
-    (page_dir / "index.html").write_text(source, encoding="utf-8")
-    complete_args = [arg for widget in completes for arg in ("--completes", widget)]
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "stamp", str(page_dir), "--text", text, *complete_args],
-        catch_exceptions=False,
+    previous = publishing_model.authored_files(
+        page_dir / "index.html", page_dir / "page"
     )
+    complete_args = [arg for widget in completes for arg in ("--completes", widget)]
+    # The candidate sits beside the page, in the test's own directory, and goes
+    # with the stamp.
+    candidate = page_dir.with_name(f"{page_dir.name}.candidate-{order}")
+    try:
+        candidate.mkdir()
+        for name, data in previous.items():
+            (candidate / name).parent.mkdir(parents=True, exist_ok=True)
+            (candidate / name).write_bytes(data)
+        (candidate / "index.html").write_text(source, encoding="utf-8")
+        result = CliRunner().invoke(
+            cli_model.cli,
+            [
+                "page",
+                "stamp",
+                str(page_dir),
+                "--text",
+                text,
+                "--replace",
+                str(candidate),
+                publishing_model.authored_digest(previous),
+                *complete_args,
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        shutil.rmtree(candidate, ignore_errors=True)
     assert result.exit_code == 0, result.output
     return json.loads(result.output)
 

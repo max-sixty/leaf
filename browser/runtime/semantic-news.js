@@ -202,14 +202,16 @@ export function currentSemanticNews(news, reading, observed) {
   );
 }
 
-// The moment the panel's leaf answers shown news with (notifications.js, `gesture`):
-// On Me emptying, or something new on it. A failed response moves nothing; the agent's
-// new words are heard, not shown, and state-application.js gives their moment itself.
+// The one moment the panel's leaf answers a reading's news with (notifications.js,
+// `gesture`), as it arrives: On Me emptying, else something new on it, which may come
+// with the agent's words that ask it, else those words. A failed response moves
+// nothing.
 /** @param {readonly SemanticNews[]} news
  * @returns {import("./notifications.js").Moment | null} */
 export function newsMoment(news) {
   if (news.some((item) => item.kind === "on_me_empty")) return "on-me-empty";
   if (news.some((item) => item.kind === "user_obligation")) return "new-on-me";
+  if (news.some((item) => item.kind === "agent_content")) return "reply";
   return null;
 }
 

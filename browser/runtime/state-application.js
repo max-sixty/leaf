@@ -239,9 +239,10 @@ export function createStateApplication({
         // margin marker's already show unread news, so the seat keeps the agent's status.
         // The user chose this on 25 October over a line counting the messages.
         if (reading.news.length) announce(semanticNewsNotice(reading.news));
-        // The leaf answers them as they arrive, since no notice shows them.
-        if (reading.news.some((item) => item.kind === "agent_content"))
-          gesture("reply");
+        // The leaf answers news as it arrives, with the badge and dots, rather than when
+        // a notice held behind the user's own command shows it.
+        const moment = newsMoment(reading.news);
+        if (moment) gesture(moment);
         const shown = reading.news.filter((item) => item.kind !== "agent_content");
         if (shown.length) {
           const format = newsFormat(presentedNews);
@@ -253,7 +254,6 @@ export function createStateApplication({
               value: shown,
               combine: combineSemanticNews,
               format,
-              moment: newsMoment,
             },
           });
         }

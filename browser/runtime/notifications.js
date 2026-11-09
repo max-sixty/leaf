@@ -21,12 +21,11 @@
    nothing floats in a corner to become a stale pointer target. A failure is no news: it
    goes through errors.js, which keeps it until the user has dealt with it.
 
-   The moments the panel's leaf answers with a gesture pass through here too (`gesture`),
-   each with its ordinal, so the leaf plays once for each, a repeat included
-   (floating-panel.js, `GESTURES`): a notice of the user's own command, a walk's step,
-   an error about no field, the agent picking up work, and the news a shown notice
-   carries, whose moment its producer names (`moment`). Everything else, a notice of
-   a failed response among them, moves nothing. */
+   The moments the panel's leaf answers with a gesture (`Moment`) pass through here too
+   (`gesture`), each with its ordinal, so the leaf plays once for each, a repeat
+   included (floating-panel.js, `GESTURES`). A notice of the user's own command is
+   one; each other moment's producer gives it, news as it arrives rather than when its
+   notice shows. */
 import { el, elementDirective } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 import { effect, signal, untracked } from "/runtime/framework.js";
@@ -39,9 +38,8 @@ import { onUserInput } from "./focus.js";
  * @typedef {"notice" | "walk" | "error" | "pickup" | "version" | "reply" | "new-on-me" | "on-me-empty"} Moment
  * @typedef {{key: "semantic-news", value: readonly SemanticNews[],
  * combine: (older: readonly SemanticNews[], newer: readonly SemanticNews[]) => readonly SemanticNews[],
- * format: (value: readonly SemanticNews[]) => Words,
- * moment?: (value: readonly SemanticNews[]) => Moment | null}} SemanticBackground
- * @typedef {SemanticBackground | {key: "text", value: Words, moment: Moment | null}} Background
+ * format: (value: readonly SemanticNews[]) => Words}} SemanticBackground
+ * @typedef {SemanticBackground | {key: "text", value: Words}} Background
  * @typedef {{action: string, command: string, run: () => unknown, stands: () => boolean}} NoticePress
  */
 
@@ -58,9 +56,6 @@ let noticeTimer = 0;
 let stopWatchingPress = () => {};
 /** @type {Background | null} */
 let showingBackground = null;
-// The news the leaf has answered already (`showNotice`).
-/** @type {WeakSet<Background>} */
-const gestured = new WeakSet();
 /** @type {Background[]} */
 const waitingBackground = [];
 let userContext = false;
@@ -123,18 +118,7 @@ addEventListener(ANNOUNCE, (event) => announce(event.detail));
 /** @param {Words} msg @param {Background | null} background @param {NoticePress | null} [press] */
 function showNotice(msg, background = null, press = null) {
   presentNotice(msg, true, press);
-  // A notice of the user's own command answers their key; news shows its own moment,
-  // when it shows rather than when it arrived, so the leaf moves with its words, and
-  // only the first time, not again once a command it waited behind has passed.
-  const moment = !background
-    ? "notice"
-    : gestured.has(background)
-      ? null
-      : background.key === "text"
-        ? background.moment
-        : (background.moment?.(background.value) ?? null);
-  if (background) gestured.add(background);
-  if (moment) gesture(moment);
+  if (!background) gesture("notice");
   showingBackground = background;
   clearTimeout(noticeTimer);
   stopWatchingPress();
@@ -208,11 +192,10 @@ function showBackground(entry) {
   return false;
 }
 
-/** @param {Words} message @param {Moment | null} moment @returns {Background} */
-const textBackground = (message, moment) => ({
+/** @param {Words} message @returns {Background} */
+const textBackground = (message) => ({
   key: "text",
   value: message,
-  moment,
 });
 
 // The producer supplies what makes two deferred notices one piece of news. An
@@ -239,24 +222,17 @@ function queueBackground(entry, front = false) {
 // User commands own the next brief interval. Background arrivals wait behind one,
 // while a command can interrupt an arrival and let it return after the acknowledgement.
 // A held status line coalesces each producer's news; the live region announces it now.
-// Background news names the moment the leaf answers it with (`moment`), or none.
 /** @param {Words} msg @param {{background?: boolean, announce?: boolean, group?: SemanticBackground | null,
- * press?: NoticePress | null, moment?: Moment | null}} options */
+ * press?: NoticePress | null}} options */
 export function notice(
   msg,
-  {
-    background = false,
-    announce: speak = true,
-    group = null,
-    press = null,
-    moment = null,
-  } = {},
+  { background = false, announce: speak = true, group = null, press = null } = {},
 ) {
   // The live region is not the contended surface. Announce at arrival even when the
   // visual line has to wait, and never announce again when a waiting notice is shown.
   if (speak) announce(msg);
   if (background) {
-    const entry = group ?? textBackground(msg, moment);
+    const entry = group ?? textBackground(msg);
     if (userContext || userHoldTimer || noticeVisible()) return queueBackground(entry);
     return showBackground(entry);
   }

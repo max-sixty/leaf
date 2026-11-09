@@ -21,7 +21,9 @@ from render_cases_layout import token_colour
 from render_cases_navigation import TAB_AND_DOT, TAB_TONE, live_watcher
 from render_harness import (
     LONG_PAGE,
+    CutOff,
     expect_preview_words,
+    nudge,
     open_page,
     open_threads,
     panel_settled,
@@ -371,6 +373,46 @@ def test_the_leaf_and_all_pages_say_the_served_activity(browser, serve, other_le
     expect(this_page).to_contain_text("This page")
     # The row names the page; what its agent is doing is said whole on hover.
     expect_preview_words(this_page, re.compile("\nWaiting on the shard$"))
+
+
+def test_the_leaf_perks_as_the_agent_takes_up_work_not_as_the_page_reconnects(
+    browser, serve
+):
+    """The panel's leaf perks once as the agent takes up work. A read that fails while
+    it works shows the page cut off, and the next shows the work again; the agent
+    never stopped, so the leaf doesn't perk again."""
+    page = open_page(browser, serve(LONG_PAGE))
+    d = serve.page_dir
+    record_claim(d, id="s", pid=os.getpid(), agent="Claude")
+    # The sequence of motions the leaf's mark starts, each by the turn it reaches first
+    # (floating-panel.js, `MOTIONS`).
+    page.evaluate(
+        """() => {
+          window.__lfLeaf = [];
+          const animate = Element.prototype.animate;
+          Element.prototype.animate = function (keyframes, options) {
+            if (this.matches('.lf-fp-leaf > svg'))
+              window.__lfLeaf.push(keyframes[1].transform);
+            return animate.call(this, keyframes, options);
+          };
+        }"""
+    )
+    perk = "translateY(-3px) scale(1.14)"
+    declare_work(d, "Writing the page")
+    told(page)
+    expect(page.locator(LEAF)).to_have_attribute("data-lf-tone", "working")
+    page.wait_for_function("() => window.__lfLeaf.length === 1")
+    assert page.evaluate("() => window.__lfLeaf") == [perk]
+
+    reads = CutOff().hold(page)
+    nudge(d)
+    expect(page.locator(LEAF)).to_have_attribute("data-lf-tone", "blocked")
+    reads.restore()
+    nudge(d)
+    told(page)
+    expect(page.locator(LEAF)).to_have_attribute("data-lf-tone", "working")
+    told(page)
+    assert page.evaluate("() => window.__lfLeaf") == [perk]
 
 
 def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(

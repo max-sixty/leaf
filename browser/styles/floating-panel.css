@@ -75,7 +75,7 @@
      leaf on a curve of its own before that one object finishes travelling; its layout
      is already final, so the two visual phases never delay input. The corner mark
      and the peek fade in and out in a disclosure's time. The leaf's gestures
-     (floating-panel.js, `GESTURES`) take a third of a second or a little more, long
+     (floating-panel.js, `MOTIONS`) take a third of a second or a little more, long
      enough to read as a gesture, and nothing waits on them; the pose a tone holds
      settles in as long. They stand here, in
      the runtime's sheet, rather than in the theme a page vendors, since a page served
@@ -211,7 +211,7 @@
   .lf-fp-leaf > svg[data-lf-icon="leaf"] {
     inline-size: 19px;
     block-size: 19px;
-    transition-property: rotate, scale, translate;
+    transition-property: rotate, scale;
     transition-duration: var(--lf-motion-leaf-pose);
     transition-timing-function: ease-in-out;
   }
@@ -220,7 +220,6 @@
      (floating-panel.js, `MOTIONS`), and under reduced motion it stands without settling
      in (state.css). The user picked it on 9 November 2026. */
   .lf-fp-leaf[data-lf-tone="away"] > svg[data-lf-icon="leaf"] {
-    translate: 1px 1.5px;
     rotate: 18deg;
     scale: 0.92;
   }

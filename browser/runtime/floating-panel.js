@@ -526,7 +526,9 @@ export function createFloatingPanel({
   const fadeMs = () => motionTime("--lf-motion-view-in", host);
   const outMs = () => motionTime("--lf-motion-view-out", host);
   // The leaf answers the moments notifications.js passes on (`gesture`) with a motion
-  // each, once per moment, its length on the panel's sheet (`--lf-motion-leaf-*`). Each
+  // each, once per moment, its length on the panel's sheet (`--lf-motion-leaf-nod` and
+  // its siblings, named for each motion). A new one takes over from one still playing,
+  // which stops where it is rather than carrying on once the new one ends. Each
   // turns, lifts or scales the mark about its centre and comes back to rest, every
   // stretch with its own easing, so it plays over the pose the tone holds
   // (floating-panel.css, `data-lf-tone="away"`). The nod answers the user's own key, so
@@ -608,15 +610,18 @@ export function createFloatingPanel({
     "new-on-me": "beckon",
     "on-me-empty": "twirl",
   };
+  /** @type {Animation | null} */
+  let gesturing = null;
   /** @param {import("./notifications.js").Moment} moment */
   const gestureLeaf = (moment) => {
     const motion = GESTURES[moment];
     const leaf = host.querySelector(".lf-fp-leaf > svg");
-    if (leaf)
-      playMotion(leaf, MOTIONS[motion], {
-        duration: motionTime(`--lf-motion-leaf-${motion}`, host),
-        easing: "linear",
-      });
+    if (!leaf) return;
+    gesturing?.cancel();
+    gesturing = playMotion(leaf, MOTIONS[motion], {
+      duration: motionTime(`--lf-motion-leaf-${motion}`, host),
+      easing: "linear",
+    });
   };
   host.setAttribute("role", "region");
   host.setAttribute("aria-label", "Leaf");

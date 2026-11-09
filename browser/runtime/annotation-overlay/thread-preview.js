@@ -26,13 +26,18 @@
    its subject it also rises (`rises`; `size-rises` in placement-rules.json): it may
    outgrow the room below its top, and the window's foot lifts it, so an answer
    arriving stays in view with the turn it answers, and its top stays where it stood,
-   so a shorter thread brings it back down. While a text field in the card holds focus
-   where the user is (user-place.js, `focusPlace`), a card beside its subject holds its
-   foot instead, as one above it does: the line being typed stays still as the
-   conversation grows above it, and a send, which leaves the caret in the box
-   (replies.js), rises as one piece. The caret a click's opening leaves in the box
-   (thread/focus.js, `openingPart`) holds the foot the same way. Below its subject the
-   card keeps its top even then, so it never grows up over the words it is about.
+   so a shorter thread brings it back down. While the user writes words in its reply
+   box (user-place.js, `focusPlace`), a card beside its subject holds its foot instead,
+   as one above it does: the line being typed stays still as the conversation grows
+   above it. A send empties the box, so the card holds its top through the send and
+   grows down past the box, keeping still the transcript the user was reading; so does
+   the empty box a click's opening leaves the caret in (thread/focus.js,
+   `openingPart`). A user who empties the box themselves, as Select All and Backspace
+   do, sees it rise to where the empty box stands, a rare path SOUL.md lets move, since
+   to the card that looks the same as a send. A message's rewrite, whose field stands in
+   the transcript, holds the top as well, so the rewrite grows down. Below its subject
+   the card keeps its top even while the user writes, so it never grows up over the
+   words it is about.
    Nothing else chooses the edge, whatever the user pressed, and the card remembers no
    press or send (`heldEdge`). News at the thread's end shows at once where that edge
    keeps still what the user is on, and waits otherwise (`endNewsMoves`;
@@ -40,7 +45,10 @@
 
    The user chose this rule on 5 November 2026 as the platform's: CSS scroll anchoring
    prefers a focused text field or the find match as the node it keeps still, and
-   neither it nor Floating UI holds a pressed control. Rejected: keeping a pressed
+   neither it nor Floating UI holds a pressed control. On 9 November they asked for a
+   send to grow the card down: holding the foot whenever the caret was in the box
+   lifted the whole transcript at each send, and an empty box has no typed line to keep
+   still. Rejected: keeping a pressed
    control under the pointer (thread/card-anchor.js, which remembered each press until
    the change it caused had fitted, and each send until the next words arrived), which
    tied the card's layout to every gesture's lifetime; and the attached edge with no
@@ -565,17 +573,19 @@ export function createThreadPreview({
   }
 
   // The edge a card on `side` holds now (the header's rule): the one it is attached by,
-  // but its foot beside its subject while the user types in it, in a text field holding
-  // focus where they are (user-place.js, `focusPlace`). Also where they are, if in the
-  // card, and whether they type there.
+  // but its foot beside its subject while the user writes words in its reply box, where
+  // they are (user-place.js, `focusPlace`). Also where they are, if in the card, and
+  // whether they type there.
   /** @param {import("./comment-placement.js").Side} side */
   function heldEdge(side) {
     const place = focusPlace();
     const at = place && under(place, preview) ? place : null;
     const typing = typesText(at);
+    const words = closestAcross(at, ".lf-thread-reply")?.querySelector(TEXT_FIELD);
+    const writing = typing && Boolean(words && "value" in words && words.value);
     const beside = side === "left" || side === "right";
     /** @type {"top" | "foot"} */
-    const edge = typing && beside ? "foot" : attachedEdge(side);
+    const edge = writing && beside ? "foot" : attachedEdge(side);
     return { edge, typing, at };
   }
 

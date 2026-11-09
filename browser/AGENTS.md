@@ -50,9 +50,9 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   whose header lists what it credits.
 - **A box's controls stand on an edge the box holds as its content changes**, or the
   box holds its size while they act. A thread card holds the edge it is attached by,
-  and beside its subject its foot while the user types in it; the floating panel,
-  standing on the window's foot, holds a list's foot, and a thread's height while a
-  press on its head line acts. Each box's header says how (`floating-panel.js`,
+  and beside its subject its foot while the user writes words in its reply box; the
+  floating panel, standing on the window's foot, holds a list's foot, and a thread's
+  height while a press on its head line acts. Each box's header says how (`floating-panel.js`,
   **Opened**; `annotation-overlay/thread-preview.js`).
 - **News moves what the reader reads only in the thread they are in.** News from the
   server grows above the screen, where scroll anchoring absorbs it, or below it. In the

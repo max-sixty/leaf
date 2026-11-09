@@ -28,7 +28,6 @@
     performance: platform.performance,
     frame: platform.requestAnimationFrame.bind(window),
     later: platform.setTimeout.bind(window),
-    cancelLater: platform.clearTimeout.bind(window),
     microtask: window.queueMicrotask.bind(window),
   };
 })();

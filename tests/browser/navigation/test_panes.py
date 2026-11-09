@@ -469,16 +469,19 @@ def test_of_two_panes_the_same_size_on_screen_the_one_with_more_to_scroll_takes_
     ].map((box) => box.scrollTop)""") == [0, 0, 0]
 
 
-@pytest.mark.parametrize("workspace", [False, True], ids=["long-page", "workspace"])
-def test_a_step_up_goes_to_a_log_only_on_a_page_that_cannot_scroll(
-    browser, serve, workspace
+@pytest.mark.parametrize("shape", ["long-page", "workspace", "workspace-footer"])
+def test_a_step_up_goes_to_a_log_only_where_the_window_holds_main(
+    browser, serve, shape
 ):
     """A log that follows its newest entry stands at its end. On a long page, `k` at the
     top moved it with no region named, and the log stopped following; the page keeps that
-    step, as it keeps every step it can take. A workspace doesn't scroll, so there `k`
-    moves the log back from its newest entry."""
+    step, as it keeps every step it can take. The window holds all of a workspace's
+    `main`, so there `k` moves the log back from its newest entry, and a site footer
+    beside `main`, which gives the page a little scroll, used to leave `k` moving
+    nothing."""
     entries = "".join(f"<p>Entry {n}: a line of the deploy.</p>" for n in range(60))
     log_markup = f'<div id="log" data-bound="end">{entries}</div>'
+    workspace = shape != "long-page"
     source = (
         leaf_page(
             "a log in a workspace",
@@ -492,6 +495,10 @@ def test_a_step_up_goes_to_a_log_only_on_a_page_that_cannot_scroll(
             f"<h1>Deploy</h1>{log_markup}{BOUNDED_LOG_FILLER}",
         )
     )
+    if shape == "workspace-footer":
+        source = source.replace(
+            "</main>", "</main><footer><p>A site footer.</p></footer>"
+        )
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
     log = page.locator("#log")

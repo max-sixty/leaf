@@ -8,6 +8,7 @@ import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { sampleNotice } from "./sample-child.js";
 import { scrollBehavior } from "./motion.js";
 import {
+  SCROLL_SLACK,
   afterBrowserScroll,
   atScrollEnd,
   glideTo,
@@ -40,7 +41,7 @@ import {
 } from "./current-target.js";
 import { focused } from "./focus.js";
 import { pageSelection } from "./composing/capture.js";
-import { blockAt, closestAcross, inPage } from "./passages.js";
+import { blockAt, closestAcross, inPage, layoutBox } from "./passages.js";
 import { readingBlock } from "./reading-place.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
@@ -190,9 +191,11 @@ export function placeThreadEdge(thread, edge) {
 // goes first, since the shorter is soon spent, and then the first in reading order, so
 // the answer depends on the page rather than on which registered first.
 //
-// A step up chooses only on a page that doesn't scroll, as a workspace whose log opens
-// at its newest entry needs. On a page that scrolls, `k` at its top has nothing to read
-// above it, and a log in view it moved would stop following its newest entry.
+// A step up chooses only where the window holds all of `main` (`mainFits`), as a
+// workspace whose log opens at its newest entry needs: on a page that doesn't scroll, or
+// one that scrolls only by a header or footer beside `main`. Where `main` runs past the
+// window, `k` at the page's top has nothing to read above it, and a log in view it moved
+// would stop following its newest entry.
 //
 // The step names the region it chose, so a walk goes on from there, but the page stays
 // ahead of it in both directions until the user acts (`chosenReadingRegion`). The page
@@ -259,6 +262,11 @@ const regionForStep = (amount) => {
   }
   return most;
 };
+// Whether the window holds all of `main`, or of the page where it has none.
+const mainFits = () =>
+  (layoutBox() ?? pageScroller).getBoundingClientRect().height -
+    pageScroller.clientHeight <=
+  SCROLL_SLACK;
 /** @param {number} amount @param {"page" | "pixel"} unit */
 const stepReading = (amount, unit) => {
   const named = userReadingRegion();
@@ -266,7 +274,7 @@ const stepReading = (amount, unit) => {
   if (named && named.id !== chosen?.id)
     return stepAlong(stepStart(named), amount, unit);
   if (takesStep(pageScroller, amount)) return stepAlong(pageScroller, amount, unit);
-  const choosing = !chosen && (amount > 0 || atScrollEnd(pageScroller, 0));
+  const choosing = !chosen && (amount > 0 || mainFits());
   const region = chosen ?? (choosing ? regionForStep(amount) : undefined);
   if (region && !chosen) chooseReadingRegion(region);
   stepAlong(region ? region.body : pageScroller, amount, unit);

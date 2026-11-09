@@ -38,7 +38,6 @@ import os
 import re
 import shutil
 import subprocess
-import tempfile
 import time
 import weakref
 from collections.abc import Iterable
@@ -224,8 +223,11 @@ def stamp_page(
         page_dir / "index.html", page_dir / "page"
     )
     complete_args = [arg for widget in completes for arg in ("--completes", widget)]
-    with tempfile.TemporaryDirectory() as scratch:
-        candidate = Path(scratch)
+    # The candidate sits beside the page, in the test's own directory, and goes
+    # with the stamp.
+    candidate = page_dir.with_name(f"{page_dir.name}.candidate-{order}")
+    try:
+        candidate.mkdir()
         for name, data in previous.items():
             (candidate / name).parent.mkdir(parents=True, exist_ok=True)
             (candidate / name).write_bytes(data)
@@ -245,6 +247,8 @@ def stamp_page(
             ],
             catch_exceptions=False,
         )
+    finally:
+        shutil.rmtree(candidate, ignore_errors=True)
     assert result.exit_code == 0, result.output
     return json.loads(result.output)
 

@@ -88,8 +88,10 @@ PORTABLE = [
         "flowchart TD\n"
         "  accTitle: Checkout\n  accDescr: A cart reaches payment.\n"
         "  Cart([Cart]) --&gt; Pay{Paid?}\n</pre></lf-diagram>",
-        # Its named boxes.
-        'svg:has(g.pele-node[data-id="Cart"]):has(g.pele-node[data-id="Pay"])',
+        # Its named boxes, and its `accTitle` as its name with no `<title>`, which the
+        # browser would show as a tooltip over the whole drawing.
+        'svg[aria-label="Checkout"]:not(:has(> title))'
+        ':has(g.pele-node[data-id="Cart"]):has(g.pele-node[data-id="Pay"])',
         sized="natural",
     ),
     Portable(

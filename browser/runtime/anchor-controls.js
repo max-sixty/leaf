@@ -15,7 +15,7 @@
  * constructor.
  */
 import { nextRender } from "./rendering.js";
-import { holdFocus, layerOpened, onPressAway } from "./focus.js";
+import { holdFocus, onPressAway } from "./focus.js";
 import { fragmentId } from "./anchor-coordinate.js";
 import { sameAnchor } from "./anchor-coordinate.js";
 import { sectionLabel } from "./addressable-names.js";
@@ -113,17 +113,11 @@ export function createAnchorControls({
     paintKeys();
     if (!focus || !eventId) return;
     // The remove action draws on the next render; a newer input the user gave meanwhile
-    // keeps them where it put them. Placing them there is the disclosure opening, as a
-    // layer places them as it opens, so the remove shows no preview to take the Escape
-    // that folds it again (preview.js; focus.js, `layerOpened`).
+    // keeps them where it put them.
     const mayFocus = retainUserIntent();
     const remove = `reaction:${eventId}:remove`;
     nextRender(() =>
-      mayFocus.handoff(() => {
-        const control = record.margin?.control(remove, surface, true);
-        if (control) layerOpened(control);
-        record.margin?.focus(remove, "move", surface);
-      }),
+      mayFocus.handoff(() => record.margin?.focus(remove, "move", surface)),
     );
   }
 

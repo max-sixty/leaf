@@ -531,11 +531,11 @@ def test_a_finger_holding_a_thread_s_words_again_reads_it_again(browser, serve):
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, serve):
     """An age says how long ago, and its preview says when, in the reader's own zone:
-    a message's age to a resting pointer, and the message the keyboard stands on, in
-    its head where its age stands, or would where the message above has the same one,
-    which a screen reader hears as the message's description; the message's words say
-    no time to a pointer. The panel's ages are times too. No title stands beside any of
-    them."""
+    a message's age to a resting pointer, and the message a walk landed the keyboard
+    on to `K`, in its head where its age stands, or would where the message above has
+    the same one, which a screen reader hears as the message's description; the
+    message's words say no time to a pointer. The panel's ages are times too. No title
+    stands beside any of them."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     listed = append_carried_log_record(
@@ -580,13 +580,10 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     page.keyboard.press("m")
     question = page.locator(f'.lf-msg[data-lf-event="{asked}"]')
     expect(question).to_be_focused()
-    # The walk placed focus as it opened the thread, which previews nothing; once the
-    # user steps away, the walk landing there again in the open thread reads it.
+    # The walk's landing previews nothing; `K` reads the time where it landed.
     page.wait_for_timeout(300)
     expect(preview).to_be_hidden()
-    page.keyboard.press("Shift+Tab")
-    expect(question).not_to_be_focused()
-    page.keyboard.press("m")
+    page.keyboard.press("Shift+K")
     expect(question).to_be_focused()
     expect(preview).to_have_text("Sat 15 Aug 2026, 14:22 PT")
     assert "lf-preview" in question.evaluate(DESCRIBED)
@@ -2262,7 +2259,7 @@ def test_a_preview_put_away_stays_away_until_the_user_aims_again(
           const {focusDestination} = await import('/runtime/focus.js');
           document.getElementById('before').focus();
           queueMicrotask(() =>
-            focusDestination(document.getElementById('chart'), 'move'));
+            focusDestination(document.getElementById('chart'), 'step'));
         }"""
     )
     expect(tip).to_have_text("Point 2")
@@ -2574,11 +2571,13 @@ def test_a_preview_keeps_clear_only_of_the_controls_inside_a_widget_it_stands_in
     assert tip.locator("[data-lf-clamp], [data-lf-cut]").count() == 0
 
 
-def test_focus_a_command_places_in_a_surface_it_opens_shows_no_preview(browser, serve):
-    """`m` walks to the question waiting on the user and opens its card with focus in
-    it: the card placed that focus as it opened, so nothing previews until the user
-    moves on, as Tab inside the card does. Every element the walk focuses previews
-    here, so a preview the placement showed would show."""
+def test_a_walk_s_landing_previews_nothing_and_tab_reads_it(browser, serve):
+    """A preview answers aiming, not arriving. `m` walks to the question waiting on the
+    user, opening its card with focus in it, and walks there again once the card
+    stands: neither landing previews, since the place a command lands on is what the
+    user asked it for, and a preview would cover it. Tab, the keyboard's pointing,
+    reads what it reaches. Every element focus reaches previews here, so a preview
+    either landing showed would show."""
     url = serve(PANEL_PAGE)
     panel_comment(
         serve.page_dir,
@@ -2600,10 +2599,163 @@ def test_focus_a_command_places_in_a_surface_it_opens_shows_no_preview(browser, 
     page.keyboard.press("m")
     card = page.locator(".lf-margin-preview")
     expect(card).to_be_visible()
+    page.evaluate("() => { window.landed = document.activeElement; }")
     page.wait_for_timeout(300)
     expect(tip).to_be_hidden()
     page.keyboard.press("Tab")
     expect(tip).to_have_text("Placed here")
+    page.keyboard.press("m")
+    page.wait_for_function("() => document.activeElement === window.landed")
+    expect(card).to_be_visible()
+    page.wait_for_timeout(300)
+    expect(tip).to_be_hidden()
+
+
+def test_k_reads_a_landing_s_preview_inside_a_modal_dialog(browser, serve):
+    """A modal dialog makes the page's own keys inert, and `K` still reads the preview
+    where an arrow key's landing left the user in it, as it does on the page."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Modal rows",
+                '<dialog id="rows" aria-label="Rows"><button id="one">One</button>'
+                '<button id="two">Two</button></dialog>',
+            )
+        ),
+    )
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfWidgetApi();
+          for (const id of ['one', 'two'])
+            document.getElementById(id).lfPreview = () => ({name: `${id} detail`});
+          const rows = document.getElementById('rows');
+          rows.addEventListener('keydown', (event) => {
+            if (event.key !== 'ArrowDown') return;
+            event.preventDefault();
+            api.focusDestination(document.getElementById('two'), 'move');
+          });
+          rows.showModal();
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.keyboard.press("ArrowDown")
+    expect(page.locator("#two")).to_be_focused()
+    page.wait_for_timeout(300)
+    expect(tip).to_be_hidden()
+    page.keyboard.press("Shift+K")
+    expect(tip.locator(".lf-preview-word")).to_have_text("two detail")
+    expect(page.locator("#rows")).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_says_nothing_its_target_shows_whole(engine, request, serve):
+    """A preview says only what its target doesn't: a select its label names, however
+    long its list, a button whose label is shorter than its face and a row whose words
+    stand apart from its key preview nothing, nor does a status that declares its own
+    words while they stand whole, though the window has scrolled, nor a word its markup
+    splits. Cut short by its own box or the one around it, the status's words preview in
+    full, and a symbol's name still previews, as does a slider's whose label the user
+    can't see, a button's whose hidden notes run past a face, and one's that shows only
+    the start of its name."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Faces",
+                '<p><button id="before">Before</button></p>'
+                # Far enough down that reaching the rest scrolls the window, which
+                # clips nothing the user aims at.
+                '<div style="height: 150vh"></div>'
+                '<p><label>Speed <select id="speed"><option>1×</option>'
+                "<option>0.5×</option></select></label></p>"
+                # More options than a face holds, none of them saying "Country".
+                '<p><label>Country <select id="country">'
+                + "".join(f"<option>Region {n:02}</option>" for n in range(60))
+                + "</select></label></p>"
+                '<p><button id="send" aria-label="Send">Send reply</button></p>'
+                '<p><span id="status" tabindex="0">Queued for the agent</span></p>'
+                '<p><button id="undo" style="display: inline-grid;'
+                ' grid-auto-flow: column; gap: 1em"><span>Undo the comment</span>'
+                '<kbd aria-hidden="true">z</kbd></button></p>'
+                '<p><button id="undo-cut" style="display: inline-grid;'
+                " grid-auto-flow: column; gap: 1em; width: 6em; overflow: hidden;"
+                ' white-space: nowrap"><span>Undo the comment</span>'
+                '<kbd aria-hidden="true">z</kbd></button></p>'
+                '<p><button id="download" aria-label="Download">Down<b>load</b>'
+                "</button></p>"
+                '<p><button id="file" aria-label="Download file">Down<b>load</b>'
+                "</button></p>"
+                '<p><button id="contents" aria-label="Download">'
+                '<span style="display: contents">Download</span></button></p>'
+                '<p><span id="cut" tabindex="0" style="display: inline-block;'
+                " width: 5em; overflow: hidden; text-overflow: ellipsis;"
+                ' white-space: nowrap">Queued for the agent</span></p>'
+                '<p><button id="close" aria-label="Close the notes">×</button></p>'
+                '<p style="width: 5em; overflow: hidden; white-space: nowrap">'
+                '<span id="clipped" tabindex="0">Queued for the agent</span></p>'
+                '<p><label for="rate" hidden>Playback speed</label>'
+                '<input id="rate" type="range" aria-label="Playback speed"></p>'
+                '<p><label for="volume" style="position: absolute; width: 1px;'
+                " height: 1px; overflow: hidden; clip-path: inset(50%);"
+                ' white-space: nowrap">Volume</label>'
+                '<input id="volume" type="range"></p>'
+                '<p><label for="pace" style="visibility: hidden">Pace</label>'
+                '<input id="pace" type="range"></p>'
+                '<p><button id="remove" aria-label="Delete item">×<span hidden>'
+                + "a note "
+                * 60
+                + "</span></button></p>"
+                '<p><button id="purge" aria-label="Delete the selected records"'
+                ' style="width: 4.5em; overflow: hidden; white-space: nowrap">Delete'
+                " <span>the selected records</span></button></p>"
+                '<p><button id="invoice" style="width: 5em; overflow: hidden;'
+                ' white-space: nowrap">Invoice <span>123456789</span></button></p>',
+            )
+        ),
+    )
+    page.evaluate(
+        """() => {
+          for (const id of ['status', 'cut', 'clipped']) {
+            const el = document.getElementById(id);
+            el.lfPreview = () => ({name: el.textContent});
+          }
+          for (const id of ['undo', 'undo-cut'])
+            document.getElementById(id).lfPreview = () => ({});
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    for quiet in (
+        "#speed",
+        "#country",
+        "#send",
+        "#status",
+        "#undo",
+        "#download",
+        "#file",
+        "#contents",
+    ):
+        tab_onto(page.locator(quiet))
+        page.wait_for_timeout(300)
+        expect(tip).to_be_hidden()
+        page.locator(quiet).hover()
+        page.wait_for_timeout(400)
+        expect(tip).to_be_hidden()
+        page.mouse.move(0, 0)
+    for cut, says in (
+        ("#cut", "Queued for the agent"),
+        ("#close", "Close the notes"),
+        ("#clipped", "Queued for the agent"),
+        ("#rate", "Playback speed"),
+        ("#volume", "Volume"),
+        ("#pace", "Pace"),
+        ("#remove", "Delete item"),
+        ("#purge", "Delete the selected records"),
+        ("#invoice", "Invoice 123456789"),
+        ("#undo-cut", "Undo the comment"),
+    ):
+        tab_onto(page.locator(cut))
+        expect(tip.locator(".lf-preview-word")).to_have_text(says)
 
 
 def test_a_finger_s_hold_reads_and_its_release_presses_nothing(browser, serve):
@@ -3048,7 +3200,7 @@ def test_a_widget_s_new_aim_reads_again_whichever_child_holds_focus(
     }"""
     page.keyboard.press("Shift")
     page.evaluate(
-        "() => window.lfApi.focusDestination(document.getElementById('inner'), 'move')"
+        "() => window.lfApi.focusDestination(document.getElementById('inner'), 'step')"
     )
     expect(tip.locator(".lf-preview-word")).to_have_text("First item detail")
     page.evaluate(aim, "Second item detail")
@@ -3058,59 +3210,6 @@ def test_a_widget_s_new_aim_reads_again_whichever_child_holds_focus(
     page.evaluate(aim, "Third item detail")
     expect(tip).to_be_visible()
     expect(tip.locator(".lf-preview-word")).to_have_text("Third item detail")
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_focus_moved_into_a_dialog_already_open_previews(engine, request, serve):
-    """A move into a dialog that already stands is the user's, as one beside it is, so
-    the control it lands on previews; only a surface placing focus as it opens shows
-    none, as one a widget opens through `openLayer` does."""
-    page = open_page(
-        request.getfixturevalue(engine),
-        serve(
-            leaf_page(
-                "Open dialog",
-                '<button id="outside">Outside</button><div role="dialog" id="open"'
-                ' aria-label="Standing"><button id="inside">I</button></div>'
-                '<div role="dialog" id="opening" aria-label="Opening" hidden>'
-                '<button id="first">F</button></div>',
-            )
-        ),
-    )
-    page.evaluate(
-        """async () => {
-          const api = await window.__lfWidgetApi();
-          for (const id of ['outside', 'inside', 'first'])
-            document.getElementById(id).lfPreview = () => ({name: `${id} detail`});
-          // A key that moves the user to a place, as a command's walk does.
-          const to = {F9: 'outside', F10: 'inside'};
-          addEventListener('keydown', (event) => {
-            if (event.key === 'F8') {
-              // A widget opening its dialog, which places the user on its first control.
-              event.preventDefault();
-              const opening = document.getElementById('opening');
-              api.openLayer(opening);
-              opening.hidden = false;
-              api.focusDestination(document.getElementById('first'), 'move');
-              return;
-            }
-            if (!to[event.key]) return;
-            event.preventDefault();
-            api.focusDestination(document.getElementById(to[event.key]), 'move');
-          }, true);
-        }"""
-    )
-    tip = page.locator(PREVIEW)
-    page.keyboard.press("F9")
-    expect(tip.locator(".lf-preview-word")).to_have_text("outside detail")
-    page.keyboard.press("F10")
-    expect(tip.locator(".lf-preview-word")).to_have_text("inside detail")
-    page.keyboard.press("Escape")
-    expect(tip).to_be_hidden()
-    page.keyboard.press("F8")
-    expect(page.locator("#first")).to_be_focused()
-    page.wait_for_timeout(300)
-    expect(tip).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -4035,7 +4134,7 @@ def test_a_focus_preview_out_of_view_stands_once_its_target_comes_into_view(
     tip = page.locator(PREVIEW)
     page.keyboard.press("Shift")
     page.evaluate(
-        "() => window.lfApi.focusDestination(document.getElementById('late'), 'move')"
+        "() => window.lfApi.focusDestination(document.getElementById('late'), 'step')"
     )
     expect(page.locator("#late")).to_be_focused()
     page.evaluate(

@@ -2,6 +2,7 @@
 
 import io
 import re
+from collections import Counter
 
 import pytest
 from browser.threads import (
@@ -533,11 +534,18 @@ def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
                   && actions.bottom > head.top;
                 const x = Math.min(head.left + head.width * 0.7,
                   beside ? actions.left - 6 : Infinity);
+                // The words' row is read at its middle, beside the short sentence,
+                // clear of the message's foot while the card grows to hold it.
+                const rows = {head: head.top + 3, body: (body.top + body.bottom) / 2};
                 // The card's own edge on the same two rows, which says whether a frame
-                // drew the card there at all.
+                // drew the card there at all, and the reply field's ring below the
+                // message, which says whether it has grown to where it stands.
                 const edge = root.getBoundingClientRect().right - 1.5;
-                resolve({head: [x, head.top + 3], body: [x, body.bottom - 3],
-                  headEdge: [edge, head.top + 3], bodyEdge: [edge, body.bottom - 3]});
+                const field = root.querySelector('.lf-thread-reply .lf-compose-field')
+                  .getBoundingClientRect();
+                resolve({head: [x, rows.head], body: [x, rows.body],
+                  headEdge: [edge, rows.head], bodyEdge: [edge, rows.body],
+                  ring: [x, field.top - 1.5]});
               }, reject);
             });
             observer.observe(root, {subtree: true, childList: true});
@@ -552,27 +560,38 @@ def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
     ):
         send.click()
         points = page.evaluate("() => window.__sendFlash")
-    readings = []
+    captured = []
     for frame in frames:
         pixels = Image.open(io.BytesIO(frame["data"])).convert("RGB")
-        colours = {
-            name: rgb_pixel(pixels, tuple(round(coordinate) for coordinate in point))
-            for name, point in points.items()
-        }
-        # Headless Firefox's capture without the classic bars now and then hands over a
-        # frame with the page drawn across the card in a band, the card's edge gone
-        # there as well (main's own panel chrome shows it too). Such a frame says
-        # nothing about the message's two grounds, so it is read only where the
-        # card's edge stands the same on both rows.
-        drawn = (
-            max(
-                abs(a - b)
-                for a, b in zip(colours["headEdge"], colours["bodyEdge"], strict=True)
-            )
-            <= 6
+        captured.append(
+            {
+                name: rgb_pixel(
+                    pixels, tuple(round(coordinate) for coordinate in point)
+                )
+                for name, point in points.items()
+            }
         )
-        if drawn:
-            readings.append(colours)
+    settled = Counter(colours["ring"] for colours in captured).most_common(1)[0][0]
+
+    def near(a, b):
+        return max(abs(x - y) for x, y in zip(a, b, strict=True)) <= 6
+
+    # Headless Firefox's capture without the classic bars now and then hands over a
+    # frame with the page drawn across the card in a band (main's own panel chrome
+    # shows it too), which can cover the author's row and leave the card's edge, and
+    # the arrival's first frames show the card still growing, its reply field over the
+    # words. Such a frame says nothing about the message's two grounds, so it is read
+    # only where the card's edge stands the same on both rows, the reply field's ring
+    # stands where most frames show it, and the author's row shows a ground the
+    # message takes: its yellow, the card's paper, or a mix of the two.
+    readings = [
+        colours
+        for colours in captured
+        if near(colours["headEdge"], colours["bodyEdge"])
+        and near(colours["ring"], settled)
+        and colours["head"][0] > 245
+        and colours["head"][1] <= 251
+    ]
     # The light card fades from yellow (#fff8c5) to paper. Require an actual
     # sequence of intermediate colours: a discrete jump, or the constant .5
     # pending opacity blending yellow with paper, must not pass as a fade.

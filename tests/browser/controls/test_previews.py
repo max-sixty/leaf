@@ -2579,39 +2579,93 @@ def test_a_walk_s_landing_previews_nothing_and_tab_reads_it(browser, serve):
     expect(tip).to_be_hidden()
 
 
+def test_k_reads_a_landing_s_preview_inside_a_modal_dialog(browser, serve):
+    """A modal dialog makes the page's own keys inert, and `K` still reads the preview
+    where an arrow key's landing left the user in it, as it does on the page."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Modal rows",
+                '<dialog id="rows" aria-label="Rows"><button id="one">One</button>'
+                '<button id="two">Two</button></dialog>',
+            )
+        ),
+    )
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfWidgetApi();
+          for (const id of ['one', 'two'])
+            document.getElementById(id).lfPreview = () => ({name: `${id} detail`});
+          const rows = document.getElementById('rows');
+          rows.addEventListener('keydown', (event) => {
+            if (event.key !== 'ArrowDown') return;
+            event.preventDefault();
+            api.focusDestination(document.getElementById('two'), 'move');
+          });
+          rows.showModal();
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.keyboard.press("ArrowDown")
+    expect(page.locator("#two")).to_be_focused()
+    page.wait_for_timeout(300)
+    expect(tip).to_be_hidden()
+    page.keyboard.press("Shift+K")
+    expect(tip.locator(".lf-preview-word")).to_have_text("two detail")
+    expect(page.locator("#rows")).to_be_visible()
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_preview_says_nothing_its_target_shows_whole(engine, request, serve):
-    """A preview says only what its target doesn't: a select its label names and a
-    button whose label is shorter than its face preview nothing, nor does a status that
-    declares its own words while they stand whole. Cut short by its box, the status's
-    words preview in full, and a symbol's name still previews."""
+    """A preview says only what its target doesn't: a select its label names, a
+    button whose label is shorter than its face and a row whose words stand apart from
+    its key preview nothing, nor does a status that declares its own words while they
+    stand whole, though the window has scrolled. Cut short by its own box or the one
+    around it, the status's words preview in full, and a symbol's name still previews,
+    as does a slider's whose label the user can't see."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
             leaf_page(
                 "Faces",
                 '<p><button id="before">Before</button></p>'
+                # Far enough down that reaching the rest scrolls the window, which
+                # clips nothing the user aims at.
+                '<div style="height: 150vh"></div>'
                 '<p><label>Speed <select id="speed"><option>1×</option>'
                 "<option>0.5×</option></select></label></p>"
                 '<p><button id="send" aria-label="Send">Send reply</button></p>'
                 '<p><span id="status" tabindex="0">Queued for the agent</span></p>'
+                '<p><button id="undo" style="display: inline-grid;'
+                ' grid-auto-flow: column; gap: 1em"><span>Undo the comment</span>'
+                '<kbd aria-hidden="true">z</kbd></button></p>'
                 '<p><span id="cut" tabindex="0" style="display: inline-block;'
                 " width: 5em; overflow: hidden; text-overflow: ellipsis;"
                 ' white-space: nowrap">Queued for the agent</span></p>'
-                '<p><button id="close" aria-label="Close the notes">×</button></p>',
+                '<p><button id="close" aria-label="Close the notes">×</button></p>'
+                '<p style="width: 5em; overflow: hidden; white-space: nowrap">'
+                '<span id="clipped" tabindex="0">Queued for the agent</span></p>'
+                '<p><label for="rate" hidden>Playback speed</label>'
+                '<input id="rate" type="range" aria-label="Playback speed"></p>'
+                '<p><label for="volume" style="position: absolute; width: 1px;'
+                " height: 1px; overflow: hidden; clip-path: inset(50%);"
+                ' white-space: nowrap">Volume</label>'
+                '<input id="volume" type="range"></p>',
             )
         ),
     )
     page.evaluate(
         """() => {
-          for (const id of ['status', 'cut']) {
+          for (const id of ['status', 'cut', 'clipped']) {
             const el = document.getElementById(id);
             el.lfPreview = () => ({name: el.textContent});
           }
+          document.getElementById('undo').lfPreview = () => ({});
         }"""
     )
     tip = page.locator(PREVIEW)
-    for quiet in ("#speed", "#send", "#status"):
+    for quiet in ("#speed", "#send", "#status", "#undo"):
         tab_onto(page.locator(quiet))
         page.wait_for_timeout(300)
         expect(tip).to_be_hidden()
@@ -2619,10 +2673,15 @@ def test_a_preview_says_nothing_its_target_shows_whole(engine, request, serve):
         page.wait_for_timeout(400)
         expect(tip).to_be_hidden()
         page.mouse.move(0, 0)
-    tab_onto(page.locator("#cut"))
-    expect(tip.locator(".lf-preview-word")).to_have_text("Queued for the agent")
-    tab_onto(page.locator("#close"))
-    expect(tip.locator(".lf-preview-word")).to_have_text("Close the notes")
+    for cut, says in (
+        ("#cut", "Queued for the agent"),
+        ("#close", "Close the notes"),
+        ("#clipped", "Queued for the agent"),
+        ("#rate", "Playback speed"),
+        ("#volume", "Volume"),
+    ):
+        tab_onto(page.locator(cut))
+        expect(tip.locator(".lf-preview-word")).to_have_text(says)
 
 
 def test_a_finger_s_hold_reads_and_its_release_presses_nothing(browser, serve):

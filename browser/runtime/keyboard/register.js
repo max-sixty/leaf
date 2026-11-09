@@ -72,6 +72,9 @@ const STACK = [
   "draw mode",
   "design mode",
   PAGE,
+  // The preview where focus stands (preview.js), rooted at focus, so a modal dialog keeps
+  // it, and below the page's own commands everywhere else.
+  "preview here",
   // Outermost, so a page command still ranks ahead of the way out.
   RUNGS,
 ];
@@ -101,7 +104,6 @@ const PAGE_COMMANDS = [
   "thread.walk",
   "queue.walk",
   "change.walk",
-  "preview.show",
   "page.move",
   "scroll.move",
   "reading.align.top",

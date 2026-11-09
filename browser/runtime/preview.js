@@ -67,9 +67,11 @@
    - A link an author wrote into the page previews the place it names, and what that
      place holds (place-preview.js), since that is what pressing it opens.
    - Whatever supplies it, a reading says only what its target's face doesn't show
-     whole: a line the face shows uncut goes, and a reading left with only the face's
-     own words shows nothing (`beyondFace`), so a status declaring its words for where
-     its row cuts them previews only while the row does.
+     whole: a line the face shows uncut goes, as does a press whose key chip it draws,
+     and a reading left with only the face's own words shows nothing (`beyondFace`), so
+     a status declaring its words for where its row, or a box around it, cuts them
+     previews only while they're cut. Reading a face stops at a few lines (`FACE`), so a
+     preview over a long section costs what one over a button does.
 
    Nothing standing open (`aria-expanded="true"`) previews, since what pressing it opens
    is already in front of the user, and the search goes on outward from it, as it does
@@ -175,8 +177,8 @@
      (`return`). What the user asked a command for is the place it lands on, already in
      front of them, so a preview there would only cover what they came to read and take
      their next Escape. `K` (`preview.show`) reads the preview where focus stands
-     on demand, whatever put it there, as an editor's hover key does, so a landing's
-     preview stays one key away. A declaration
+     on demand, whatever put it there and in whatever layer, as an editor's hover key
+     does, so a landing's preview stays one key away. A declaration
      that stops being true, as a grip's once its card is grabbed, says so
      (`previewChanged`), which redraws a preview standing on focus and opens none.
    - A screen reader hears every preview shown on focus, whatever supplied it, as the
@@ -284,7 +286,7 @@ import {
 import { controlKeys } from "./keyboard/control-keys.js";
 import { advertisesKeys } from "./keyboard/bindings.js";
 import { focused, onCurrentLocation, typesText } from "./focus.js";
-import { pageCommand, pageScope } from "./keyboard/register.js";
+import { pageScope } from "./keyboard/register.js";
 import { notice } from "./notifications.js";
 import { offlineInteractive } from "./context.js";
 import { watchPresentation, whenDocumentPresented } from "./semantic-state.js";
@@ -547,31 +549,115 @@ const wordsOf = (text) =>
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
-// The words of the `<label>`s naming a form control, which stand beside it on the
-// page, less the control's own words where a label holds it, as a select's options.
-/** @param {Element} control */
-function labelWords(control) {
-  const labels = /** @type {{labels?: NodeListOf<HTMLLabelElement> | null}} */ (control)
-    .labels;
-  const words = [];
-  for (const label of labels ?? []) {
-    const walker = document.createTreeWalker(label, NodeFilter.SHOW_TEXT);
-    for (let node = walker.nextNode(); node; node = walker.nextNode())
-      if (!control.contains(node)) words.push(node.textContent ?? "");
-  }
-  return words.join(" ").replace(/\s+/g, " ").trim();
-}
-// What a control's face says: its visible words and its labels' beside it, or none
-// where it shows a symbol or a mark. A select shows the option chosen, not the rest.
-/** @param {Element} control */
-const faceWords = (control) =>
-  wordsOf(
-    `${labelWords(control)} ${
-      control instanceof HTMLSelectElement
-        ? (control.selectedOptions[0]?.textContent ?? "")
-        : (control.textContent ?? "")
-    }`,
+/** @param {Element} control @returns {HTMLLabelElement[]} */
+function labelsOf(control) {
+  const { labels } = /** @type {{labels?: NodeListOf<HTMLLabelElement> | null}} */ (
+    control
   );
+  return labels ? [...labels] : [];
+}
+// The text a screen reader reads from `root`'s content, whether or not it shows: each run
+// apart from the next, as a row's words stand apart from its key chip, less the runs
+// inside `skip` and those `aria-hidden` hides.
+/** @param {Element} root @param {Element | null} [skip] */
+function textOf(root, skip = null) {
+  const runs = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const hidden = node.parentElement?.closest('[aria-hidden="true"]');
+    if (!skip?.contains(node) && !(hidden && root.contains(hidden)))
+      runs.push(/** @type {Text} */ (node).data);
+  }
+  return runs.join(" ").replace(/\s+/g, " ").trim();
+}
+// The most a face holds, counting each run of text and each character of its words: a
+// control's, a mark's or a row's few lines. A target holding more is content its
+// preview stands over, whose words the face rule leaves unread, so reading a face costs
+// as little over a long section as over a button.
+const FACE = 300;
+// The words of `root` the user reads whole, less any inside `skip`: each run of its text
+// that renders and that no box around it, inside `root` or outside it, cuts short, as an
+// ellipsis, a clamp to a few lines, a visually hidden label or a panel scrolled past it
+// does. Null where `root` holds more text than a face.
+/** @param {Element} root @param {Element | null} [skip] @returns {string | null} */
+function shownWhole(root, skip = null) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  /** @type {Map<Element, Clip | null>} */
+  const clips = new Map();
+  const runs = [];
+  let room = FACE;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const text = /** @type {Text} */ (node);
+    room -= 1 + text.data.trim().length;
+    if (room < 0) return null;
+    if (skip?.contains(text) || !/\S/.test(text.data)) continue;
+    range.selectNodeContents(text);
+    const at = range.getBoundingClientRect();
+    if ((at.width || at.height) && !cut(at, text.parentElement, clips))
+      runs.push(text.data);
+  }
+  return wordsOf(runs.join(" "));
+}
+/** @typedef {{left: number, right: number, top: number, bottom: number}} Clip */
+// Whether a box from `box` outward clips `at`, which layout places whole, past the edge
+// where the box stops painting it. `clips` keeps each box's edges for the rest of a read.
+// The window isn't such a box: the user aimed at what it shows, and scrolling brings
+// back what it hides, so the climb stops below the document's body and root, which
+// Firefox reports as a box the window's height at the page's top.
+/** @param {DOMRect} at @param {Element | null} box @param {Map<Element, Clip | null>} clips */
+function cut(at, box, clips) {
+  for (
+    let el = box;
+    el && el !== document.body && el !== document.documentElement;
+    el = renderedParent(el)
+  ) {
+    let clip = clips.get(el);
+    if (clip === undefined) clips.set(el, (clip = clipOf(el)));
+    if (
+      clip &&
+      (at.left < clip.left - 0.5 ||
+        at.right > clip.right + 0.5 ||
+        at.top < clip.top - 0.5 ||
+        at.bottom > clip.bottom + 0.5)
+    )
+      return true;
+  }
+  return false;
+}
+// The edges past which `el` paints none of its content, or null where it paints all of
+// it: its padding box, on each axis its overflow clips.
+/** @param {Element} el @returns {Clip | null} */
+function clipOf(el) {
+  const { display, overflowX, overflowY } = getComputedStyle(el);
+  if (display === "inline" || display === "contents") return null;
+  const x = overflowX !== "visible";
+  const y = overflowY !== "visible";
+  if (!x && !y) return null;
+  const box = el.getBoundingClientRect();
+  const left = box.left + el.clientLeft;
+  const top = box.top + el.clientTop;
+  return {
+    left: x ? left : -Infinity,
+    right: x ? left + el.clientWidth : Infinity,
+    top: y ? top : -Infinity,
+    bottom: y ? top + el.clientHeight : Infinity,
+  };
+}
+// What a control's face says: the words it and its labels show whole, or none where it
+// shows a symbol or a mark; null where it holds more than a face. A select shows the
+// option chosen, not the rest.
+/** @param {Element} control @returns {string | null} */
+function faceWords(control) {
+  const own =
+    control instanceof HTMLSelectElement
+      ? wordsOf(control.selectedOptions[0]?.textContent ?? "")
+      : shownWhole(control);
+  if (own === null) return null;
+  return [...labelsOf(control).map((label) => shownWhole(label, control) ?? ""), own]
+    .filter(Boolean)
+    .join(" ");
+}
 // Whether a control's face says its name: its words stand in the name, or the name's in
 // its words, as a key chip or a count beside the name leaves it said. A count alone, as
 // a folded list's "1" beside its mark, names nothing.
@@ -592,9 +678,12 @@ function accessibleName(control) {
       .join(" ")
       .trim();
   return (
-    labelWords(control) ||
+    labelsOf(control)
+      .map((label) => textOf(label, control))
+      .join(" ")
+      .trim() ||
     titleOf(control) ||
-    (control.textContent ?? "").replace(/\s+/g, " ").trim()
+    textOf(control)
   );
 }
 
@@ -673,11 +762,13 @@ function readingOf(node, route) {
   if (declared === false) return false;
   const title = titleOf(node);
   if (!(node.matches(CONTROL) && !typesText(node)))
-    return beyondFace(lines(declared ?? null, { title }), node);
+    return beyondFace(lines(declared ?? null, { title }), node, () => shownWhole(node));
   const name = accessibleName(node);
   const face = faceWords(node);
   const keys = controlKeys(node);
-  const unsaid = Boolean(name) && !faceSays(face, name);
+  // A control holding more than a face, as a card a link wraps, is content that says
+  // what it holds, so its name doesn't preview over it.
+  const unsaid = Boolean(name) && face !== null && !faceSays(face, name);
   // A title the name already says, as a symbol's short word under its longer label,
   // adds no line.
   const titled =
@@ -687,41 +778,38 @@ function readingOf(node, route) {
   // Made of the control's own name and keys alone, it says what a screen reader already
   // hears from them.
   if (reading) reading.restates = !declared && !titled;
-  return beyondFace(reading, node);
+  return beyondFace(reading, node, () => face);
 }
-// What `reading` says beyond the words its target shows whole. A line the face shows
-// uncut goes, as a menu row's own words or a search count's; a name stays to head what
-// is left, and a reading left with nothing more shows nothing. A face that cuts its words
-// short, as a row ending in an ellipsis, leaves every line, since the preview is then
-// where the rest is read. A reading standing by a part of its target (`at`), as a
-// chart's point, is about that part, so the face's other words don't speak for it.
-/** @param {Reading | null} reading @param {Element} node @returns {Reading | null} */
-function beyondFace(reading, node) {
-  if (!reading || reading.at || reading.list || !(node instanceof HTMLElement))
-    return reading;
-  const face = ` ${wordsOf(node.innerText)} `;
+// What `reading` says beyond what `node` shows: `face`, the words it and its labels show
+// whole (`shownWhole`), and the key chips it draws. A line the face shows goes, as a menu
+// row's own words or a search count's, and so does a press whose chips it draws, as a
+// menu row's; a name stays to head what is left, and a reading left with nothing more
+// shows nothing. Words the face cuts short, as a row ending in an ellipsis, aren't among
+// those it shows, so a line holding them stays, since the preview is then where the rest
+// is read. A reading standing by a part of its target (`at`), as a chart's point, is
+// about that part, so the face's other words don't speak for it.
+/** @param {Reading | null} reading @param {Element} node @param {() => string | null} face
+ * @returns {Reading | null} */
+function beyondFace(reading, node, face) {
+  if (!reading || reading.at || reading.list) return reading;
+  const words = face();
+  if (!words) return reading;
   /** @param {Words | null} line */
   const shows = (line) =>
     typeof line === "string" &&
     /\p{L}/u.test(line) &&
-    face.includes(` ${wordsOf(line)} `);
+    ` ${words} `.includes(` ${wordsOf(line)} `);
+  const chips = new Set(
+    [...node.querySelectorAll("kbd.lf-key-badge")].flatMap((chip) =>
+      chip.checkVisibility() ? [chip.textContent?.trim()] : [],
+    ),
+  );
+  const keys = reading.keys.filter((steps) => !steps.every((step) => chips.has(step)));
   const detail = reading.detail.filter((line) => !shows(line));
-  const bare = !detail.length && !reading.keys.length && shows(reading.name);
-  if ((!bare && detail.length === reading.detail.length) || cutsWords(node))
-    return reading;
-  return bare ? null : { ...reading, detail };
-}
-// Whether `node`, or a box inside it, hides words past its edge, as an ellipsis or a
-// clamp to a few lines does.
-/** @param {Element} node */
-function cutsWords(node) {
-  for (const box of [node, ...node.querySelectorAll("*")]) {
-    if (box.scrollWidth <= box.clientWidth && box.scrollHeight <= box.clientHeight)
-      continue;
-    const { overflowX, overflowY } = getComputedStyle(box);
-    if (overflowX !== "visible" || overflowY !== "visible") return true;
-  }
-  return false;
+  if (!detail.length && !keys.length && shows(reading.name)) return null;
+  return detail.length === reading.detail.length && keys.length === reading.keys.length
+    ? reading
+    : { ...reading, detail, keys };
 }
 // The innermost node along `path` the search stops at, read as its preview shows.
 /** @param {Iterable<EventTarget>} path @returns {Element | null} */
@@ -1942,18 +2030,25 @@ export function mountPreviews(chrome) {
   // A command's landing shows no preview, so the keyboard reads the one where it stands
   // on demand, as an editor's hover key does (Neovim's `K`, VS Code's Show Hover):
   // whatever put focus there, it reads as Tab's would, and again after Escape put it
-  // away, since asking is aiming again.
-  pageCommand({
-    id: "preview.show",
-    keys: ["Shift+k"],
-    title: "Preview here",
-    touch: false,
-    run: () => {
-      const on = focused();
-      quiet = null;
-      if (!on || on === document.body || !show(on, "focus"))
-        notice("Nothing here has a preview");
-    },
+  // away, since asking is aiming again. The scope is rooted at focus, so a modal dialog
+  // whose rows an arrow key walks keeps it, and it has no title, so the reference lists
+  // it with the page's own keys.
+  pageScope("preview here", {
+    root: focused,
+    rows: [
+      {
+        id: "preview.show",
+        keys: ["Shift+k"],
+        title: "Preview here",
+        touch: false,
+        run: () => {
+          const on = focused();
+          quiet = null;
+          if (!on || on === document.body || !show(on, "focus"))
+            notice("Nothing here has a preview");
+        },
+      },
+    ],
   });
   document.addEventListener(
     "keydown",

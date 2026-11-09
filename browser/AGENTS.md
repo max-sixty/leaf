@@ -252,7 +252,7 @@ playable").
   `m`, an arrow key, a surface placing focus as it opens or handing it back as it
   closes. What the user asked a command for is the place it lands on, already in front
   of them, so a preview there would cover it and take their next Escape, and `K` reads
-  it there on demand, as an editor's hover key does; until 9
+  it there on demand, inside a modal dialog too, as an editor's hover key does; until 9
   November 2026 a walk's landing previewed, and `m`'s covered the words beside the
   margin entry it reached (check:
   `test_a_walk_s_landing_previews_nothing_and_tab_reads_it`). A preview the user put
@@ -263,11 +263,12 @@ playable").
 - **A preview says what its target doesn't.** It carries what the user can't read
   where they aim: where a link or mark leads and what waits there, the fact behind a
   compact face, as the clock time behind an age or the value under a chart's point, a
-  symbol's name, and the keys that press it. It never repeats words the target or what
-  stands beside it already shows, such as a control's label, a figure's caption or a
-  row's heading, and a figure, chart or drawing previews no name of its own, since its
-  content is what the user is looking at. What has nothing more to say previews
-  nothing. The browser's tooltip answers to the same rule: a `title` or an SVG
+  symbol's name, and the keys that press it. It never repeats what the target or what
+  stands beside it already shows whole, such as a control's label, a menu row's key
+  chip, a figure's caption or a row's heading, and a figure, chart or drawing previews no
+  name of its own, since its content is what the user is looking at. Words a box cuts
+  short, the target's or one around it, aren't shown, so their preview reads them whole.
+  What has nothing more to say previews nothing. The browser's tooltip answers to the same rule: a `title` or an SVG
   `<title>` shows over everything inside it, so Leaf names a drawing for a reader who
   can't see it with `aria-label`, as `lf-diagram` does with Mermaid's `accTitle` (until
   9 November 2026 every diagram showed its name as a tooltip; check: the `lf-diagram`

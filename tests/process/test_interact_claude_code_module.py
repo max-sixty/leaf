@@ -24,6 +24,7 @@ from interact_support import (
 
 from leaf import clerk as clerk_model
 from leaf import event_log as events_model
+from leaf import forks as forks_model
 from leaf import leases as leases_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
@@ -473,9 +474,12 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     asked = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Why 2 s?"}
     )
-    prompt = driven.forks.get(timeout=STATED_TIMEOUT)["forked"]
+    forked = driven.forks.get(timeout=STATED_TIMEOUT)
+    prompt = forked["forked"]
     assert prompt.startswith("<leaf-fork-reply>"), prompt
     assert "Why 2 s?" in prompt
+    # Claude Code thinks at the effort Leaf names, whatever the session's own.
+    assert forked["effort"] == forks_model.EFFORT
     told = wait_for(
         lambda: driven.debug.get(timeout=STATED_TIMEOUT),
         lambda line: line.startswith("Leaf: a fork took"),
@@ -495,5 +499,7 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     )
     [note] = read_interactions(page_dir, types=("fork_reply",))
     assert note["request"] == RESENT, note
+    # The note gives the effort the fork was sent at, not the session's in `request`.
+    assert note["effort"] == forks_model.EFFORT != RESENT["effort"], note
     assert driven.diagnostics.empty()
     driven.quit()

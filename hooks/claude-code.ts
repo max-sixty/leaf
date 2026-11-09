@@ -365,7 +365,7 @@ async function clerk($: EngineInterface, session: string) {
 }
 
 // The main thread's last request, which `$.model.fork` resends, at the effort the
-// fork names where it names one: the model and effort it named, how many messages it
+// fork names: the model and effort the main thread named, how many messages it
 // carried and the newest row stored as it went out
 // (`turn.step`, `sent`), with the newest row stored by the time of the fork (`row`),
 // each the transcript's id from `session.append`. The fork reads the conversation as
@@ -374,7 +374,7 @@ async function clerk($: EngineInterface, session: string) {
 // included (`notes/fork-replies.md`, under the fork probes, and a turn-end ask in the
 // claude-code journey on 2026-11-01 that quoted only that reply). Each fork hands
 // this to Leaf, so a fork's diagnostics say where a replay cuts the conversation.
-// The clerk's fork names its own effort, so it also hands Leaf the effort Claude Code
+// Each fork names its own effort, so it also hands Leaf the effort Claude Code
 // reports it sent (`effort`), which its diagnostics give as the fork's.
 let lastStep:
   | { model: string; effort?: string | number; messages: number; sent?: string }
@@ -399,10 +399,10 @@ const replied = new Set<string>();
 /** Fork the conversation for the agent's working line on a held thread's waiting
  * messages, which Leaf posts before it hands them to the session
  * (`src/leaf/forks.py`, whose header holds the states a thread moves through).
- * Leaf writes the prompt and checks again that the thread is held; the module
- * adds the calls the session is running, makes the fork, and
- * hands back the line, or the failure, which hands the thread over. Forks for
- * different threads run side by side, and the follower lists a held thread until
+ * Leaf writes the prompt, names the effort (`forks.EFFORT`) and checks again that
+ * the thread is held; the module adds the calls the session is running, makes the
+ * fork, and hands back the line, or the failure, which hands the thread over. Forks
+ * for different threads run side by side, and the follower lists a held thread until
  * its fork decides, so each is made once. Its outcomes go to the debug log and the
  * page's diagnostics, since the user meets the line only as the agent's. */
 function forkReply($: EngineInterface, session: string, held: Held) {
@@ -418,13 +418,19 @@ function forkReply($: EngineInterface, session: string, held: Held) {
       const started = await $.clock.now();
       let answered: Record<string, unknown>;
       try {
-        const reply = await $.model.fork({ prompt: asked.prompt });
-        answered = reply.isAnswered
-          ? { answer: reply.text, usage: reply.usage }
-          : {
-              failed: reply.reason,
-              ...("usage" in reply ? { usage: reply.usage } : {}),
-            };
+        const reply = await $.model.fork({
+          prompt: asked.prompt,
+          effort: asked.effort,
+        });
+        answered = {
+          ...(reply.isAnswered
+            ? { answer: reply.text, usage: reply.usage }
+            : {
+                failed: reply.reason,
+                ...("usage" in reply ? { usage: reply.usage } : {}),
+              }),
+          ...("effort" in reply ? { effort: reply.effort } : {}),
+        };
       } catch (error) {
         answered = { failed: String(error) };
       }

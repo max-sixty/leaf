@@ -794,11 +794,14 @@ export function misplacedBoxes() {
 // sizes without it: two short commands in a flex row stood 30px wide each, with no
 // room inside for a character of their lines. A block is squeezed when it scrolls with
 // less than four times the size of its words inside, about six characters of a
-// monospace face, whatever narrowed it. Every block such a holder left measured 0–34px
-// inside at 360–1920px, under 2.6 times its 13.5px font, whether nothing else in the
-// holder or a heading or a cell's column set its width. Every block that read well
-// measured 77px or more, from a `flex-grow` column beside a nav at 360px to the
-// column. Tracks too many for the window narrow a block below the floor too, such as
+// monospace face, whatever narrowed it. The floor reads the result, not the cause: a
+// holder with nothing else in it leaves the block no room, but one sized by a heading
+// or a cell's column leaves whatever that text's length and font give it, a few
+// characters or many. On the pages it was measured on, every block such a holder left
+// measured 0–34px inside at 360–1920px, under 2.6 times its 13.5px font, and every
+// block that read well measured 77px or more, from a `flex-grow` column beside a nav
+// at 360px to the column. Tracks too many for the window narrow a block below the
+// floor too, such as
 // four `minmax(0, 1fr)` tracks at 390px (44px inside), which giving the block a width
 // would not fix and stacking the tracks at that width does, so the words offer both. A
 // sheet that lifted the containment, to read the width the block's holder would give

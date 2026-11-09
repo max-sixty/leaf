@@ -3602,7 +3602,10 @@ def test_a_code_block_its_holder_sizes_without_is_reported_squeezed(
     table cell, which the finding marks, since the table's own remedy applies there. A
     width for the block can't help the tracks, so the words also offer letting them wrap
     or stack, and cite the `page-layout.md` sections that give `layout-tiles` and a grid
-    that stacks below a width.
+    that stacks below a width. A heading or a cell's label gives its holder the width
+    its font draws, so those holders' labels are three letters, which left their blocks
+    13–22px inside in every font tried, against the 54px floor; under "Before" a Linux
+    runner's serif left 59px.
 
     The controls scroll long lines and read well, so the reading leaves them alone: a
     block in the column, `flex: 1` halves, `1fr` halves, `flex: auto` halves under
@@ -3618,7 +3621,7 @@ def test_a_code_block_its_holder_sizes_without_is_reported_squeezed(
     long = "const result = await fetchEverything({ retries: 3, timeout: 5000 });"
     longer = long.replace("5000 }", "5000, signal: controller.signal }")
     tracks = "".join(
-        f'<pre id="four-{n}"><code>const {n} = await fetchEverything();</code></pre>'
+        f'<pre id="four-{n}"><code>const {n} = await fetchAll();</code></pre>'
         for n in "abcd"
     )
     source = leaf_page(
@@ -3626,21 +3629,21 @@ def test_a_code_block_its_holder_sizes_without_is_reported_squeezed(
         f"""<h1>Code blocks and their holders</h1>
 <div class="row"><pre id="start"><code>npm start</code></pre><pre id="serve"><code>uv run serve</code></pre></div>
 <div class="tracks"><pre id="tracked"><code>make release</code></pre><p>From the root.</p></div>
-<div class="row"><div><h2>Before</h2><pre id="labelled"><code>retry(times=5, backoff=2)</code></pre></div></div>
-<div class="fitted"><h2>Run it</h2><pre id="fitted"><code>uv run leaf-dev probe --state reading</code></pre></div>
+<div class="row"><div><h2>Run</h2><pre id="labelled"><code>retry(times=5, backoff=2)</code></pre></div></div>
+<div class="fitted"><h2>Run</h2><pre id="fitted"><code>uv run leaf-dev probe --state reading</code></pre></div>
 <div class="four">{tracks}</div>
-<table><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody>
+<table><thead><tr><th>Run</th><th>What it does</th></tr></thead><tbody>
 <tr><td><pre id="celled"><code>uv run pytest -k squeeze</code></pre></td><td>Runs the squeeze tests.</td></tr>
 </tbody></table>
 <pre id="column"><code>{long}</code></pre>
 <div class="row"><div class="half"><pre><code>{long}</code></pre></div><div class="half"><pre><code>{long}</code></pre></div></div>
 <div class="halves"><pre><code>{long}</code></pre><pre><code>{long}</code></pre></div>
 <div class="row"><div class="version"><h2>Before</h2><pre><code>{long}</code></pre></div><div class="version"><h2>After</h2><pre><code>{longer}</code></pre></div></div>
-<div class="row"><nav><ul><li>Overview of the setup</li><li>Install the tools</li></ul></nav><div class="main"><pre><code>{longer}</code></pre></div></div>
+<div class="row"><nav><ul><li>Setup</li><li>Install</li></ul></nav><div class="main"><pre><code>{longer}</code></pre></div></div>
 <div class="row"><pre style="width: 20ch"><code>{long}</code></pre><p>Beside it.</p></div>
 <div class="four stacks">{tracks.replace('id="four-', 'id="stacked-')}</div>
-<div class="row"><div><h3>Run this</h3><pre><code>ls
-cd ..         </code></pre></div></div>
+<pre style="box-sizing: content-box; inline-size: 6ch"><code>ls
+cd ..         </code></pre>
 <table id="spaced"><thead><tr><th>Step</th><th>What happened</th><th>Exit</th></tr>
 </thead><tbody><tr><td>test</td>
 <td>Ran the suite; three tests in the render gate failed on a fresh checkout.</td>

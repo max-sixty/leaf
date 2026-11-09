@@ -4044,6 +4044,29 @@ def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve
     ], f"a control the page put in the flow covered a paragraph unreported: {covered}"
 
 
+def test_the_covered_words_gate_reads_a_cover_between_the_first_and_last_words(
+    browser, serve
+):
+    """The reading compares each run of words only with the runs whose boxes overlap
+    it in height, found by going down the page rather than through the document, so
+    words the page writes far apart and draws in one place still meet: here its last
+    paragraph, lifted over its first."""
+    covering = LONG_PAGE.replace(
+        "</main>",
+        "<p id='over' style='position: relative'>Covering words</p>\n</main>",
+    )
+    page = open_page(browser, serve(covering))
+    page.evaluate("""() => {
+        const over = document.getElementById('over');
+        const first = document.getElementById('p0').getBoundingClientRect().top;
+        over.style.top = `${first - over.getBoundingClientRect().top}px`;
+    }""")
+    covered = render_checks_model.evaluate_probe(page, "coveredWords")
+    assert [
+        f for f in covered if {f["at"], f["under"]} == {"<p id=p0>", "<p id=over>"}
+    ], f"a cover between the page's first and last words went unreported: {covered}"
+
+
 # A sidenote beside a section of prose and tiles, the content a strip crushing the
 # column would push out of it.
 COMPARE_NOTE_PAGE = leaf_page(

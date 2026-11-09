@@ -17,7 +17,7 @@ import {
   scrollLimit,
   stopGlide,
 } from "./scrolling.js";
-import { landingBand, layoutWindow, shownRect } from "./geometry.js";
+import { landingBand, layoutWindow, shownBox, shownRect } from "./geometry.js";
 import { hasArea, intersect } from "./rect.js";
 import {
   chooseReadingRegion,
@@ -236,11 +236,11 @@ const takesStep = (box, amount) => {
   const goal = scrollGoal(box);
   return amount > 0 ? !atScrollEnd(box, goal) : goal > 0;
 };
-// A box's area within `view`, in whole pixels as the ranking counts it, or 0 where
-// none of it is there.
-/** @param {Element} box @param {import("./rect.js").Box} view */
-const areaWithin = (box, view) => {
-  const within = intersect(box.getBoundingClientRect(), view);
+// The area of the box an element shows as (`shownBox`, the box `shownRect` clips) within
+// `view`, in whole pixels as the ranking counts it, or 0 where none of it is there.
+/** @param {Element} element @param {import("./rect.js").Box} view */
+const areaWithin = (element, view) => {
+  const within = intersect(shownBox(element), view);
   return hasArea(within)
     ? Math.round(within.right - within.left) * Math.round(within.bottom - within.top)
     : 0;

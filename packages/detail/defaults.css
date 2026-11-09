@@ -23,7 +23,9 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
   visibility: hidden;
   white-space: nowrap;
   font: var(--font-choice);
-  padding-inline: calc(3 * (10px + 1px) + 2px + 1px + var(--sp-1));
+  padding-inline: calc(
+    3 * (var(--wa-form-control-padding-inline) + 1px) + 2px + 1px + var(--sp-1)
+  );
 }
 .lf-dial-depths {
   display: block;
@@ -31,9 +33,11 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
 }
 
 /* A block Skim folds takes no room. Until-found keeps it findable but keeps its
-   margins, padding and borders, which the page's own rules set and this state must
-   override. */
+   size, margins, padding and borders, which the page's or its package's own rules set
+   (a diagram reserves its drawing's height) and this state must override. */
 [data-lf-dial-folded][hidden="until-found"] {
+  block-size: 0 !important;
+  min-block-size: 0 !important;
   margin-block: 0 !important;
   padding-block: 0 !important;
   border-block-width: 0 !important;

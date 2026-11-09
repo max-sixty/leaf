@@ -50,7 +50,7 @@ more than the presence of a particular widget.
 Both Leaf document authors retired the user's Wednesday capacity request to Mei
 Tanaka's team after recording Redis as the store choice. Whether that assessment
 still matters for the unselected alternative is ambiguous; retiring it is not itself
-proof of an error. The On me reference (`authoring-on-me.md`) now requires explicit accounting:
+proof of an error. The On Me reference (`authoring-on-me.md`) now requires explicit accounting:
 keep an unanswered request open or explain why changed circumstances make it
 unnecessary. An independent decision does not silently answer or retire it.
 
@@ -129,7 +129,7 @@ the checks:
 | Other author layout: a chart annotation cut off at the phone's edge (2), labels too faint, a chart tooltip reading "UTC 935", a phone table dropping a column, a note's table clipped, headline metrics three screens down (2), two footer spans run together | author                         | 9 (7)           | 0                 | 0                  | 1 reported and changed, not enough |
 | A playground followed by a note draws its instruction over the note at 900×700                                                                                                                                                                                | `lf-ask` (fixed, #3328)        | 2 (2)           | 0                 | 0                  | none reported                      |
 | A playground's stage gets 190–280px at 900×700, under its presets and instruction                                                                                                                                                                             | `lf-playground` in a workspace | 4 (4)           | 0                 | 0                  | none reported                      |
-| The tally says "1 of 8 to answer" while its Next on me is disabled                                                                                                                                                                                            | `lf-tally`                     | 2 (2)           | 0                 | 0                  | none reported                      |
+| The tally says "1 of 8 to answer" while its Next On Me is disabled                                                                                                                                                                                            | `lf-tally`                     | 2 (2)           | 0                 | 0                  | none reported                      |
 | An open thread card covers the text near its passage at 900px and on a phone                                                                                                                                                                                  | thread chrome                  | 14 (14)         | 0                 | 0                  | none reported                      |
 | A thread's pin covers words at a line's end on a phone                                                                                                                                                                                                        | thread chrome                  | 5 (5)           | 0                 | 0                  | none reported                      |
 | The inline thread header's pencil overlaps "Waiting for pickup" on a phone                                                                                                                                                                                    | thread chrome                  | 1 (1)           | 0                 | 0                  | none reported                      |
@@ -290,8 +290,9 @@ and the follow-on brief from Codex session `01a13358-0141-70f0-8bb4-a8defb75b07e
 (line 13). The original nine-pair Claude report survives at
 `~/.local/state/leaf/pages/eval-plain-html/`, with its raw runs at
 `~/.tmp/leaf.authoring-vs-plain-html/eval/`; those are distinct from the recovered
-twelve-author Codex comparison above. The continuing brief is
-[issue #4017](https://github.com/max-sixty/leaf/issues/4017).
+twelve-author Codex comparison above. The brief written then is
+[issue #4017](https://github.com/max-sixty/leaf/issues/4017), closed in favor of
+`TODO.md`'s first challenge.
 
 ## Widgets plain page check doesn't run, 2026-10-24
 
@@ -780,9 +781,13 @@ revision. Every workspace dashboard then drew a judge defect at 900×600: one
 author's "Log and checks" pane was 224×173px and held 6.5 of its own heights,
 while at 1600×1000 the same page's rollout pane was 65% empty. The 900×600
 defects on dashboards that stayed sidebar pages were about the write-up's width or
-what the arrival view left out, not cramped panes. This is the likeliest next
-target ([#4098](https://github.com/max-sixty/leaf/issues/4098)), and it needs its
-own before/after.
+what the arrival view left out, not cramped panes. On 2026-11-05 this no longer
+reproduced: 0 of 10 `dashboard/write-up` authors on main, on both harnesses, made a
+workspace after the preference, and neither did 4 with the 24 October bullet restored
+nor 4 with `skills/leaf` as of f00911ed1, so a runtime change rather than the text
+likely removed it ([#4098](https://github.com/max-sixty/leaf/issues/4098)). Since
+#5268, `--viewport desktop` opens 1280×800, so the commands above need
+`--viewport large` to reach these windows again.
 
 ### The cold dashboard
 

@@ -555,8 +555,11 @@ containing user text.
 
 The outbound model handler adds `model_request_started`, `model_response_headers`,
 `model_response_first_byte`, `model_response_first_output`, and
-`model_response_completed` or `model_request_failed`, each with Codex's thread and turn
-ids, a per-request id, status, and byte count. The hosted Codex provider uses HTTP
+`model_response_completed`, `model_response_cancelled` or `model_request_failed`, each
+with Codex's thread and turn ids, a per-request id, status, and byte count. A body Codex
+cancels, as when the container ends a turn whose stream went silent, logs
+`model_response_cancelled` with `idleMs`, the time since its last chunk, which tells a
+stream still sending keepalives from one that stopped. The hosted Codex provider uses HTTP
 directly (`codex-config.toml`).
 
 When a hosted turn cannot answer, the user's update gets a failure receipt: a reply
@@ -588,8 +591,11 @@ stopped. A write or a missing saved response starts Python, which restores the
 canonical page record before accepting requests. `leaf_website.storage` publishes
 canonical files and matching Python-produced responses atomically before a write
 is acknowledged; a failed publication fails the request and permits an idempotent
-retry. File modification dates survive restore, including the publication date of
-an unstamped revision. A release selects fresh demo records, while container
+retry. The Durable Object serves each saved response with the headers Python gave it,
+so the browser caches it as it would the live answer, and Back restores a page the
+visitor has acted on from the back/forward cache, as it does a locally served page
+([browser support](../notes/browser-support.md), "Page cache"). File modification
+dates survive restore, including the publication date of an unstamped revision. A release selects fresh demo records, while container
 replacement preserves the current release's records. `docs/website.html`, **Private sessions**, owns the
 storage and identity contract.
 

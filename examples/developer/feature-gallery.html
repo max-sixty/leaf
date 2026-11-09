@@ -63,10 +63,6 @@
         max-width: 30rem;
       }
 
-      #bg-panel-sample .lf-sample-frame {
-        min-height: 40rem;
-      }
-
       #bg-metrics {
         margin-block: var(--sp-4);
       }
@@ -388,12 +384,12 @@
           <section id="bg-core-surfaces" class="layout-flow">
             <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
             <h2>
-              <strong>On me</strong
+              <strong>On Me</strong
               ><span class="bg-feature-detail">: decisions and answers</span>
             </h2>
             <p id="bg-core-surfaces-guide">
               An <code>lf-ask</code> puts a heading and context around the choice below.
-              <strong>On me</strong> lists everything waiting on you: open obligations,
+              <strong>On Me</strong> lists everything waiting on you: open obligations,
               a question in a thread among them (such as the gallery thread about a
               pasted image), and updates whose reply failed and need sending again. Each
               is answered where it asks: a widget's own controls, or a reply in its
@@ -407,14 +403,14 @@
                 with reduced motion, there is no glide or highlight.
               </li>
               <li>
-                Look at Leaf's panel at the window's foot: the <strong>On me</strong>
+                Look at Leaf's panel at the window's foot: the <strong>On Me</strong>
                 mark beside Threads counts what is on you.
               </li>
               <li>
                 Press it, or <kbd>g</kbd> then <kbd>Shift+M</kbd>: the On view opens
-                above the panel's row on On me, with a tab for the agent's list, such as
+                above the panel's row on On Me, with a tab for the agent's list, such as
                 <strong>On Claude</strong>, each tab counting its list. What left each
-                list stands under it as Done: answered obligations under On me, sent
+                list stands under it as Done: answered obligations under On Me, sent
                 replies and ended to-dos under the agent's. Press Enter on a row: it
                 goes where <kbd>m</kbd> would.
               </li>
@@ -518,6 +514,44 @@
               >, then use browser Back. The viewport and focus return to this link;
               press <kbd>c</kbd> to comment on the link. Forward returns to the sample.
             </p>
+          </section>
+
+          <section id="bg-link-previews" class="layout-flow">
+            <h2>
+              <strong>Links into the page</strong
+              ><span class="bg-feature-detail">: a preview of where each points</span>
+            </h2>
+            <p id="bg-link-previews-guide">
+              Rest the pointer on a link here, Tab to it, or hold a finger on it: a
+              preview stands beside it with what it points at, and the page stays where
+              it is. A press, Enter or a tap still follows the link; letting go of a
+              held finger leaves the preview standing.
+              <a id="bg-link-stove" href="#bg-board-stove">The stove decision</a>
+              shows its answer and
+              <a id="bg-link-flask" href="#bg-board-flask">the flask question</a> its
+              options waiting on you,
+              <a id="bg-link-meeting" href="#bg-link-settled-ask">the trailhead</a>,
+              settled when the page was written, its options with the pick checked;
+              <a id="bg-link-board" href="#bg-board-plan">the packing board</a> lists
+              its columns,
+              <a id="bg-link-table" href="#bg-margin-layer-table">the session table</a>
+              its first rows and the thread about it,
+              <a id="bg-link-steps" href="#bg-core-surfaces-steps">the On Me steps</a>
+              their first items,
+              <a id="bg-link-code" href="#bg-javascript-code">the code sample</a> its
+              first lines, and
+              <a id="bg-link-image" href="#bg-image-preview">the pasted screenshot</a>
+              its picture.
+              <a id="bg-link-site" href="https://leaf.page/">Leaf's site</a>
+              is another document, so it keeps only the browser's status bar.
+            </p>
+            <lf-ask id="bg-link-settled-ask">
+              <h3>Which trailhead does the sample walk start from?</h3>
+              <lf-options id="bg-link-settled" choose settled>
+                <lf-option id="bg-link-settled-north">The north car park</lf-option>
+                <lf-option id="bg-link-settled-south" chosen>The south gate</lf-option>
+              </lf-options>
+            </lf-ask>
           </section>
 
           <section id="bg-changing-text" class="layout-flow">
@@ -1098,7 +1132,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Open threads
               </button>
               <button type="button" class="button" data-view="you" aria-pressed="false">
-                On me
+                On Me
               </button>
               <button
                 type="button"
@@ -1148,7 +1182,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               cue encloses the label, while pointer selection keeps the native radio
               mark. Text-entry fields retain their focus cue.
             </p>
-            <lf-sample id="bg-panel-sample" label="workshop threads">
+            <lf-sample id="bg-panel-sample" label="workshop threads" window>
               <template
                 id="bg-panel-sample-page"
                 data-sample
@@ -1387,8 +1421,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <section id="bg-message-obligations" class="layout-flow">
               <h3>A message waiting on me</h3>
               <p>
-                Open Full view, then On me, and reply to the environment question: the
-                question leaves On me. Its entry opens the page thread. Reset restores
+                Open Full view, then On Me, and reply to the environment question: the
+                question leaves On Me. Its entry opens the page thread. Reset restores
                 the question.
               </p>
               <lf-sample
@@ -1827,7 +1861,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               size it was drawn at, and stand apart, so no drawing runs into the next
               option's title.
             </p>
-            <lf-ask id="bg-pictured-ask" data-width="wide">
+            <lf-ask id="bg-pictured-ask">
               <h3>Should the sample queue group its tickets by owner?</h3>
               <lf-options id="bg-pictured-choice" choose data-width="wide">
                 <lf-option id="bg-pictured-group">
@@ -1891,7 +1925,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Walk the list with the up and down arrows: they pass the headings by.
               </li>
               <li>
-                Press Next on me in the tally: it opens the first obligation, whose row
+                Press Next On Me in the tally: it opens the first obligation, whose row
                 carries an open mark.
               </li>
               <li>
@@ -2446,13 +2480,13 @@ gallery/
               </div>
               <div id="bg-compare" class="layout-tiles">
                 <section id="bg-variant-paper" class="panel">
-                  <small id="bg-chip-power" class="tag">power: none</small
-                  ><small class="tag ok">weight: low</small>
+                  <small id="bg-chip-power" class="tag">power: none</small>
+                  <small class="tag ok">weight: low</small>
                   <strong>Paper map</strong> Easy to annotate and fold.
                 </section>
                 <section id="bg-variant-screen" class="panel">
-                  <small class="tag">power: daily</small
-                  ><small class="tag warn">weight: medium</small>
+                  <small class="tag">power: daily</small>
+                  <small class="tag warn">weight: medium</small>
                   <strong>Tablet map</strong> Searchable and backlit.
                 </section>
               </div>
@@ -3142,7 +3176,8 @@ gallery/
               and above its footer. The window below is such a page. Open its command
               trace: the evidence scrolls inside its pane, and the page and the decision
               under the follow-ups stay where they are. In a window too small to hold
-              the panes, such as a phone's, they stack and the page scrolls.
+              the panes, each takes its content's height and the page scrolls, and on a
+              phone they stack.
             </p>
             <lf-sample id="bg-layout-sample" label="workspace" window data-width="wide">
               <template
@@ -3151,23 +3186,29 @@ gallery/
                 class="layout-workspace density-working"
               >
                 <style>
+                  /* The changes take the left column, and the evidence and the
+                     follow-ups share the right, stacked below 720px wide. */
                   #bg-layout-regions {
                     display: grid;
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
                   }
 
-                  /* While the Layout holds the workspace to the window
-                     (`--lf-full-height`), the changes take the left column and the
-                     evidence and follow-ups share the right, the follow-ups taking
-                     more for the decision in their footer. In a window too small to
-                     hold them, the panes stack in the order they are written. */
+                  #bg-layout-list {
+                    grid-row: span 2;
+                  }
+
+                  @media (width < 720px) {
+                    #bg-layout-regions {
+                      grid-template-columns: minmax(0, 1fr);
+                    }
+                  }
+
+                  /* While the Layout holds the workspace to the window, the
+                     follow-ups take more of its height for the decision in their
+                     footer. Flowing, each row keeps its content's height. */
                   @container style(--lf-full-height: 1) {
                     #bg-layout-regions {
-                      grid-template-columns: repeat(2, minmax(0, 1fr));
                       grid-template-rows: minmax(0, 2fr) minmax(0, 3fr);
-                    }
-
-                    #bg-layout-list {
-                      grid-row: span 2;
                     }
                   }
                 </style>

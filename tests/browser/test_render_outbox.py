@@ -61,6 +61,7 @@ from render_harness import (
     pane_scroll_behavior,
     panel_control,
     panel_settled,
+    preview_parts,
     primed,
     refuse,
     reported_browser_errors,
@@ -311,7 +312,7 @@ def test_z_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):
     expect(row.locator(".lf-fp-label")).to_have_text("Undo: resolved “Rollout safety”")
     expect(row.locator(".lf-fp-value")).to_have_text("21d ago")
     resolved = "resolved “Rollout safety” · 21d ago"
-    expect(row).to_have_attribute("title", f"Undo: {resolved}")
+    assert f"Undo: {resolved}" in preview_parts(row)
     # The thread is out of view, so the first press shows it (Show, then take).
     row.click()
     expect(page.locator(".lf-live")).to_have_text(f"Press again to undo: {resolved}")
@@ -331,9 +332,9 @@ def test_z_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):
         },
     )
     told(page)
-    expect(panel_control(page, "command:history.undo")).to_have_attribute(
-        "title",
-        "Undo: chose “Keep the mounts” in “Should we keep the mounts?” · just now",
+    assert (
+        "Undo: chose “Keep the mounts” in “Should we keep the mounts?” · just now"
+        in preview_parts(panel_control(page, "command:history.undo"))
     )
 
 
@@ -655,7 +656,9 @@ def test_the_undo_rows_age_follows_the_clock_while_the_page_stays_open(browser, 
     # A paused clock fires no later timer, so only that tick can move the age.
     page.clock.pause_at(datetime.now(UTC) + timedelta(minutes=5))
     expect(row.locator(".lf-fp-value")).to_have_text("5m ago")
-    expect(row).to_have_attribute("title", re.compile(r" · 5m ago$"))
+    # The pointer's dwell is a timer the paused clock holds, so the clock runs again.
+    page.clock.resume()
+    assert preview_parts(row)[-1].endswith(" · 5m ago")
 
 
 def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
@@ -1285,8 +1288,16 @@ def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
         page.locator("#card-heater .lf-grip").focus()
-        for key in ["Enter", "ArrowRight", "Enter"]:
+        for key in ["Enter", "ArrowRight"]:
             page.keyboard.press(key)
+        # The drop lands while the card still slides from where it stood, outside the
+        # board that shrank under it: a slide held paused carries the user nowhere
+        # (user-place.js, `carried`), so it runs, too slowly to end before the refusal.
+        page.evaluate(
+            "() => __lfHeld.forEach(motion => {"
+            " motion.playbackRate = 1e-6; motion.play(); })"
+        )
+        page.keyboard.press("Enter")
     holding(page, held, 1, "the refused card move")
     attempt = held[0].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):

@@ -332,7 +332,7 @@ A section left out reads as not assessed. Where you assessed one and found nothi
 keep its heading and say so with the reason, such as “No code changed; this campaign
 only graded saved outputs again.” A diagram reserves no height before it draws, so
 the content below it moves when it does. Set its `data-height` to the drawing's height
-in pixels, read from the drawn diagram in a browser, since no check prints it. The
+in pixels, which `leaf page check --render PAGE` reports wherever the two differ. The
 value stays the diagram's minimum height, so a larger one leaves blank room under the
 drawing.
 

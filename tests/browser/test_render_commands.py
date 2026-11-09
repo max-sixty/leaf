@@ -124,11 +124,12 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
     assert_source_words()
     expect(shot).to_have_attribute("data-lf-shot-mode", "flip")
     assert_source_words()
+    # The classic track is on: its stable gutter takes both edges.
     assert (
         shot.locator(".lf-shotstage").evaluate(
             "node => node.offsetWidth - node.clientWidth"
         )
-        == 15
+        == 2 * 15
     )
     toolbar = shot.locator(".lf-shot-toolbar")
     toolbar.scroll_into_view_if_needed()
@@ -258,7 +259,7 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         const r = element.getBoundingClientRect();
         return {x: r.x, y: r.y + scrollY, width: r.width, height: r.height};
       };
-      return {toolbar: box(node.querySelector('.lf-shot-toolbar')),
+      return {
         controls: [...node.querySelectorAll(
           '.lf-shot-views wa-radio, .lf-shot-tools > button'
         )].map(box), stageTop: box(node.querySelector('.lf-shotstage')).y};
@@ -293,6 +294,16 @@ def test_shot_controls_have_disjoint_targets_and_labels_stay_passive(
         page.set_viewport_size({"width": width, "height": height})
         expect(shot).to_have_attribute("data-lf-shot-layout", layout)
         assert_source_words()
+    # Slider's single frame fits the screen too, so the reader sees all of it while
+    # sliding.
+    page.set_viewport_size({"width": 1000, "height": 300})
+    shot.get_by_role("radio", name="Slider", exact=True).click()
+    toolbar.scroll_into_view_if_needed()
+    shown = shot.evaluate("""node => {
+      const top = node.querySelector('.lf-shot-toolbar').getBoundingClientRect().top;
+      return node.querySelector('.lf-shotstage').getBoundingClientRect().bottom - top;
+    }""")
+    assert shown <= 300 + 1
 
 
 @pytest.mark.parametrize("touch", [False, True])
@@ -835,6 +846,57 @@ def test_a_shot_owns_cropped_inspection_and_preserves_choices_when_metadata_chan
     ).to_contain_text("Previous")
 
 
+def test_a_shot_narrower_than_its_box_keeps_its_labels_on_its_frames(
+    scrollbar_browser, serve
+):
+    """A capture narrower than the shot's box stands centred in it, so the source labels
+    stand on the frames' edges in each view rather than on the box's, hundreds of
+    pixels from what they name, and the tools hold the axis as the frames change. A
+    classic scrollbar's gutter, as on Linux and Windows, moves neither."""
+    data = {
+        "before": solid_png(600, 300, (210, 220, 235)),
+        "after": solid_png(600, 300, (235, 215, 205)),
+    }
+    sources = {
+        state: f"/media/{hashlib.sha256(value).hexdigest()[:16]}.png"
+        for state, value in data.items()
+    }
+    source = leaf_page(
+        "Narrow pair",
+        f"""<h1>Narrow pair</h1><lf-shot id="narrow" data-width="available" alt="a narrow pair"
+        before="{sources["before"]}" after="{sources["after"]}"></lf-shot>""",
+    )
+    page = open_page(
+        scrollbar_browser,
+        serve(source, media={sources[state]: value for state, value in data.items()}),
+        init_script="""(() => {
+          const sheet = new CSSStyleSheet();
+          sheet.replaceSync('.lf-shotstage::-webkit-scrollbar { width: 15px; height: 15px; }');
+          document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+        })()""",
+    )
+    resized(page, 1600, 900)
+    shot = page.locator("#narrow")
+    tools = shot.locator(".lf-shot-actions")
+    captions = shot.locator(".lf-shot-toolbar .lf-shotcap")
+    held = None
+    for view, width in (("Slider", 602), ("Pair", 2 * 602 + 8), ("Slider", 602)):
+        shot.get_by_role("radio", name=view, exact=True).click()
+        frames = [
+            frame.bounding_box()
+            for frame in shot.locator(".lf-shotframe").all()
+            if frame.is_visible()
+        ]
+        left = min(frame["x"] for frame in frames)
+        right = max(frame["x"] + frame["width"] for frame in frames)
+        assert right - left == pytest.approx(width, abs=1), (view, frames)
+        before, after = [caption.bounding_box() for caption in captions.all()]
+        assert before["x"] == pytest.approx(left, abs=1), (view, before, frames)
+        assert after["x"] + after["width"] == pytest.approx(right, abs=1), (view, after)
+        held = held or tools.bounding_box()
+        assert tools.bounding_box() == held, view
+
+
 def test_a_shot_fits_both_wide_captures_and_retains_actual_scale_across_views(
     browser, serve
 ):
@@ -1160,47 +1222,6 @@ def stage_reach_cases(page):
     )
 
 
-CONTENTS_MAP_PAGE = leaf_page(
-    "Contents map",
-    """
-<aside id="contents-sidebar"><div class="layout-track"><lf-toc id="contents"></lf-toc></div></aside>
-<div class="layout-column"><h1 id="t">Contents map</h1>
-<h2 id="first">First</h2><p>The first section's words.</p>
-<h2 id="second">Second</h2><p>The second section's words.</p></div>
-""",
-    layout="sidebar",
-)
-
-
-def test_the_gate_passes_a_contents_map_resting_as_its_spine(browser, serve):
-    """A contents map written as page-authoring.md's "Contents navigation" shows rests
-    in a wide window's margin as a 24px spine whose labels reveal over the page. Held to
-    the width floor of a widget that reserves a region, that spine failed the render gate
-    on every such page. An overlay at rest is held to the height floor alone, so the
-    page passes; the same map at the same width in the flow still fails, so what passes
-    it is the resting posture and not a floor gone missing."""
-    page = open_page(browser, serve(CONTENTS_MAP_PAGE))
-    resized(page, 1200, 900)
-    width = page.locator("lf-toc").evaluate(
-        "el => Math.round(el.getBoundingClientRect().width)"
-    )
-    assert width < 40, (
-        f"the map is {width}px, so it clears the floor and proves nothing"
-    )
-    assert (
-        render_checks_model.evaluate_probe(page, "tinyBoxes", page_registry(page)) == []
-    )
-
-    page.add_style_tag(
-        content="lf-toc { position: static !important; pointer-events: auto !important; }"
-    )
-    flowed = render_checks_model.evaluate_probe(page, "tinyBoxes", page_registry(page))
-    page.close()
-    assert [box for box in flowed if box["tag"] == "lf-toc"], (
-        "a map in the flow at its spine's width reports nothing, so the floor is gone"
-    )
-
-
 FILM_DECLARATION = {
     tag: {
         "description": f"A <{tag}> page widget.",
@@ -1321,6 +1342,38 @@ def test_reduced_motion_is_the_page_s_to_answer(browser, serve):
     found = render_checks_model.evaluate_probe(page, "unreducedMotion")
 
     assert [f["at"] for f in found] == ["<div id=busy>"], found
+
+
+def test_a_code_block_no_reading_face_reaches_is_named(browser, serve):
+    """On a page that takes no theme, a `language-…` block keeps its ink, since the
+    runtime colours a block's tokens only where it wears the reading face, and the
+    gate's reading names it so its author hears before a reader takes it for a broken
+    block. One inside a box that turns the face on is coloured and quiet, and so is a
+    block in a language Leaf doesn't colour."""
+    block = '<pre id="{}"><code class="language-{}">{{"count": 3}}</code></pre>'
+    url = serve(
+        leaf_page(
+            "Code",
+            "<h1>Code</h1>"
+            + block.format("plain", "json")
+            + '<div style="--lf-reading-face: 1">'
+            + block.format("faced", "json")
+            + "</div>"
+            + block.format("unknown", "zzz"),
+        ),
+        theme=False,
+    )
+    page = open_page(browser, url)
+    expect(page.locator("#faced code")).to_have_attribute("data-lf-syntax", "json")
+    found = render_checks_model.evaluate_probe(page, "uncolouredCode")
+
+    assert found == [
+        {
+            "code": "uncoloured-code",
+            "at": "<code> in <pre id=plain>",
+            "language": "json",
+        }
+    ], found
 
 
 def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):

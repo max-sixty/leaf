@@ -177,8 +177,8 @@ def test_a_sidebar_page_track_beside_the_body_stands_its_outline_open(browser, s
 
 
 def test_a_margin_track_draws_its_map_only_beside_the_body(browser, serve):
-    """Stacked above the body, the contents is the in-flow disclosure, since the map
-    fixed in the margin would draw over the body's first words. Stacked, the aside and
+    """Stacked above the body, the contents is the in-flow disclosure, since the map,
+    a window tall, would push the body's first words a screen down. Stacked, the aside and
     `.layout-sidebar` are one width, but Chromium computed them a float rounding error
     apart at some widths (a 960px window among them), so the test reads every width in
     a band either side of the wrap."""
@@ -202,51 +202,10 @@ def test_a_margin_track_draws_its_map_only_beside_the_body(browser, serve):
         main.style.inlineSize = `${width}px`;
         readings.push({width,
           stacked: rail.getBoundingClientRect().bottom <= body.getBoundingClientRect().top,
-          map: getComputedStyle(toc).position === 'fixed'});
+          map: getComputedStyle(toc.querySelector('.lf-toc-rows')).display === 'flex'});
       }
       main.style.inlineSize = '';
       return readings;
     }""")
     assert {r["stacked"] for r in readings} == {True, False}
     assert [r["width"] for r in readings if r["map"] == r["stacked"]] == []
-
-
-def test_the_revealed_margin_map_covers_every_box_the_body_paints(browser, serve):
-    """The revealed map lies over the body's start edge and covers every box the body
-    paints there: a table, which the theme makes a positioned scroll box, bullets the
-    page draws in positioned boxes, and a box the page lifts with its own z-index."""
-    source = leaf_page(
-        "margin contents over positioned boxes",
-        '<aside id="rail"><div class="layout-track"><lf-toc id="contents"></lf-toc>'
-        '</div></aside><div class="layout-column" id="body"><h1>Review</h1>'
-        '<section id="s1"><h2>Steps</h2><ul class="steps" id="steps">'
-        "<li>Drain the queue</li><li>Rotate the key</li></ul></section>"
-        '<section id="s2"><h2>Owners</h2><table id="owners"><tr><th>Step</th>'
-        "<th>Owner</th></tr><tr><td>Drain</td><td>Payments</td></tr></table></section>"
-        '<section id="s3"><h2>Notes</h2><p id="lifted">Check the replicas.</p>'
-        f"<p>{'Words. ' * 400}</p></section></div>",
-        head="<style>.steps li { position: relative; list-style: none; }"
-        ' .steps li::before { content: ""; position: absolute; inset: 0.6em auto auto'
-        " -1em; width: 0.4em; height: 0.4em; border-radius: 50%; background: currentColor; }"
-        " #lifted { position: relative; z-index: 3; }</style>",
-        layout="sidebar",
-    )
-    page = open_page(browser, live_url(serve(source)))
-    resized(page, 1440, 900)
-    nav = page.locator("#contents .lf-toc-nav")
-    rows = page.locator("#contents .lf-toc-rows").bounding_box()
-    page.mouse.move(rows["x"] + 2, rows["y"] + rows["height"] / 2)
-    expect(nav.get_by_role("link", name="Steps", exact=True)).to_have_css(
-        "opacity", "1"
-    )
-    uncovered = page.evaluate("""() => {
-      const toc = document.getElementById('contents');
-      const nav = toc.querySelector('.lf-toc-nav').getBoundingClientRect();
-      return ['#steps li', '#owners td', '#lifted'].flatMap(selector => {
-        const box = document.querySelector(selector).getBoundingClientRect();
-        const x = box.left + 4, y = box.top + box.height / 2;
-        if (x > nav.right || y > nav.bottom) return [`${selector} lies outside the map`];
-        return toc.contains(document.elementFromPoint(x, y)) ? [] : [selector];
-      });
-    }""")
-    assert uncovered == []

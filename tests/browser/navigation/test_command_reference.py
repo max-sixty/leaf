@@ -472,8 +472,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(show_resolved(page)).to_have_count(1)
 
 
-# On me stands for the panel's views: its mark is the row's control, and Threads, a tab
-# of On, shares its branch.
+# On Me stands for the panel's views: its mark is the row's control.
 @pytest.mark.parametrize(
     ("command", "suffix", "surface"),
     [
@@ -489,14 +488,13 @@ def test_the_reference_enters_named_go_to_destinations(
     command reference reaches it; native controls keep their own activation."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=2))
     destination = page.locator(surface)
-    if suffix in ("T", "M"):
-        control = "threads" if suffix == "T" else "queue"
-        panel_control(page, control).click()
+    if suffix == "M":
+        panel_control(page, "queue").click()
         expect(destination).to_be_visible()
         page.keyboard.press("g")
         page.keyboard.press(f"Shift+{suffix.lower()}")
         expect(destination).to_be_hidden()
-        panel_control(page, control).press("Enter")
+        panel_control(page, "queue").press("Enter")
         expect(destination).to_be_visible()
         page.wait_for_function(
             "selector => document.querySelector(selector).contains(document.activeElement)",
@@ -512,7 +510,7 @@ def test_the_reference_enters_named_go_to_destinations(
         "selector => document.querySelector(selector).contains(document.activeElement)",
         arg=surface,
     )
-    if suffix in ("T", "M"):
+    if suffix == "M":
         page.keyboard.press("g")
         page.keyboard.press(f"Shift+{suffix.lower()}")
     else:

@@ -64,8 +64,10 @@ Use `lf-gloss` for unfamiliar terms the reader can open locally.
 
 Link each pull request, issue, commit, URL, and file or source line with a known
 destination in every section, decision and reply that names it. The user reaches each
-of those on its own, from the contents or On me, and opens what it names from there to
-check it.
+of those on its own, from the contents or On Me, and opens what it names from there to
+check it. A fragment link to an id on the page, such as `<a href="#decision">`, shows
+the reader where it points while they point at or focus it: the place's name and first
+lines, a question's answer, and the threads about it.
 
 ## Composing a page
 
@@ -116,9 +118,10 @@ page composes the route and its document as siblings:
 ```
 
 The browser places that route before JavaScript runs and wraps it with the document
-when narrow. Keep contents and a short verdict or status in the track, and put detailed
-evidence and history in the body or behind a disclosure. See `page-layout.md`,
-"A sidebar page", for the shared composition and width contract.
+when narrow. The contents map fills the track's height, so put a verdict or status the
+reader should see at once at the top of the body, and detailed evidence and history in
+the body or behind a disclosure. See `page-layout.md`, "A sidebar page", for the
+shared composition and width contract.
 
 Workspaces and root page tabs have their own navigation, and so does a
 page of parts, whose column parts each take their own outline.
@@ -244,15 +247,25 @@ a pasted link, so write a description that makes sense on its own.
 ## Markup
 
 Widget attributes carry scalars and children carry prose; a titled member of a compound
-widget starts with a `<strong>`. A widget whose body is data, such as `lf-code`, holds
-escaped text in a `<pre>`. Escape `&` first, then `<` and `>`.
+widget starts with a `<strong>`. A leading `<strong>` heads a part when the next thing
+after it is a `<br>`, a block element or the end of the block holding it; the end of an
+inline element around it, such as a `<span>`, doesn't count. Followed first by
+text, hidden text included, it is a run-in label: it names its own line, and what
+follows belongs to the enclosing part, which On Me groups by and a link's preview
+names. A block element is any outside HTML's phrasing content, including every widget
+whose registry entry doesn't declare `x-inline`. The markup decides, not CSS: a span
+styled `display: block` or a newline `white-space` keeps doesn't end the line. A widget whose body is data, such
+as `lf-code`, holds escaped text in a `<pre>`. Escape `&` first, then `<` and `>`.
 
 Format filenames and paths as inline code.
 
 Show source snippets as `<pre><code class="language-javascript">…</code></pre>`, or as
 `lf-code language="javascript"` for a line-numbered walkthrough, naming the actual
 language from `$languages.names`. Native `code` classes also accept the bundled
-grammar's aliases, such as `language-js` and `language-sh`. Format example code with
+grammar's aliases, such as `language-js` and `language-sh`. Leaf colours a native
+block only where the reading face reaches it: the `reading` theme turns it on, and a
+page with no theme sets `--lf-reading-face: 1` on a box around the `<pre>`
+(`package-themes.md`, "Personal themes"). Format example code with
 the language's usual indentation and line breaks rather than packing several statements or fields onto one
 line, and keep it working when you reformat it. Quote source verbatim when quoting it;
 logs and transcripts that aren't source code stay literal and uncoloured.

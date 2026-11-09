@@ -133,9 +133,9 @@ def test_an_empty_threads_opened_by_key_wears_its_ring_on_the_stage(browser, ser
 
 
 def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
-    """On me's Show on a question asked in a thread's words opens the thread's card on
-    the page with the user in it. The arrival stood them on the message On me drew,
-    and On me closing then dropped them on the page."""
+    """On Me's Show on a question asked in a thread's words opens the thread's card on
+    the page with the user in it. The arrival stood them on the message On Me drew,
+    and On Me closing then dropped them on the page."""
     page = open_page(browser, serve(named_source("ship-review")))
     page.locator(".lf-fp-on-user").click()
     card = page.locator(f"{panel_view('queue')} .lf-fp-on-item").filter(
@@ -231,7 +231,7 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
 
 
 def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, serve):
-    """Putting On me away hands the user back the page, however they opened it.
+    """Putting On Me away hands the user back the page, however they opened it.
 
     Opened with the pointer, the view takes focus; opened from the keyboard, its first
     row does. Either way Escape lands on the page rather than on the mark that opened

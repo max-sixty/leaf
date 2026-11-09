@@ -56,17 +56,37 @@ export function elementBox(el) {
 // asking for its rect would lay it out and answer with one (`skipped`). A widget there
 // waits until the user opens the panel, whichever of its module and the panel's upgraded
 // first, and a chart's bundle waits with it.
+//
+// Paper prints a shut panel open too, but a box laid out for a sheet is not the room
+// the user will see: the screen alone holds an undrawn widget at its stated height
+// (layouts.css), and a measurement stands for good. So a box on paper is no box, and a
+// widget paper reached is observed afresh once the page is back on screen, since the
+// browser reports only a change from the size it last delivered and the screen may lay
+// the box out at the size paper did.
 /** @type {WeakMap<Element, () => void>} */
 const measurements = new WeakMap();
+const paper = matchMedia("print");
+/** @type {Set<Element>} */
+const onPaper = new Set();
+paper.addEventListener("change", () => {
+  if (paper.matches) return;
+  for (const el of onPaper) unmeasured.observe(el);
+  onPaper.clear();
+});
 /** @param {Element} el */
 const drawn = (el) => {
-  if (skipped(el)) return false;
+  if (paper.matches || skipped(el)) return false;
   const box = elementBox(el);
   return Boolean(box.width || box.height);
 };
 const unmeasured = sizeObserver((entries) => {
   const taking = [];
   for (const { target } of entries) {
+    if (paper.matches) {
+      unmeasured.unobserve(target);
+      onPaper.add(target);
+      continue;
+    }
     if (!drawn(target)) continue;
     unmeasured.unobserve(target);
     const take = measurements.get(target);
@@ -89,6 +109,7 @@ export function measure(el, take) {
     // this reading just found. Left pending it would deliver a second reading of
     // the same number, which is harmless and still a claim that nothing was read.
     if (measurements.delete(el)) unmeasured.unobserve(el);
+    onPaper.delete(el);
     return take();
   }
   measurements.set(el, take);

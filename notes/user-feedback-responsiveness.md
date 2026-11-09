@@ -28,7 +28,7 @@ uv run leaf-dev journey-chart
 # Where each reply's time went, waiting and working, by harness.
 uv run leaf-dev journey-chart --replies [--since ISO]
 # In-tab feedback.
-uv run leaf-dev bench-latency --runs 3
+uv run leaf-dev bench triage-board corpus --read paint --rounds 3
 # Status evaluations.
 uv run leaf-dev eval plan-shows-multi-step-work plan-skips-quick-work \
   parent-keeps-leaf-responsive 'parent-keeps-leaf-responsive/known-answer' \
@@ -64,11 +64,11 @@ keeps its sample in `$XDG_STATE_HOME/leaf-dev/journey.jsonl` on its machine.
 
 The targets are proposed budgets. The readings are this Mac's runs on 2026-10-20,
 on main at `e5113c687` with this note's change, with the load average between 6
-and 12 on 18 cores: `bench-latency --runs 3` for the paint rows, and for the
-rest two journeys per harness with the comments posted over HTTP, ranges covering
-every comment of every step. The journey reads pickup but not the receipt before
-it, so the receipt row has no reading of its own; an idle session's pickup bounds
-it.
+and 12 on 18 cores: `bench-latency --runs 3`, which `leaf-dev bench --read paint`
+replaced, for the paint rows, and for the rest two journeys per harness with the
+comments posted over HTTP, ranges covering every comment of every step. The journey
+reads pickup but not the receipt before it, so the receipt row has no reading of its
+own; an idle session's pickup bounds it.
 
 | Transition                                 | Target                                      | Reading on 2026-10-20                                                              |
 | ------------------------------------------ | ------------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -123,8 +123,8 @@ reaches the tab by one of two routes, depending on which comes first:
   revision the read activated. A stamp with `--replace` writes and checks the
   source under the lock, so the tab's read waits for its whole check.
 
-`uv run leaf-dev bench-latency --base --page corpus --transition revision` reads both;
-`results.json` gives each request's start and end beside the transition's, which
+`uv run leaf-dev bench corpus --read paint --input stamp --base` reads both;
+`results.json` gives each request's start and end beside the input's, which
 says which route a run took, and `--profile` on the same command gives the
 browser's tasks. Fifteen paired runs over three invocations at load 4–7 on 18
 cores, on `e440ca191` against its merge base `f38882d51`:

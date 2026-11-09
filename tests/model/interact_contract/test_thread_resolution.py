@@ -476,7 +476,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     assert "answer" not in labeled["meaning"]
     assert labeled["meaning"]["depends"] == ["proposal"]
     # Literal text matching an id is not a dependency; ancestry remains live for
-    # declared identities, tested in the named-dependency contrast below.
+    # declared identities, tested in test_admission.py's named-dependency contrast.
     assert revision is not None
     assert not event_folds_model.action_retracted(
         labeled, {"proposed": revision + 1}, {"proposed": ("proposal", "proposed")}

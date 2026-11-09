@@ -284,7 +284,7 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
 
 
 def test_a_reply_next_on_me_lands_on_rings_its_card(browser, serve):
-    """Next on me lands on the agent's long question in its card, and the card wears
+    """Next On Me lands on the agent's long question in its card, and the card wears
     the ring, whole, as for the thread itself: the card is the thread's one frame. The
     message wore its own outline, a frame in the frame whose top its sticky head
     painted over."""
@@ -303,7 +303,7 @@ def test_a_reply_next_on_me_lands_on_rings_its_card(browser, serve):
     drawn = rings_drawn(page)
     worn = [seen["who"].split(" ")[0] for seen in drawn if seen["here"]]
     assert worn == ["div.lf-margin-preview-card"], drawn
-    assert not (faults := ring_faults(drawn, "on the reply Next on me reached")), (
+    assert not (faults := ring_faults(drawn, "on the reply Next On Me reached")), (
         "\n".join(faults)
     )
 

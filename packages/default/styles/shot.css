@@ -20,7 +20,13 @@ lf-shot {
   gap: var(--sp-1);
   padding-block: max(var(--sp-1), var(--lf-reach-room));
   flex: none;
-  min-inline-size: 0;
+  /* As wide as the frames it names, and centred over them as they are, however much
+     spare room a capture narrower than its box leaves; its tools hold the axis as a
+     view changes the frames' width. */
+  inline-size: fit-content;
+  min-inline-size: min(100%, var(--lf-shot-canvas-width));
+  max-inline-size: 100%;
+  margin-inline: auto;
   anchor-scope: --lf-shot-options;
   font: var(--font-compact);
 }
@@ -124,6 +130,7 @@ lf-shot {
    touch targets. Reserve a second row only below that combined width. */
 @container lf-shot (max-width: 450px) {
   .lf-shot-toolbar {
+    inline-size: 100%;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas: "actions actions" "before after";
     /* A stacked pair moves the words into its frames, without collapsing their
@@ -171,13 +178,14 @@ lf-shot {
      skills/leaf/references/module-scroll-and-motion.md): at 100%, sideways, and down
      too where the shot holds its height (below); in Pair each capture's window
      scrolls instead. Fit shows every capture whole, so there it clips, and the stable
-     gutter keeps its width the same at both scales. */
+     gutter keeps its width the same at both scales. The gutter takes both edges, so a
+     classic scrollbar's leaves the frames centred under the toolbar's labels. */
   overflow: hidden;
   /* Native chaining belongs to ordinary document evidence. A bounded parent or
      modal decides its own outer scrolling boundary. */
   overscroll-behavior: auto;
   --lf-top: 0px;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: stable both-edges;
 }
 /* Each view is the screen's: paper prints every source whole (print, below). */
 @media screen {
@@ -297,9 +305,6 @@ lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
   margin: 0;
 }
 lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="side"] .lf-shotcanvas {
-  /* Match the toolbar's source labels even when captures leave spare room. */
-  inline-size: 100%;
-  justify-content: space-between;
   grid-template-columns: repeat(2, calc(var(--lf-shot-viewport-width) + 2px));
 }
 lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"] .lf-shotcanvas {

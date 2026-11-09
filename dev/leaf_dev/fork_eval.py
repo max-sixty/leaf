@@ -24,8 +24,10 @@ reaches the conversation; an arm without it passes no findings on and gets no li
 
 The conversation is rendered as a Claude Code transcript under the same session id,
 in a home and cwd of its own outside the repository (`claude_child`), and resumed
-once with `claude -p` and the prompt, on the author model at medium effort, as the
-claude-code journey's notes record a live fork's. The records keep the shapes
+once with `claude -p` and the prompt, on the author model at the effort the arm's
+Leaf names for the fork (`clerk.EFFORT`), as a live fork runs, so `--base` scores a
+change of effort as it scores one of wording. A fork Leaf names none for runs at
+the session's own, for which the replay takes medium. The records keep the shapes
 Claude Code writes, without thinking blocks. A background command's result records
 no task id: Claude Code tells a resumed session that a task it recorded has
 stopped, which a live fork never hears, so the replay needs no sentence of its own
@@ -219,12 +221,12 @@ def execute_scenario(
             }
             held = {"thread": thread, "running": scenario.get("running", [])}
             asked = leaf.fork(held)
-            run = fork(asked["prompt"], session, turns, work)
+            run = fork(asked, session, turns, work)
             if run["text"] is not None:
                 leaf.fork({**held, **taken(run)})
     else:
         asked = leaf.fork({})
-        run = fork(asked["prompt"], session, turns, work)
+        run = fork(asked, session, turns, work)
     (work / "prompt.txt").write_text(asked["prompt"])
     metadata.update(
         {key: run[key] for key in ("usage", "cost", "wall_s", "tool_calls")}
@@ -500,17 +502,19 @@ def transcript(turns: list[dict], session: str, cwd: Path, start: datetime) -> l
     return records
 
 
-def fork(prompt: str, session: str, turns: list, work: Path) -> dict:
-    """Resume the rendered conversation once with `prompt`, as `$.model.fork` forks
-    it, in a home and cwd of its own outside the repository, keeping its stream and
-    transcript under `work`; its answer, or why it gave none."""
+def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
+    """Resume the rendered conversation once with the prompt and effort the arm's
+    Leaf `asked` for, as `$.model.fork` forks it, in a home and cwd of its own
+    outside the repository, keeping its stream and transcript under `work`; its
+    answer, or why it gave none."""
     stream = work / "fork.jsonl"
+    effort = asked.get("effort", "medium")
     with tempfile.TemporaryDirectory(prefix="leaf-fork-") as directory:
         cwd = Path(directory).resolve() / "cwd"
         cwd.mkdir()
         child = claude_child(
             cwd,
-            *("--resume", session, "--effort", "medium", "--max-turns", "1"),
+            *("--resume", session, "--effort", effort, "--max-turns", "1"),
             *("--exclude-dynamic-system-prompt-sections", "--settings"),
             json.dumps(BLOCKED),
             model=MODEL,
@@ -533,7 +537,7 @@ def fork(prompt: str, session: str, turns: list, work: Path) -> dict:
                 ["nice", "-n", "10", *child["args"]],
                 cwd=child["cwd"],
                 env=child["env"],
-                input=prompt,
+                input=asked["prompt"],
                 stdout=out,
                 stderr=subprocess.PIPE,
                 text=True,

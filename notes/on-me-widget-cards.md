@@ -1,6 +1,6 @@
-# Widgets drawing their own On me cards
+# Widgets drawing their own On Me cards
 
-Parked on 24 October 2026. On me's card for a widget obligation (`onItemCard` in
+Parked on 24 October 2026. On Me's card for a widget obligation (`onItemCard` in
 `browser/runtime/floating-panel.js`) is the panel's: it copies each of the widget's
 `decision: true` command controls onto a plain button, and a press clicks the real
 control (`choicesOf`, `browser/runtime/obligations/view.js`). So a widget decides

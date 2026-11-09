@@ -15,11 +15,11 @@ variants:
   ask-question:
     metadata:
       scenario: ask-question
-      purpose: A decision the agent's last reply left to the user goes On me as a question.
+      purpose: A decision the agent's last reply left to the user goes On Me as a question.
   ask-step:
     metadata:
       scenario: ask-step
-      purpose: A command the agent asked the user to run goes On me as a step.
+      purpose: A command the agent asked the user to run goes On Me as a step.
   ask-step-done:
     metadata:
       scenario: ask-step-done
@@ -31,7 +31,7 @@ variants:
   ask-on-me:
     metadata:
       scenario: ask-on-me
-      purpose: A question the reply asks, which an On me item already holds, isn't asked again.
+      purpose: A question the reply asks, which an On Me item already holds, isn't asked again.
   ask-answered:
     metadata:
       scenario: ask-answered
@@ -51,11 +51,11 @@ variants:
   settled:
     metadata:
       scenario: settled
-      purpose: An On me question the user answered in chat is named settled.
+      purpose: An On Me question the user answered in chat is named settled.
   settled-open:
     metadata:
       scenario: settled-open
-      purpose: An On me question the user's chat message touches without answering is left alone.
+      purpose: An On Me question the user's chat message touches without answering is left alone.
   unshown:
     metadata:
       scenario: unshown

@@ -76,6 +76,140 @@ def test_an_occupant_that_grows_its_place_fails(browser, swap):
     )
 
 
+def test_a_row_drawn_in_one_frame_that_its_next_occupant_grows_fails(browser):
+    """A row the page draws in an animation frame is watched from that frame, at the
+    size it paints there, so an occupant the next frame swaps in that grows it is
+    caught. Watched from the frame after instead, the row's first size was the grown
+    one."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote('<!doctype html><body style="margin:0"><div id="holder"></div>')
+    )
+    page.evaluate(
+        """() => new Promise((done) => requestAnimationFrame(() => {
+          holder.innerHTML = '<div id="row" style="display:flex;width:300px">'
+            + '<button id="first" style="height:24px">First</button></div>';
+          requestAnimationFrame(() => {
+            const second = document.createElement('button');
+            Object.assign(second, {id: 'second', textContent: 'Second'});
+            second.style.height = '40px';
+            first.replaceWith(second);
+            requestAnimationFrame(() => requestAnimationFrame(done));
+          });
+        }))"""
+    )
+    judge_watches()
+    consume_browser_errors(
+        page,
+        {
+            "code": "place-resized",
+            "place": ["div#row"],
+            "left": [["button#first"]],
+            "arrived": [["button#second"]],
+        },
+    )
+
+
+# A page with a flex row's holder at its top and a deeply nested box its own
+# ResizeObservers watch.
+DEEP = (
+    '<!doctype html><body style="margin:0"><div id="holder"></div>'
+    "<div><div><div><div><div>"
+    '<div id="deep" style="width:10px;height:10px"></div>'
+    "</div></div></div></div></div>"
+)
+# Observer A draws the row with a 24px occupant and observer B, delivering after it in
+# the same update, makes that occupant 40px, so the frame paints 40px; the next frame
+# swaps it for another 40px occupant.
+RESIZED_IN_DELIVERY = """() => new Promise((done) => {
+  let drawn = false, grown = false;
+  new ResizeObserver(() => {
+    if (drawn) return;
+    drawn = true;
+    holder.innerHTML = '<div id="row" style="display:flex;width:300px">'
+      + '<button id="first" style="height:24px">First</button></div>';
+  }).observe(deep);
+  new ResizeObserver(() => {
+    if (grown) return;
+    grown = true;
+    first.style.height = '40px';
+    requestAnimationFrame(() => {
+      const second = document.createElement('button');
+      Object.assign(second, {id: 'second', textContent: 'Second'});
+      second.style.height = '40px';
+      first.replaceWith(second);
+      requestAnimationFrame(() => requestAnimationFrame(done));
+    });
+  }).observe(deep);
+})"""
+# A task the page queued in an animation frame that also delivers sizes runs after
+# that frame's paint: it draws the row with a 24px occupant, and the next frame swaps
+# it for a 40px one before the 24px one is ever painted.
+UNPAINTED = """() => new Promise((done) => {
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      holder.innerHTML = '<div id="row" style="display:flex;width:300px">'
+        + '<button id="first" style="height:24px">First</button></div>';
+      requestAnimationFrame(() => {
+        const second = document.createElement('button');
+        Object.assign(second, {id: 'second', textContent: 'Second'});
+        second.style.height = '40px';
+        first.replaceWith(second);
+        requestAnimationFrame(() => requestAnimationFrame(done));
+      });
+    });
+    new ResizeObserver(() => {}).observe(deep);
+  });
+})"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize(
+    "script", [RESIZED_IN_DELIVERY, UNPAINTED], ids=["resized", "unpainted"]
+)
+def test_a_row_is_judged_by_the_arrangement_it_was_painted_in(engine, request, script):
+    """A row's first arrangement is the one a frame painted: one another delivery of
+    the same update resized before its paint stands at that size, and one drawn after a
+    paint and swapped before the next was never painted, so neither swap grows what
+    the user saw."""
+    page = request.getfixturevalue(engine).new_page()
+    page.goto("data:text/html," + quote(DEEP))
+    one_frame(page)
+    page.evaluate(script)
+    judge_watches()
+
+
+# A row drawn in a frame inside a holder scaled to 96%, whose 40px occupant the next
+# frame swaps for another 40px one: what is displayed stays 38.4px tall.
+SCALED = """() => new Promise((done) => {
+  holder.style.transform = 'scale(.96)';
+  holder.style.transformOrigin = '0 0';
+  requestAnimationFrame(() => {
+    holder.innerHTML = '<div id="row" style="display:flex;width:300px">'
+      + '<button id="first" style="height:40px">First</button></div>';
+    requestAnimationFrame(() => {
+      const second = document.createElement('button');
+      Object.assign(second, {id: 'second', textContent: 'Second'});
+      second.style.height = '40px';
+      first.replaceWith(second);
+      requestAnimationFrame(() => requestAnimationFrame(done));
+    });
+  });
+})"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_scaled_row_whose_occupant_keeps_its_size_passes(engine, request):
+    """A row under a transform keeps the size the user sees when an occupant of the
+    same size takes its place, measured in one coordinate system throughout."""
+    page = request.getfixturevalue(engine).new_page()
+    page.goto("data:text/html," + quote(DEEP))
+    one_frame(page)
+    page.evaluate(SCALED)
+    judge_watches()
+
+
 def test_an_occupant_that_grows_a_declarative_shadow_row_fails(browser):
     """A row the parser builds from a declarative shadow template is watched too."""
     page = browser.new_page()

@@ -51,6 +51,14 @@ same step, through its row's `keep` where `run` would throw away unsent words
 
 - The document is the base. In a live sample, one more Escape returns focus to the
   containing page.
+- A preview standing over the page is the first step, by pointer or by focus: Escape
+  puts it away and does nothing else, and the next Escape takes the step it stood in
+  front of (`preview.js`). Any other key puts a pointer's preview away and does its own
+  work. A focus preview stands only where focus was moved by Tab, a placement standing
+  in for one (`step`) or a move to a place (`move`), the cause its mover gives
+  `focusDestination`, so focus a surface places as it opens, or hands back as it closes
+  or as Escape backs the user out (`return`), costs no Escape, and one put away stays
+  away until the user aims again, whatever a widget declares meanwhile.
 - Draw and Design are page modes; surfaces opened inside them close first.
 - A surface's own state, such as Threads' search, clears before the surface closes.
   Page-side selections, targets, margin clusters and the page composer coexist beside a view the
@@ -79,7 +87,11 @@ reopens it.
 Page scope holds commands about the page; a surface's scope holds commands about its
 contents. A page-level letter must be useful on every page; any other control is
 reachable by Tab, native activation, obligation digits or Go-to hints. A lowercase
-letter steps a walk forward and Shift steps it back, wrapping at either end. A walk, a
+letter steps a walk forward and Shift steps it back, wrapping at either end. A page
+walk with nothing to step through says so in the panel (`notice`, such as “No open
+threads”) rather than doing nothing, so its letter is live on every page. A walk over
+a list the server's reading brings says instead that the list can't be had while the
+server is offline. A walk, a
 scroll, Go-to and any other command that takes the user somewhere declares `travels`
 on its row; every other command leaves the control it was pressed on where it stood on
 screen (`bindings.js`). A surface
@@ -97,9 +109,9 @@ between matches, a drawing's composer can undo a stroke, and the page's field ca
 comment on selected words. Page scope rows therefore have no touch labels: each row
 that runs a press declares `touch: false` or is the `exit` of a stance accessible by
 touch. Examples include page search, the target picker and Draw mode. The panel
-shows the innermost active stance's exit as one ✕. It leaves the stance even where
-Escape would first close something inside it. The picker's ✕ is the exception:
-while typed hint letters remain, it removes one (`target-picker.js`). The register
+offers the innermost active stance's exit as Close at its field's end, or one ✕ while
+the field says something else. Either leaves the stance even where Escape would first
+close something inside it or take back a typed hint letter. The register
 refuses a page command without `touch` and a scope row whose `run` is neither `exit`
 nor `touch: false`.
 `false` means the result is directly accessible by scrolling and tapping or through
@@ -108,8 +120,11 @@ the row's own control beside the content it changes.
 Words owe a finger the same reach. A `title` shows only to a pointer resting on its
 element, so it can't be the only place a state's reason or the rest of a cut word is
 said. A state says its word on the surface that holds it (`quoteReading`), a panel
-row's cut words stand whole where no pointer can hover (`floating-panel.css`), and a
-control that shows part of its word gives the rest to a held press (`held-word.js`).
+row's cut words stand whole where no pointer can hover (`floating-panel.css`), and
+whatever previews, a control's word and keys among it, shows its preview to a finger
+holding it. The hold reads and its release presses nothing, while a tap still presses;
+until 5 November 2026 the release pressed, so a finger couldn't read without acting
+short of sliding off, which on touch often scrolls instead (`preview.js`).
 
 The comment field has one primary action, Dictate while empty and Send once it has
 words. Suggest and reactions share an anchored Other responses picker, reached by the

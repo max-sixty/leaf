@@ -73,7 +73,7 @@ const wireObligation = (
   status: "open",
   next_actor: "user",
 });
-// A view's obligations as the served lists hold them: each the user owes on their list, On me,
+// A view's obligations as the served lists hold them: each the user owes on their list, On Me,
 // and each that is no longer open, done.
 const obligationQueues = (records) => {
   const item = (record) =>
@@ -831,21 +831,14 @@ test("historical view projection uses the publisher's captured document contract
   const historical = state(2, [accepted]);
   const historicalSpec = { ...spec, historical: true };
   historical.browser.views[1].document.projection.entries[0].spec = historicalSpec;
-  const projection = app.projectView(historical.browser.views[1]);
+  const projection = app.projectDocument(
+    historical.browser.views[1].document.projection,
+  );
   assert.equal(projection.desired.get(JSON.stringify(coordinate)).e.id, "e1");
   assert.deepEqual(
     projection.desired.get(JSON.stringify(coordinate)).spec,
     historicalSpec,
   );
-});
-
-test("filtered widget state is selected inside the publisher", () => {
-  const app = setup();
-  const accepted = { ...action("first"), id: "e1", seq: 1 };
-  app.adopt(state(2, [accepted]));
-  assert.equal(outcomeOf(app.selectWidgets([]).get("choice").state), null);
-  assert.equal(outcomeOf(app.selectWidgets(["e1"]).get("choice").state), "accept");
-  assert.equal(outcomeOf(app.selectWidgets(null).get("choice").state), "accept");
 });
 
 test("admitted edits, a raced undo refusal, and revisions share one sequence", () => {
@@ -1334,9 +1327,9 @@ for (const resolved of [null, { author: "user" }]) {
   });
 }
 
-test("a pending gesture leaves obligations and On me as served until the log answers", () => {
+test("a pending gesture leaves obligations and On Me as served until the log answers", () => {
   // A settling reaction answered the agent's question, so the server lists the obligation as
-  // done. Which obligations taking it back reopens is the log's reading, so On me moves
+  // done. Which obligations taking it back reopens is the log's reading, so On Me moves
   // when the server answers the undo, not before.
   const item = {
     kind: "comment",
@@ -1440,6 +1433,10 @@ test("the publisher carries the server's obligation reading, page obligations be
     all: [record, frozen],
     user: [record],
     unanswered: [record],
+    byId: new Map([
+      [record.id, record],
+      [frozen.id, frozen],
+    ]),
   });
   assert.throws(() => {
     app.read().effective.obligations.all[0].source.id = "other";

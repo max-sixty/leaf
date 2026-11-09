@@ -335,7 +335,7 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
         assert b"sitenote.js" not in document
         assert b"data-lf-release=" not in document
         assert headers.get("Content-Security-Policy") is None
-        assert headers["Cache-Control"] == "no-store"
+        assert headers["Cache-Control"] == "no-cache"
         assert headers["Access-Control-Allow-Origin"] == "*"
         assert headers["Referrer-Policy"] == "no-referrer"
         assert headers["Leaf-Layer"] == state["layer"]["generation"]
@@ -350,18 +350,6 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
             {"Leaf-Layer": state["layer"]["generation"]},
         )
         assert accepted["state"]["events"][-1]["text"] == "Try this here"
-        # An image attached in the child is as private as one attached on its parent.
-        upload = urllib.request.Request(
-            url + "api/media",
-            data=(example_media() / "051bee487bfb5d13.png").read_bytes(),
-            headers={
-                "Content-Type": "image/png",
-                "Leaf-Layer": state["layer"]["generation"],
-            },
-        )
-        with urllib.request.urlopen(upload) as stored:
-            media = json.loads(stored.read())["path"]
-        assert get(url + media.lstrip("/"))[1]["Cache-Control"] == "no-store"
         assert read_events(published) == []
         assert harness.attached == []
 
@@ -422,8 +410,9 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         )
         assert headers["Content-Security-Policy"] == "frame-ancestors 'self'"
         assert headers["Leaf-Session"] == "active"
-        # A visitor's private page stays out of the browser's disk cache.
-        assert headers["Cache-Control"] == "no-store"
+        # The browser may store a visitor's page, as it does a local one, so Back
+        # restores it from the back/forward cache once the visitor has acted on it.
+        assert headers["Cache-Control"] == "no-cache"
 
         # A released document sends the public startup beacon, which the deployed site
         # answers at the edge. Nothing stands in front of this adapter, so it owes the
@@ -449,10 +438,9 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert state["agent"] == "Agent"
         assert headers["Leaf-Layer"] == state["layer"]["generation"]
         assert headers["Leaf-Session"] == "active"
-        assert headers["Cache-Control"] == "no-store"
+        assert headers["Cache-Control"] == "no-cache"
 
-        # So does an image the visitor attaches, though a local server lets the
-        # browser keep page media for good.
+        # An image the visitor attaches is named by its bytes, so the browser keeps it.
         upload = urllib.request.Request(
             f"{root}/examples/decision/api/media",
             data=(example_media() / "051bee487bfb5d13.png").read_bytes(),
@@ -463,20 +451,16 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         )
         with urllib.request.urlopen(upload) as stored:
             media = json.loads(stored.read())["path"]
-        assert get(f"{root}/examples/decision{media}")[1]["Cache-Control"] == "no-store"
+        assert get(f"{root}/examples/decision{media}")[1]["Cache-Control"] == (
+            "private, max-age=31536000, immutable"
+        )
 
         raw_view, _ = get(
             verify_site.activation_url(f"{root}/examples/decision/", state)
         )
         view = json.loads(raw_view)
         revision = state["active"]["revision"]
-        assert view["browser"]["views"][str(revision)]["basis"] == {
-            "revision": revision,
-            "through_seq": state["events"][-1]["seq"] if state["events"] else 0,
-        }
-        # The comparison base carries its own obligation records, because the browser reads
-        # which obligations a revision holds rather than folding the declarations again.
-        assert isinstance(view["browser"]["views"][str(revision)]["obligations"], list)
+        assert view["document"]["revision"] == revision
 
         posted = {
             "kind": "comment",

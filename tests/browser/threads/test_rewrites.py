@@ -22,6 +22,7 @@ from render_harness import (
     http_error_console,
     leaf_page,
     open_page,
+    put_preview_away,
     resized,
     rgb_pixel,
     round_trip,
@@ -471,8 +472,10 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     expect(editor).to_be_focused()
     page.keyboard.type("Y")
     expect(editor).to_have_js_property("value", "Fit the north bracket.Y")
-    # Escape on the rewrite's own controls closes it as in its words.
+    # Escape on the rewrite's own controls closes it as in its words, once it has
+    # put away the preview focus on Save shows.
     message.get_by_role("button", name="Save", exact=True).focus()
+    put_preview_away(page)
     page.keyboard.press("Escape")
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(thread).to_be_visible()

@@ -38,9 +38,10 @@ wait, with each step more than one harness takes written once over the primitive
 harness module supplies (`Terminal`), and the user (`User`). `--sandbox` runs the session's shell
 commands in its harness's sandbox; `--preview` has Codex serve the page with the
 canonical `leaf-dev preview --user`; `--forks` lets forks of Claude Code's
-conversation answer the user's thread messages, and runs the steps that test them
-in place of the delivery steps (`journey_claude_code`). The journey stops at the
-first check that fails and keeps no sample.
+conversation post the agent's working line on the user's thread messages before
+handing them to the session, and runs the steps that test them in place of the
+delivery steps (`journey_claude_code`). The journey stops at the first check that
+fails and keeps no sample.
 
 Where the user is, every step alike, is the journey's one axis (`User.end`):
 
@@ -86,8 +87,7 @@ of it: the user's end (`userEnd`), the `case`, `comment` for the release ask,
 the journey ran. A comment whose step held a permission prompt the user answered
 says so (`approved`), since the prompt held the session for as long as it stood. A
 comment a fork of the conversation decided on carries the fork's outcome, time and
-tokens (`fork`); one the fork answered has no `reply` breakdown, since the session
-spent nothing on it.
+tokens (`fork`).
 
 A failure receipt ends the journey on the first ask
 (`worker/README.md` owns that contract).
@@ -208,8 +208,8 @@ CASES = ("waiting", "working")
 
 def samples_path() -> Path:
     """Where this machine keeps every sample, one JSON line each, outside any
-    checkout so runs from every worktree accumulate. A stopgap until a store CI can
-    write to too (issue #4048, "Keep the agent journey's samples")."""
+    checkout so runs from every worktree accumulate. CI's samples stay in
+    `publish-site`'s run logs."""
     state = os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state"
     return Path(state) / "leaf-dev" / "journey.jsonl"
 
@@ -1665,8 +1665,9 @@ def target_session(
 @click.option(
     "--forks",
     is_flag=True,
-    help="On claude-code, let forks of the session's conversation answer the user's "
-    "thread messages, and run the steps that test them in place of the delivery steps.",
+    help="On claude-code, let forks of the session's conversation post the agent's "
+    "working line on the user's thread messages before handing them to the session, "
+    "and run the steps that test them in place of the delivery steps.",
 )
 @click.option(
     "--fork-work",

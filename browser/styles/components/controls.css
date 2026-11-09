@@ -103,41 +103,16 @@
   ) {
   background: color-mix(in srgb, var(--accent) 24%, var(--card));
 }
-/* A reaction's word, while a press on it is held or it has focus
-   (held-word.js): the focused or held reading of a face that is
-   otherwise one glyph. The word is the choice's own name, so it says what the accessible
-   name says, and it stands above the choice, where the finger pressing it does not cover
-   it. The press owns the gesture, so it neither scrolls nor opens the platform's
-   long-press menu. A reaction offered in the margin is a margin entry, which says its
-   word through its own label (the entry face, below) and, like every entry, lets a
-   finger that starts on it scroll the page. */
+/* A reaction says its word through its preview (runtime/preview.js), which a finger
+   reads by holding the choice, so the press owns the gesture: it neither scrolls nor
+   opens the platform's long-press menu. A reaction offered in the margin is a margin
+   entry, which, like every entry, lets a finger that starts on it scroll the page. */
 .lf-react {
   touch-action: none;
   -webkit-touch-callout: none;
   user-select: none;
   -webkit-user-select: none;
   position: relative;
-}
-:is(.lf-reaction, .lf-response-face[aria-pressed]):is(
-    [data-lf-held-word],
-    [data-lf-focus]
-  )::after {
-  content: attr(aria-label);
-  position: absolute;
-  z-index: 5;
-  inset-block-end: calc(100% + 6px);
-  inset-inline-start: 50%;
-  translate: -50% 0;
-  width: max-content;
-  max-width: 220px;
-  padding: var(--tip-pad);
-  border-radius: var(--tip-r);
-  background: var(--tip-bg);
-  color: var(--tip-ink);
-  box-shadow: var(--raise-1);
-  font: var(--font-tip);
-  white-space: nowrap;
-  pointer-events: none;
 }
 /* A reaction surface offers one quiet trigger. A token in force remains visible
    in a closed message strip as the user's receipt and eraser. */
@@ -429,7 +404,7 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   color: var(--muted);
 }
 /* The unread dot: news's one mark, wherever it is marked, a reply, a row of Threads,
-   the On me mark and the folded leaf. A margin entry draws the same dot on its corner
+   the On Me mark and the folded leaf. A margin entry draws the same dot on its corner
    (base.css, `[data-lf-unread]`), where it can wear no class. */
 .lf-unread-dot {
   width: 6px;
@@ -800,7 +775,7 @@ summary,
  * (above). A symbol once also came on the word face's bordered card in some widgets, a
  * second look for the same press, until the two merged here. A control that draws its
  * state in its own ink, such as Send or Resolve (response.css), states that ink after
- * this rule, at least as heavily. Its grid lays out what it holds, such as the On me
+ * this rule, at least as heavily. Its grid lays out what it holds, such as the On Me
  * mark's symbol and count, which the library's centring would pack together. */
 .lf-icon-action {
   box-sizing: border-box;
@@ -965,7 +940,7 @@ wa-copy-button.lf-icon-action {
   opacity: 1;
   color: var(--muted);
 }
-/* The answer face: one of the answers a question offers, as On me's cards offer a
+/* The answer face: one of the answers a question offers, as On Me's cards offer a
    decision's choices (floating-panel.js). Each stands in a hairline frame in the ink,
    so the reader sees a set to pick from rather than presses that act, and the chosen
    one is marked as the page marks its chosen option (lf-options), in the ok tone with
@@ -1274,114 +1249,19 @@ wa-copy-button.lf-icon-action {
 .lf-margin-entry-glyph {
   line-height: 1;
 }
-.lf-margin-face > .lf-margin-entry-space {
-  display: none;
-}
-.lf-margin-face > .lf-margin-entry-label {
-  position: absolute;
-  z-index: 3;
-  inset-block-start: calc(100% + 6px);
-  inset-inline-end: 0;
-  display: block;
-  width: max-content;
-  max-width: min(320px, 100vw - 8px);
-  padding: var(--tip-pad);
-  border-radius: var(--tip-r);
-  background: var(--tip-bg);
-  color: var(--tip-ink);
-  font: var(--font-tip);
-  white-space: normal;
-  overflow-wrap: anywhere;
-  box-shadow: var(--raise-1);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transform: translateY(-2px);
-  transition:
-    opacity 90ms ease,
-    transform 90ms ease,
-    visibility 0s linear 90ms;
-}
-.lf-margin-entry-label-word,
-.lf-margin-entry-context,
-.lf-margin-entry-more {
-  display: block;
-}
-/* The label is one line, cut where the tooltip's width runs out: most are a kind's
-   word, and an obligation's is its question, which the marker's accessible name also says. */
-.lf-margin-entry-label-word {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.lf-margin-entry-context,
-.lf-margin-entry-more {
-  margin-block-start: 2px;
-  color: color-mix(in srgb, var(--paper) 72%, transparent);
-  font: var(--font-fine);
-}
-/* What the entry's title says beyond the label, such as an agent's work on it. */
-.lf-margin-entry-more:empty {
-  display: none;
-}
-/* Inline controls keep their native label. Physical margin controls take the
-   geometry owner's placement, whose readiness gates their first visible paint. */
-.lf-margin-projection .lf-margin-face[data-lf-label-side] > .lf-margin-entry-label {
-  inset: auto;
-  left: var(--lf-label-x);
-  top: var(--lf-label-y);
-}
-/* Hover reveals the label after a short delay, only where the pointer really hovers: a
-   phone keeps the last tapped entry hovered until the next tap, so there the label
-   would outstay the tap. A finger holds the entry to read it instead (held-word.js),
-   and the focus a tap leaves behind says it only where the keyboard placed it, below. */
-@media (hover: hover) {
-  .lf-margin-face:hover:not([aria-expanded="true"]) > .lf-margin-entry-label {
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
-    transition-delay: 90ms;
-  }
-}
-/* A margin entry held under a press, or a focused destination, says its label at once.
-   Besides avoiding a needless delay for the user, this keeps a contribution that is
-   rebuilt while the margin projection settles from restarting three paint-only
-   transitions at time zero forever. */
-.lf-margin-face:is([data-lf-held-word], [data-lf-focus]:not([aria-expanded="true"]))
-  > .lf-margin-entry-label {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
-  transition: none;
-}
-@media (hover: none) {
-  .lf-margin-face[data-lf-focus]:not(:focus-visible, [data-lf-held-word])
-    > .lf-margin-entry-label {
-    opacity: 0;
-    visibility: hidden;
-  }
-}
-.lf-margin-projection
-  .lf-margin-face:not([data-lf-label-side])
-  > .lf-margin-entry-label {
-  opacity: 0;
-  visibility: hidden;
-  transition: none;
-}
-/* In the margin's projection a face is drawn with its label only while the label can
-   show: revealed, held, or placed by the geometry owner, which measures it drawn
-   (margin-layout.js, `placeMarginEntryLabel`). Its glyph, unread dot and count share
-   its one grid cell, the dot and count standing in its corner by alignment as their
-   insets stand them elsewhere, so the face is the containing block of its label alone,
-   and only while the label stands: Chromium's hit test visits every positioned box on
-   every call, and a page of 512 questions held a face for each. */
+/* An entry's label is its preview (runtime/preview.js, declared by
+   contribution-controls.js), standing over the page beside the entry. In the margin's
+   projection its glyph, unread dot and count share its one grid cell, the dot and count
+   standing in its corner by alignment as their insets stand them elsewhere, so no face
+   is a positioned box: Chromium's hit test visits every positioned box on every call,
+   and a page of 512 questions held a face for each. */
 .lf-margin-projection .lf-margin-face {
   position: static;
   display: inline-grid;
   place-content: normal;
   place-items: center;
 }
-.lf-margin-projection .lf-margin-face > :not(.lf-margin-entry-label),
+.lf-margin-projection .lf-margin-face > *,
 .lf-margin-projection .lf-margin-face[data-lf-unread]::after {
   grid-area: 1 / 1;
 }
@@ -1395,25 +1275,6 @@ wa-copy-button.lf-icon-action {
   align-self: start;
   justify-self: right;
   margin: -7px -7px 0 0;
-}
-.lf-margin-projection
-  .lf-margin-face:is(
-    :hover,
-    [data-lf-focus],
-    [data-lf-held-word],
-    [data-lf-label-side]
-  ) {
-  position: relative;
-}
-.lf-margin-projection
-  .lf-margin-face:not(
-    :hover,
-    [data-lf-focus],
-    [data-lf-held-word],
-    [data-lf-label-side]
-  )
-  > .lf-margin-entry-label {
-  display: none;
 }
 .lf-margin-count {
   position: absolute;
@@ -1797,9 +1658,20 @@ textarea.field {
 :where(button).lf-inline-action[data-lf-tone="warn"] {
   color: var(--warn-ink);
 }
+/* One standing among a box's empty words (`data-lf-hint`), as a passing notice's Undo
+   does at the floating panel field's end, wears their face, as the word and key that
+   enter the box do, and says by its pointer alone that it takes a press: the user chose
+   on 5 November 2026 that the right side of a box holds its shortcut in one format. */
+.lf-inline-action[data-lf-hint] {
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
 /* It declines the wash every generated press takes under the pointer (surfaces.css),
-   which a finger's tap leaves behind too. */
-:where(button).lf-inline-action:hover {
+   which a finger's tap leaves behind too, and so does one among a box's empty words,
+   which the user chose to read as those words do (5 November 2026). */
+:where(button).lf-inline-action:hover,
+.lf-inline-action[data-lf-hint]:hover {
   box-shadow: none;
 }
 @media (hover: hover) {
@@ -1952,7 +1824,7 @@ textarea.field {
    ways, in small capitals, bold in the ink, muted at the rows' weight and with counts
    short of the rows' ends, until they shared this one. It is no row of the list's
    columns, since a count there would size the column the rows' ends share, and a list
-   whose ends stand inside their names' column, as On me's lines do, would see every
+   whose ends stand inside their names' column, as On Me's lines do, would see every
    end step back. Outside a group's box, as a tab strip's group or a trace's Moments
    stand, it is a line of that face where it stands. */
 .lf-rows-head {
@@ -1993,7 +1865,7 @@ textarea.field {
    with its arrow hanging in the band's start padding, so its name starts where every
    other band's does.
 
-   The user chose the bands for On me on 3 November 2026, asking for a group heading
+   The user chose the bands for On Me on 3 November 2026, asking for a group heading
    that sticks as a thread's author line does, and on 4 November for every list's groups
    to wear them. Rejected: a rule under each heading and faint rules between items,
    which tied the first item to the heading and not the rest; groups parted by space

@@ -108,7 +108,6 @@ const fab = responseAction(offerAction("response", "lf-fab"), {
   behavior: "disclosure",
 });
 fab.id = "lf-comment-button";
-fab.title = "Comment";
 // The field's face while the box rests (composing/surface.js, `restFab`). `c` is its
 // keyboard route, and the box goes with the focus Tab would take to it, so Tab skips it.
 export const fabRest = offerAction("response", "lf-fab-rest");
@@ -361,7 +360,6 @@ export function createSelectionComposer({
       collapse: true,
     });
     keeps(fabSuggest, "aria-label", suggest ? "Suggest" : "Comment");
-    keeps(fabSuggest, "title", suggest ? "Suggest" : "Comment");
     syncComposer();
     syncResponseOptions();
     repaint(); // the submit action says which of the two the box will do

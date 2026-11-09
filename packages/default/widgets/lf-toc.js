@@ -1,4 +1,5 @@
 import { drawToc } from "./toc-view.js";
+import { sectionMarks } from "./toc-marks.js";
 /* lf-toc: navigation derived from the headings the page already says.
  *
  * The outline, the destination of each of its links and the frame that holds them are
@@ -6,15 +7,14 @@ import { drawToc } from "./toc-view.js";
  * whenever the document's headings change, and measures and moves the map.
  *
  * In the roomy margin the outline becomes a reading map. Each row receives the length
- * of the section it leads as its flex share, so the quiet spine describes the document
- * before its labels appear. Crowded destinations are fitted together just enough for
+ * of the section it leads as its flex share, so the spine describes the document's
+ * proportions beside its labels. Crowded destinations are fitted together just enough for
  * their labels to remain distinct; destination marker, label, and viewport lens all
  * use that one fitted scale. A marker's center is its coordinate; its label's first line
  * is centered there too, and the viewport lens reads those same coordinates. The first
  * label can extend above the track into the map's existing padding, rather than moving
  * the document's origin to make room for type. The map ends inside main's trailing
- * padding. Revealing the outline neither moves it nor withholds
- * its words.
+ * padding.
  * A destination inside a closed disclosure or inactive tab joins the margin map when it
  * joins the displayed document; the ordinary outline keeps its native fragment link.
  * The darker lens is the part of the document in the viewport. The scroll moves it, as
@@ -41,6 +41,15 @@ import { drawToc } from "./toc-view.js";
  * Fitting the map into a scrollable outline preserves its reading position, except
  * when a viewport change would put the focused link outside the outline's window.
  *
+ * Each row also marks where the page's open threads, its On me items and, while the
+ * changes view is on, its changes stand (toc-marks.js), and its link previews how many
+ * of each its section holds. The element is a `LeafElement` for this alone: its
+ * `render()` reads those readings, so it draws again exactly when they change, in the
+ * nodes the outline already has; the frame, the outline and the map's geometry stay
+ * this module's own work, which no reading starts. The marks move nothing: they stand
+ * out of flow in the gutter beside the outline's rule or the map's spine, and a changed
+ * section is drawn as its stretch of that rule or spine (toc.css).
+ *
  * Every link is a real fragment link. The
  * browser owns its navigation, history, :target state, wheel input, and scroll
  * restoration; hidden-until-found reveals a disclosure or tab containing the target.
@@ -49,6 +58,7 @@ import { drawToc } from "./toc-view.js";
 import {
   atLayoutPrecision,
   atScrollEnd,
+  comparisonChanges,
   frameFor,
   holdFocus,
   inChrome,
@@ -57,9 +67,12 @@ import {
   landingInsets,
   LAYOUT,
   layoutPx,
-  once,
+  LeafElement,
+  obligationsIn,
   PAGE_INTERFACE,
   PRESENTATION,
+  readObligations,
+  readThreads,
   scrollerFor,
   scrollIntoView,
   scrollLimit,
@@ -80,17 +93,14 @@ const LENS_DURATION = 1_000_000;
 
 customElements.define(
   "lf-toc",
-  class extends HTMLElement {
+  class extends LeafElement {
     /** @type {Element | null} */
     #main = null;
+    #connectedBefore = false;
     /** @type {ReturnType<typeof drawToc> | undefined} */
     #drawingOwner;
     get #drawing() {
-      return (this.#drawingOwner ??= drawToc(this, {
-        label: wrote,
-        chrome: inChrome,
-        lends: true,
-      }));
+      return (this.#drawingOwner ??= drawToc(this, { label: wrote, chrome: inChrome }));
     }
     get #nav() {
       return this.#drawing.nav;
@@ -139,10 +149,12 @@ customElements.define(
     };
 
     connectedCallback() {
+      super.connectedCallback();
       render(this.#drawing.render(), this, { host: this });
       const main = this.#drawing.scope();
-      if (!once(this) && main === this.#main && scrollerFor(main) === this.#scroller)
-        return;
+      const again = this.#connectedBefore;
+      this.#connectedBefore = true;
+      if (again && main === this.#main && scrollerFor(main) === this.#scroller) return;
       // Moving to another reading region changes the resources, even if the
       // arrival batch keeps this element connected throughout the move.
       this.#stopWatching?.();
@@ -160,15 +172,7 @@ customElements.define(
       const previous = this.#sections.map(({ destination }) => destination);
       const held = this.#sections.find(({ link }) => link === focused());
       const restore = held && holdFocus(this.#nav);
-      render(
-        this.#drawing.render({
-          label: wrote,
-          chrome: inChrome,
-          lends: true,
-        }),
-        this,
-        { host: this },
-      );
+      render(this.#drawing.render(), this, { host: this });
       this.#sections = this.#drawing.sections();
       // A new key still represents the user's place when its heading or destination
       // survives. Restore focus if Lit moved a retained row through the DOM.
@@ -181,6 +185,26 @@ customElements.define(
         restore(continuation?.link);
       }
       this.#observeDestinations(previous);
+      // Rows for new headings take their marks from the next render.
+      this.requestUpdate();
+    }
+
+    // The drawing as it stands with each section's marks, read again whenever the page's
+    // threads, the obligations waiting on the user or the version comparison change
+    // (toc-marks.js), and not for a scroll, a resize or a pointer. It draws the outline
+    // `#reconcile` last read, in the same nodes.
+    render() {
+      const main = this.#main;
+      this.#drawing.mark(
+        main
+          ? sectionMarks(main, this.#sections, {
+              threads: readThreads().threads,
+              onMe: obligationsIn(main, readObligations().user),
+              changes: comparisonChanges(main),
+            })
+          : new Map(),
+      );
+      return this.#drawing.render(null);
     }
 
     /** @param {Element[]} [previous] */
@@ -313,6 +337,19 @@ customElements.define(
         if (shift !== undefined)
           measured.section.row.style.setProperty("--lf-toc-row-shift", `${shift}px`);
         else measured.section.row.style.removeProperty("--lf-toc-row-shift");
+      }
+      // Each fitted row's stretch of the spine, from its marker to the next one's or the
+      // map's end, on the scale its marker and the lens share, where a changed section
+      // is drawn (toc.css).
+      let next = this.#mapHeight;
+      for (const measured of this.#measured.toReversed()) {
+        const { row } = measured.section;
+        const at = measured.mapPosition;
+        if (at === undefined) row.style.removeProperty("--lf-toc-reach");
+        else {
+          row.style.setProperty("--lf-toc-reach", `${Math.max(0, next - at)}px`);
+          next = at;
+        }
       }
     }
 

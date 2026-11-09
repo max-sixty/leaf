@@ -2621,9 +2621,10 @@ def test_a_preview_says_nothing_its_target_shows_whole(engine, request, serve):
     """A preview says only what its target doesn't: a select its label names, a
     button whose label is shorter than its face and a row whose words stand apart from
     its key preview nothing, nor does a status that declares its own words while they
-    stand whole, though the window has scrolled. Cut short by its own box or the one
+    stand whole, though the window has scrolled, nor a word its markup splits. Cut short by its own box or the one
     around it, the status's words preview in full, and a symbol's name still previews,
-    as does a slider's whose label the user can't see."""
+    as does a slider's whose label the user can't see, a button's whose hidden notes
+    run past a face, and one's that shows only the start of its name."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
@@ -2640,6 +2641,16 @@ def test_a_preview_says_nothing_its_target_shows_whole(engine, request, serve):
                 '<p><button id="undo" style="display: inline-grid;'
                 ' grid-auto-flow: column; gap: 1em"><span>Undo the comment</span>'
                 '<kbd aria-hidden="true">z</kbd></button></p>'
+                '<p><button id="undo-cut" style="display: inline-grid;'
+                " grid-auto-flow: column; gap: 1em; width: 6em; overflow: hidden;"
+                ' white-space: nowrap"><span>Undo the comment</span>'
+                '<kbd aria-hidden="true">z</kbd></button></p>'
+                '<p><button id="download" aria-label="Download">Down<b>load</b>'
+                "</button></p>"
+                '<p><button id="file" aria-label="Download file">Down<b>load</b>'
+                "</button></p>"
+                '<p><button id="contents" aria-label="Download">'
+                '<span style="display: contents">Download</span></button></p>'
                 '<p><span id="cut" tabindex="0" style="display: inline-block;'
                 " width: 5em; overflow: hidden; text-overflow: ellipsis;"
                 ' white-space: nowrap">Queued for the agent</span></p>'
@@ -2651,7 +2662,18 @@ def test_a_preview_says_nothing_its_target_shows_whole(engine, request, serve):
                 '<p><label for="volume" style="position: absolute; width: 1px;'
                 " height: 1px; overflow: hidden; clip-path: inset(50%);"
                 ' white-space: nowrap">Volume</label>'
-                '<input id="volume" type="range"></p>',
+                '<input id="volume" type="range"></p>'
+                '<p><label for="pace" style="visibility: hidden">Pace</label>'
+                '<input id="pace" type="range"></p>'
+                '<p><button id="remove" aria-label="Delete item">×<span hidden>'
+                + "a note "
+                * 60
+                + "</span></button></p>"
+                '<p><button id="purge" aria-label="Delete the selected records"'
+                ' style="width: 4.5em; overflow: hidden; white-space: nowrap">Delete'
+                " <span>the selected records</span></button></p>"
+                '<p><button id="invoice" style="width: 5em; overflow: hidden;'
+                ' white-space: nowrap">Invoice <span>123456789</span></button></p>',
             )
         ),
     )
@@ -2661,11 +2683,20 @@ def test_a_preview_says_nothing_its_target_shows_whole(engine, request, serve):
             const el = document.getElementById(id);
             el.lfPreview = () => ({name: el.textContent});
           }
-          document.getElementById('undo').lfPreview = () => ({});
+          for (const id of ['undo', 'undo-cut'])
+            document.getElementById(id).lfPreview = () => ({});
         }"""
     )
     tip = page.locator(PREVIEW)
-    for quiet in ("#speed", "#send", "#status", "#undo"):
+    for quiet in (
+        "#speed",
+        "#send",
+        "#status",
+        "#undo",
+        "#download",
+        "#file",
+        "#contents",
+    ):
         tab_onto(page.locator(quiet))
         page.wait_for_timeout(300)
         expect(tip).to_be_hidden()
@@ -2679,6 +2710,11 @@ def test_a_preview_says_nothing_its_target_shows_whole(engine, request, serve):
         ("#clipped", "Queued for the agent"),
         ("#rate", "Playback speed"),
         ("#volume", "Volume"),
+        ("#pace", "Pace"),
+        ("#remove", "Delete item"),
+        ("#purge", "Delete the selected records"),
+        ("#invoice", "Invoice 123456789"),
+        ("#undo-cut", "Undo the comment"),
     ):
         tab_onto(page.locator(cut))
         expect(tip.locator(".lf-preview-word")).to_have_text(says)

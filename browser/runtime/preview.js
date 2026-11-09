@@ -310,10 +310,12 @@ import { PRESSES, WORKS } from "./control-selectors.js";
 import {
   clippedContents,
   clippedRect,
+  drawsText,
   shownParts,
   shownWindow,
   visualViewport,
 } from "./geometry.js";
+import { hasArea } from "./rect.js";
 import { linkPreview } from "./place-preview.js";
 
 /** @typedef {string | Node | import("/vendor/lit.js").TemplateResult} Word
@@ -556,17 +558,21 @@ function labelsOf(control) {
   );
   return labels ? [...labels] : [];
 }
-// The text a screen reader reads from `root`'s content, whether or not it shows: each run
-// apart from the next, as a row's words stand apart from its key chip, less the runs
-// inside `skip` and those `aria-hidden` hides.
-/** @param {Element} root @param {Element | null} [skip] */
-function textOf(root, skip = null) {
+// The text of the `<label>`s naming a form control, less the control's own where a label
+// holds it, as a select's options: its name, whether or not the label shows, and no more
+// than a face's worth (`FACE`).
+/** @param {Element} control */
+function labelText(control) {
   const runs = [];
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    const hidden = node.parentElement?.closest('[aria-hidden="true"]');
-    if (!skip?.contains(node) && !(hidden && root.contains(hidden)))
-      runs.push(/** @type {Text} */ (node).data);
+  let room = FACE;
+  for (const label of labelsOf(control)) {
+    const walker = document.createTreeWalker(label, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node && room > 0; node = walker.nextNode()) {
+      if (control.contains(node)) continue;
+      const text = /** @type {Text} */ (node).data;
+      room -= 1 + text.trim().length;
+      runs.push(text);
+    }
   }
   return runs.join(" ").replace(/\s+/g, " ").trim();
 }
@@ -575,100 +581,116 @@ function textOf(root, skip = null) {
 // preview stands over, whose words the face rule leaves unread, so reading a face costs
 // as little over a long section as over a button.
 const FACE = 300;
-// The words of `root` the user reads whole, less any inside `skip`: each run of its text
-// that renders and that no box around it, inside `root` or outside it, cuts short, as an
-// ellipsis, a clamp to a few lines, a visually hidden label or a panel scrolled past it
-// does. Null where `root` holds more text than a face.
-/** @param {Element} root @param {Element | null} [skip] @returns {string | null} */
-function shownWhole(root, skip = null) {
+/** @typedef {{words: string, joined: string, partial: boolean, chips: string[]}} Face */
+// What `root` shows the user whole, less any part inside `skip`, or null where it holds
+// more than a face. A run of its text counts where the browser draws it (`drawsText`) and
+// every box that clips it leaves it whole (`clippedContents`), so words an ellipsis, a
+// clamp to a few lines, a visually hidden label or a panel scrolled past them cut short
+// don't count. `words` reads the runs apart, as a row's words and its key chip stand, and
+// `joined` together, as a word split by its markup reads; `partial` says some of its words
+// or numbers don't show, so the face can't stand for a name it only begins; `chips` are
+// the key chips it shows, in order.
+/** @param {Element} root @param {Element | null} [skip] @returns {Face | null} */
+function faceOf(root, skip = null) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const range = document.createRange();
-  /** @type {Map<Element, Clip | null>} */
+  /** @type {import("./geometry.js").ClipCache} */
   const clips = new Map();
   const runs = [];
+  const chips = [];
+  let partial = false;
   let room = FACE;
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const text = /** @type {Text} */ (node);
     room -= 1 + text.data.trim().length;
     if (room < 0) return null;
     if (skip?.contains(text) || !/\S/.test(text.data)) continue;
+    const parent =
+      text.parentElement ??
+      (text.parentNode instanceof ShadowRoot ? text.parentNode.host : null);
+    // A select's options are its list, which shows only the chosen one (`controlFace`),
+    // not words its face hides.
+    if (parent?.closest("select, datalist")) continue;
     range.selectNodeContents(text);
     const at = range.getBoundingClientRect();
-    if ((at.width || at.height) && !cut(at, text.parentElement, clips))
-      runs.push(text.data);
-  }
-  return wordsOf(runs.join(" "));
-}
-/** @typedef {{left: number, right: number, top: number, bottom: number}} Clip */
-// Whether a box from `box` outward clips `at`, which layout places whole, past the edge
-// where the box stops painting it. `clips` keeps each box's edges for the rest of a read.
-// The window isn't such a box: the user aimed at what it shows, and scrolling brings
-// back what it hides, so the climb stops below the document's body and root, which
-// Firefox reports as a box the window's height at the page's top.
-/** @param {DOMRect} at @param {Element | null} box @param {Map<Element, Clip | null>} clips */
-function cut(at, box, clips) {
-  for (
-    let el = box;
-    el && el !== document.body && el !== document.documentElement;
-    el = renderedParent(el)
-  ) {
-    let clip = clips.get(el);
-    if (clip === undefined) clips.set(el, (clip = clipOf(el)));
+    const left =
+      parent && drawsText(parent) && hasArea(at)
+        ? clippedContents(at, parent, clips)
+        : null;
     if (
-      clip &&
-      (at.left < clip.left - 0.5 ||
-        at.right > clip.right + 0.5 ||
-        at.top < clip.top - 0.5 ||
-        at.bottom > clip.bottom + 0.5)
-    )
-      return true;
+      !left ||
+      left.left > at.left + 0.5 ||
+      left.top > at.top + 0.5 ||
+      left.right < at.right - 0.5 ||
+      left.bottom < at.bottom - 0.5
+    ) {
+      partial ||= /[\p{L}\p{N}]/u.test(text.data);
+      continue;
+    }
+    runs.push(text.data);
+    const chip = parent?.closest("kbd.lf-key-badge");
+    if (chip && root.contains(chip)) chips.push(text.data.trim());
   }
-  return false;
-}
-// The edges past which `el` paints none of its content, or null where it paints all of
-// it: its padding box, on each axis its overflow clips.
-/** @param {Element} el @returns {Clip | null} */
-function clipOf(el) {
-  const { display, overflowX, overflowY } = getComputedStyle(el);
-  if (display === "inline" || display === "contents") return null;
-  const x = overflowX !== "visible";
-  const y = overflowY !== "visible";
-  if (!x && !y) return null;
-  const box = el.getBoundingClientRect();
-  const left = box.left + el.clientLeft;
-  const top = box.top + el.clientTop;
   return {
-    left: x ? left : -Infinity,
-    right: x ? left + el.clientWidth : Infinity,
-    top: y ? top : -Infinity,
-    bottom: y ? top + el.clientHeight : Infinity,
+    words: wordsOf(runs.join(" ")),
+    joined: wordsOf(runs.join("")),
+    partial,
+    chips,
   };
 }
-// What a control's face says: the words it and its labels show whole, or none where it
-// shows a symbol or a mark; null where it holds more than a face. A select shows the
-// option chosen, not the rest.
-/** @param {Element} control @returns {string | null} */
-function faceWords(control) {
-  const own =
+// What a control and its labels show, or null where it holds more than a face. A select
+// shows the option chosen, not the rest.
+/** @param {Element} control @returns {Face | null} */
+function controlFace(control) {
+  const chosen =
     control instanceof HTMLSelectElement
       ? wordsOf(control.selectedOptions[0]?.textContent ?? "")
-      : shownWhole(control);
-  if (own === null) return null;
-  return [...labelsOf(control).map((label) => shownWhole(label, control) ?? ""), own]
-    .filter(Boolean)
-    .join(" ");
+      : null;
+  const own =
+    chosen === null
+      ? faceOf(control)
+      : { words: chosen, joined: chosen, partial: false, chips: [] };
+  if (!own) return null;
+  const faces = [
+    ...labelsOf(control).flatMap((label) => faceOf(label, control) ?? []),
+    own,
+  ];
+  /** @param {"words" | "joined"} read */
+  const all = (read) =>
+    faces
+      .map((face) => face[read])
+      .filter(Boolean)
+      .join(" ");
+  return {
+    words: all("words"),
+    joined: all("joined"),
+    partial: faces.some((face) => face.partial),
+    chips: own.chips,
+  };
 }
-// Whether a control's face says its name: its words stand in the name, or the name's in
-// its words, as a key chip or a count beside the name leaves it said. A count alone, as
-// a folded list's "1" beside its mark, names nothing.
-/** @param {string} face @param {string} name */
+// Whether `face` shows `line` whole, read apart or together.
+/** @param {Face} face @param {Words | null} line */
+const shows = (face, line) =>
+  typeof line === "string" &&
+  /\p{L}/u.test(line) &&
+  [face.words, face.joined].some((words) =>
+    ` ${words} `.includes(` ${wordsOf(line)} `),
+  );
+// Whether a control's face says its name: the name's words stand in it, as beside a key
+// chip or a count, or, where all its words show, its words stand in the name, as a
+// symbol's short word under its longer label. A count alone, as a folded list's "1"
+// beside its mark, names nothing.
+/** @param {Face} face @param {string} name */
 const faceSays = (face, name) =>
-  /\p{L}/u.test(face) &&
-  (` ${wordsOf(name)} `.includes(` ${face} `) ||
-    ` ${face} `.includes(` ${wordsOf(name)} `));
-// A control's accessible name, as its markup gives it.
+  /\p{L}/u.test(face.words) &&
+  (shows(face, name) ||
+    (!face.partial &&
+      [face.words, face.joined].some((words) =>
+        ` ${wordsOf(name)} `.includes(` ${words} `),
+      )));
+// A control's name as its markup gives it, short of its content.
 /** @param {Element} control */
-function accessibleName(control) {
+function markupName(control) {
   const label = control.getAttribute("aria-label")?.trim();
   if (label) return label;
   const by = control.ariaLabelledByElements;
@@ -677,14 +699,44 @@ function accessibleName(control) {
       .map((el) => el.textContent?.trim() ?? "")
       .join(" ")
       .trim();
-  return (
-    labelsOf(control)
-      .map((label) => textOf(label, control))
-      .join(" ")
-      .trim() ||
-    titleOf(control) ||
-    textOf(control)
-  );
+  return labelText(control) || titleOf(control) || "";
+}
+// The name a control's content gives it, as a screen reader reads it: the words the
+// browser draws, each box's apart and a word its inline markup splits whole, less what
+// `aria-hidden` hides, as a menu row's key chip.
+/** @param {Element} control */
+function contentName(control) {
+  const walker = document.createTreeWalker(control, NodeFilter.SHOW_TEXT);
+  let name = "";
+  /** @type {Element | null} */
+  let last = null;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const parent = node.parentElement;
+    const hidden = parent?.closest('[aria-hidden="true"]');
+    if (!parent || (hidden && control.contains(hidden)) || !drawsText(parent)) continue;
+    if (last && apart(last, parent, control)) name += " ";
+    name += /** @type {Text} */ (node).data;
+    last = parent;
+  }
+  return name.replace(/\s+/g, " ").trim();
+}
+// Whether a box's edge falls between text in `a` and text in `b`, both inside `root`: an
+// element on either's way up to the one holding both lays out as a box of its own.
+/** @param {Element} a @param {Element} b @param {Element} root */
+function apart(a, b, root) {
+  /** @param {Element} from @param {Element} other */
+  const boxed = (from, other) => {
+    for (
+      let el = /** @type {Element | null} */ (from);
+      el && el !== root && !el.contains(other);
+      el = el.parentElement
+    ) {
+      const { display } = getComputedStyle(el);
+      if (display !== "inline" && display !== "contents") return true;
+    }
+    return false;
+  };
+  return boxed(a, b) || boxed(b, a);
 }
 
 // What `node` declares, read once as its preview shows on `route`. A declaration that
@@ -762,13 +814,13 @@ function readingOf(node, route) {
   if (declared === false) return false;
   const title = titleOf(node);
   if (!(node.matches(CONTROL) && !typesText(node)))
-    return beyondFace(lines(declared ?? null, { title }), node, () => shownWhole(node));
-  const name = accessibleName(node);
-  const face = faceWords(node);
-  const keys = controlKeys(node);
+    return beyondFace(lines(declared ?? null, { title }), () => faceOf(node));
   // A control holding more than a face, as a card a link wraps, is content that says
-  // what it holds, so its name doesn't preview over it.
-  const unsaid = Boolean(name) && face !== null && !faceSays(face, name);
+  // what it holds, so only a name its markup gives can preview over it.
+  const face = controlFace(node);
+  const name = markupName(node) || (face ? contentName(node) : "");
+  const keys = controlKeys(node);
+  const unsaid = Boolean(name) && !(face && faceSays(face, name));
   // A title the name already says, as a symbol's short word under its longer label,
   // adds no line.
   const titled =
@@ -778,35 +830,26 @@ function readingOf(node, route) {
   // Made of the control's own name and keys alone, it says what a screen reader already
   // hears from them.
   if (reading) reading.restates = !declared && !titled;
-  return beyondFace(reading, node, () => face);
+  return beyondFace(reading, () => face);
 }
-// What `reading` says beyond what `node` shows: `face`, the words it and its labels show
-// whole (`shownWhole`), and the key chips it draws. A line the face shows goes, as a menu
-// row's own words or a search count's, and so does a press whose chips it draws, as a
-// menu row's; a name stays to head what is left, and a reading left with nothing more
-// shows nothing. Words the face cuts short, as a row ending in an ellipsis, aren't among
-// those it shows, so a line holding them stays, since the preview is then where the rest
-// is read. A reading standing by a part of its target (`at`), as a chart's point, is
-// about that part, so the face's other words don't speak for it.
-/** @param {Reading | null} reading @param {Element} node @param {() => string | null} face
- * @returns {Reading | null} */
-function beyondFace(reading, node, face) {
+// What `reading` says beyond what its target shows (`faceOf`): a line the face shows
+// goes, as a menu row's own words or a search count's, and so does a press whose chips it
+// shows in order, as a menu row's; a name stays to head what is left, and a reading left
+// with nothing more shows nothing. Words the face cuts short, as a row ending in an
+// ellipsis, aren't among those it shows, so a line holding them stays, since the preview
+// is then where the rest is read. A reading standing by a part of its target (`at`), as a
+// chart's point, is about that part, so the face's other words don't speak for it.
+/** @param {Reading | null} reading @param {() => Face | null} read @returns {Reading | null} */
+function beyondFace(reading, read) {
   if (!reading || reading.at || reading.list) return reading;
-  const words = face();
-  if (!words) return reading;
-  /** @param {Words | null} line */
-  const shows = (line) =>
-    typeof line === "string" &&
-    /\p{L}/u.test(line) &&
-    ` ${words} `.includes(` ${wordsOf(line)} `);
-  const chips = new Set(
-    [...node.querySelectorAll("kbd.lf-key-badge")].flatMap((chip) =>
-      chip.checkVisibility() ? [chip.textContent?.trim()] : [],
-    ),
+  const face = read();
+  if (!face) return reading;
+  const chips = `\n${face.chips.join("\n")}\n`;
+  const keys = reading.keys.filter(
+    (steps) => !chips.includes(`\n${steps.join("\n")}\n`),
   );
-  const keys = reading.keys.filter((steps) => !steps.every((step) => chips.has(step)));
-  const detail = reading.detail.filter((line) => !shows(line));
-  if (!detail.length && !keys.length && shows(reading.name)) return null;
+  const detail = reading.detail.filter((line) => !shows(face, line));
+  if (!detail.length && !keys.length && shows(face, reading.name)) return null;
   return detail.length === reading.detail.length && keys.length === reading.keys.length
     ? reading
     : { ...reading, detail, keys };

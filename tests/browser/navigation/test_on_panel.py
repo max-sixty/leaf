@@ -788,6 +788,65 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     ).to_have_text(re.compile(r"Nothing waiting on \S+\."))
 
 
+def test_the_leaf_nods_for_each_notice_of_the_users_own_key(browser, serve):
+    """The panel's leaf nods once for each notice the user's own key gives, so `m`
+    pressed again over an empty On Me shows it landed though its words already stand.
+    The news that On Me emptied, which no key asked for, gives no nod, and nor does the
+    field leaving a notice's words for a selection's and coming back to them."""
+    source = leaf_page(
+        "One decision",
+        '<h1>One decision</h1><lf-ask id="only-decision"><h2>Pick one</h2>'
+        '<lf-options id="only" choose>'
+        '<lf-option id="first">First</lf-option>'
+        '<lf-option id="second">Second</lf-option></lf-options></lf-ask>',
+    )
+    url = serve(source)
+    page = open_page(browser, live_url(url))
+    # The sequence of motions the leaf's mark starts, each its keyframes' turns.
+    page.evaluate(
+        """() => {
+          window.__lfNods = [];
+          const animate = Element.prototype.animate;
+          Element.prototype.animate = function (keyframes, options) {
+            if (this.matches('.lf-fp-leaf > svg'))
+              window.__lfNods.push(keyframes.map((k) => k.transform).join(' / '));
+            return animate.call(this, keyframes, options);
+          };
+        }"""
+    )
+    nods = "() => window.__lfNods"
+    frames = (
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+
+    stamp_page(
+        serve.page_dir,
+        leaf_page("No decisions", "<h1>No decisions remain</h1>"),
+        "remove the last obligation",
+    )
+    wait_for_revision(page, 2)
+    expect_panel_says(page, "Nothing waiting on me")
+    page.evaluate(frames)
+    assert page.evaluate(nods) == []
+
+    page.keyboard.press("m")
+    page.wait_for_function(f"({nods})().length === 1")
+    page.keyboard.press("m")
+    page.wait_for_function(f"({nods})().length === 2")
+    expect_panel_says(page, "Nothing waiting on me")
+    nod = page.evaluate(nods)[0]
+    assert "rotate(-12deg)" in nod, nod
+    assert page.evaluate(nods) == [nod, nod]
+
+    # The field says the selected words, then the notice's again once they go.
+    page.locator("h1").select_text()
+    expect_panel_says(page, "No decisions remain")
+    page.evaluate("() => getSelection().removeAllRanges()")
+    expect_panel_says(page, "No decisions remain", says=False)
+    page.evaluate(frames)
+    assert page.evaluate(nods) == [nod, nod]
+
+
 def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):
     """With On Me open, `m` lands a suggestion the view would cover above the view,
     since every landing clears the panel's whole box rather than its row alone

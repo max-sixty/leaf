@@ -520,6 +520,25 @@ export function createFloatingPanel({
   const viewResizeMs = () => motionTime("--lf-motion-disclosure", host);
   const fadeMs = () => motionTime("--lf-motion-view-in", host);
   const outMs = () => motionTime("--lf-motion-view-out", host);
+  // The leaf nods at a notice of the user's own command: it tips back a size larger,
+  // swings a little past rest and settles, each stretch easing out. So a press shows it
+  // landed although the field's words, quiet and already standing on a repeat, may not.
+  // The user picked the nod on 9 November 2026 over the words brightening and the panel
+  // tinting.
+  const NOD = [
+    { transform: "none", easing: "ease-out" },
+    { transform: "rotate(-12deg) scale(1.15)", offset: 0.35, easing: "ease-out" },
+    { transform: "rotate(6deg)", offset: 0.7, easing: "ease-out" },
+    { transform: "none" },
+  ];
+  const nodLeaf = () => {
+    const leaf = host.querySelector(".lf-fp-leaf > svg");
+    if (leaf)
+      playMotion(leaf, NOD, {
+        duration: motionTime("--lf-motion-panel-nod", host),
+        easing: "linear",
+      });
+  };
   host.setAttribute("role", "region");
   host.setAttribute("aria-label", "Leaf");
   let expanded = false;
@@ -972,6 +991,9 @@ export function createFloatingPanel({
   // anything typed, a line break included.
   let drafted = false;
   let postureMoved = true;
+  // The beat of the notice the leaf last nodded at (`nodLeaf`).
+  /** @type {number | null} */
+  let nodded = null;
   // The thread the reader lands in once its reading is drawn: on opening,
   // at the turn the user comes back for (`showReturnTurn`); after the user's turn,
   // past it, at its end (`end`); after a press on its held news, at the first message
@@ -4313,13 +4335,22 @@ export function createFloatingPanel({
   /** @param {"menu" | "you" | "agent" | "threads"} current */
   function onTabs(current) {
     const lists = queueLists();
+    // A list is counted once the server's reading is in, as Threads is (`openCount`),
+    // so no tab says 0 of a list the page can't read yet or offline.
+    const counted = readQueues().phase === "ready";
     return tabs(
       ["menu", "you", "agent", "threads"],
       current,
       (tab) => (tab === "menu" || tab === "threads" ? TAB_LABELS[tab] : tabLabel(tab)),
       onTab,
       (tab) =>
-        tab === "menu" ? null : tab === "threads" ? openCount() : lists[tab].length,
+        tab === "menu"
+          ? null
+          : tab === "threads"
+            ? openCount()
+            : counted
+              ? lists[tab].length
+              : null,
     );
   }
   // A tab keeps the user on it, as turning between the lists always has, so the press
@@ -4610,9 +4641,16 @@ export function createFloatingPanel({
     keeps(host, "data-lf-presses", presses ? "" : null);
     keeps(host, "data-lf-tone", status().tone || null);
     keeps(host, "data-lf-asks", status().asks ? "" : null);
+    // Each notice of the user's own command has a beat of its own (notifications.js),
+    // news nobody asked for none, so the leaf nods once per beat, a press repeating the
+    // words standing included, however often the field leaves those words and returns.
+    const { beat } = noticeReading();
+    const nods = beat !== null && beat !== nodded;
+    nodded = beat;
 
     render(panelTemplate(), host);
     noteDrawnSections();
+    if (nods) nodLeaf();
 
     // Geometry, native focus and reading regions consume the committed tree.
     for (const copy of copyItems.values()) if (!copy.isConnected) copy.remove();

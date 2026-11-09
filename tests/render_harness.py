@@ -1744,18 +1744,34 @@ def reported_browser_errors(page, *expected):
     def complete(errors):
         return len(errors) == len(expected) and all(map(is_problem, errors, expected))
 
-    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
-    while not complete(page.lf_errors) and time.monotonic() < deadline:
-        page.wait_for_timeout(25)
+    _await_browser_errors(page, complete)
     errors = take_browser_errors(page)
     assert complete(errors), shown(errors)
     return errors
 
 
+def _await_browser_errors(page, arrived):
+    """Pump the driver until `arrived(page.lf_errors)` holds or the served deadline
+    passes, leaving the list for the caller to read. A closed page sends nothing more."""
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
+    while (
+        not arrived(page.lf_errors)
+        and not page.is_closed()
+        and time.monotonic() < deadline
+    ):
+        page.wait_for_timeout(25)
+
+
 def consume_browser_errors(page, *expected):
     """Consume the problems a test caused on one page, each of which must be one of
-    `expected` (`is_problem`)."""
+    `expected` (`is_problem`).
+
+    A problem can reach this process after what the page drew from it, such as a
+    widget's failure box, so this waits for the first one rather than reading the list
+    the moment the drawing shows (`reported_browser_errors` says why the wait is a
+    Playwright call)."""
     assert expected, "expected browser problems cannot be empty"
+    _await_browser_errors(page, bool)
     errors = take_browser_errors(page)
     assert errors and all(
         any(is_problem(error, wanted) for wanted in expected) for error in errors

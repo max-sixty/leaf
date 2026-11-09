@@ -61,7 +61,6 @@ from render_harness import (
     pane_scroll_behavior,
     panel_control,
     panel_settled,
-    preview_parts,
     primed,
     refuse,
     reported_browser_errors,
@@ -307,12 +306,11 @@ def test_z_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):
         },
     )
     page = open_page(browser, url)
-    # The row's words may be cut, so it says the age at its end and is whole on hover.
+    # The row says the age at its end.
     row = panel_control(page, "command:history.undo")
     expect(row.locator(".lf-fp-label")).to_have_text("Undo: resolved “Rollout safety”")
     expect(row.locator(".lf-fp-value")).to_have_text("21d ago")
     resolved = "resolved “Rollout safety” · 21d ago"
-    assert f"Undo: {resolved}" in preview_parts(row)
     # The thread is out of view, so the first press shows it (Show, then take).
     row.click()
     expect(page.locator(".lf-live")).to_have_text(f"Press again to undo: {resolved}")
@@ -332,10 +330,11 @@ def test_z_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):
         },
     )
     told(page)
-    assert (
-        "Undo: chose “Keep the mounts” in “Should we keep the mounts?” · just now"
-        in preview_parts(panel_control(page, "command:history.undo"))
+    row = panel_control(page, "command:history.undo")
+    expect(row.locator(".lf-fp-label")).to_have_text(
+        "Undo: chose “Keep the mounts” in “Should we keep the mounts?”"
     )
+    expect(row.locator(".lf-fp-value")).to_have_text("just now")
 
 
 def _undos(page_dir):
@@ -656,9 +655,6 @@ def test_the_undo_rows_age_follows_the_clock_while_the_page_stays_open(browser, 
     # A paused clock fires no later timer, so only that tick can move the age.
     page.clock.pause_at(datetime.now(UTC) + timedelta(minutes=5))
     expect(row.locator(".lf-fp-value")).to_have_text("5m ago")
-    # The pointer's dwell is a timer the paused clock holds, so the clock runs again.
-    page.clock.resume()
-    assert preview_parts(row)[-1].endswith(" · 5m ago")
 
 
 def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):

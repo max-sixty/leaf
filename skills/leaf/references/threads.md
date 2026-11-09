@@ -223,6 +223,12 @@ leaf thread edit <page> <message> --text "Corrected wording."
 The page labels it `edited`, and the log keeps every wording. Only the text changes;
 markup stays as it was sent.
 
+While your reply is still the thread's latest message and the user hasn't answered
+it, a correction to it, or an update that changes its answer, goes into that reply
+with `leaf thread edit` rather than a new reply, so the user returns to the current
+answer rather than to messages that correct one another. Keep new replies for news
+the user is waiting on, such as a result you promised.
+
 An ordinary reply leaves the thread open, or reopens it, so the user can inspect the
 answer; the user usually resolves it. Resolve it yourself only when the user asks,
 when an event's `handling` says to, or when no review or follow-up could change the

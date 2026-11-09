@@ -52,7 +52,8 @@
    control under the pointer (thread/card-anchor.js, which remembered each press until
    the change it caused had fitted, and each send until the next words arrived), which
    tied the card's layout to every gesture's lifetime; and the attached edge with no
-   exception for typing, under which a send pushed the reply box down 22px. The rule
+   exception for typing, under which an answer arriving while the user typed in a card
+   beside its words waited behind the thread's notice. The rule
    replaces the card rising beside its subject as the user writes (2026-10-21). It
    keeps two earlier choices: the foot above the subject (2026-10-31), over keeping a
    written card's top there, which grew the draft down over its subject; and rising

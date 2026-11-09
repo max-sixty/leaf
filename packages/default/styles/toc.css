@@ -21,7 +21,7 @@
  * centre, while depth also changes the labels' inset. Labels stop at two lines, so prose never
  * distorts the document-scale rows.
  * The open and paper forms retain the complete words.
- * A section's marks for its threads and On me items stand in the gutter beside the
+ * A section's marks for its threads and On Me items stand in the gutter beside the
  * outline's rule, or just right of the map's spine, and its changes are its stretch of
  * that rule or spine; paper leaves them out. */
 lf-toc {
@@ -137,7 +137,7 @@ lf-toc a[data-lf-focus] {
 }
 /* A section's marks (toc-view.js) stand in the gutter between the outline's rule and its
  * words, as an editor marks lines beside its text: an upright bar a line tall for its
- * open threads in the accent and one for its On me items in the green that marks the
+ * open threads in the accent and one for its On Me items in the green that marks the
  * user's turn, in one column at every depth, centred on the row's first line; and, while
  * the changes view is on, a changed section's stretch of the rule in the face a change
  * wears in the margin (`--lf-change-bar`, chrome.css). Out of the words and taller than

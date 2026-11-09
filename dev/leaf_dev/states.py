@@ -2361,7 +2361,7 @@ def contents_by_keyboard(page: Page) -> None:
 
 
 def contents_marks(page: Page) -> None:
-    """Where each section's threads and On me items stand along the contents: on the
+    """Where each section's threads and On Me items stand along the contents: on the
     map where the track stands beside the body, and in the outline the reader opened
     where the track stacks over it."""
     toggle = page.locator("lf-toc .lf-toc-toggle")

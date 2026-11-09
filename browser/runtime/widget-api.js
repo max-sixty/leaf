@@ -34,7 +34,7 @@ export { addressableLabel, addressableWord } from "./addressable-names.js";
 export { placePreview } from "./place-preview.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
 export { anchorLabel } from "./thread/messages.js";
-// The part of the page a node stands in, by the one rule On me groups its items by and
+// The part of the page a node stands in, by the one rule On Me groups its items by and
 // a link's preview names a place by.
 export { partOver } from "./thread/placement.js";
 // The authored page body, or the body of the message whose markup a node stands in.

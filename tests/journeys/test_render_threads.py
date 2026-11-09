@@ -32,7 +32,6 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_field,
-    put_preview_away,
     resized,
     rgb_pixel,
     round_trip,
@@ -129,10 +128,6 @@ def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     action = bar.get_by_role("button", name="Other responses", exact=True)
     action.focus()
     expect(action).to_be_focused()
-    # Focus after a key shows the control's preview, which the first Escape puts away,
-    # and the second closes the bar.
-    put_preview_away(page)
-    expect(bar).to_be_visible()
     page.keyboard.press("Escape")
     expect(bar).to_be_hidden()
 

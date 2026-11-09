@@ -1637,9 +1637,9 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
     of the list, and a thread the agent starts would join among the open rows. Neither
     moves a row the user reads: the reopened row keeps its place, the new one waits,
     and a notice says what joined. Enter on it lets the list settle and lands on the
-    first row it named. Later news holds the rows still behind the notice, and the
-    landed row's preview stands afresh clear of it. A tab press draws the list whole,
-    a row it held included."""
+    first row it named, where K reads its preview. Later news holds the rows still
+    behind the notice, and that preview stands afresh clear of it. A tab press draws
+    the list whole, a row it held included."""
     url = serve(LONG_PAGE, comments=3)
     root = panel_comment(serve.page_dir, "Is the opening right?", {"section": "p0"})
     append_carried_log_record(
@@ -1681,6 +1681,9 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
     expect(rows).to_have_count(5)
     expect(rows.first).to_have_text(re.compile("Is the opening right?"))
     expect(returned).to_be_focused()
+    # A landing previews nothing until the user asks (preview.js).
+    expect(page.locator(PREVIEW)).to_be_hidden()
+    page.keyboard.press("Shift+K")
     expect(page.locator(PREVIEW)).to_be_visible()
     settled(page)
     landed = rows.evaluate_all(tops)
@@ -1693,7 +1696,7 @@ def test_threads_holds_a_row_that_joins_or_moves_behind_a_notice(browser, serve)
     expect_preview_words(notice, "1 thread resolved")
     settled(page)
     assert rows.evaluate_all(tops) == landed
-    # The notice draws where the landed row's focus preview stood, and the preview
+    # The notice draws where the landed row's preview stood, and the preview
     # stands afresh clear of it. A notice arriving under a preview is a rare path,
     # which moves the preview rather than carrying a hold of its own (SOUL.md, "Keep
     # the foundation small and extensible"), so the preview's words are the one move

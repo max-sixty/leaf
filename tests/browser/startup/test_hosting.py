@@ -15,12 +15,10 @@ from render_harness import (
     is_problem,
     leaf_page,
     open_page,
-    page_comment,
     panel_control,
     panel_field,
     refuse,
     watched,
-    write,
 )
 
 from leaf import event_log as events_model
@@ -666,51 +664,124 @@ def test_a_sample_counts_each_document_its_frame_loads(browser, serve):
     wait_until_ready(page)
 
 
-def test_a_sample_waits_out_a_release_still_rolling_out(browser, serve):
-    """For the minutes after a deploy that a visitor's container still runs the
-    previous release, leaf.page's edge answers it with 503 and the seconds to wait
-    (`worker/src/index.ts`, `rollingOut`). A sample allocated then reads as loading
-    through the wait the answer names, asks again, and arrives. The sample is in view
-    as the page opens, where its load would hold the page's presentation, but the
-    page doesn't wait with it: the page comes up and takes a comment meanwhile."""
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
+# A choice whose press shows at once on a page that has come up.
+CHOICE = """<lf-ask id="decision"><h2>Proceed?</h2><lf-options id="pick" choose>
+<lf-option id="yes">Proceed</lf-option><lf-option id="no">Wait</lf-option>
+</lf-options></lf-ask>"""
+
+
+def rolling_out(page):
+    """Answer each sample allocation as leaf.page's edge does for the minutes after a
+    deploy that a visitor's container still runs the previous release: 503 and the
+    seconds to wait (`worker/src/index.ts`, `rollingOut`). Returns the allocations
+    asked, each as its time and template, and `end()`, after which they go through."""
     asked = []
-    held = []
+    rolling = [True]
 
-    def rolling_out(route):
-        asked.append(time.monotonic())
-        if len(asked) == 1:
-            route.fulfill(
-                status=503,
-                body="this release is still starting",
-                headers={"Retry-After": "1", "Cache-Control": "no-store"},
-            )
-        else:
-            held.append(route)
+    def answer(route):
+        asked.append((time.monotonic(), route.request.post_data_json["template"]))
+        if not rolling[0]:
+            route.continue_()
+            return
+        route.fulfill(
+            status=503,
+            body="this release is still starting",
+            headers={"Retry-After": "1", "Cache-Control": "no-store"},
+        )
 
-    page.route("**/api/samples", rolling_out)
+    page.route("**/api/samples", answer)
+    return asked, lambda: rolling.__setitem__(0, False)
+
+
+def test_a_sample_waits_out_a_release_still_rolling_out(browser, serve):
+    """A sample allocated while the rollout lasts reads as loading through the wait
+    the answer names, asks again, and arrives. It is in view as the page opens, where
+    its load would hold the page's presentation, but the page doesn't wait with it: it
+    comes up and takes a choice meanwhile, and the sample arrives as one below the
+    window does, its frame keeping its height until the reader acts in it."""
+    page = browser.new_page(viewport={"width": 1200, "height": 1200})
+    watched(page)
+    asked, end = rolling_out(page)
     page.goto(
-        serve(leaf_page("Rollout", "<h1>Rollout</h1>" + live_sample("practice"))),
+        serve(leaf_page("Rollout", "<h1>Rollout</h1>" + CHOICE + live_sample("s"))),
         wait_until="commit",
     )
-    holding(page, held, 1, "the allocation asked again")
-    assert asked[1] - asked[0] >= 1
-    status = page.locator("#practice .lf-sample-status")
+    holding(page, asked, 2, "the allocation asked again")
+    assert asked[1][0] - asked[0][0] >= 1
+    status = page.locator("#s .lf-sample-status")
     expect(status).to_have_text("Loading sample…")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    box = page_comment(page)
-    write(box, "Written while the sample waits")
-    expect(box).to_have_js_property("value", "Written while the sample waits")
-    frame = page.locator("#practice iframe")
+    page.locator("#yes").click()
+    expect(page.locator("#yes")).to_have_attribute("chosen", "")
+    frame = page.locator("#s iframe")
     height = "frame => frame.getBoundingClientRect().height"
     waiting_height = frame.evaluate(height)
-    page.unroute("**/api/samples")
-    held[0].continue_()
-    page.locator("#practice").evaluate("sample => sample.ready")
+    end()
+    page.locator("#s").evaluate("sample => sample.ready")
     wait_until_ready(page)
     expect(status).to_have_text("")
-    # It arrives as news under the reader's eyes, so its frame keeps its height until
-    # they act in it, as a sample's below the window does.
     assert frame.evaluate(height) == waiting_height
+    consume_browser_errors(page, http_error_console(503))
+
+
+def test_a_sample_queued_behind_a_rollout_leaves_the_page_live(browser, serve):
+    """A page loads three samples at once, so a fourth waits for a slot and asks the
+    server nothing while the rollout lasts. It hears that the loads ahead of it are
+    waiting, so four samples in view still let the page come up and take a choice."""
+    page = browser.new_page(viewport={"width": 1200, "height": 3600})
+    watched(page)
+    asked, end = rolling_out(page)
+    samples = "".join(live_sample(f"s{each}") for each in range(4))
+    page.goto(
+        serve(leaf_page("Four", "<h1>Four</h1>" + CHOICE + samples)),
+        wait_until="commit",
+    )
+    holding(page, asked, 3, "the three allocations a page makes at once")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    page.locator("#yes").click()
+    expect(page.locator("#yes")).to_have_attribute("chosen", "")
+    expect(page.locator(".lf-sample-status")).to_have_text(["Loading sample…"] * 4)
+    # Whichever sample mounted last is the one queued.
+    assert len({template for _, template in asked}) == 3
+    end()
+    wait_until_ready(page)
+    expect(page.locator(".lf-sample-status")).to_have_text([""] * 4)
+    consume_browser_errors(page, http_error_console(503))
+
+
+def test_a_sample_removed_during_a_rollout_stops_asking(browser, serve):
+    """A sample removed while it waits out the rollout asks the server no more, so it
+    allocates nothing when the rollout ends and holds no load slot meanwhile."""
+    page = browser.new_page(viewport={"width": 1200, "height": 1800})
+    watched(page)
+    asked, end = rolling_out(page)
+    page.goto(
+        serve(
+            leaf_page(
+                "Removed",
+                "<h1>Removed</h1>" + live_sample("gone") + live_sample("kept"),
+            )
+        ),
+        wait_until="commit",
+    )
+    holding(page, asked, 2, "both samples' first allocations")
+    page.locator("#gone").evaluate("sample => sample.remove()")
+    removed = len(asked)
+    # Each sample asks again a second after its answer, so the kept sample's second ask
+    # after the removal comes after the removed one's next would have.
+    kept = []
+    page.on(
+        "request",
+        lambda request: (
+            request.url.endswith("/api/samples")
+            and request.post_data_json["template"] == "kept-source"
+            and kept.append(request)
+        ),
+    )
+    holding(page, kept, 2, "the kept sample asking twice after the removal")
+    assert [template for _, template in asked[removed:]].count("gone-source") == 0
+    end()
+    page.locator("#kept").evaluate("sample => sample.ready")
+    wait_until_ready(page)
+    assert [template for _, template in asked[removed:]].count("gone-source") == 0
     consume_browser_errors(page, http_error_console(503))

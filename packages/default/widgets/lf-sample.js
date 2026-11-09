@@ -14,7 +14,7 @@
  * reload; its loading saved state does not hold the parent.
  * Each child starts loading as its sample mounts, but the containing page presents
  * before it unless the frame's resize on arrival would move what the reader sees then,
- * and stops waiting for it once the host says its server asked it to wait (`waiting`).
+ * and stops waiting for it once the host says its load waits on the server (`waiting`).
  * The sample's arrival is its child's: the child's presentation and then whatever that
  * document deferred, its own samples included, so the page reads as still arriving
  * until every child has arrived. Each document the frame loads, on mount, Reset or a
@@ -188,9 +188,10 @@ export class Sample extends HTMLElement {
           this.#focusedContent = false;
           this.#track(host.ready);
         });
-        // A child whose server can't take it yet may take minutes, as a leaf.page
-        // deploy does: the page presents without it, and it arrives as one below the
-        // window does, its growth held while seen.
+        // A child whose server can't take it yet, or that waits for a load slot behind
+        // one, may take minutes, as during a leaf.page deploy: the page presents
+        // without it, and it arrives as one below the window does, its growth held
+        // while seen.
         host.on("waiting", () => {
           this.#unclaimed = true;
           waited();

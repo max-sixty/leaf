@@ -269,54 +269,43 @@ export class RequestError extends Error {
   /** @param {string} message
    * @param {{status: number; body: string; cause?: unknown;
    *   current?: import("../types/contract.js").ServedFileSnapshot | undefined;
-   *   said?: string | undefined}} details */
-  constructor(message, { status, body, cause, current, said }) {
+   *   said?: string | undefined; retryAfter?: number | undefined}} details */
+  constructor(message, { status, body, cause, current, said, retryAfter }) {
     super(message, { cause });
     this.status = status;
     this.body = body;
     this.current = current;
     this.said = said;
+    this.retryAfter = retryAfter;
   }
 }
 
 // A server that can't take a request yet answers 503 and names in `Retry-After` the
 // seconds to wait before sending it again, as the website's edge does for the minutes
 // a deploy takes to roll a visitor's container onto the new release
-// (`worker/src/index.ts`, `rollingOut`). That wait in milliseconds, or null for any
-// other answer.
+// (`worker/src/index.ts`, `rollingOut`). That wait in milliseconds, or undefined for
+// any other answer.
 /** @param {Response} response */
-export function retryWait(response) {
+function retryWait(response) {
   const seconds = Number(response.headers.get("Retry-After") ?? NaN);
-  return response.status === 503 && Number.isFinite(seconds) ? seconds * 1000 : null;
+  return response.status === 503 && Number.isFinite(seconds)
+    ? seconds * 1000
+    : undefined;
 }
 
 // The page's JSON requests beside the event door and the state reads: the layer's
 // headers out, the answer admitted, and the JSON read off the text so an error page a
 // proxy wrote fails as its status rather than as a parse. A failure throws the server's
-// `error`, or `<what>: HTTP <status>`, carrying the status, the raw body and, for a
-// file the server holds newer than the draft, its `current`.
-// A request the server can't take yet (`retryWait`) is sent again after the wait the
-// server names, for as long as the waits fit in `patience` milliseconds; past that it
-// fails with the 503. `waiting` is called as each wait begins, so the caller can stop
-// holding anything else on the answer. The server may already have run the request:
-// the website's edge refuses a container's answer only after the container has
-// handled it. So a request that must not run twice, such as one that may incur a
-// charge, keeps the default patience of 0.
+// `error`, or `<what>: HTTP <status>`, carrying the status, the raw body, the wait a
+// server that can't take the request yet names (`retryAfter`) and, for a file the
+// server holds newer than the draft, its `current`. Whether to send it again is the
+// caller's: the server may already have run the request, since the website's edge
+// refuses a container's answer only after the container has handled it.
 /** The server owns the response contract named by each endpoint caller.
  * @template T @param {string} url @param {RequestInit} init @param {string} what
- * @param {{patience?: number, waiting?: () => void}} [notYet]
  * @returns {Promise<T>} */
-export async function requestJson(url, init, what, { patience = 0, waiting } = {}) {
-  const giveUp = Date.now() + patience;
-  const send = () => fetch(url, { ...init, headers: layerHeaders(init.headers) });
-  let response = await send();
-  for (;;) {
-    const wait = retryWait(response);
-    if (wait === null || Date.now() + wait >= giveUp) break;
-    waiting?.();
-    await new Promise((resolve) => setTimeout(resolve, wait));
-    response = await send();
-  }
+export async function requestJson(url, init, what) {
+  const response = await fetch(url, { ...init, headers: layerHeaders(init.headers) });
   if (!admitResponse(response))
     throw new LayerRefused(`Leaf's layer changed while requesting ${what}`);
   const text = await response.text();
@@ -327,6 +316,7 @@ export async function requestJson(url, init, what, { patience = 0, waiting } = {
       status: response.status,
       body: text,
       cause,
+      retryAfter: retryWait(response),
       ...details,
     });
   let answer = null;

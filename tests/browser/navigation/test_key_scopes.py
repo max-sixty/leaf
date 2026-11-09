@@ -1846,9 +1846,11 @@ def test_a_back_gesture_never_throws_away_unsent_words(browser, serve, owner):
 def test_an_obligations_pick_stays_a_place_to_stand_after_the_answer(browser, serve):
     """A pick inside an obligation wears the chrome face, as a margin marker does, and is not
     a control of Leaf's for all that: it is inside a destination, so Escape lets go of
-    it onto the page. The obligation is the obligations view's own reading rather than the ring's
-    paint, which only the obligation the walk stands at wears, so the word does not change
-    under an unmoved focus when Space answers the obligation and the ring comes off."""
+    it onto the page, once the press before it has put away the pick's focus preview, which
+    names the key that answers it. The obligation is the obligations view's own reading rather
+    than the ring's paint, which only the obligation the walk stands at wears, so the word does
+    not change under an unmoved focus when Space answers the obligation and the ring comes
+    off."""
     page = open_page(browser, serve(BINDING_BADGE_PAGE))
     pick = page.locator("#cards .lf-pick").first
     pick.focus()
@@ -1859,6 +1861,8 @@ def test_an_obligations_pick_stays_a_place_to_stand_after_the_answer(browser, se
     assert page.evaluate(
         "() => document.activeElement.closest('#cards-decision') !== null"
     )
+    put_preview_away(page)
+    expect(pick).to_be_focused()
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
 

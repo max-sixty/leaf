@@ -208,6 +208,7 @@ class ClaudeCode(Terminal):
         self.home = place.root / "home"
         self.exited, self.kept = place.root / "exited", place.evidence / "screen.txt"
         self.debug = place.evidence / "debug.log"
+        self.evidence = place.evidence
         argv = [
             "claude", "--session-id", self.session, "--model", model,
             "--plugin-dir", str(place.payload),
@@ -414,6 +415,15 @@ class ClaudeCode(Terminal):
 
     def close(self) -> None:
         self.tmux("kill-session", "-t", self.pane)
+        # The session's home goes with the run, so its transcript and its
+        # subagents' join the evidence, where `leaf-dev timeline` reads them.
+        kept = self.evidence / "claude"
+        for found in (self.home / ".claude" / "projects").glob(f"*/{self.session}*"):
+            kept.mkdir(exist_ok=True)
+            if found.is_dir():
+                shutil.copytree(found, kept / found.name, dirs_exist_ok=True)
+            else:
+                shutil.copy(found, kept / found.name)
 
 
 def asked(screen: str) -> str:

@@ -37,6 +37,7 @@ from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import thread as thread_model
+from leaf.interaction_log import read_interactions
 from leaf.served_state.reading import outside_inputs
 from leaf.service import PageTransaction
 from leaf.state import session_file
@@ -746,3 +747,51 @@ def test_admission_waits_for_the_lane_cutoff_to_be_published(claimed, monkeypatc
             assert deliverable(claimed) == [before["id"]]
         finally:
             leases_model.release_lease(lane)
+
+
+def test_admission_and_each_fork_say_in_the_diagnostics_why_a_message_was_held(
+    claimed, monkeypatch
+):
+    """Whether admission held each thread message for a fork, and where it didn't,
+    whether the session's lane was up, goes in the page's diagnostics, as does each
+    fork Leaf asks for, so a message no fork took up, or whose fork never answered,
+    says why."""
+    assert stamp(claimed).exit_code == 0
+    monkeypatch.setattr(
+        endpoint_model,
+        "claim_harness",
+        lambda _claim: SimpleNamespace(title_generator=lambda: None),
+    )
+
+    def admit(text: str, parent: str | None = None) -> str:
+        status, answer = endpoint_model.accept_event(
+            claimed,
+            {"kind": "reply", "parent": parent, "revision": 1, "text": text}
+            if parent
+            else {"kind": "comment", "revision": 1, "text": text},
+        )
+        assert status == 200, answer
+        return answer["event"]["id"]
+
+    early = admit("Before the lane")
+    lane = take_lane()
+    try:
+        later = admit("After the lane, in a thread the session has", parent=early)
+        asked = admit("A thread of its own")
+        assert forks_model.ask(
+            "s1", basis(claimed, asked, asked), [{"tool": "Bash", "input": {}}]
+        )
+    finally:
+        leases_model.release_lease(lane)
+    notes = [
+        (row["type"], row.get("event"), row.get("held"), row.get("lane") is not None)
+        if row["type"] == "fork_hold"
+        else (row["type"], row["inputs"], row["running"])
+        for row in read_interactions(claimed, types=("fork_hold", "fork_asked"))
+    ]
+    assert notes == [
+        ("fork_hold", early, False, False),
+        ("fork_hold", later, False, True),
+        ("fork_hold", asked, True, True),
+        ("fork_asked", [asked], ["Bash"]),
+    ]

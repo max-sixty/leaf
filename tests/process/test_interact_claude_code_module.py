@@ -421,9 +421,10 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
 def test_a_failed_fork_stays_out_of_the_conversation_and_the_next_turn_forks(
     page_dir, monkeypatch, spawn, sessionless
 ):
-    """A fork the model refuses writes nothing and reaches only the debug log, since
-    the user never meets the clerk, and a turn that ended while it was out still forks
-    after it. Neither waits on the band: Leaf says whether the session holds a page."""
+    """A fork the model refuses writes nothing and reaches only the debug log and the
+    page's diagnostics, since the user never meets the clerk, and a turn that ended
+    while it was out still forks after it. Neither waits on the band: Leaf says
+    whether the session holds a page."""
     driven = ClaudeCode(spawn, "cc-fork-refused", {"forkRejects": True})
     holding_page(driven, page_dir, monkeypatch)
     ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "reason": "answer"}
@@ -439,10 +440,14 @@ def test_a_failed_fork_stays_out_of_the_conversation_and_the_next_turn_forks(
                 f"the clerk never reported: {list(driven.diagnostics.queue)}"
             ),
         )
-        assert "wrote nothing: Error: the model refused the request" in told, told
+        assert "gave no answer (Error: the model refused the request)" in told, told
     driven.settle()
     assert driven.forks.empty()
     assert driven.diagnostics.empty()
+    notes = read_interactions(page_dir, types=("turn_end_check",))
+    assert [note["failed"] for note in notes] == [
+        "Error: the model refused the request"
+    ] * 2, notes
     assert not [
         event
         for event in events_model.read_events(page_dir)

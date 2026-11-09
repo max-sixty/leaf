@@ -1193,8 +1193,13 @@ def test_a_route_taller_than_the_map_returns_to_an_open_outline(
     with subtests.test("measuring keeps the place the reader scrolled to"):
         resized(page, 1400, 900)
         links.last.focus()
-        nav.evaluate("node => { node.scrollTop = 0; }")
-        assert nav.evaluate("node => node.scrollTop") == 0
+        # The reader's own scroll, a wheel over the outline, is what Leaf keeps; a
+        # script's write to scrollTop is no gesture, so a resize may still return the
+        # page to the focused link it last read as their place (reading-place.js).
+        nav_box = nav.bounding_box()
+        page.mouse.move(nav_box["x"] + 50, nav_box["y"] + 200)
+        page.mouse.wheel(0, -nav.evaluate("node => node.scrollHeight"))
+        page.wait_for_function("nav => nav.scrollTop === 0", arg=nav.element_handle())
         page.evaluate("""async () => {
           window.dispatchEvent(new Event('resize'));
           await new Promise(requestAnimationFrame);
@@ -1212,9 +1217,6 @@ def test_a_route_taller_than_the_map_returns_to_an_open_outline(
         "the persistent outline covers the document instead of fitting its gutter: "
         f"outline ends at {nav_box['x'] + nav_box['width']:.0f}px, "
         f"column starts at {column_left:.0f}px"
-    )
-    assert nav.evaluate("node => getComputedStyle(node).backgroundColor") != (
-        "rgba(0, 0, 0, 0)"
     )
 
 

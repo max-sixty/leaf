@@ -552,13 +552,13 @@ def test_the_pages_follower_holds_the_lane_and_lists_held_threads(
     assert nudged == ["s1"]
 
 
-@pytest.mark.parametrize("moved", ["selected", "protocol"])
+@pytest.mark.parametrize("moved", ["selected", "protocol", "removed"])
 def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
     claimed, monkeypatch, capsys, moved
 ):
     """A follower runs as long as its session, while the session's hooks hand
-    themselves to whichever Leaf delivers for it now: another copy or checkout, or
-    its own checkout moved past a protocol bump. The newer Leaf takes the old
+    themselves to whichever Leaf delivers for it now: another copy or checkout, its
+    own checkout moved past a protocol bump, or another Leaf once its own is removed. The newer Leaf takes the old
     follower's lane for no one's, so the follower then ends, giving up the lane, with
     EX_TEMPFAIL for the module to start it again under that Leaf."""
     serving(claimed, 1)
@@ -578,11 +578,18 @@ def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
             "delivering_launcher",
             lambda _sid: own.with_name("other") if waited else own,
         )
-    else:
+    elif moved == "protocol":
         monkeypatch.setattr(
             kernel_model,
             "installed_protocol",
             lambda: kernel_model.kernel_protocol() + len(waited),
+        )
+    else:
+        own = session_runtime_model.own_launcher()
+        monkeypatch.setattr(
+            session_runtime_model,
+            "own_launcher",
+            lambda: own.with_name("removed") if waited else own,
         )
     with pytest.raises(SystemExit) as ended:
         hooks_model.cmd_pages({"session_id": "s1", "forks": True})

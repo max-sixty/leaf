@@ -176,10 +176,11 @@ on 9 November). Twice the follower, still at 41, held a message and listed it, a
 fork's step, under the newer Leaf, found it not held and asked no fork, so the hold ran
 out with no line ("no answer within 30 s"). One came while the session ran a 70 s
 foreground poll, and the user saw the agent's first words after 64 s. Nothing recorded
-why the other 6 had no fork. The follower now ends once its Leaf on disk speaks another
-protocol, and the module starts it again (`hooks.cmd_pages`); the page now notes
-whether admission held each message and whether its lane was up (`fork_hold`), and
-each fork Leaf asks for (`fork_asked`), which `leaf-dev timeline` reads.
+why the other 6 had no fork. The follower now ends once the session's hooks would run
+another Leaf than its own, and the module starts it again (`hooks.cmd_pages`); the
+page now notes whether admission held each message and whether its lane was up
+(`fork_hold`), and each fork Leaf asks for (`fork_asked`), which `leaf-dev timeline`
+reads.
 
 A message no fork answered reads Delivered until the session's first model call ends, a
 median 14 s and 41 s at p90. In 12 of 14 idle sessions that call posted the one-line

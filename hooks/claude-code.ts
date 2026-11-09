@@ -439,11 +439,16 @@ function forkReply($: EngineInterface, session: string, held: Held) {
         to: "debug",
       });
     } catch (error) {
-      // Leaf's own step failed, so the hold runs out, and the thread goes to the
-      // session as any input does.
+      // Leaf's own step failed. Telling Leaf hands the thread to the session now and
+      // notes why in the page, which a session without a debug log keeps nowhere
+      // else; where Leaf can't be told either, the hold runs out.
       $.ui.log(`Leaf: the fork for thread ${held.thread} failed: ${error}`, {
         to: "debug",
       });
+      await forkStep($, session, {
+        thread: held,
+        failed: `Leaf's step failed: ${error}`,
+      }).catch(() => undefined);
     }
   })();
 }

@@ -75,12 +75,15 @@ no watch, its messages wait for the page's next change.
 
 The line goes in as the agent's own (`thread.post_reply` with the claim's identity),
 fenced to the hold: it writes nothing once the thread is no longer held as the fork
-was asked it, checked under the lock the append takes. Every outcome goes to the
-page's diagnostics (`interaction_log`, type `fork_reply`), with the fork's tokens
-and time, why Leaf refused its line where it did, and the request it resent
-(`request` in `hooks/claude-code.ts`, which says where a replay cuts the
-conversation: to `sent` while `running` lists a call, else to `row`), as the clerk's
-`turn_end_check` notes have it, which is what a later replay or audit scores.
+was asked it, checked under the lock the append takes. The page's diagnostics
+(`interaction_log`) note whether admission held each thread message to a Claude Code
+session, and where not, whether its lane was up (`fork_hold`); each question as Leaf
+gives it to the module (`fork_asked`), so a fork that never answers shows; and every
+outcome (`fork_reply`), with the fork's tokens and time, why Leaf refused its line
+where it did, and the request it resent (`request` in `hooks/claude-code.ts`, which
+says where a replay cuts the conversation: to `sent` while `running` lists a call,
+else to `row`), as the clerk's `turn_end_check` notes have it, which is what a later
+replay or audit scores. `leaf-dev timeline` reads them beside the session's transcript.
 `leaf-dev eval 'fork-reply*' --harness claude-code --base` scores a change to the
 prompt on a short constructed conversation for each kind of message
 (`dev/leaf_dev/fork_eval.py`).
@@ -328,6 +331,31 @@ def held_inputs(page: PageTransaction) -> set:
     return {input_id for thread in held(page) for input_id in thread.inputs}
 
 
+def held_at_admission(page: PageTransaction, event: dict) -> bool:
+    """Whether the input `event`, just admitted, is held for a fork. For a thread
+    message to a Claude Code session, the page's diagnostics note the answer, and
+    where it is no, whether the session's lane was up (`fork_hold`), which is what
+    says why no fork took a message up."""
+    held = event["id"] in held_inputs(page)
+    claim = page.active_claim
+    if (
+        claim is not None
+        and claim["harness"] == "claude-code"
+        and event["kind"] in kinds_declaring("message")
+    ):
+        _note(
+            page.page_dir,
+            {
+                "type": "fork_hold",
+                "session": claim["id"],
+                "event": event["id"],
+                "held": held,
+                "lane": lane_since(claim["id"]),
+            },
+        )
+    return held
+
+
 def _held_for(page: PageTransaction, session_id: str) -> list[Held]:
     """The page's held threads while it is `session_id`'s, since `held` reads the
     claimant's and a session the page has left must write nothing on it."""
@@ -407,6 +435,16 @@ def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
         # Only the session can settle what owes no reply in the thread.
         _hand_over(session_id, basis, "the message owes no reply")
         return None
+    _note(
+        page_dir,
+        {
+            "type": "fork_asked",
+            "session": session_id,
+            "thread": basis["thread"],
+            "inputs": basis["inputs"],
+            "running": [call["tool"] for call in running],
+        },
+    )
     return {"prompt": reply_prompt(data, running), "thread": basis}
 
 
@@ -489,18 +527,25 @@ def take(
 
 def _record(session_id: str, basis: dict, outcome: dict) -> None:
     """Note what came of a held thread in its page's diagnostics."""
+    _note(
+        Path(basis["page"]),
+        {
+            "type": "fork_reply",
+            "session": session_id,
+            "thread": basis["thread"],
+            "inputs": basis["inputs"],
+            **outcome,
+        },
+    )
+
+
+def _note(page_dir: Path, record: dict) -> None:
+    """Append `record` to the page's diagnostics, dropped where the page can't be
+    written, as every diagnostic is (`interaction_log`)."""
     from .interaction_log import append_interactions
 
-    record = {
-        "source": "cli",
-        "type": "fork_reply",
-        "session": session_id,
-        "thread": basis["thread"],
-        "inputs": basis["inputs"],
-        **outcome,
-    }
     try:
-        append_interactions(Path(basis["page"]), [record])
+        append_interactions(page_dir, [{"source": "cli", **record}])
     except OSError:
         pass
 

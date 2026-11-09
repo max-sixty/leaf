@@ -12,12 +12,16 @@ import {
   heldReading,
   postEvent,
   reportCarried,
+  retryWait,
 } from "./layer-client.js";
 import { afterScript } from "./rendering.js";
 import { holdingError, raiseError } from "./errors.js";
 
 const RETRY_MS = 2000;
-const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
+// The server's own wait where it named one (`retryWait`), and otherwise this one.
+/** @param {number | null} [wait] */
+const retryPause = (wait) =>
+  new Promise((resolve) => setTimeout(resolve, wait ?? RETRY_MS));
 
 /** @typedef {import("../types/contract.js").ServedEventAnswer & {state?: import("./layer-client.js").StateAnswer}} EventAnswer */
 // What an /api/event answer says, read the same way by both senders: accepted, with
@@ -58,10 +62,10 @@ export function createDelivery({
     // That the change is not through yet stands as an error while the tries go on,
     // and leaves when the change is through or refused.
     const retrying = holdingError();
-    /** @param {string} message */
-    const retry = async (message) => {
+    /** @param {string} message @param {number | null} [wait] */
+    const retry = async (message, wait) => {
       retrying(message);
-      await retryPause();
+      await retryPause(wait);
     };
     try {
       return await tries(entry, retry);
@@ -70,7 +74,7 @@ export function createDelivery({
     }
   }
 
-  /** @param {Entry} entry @param {(message: string) => Promise<void>} retry @returns {Promise<DeliveryResult>} */
+  /** @param {Entry} entry @param {(message: string, wait?: number | null) => Promise<void>} retry @returns {Promise<DeliveryResult>} */
   async function tries(entry, retry) {
     for (;;) {
       if (!ledger.nameEvents(entry)) return { accepted: null };
@@ -97,11 +101,12 @@ export function createDelivery({
       }
       if (!sent.response) return { accepted: null };
       // `503` is the server saying it cannot take this yet, which the website's edge
-      // sends for the minutes a container image takes to reach a user's allocation.
-      // The loop already retries; what it reported without this was the failed decode
-      // of a plain-text body rather than what the server said.
+      // sends for the minutes a container image takes to reach a user's allocation,
+      // naming how long to wait (`retryWait`). The loop already retries; what it
+      // reported without this was the failed decode of a plain-text body rather than
+      // what the server said.
       if (sent.response.status === 503) {
-        await retry("Not through yet — trying again…");
+        await retry("Not through yet — trying again…", retryWait(sent.response));
         continue;
       }
       const decoded = await Promise.race([

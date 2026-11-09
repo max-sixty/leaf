@@ -611,8 +611,10 @@ retries; other pages' concurrent uploads and readers remain protected.
 
 `max_instances` caps concurrent `basic` containers: 5,900 for production and 90 for
 `dev`, under Cloudflare's account limit of 6,000. A container with no requests stops
-after ten minutes (`sleepAfter` in `worker/src/index.ts`). During a rollout, Cloudflare
-replaces an active container after at most `rollout_active_grace_period`, 600 seconds.
+after ten minutes (`sleepAfter` in `worker/src/index.ts`). A rollout replaces a
+container as soon as it reaches it, however recently the container started
+(`rollout_active_grace_period = 0`, whose reason `wrangler.toml` gives). The adapter
+exits on the `SIGTERM` that replacement sends, ending any agent turn it was running.
 
 ### Sandbox and rate limits
 

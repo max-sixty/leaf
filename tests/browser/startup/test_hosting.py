@@ -2,6 +2,7 @@
 sample in a frame, and published on the Leaf website."""
 
 import re
+import time
 from urllib.parse import urlparse
 
 import pytest
@@ -661,3 +662,41 @@ def test_a_sample_counts_each_document_its_frame_loads(browser, serve):
     for each in held:
         each.continue_()
     wait_until_ready(page)
+
+
+def test_a_sample_waits_out_a_release_still_rolling_out(browser, serve):
+    """For the minutes after a deploy that a visitor's container still runs the
+    previous release, leaf.page's edge answers it with 503 and the seconds to wait
+    (`worker/src/index.ts`, `rollingOut`). A sample allocated then reads as loading
+    through the wait the answer names, asks again, and arrives."""
+    page = browser.new_page()
+    watched(page)
+    asked = []
+    held = []
+
+    def rolling_out(route):
+        asked.append(time.monotonic())
+        if len(asked) == 1:
+            route.fulfill(
+                status=503,
+                body="this release is still starting",
+                headers={"Retry-After": "1", "Cache-Control": "no-store"},
+            )
+        else:
+            held.append(route)
+
+    page.route("**/api/samples", rolling_out)
+    page.goto(
+        serve(leaf_page("Rollout", "<h1>Rollout</h1>" + live_sample("practice"))),
+        wait_until="commit",
+    )
+    holding(page, held, 1, "the allocation asked again")
+    assert asked[1] - asked[0] >= 1
+    status = page.locator("#practice .lf-sample-status")
+    expect(status).to_have_text("Loading sample…")
+    page.unroute("**/api/samples")
+    held[0].continue_()
+    page.locator("#practice").evaluate("sample => sample.ready")
+    wait_until_ready(page)
+    expect(status).to_have_text("")
+    consume_browser_errors(page, http_error_console(503))

@@ -1912,7 +1912,7 @@ def test_a_server_that_cannot_take_a_gesture_yet_says_so_and_keeps_it(browser, s
         route.fulfill(
             status=503,
             body="this release is still starting",
-            headers={"Retry-After": "5", "Content-Type": "text/plain;charset=UTF-8"},
+            headers={"Retry-After": "1", "Content-Type": "text/plain;charset=UTF-8"},
         )
 
     page.route("**/api/event", still_starting)

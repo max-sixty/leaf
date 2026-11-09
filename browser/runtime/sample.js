@@ -136,8 +136,15 @@ export function sampleFrameImage(frame, crop) {
   return call("image", crop);
 }
 
-/** @param {string | URL} url @param {object} body @param {Record<string, string>} [headers] */
-const request = (url, body, headers = {}) =>
+// For the minutes after a leaf.page deploy that a visitor's container still runs the
+// previous release, the edge refuses an allocation and names a wait (`requestJson`).
+// The allocation waits those out while the sample shows it is loading. Measured
+// rollouts ended within 381 s; a release that still refuses after ten minutes has
+// failed, and the sample shows the failure.
+const ROLLOUT_MS = 10 * 60_000;
+
+/** @param {string | URL} url @param {object} body @param {Record<string, string>} [headers] @param {number} [patience] */
+const request = (url, body, headers = {}, patience = 0) =>
   requestJson(
     String(url),
     {
@@ -147,6 +154,7 @@ const request = (url, body, headers = {}) =>
       keepalive: true,
     },
     "sample",
+    patience,
   );
 
 /** @param {unknown} value @returns {value is {type: "leaf-sample-connect", sample: string, nonce: string}} */
@@ -533,6 +541,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
           pageUrl("api/samples"),
           { template, source, message },
           revision ? { "Leaf-View-Revision": String(revision) } : {},
+          ROLLOUT_MS,
         );
         current = new URL(url, location.href).href;
         samplePage = page;

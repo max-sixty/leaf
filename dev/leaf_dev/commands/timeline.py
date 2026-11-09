@@ -303,19 +303,27 @@ def native(path: Path) -> list[dict]:
     return transcript_records(path)
 
 
-def delivered(text: str) -> str:
-    """What one Leaf delivery a hook carried holds, by event id."""
+def told(text: str) -> list[str]:
+    """What one context a Leaf hook gave the session says: the delivery it carried, by
+    event id, and each line Leaf's clerk queued after it (`clerk.queued`)."""
+    if not text.startswith(DELIVERY_OPENING):
+        return [
+            f"said “{clip(line, 90)}”" for line in text.splitlines() if line.strip()
+        ]
     start = text.find("{")
     try:
-        delivery, _ = json.JSONDecoder().raw_decode(text, start)
-    except (ValueError, json.JSONDecodeError):
-        return clip(text.split("\n")[0], 80)
+        delivery, end = json.JSONDecoder().raw_decode(text, start)
+    except ValueError:
+        return [f"said “{clip(text, 90)}”"]
     ids = [
         event["id"]
         for batch in delivery.get("batches", [])
         for event in batch.get("events", [])
     ]
-    return f"delivery {delivery.get('id')}: {', '.join(ids) or 'no events'}"
+    return [
+        f"carried delivery {delivery.get('id')}: {', '.join(ids) or 'no events'}",
+        *told(text[end:].strip()),
+    ]
 
 
 def session_entries(path: Path, session: str, *, calls: bool) -> list[dict]:
@@ -360,24 +368,17 @@ def session_entries(path: Path, session: str, *, calls: bool) -> list[dict]:
         attachment = record.get("attachment") or {}
         if attachment.get("type") == "hook_additional_context":
             for text in attachment.get("content") or []:
-                if text.startswith(DELIVERY_OPENING):
-                    out.append(
-                        entry(
-                            record["timestamp"],
-                            "session",
-                            f"{attachment.get('hookEvent')} hook carried {delivered(text)}",
-                            session=short,
-                        )
+                if not text.startswith(DELIVERY_OPENING) and "Leaf" not in text[:200]:
+                    continue
+                out.extend(
+                    entry(
+                        record["timestamp"],
+                        "session",
+                        f"{attachment.get('hookEvent')} hook {line}",
+                        session=short,
                     )
-                elif "Leaf" in text[:200]:
-                    out.append(
-                        entry(
-                            record["timestamp"],
-                            "session",
-                            f"{attachment.get('hookEvent')} hook said “{clip(text, 80)}”",
-                            session=short,
-                        )
-                    )
+                    for line in told(text)
+                )
         elif (
             record.get("type") == "queue-operation"
             and record.get("operation") == "enqueue"
@@ -425,7 +426,10 @@ def subagent_entries(meta: Path, session: str) -> list[dict]:
         for record in dated
         if record.get("type") == "assistant"
         for part in record["message"]["content"]
-        if isinstance(part, dict) and part.get("type") == "tool_use"
+        if isinstance(part, dict)
+        and part.get("type") == "tool_use"
+        # The call a plugin spawned the agent with opens its transcript.
+        and not part.get("id", "").startswith("toolu_plugin_")
     )
     last = next(
         (

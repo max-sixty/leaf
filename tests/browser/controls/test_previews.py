@@ -2618,13 +2618,14 @@ def test_k_reads_a_landing_s_preview_inside_a_modal_dialog(browser, serve):
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_preview_says_nothing_its_target_shows_whole(engine, request, serve):
-    """A preview says only what its target doesn't: a select its label names, a
-    button whose label is shorter than its face and a row whose words stand apart from
-    its key preview nothing, nor does a status that declares its own words while they
-    stand whole, though the window has scrolled, nor a word its markup splits. Cut short by its own box or the one
-    around it, the status's words preview in full, and a symbol's name still previews,
-    as does a slider's whose label the user can't see, a button's whose hidden notes
-    run past a face, and one's that shows only the start of its name."""
+    """A preview says only what its target doesn't: a select its label names, however
+    long its list, a button whose label is shorter than its face and a row whose words
+    stand apart from its key preview nothing, nor does a status that declares its own
+    words while they stand whole, though the window has scrolled, nor a word its markup
+    splits. Cut short by its own box or the one around it, the status's words preview in
+    full, and a symbol's name still previews, as does a slider's whose label the user
+    can't see, a button's whose hidden notes run past a face, and one's that shows only
+    the start of its name."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
@@ -2636,6 +2637,10 @@ def test_a_preview_says_nothing_its_target_shows_whole(engine, request, serve):
                 '<div style="height: 150vh"></div>'
                 '<p><label>Speed <select id="speed"><option>1×</option>'
                 "<option>0.5×</option></select></label></p>"
+                # More options than a face holds, none of them saying "Country".
+                '<p><label>Country <select id="country">'
+                + "".join(f"<option>Region {n:02}</option>" for n in range(60))
+                + "</select></label></p>"
                 '<p><button id="send" aria-label="Send">Send reply</button></p>'
                 '<p><span id="status" tabindex="0">Queued for the agent</span></p>'
                 '<p><button id="undo" style="display: inline-grid;'
@@ -2690,6 +2695,7 @@ def test_a_preview_says_nothing_its_target_shows_whole(engine, request, serve):
     tip = page.locator(PREVIEW)
     for quiet in (
         "#speed",
+        "#country",
         "#send",
         "#status",
         "#undo",

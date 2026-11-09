@@ -566,9 +566,8 @@ function labelText(control) {
   const runs = [];
   let room = FACE;
   for (const label of labelsOf(control)) {
-    const walker = document.createTreeWalker(label, NodeFilter.SHOW_TEXT);
+    const walker = faceWalker(label, control);
     for (let node = walker.nextNode(); node && room > 0; node = walker.nextNode()) {
-      if (control.contains(node)) continue;
       const text = /** @type {Text} */ (node).data;
       room -= 1 + text.trim().length;
       runs.push(text);
@@ -581,6 +580,20 @@ function labelText(control) {
 // preview stands over, whose words the face rule leaves unread, so reading a face costs
 // as little over a long section as over a button.
 const FACE = 300;
+// The runs of text under `root` that a face or a label's text reads. The walk passes
+// over `skip` and a select's or datalist's options without entering them, so they cost
+// no room: the control's words aren't its label's, and a list shows only its chosen
+// option (`controlFace`), however many it holds.
+/** @param {Element} root @param {Element | null} skip */
+const faceWalker = (root, skip) =>
+  document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) =>
+      node instanceof Text
+        ? NodeFilter.FILTER_ACCEPT
+        : node === skip || /** @type {Element} */ (node).matches("select, datalist")
+          ? NodeFilter.FILTER_REJECT
+          : NodeFilter.FILTER_SKIP,
+  });
 /** @typedef {{words: string, joined: string, partial: boolean, chips: string[]}} Face */
 // What `root` shows the user whole, less any part inside `skip`, or null where it holds
 // more than a face. A run of its text counts where the browser draws it (`drawsText`) and
@@ -592,7 +605,7 @@ const FACE = 300;
 // the key chips it shows, in order.
 /** @param {Element} root @param {Element | null} [skip] @returns {Face | null} */
 function faceOf(root, skip = null) {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const walker = faceWalker(root, skip);
   const range = document.createRange();
   /** @type {import("./geometry.js").ClipCache} */
   const clips = new Map();
@@ -604,13 +617,10 @@ function faceOf(root, skip = null) {
     const text = /** @type {Text} */ (node);
     room -= 1 + text.data.trim().length;
     if (room < 0) return null;
-    if (skip?.contains(text) || !/\S/.test(text.data)) continue;
+    if (!/\S/.test(text.data)) continue;
     const parent =
       text.parentElement ??
       (text.parentNode instanceof ShadowRoot ? text.parentNode.host : null);
-    // A select's options are its list, which shows only the chosen one (`controlFace`),
-    // not words its face hides.
-    if (parent?.closest("select, datalist")) continue;
     range.selectNodeContents(text);
     const at = range.getBoundingClientRect();
     const left =

@@ -1142,7 +1142,8 @@ def deliverable(
     Less, too, each waiting message of a thread a fork of the owner's conversation
     is deciding on (`forks.held`), until the fork posts its line and hands it over
     or the hold runs out, which keeps the watch from waking the session for it as
-    it arrives.
+    it arrives; and of a thread a fork took the work of, until that fork answers or
+    gives it back.
 
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. Codex's tool hook runs after every tool call, so it passes

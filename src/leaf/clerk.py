@@ -940,9 +940,14 @@ def _changed(words: str, put: str) -> tuple[int, int, str]:
     return start, end, put[start : len(put) - (len(words) - end)].strip()
 
 
+def queue(session_id: str, lines: list[str]) -> None:
+    """Queue `lines` for the session's next step (`queued`)."""
+    with flocked(session_lock_path(session_id)):
+        _append(session_id, lines)
+
+
 def _append(session_id: str, lines: list[str]) -> None:
-    """Queue `lines` for the session's next step (`queued`), for a caller holding
-    the session's lock."""
+    """`queue`, for a caller already holding the session's lock."""
     if lines:
         path = session_file(session_id, QUEUED.kind)
         held = QUEUED.read(path) or {"lines": []}
@@ -985,7 +990,8 @@ def _told(path: str, title: str, text: str, passage: str, record: dict):
 
 
 def queued(session_id: str) -> list[str]:
-    """What the session's next step hears from the clerk."""
+    """What the session's next step hears from the clerk and from forks that took a
+    thread's work."""
     held = QUEUED.read(session_file(session_id, QUEUED.kind))
     return held["lines"] if held else []
 

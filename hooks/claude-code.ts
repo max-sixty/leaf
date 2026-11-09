@@ -68,6 +68,7 @@
 
 import type {
   EngineInterface,
+  ModelEffort,
   Register,
   RenderElement,
   RenderSurface,
@@ -378,7 +379,7 @@ function request() {
  * thread's request it resent (`request`), whose effort is the session's. */
 async function runFork(
   $: EngineInterface,
-  asked: { prompt: string; effort: string },
+  asked: { prompt: string; effort: ModelEffort },
 ): Promise<Record<string, unknown>> {
   const resent = request();
   const started = await $.clock.now();

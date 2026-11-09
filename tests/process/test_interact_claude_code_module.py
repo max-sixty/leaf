@@ -331,6 +331,13 @@ RESENT = {
     "sent": "r1",
     "row": "r2",
 }
+# The usage the driver's fork reports (`tests/claude_code_driver.mjs`).
+FORK_USAGE = {
+    "input_tokens": 10,
+    "output_tokens": 20,
+    "cache_read_input_tokens": 1000,
+    "cache_creation_input_tokens": 0,
+}
 
 
 def main_thread_request(driven) -> None:
@@ -415,6 +422,7 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
     assert note["request"] == RESENT, note
     # The note gives the effort the fork was sent at, not the session's in `request`.
     assert note["effort"] == clerk_model.EFFORT != RESENT["effort"], note
+    assert note["usage"] == FORK_USAGE and note["elapsedMs"] >= 0, note
     driven.quit()
 
 
@@ -506,5 +514,6 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     assert note["request"] == RESENT, note
     # The note gives the effort the fork was sent at, not the session's in `request`.
     assert note["effort"] == forks_model.EFFORT != RESENT["effort"], note
+    assert note["usage"] == FORK_USAGE and note["elapsedMs"] >= 0, note
     assert driven.diagnostics.empty()
     driven.quit()

@@ -808,7 +808,7 @@ def test_the_leaf_nods_for_each_notice_of_the_users_own_key(browser, serve):
           window.__lfNods = [];
           const animate = Element.prototype.animate;
           Element.prototype.animate = function (keyframes, options) {
-            if (this.closest('.lf-fp-leaf'))
+            if (this.matches('.lf-fp-leaf > svg'))
               window.__lfNods.push(keyframes.map((k) => k.transform).join(' / '));
             return animate.call(this, keyframes, options);
           };

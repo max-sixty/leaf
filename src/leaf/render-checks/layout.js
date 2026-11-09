@@ -825,14 +825,17 @@ export function squeezedBoxes() {
       if (!uiInside(node.parentElement, cell)) text += node.textContent;
     return text.trim().replace(/\s+/g, " ");
   };
-  // The element whose visible words stand outside the scroller's inner box, or null. A
-  // line's words run from its first character to its last that isn't a space, since a
-  // <pre> keeps the spaces that end a line and scrolls them as far as any word.
+  // The element whose visible words stand outside the scroller's inner box, or null. In
+  // a code block a line's words run from its first character to its last that isn't a
+  // space, since a <pre> keeps the spaces that end a line and scrolls them as far as any
+  // word. A table measures every character: spaces a cell keeps hold its column open
+  // and wrap the prose beside it, which is the squeeze its reading reports.
   /** @param {Element} scroller */
   const wordsOutside = (scroller) => {
     const box = scroller.getBoundingClientRect();
     const left = box.left + scroller.clientLeft;
     const right = left + scroller.clientWidth;
+    const lines = scroller.localName === "pre";
     const range = document.createRange();
     for (const root of openRoots(scroller)) {
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -843,7 +846,9 @@ export function squeezedBoxes() {
         if (!el || !node.textContent?.trim() || uiInside(el, scroller)) continue;
         if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
           continue;
-        for (const words of node.textContent.matchAll(/\S(?:.*\S)?/g)) {
+        const text = node.textContent;
+        const runs = lines ? text.matchAll(/\S(?:.*\S)?/g) : [{ index: 0, 0: text }];
+        for (const words of runs) {
           range.setStart(node, words.index);
           range.setEnd(node, words.index + words[0].length);
           for (const drawn of range.getClientRects())

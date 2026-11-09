@@ -229,8 +229,9 @@ def _squeezed_code(at: str, v: dict) -> str:
     return (
         f"{shown}, so it shows a few characters at most; give the block or what holds"
         " it more room (a box that takes its width from its content gives a code"
-        " block none), or stack or wrap what stands beside it where the window is"
-        ' that narrow (page-layout.md, "Layouts")'
+        " block none), or let what stands beside it wrap or stack where the window is"
+        " that narrow, with layout-tiles or a grid that stacks below a width"
+        ' (page-layout.md, "Layouts" and "A workspace")'
     )
 
 

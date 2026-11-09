@@ -3600,8 +3600,9 @@ def test_a_code_block_its_holder_sizes_without_is_reported_squeezed(
     flex row, in an `auto` track beside an `fr` track, beside a heading that sets its
     flex item's width, in a box sized to fit, in one of four `1fr` tracks, and in a
     table cell, which the finding marks, since the table's own remedy applies there. A
-    width for the block can't help the tracks, so the words also offer stacking them,
-    from the section of `page-layout.md` that shows how.
+    width for the block can't help the tracks, so the words also offer letting them wrap
+    or stack, and cite the `page-layout.md` sections that give `layout-tiles` and a grid
+    that stacks below a width.
 
     The controls scroll long lines and read well, so the reading leaves them alone: a
     block in the column, `flex: 1` halves, `1fr` halves, `flex: auto` halves under
@@ -3609,7 +3610,11 @@ def test_a_code_block_its_holder_sizes_without_is_reported_squeezed(
     block in a flex row given a fixed width, and a short line whose trailing spaces are
     all that runs past the edge. The remedies hold: the four tracks stacked on a phone
     show their whole lines, and the cell's command written as inline <code> breaks
-    inside its cell, so its table neither scrolls nor draws a finding."""
+    inside its cell, so its table neither scrolls nor draws a finding.
+
+    A table still counts the spaces a cell keeps, which only a code block's lines leave
+    out: an Exit column whose `white-space: pre` cell ends in spaces holds the column
+    open, and the prose beside it wraps, which is a squeezed table."""
     long = "const result = await fetchEverything({ retries: 3, timeout: 5000 });"
     longer = long.replace("5000 }", "5000, signal: controller.signal }")
     tracks = "".join(
@@ -3636,6 +3641,10 @@ def test_a_code_block_its_holder_sizes_without_is_reported_squeezed(
 <div class="four stacks">{tracks.replace('id="four-', 'id="stacked-')}</div>
 <div class="row"><div><h3>Run this</h3><pre><code>ls
 cd ..         </code></pre></div></div>
+<table id="spaced"><thead><tr><th>Step</th><th>What happened</th><th>Exit</th></tr>
+</thead><tbody><tr><td>test</td>
+<td>Ran the suite; three tests in the render gate failed on a fresh checkout.</td>
+<td style="white-space: pre">failed{" " * 100}</td></tr></tbody></table>
 <table id="inline"><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody>
 <tr><td><code>uv run pytest -k squeeze</code></td><td>Runs the squeeze tests.</td></tr>
 </tbody></table>""",
@@ -3667,20 +3676,22 @@ cd ..         </code></pre></div></div>
             squeezed = {
                 f["at"]: Finding.read(f, severity="advice") for f in reading["squeezed"]
             }
-            assert {at: f.values["cell"] for at, f in squeezed.items()} == {
-                "<pre id=start>": False,
-                "<pre id=serve>": False,
-                "<pre id=tracked>": False,
-                "<pre id=labelled>": False,
-                "<pre id=fitted>": False,
-                **{f"<pre id=four-{n}>": False for n in "abcd"},
-                "<pre id=celled>": True,
+            blocks = ["start", "serve", "tracked", "labelled", "fitted", "celled"]
+            assert {at: f.code for at, f in squeezed.items()} == {
+                **{f"<pre id={b}>": "squeezed-code" for b in blocks},
+                **{f"<pre id=four-{n}>": "squeezed-code" for n in "abcd"},
+                "<table id=spaced>": "squeezed-table",
             }, reading["squeezed"]
-            assert {f.code for f in squeezed.values()} == {"squeezed-code"}, squeezed
-            [cited] = re.findall(
-                r'\(page-layout\.md, "([^"]+)"\)', str(squeezed["<pre id=four-a>"])
+            assert [at for at, f in squeezed.items() if f.values.get("cell")] == [
+                "<pre id=celled>"
+            ]
+            [cites] = re.findall(
+                r"\(page-layout\.md, ([^)]+)\)", str(squeezed["<pre id=four-a>"])
             )
-            assert f"\n## {cited}\n" in layout, cited
+            sections = re.findall(r'"([^"]+)"', cites)
+            assert sections, cites
+            for section in sections:
+                assert f"\n## {section}\n" in layout, section
 
 
 def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve, subtests):

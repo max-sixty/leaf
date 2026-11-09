@@ -571,10 +571,21 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     holding(page, held, 1, "the resolve")
     expect(said).to_have_text(f"Resolved “{first}”")
     expect(undo).to_contain_text("Undo")
+    # The refusal arrives as news, after the Resolve's rendering has settled. Its
+    # thread rejoins Open in the Threads view as that view leaves for the thread,
+    # which carries the Resolved heading under it down: the one move the refusal
+    # makes without input, inside the panel (browser/AGENTS.md, "The page holds still
+    # under the user's aim", allows a rare path that move).
+    rendered(page)
+    one_frame(page)
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     page.unroute("**/api/event")
     expect(title).to_have_text(first)
     expect(undo).to_have_count(0)
+    rendered(page)
+    consume_browser_errors(
+        page, {"code": "moved-without-input", "node": ["button.lf-fp-settled"]}
+    )
 
     thread.focus()
     with sending(page, "the resolve"):

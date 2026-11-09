@@ -2184,7 +2184,7 @@ export function createVersionController({
           );
           for (const block of changedSince(outgoingSource).changed)
             backgroundFlash(block, flashDuration());
-          notice(`Updated to ${target.label}`, { background: true });
+          notice(`Updated to ${target.label}`, { background: true, moment: "version" });
         }),
     };
   }

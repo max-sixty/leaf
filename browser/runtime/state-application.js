@@ -21,7 +21,7 @@ import { reportCarried, sameLayer } from "./layer-client.js";
 import { holdUserPlace } from "./user-place.js";
 import { observeServerNow, observeWorkingGrace } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
-import { announce, notice } from "./notifications.js";
+import { announce, gesture, notice } from "./notifications.js";
 import { markStateApplied, settlePageInterface } from "./presentation.js";
 import {
   loadMessageMarkdown,
@@ -32,6 +32,7 @@ import { commitWidgetDescriptors } from "./widget-descriptors.js";
 import {
   combineSemanticNews,
   currentSemanticNews,
+  newsMoment,
   observeSemanticNews,
   semanticNewsNotice,
   semanticNewsReading,
@@ -238,6 +239,9 @@ export function createStateApplication({
         // margin marker's already show unread news, so the seat keeps the agent's status.
         // The user chose this on 25 October over a line counting the messages.
         if (reading.news.length) announce(semanticNewsNotice(reading.news));
+        // The leaf answers them as they arrive, since no notice shows them.
+        if (reading.news.some((item) => item.kind === "agent_content"))
+          gesture("reply");
         const shown = reading.news.filter((item) => item.kind !== "agent_content");
         if (shown.length) {
           const format = newsFormat(presentedNews);
@@ -249,6 +253,7 @@ export function createStateApplication({
               value: shown,
               combine: combineSemanticNews,
               format,
+              moment: newsMoment,
             },
           });
         }

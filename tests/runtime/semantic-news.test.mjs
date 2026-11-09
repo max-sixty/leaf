@@ -614,3 +614,84 @@ test("held producer batches preserve interrupted news and merge later arrivals",
     "showing deferred news must not announce it again",
   );
 });
+
+test("each notice the seat shows, and an error about no field, gives the leaf its moment once", async (t) => {
+  const { notice, gestureReading, holdStatus } =
+    await import("/runtime/notifications.js");
+  const { newsMoment } = await import("/runtime/semantic-news.js");
+  const { dismissErrors, raiseError } = await import("/runtime/errors.js");
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  t.after(() => window.happyDOM.cancelAsync());
+  // News an earlier test left in the seat passes first.
+  notice("Ready");
+  for (let turn = 0; turn < 4; turn++) t.mock.timers.tick(4000);
+  const moments = [];
+  const step = (run) => {
+    const before = gestureReading().beat;
+    run();
+    const after = gestureReading();
+    if (after.beat !== before) moments.push(after.moment);
+  };
+  const group = (value) => ({
+    key: "semantic-news",
+    value,
+    combine: combineSemanticNews,
+    format: semanticNewsNotice,
+    moment: newsMoment,
+  });
+  const emptied = [{ kind: "on_me_empty", key: "on-me:empty" }];
+  const asked = [
+    {
+      kind: "user_obligation",
+      key: "obligation:q",
+      sourceKey: "q",
+      episode: 1,
+      source: "q",
+      thread: null,
+      message: null,
+    },
+  ];
+  const failed = [
+    {
+      kind: "response_failure",
+      key: "response:input",
+      condition: "failed",
+      input: "input",
+      thread: "t",
+      seq: 3,
+    },
+  ];
+
+  // The user's own command, and the same words again.
+  step(() => notice("No search to repeat"));
+  step(() => notice("No search to repeat"));
+  // News waits behind the command and moves the leaf when it shows.
+  step(() => notice("Updated to v2", { background: true, moment: "version" }));
+  step(() => t.mock.timers.tick(4000));
+  // A command interrupts it; the news returns without moving the leaf again.
+  step(() => notice("Changes hidden"));
+  step(() => t.mock.timers.tick(4000));
+  step(() => t.mock.timers.tick(4000));
+  // A walk's hold moves nothing here: walk-position.js gives the walk its moment.
+  step(() => holdStatus(1));
+  step(() => t.mock.timers.tick(1));
+  for (const news of [emptied, asked, failed]) {
+    step(() =>
+      notice(semanticNewsNotice(news), { background: true, group: group(news) }),
+    );
+    step(() => t.mock.timers.tick(4000));
+  }
+  // An error the panel says shakes the leaf; one standing at a box of its own doesn't.
+  step(() => raiseError("Wait for the current change to finish before undoing"));
+  step(() => raiseError("Not sent", { subject: document.createElement("textarea") }));
+  dismissErrors();
+  assert.deepEqual(moments, [
+    "notice",
+    "notice",
+    "version",
+    "notice",
+    "on-me-empty",
+    "new-on-me",
+    "error",
+  ]);
+});

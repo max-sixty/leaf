@@ -202,6 +202,17 @@ export function currentSemanticNews(news, reading, observed) {
   );
 }
 
+// The moment the panel's leaf answers shown news with (notifications.js, `gesture`):
+// On Me emptying, or something new on it. A failed response moves nothing; the agent's
+// new words are heard, not shown, and state-application.js gives their moment itself.
+/** @param {readonly SemanticNews[]} news
+ * @returns {import("./notifications.js").Moment | null} */
+export function newsMoment(news) {
+  if (news.some((item) => item.kind === "on_me_empty")) return "on-me-empty";
+  if (news.some((item) => item.kind === "user_obligation")) return "new-on-me";
+  return null;
+}
+
 /** @param {readonly SemanticNews[]} older @param {readonly SemanticNews[]} newer */
 export function combineSemanticNews(older, newer) {
   return [...new Map([...older, ...newer].map((item) => [item.key, item])).values()];

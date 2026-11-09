@@ -196,7 +196,7 @@
     "additionalProperties": false,
     "x-content": "empty",
     "x-upgrade": true,
-    "x-rail": true,
+    "x-spine": true,
     "x-example": "<h1>Migration plan</h1>\n<lf-toc id=\"plan-contents\"></lf-toc>\n<section><h2>Prepare</h2><p>Take a snapshot.</p><h3>Check capacity</h3><p>Leave headroom for the copy.</p></section>\n<section><h2>Move</h2><p>Shift one cohort at a time.</p></section>"
   },
   "lf-activity": {

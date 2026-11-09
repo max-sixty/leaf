@@ -6,7 +6,8 @@ import { sectionMarks } from "./toc-marks.js";
  * `toc-view.js`'s. The module redraws the outline in those same nodes
  * whenever the document's headings change, and measures and moves the map.
  *
- * In a track beside the body too narrow for words, such as a document's rail, the
+ * In a track beside the body too narrow for words, a document's sidebar narrowed to
+ * the map's spine, the
  * outline becomes a reading map. Each row receives the length of the section it leads
  * as its flex share, so the quiet spine describes the document before its labels
  * appear over the page. Crowded destinations are fitted together just enough for

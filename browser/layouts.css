@@ -710,30 +710,30 @@
     max-inline-size: none;
     --aside: calc(var(--sidebar) - var(--sp-4));
   }
-  /* A document's sidebar whose track holds only an element that rests in a rail
-   * (`x-rail`, painted `data-lf-rail`), as the contents map does, is a rail on a screen
-   * where a fine pointer can reach into it, so the prose starts beside it and the room a
-   * column would take goes to the body's exhibits. The aside comes before the body, so
-   * what the element reveals spreads from the rail toward the inline end, over the body.
-   * The rail's track carries `--lf-track-rail: 1`, and only there does the element take
-   * its resting form (toc.css). The track doesn't clip, the aside paints over the body,
+  /* A document's sidebar whose track holds only an element that rests as a spine
+   * (`x-spine`, painted `data-lf-spine`), as the contents map does, narrows to that spine
+   * on a screen where a fine pointer can reach into it, so the prose starts beside it and
+   * the room a column would take goes to the body's exhibits. The aside comes before the
+   * body, so what the element reveals spreads from the spine toward the inline end, over
+   * the body. The narrowed track carries `--lf-track-spine: 1`, and only there does the
+   * element take its resting form (toc.css). The track doesn't clip, the aside paints over the body,
    * and the body is one stacking context, so nothing it holds paints over what the
    * element reveals, whatever its z-index. Every other sidebar keeps a column's room: a
    * track holding anything else, an aside after the body, every track under touch,
    * where nothing reaches in by pointing, and paper, where nothing reaches in at all.
-   * Rejected (9 November 2026): making every document sidebar a rail. It broke a
+   * Rejected (9 November 2026): narrowing every document sidebar. It broke a
    * paragraph in one into a few letters a line, and the render check passed it. */
   @media screen and (hover: hover) and (pointer: fine) {
     .layout-sidebar:has(> aside:only-of-type ~ .layout-column):has(
-        > aside > .layout-track:only-child > [data-lf-rail]:only-child
+        > aside > .layout-track:only-child > [data-lf-spine]:only-child
       ) {
-      --aside: var(--sidebar-rail);
+      --aside: var(--sidebar-spine);
       & > aside {
         z-index: 1;
       }
       & > aside > .layout-track {
         overflow: visible;
-        --lf-track-rail: 1;
+        --lf-track-spine: 1;
       }
       & > .layout-column {
         isolation: isolate;

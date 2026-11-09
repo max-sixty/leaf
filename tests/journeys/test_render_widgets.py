@@ -399,17 +399,17 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(
     assert comments[-1]["anchor"]["datum"] == '["src/summary.rs","new",259]'
 
 
-def test_a_rail_table_of_contents_maps_the_document_until_the_user_enters_it(
-    browser, serve
-):
-    """A document's rail is a stable reading map rather than a compressed outline.
+def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, serve):
+    """A document's contents spine is a stable reading map rather than a compressed
+    outline.
 
-    Under a mouse a sidebar beside a `layout-column` holding only the map is a rail, so
-    the prose starts beside the map's spine rather than a column's width away (#5619). Section rows
-    divide the available height according to the content they lead, a moving lens shows
-    the visible band, and late content growth redraws both. Labels reveal over the
-    body without moving the map or changing the item under the pointer. Outside the
-    rail, the same links open through a native disclosure.
+    Under a mouse a sidebar before a `layout-column` holding only the map narrows to its
+    spine, so the prose starts beside the spine rather than a column's width away
+    (#5619). Section rows divide the available height according to the content they
+    lead, a moving lens shows the visible band, and late content growth redraws both.
+    Labels reveal over the body without moving the map or changing the item under the
+    pointer. Outside the narrowed sidebar, the same links open through a native
+    disclosure.
 
     The track sticks, so once the reader scrolls the map stands still above the room
     the floating panel keeps at the window's foot, through the document's end."""
@@ -448,7 +448,7 @@ def test_a_rail_table_of_contents_maps_the_document_until_the_user_enters_it(
     verify = nav.get_by_role("link", name="Verify both readings", exact=False)
     page.mouse.move(1200, 700)
     # Every row says its own word as text, the start row included. Its word used to be an
-    # attribute the rail form drew with `content: attr()`, which left the link that names
+    # attribute the map drew with `content: attr()`, which left the link that names
     # the whole document saying nothing at all to any reading that asks a link what it
     # says — the accessible name it falls back to, a text dump, the widget's own outline.
     said = nav.locator("a").evaluate_all(
@@ -487,8 +487,9 @@ def test_a_rail_table_of_contents_maps_the_document_until_the_user_enters_it(
     padding = nav.evaluate(
         "node => parseFloat(getComputedStyle(node).paddingBlockStart)"
     )
-    # The map stands in the rail, and the prose starts just past it: the rail's track
-    # padding and the Layout's gap, where a column's width had stood blank (#5619).
+    # The map stands in the narrowed sidebar, and the prose starts just past it: the
+    # track's padding and the Layout's gap, where a column's width had stood blank
+    # (#5619).
     body_start = page.locator("#route + .layout-column h1").evaluate(
         "node => node.getBoundingClientRect().left"
     )
@@ -502,7 +503,7 @@ def test_a_rail_table_of_contents_maps_the_document_until_the_user_enters_it(
     )
     assert rows_box["y"] == pytest.approx(nav_box["y"] + padding, abs=1)
 
-    # At rest the map takes the pointer on its own box in the rail alone, so the words
+    # At rest the map takes the pointer on its own box in the track alone, so the words
     # beside it stay the page's; once entered, the whole map keeps the pointer across
     # its labels and the padding over its first row.
     page.mouse.move(rows_box["x"] + 100, rows_box["y"] + 20)
@@ -580,9 +581,9 @@ def test_a_rail_table_of_contents_maps_the_document_until_the_user_enters_it(
         marker["y"] == pytest.approx(marker["labelCenter"], abs=1) for marker in markers
     )
     assert markers[-1]["y"] > nav_box["y"] + nav_box["height"] * 0.68
-    # The close rows sit one label apart; the long stretch before the next section
-    # still reads at the document's scale.
-    assert markers[4]["y"] - markers[3]["y"] > markers[3]["y"] - markers[2]["y"]
+    # The close rows sit at least one label apart; the long stretch before the last
+    # section still reads at the document's scale.
+    assert markers[5]["y"] - markers[4]["y"] > markers[3]["y"] - markers[2]["y"]
 
     # The flex rows preserve the raw document scale from which the visible map is fitted.
     # Nearby destinations bend together just enough for every label to remain distinct.
@@ -649,7 +650,7 @@ def test_a_rail_table_of_contents_maps_the_document_until_the_user_enters_it(
 
     # A diagram render, image load, disclosure, or other late block can change the
     # document after upgrade. Growing one such block must move the later sections in
-    # the map without changing the rail's own box.
+    # the map without changing the map's own box.
     move_before = markers[4]["y"]
     page.locator("#late-content").evaluate("node => { node.style.height = '580px'; }")
     page.wait_for_function(
@@ -666,7 +667,7 @@ def test_a_rail_table_of_contents_maps_the_document_until_the_user_enters_it(
     )
 
     # The go-to menu reveals and addresses every label without moving it or focus into
-    # the rail.
+    # the map.
     page.keyboard.press("g")
     link_hints = page.locator(
         '.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-kind="Link"]'
@@ -791,7 +792,7 @@ def test_a_rail_table_of_contents_maps_the_document_until_the_user_enters_it(
         stuck.append([box[key] for key in ("x", "y", "height")])
     assert stuck[0] == stuck[1], stuck
 
-    # A wheel over the rail stays in the document's native scroll chain.
+    # A wheel over the map stays in the document's native scroll chain.
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
     page.mouse.move(toc_box["x"] + toc_box["width"] / 2, nav_box["y"] + 300)
     page.mouse.wheel(0, 260)
@@ -859,7 +860,7 @@ def test_a_rail_table_of_contents_maps_the_document_until_the_user_enters_it(
     after_navigation = nav.bounding_box()
     assert after_navigation is not None
     assert [after_navigation[key] for key in ("x", "y", "height")] == stuck[0], (
-        "following a link moved the contents rail"
+        "following a link moved the contents spine"
     )
     landing = page.locator("#prepare").evaluate(
         """target => ({
@@ -980,7 +981,7 @@ def test_a_rail_table_of_contents_maps_the_document_until_the_user_enters_it(
     )
     page.close()
 
-    # A wide touch screen, where nothing reaches into a rail by pointing, keeps a
+    # A wide touch screen, where nothing reaches into a spine by pointing, keeps a
     # column's room for the sidebar, so the contents stand open there as an outline.
     context = browser.new_context(
         viewport={"width": 1400, "height": 900}, has_touch=True

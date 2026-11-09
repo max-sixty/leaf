@@ -1189,8 +1189,8 @@ def test_a_route_taller_than_the_map_returns_to_an_open_outline(
         resized(page, 1400, 700)
         assert nav.evaluate("node => node.scrollTop") == 0
 
-    # In the rail the outline reveals as the map does, so at rest it lays nothing over
-    # the document's words.
+    # In the narrowed sidebar the outline reveals as the map does, so at rest it lays
+    # nothing over the document's words.
     resized(page, 1188, 600)
     page.evaluate(RELEASE_FOCUS)
     page.mouse.move(1100, 500)

@@ -130,9 +130,9 @@ keeping another in view. The sidebar and body are authored siblings; the sidebar
 
 Use a `layout-column` body for a reading document with wider exhibits. Where its
 sidebar comes before the body and its track holds only the contents map, under a mouse
-the sidebar is a narrow rail: the map shows its labels over the page when the reader
-points at it, the prose starts just past the rail, and exhibits use the remaining body
-width. Under touch, after the body, or with anything else in the track, the sidebar
+the sidebar narrows to the map's spine: the map shows its labels over the page when
+the reader points at it, the prose starts just past the spine, and exhibits use the
+remaining body width. Under touch, after the body, or with anything else in the track, the sidebar
 keeps a column's room. So put a status the
 reader should see at once at the top of the body rather than beside the map. For a
 board or dashboard, the body can instead be an ordinary `div` with the page's own
@@ -278,9 +278,9 @@ whether `data-height` was missing, too small or too large.
 ## The rail and the margin
 
 A document's explicit sidebar keeps its route beside the body. Before the body and
-holding only a contents map, under a mouse it is a narrow rail, where the map draws the document's sections to
-scale beside a spine and shows their labels over the page when the reader points at
-it; stacked, it returns to its native outline. A dashboard sidebar, or a document's
+holding only a contents map, under a mouse it narrows to the map's spine, which draws
+the document's sections to scale and shows their labels over the page when the reader
+points at it; stacked, it returns to its native outline. A dashboard sidebar, or a document's
 under touch, keeps its outline open beside the body. These placements are CSS layout, present before widgets load. Page CSS does not read runtime placement
 attributes. To change where a route stands, compose its sidebar and body explicitly.
 

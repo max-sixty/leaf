@@ -118,8 +118,8 @@ page composes the route and its document as siblings:
 ```
 
 The browser places that route before JavaScript runs and wraps it with the document
-when narrow. Under a mouse a track holding the contents map alone is a narrow rail,
-whose labels show over the page when the reader points at it, so put a verdict or
+when narrow. Under a mouse a sidebar holding the contents map alone narrows to the
+map's spine, whose labels show over the page when the reader points at it, so put a verdict or
 status the reader should see at once at the top of the body, and detailed evidence and
 history in the body or behind a disclosure. See `page-layout.md`, "A sidebar page", for the
 shared composition and width contract.

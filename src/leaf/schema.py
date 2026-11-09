@@ -456,7 +456,7 @@ EXTENSION_SCHEMA = {
         },
         "x-space": {"enum": ["wide", "available"]},
         "x-flow": {"const": True},
-        "x-rail": {"const": True},
+        "x-spine": {"const": True},
         "x-bound": {"enum": ["start", "end"]},
         # A default height in CSS pixels, or `true` for a widget that has none and
         # reserves only what an occurrence's data-height states.

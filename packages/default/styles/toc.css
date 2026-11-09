@@ -1,8 +1,8 @@
 /* lf-toc: the page's route. Its form follows the box its track gives it. In ordinary
  * flow, or in a track stacked above or below the body, it is a native disclosure. In a
  * track standing beside the body with room for words, it is an open outline. In a
- * track beside the body too narrow for words, such as a document's rail (layouts.css),
- * it is a reading map: the widget gives each row the length of the section it leads,
+ * document's sidebar narrowed to the map's spine (layouts.css), it is a reading map:
+ * the widget gives each row the length of the section it leads,
  * flex lays those shares down the full available height, and the accent lens on the
  * spine shows the band currently in view. Crowded rows bend that scale just enough to
  * keep every label distinct; markers, labels, and lens share the fitted positions. At
@@ -10,8 +10,8 @@
  * it or the go-to sequence fades its labels in over the page, without changing any
  * row's height.
  *
- * The map declares `x-rail`, so the Layout can give a document's sidebar holding it
- * alone a rail the width of its spine (layouts.css). Where the Layout keeps a column's
+ * The map declares `x-spine`, so the Layout can narrow a document's sidebar holding
+ * it alone to the width of its spine (layouts.css). Where the Layout keeps a column's
  * room instead, the map stands open as an outline. It rests in flow inside its track,
  * so a sticking track carries it. Two earlier forms were rejected. One rested as a fixed spine the Layout gave a
  * column's room, which stood blank beside the spine (#5619), and it needed a clearance
@@ -83,8 +83,8 @@ lf-toc .lf-toc-disclosure[open] .lf-toc-toggle {
  * is room the page gave to navigation, so the outline stands open there under its label,
  * and the section in view takes the ink. Folded, it left a third of the window empty
  * beside a long review. Where the track stacks above the body, or stands beside it too
- * narrow for words outside a rail, the disclosure returns with the reader's own choice
- * (lf-toc.js, `#measure`). */
+ * narrow for words without the Layout narrowing it for the map, the disclosure returns
+ * with the reader's own choice (lf-toc.js, `#measure`). */
 @media screen {
   @container (width >= 8rem) and style(--lf-track-beside: 1) {
     lf-toc .lf-toc-heading {
@@ -220,10 +220,10 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
   }
 }
 
-/* A rail (`--lf-track-rail`, layouts.css) beside the body, too narrow for words, holds
- * the map; stacked, the rail is as wide as the body and holds the disclosure. Only the
- * rail's Layout lets the track lay the labels over the body, and a narrow track
- * elsewhere would clip them. The map's box is the track's width, where it takes the
+/* A track the Layout narrowed to the map's spine (`--lf-track-spine`, layouts.css),
+ * beside the body and too narrow for words, holds the map; stacked, the track is as
+ * wide as the body and holds the disclosure. Only that Layout lets the track lay the
+ * labels over the body, and a narrow track elsewhere would clip them. The map's box is the track's width, where it takes the
  * pointer and draws its spine, markers and marks; its labels keep their own measure
  * past it, toward the body, faded out and taking no pointer until it reveals them.
  * Pointing at the map, focus inside it or the go-to sequence reveals them over the
@@ -232,7 +232,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
  * sidebar's end padding stops it, so the track never pushes the map's start out of the
  * window. */
 @media screen {
-  @container (width < 8rem) and style(--lf-track-rail: 1) {
+  @container (width < 8rem) and style(--lf-track-spine: 1) {
     lf-toc {
       --lf-toc-height: calc(
         var(--lf-view-height) - var(--sp-4) - var(--page-pad-end) -

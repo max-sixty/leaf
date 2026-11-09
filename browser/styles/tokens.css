@@ -230,12 +230,11 @@
      the ordinary 24px gutter is enough for short link labels without making a second
      prose column; native flex wrapping decides when both columns fit (layouts.css). */
   --sidebar: 264px;
-  /* A document's sidebar holding only an element that rests in a rail, such as the
-     contents map, where a fine pointer can reach into it: a rail rather than a column,
-     so the prose starts beside it. Its track's 40px holds the map's spine, the marks
-     beside it and a pointer's aim, and the map lays its labels over the page from
-     there (layouts.css). */
-  --sidebar-rail: 56px;
+  /* A document's sidebar narrowed to an element that rests as a spine, such as the
+     contents map, where a fine pointer can reach into it, so the prose starts beside
+     it. Its track's 40px holds the map's spine, the marks beside it and a pointer's
+     aim, and the map lays its labels over the page from there (layouts.css). */
+  --sidebar-spine: 56px;
   /* The document Layouts' prose measure and outer gutter. */
   --col: 720px;
   --col-pad: 24px;

@@ -152,8 +152,8 @@ def test_a_link_hint_leaves_a_newer_gesture_where_it_is(browser, serve):
 def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve):
     """A visible page route stays addressable when its widget generated the anchors.
 
-    A rail's table of contents is page navigation even though its links are generated
-    chrome. Arming the sequence reveals those labels, gives every visible row a hint, and
+    A contents spine is page navigation even though its links are generated chrome.
+    Arming the sequence reveals those labels, gives every visible row a hint, and
     following one lands at the heading through the ordinary link route.
     """
     page = open_page(

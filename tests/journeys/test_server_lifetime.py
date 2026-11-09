@@ -246,9 +246,12 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
 
     status, body = fetch(endpoint, data=json.dumps(comment).encode(), token=None)
     assert status == 200, body
+    # The replacement's first read activated the re-vendored revision, which
+    # names its place in the log; the retried comment was the one already taken.
     events = events_model.read_events(page_dir)
-    assert [event["kind"] for event in events] == ["note", "comment"]
-    assert events[-1]["attempt"] == comment["attempt"]
+    assert [event["kind"] for event in events] == ["note", "comment", "activation"]
+    assert events[1]["attempt"] == comment["attempt"]
+    assert events[2]["revision"] == 2
 
 
 from interact_support import (

@@ -135,7 +135,7 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
         "at 1560–1600px wide, <pre> is set 1560px past the column, out in the margin"
         '; to give it more room, mark it data-width="wide" or "available" rather than sizing it past the column, or scroll it sideways in a box of its own with overflow-x: auto and class="scroll"'
     )
-    squeezed = render_gate_readings.squeezed_table_advice(readings)
+    squeezed = render_gate_readings.squeezed_advice(readings)
     assert [(f.at, f.widths, f.values["scrolls"], f.severity) for f in squeezed] == [
         ("<table id=u>", (520, 560), 520, "advice"),
         ("<table id=t>", (360, 400), 360, "advice"),

@@ -12,7 +12,7 @@ from .readings import (
     passive_layout_shift_advice,
     settle_at,
     shrunk_label_advice,
-    squeezed_table_advice,
+    squeezed_advice,
     sweep,
     swept_faults,
 )
@@ -148,7 +148,7 @@ def _render_version_attempt(
         widths = sweep(page, steps, open_widgets(registry))
         samples.extend(widths)
         advice.extend(shrunk_label_advice(widths))
-        advice.extend(squeezed_table_advice(widths))
+        advice.extend(squeezed_advice(widths))
         arrangement.extend(arrangement_changes(widths))
         # Back to the desktop viewport for the readings `_render_scheme` takes last.
         settle_at(page, desktop["width"], desktop["height"])

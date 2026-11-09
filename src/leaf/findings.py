@@ -725,6 +725,14 @@ _TEXT = {
         ' that needs the room, and give this wrapper class="layout-flow"'
     ),
     "squeezed-table": _squeezed,
+    "squeezed-code": lambda at, v: (
+        f"{at} is {v['width']}px wide and scrolls {v['scrolls']}px sideways where"
+        f" there is room for {v['room']}px: a code block asks what holds it for no"
+        " width, so a box sized to its content, such as a flex item, a grid auto"
+        " track or a table cell, sizes without it; give the block or that box a"
+        " width, such as a min-width on the block, flex: 1 on the flex item or a 1fr"
+        " track"
+    ),
     "drawn-height": _drawn_height,
     "shrunk-labels": lambda at, v: (
         f"{at} draws labels below {v['threshold']}px, {v['labels']} at"

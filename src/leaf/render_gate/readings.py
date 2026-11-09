@@ -548,17 +548,20 @@ def swept_faults(samples) -> list[Finding]:
 # the author's call, so none of it refuses a version.
 
 
-def squeezed_table_advice(readings) -> list[Finding]:
-    """Advice naming each table that scrolls sideways with a cell wrapped.
+def squeezed_advice(readings) -> list[Finding]:
+    """Advice naming each table that scrolls sideways with a cell wrapped, and each code
+    block that scrolls sideways narrower than the room its holder has for its lines.
 
     The sweep is the reading's only home, and it takes in the fixed viewports' widths.
-    Advice rather than a failure because the table still scrolls and every word in it
-    stays in reach: what costs the reader is prose wrapped a word a line beside a
-    scroller, and the remedy (a column fewer, shorter words, an identifier in `<code>`)
-    is a choice of composition only the author can make. Its words say what the reader
-    keeps and what hiding a column at the narrow width would take: authors told only
-    the remedies chased the advice for up to eight render checks, hiding columns at
-    phone widths, which a phone reader then missed."""
+    Advice rather than a failure because the box still scrolls and every word in it
+    stays in reach. For a table, what costs the reader is prose wrapped a word a line
+    beside a scroller, and the remedy (a column fewer, shorter words, an identifier in
+    `<code>`) is a choice of composition only the author can make. Its words say what
+    the reader keeps and what hiding a column at the narrow width would take: authors
+    told only the remedies chased the advice for up to eight render checks, hiding
+    columns at phone widths, which a phone reader then missed. For a code block, the
+    cost is a line read a letter at a time, and the remedy, a width for the block or
+    its holder, is the author's to size."""
     return _swept(
         readings,
         lambda reading: {

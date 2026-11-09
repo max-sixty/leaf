@@ -3582,11 +3582,59 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     table = page.locator("#held")
     assert table.evaluate("(el) => el.scrollWidth - el.clientWidth") > 1
 
-    squeezed = render_checks_model.evaluate_probe(page, "squeezedTables")
+    squeezed = render_checks_model.evaluate_probe(page, "squeezedBoxes")
 
     assert any(
         f["code"] == "squeezed-table" and f["at"] == "<table id=held>" for f in squeezed
     ), squeezed
+
+
+def test_a_code_block_its_holder_sizes_without_is_reported_squeezed(browser, serve):
+    """The theme contains a code block, so it asks what holds it for no width, and a box
+    sized to its content sizes without it: two short commands in a flex row stood 30px
+    wide each, scrolling all but a letter, and `page check --render` said nothing. The
+    gate's reading names each such block, in a flex row, an `auto` grid track and a flex
+    item sized by its heading, with the room its holder has for its lines.
+
+    The controls scroll long lines and read well, so the reading leaves them alone: a
+    block in the column, `flex: 1` halves and `1fr` halves, which a holder given the
+    block's lines would each widen, and a block the page sized."""
+    long = "const result = await fetchEverything({ retries: 3, timeout: 5000 });"
+    source = leaf_page(
+        "Code blocks and their holders",
+        f"""<h1>Code blocks and their holders</h1>
+<div class="row"><pre id="start"><code>npm start</code></pre><pre id="serve"><code>uv run serve</code></pre></div>
+<div class="tracks"><pre id="tracked"><code>make release</code></pre><p>From the root.</p></div>
+<div class="row"><div><h2>Before</h2><pre id="labelled"><code>retry(times=5, backoff=2)</code></pre></div></div>
+<pre id="column"><code>{long}</code></pre>
+<div class="row"><div class="half"><pre><code>{long}</code></pre></div><div class="half"><pre><code>{long}</code></pre></div></div>
+<div class="halves"><pre><code>{long}</code></pre><pre><code>{long}</code></pre></div>
+<pre id="sized" style="width: 200px"><code>{long}</code></pre>""",
+        head="<style>.row { display: flex; gap: 16px; } .half { flex: 1; }"
+        " .tracks { display: grid; grid-template-columns: auto 1fr; gap: 16px; }"
+        " .halves { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }"
+        "</style>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 390, 844)
+    assert page.locator("pre").evaluate_all(
+        "(blocks) => blocks.every((b) => b.scrollWidth - b.clientWidth > 1)"
+    ), "a block that fits is never read, so it says nothing of the reading"
+
+    reading = render_checks_model.evaluate_probe(page, "geometryReading", [])
+
+    squeezed = {
+        f["at"]: Finding.read(f, severity="advice") for f in reading["squeezed"]
+    }
+    assert squeezed.keys() == {
+        "<pre id=start>",
+        "<pre id=serve>",
+        "<pre id=tracked>",
+        "<pre id=labelled>",
+    }, reading["squeezed"]
+    for finding in squeezed.values():
+        assert finding.code == "squeezed-code", finding
+        assert finding.values["width"] < finding.values["room"], finding
 
 
 def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve, subtests):

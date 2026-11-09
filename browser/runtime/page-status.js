@@ -165,7 +165,7 @@ function paintStatus(current) {
   // The tone turning to working after the first reading is a moment the panel's leaf
   // answers (notifications.js, `gesture`). A read that failed says nothing of the agent,
   // so the tone it shows is passed over: work the page reconnects to isn't picked up.
-  const pickedUp = saidKind !== undefined && tone === "working" && saidTone !== tone;
+  const pickedUp = saidTone !== undefined && tone === "working" && saidTone !== tone;
   saidKind = kind;
   saidActionableWork = actionableWork;
   if (tone !== "blocked") saidTone = tone;

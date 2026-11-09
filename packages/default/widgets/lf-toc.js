@@ -100,11 +100,7 @@ customElements.define(
     /** @type {ReturnType<typeof drawToc> | undefined} */
     #drawingOwner;
     get #drawing() {
-      return (this.#drawingOwner ??= drawToc(this, {
-        label: wrote,
-        chrome: inChrome,
-        lends: true,
-      }));
+      return (this.#drawingOwner ??= drawToc(this, { label: wrote, chrome: inChrome }));
     }
     get #nav() {
       return this.#drawing.nav;
@@ -176,15 +172,7 @@ customElements.define(
       const previous = this.#sections.map(({ destination }) => destination);
       const held = this.#sections.find(({ link }) => link === focused());
       const restore = held && holdFocus(this.#nav);
-      render(
-        this.#drawing.render({
-          label: wrote,
-          chrome: inChrome,
-          lends: true,
-        }),
-        this,
-        { host: this },
-      );
+      render(this.#drawing.render(), this, { host: this });
       this.#sections = this.#drawing.sections();
       // A new key still represents the user's place when its heading or destination
       // survives. Restore focus if Lit moved a retained row through the DOM.

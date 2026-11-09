@@ -3577,8 +3577,11 @@ def test_typing_root_scroll_keeps_a_fixed_field_but_not_its_local_carry(browser,
         )
 
 
-# The clean case runs under both declarations; each fault runs under one, since where
+# The clean case runs under each declaration; each fault runs under one, since where
 # the insets are written changes how the credit is found, not what an extra move is.
+# A popover shown with its anchor as `source` is anchored with no name, its insets an
+# offset from a custom property under a rule leaving them `auto` and a guard rolling
+# every property back, as Leaf's preview is.
 # Rules disagreeing need the insets in rules, and an important rule over an inline
 # inset needs the inset inline. A transform above the scroller changes the geometry of
 # a credit, so it runs on the cases that move something, and not on those about which
@@ -3599,6 +3602,8 @@ ANCHOR_SCROLL_CASES = [
     ("declared_unused", "inline", "none"),
     ("rule_unused", "scoped_rule", "none"),
     ("important_rule", "inline", "none"),
+    ("", "implicit", "none"),
+    ("offset_y", "implicit", "none"),
 ]
 
 
@@ -3611,7 +3616,9 @@ def test_native_anchor_scroll_retains_local_motion_proof(
     unique or repeated under `anchor-scope`; moving either independently still fails.
     A direct anchor inset that a more specific rule overrides credits nothing, even
     where a later rule in sheet order states it, and neither does an inline one an
-    important rule overrides."""
+    important rule overrides. A popover's implicit anchor, the `source` it was shown
+    with, is credited the same way, and a script changing the offset its insets add
+    still fails."""
     field_style = "position:fixed;position-anchor:--target;left:calc(anchor(left) + 100px);top:calc(anchor(top) + 10px)"
     if fault == "declared_unused":
         field_style = "position:fixed;position-anchor:--target;left:100px;top:50px"
@@ -3621,6 +3628,15 @@ def test_native_anchor_scroll_retains_local_motion_proof(
         field_style = ""
         scope = "anchor-scope:--target"
         decoy = '<div style="anchor-scope:--target"><div style="anchor-name:--target">Another</div></div>'
+    if declared == "implicit":
+        # Under a guard rolling every property back first, as Leaf's chrome guard does.
+        sheet = (
+            "<style>#field { all:revert-layer }"
+            "#field { position:fixed;inset:auto;margin:0;position-anchor:auto }"
+            "#field.f { left:calc(anchor(left) + var(--x));top:calc(anchor(top) + var(--y)) }"
+            "</style>"
+        )
+        field_style = "--x:100px;--y:10px"
     if fault == "important_rule":
         # The inline inset stays anchored; the important rule holds the field still.
         sheet = "<style>#field { top:50px !important }</style>"
@@ -3638,8 +3654,11 @@ def test_native_anchor_scroll_retains_local_motion_proof(
         "declared_unused": 'field.style.top="40px"',
         "rule_unused": 'document.body.classList.add("down")',
         "important_rule": 'field.style.marginTop="-20px"',
+        "offset_y": 'field.style.setProperty("--y","20px")',
     }[fault]
-    name = "textarea#field.f" if fault == "rule_unused" else "textarea#field"
+    classed = fault == "rule_unused" or declared == "implicit"
+    name = "textarea#field.f" if classed else "textarea#field"
+    shown = "field.showPopover({source: target})" if declared == "implicit" else ""
     page = browser.new_page()
     page.goto(
         "data:text/html,"
@@ -3647,9 +3666,9 @@ def test_native_anchor_scroll_retains_local_motion_proof(
 <div style="transform:{transform};transform-origin:left top">
 <div id="scroller" style="height:140px;width:300px;overflow:auto">
 <div style="width:600px;height:300px"><div id="target" style="anchor-name:--target;margin-top:60px;width:70px;height:30px">The target</div></div></div></div>
-<textarea id="field" class="{"f" if fault == "rule_unused" else ""}" style="{field_style}"></textarea></div>{decoy}
+<textarea id="field" class="{"f" if classed else ""}" style="{field_style}" {"popover=manual" if shown else ""}></textarea></div>{decoy}
 <p id="evidence" style="position:absolute;left:10px;top:400px">Independent painted source</p>
-<script>field.addEventListener('beforeinput',()=>{{scroller.scrollLeft+=20;scroller.scrollTop+=20;evidence.style.left='30px';{change}}})</script></body>""")
+<script>{shown};field.addEventListener('beforeinput',()=>{{scroller.scrollLeft+=20;scroller.scrollTop+=20;evidence.style.left='30px';{change}}})</script></body>""")
     )
     # Chrome moves the field after its anchor's scroll a frame late. The watch
     # credits that catch-up to the scroll only from a pose taken before the scroll.
@@ -4073,6 +4092,12 @@ start.onclick = () => {
         assert geometry["parent_before"] == geometry["parent_after"]
 
 
+# `implicit` is Leaf's preview: a popover shown with its anchor as `source`, under the
+# chrome guard's rollback, its insets an offset from a custom property under a rule
+# leaving them `auto` (chrome.css, `.lf-preview`), as the Leaf button carries it
+# through a fold. `reshown` asks it to show again with another `source` while it stands
+# open, which the browser ignores, keeping the first; that other element's travel then
+# explains nothing of an equal independent move.
 @pytest.mark.parametrize(
     ("guard", "fault"),
     [
@@ -4082,6 +4107,9 @@ start.onclick = () => {
         ("loses", True),
         ("wins", True),
         ("lower", True),
+        ("implicit", False),
+        ("implicit", True),
+        ("reshown", True),
     ],
 )
 def test_native_anchor_follows_owned_translation_but_not_an_independent_offset(
@@ -4108,18 +4136,29 @@ def test_native_anchor_follows_owned_translation_but_not_an_independent_offset(
           }}
           #tip {{left:anchor(left)!important;top:anchor(bottom)!important}}
           #tip {{all:revert-layer!important}}""",
-    }[guard]
+    }.get(guard, "")
+    implicit = guard in {"implicit", "reshown"}
+    if implicit:
+        guards = """#tip { all: revert-layer }
+          #tip { position:fixed;inset:auto;margin:0;padding:0;border:0;
+            position-anchor:auto }
+          #tip.below { left:calc(anchor(left) + var(--x));
+            top:calc(anchor(bottom) + var(--y)) }"""
+    mover = "other" if guard == "reshown" else "source"
     page = browser.new_page()
     page.goto(
         "data:text/html,"
         + quote(f"""<!doctype html><style>{guards}</style><body style="margin:0">
 <button id="start">Start</button>
 <button id="source" style="position:absolute;left:350px;top:100px;anchor-name:--source">Anchor</button>
-<div id="tip" style="{anchored if guard == "none" else ""}">
+{'<button id="other" style="position:absolute;left:350px;top:200px">Other</button>' if guard == "reshown" else ""}
+<div id="tip" {'popover=manual class=below style="--x:0px;--y:0px"' if implicit else f'style="{anchored if guard == "none" else ""}"'}>
 <button id="control">Attached control</button></div>
 <p id="trigger" style="position:absolute;left:10px;top:400px">Paint checkpoint</p>
-<script>start.onclick=()=>{{
-window.motion=source.animate([{{translate:'-200px 0px'}},{{translate:'0px 0px'}}],
+<script>{"tip.showPopover({source});" if implicit else ""}
+{"try {tip.showPopover({source: other})} catch {}" if guard == "reshown" else ""}
+start.onclick=()=>{{
+window.motion={mover}.animate([{{translate:'-200px 0px'}},{{translate:'0px 0px'}}],
   {{duration:1000,fill:'forwards'}});
 motion.pause();motion.currentTime=150;
 }}</script></body>""")
@@ -4136,7 +4175,7 @@ motion.pause();motion.currentTime=150;
           // A removed anchor must not own an equal independent displacement.
           // The important rollback must not cancel the injected margin itself.
           if (fault) tip.style.setProperty('margin-left',
-            ['wins', 'lower'].includes(guard) ? '130px' : '55px',
+            ['wins', 'lower', 'reshown'].includes(guard) ? '130px' : '55px',
             guard === 'lower' ? 'important' : '');
           trigger.style.left = '40px';
         }""",
@@ -4144,7 +4183,7 @@ motion.pause();motion.currentTime=150;
     )
     paint(page)
     after = page.locator("#control").bounding_box()
-    expected = (130 if guard in {"wins", "lower"} else 185) if fault else 130
+    expected = (130 if guard in {"wins", "lower", "reshown"} else 185) if fault else 130
     assert after["x"] - before["x"] == pytest.approx(expected)
     judge_watches()
     errors = take_browser_errors(page)
@@ -4881,6 +4920,27 @@ def test_the_verdict_checks_a_change_the_test_ends_on(browser):
             "changed": ["opacity"],
         },
     )
+
+
+def test_a_tap_s_press_letting_go_is_heard(browser):
+    """A tap leaves its control `:active` on the browser's timer after its last event,
+    so the press feedback letting go restyles it with no event; the sensor still
+    reads it (`shift_watch.js`, "Unchanged frames")."""
+    context = browser.new_context(has_touch=True)
+    page = context.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            "<!doctype html><style>button:active {transform: scale(.9875)}</style>"
+            '<button id="control">Control</button>'
+        )
+    )
+    paint(page)
+    page.locator("#control").tap()
+    page.wait_for_function("() => !document.querySelector(':active')")
+    page.evaluate(FRAMES, 4)
+    judge_watches()
+    assert take_browser_errors(page) == []
 
 
 # Each case moves the words below #field's holder with a change the sensor may not

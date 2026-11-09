@@ -233,7 +233,7 @@
 }
 .lf-diff-file-actions {
   position: relative;
-  /* Stay above the pinned name while its path box covers numbered line controls. */
+  /* Stand over the pinned name (3) and the line numbers (2) that scroll under it. */
   z-index: 4;
   display: flex;
   align-items: center;
@@ -379,7 +379,7 @@ span.lf-diff-line-number {
     --lf-head-inset: 0px;
     --lf-top: var(--lf-top-outer);
     top: var(--lf-top, 0px);
-    /* Keep a focused path's full-name box above numbered line controls. */
+    /* Stand over the line numbers (2) that scroll under the pinned name. */
     z-index: 3;
   }
   /* The press with it, as far down the pinned line as it stands at rest: its own gap

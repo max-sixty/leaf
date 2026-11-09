@@ -36,7 +36,7 @@ const ICONS = {
   grip: '<g fill="currentColor" stroke="none"><circle cx="6" cy="4" r="1.1"/><circle cx="10" cy="4" r="1.1"/><circle cx="6" cy="8" r="1.1"/><circle cx="10" cy="8" r="1.1"/><circle cx="6" cy="12" r="1.1"/><circle cx="10" cy="12" r="1.1"/></g>',
   fold: '<path d="M3 8h10M5.5 2.75 8 5.25l2.5-2.5M5.5 13.25 8 10.75l2.5 2.5"/>',
   more: '<circle cx="3.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="1" fill="currentColor" stroke="none"/>',
-  // What waits on the user, an inbox's tray: the On me mark. The question mark stays
+  // What waits on the user, an inbox's tray: the On Me mark. The question mark stays
   // with an obligation and with help (`?`).
   inbox:
     '<path d="M2.75 9.25h2.9l1 1.6h2.7l1-1.6h2.9M2.75 9.25 4.4 4h7.2l1.65 5.25v2.75H2.75z"/>',
@@ -108,16 +108,14 @@ export function iconElement(icon, className = "lf-margin-entry-icon") {
 // draft, and a draft's other ways out save. A rewrite's Discard also stood two seats
 // from its card's Close. A reaction's removal took undo over ✕ for the same reading
 // (the user's choice, 23 October 2026, anchor-controls.js).
-/** @type {Record<string, {name: string, icon: string, key?: string}>} */
+/** @type {Record<string, {name: string, icon: string}>} */
 export const ACTIONS = {
   accept: { name: "Accept", icon: "check" },
   add: { name: "Add", icon: "add" },
   arrange: { name: "Arrange", icon: "arrange" },
   back: { name: "Back", icon: "previous" },
   cancel: { name: "Cancel", icon: "cross" },
-  // Escape closes every surface a close control closes (keyboard/AGENTS.md, "Escape"),
-  // the platform's own close request on a native layer, so its preview names the key.
-  close: { name: "Close", icon: "cross", key: "Escape" },
+  close: { name: "Close", icon: "cross" },
   collapse: { name: "Collapse", icon: "collapse" },
   comment: { name: "Comment", icon: "comment" },
   copy: { name: "Copy", icon: "copy" },
@@ -139,7 +137,12 @@ export const ACTIONS = {
   next: { name: "Next", icon: "next" },
   // A find bar's steps run up and down its matches, as a browser's do.
   "next-match": { name: "Next match", icon: "down" },
-  "on-me": { name: "On me", icon: "inbox" },
+  // The next steps the floating panel's field offers at its end (floating-panel.js,
+  // `noticePress`): after a Resolve, and after an answer with more on the user, in the
+  // title case the user asked for on 6 November 2026.
+  "next-on-me": { name: "Next On Me", icon: "inbox" },
+  "next-thread": { name: "Next thread", icon: "next" },
+  "on-me": { name: "On Me", icon: "inbox" },
   pause: { name: "Pause", icon: "pause" },
   play: { name: "Play", icon: "play" },
   previous: { name: "Previous", icon: "previous" },
@@ -193,13 +196,6 @@ function actionFace(role, label, action) {
   return { label: label ?? name, action };
 }
 
-// The action each control shows, which its preview reads for the key the action
-// itself names (control-keys.js).
-/** @type {WeakMap<Element, string>} */
-const shownActions = new WeakMap();
-/** @param {Element} control */
-export const shownAction = (control) => shownActions.get(control);
-
 /**
  * Draws `action`'s symbol as `control`'s first child, and leaves one that already
  * shows it, so a template's later renders write nothing and a control whose action
@@ -207,7 +203,6 @@ export const shownAction = (control) => shownActions.get(control);
  * @param {Element} control @param {string} action @param {string} [className]
  */
 export function showAction(control, action, className = "lf-action-icon") {
-  shownActions.set(control, action);
   const icon = actionIcon(action);
   const drawn = control.querySelector(":scope > svg[data-lf-icon]");
   if (drawn?.getAttribute("data-lf-icon") === icon) return;

@@ -228,7 +228,7 @@ playable").
 
 - **A preview reads and never acts.** It says where a thread stands, what a link points
   at, what caused a change or the time behind an age; a control's says its word and
-  every key that presses it, each as a key chip. Every preview wears one face, its name
+  each key that presses it from where the user is, as a key chip. Every preview wears one face, its name
   and key chips on the first line and its detail under them. It stands over the page
   beside what it previews, where the browser keeps it as the target moves, clear of
   the target's focus ring and inside the window, covering none of the targets beside
@@ -283,7 +283,7 @@ reader sees always means something (`../SOUL.md`, "Let the user work as directly
   is a token or a shared rule ("Layouts, styles and controls", below, says how code
   keeps this).
 - **Green marks the user's turn; other thread controls stay blue.** Every surface paints
-  a thread's `unread` and `attention` from one value, so the On me mark's dot, Threads,
+  a thread's `unread` and `attention` from one value, so the On Me mark's dot, Threads,
   the panel, a margin entry and the Page Map change together, and marking read never
   moves the user.
 
@@ -350,7 +350,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Widget capture and lifecycle                                                                                | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js`                                           |
 | Vocabulary and public helpers                                                                               | `registry.js`, `widget-api.js`, `portable-api.js`, `widget-elements.js`, `widget-upgrade.js`                                                               |
 | External data                                                                                               | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                  |
-| Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`                                                      |
+| Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`, `change-provenance.js`                              |
 | Repaint and geometry                                                                                        | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `shown-box.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js`             |
 | Chrome and available space                                                                                  | `chrome.js`, `floating-panel.js`, `page-layout.js`, `root-headers.js`, `page-controls.js`, `preview.js`, `place-preview.js`                                |
 | Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                         |
@@ -630,6 +630,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Who says a word a seat shows about the work, and the face it says it in                               | `voice.js` `agentSays`, `leafSays`, `voiced`                                       |
 | Words as a label reads them, a count with its noun, and a label opening a sentence                    | `words.js` `labelWords`, `counted`, `capitalized`                                  |
 | Whether the page can copy here, with or without the Clipboard API                                     | `copy-control.js` `canCopy`                                                        |
+| What a version the comparison shows was saved after: the user's messages that waited                  | `change-provenance.js` `versionProvenance`                                         |
 | A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowWord`, `progressFace`, `todoWord`                    |
 | A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                             |
 | What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                    |
@@ -637,7 +638,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | What a place on the page shows as a preview, and the place a link into the page names                 | `place-preview.js` `placePreview`, `linkedPlace`                                   |
 | What a thread says when pointed at, on its passage mark and its margin entry                          | `thread/messages.js` `threadPreview`                                               |
 | The clock time behind an age, and what an age's `<time>` previews                                     | `presence.js` `clockTime`, `agePreview`                                            |
-| The keys that press a control                                                                         | `keyboard/control-keys.js` `controlKeys`                                           |
+| The keys that press a control from where the user is                                                  | `keyboard/control-keys.js` `controlKeys`                                           |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                              |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
 | The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |

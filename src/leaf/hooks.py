@@ -193,7 +193,7 @@ def reload_skill(session_id: str) -> str | None:
     which the compaction may have dropped from its context.
 
     On 2026-10-25 five sessions left questions for the user only in their replies,
-    so On me read empty and told the user nothing waited on them. Each had read the
+    so On Me read empty and told the user nothing waited on them. Each had read the
     skill hours or days before, four of them before compacting, while their
     harness's own instructions for asking the user stayed in context. Restating one
     rule on every prompt weighed on every turn and covered only that rule; the

@@ -38,6 +38,8 @@ function wireSample({ sample, key, control, disclosure }) {
             id: key,
             subject: { kind: "widget", id: key },
             stage: sample.workflowStage,
+            // The server stamps whether the agent is at work on it (served_state/work.py).
+            at_work: sample.workflowStage === "working",
             detail: "",
           }
         : null,

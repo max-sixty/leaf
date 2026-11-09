@@ -20,11 +20,17 @@ it checks and captures current source and reports `version: null`. `--draft` and
 `--version` cannot be combined.
 
 Hand back the `file://` URL; don't start a server or wait. The file opens offline with
-the selected content and recorded decisions. Reading controls and the page's own code
-work, but recording new Leaf choices or updates, Undo and threads require the served
-page and its server; an active agent is not required to record a choice. A page with a
-live sample can't be exported. Write the file where the project keeps files for the
-user. Exporting a live page doesn't end its loop.
+the selected content and the decisions recorded on its widgets. Reading controls and
+the page's own code work, but recording new Leaf choices or updates and Undo require the
+served page and its server; an active agent is not required to record a choice. A page
+with a live sample can't be exported. Write the file where the project keeps files for
+the user. Exporting a live page doesn't end its loop.
+
+An export can go to people who shouldn't read your conversation with the user, so the
+file holds none of it, on screen or in its source: no threads or their attachments,
+to-dos, plan or changelogs. What you wrote into the page, or into data its markup
+binds, stays, so a page meant to be passed on says nothing there that its reader
+shouldn't see.
 
 ## Address and authentication
 

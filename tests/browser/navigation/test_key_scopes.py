@@ -41,6 +41,7 @@ from render_harness import (
     panel_field,
     panel_settled,
     panel_view,
+    put_preview_away,
     refuse,
     resized,
     round_trip,
@@ -169,7 +170,7 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
 
 def test_the_thread_walk_goes_on_from_the_place_the_panel_holds(browser, serve):
     """Stepping into the panel from a thread keeps the user in that thread on the page,
-    so `t` pressed in On me goes on to the next thread rather than back into it."""
+    so `t` pressed in On Me goes on to the next thread rather than back into it."""
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
     )
@@ -232,15 +233,17 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
         for root in roots
     ]
 
-    # Leaf's controls with no layer up: out onto the page.
+    # Leaf's controls with no layer up: focus arriving on one shows its preview
+    # (preview.js), which the first Escape puts away; the second lets go onto the page.
     expect(marker).to_be_visible()
     for control in (toggle, marker):
         control.focus()
+        put_preview_away(page)
         expect(control).to_be_focused()
         page.keyboard.press("Escape")
         assert page.evaluate(on_body)
 
-    # On me by pointer: out with the panel's view.
+    # On Me by pointer: out with the panel's view.
     toggle.click()
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
@@ -300,7 +303,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
 def test_a_view_reached_from_another_view_leaves_both_of_them_shut(browser, serve):
     """The surface a user was already in does not come back when the next one goes.
 
-    `g T` from On me puts Threads up in its place, and the one Escape that takes
+    `g T` from On Me puts Threads up in its place, and the one Escape that takes
     Threads off lands on the page rather than reopening the view the user came from.
     Nothing records that they were in it, and the descent Escape matches is the one that
     the state in front of them describes: Threads over the page.
@@ -644,10 +647,11 @@ HOVER_CARD_PAGE = """<!doctype html>
 def test_escape_passes_a_manual_popover_the_user_is_not_in(browser, serve):
     """A manual popover the user isn't in, such as a hover card, leaves Escape its steps
     beneath it: the panel's comment field and a link let go under it as they do with no
-    card open. The browser never closes a manual popover on Escape, so standing the
-    steps down under one left every press dead until the card closed (#5582). Focus
-    inside the card makes it the user's layer again, and the page beneath stays out of
-    Escape's reach."""
+    card open. A focused link previews the place it names, and the first Escape puts that
+    preview away (preview.js), so the link lets go at the second. The browser never
+    closes a manual popover on Escape, so standing the steps down under one left every
+    press dead until the card closed (#5582). Focus inside the card makes it the user's
+    layer again, and the page beneath stays out of Escape's reach."""
     page = open_page(browser, serve(HOVER_CARD_PAGE))
     card = page.locator("#card")
     link = page.locator("#link")
@@ -655,6 +659,8 @@ def test_escape_passes_a_manual_popover_the_user_is_not_in(browser, serve):
 
     link.focus()
     page.evaluate(show)
+    put_preview_away(page)
+    expect(link).to_be_focused()
     page.keyboard.press("Escape")
     expect(link).not_to_be_focused()
     assert card.evaluate("c => c.matches(':popover-open')")
@@ -1492,7 +1498,7 @@ def test_an_offline_walk_says_its_list_cannot_be_had(browser, serve):
         page, "Current threads are unavailable while the server is offline"
     )
     page.keyboard.press("m")
-    expect_panel_says(page, "On me is unavailable while the server is offline")
+    expect_panel_says(page, "On Me is unavailable while the server is offline")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

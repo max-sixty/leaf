@@ -106,6 +106,49 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
     assert marker.bounding_box()["x"] < column[1] + 100
 
 
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, direction):
+    """Beside a contents map the room lies on one side of the column only. A question or
+    section written in the other direction from the page takes the same room as the
+    page's own blocks: an available block reaches the free side, and a wide one, whose
+    end faces the map, keeps to the prose. Both used to grow toward the map, the
+    available block 334px past the window's edge, since the flow read the room on the
+    column's start side as the room on its own."""
+    other = "rtl" if direction == "ltr" else "ltr"
+    options = '<lf-options id="{id}-o" choose><lf-option id="{id}-y">Yes</lf-option>'
+    question = (
+        f'<lf-ask id="{{id}}" dir="{other}"><h3 id="{{id}}-h">Ship it?</h3>'
+        '<div id="{id}-block" data-width="{width}">Evidence.</div>'
+        + options
+        + "</lf-options></lf-ask>"
+    )
+    source = leaf_page(
+        "Flows written the other way",
+        '<div class="layout-sidebar"><aside><div class="layout-track">'
+        '<lf-toc id="contents"></lf-toc></div></aside><div class="layout-column">'
+        '<h1>Flows written the other way</h1><p id="prose">Prose sets the column.</p>'
+        '<div id="room" data-width="available">Room.</div>'
+        + question.format(id="reaches", width="available")
+        + question.format(id="widens", width="wide")
+        + f'<section class="layout-flow" dir="{other}">'
+        '<div id="section-block" data-width="available">Evidence.</div></section>'
+        "</div></div>",
+    ).replace('<html lang="en">', f'<html lang="en" dir="{direction}">', 1)
+    page = open_page(browser, serve(source))
+    resized(page, 1726, 900)
+    boxes = page.evaluate("""() => Object.fromEntries(
+      [...document.querySelectorAll('main [id]')].map(el => {
+        const box = el.getBoundingClientRect();
+        return [el.id, [Math.round(box.left), Math.round(box.right)]];
+      }))""")
+    prose, room = boxes["prose"], boxes["room"]
+    assert room != prose and 0 <= room[0] and room[1] <= 1726, boxes
+    for block in ("reaches-block", "reaches", "section-block"):
+        assert boxes[block] == room, (block, boxes)
+    for held in ("widens-block", "widens", "reaches-h", "widens-h"):
+        assert boxes[held] == prose, (held, boxes)
+
+
 def test_a_block_in_a_workspace_question_fills_its_region(browser, serve):
     """A workspace states no measure, so a width written on a block in a question means
     nothing there, as it means nothing on a block beside the question."""

@@ -11,7 +11,7 @@
 # question in a thread and to-dos lost their `owner`. Not rescored.
 description: on-lists-read-todo-records
 metadata:
-  purpose: "Conversation loop: the agent reads On me and its own list from `page state`,
+  purpose: "Conversation loop: the agent reads On Me and its own list from `page state`,
     joining each to-do row to its record by id, and tells the user what waits on each
     side by name."
   tags:

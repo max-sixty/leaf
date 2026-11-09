@@ -42,8 +42,9 @@ from leaf import state as cleanup_model
 pytestmark = pytest.mark.shifts_unsurveyed
 
 # Where the folded leaf says the status's whole sentence: under its name in its
-# preview (preview.js).
-PEEK = "#lf-preview .lf-preview-detail"
+# preview (preview.js), once that opens after the pointer's dwell. Closed, the preview
+# still holds the lines of whatever it last showed, such as a thread row's.
+PEEK = "#lf-preview:popover-open .lf-preview-detail"
 LEAF = ".lf-fp-leaf"
 
 

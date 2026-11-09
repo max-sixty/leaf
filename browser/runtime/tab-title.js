@@ -1,9 +1,9 @@
 /* The tab's title: the page's authored title, with what waits on the user counted in
    front of it while it is above zero ("(2) Finish the ship review").
 
-   The user chose this (2026-11-05, "Count On me in the tab"): someone waiting on the
+   The user chose this (2026-11-05, "Count On Me in the tab"): someone waiting on the
    agent has the terminal in front of them and the page in a tab, and the favicon says
-   the agent's state but not whether anything waits on them. The count is On me's own
+   the agent's state but not whether anything waits on them. The count is On Me's own
    (`onUserCount`, queue-api.js), so the tab and the panel's badge show one number.
 
    The authored `<title>` is never written. A revision replaces the authored head nodes

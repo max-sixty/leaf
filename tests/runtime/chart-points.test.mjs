@@ -357,6 +357,24 @@ test("a tip's format and a mark's own channels say what Plot's tip would", () =>
     name: "x 1",
     detail: ["lead Ada", "y 2", "cost 3"],
   });
+  // A symbol channel says the category it draws, and nothing where its values name
+  // the symbols themselves, which Plot's tip leaves out (observablehq/plot#2237).
+  const [kind, shape] = ["kind", "shape"].map((symbol) =>
+    read({
+      marks: [
+        Plot.dot([{ x: 1, y: 2, kind: "fix", shape: "square" }], {
+          x: "x",
+          y: "y",
+          symbol,
+        }),
+      ],
+    }),
+  );
+  assert.deepEqual(said(kind.points[0] ?? null), {
+    name: "x 1",
+    detail: ["kind fix", "y 2"],
+  });
+  assert.deepEqual(said(shape.points[0] ?? null), { name: "x 1", detail: ["y 2"] });
   // A format given alone is the title's.
   const titled = read({
     marks: [

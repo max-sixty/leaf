@@ -337,14 +337,22 @@ with `tests/journeys/test_render_sample_delivery.py` and
 
 ### Page cache
 
-The local page server sends `no-cache`; leaf.page keeps `no-store`. On
-2026-10-20, Chromium 153.0.8010.12 and installed Firefox 158.0.1 restored a local
-`release-notes` page on Back and applied state changes made while away.
-Firefox loaded a page containing samples afresh. Safari remains unverified.
-The leaf.page cache-policy decision is tracked in
-[issue #4024](https://github.com/max-sixty/leaf/issues/4024).
+Every Leaf server, locally and on leaf.page, sends `no-cache` for a page's
+document and state (`CACHE_CONTROL`, `src/leaf/http.py`), so a browser may keep
+the page in its back/forward cache. On 2026-10-20, Chromium 153.0.8010.12 and
+installed Firefox 158.0.1 restored a local `release-notes` page on Back and
+applied state changes made while away. Firefox loaded a page containing samples
+afresh. On 2026-11-08, Playwright's full Chromium 156.0.8078.4 restored
+`heat-loss`, served by leaf.page's container server after a choice, on 5 of 5
+Backs, keeping the reader's selection; with that server's former `no-store` it
+reloaded the page each time (`MainResourceHasCacheControlNoStore`,
+`JsNetworkRequestReceivedCacheControlNoStoreResource`). Safari remains
+unverified.
 
-Playwright disables back/forward caching in its normal test browsers.
+Playwright disables back/forward caching in its normal test browsers: launch its
+full Chromium (`channel="chromium"`) without `--disable-back-forward-cache`, and
+wait for Back's commit, since a restored page fires no `load`. Its Firefox
+disables the cache in the docshell, so check Firefox in an installed one.
 `test_a_page_cache_round_trip_keeps_the_sample_connected` in
 `tests/browser/test_render_sample_delivery.py` checks synthetic lifecycle events,
 so it does not prove native cache eligibility. Recheck a real Back traversal
@@ -824,7 +832,7 @@ theme's `.eyebrow + :is(h1, h2, h3)` against every heading, so a paragraph added
 the top of `main` restyled the whole page: 280 to 310 ms over 97,000 rows, and 24 ms
 with the trims written as `:first-child` and `:last-child` and the two sibling rules
 taken out. The first is Firefox's to change; rewriting the rules is
-open (#4781).
+open (#5194).
 
 To recheck, build a `pre` of 97,000 `div` rows in runs of 128 with
 `content-visibility: auto`, each row numbered by a `::before` counter, let it paint,

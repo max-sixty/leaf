@@ -143,7 +143,8 @@ function proseReading(message) {
       markdown,
       html,
       mediaHtml,
-      plainText: renderedWords(html + mediaHtml),
+      // An image counts as the thread names it, its alt text (`renderedWords`).
+      plainText: renderedWords(html + mediaHtml, true),
     });
     renderedProse.set(key, reading);
   }
@@ -165,17 +166,19 @@ export function messageText(message) {
   return message.suggestion ? (message.text ?? "") : proseReading(message).plainText;
 }
 
+// A whole message in words, on one line, as a thread holds it: what it renders, its
+// widgets' words and its images' alt text included (`messageText`), else Drawing for
+// one drawn without words, or Deleted message.
+/** @param {Parameters<typeof messageText>[0] & {readonly drawing?: unknown, readonly withdrawn?: unknown}} message */
+export const messageWords = (message) =>
+  labelWords(messageText(message)) ||
+  (message.drawing ? "Drawing" : deleted(message) ? "Deleted message" : "");
+
 // A thread's name in words, as search, accessible names and prose read it: its title,
-// else the words its opening message renders (an agent's authored opening, its captured
-// text), else Drawing for one drawn without words. A surface clips it to its own room,
-// and one that draws the name draws `threadHeading`.
-/** @param {{readonly title: string | null, readonly root: Parameters<typeof messageText>[0] & {readonly body: {readonly kind: string, readonly text?: string}, readonly drawing?: unknown}}} thread */
-export function threadName(thread) {
-  if (thread.title != null) return thread.title;
-  const { root } = thread;
-  const words = labelWords(messageText(root));
-  return words || (root.drawing ? "Drawing" : deleted(root) ? "Deleted message" : "");
-}
+// else its opening message's words (`messageWords`). A surface clips it to its own
+// room, and one that draws the name draws `threadHeading`.
+/** @param {{readonly title: string | null, readonly root: Parameters<typeof messageWords>[0]}} thread */
+export const threadName = (thread) => thread.title ?? messageWords(thread.root);
 
 // Whether a title is on its way to an untitled thread. Leaf asks the claimant's
 // harness for one as the user's words are admitted, and the agent for one with its
@@ -252,7 +255,7 @@ function threadStands(thread, said) {
  * opening words, so a thread whose last message is its first says them once. A target
  * holding several threads is named by their count, as the card a press opens lists
  * them, and lists each, its name and where it stands, which the preview owner fits to
- * the room its face stands in (preview.js, `fitList`), saying how many more past those:
+ * the room its face stands in (preview.js, `fit`), saying how many more past those:
  * a press still reaches them, as the card it opens steps through every thread, and on
  * a window too narrow for the card, the thread it opens in the panel goes back to the
  * panel's list of them, where each row previews its thread. A line in the user's turn

@@ -60,6 +60,7 @@ import {
   comparisonChanges,
   toggleChangeCard,
 } from "./version.js";
+import { versionProvenance } from "./change-provenance.js";
 
 // Where each published workflow still in progress stands in the published order, by
 // its id.
@@ -592,7 +593,10 @@ export function createAnnotationInventory({
     // One entry per change (version.js, `changeRuns`), beside the block the change starts
     // with, or the block beside its gap where it only took blocks out, so a section
     // rewritten whole gets one entry rather than one per paragraph. It says what the
-    // change did in blocks (`changeAccount`): "2 paragraphs replaced by 3".
+    // change did in blocks (`changeAccount`): "2 paragraphs replaced by 3". Under it
+    // stands what the version the comparison shows was saved after, the same for
+    // every change, a line each (change-provenance.js).
+    const savedAfter = versionProvenance()?.lines ?? [];
     comparisonChanges().forEach((change, index) => {
       const target = change.at;
       const did = changeAccount(change);
@@ -613,12 +617,18 @@ export function createAnnotationInventory({
         // promises nothing. The margin entry's quieter line carries what the change did,
         // and the Page Map row the versions its card compares; a change the comparison
         // holds nothing for has neither, so no margin entry offers a press it has not
-        // got.
+        // got. What the version was saved after is the comparison's reading, not the
+        // card's, so it stands under every change, a line each.
         // The entry's relation says whether the card stands open, so opening it changes
         // the entry (`keptEntry`).
-        ...(card
-          ? { context: account, mapContext: card.offer, cardOpen: card.open }
+        ...(card || savedAfter.length
+          ? {
+              context: [...(card ? [[account]] : []), ...savedAfter].flatMap(
+                (line, at) => (at ? ["\n", ...line] : line),
+              ),
+            }
           : {}),
+        ...(card ? { mapContext: card.offer, cardOpen: card.open } : {}),
         // What a Change reading holds, where the comparison kept the words the change
         // replaced or edited: pressing it opens the change's card over the change, so
         // the user learns what changed without travelling to the other version and back

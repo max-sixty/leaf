@@ -8,15 +8,19 @@
    media, and where none does, over the target itself (`pinSeating`). Hiding annotations
    reveals what a pin covers. User-held controls retain their seat.
    The stylesheet places each row from what this pass writes on it
-   (annotation-theme.css, at .lf-margin-cluster): its posture as `data-lf-place`, its
-   seat as `--lf-margin-x` and `--lf-margin-y`, including the push rail packing gives it.
+   (annotation-theme.css, at .lf-margin-cluster): its posture as `data-lf-place`, and
+   its seat, including the push rail packing gives it, as the row's own `margin-left`
+   and `margin-top`. A custom property for the seat would be inherited, and every move
+   would restyle the row's whole subtree. Layout reads the full length. The style
+   attribute prints it to six significant digits, so from 10,000px down a page a
+   sub-pixel move can leave the attribute's text as it was, which the suite's write
+   watch (tests/write_watch.js), judging a write by its text, reads as a write that
+   changed nothing.
    Rows take their final places once, in one shared held-and-arrival order. Each posture's
    solver avoids the final rectangles and held labels already placed. A pin's chosen
    seat is its final place: no second packing pass can translate it into words or
    controls.
-   These measured coordinates keep their full layout precision in custom properties;
-   ordinary length serialization would round distant document positions before comparing
-   them. Scrolling moves a row with its target in the frame that scrolls it, whether the
+   Scrolling moves a row with its target in the frame that scrolls it, whether the
    document scrolls or a pane does, with no pass at all.
    Mutation checkpoints and resize deliveries settle placement before native paint;
    deferring that pass to the next frame would show a row at its stale seat after its
@@ -438,6 +442,9 @@ const railBeside = (scroller) => flowOf(scroller).flow === pageScroller;
 /** @param {Element} target */
 export const railStandsBeside = (target) =>
   Boolean(layer) && railStands(marginColumn()) && railBeside(scrollerFor(target));
+// The column's edge the rail hangs off: the right of `main`'s prose. What stands right
+// of a box ending short of it stands over the column, not in the rail's margin.
+export const railEdge = () => proseRect(marginColumn()).right;
 // Prospective placement measures the same primitive a first contribution will draw.
 // The native cascade resolves the entry's aim floor and the row's focus clearance,
 // including package or author overrides. No existing entry, cached size, or parsed
@@ -512,12 +519,11 @@ export function marginSpot(target, point = null, passage = null) {
       return { left, right };
     }
   if (!layer || !railStandsBeside(target)) return null;
-  const main = marginColumn();
   const hang =
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--rail-hang"),
     ) || 0;
-  const left = proseRect(main).right + hang;
+  const left = railEdge() + hang;
   return { left, right: left + restingRail(layer).row };
 }
 
@@ -1106,7 +1112,7 @@ function contentBox(scroller) {
   };
 }
 
-// The rows the last pass stood folded (`seatRows`). This is the one reading of it: the
+// The rows the last pass stood folded (`seatRow`). This is the one reading of it: the
 // projection presents a row folded by asking `standsFolded`, and a row's `fold.changed`
 // tells it to ask again.
 const folded = new WeakSet();
@@ -1153,7 +1159,7 @@ function standFolded(row, fold, on) {
 // shadow hosts holding the target, so their words and controls bound its seat just as
 // the document's do.
 //
-// A pin's seats, in the order it takes them, all touch its target (`seatRows`): just
+// A pin's seats, in the order it takes them, all touch its target (`seatRow`): just
 // outside the target's top-right corner; for a run of text or a quoted passage, whose
 // corner is its own words' rather than the block's, just after its last word, where a
 // reader finishes it (each of these two only where no other block stands level with
@@ -2148,12 +2154,12 @@ function layoutMountedRows(layer) {
         "left",
         carrierAxes.get(carrier) === "xy" ? from("left", carrierBox.left) : "0px",
       );
-      setStyle(row, "--lf-margin-x", layoutPx(left));
-      setStyle(row, "--lf-margin-y", layoutPx(top));
+      setStyle(row, "margin-left", layoutPx(left));
+      setStyle(row, "margin-top", layoutPx(top));
       continue;
     }
-    setStyle(row, "--lf-margin-x", layoutPx(left + windowX));
-    setStyle(row, "--lf-margin-y", layoutPx(top + windowY));
+    setStyle(row, "margin-left", layoutPx(left + windowX));
+    setStyle(row, "margin-top", layoutPx(top + windowY));
   }
 
   // With the column's box and height as the pass read them, so a listener measuring

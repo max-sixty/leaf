@@ -681,7 +681,7 @@ MESSAGE_ROOM_PAGE = leaf_page(
 )
 
 
-# What each item of the panel's On view says, as On me's card or On <agent>'s line: its
+# What each item of the panel's On view says, as On Me's card or On <agent>'s line: its
 # obligation's kind and id (queue-api.js, `queueItemKey`), the list it stands in ("you",
 # "agent" or "done"), its title, its prompt where its card is open, and what it says of
 # its ending (such as "Answered: …"), each null where the item has none, and its box.

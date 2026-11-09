@@ -6,11 +6,11 @@ stay in the thread, whether the agent's session is idle or busy. Today the media
 first reply takes 17 s when the session is idle and 21 s when it is busy, and the real
 answer 48 s and 100 s ([waits on real pages](leaf-run-sessions.md#waits-on-real-pages)).
 
-The `forked-replies` branch builds it: `src/leaf/forks.py` holds the states a thread
-moves through, the hold and the reply, and `hooks/claude-code.ts` (`forkReply`) makes
-the fork. This note holds the research behind it: what Claude Code lets a hooks module
-fork, measured, and how well the fork judges what to answer. The main thread is the
-session's own conversation, as against the forks and subagents made from it.
+On main, `src/leaf/forks.py` holds the states a thread moves through, the hold and the
+working line a fork posts, and `hooks/claude-code.ts` (`forkReply`) makes the fork. This
+note holds the research behind it: what Claude Code lets a hooks module fork, measured,
+and how well the fork judges what to answer. The main thread is the session's own
+conversation, as against the forks and subagents made from it.
 
 On 2026-11-05 the user took answering out of this fork. A `$.model.fork` fork can't
 call tools, so it now posts only the agent's working line and hands every message to
@@ -46,9 +46,13 @@ pays that request's new part uncached each time. The main thread writes one-hour
 cache entries (`ephemeral_1h` in every run), so a session idle for longer than that,
 or just resumed, makes its first fork write the whole context, as the resumed copy's
 first fork did; the forks after it read that fork's entry. The fork keeps the main
-thread's model, system prompt, tools and effort, since any difference misses the
-cache: a `claude -p --resume --fork-session` fork at `--effort low` read none of it
-(2026-10-24).
+thread's model, system prompt and tools. Its effort can differ without missing the
+cache: since Claude Code 2.1.318 `$.model.fork` takes one, and a fork at low in a
+session at xhigh read the whole conversation from the cache (2026-11-04,
+`src/leaf/clerk.py`), though a `claude -p --resume --fork-session` fork at
+`--effort low` had read none of it (2026-10-24). The turn-end check runs at low, and
+the fork that writes the working line at the session's effort (`src/leaf/forks.py`
+has its measurement at low).
 
 `$.agent.spawn({ prompt, subagentType: "fork" })` starts a background subagent with
 the main thread's current transcript and all its tools. It started within 40 ms of the

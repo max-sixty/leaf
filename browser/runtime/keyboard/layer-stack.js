@@ -425,9 +425,10 @@ export function nativeLayers() {
 }
 
 // The layers that stand as a mode over the keys beneath them: every modal, every auto
-// and hint popover, and a manual popover while focus is inside it. The platform closes
-// auto and hint popovers on Escape and never a manual one, so a manual popover the user
-// is not in, such as a hover card, holds no step of its own and covers none beneath it.
+// popover, and a manual popover while focus is inside it (a hint popover never joins the
+// stack). The platform closes auto popovers on Escape and never a manual one, so a
+// manual popover the user is not in, such as a hover card, holds no step of its own and
+// covers none beneath it.
 export function nativeModes() {
   const active = focused();
   return nativeLayers().filter(

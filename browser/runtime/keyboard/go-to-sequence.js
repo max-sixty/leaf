@@ -15,7 +15,7 @@
    `g G` glide to the page edges; from a focused thread, `g k` and `g j` place its card at
    an edge of the list; `g p` returns focus to the page while leaving open surfaces
    in place. Uppercase mnemonics remain named
-   global destinations: `g T` Threads, `g M` On me, `g L` All pages, `g P` the
+   global destinations: `g T` Threads, `g M` On Me, `g L` All pages, `g P` the
    searchable Page Map and `g V` Versions. `g T`, `g M` and `g L` open the floating
    panel's view of that name, and `g V` its Versions, through the panel's own doors
    (`doors`, floating-panel.js), as its marks and menu rows open them. Completing one that
@@ -194,9 +194,9 @@ export function createGoToSequence({
     {
       id: "navigation.panel.queue",
       keys: ["Shift+m"],
-      // Its door is On me's, so where the On view shows the agent's list it turns to
+      // Its door is On Me's, so where the On view shows the agent's list it turns to
       // the user's rather than closing.
-      title: () => (doors.queue.shows() ? "close On me" : "On me"),
+      title: () => (doors.queue.shows() ? "close On Me" : "On Me"),
       run: () => doors.queue.press(),
       when: () => true,
     },
@@ -458,9 +458,6 @@ export function createGoToSequence({
     if (on && !goToActive && claimsEsc(focused())) return;
     if (on) stopGlide(pageScroller);
     goToActive = on;
-    // The sequence itself reveals page navigation such as a roomy contents map. Publish that
-    // state before taking the visible-scene reading so those routes enter the same map as
-    // links that were already standing in the document.
     document.body.toggleAttribute(PAGE_PAINT_ATTRIBUTE.goto, on);
     targetFilter = null;
     if (!on) {

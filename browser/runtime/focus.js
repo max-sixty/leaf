@@ -1250,7 +1250,13 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
     (event) => {
       if (type === "pointerdown")
         pressedPath = event.composedPath().map((node) => new WeakRef(node));
-      else if (type === "keydown") pressedPath = null;
+      else if (type === "keydown") {
+        pressedPath = null;
+        // A key gives the node focus is already on its ring with no focus event, and a
+        // rule reading the mark can style that key's own default, as a fold Enter
+        // closes from the keyboard skips its motion, so the mark lands before it.
+        queueFocusPaint();
+      }
       stepping = null;
       if (type === "keydown" || type === "pointerdown") {
         const step = event instanceof KeyboardEvent && sequential(event) ? event : null;

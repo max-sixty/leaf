@@ -3,15 +3,23 @@ acts on it, to a resting pointer, to the keyboard and to a held finger
 (runtime/preview.js). The margin entry's preview, its label, is held in
 `browser/margin/test_entries.py`."""
 
+import hashlib
 import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, element_declaration
 from playwright.sync_api import expect
-from render_cases_interaction import PANEL_PAGE, live_url, panel_comment
+from render_cases_interaction import (
+    PANEL_PAGE,
+    THREAD_DIFF_PAGE,
+    live_url,
+    panel_comment,
+)
+from render_cases_layout import solid_png
 from render_cases_navigation import _publish
 from render_harness import (
+    RELEASE_FOCUS,
     back_gesture,
     leaf_page,
     long_press,
@@ -20,6 +28,7 @@ from render_harness import (
     post_event,
     preview_parts,
     preview_text,
+    tab_onto,
     told,
 )
 
@@ -41,17 +50,22 @@ BOXES = """() => [...document.querySelectorAll(
 def test_a_control_previews_its_word_and_every_key_that_presses_it(
     engine, request, serve
 ):
-    """A thread's Resolve shows its symbol, so its preview says its word and `r`, which
-    presses it from anywhere in the thread, as a key chip: after a short rest of the
+    """A thread's Resolve shows its symbol, so its preview says its word and, as key
+    chips, the keys that press it from where the user is: after a short rest of the
     pointer, at once under the keyboard's focus, and with no tooltip of the platform's
-    beside it. The preview moves nothing, the pointer can cross onto it and read it
-    there, and the next control the pointer reaches says its own at once. While it stands, Escape puts it away and does
-    nothing else, so the thread it covers stays open; the next Escape leaves it."""
+    beside it. `r` presses it from the thread, but the caret in its reply types an r,
+    so there it says no key. The preview moves nothing, the pointer can cross onto it
+    and read it there, and the next control the pointer reaches says its own at once.
+    While it stands, Escape puts it away and does nothing else, so the thread it covers
+    stays open; the next Escape leaves it."""
     url = serve(PANEL_PAGE)
     thread = panel_comment(serve.page_dir, "Could the mobile cohort wait a week?")
     page = open_page(request.getfixturevalue(engine), url)
     view = open_panel_thread(page, thread)
     resolve = page.locator(".lf-fp-thread-controls .lf-resolve")
+    reply = page.get_by_role(
+        "textbox", name="Reply to Could the mobile cohort wait a week?"
+    )
     preview = page.locator(PREVIEW)
     expect(resolve).to_be_visible()
     # Off Leaf its word is the browser's tooltip; on Leaf it writes no title, so the
@@ -59,17 +73,28 @@ def test_a_control_previews_its_word_and_every_key_that_presses_it(
     assert resolve.get_attribute("title") is None, (
         "the browser's tooltip would show too"
     )
+    expect(reply).to_be_focused()
     rendered(page)
     before = page.evaluate(BOXES)
 
     resolve.hover()
     expect(preview).to_be_visible()
     expect(preview.locator(".lf-preview-word")).to_have_text("Resolve thread")
+    expect(preview.locator("kbd.lf-key-badge")).to_have_count(0)
+    # And a screen reader hears no key there either.
+    assert "r" not in (resolve.get_attribute("aria-keyshortcuts") or "").split()
+    rendered(page)
+    assert page.evaluate(BOXES) == before, "showing the preview moved the thread"
+    page.mouse.move(0, 0)
+    expect(preview).to_be_hidden()
+    # Out of the reply, on the thread, `r` presses Resolve, and the preview says so.
+    page.keyboard.press("Escape")
+    expect(reply).not_to_be_focused()
+    expect(view).to_be_visible()
+    resolve.hover()
     expect(preview.locator("kbd.lf-key-badge")).to_have_text(["r"])
     # The chip's key is the one a screen reader hears it has.
     assert "r" in resolve.get_attribute("aria-keyshortcuts").split()
-    rendered(page)
-    assert page.evaluate(BOXES) == before, "showing the preview moved the thread"
     tip = preview.bounding_box()
     # The pointer onto the preview keeps it, and reads it there (WCAG 1.4.13).
     page.mouse.move(tip["x"] + tip["width"] / 2, tip["y"] + tip["height"] / 2)
@@ -96,6 +121,120 @@ def test_a_control_previews_its_word_and_every_key_that_presses_it(
     expect(view).to_be_visible()
     page.keyboard.press("Escape")
     expect(view).to_be_hidden()
+
+
+# A range and a select built the way Leaf builds its own, whose faces say no name.
+LEAF_SETTINGS = """<p id="settings"></p>
+<script type="module">
+import {offer} from '/runtime/widget-api.js';
+const rows = offer('input', 'probe-rows', undefined, 'range');
+rows.id = 'rows';
+rows.setAttribute('aria-label', 'Rows shown');
+const speed = offer('select', 'probe-speed');
+speed.id = 'speed';
+speed.setAttribute('aria-label', 'Playback speed');
+for (const rate of ['1×', '2×']) speed.append(new Option(rate));
+document.getElementById('settings').append(rows, speed);
+</script>"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_range_and_a_select_preview_their_names_and_a_thread_card_none(
+    engine, request, serve
+):
+    """A range and a select are controls, Leaf's own included, so focus the user moves
+    onto one previews the name its face doesn't show. A thread card is no control: a
+    walk landing on one the page draws previews nothing, since its words are what the
+    user reads, and a preview there would take the Escape that lets go of it."""
+    url = serve(
+        THREAD_DIFF_PAGE.replace("</lf-test-plan>", "</lf-test-plan>" + LEAF_SETTINGS)
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Does the tray fit the north bracket?",
+            "anchor": {"section": "cd-q"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), live_url(url))
+    preview = page.locator(PREVIEW)
+    for control, name in (("#rows", "Rows shown"), ("#speed", "Playback speed")):
+        tab_onto(page.locator(control))
+        expect(preview).to_be_visible()
+        expect(preview.locator(".lf-preview-word")).to_have_text(name)
+
+    thread = page.locator("#cd-q .lf-page-thread")
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("t")
+    expect(thread).to_be_focused()
+    rendered(page)
+    assert not preview.is_visible(), preview.inner_text()
+    page.keyboard.press("Escape")
+    expect(thread).not_to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_inside_a_modal_takes_escape_before_the_modal(engine, request, serve):
+    """The image viewer is a modal dialog, and its Close previews inside it. While the
+    preview stands, Escape puts it away and leaves the viewer open, as over any other
+    surface; the next Escape closes the viewer."""
+    image = solid_png(400, 300, (200, 210, 220))
+    path = f"/media/{hashlib.sha256(image).hexdigest()[:16]}.png"
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Image", f'<p><a href="{path}"><img src="{path}" alt="A chart"></a></p>'
+            ),
+            media={path: image},
+        ),
+    )
+    page.get_by_role("link", name="A chart").click()
+    viewer = page.get_by_role("dialog", name="Image preview")
+    expect(viewer).to_be_visible()
+    preview = page.locator(PREVIEW)
+    viewer.get_by_role("button", name="Close image preview").hover()
+    expect(preview.locator(".lf-preview-word")).to_have_text("Close image preview")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    expect(viewer).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(viewer).to_be_hidden()
+
+
+def test_a_back_gesture_after_a_preview_put_away_closes_the_popover_under_it(
+    browser, serve
+):
+    """A Tab into an open popover shows its control's preview, and Escape puts it away.
+    A back gesture then takes the next step, closing the popover, as a second Escape
+    would: the page holds no close watcher of its own once no step of Leaf's stands
+    (keyboard/close-requests.js). Chromium alone, as the other back gestures are."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Popover",
+                '<button id="open" popovertarget="pop">Open</button>'
+                '<div id="pop" popover="auto"><p>Words to copy.</p>'
+                '<button id="copy" aria-label="Copy the words">⧉</button></div>',
+            )
+        ),
+    )
+    page.locator("#open").click()
+    popover = page.locator("#pop")
+    expect(popover).to_be_visible()
+    page.keyboard.press("Tab")
+    expect(page.locator("#copy")).to_be_focused()
+    preview = page.locator(PREVIEW)
+    expect(preview).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    expect(popover).to_be_visible()
+    back_gesture(page)
+    expect(popover).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -453,11 +592,14 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     head = question.locator(".lf-msg-head").bounding_box()
     assert tip["y"] <= head["y"] + head["height"] + 24, (tip, head)
     assert tip["y"] + tip["height"] >= head["y"] - 24, (tip, head)
-    # A pointer on the words of the message the keyboard is on hears no time from them.
+    # A pointer on the words of the message the keyboard is on hears no time from them,
+    # nor anything else, so the keyboard's reading stands.
     body = question.locator(".lf-msg-body").bounding_box()
     page.mouse.move(body["x"] + 8, body["y"] + body["height"] / 2, steps=3)
     page.wait_for_timeout(500)
-    expect(preview).not_to_have_text("Sat 15 Aug 2026, 14:22 PT")
+    expect(preview).to_be_visible()
+    expect(preview).to_have_attribute("data-lf-route", "focus")
+    expect(preview).to_have_text("Sat 15 Aug 2026, 14:22 PT")
     page.mouse.move(0, 0)
     page.keyboard.press("Escape")
 
@@ -946,9 +1088,9 @@ SECTION_PAGE = leaf_page(
 
 
 def test_a_thread_on_a_whole_section_stands_where_the_section_stands(browser, serve):
-    """A link to a section previews it by its own name, and On me groups a thread on
+    """A link to a section previews it by its own name, and On Me groups a thread on
     the whole section under the part the section stands in: the preview says what a
-    place is, On me where it is."""
+    place is, On Me where it is."""
     url = serve(SECTION_PAGE)
     panel_comment(
         serve.page_dir,
@@ -2336,6 +2478,70 @@ def test_a_preview_stands_where_it_covers_no_small_target_and_fits_any_window(
     assert held["top"] >= 0 and held["bottom"] <= held["window"] and held["cut"], held
 
 
+# A widget that draws its own content (`x-content: empty`), as `lf-toc` does, which so
+# takes the pointer (widget-elements.js, `aimableAt`) though no press acts on it: a
+# column of links across the page's column, the middle one previewing a line of detail
+# under its name, as a contents row with marks does.
+ROUTE = {
+    **{
+        key: value
+        for key, value in element_declaration("lf-route", upgrade=True).items()
+        if key != "x-verbatim"
+    },
+    "x-content": "empty",
+    "x-example": '<lf-route id="route"></lf-route>',
+}
+ROUTE_WIDGET = """
+customElements.define('lf-route', class extends HTMLElement {
+  connectedCallback() {
+    if (this.firstChild) return;
+    const words = ['Before the window', 'Confirm access', 'Record the baseline',
+      'Create the new credentials', 'Switch the services'];
+    for (const [n, said] of words.entries()) {
+      const row = document.createElement('div');
+      const link = document.createElement('a');
+      link.id = `route-${n}`;
+      link.href = `#t`;
+      link.textContent = said;
+      link.style.cssText = 'display: inline-block; padding-block: 3px';
+      if (n === 2) link.lfPreview = () => ({detail: ['1 thread']});
+      row.append(link);
+      this.append(row);
+    }
+  }
+});
+"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_keeps_clear_only_of_the_controls_inside_a_widget_it_stands_in(
+    engine, request, serve
+):
+    """A link inside a widget that draws its own content, which takes the pointer only to
+    be read, previews whole and clear of the links beside it, as anywhere on the page:
+    the widget around its subject stands under the preview, as any box around it does,
+    and the links it holds are what stays reachable. Counted as one control there, the
+    widget left no side inside it room for a line, so the preview stood over the next
+    link and let the pointer through to it."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page("Route", '<h1 id="t">Route</h1><lf-route id="route"></lf-route>'),
+            layer_registry={"lf-route": ROUTE},
+            layer_widgets={"lf-route.js": ROUTE_WIDGET},
+        ),
+    )
+    page.set_viewport_size({"width": 700, "height": 900})
+    rendered(page)
+    tip = page.locator(PREVIEW)
+    tab_onto(page.locator("#route-2"))
+    expect(tip.locator(".lf-preview-word")).to_have_text("Record the baseline")
+    rendered(page)
+    assert tip.get_attribute("data-lf-covers") is None
+    assert page.evaluate(COVERS, [f"route-{n}" for n in (0, 1, 3, 4)]) == []
+    assert tip.locator("[data-lf-clamp], [data-lf-cut]").count() == 0
+
+
 def test_focus_a_command_places_in_a_surface_it_opens_shows_no_preview(browser, serve):
     """`m` walks to the question waiting on the user and opens its card with focus in
     it: the card placed that focus as it opened, so nothing previews until the user
@@ -3084,6 +3290,110 @@ def test_a_preview_no_side_holds_whole_takes_the_side_that_holds_most_lines_clea
     assert tip.locator("[data-lf-clamp], [data-lf-cut]").count() == 1
 
 
+# A control in the margin by a passage that runs on below it, near enough the window's
+# right edge that a preview from its left edge crosses it.
+EDGED = """<div style="height: 700px"></div>
+<p id="passage" style="position: fixed; left: 40px; width: 820px; top: 40px;
+  height: 300px; margin: 0">What the control is about.</p>
+<button id="edged" style="position: fixed; left: 900px; top: 50px; width: 32px;
+  height: 32px; padding: 0">E</button>"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_the_window_cuts_at_an_edge_slides_in_rather_than_cut_lines(
+    engine, request, serve
+):
+    """Below its left edge the window cuts it, below its right edge and beside it it
+    would cover what it is about, and above it the window holds a line: so it slides
+    in from its left edge until the window holds it, beside the passage and still
+    across the control, and shows every line, as a margin entry's preview by the
+    window's edge does."""
+    page = open_page(request.getfixturevalue(engine), serve(leaf_page("Edged", EDGED)))
+    page.set_viewport_size({"width": 1200, "height": 700})
+    page.evaluate(
+        """() => { document.getElementById('edged').lfPreview = () => ({name: 'Edged',
+          about: document.getElementById('passage'), detail: Array.from({length: 4},
+          (_, n) => `Detail line ${n}, long enough to fill the preview's width`)}); }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(2, 2)
+    page.locator("#edged").hover()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Edged")
+    rendered(page)
+    assert tip.get_attribute("data-lf-y") == "below"
+    assert tip.locator("[data-lf-clamp], [data-lf-cut]").count() == 0
+    assert page.evaluate(COVERS, ["passage"]) == []
+    drawn = page.evaluate(
+        "() => document.querySelector('#lf-preview .lf-preview-face')"
+        ".getBoundingClientRect().toJSON()"
+    )
+    # Up to the window's edge, within a layout unit: Firefox lays boxes out in sixtieths
+    # of a pixel, and the owner writes its offsets in sixty-fourths (keeps.js,
+    # `layoutPx`).
+    assert 900 < drawn["right"] < 1200 - 8 + 1 / 60 and drawn["left"] < 932, drawn
+
+
+# A drawing by the window's right edge, whose points a preview stands for, beside a
+# passage it is about, with another control above it.
+SLID_AIM = """<div id="drawing" style="position: fixed; left: 590px; top: 0; width: 100px;
+  height: 650px"></div>
+<p id="drawn" style="position: fixed; left: 40px; width: 520px; top: 0; height: 650px;
+  margin: 0">What the drawing is about.</p>
+<button id="other" style="position: fixed; left: 565px; top: 60px; width: 330px;
+  height: 130px">Other control</button>"""
+
+
+# The preview rides along the point it stands for as the aim moves, as a chart's does,
+# which the shift sensor counts as a move without input, as it does in
+# widgets/test_charts.py, unsurveyed for that reason.
+@pytest.mark.shifts_unsurveyed
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_slid_in_keeps_its_side_as_the_aim_moves(engine, request, serve):
+    """A point's preview the window cuts at its left edge slides in below the point,
+    and keeps that side as the aim moves 10 px down and back, since below, slid in
+    the same way, still holds it whole: above it would now fit too, and a new aim
+    keeps its side wherever that side still holds the reading whole."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(leaf_page("Slid aim", SLID_AIM))
+    )
+    page.set_viewport_size({"width": 900, "height": 700})
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfWidgetApi();
+          const drawing = document.getElementById('drawing');
+          window.at = 280;
+          drawing.lfPreview = () => ({name: 'Point', about: document.getElementById('drawn'),
+            at: {left: 600, right: 632, top: window.at, bottom: window.at + 32},
+            detail: Array.from({length: 4},
+              (_, n) => `Detail line ${n}, long enough to fill the preview's width`)});
+          // The point under the pointer, 10 px above it, as a chart's is.
+          drawing.addEventListener('pointermove', (event) => {
+            window.at = event.clientY - 10;
+            api.previewChanged(drawing, {aim: true});
+          });
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(610, 290)
+    expect(tip.locator(".lf-preview-word")).to_have_text("Point")
+    sides = []
+    for top in (280, 290, 280):
+        page.mouse.move(610, top + 10)
+        rendered(page)
+        drawn = page.evaluate(
+            "() => document.querySelector('#lf-preview .lf-preview-face')"
+            ".getBoundingClientRect().toJSON()"
+        )
+        sides.append(
+            (
+                tip.get_attribute("data-lf-y"),
+                drawn["top"] > top + 32,
+                tip.locator("[data-lf-clamp], [data-lf-cut]").count(),
+            )
+        )
+    assert sides == [("below", True, 0)] * 3, sides
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_target_filling_a_short_window_previews_a_whole_line(engine, request, serve):
     """A target that leaves no side room for even one line of its preview has it stand
@@ -3126,7 +3436,7 @@ def test_a_target_filling_a_short_window_previews_a_whole_line(engine, request, 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_count_on_a_control_s_face_names_nothing(engine, request, serve):
-    """A control whose face shows a mark and a count, as the folded On me does, says
+    """A control whose face shows a mark and a count, as the folded On Me does, says
     nothing of what it is by that count, so it previews its name to the keyboard and to
     a held finger, whose release then presses nothing."""
     url = serve(
@@ -3212,7 +3522,7 @@ def test_a_preview_over_another_target_goes_as_the_pointer_reaches_it(
     assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", centre) == (
         "under"
     )
-    expect(tip).to_be_hidden(timeout=3000)
+    expect(tip).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -3264,7 +3574,7 @@ def test_a_covering_preview_stays_while_the_pointer_is_on_it_over_inert_words(
     assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", field) == (
         "under"
     )
-    expect(tip).to_be_hidden(timeout=3000)
+    expect(tip).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -3415,7 +3725,7 @@ def test_a_covering_range_preview_stays_while_the_pointer_is_on_it_over_inert_wo
         "under" if field == "beside" else "inner"
     )
     page.evaluate("() => window.lfPointRange(null)")
-    expect(tip).to_be_hidden(timeout=3000)
+    expect(tip).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -3454,10 +3764,10 @@ def test_a_focus_preview_goes_under_a_sticky_header_and_returns_with_its_control
     page.wait_for_timeout(300)
     box = page.locator("#box")
     box.evaluate("el => { el.scrollTop = 120; }")
-    expect(tip).to_be_hidden(timeout=3000)
+    expect(tip).to_be_hidden()
     box.evaluate("el => { el.scrollTop = 0; }")
     expect(read).to_be_focused()
-    expect(tip).to_be_visible(timeout=3000)
+    expect(tip).to_be_visible()
     expect(tip.locator(".lf-preview-word")).to_have_text("Read report")
 
 
@@ -3519,7 +3829,7 @@ def test_a_held_reading_ends_as_its_control_scrolls_away(browser, serve, after):
     expect(tip).to_be_visible()
     box = page.locator("#box")
     box.evaluate("el => { el.scrollTop = 160; }")
-    expect(tip).to_be_hidden(timeout=3000)
+    expect(tip).to_be_hidden()
     assert held.evaluate("el => el.ended") == 1
     cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
     if after == "Escape":

@@ -125,7 +125,6 @@ const commandReferenceClose = closeControl({
   className: "lf-command-reference-close",
 });
 
-commandReferenceClose.setAttribute("aria-label", "Close the command reference");
 // Retained controls connect with their closed dialog at boot, so their native editor
 // and command wiring are ready before the first opening. Local renders only seat them.
 commandReferenceDialog.append(commandReferenceSearch, commandReferenceClose);
@@ -395,13 +394,16 @@ function captureCommandReferenceCatalog() {
       : alternatives.some((binding) => routes.has(binding));
   };
   // Whether the reference can run a row is a fact of its declaration, and whether it
-  // can run it now is `available`'s.
+  // can run it now is `available`'s. It runs what the row's key runs (dispatch.js,
+  // `invocationFor`): its action, the command it routes to, or the press of the control
+  // it names, as `r` presses a thread's Resolve (bindings.js, `commandRun`).
   /** @param {Command} row @param {CommandRoute | null} route */
   const actionable = (row, route) =>
     Boolean(
       (row.run ||
         (commandBinding(row, route) != null && row.runKey) ||
-        routedCommand(route)) &&
+        routedCommand(route) ||
+        (route?.control ?? row.control) !== undefined) &&
       (routedCommand(route)?.row ?? row).runFromCommandReference !== false,
     );
 

@@ -381,10 +381,15 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     card.get_by_role("button", name="Next thread").click()
     expect(card).to_contain_text("This exact captured frame.")
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
-    expect(card.locator(".lf-page-thread")).to_be_focused()
+    # A click on ‹ or › lands in the reply (thread/focus.js, `openingPart`).
+    reply = card.get_by_role("textbox", name="Reply", exact=True)
+    expect(reply).to_be_focused()
     card.get_by_role("button", name="Previous thread").click()
     expect(widget.locator(f'[data-lf-datum="{target}"]')).to_be_visible()
     expect(widget.locator(".lf-trace-phase")).to_have_text("After checkpoint")
+    expect(reply).to_be_focused()
+    # Escape stands the user on the thread, where `t` walks rather than types.
+    user.keyboard.press("Escape")
     expect(card.locator(".lf-page-thread")).to_be_focused()
     user.keyboard.press("t")
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
@@ -1881,7 +1886,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
             // or the right edge of a label pointing back from the scale's end.
             offsets: marks.map(mark => {
               const r = mark.getBoundingClientRect();
-              const at = track.left + edge + Number(mark.style.getPropertyValue('--t')) * span;
+              const at = track.left + edge + Number(mark.style.getPropertyValue('--lf-axis-at')) * span;
               return Math.abs((mark.hasAttribute('data-lf-flip') ? r.right : r.left) - at);
             }),
             flags: [...node.querySelectorAll('.lf-trace-moment-pin')].map(pin => {
@@ -1906,11 +1911,13 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
 
     first = visible_marks()
     # A shared flag lists every moment it stands for, in time order.
+    said_by_marks(widget)
     tips = "\n".join(
-        pins.evaluate_all("nodes => nodes.map(node => node.dataset.lfTip)")
+        pins.evaluate_all("nodes => nodes.map(node => node.dataset.testTip)")
     )
-    for number in range(2, 22):
-        assert re.search(rf"^{number} · ", tips, re.MULTILINE), number
+    assert re.findall(r" · Moment (\d+) · ", tips) == [
+        str(number) for number in range(2, 22)
+    ], tips
     pins.first.click()
     expect(widget.locator(".lf-trace-bookmark:visible")).to_have_count(20)
     expect(

@@ -270,7 +270,7 @@ flowchart TD
               incorporation of that choice. A <strong>to-do</strong> records work the
               agent owes, such as measuring the importer’s throughput. Obligations and
               to-dos supply the
-              <a href="#progress-on-lists">On me and On agent lists</a>; threads keep
+              <a href="#progress-on-lists">On Me and On agent lists</a>; threads keep
               the conversation, and workflows track the handling of updates.
             </p>
             <p id="loop-result">
@@ -467,7 +467,7 @@ leaf thread create ./review --obligation --text "Does the revised policy match t
               <p id="answers-kinds">
                 A comment needs a thread reply. A widget that asks, any widget whose
                 registry entry declares <code>x-awaits</code>, creates an
-                <em>obligation</em> on the user’s On me list, with a prompt, typed
+                <em>obligation</em> on the user’s On Me list, with a prompt, typed
                 answer, and lifecycle; an optional <code>lf-ask</code> supplies its
                 heading as the prompt. The widget owns the value, and the agent records
                 the decision in a stamped revision. The browser fetches the revised HTML
@@ -666,7 +666,7 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
               <p id="waiting-flow">
                 <code>leaf page open ./review</code> leaves the page available for
                 feedback. Questions that need an answer go in thread messages with
-                <code>--obligation</code>, which puts them in On me. The harness
+                <code>--obligation</code>, which puts them in On Me. The harness
                 integration keeps watching after the turn ends and sends later updates
                 back to the same session.
               </p>
@@ -1140,7 +1140,7 @@ flowchart TD
               <summary>Turn-end check in Claude Code (experimental)</summary>
               <p id="fork-purpose">
                 Late in a long session, the page can drift from the conversation: the
-                agent leaves something to the user only in its chat reply, so On me
+                agent leaves something to the user only in its chat reply, so On Me
                 misses it, or a page goes on saying what the work has since changed. In
                 Claude Code, when the agent finishes a reply in a session holding a
                 page, Leaf's hooks module forks the conversation. The fork is a copy of
@@ -1150,15 +1150,15 @@ flowchart TD
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/turn-end-check.md"
                   >turn-end check</a
                 >
-                with Leaf's rule for what goes On me, as the agent reads it, and for
-                each page its text as the user reads it, its On me, the questions
+                with Leaf's rule for what goes On Me, as the agent reads it, and for
+                each page its text as the user reads it, its On Me, the questions
                 already answered or withdrawn, and the items it shows under way. The
                 fork names:
               </p>
               <ul id="fork-checks">
                 <li>
                   each decision, answer, permission or step the agent left to the user
-                  that no On me item holds, such as which of two designs to keep or
+                  that no On Me item holds, such as which of two designs to keep or
                   trying a build
                 </li>
                 <li>
@@ -1166,7 +1166,7 @@ flowchart TD
                   changed, such as a result or a section the user dropped in chat
                 </li>
                 <li>
-                  an On me item the user answered elsewhere, or the work made moot
+                  an On Me item the user answered elsewhere, or the work made moot
                 </li>
                 <li>
                   work the agent promised or set running, such as a background job, that
@@ -1174,7 +1174,7 @@ flowchart TD
                 </li>
               </ul>
               <p id="fork-excludes">
-                Among asks, the fork leaves out what an On me item already holds, what
+                Among asks, the fork leaves out what an On Me item already holds, what
                 the user has answered since, and what the agent will settle itself. For
                 each ask it gives a thread title, a message of a few sentences that the
                 user can answer without the chat, and the words of the passage it
@@ -1189,7 +1189,7 @@ flowchart TD
                 agent's with an obligation, as
                 <code>leaf thread create --obligation</code> writes one. Each stands on
                 that passage, or on the page as a whole where the fork named none or the
-                page doesn't show its words once. It stays On me until the user replies
+                page doesn't show its words once. It stays On Me until the user replies
                 or settles it with a reaction, and nothing on the page marks where it
                 came from.
               </p>
@@ -1204,7 +1204,7 @@ flowchart TD
                 or that Leaf can't place, goes to the agent instead.
               </p>
               <p id="fork-findings">
-                Only the agent settles an On me item or adds to its own list, so the
+                Only the agent settles an On Me item or adds to its own list, so the
                 other findings reach it as messages. Each gives the fork's summary and
                 the words from the conversation it rests on, which lead the agent to the
                 original message even after a compaction. At its next prompt or tool
@@ -1436,7 +1436,7 @@ flowchart TD
                     <td>one per thread</td>
                   </tr>
                   <tr id="ontology-queues">
-                    <td>On me, On <em>agent</em>, Done</td>
+                    <td>On Me, On <em>agent</em>, Done</td>
                     <td>
                       The user's list, the agent's list (On Claude, say), and what has
                       left them, selected from the obligations, to-dos and workflows.
@@ -1480,7 +1480,7 @@ flowchart TD
                 The diagram connects the records above to the work the interface shows.
                 A multi-pick choice still being composed has no workflow until its
                 finishing action;
-                <a href="#progress-on-lists">On me and the agent’s list</a> defines list
+                <a href="#progress-on-lists">On Me and the agent’s list</a> defines list
                 membership and completion.
               </p>
               <figure id="ontology-graph" class="diagram-figure">
@@ -1496,7 +1496,7 @@ flowchart TD
     Promise["Promise&lt;br/&gt;or task"] --&gt; Todo["To-do"]
   end
   Records --&gt;|records| Reading["Whose move is next?&lt;br/&gt;Which work is finished?"]
-  Reading --&gt; Views["Thread attention&lt;br/&gt;On me · On agent · Done"]
+  Reading --&gt; Views["Thread attention&lt;br/&gt;On Me · On agent · Done"]
 </pre>
                 </lf-diagram>
                 <figcaption>
@@ -1732,7 +1732,7 @@ flowchart TD
               A request to permit an action is an ordinary decision: an
               <code>lf-options</code> group whose options take the action its heading
               and prose describe or keep things as they are, so declining is an answer
-              too. Its pick answers the widget's obligation on On me, and choosing it
+              too. Its pick answers the widget's obligation on On Me, and choosing it
               again reopens it. Each request is independent of other unanswered widgets
               and page stamps, and the pick persists with the widget's id across
               unrelated edits. When the action or evidence changes enough to invalidate
@@ -1877,7 +1877,7 @@ flowchart TD
                   <a href="#progress-seats">Progress on an update and the page</a>
                 </li>
                 <li><a href="#stages">Stages of an update</a></li>
-                <li><a href="#progress-on-lists">On me and the agent’s list</a></li>
+                <li><a href="#progress-on-lists">On Me and the agent’s list</a></li>
                 <li><a href="#panel-line">What the panel's line says</a></li>
                 <li><a href="#updates-silence">Status readings</a></li>
                 <li><a href="#updates-notices">Notices</a></li>
@@ -2084,7 +2084,7 @@ flowchart TD
           </section>
 
           <section id="progress-on-lists" class="layout-flow">
-            <h2>On me and the agent’s list</h2>
+            <h2>On Me and the agent’s list</h2>
             <p id="progress-lists-meaning">
               The On view gathers outstanding work across the page, using the
               <a href="#ontology-relations">obligations, to-dos and workflows</a>
@@ -2099,7 +2099,7 @@ flowchart TD
               </thead>
               <tbody>
                 <tr>
-                  <td>On me</td>
+                  <td>On Me</td>
                   <td>
                     Open obligations: each widget that asks, on the page or in a thread
                     message; each agent message sent with <code>--obligation</code>; and
@@ -2117,7 +2117,7 @@ flowchart TD
                   <td>Done</td>
                   <td>
                     Each list’s finished records: answered or withdrawn obligations and
-                    ended to-dos. User decisions appear under On me; answered
+                    ended to-dos. User decisions appear under On Me; answered
                     conversations under the agent’s list. A decision recorded in a
                     revision finishes the widget’s record, without a duplicate update in
                     Done.
@@ -2126,7 +2126,7 @@ flowchart TD
               </tbody>
             </table>
             <p id="progress-lists-answer">
-              On the page, an item On me is answered only in the widget or thread that
+              On the page, an item On Me is answered only in the widget or thread that
               asks it, and Leaf adds no control of its own to end one. A widget’s
               obligation is answered by the actions its
               <code>x-awaits</code> declaration names, such as a pick, or the Done a
@@ -2144,7 +2144,7 @@ flowchart TD
               paragraph or a chart, or to leave the user a step such as trying a build,
               the agent opens a thread on that content or the page with a message sent
               with <code>--obligation</code>, and the user’s reply answers it. Nothing
-              goes On me that neither a widget nor a thread answers, so no item carries
+              goes On Me that neither a widget nor a thread answers, so no item carries
               a generic Done, and Leaf adds no answer to a widget beyond those the
               widget declares.
             </p>
@@ -2153,7 +2153,7 @@ flowchart TD
               questions, and to-dos. The page-wide lists collect that work across
               threads and widgets. While a thread about a decision awaits the agent, its
               unanswered update represents the work on the agent’s list; the decision
-              returns to On me when it needs the user again.
+              returns to On Me when it needs the user again.
             </p>
           </section>
 
@@ -2372,9 +2372,9 @@ flowchart TD
             <p id="updates-notices-lede">
               A notice stands in the panel's line for four seconds and is announced to
               screen readers. Simultaneous news shares one notice, such as
-              <em>Not answered · New on me</em>. Some news is only announced, since
+              <em>Not answered · New On Me</em>. Some news is only announced, since
               something on the page already shows it: an agent message the user hasn't
-              read, which the On me mark's dot and its margin marker show, and the
+              read, which the On Me mark's dot and its margin marker show, and the
               user's own gesture, which the widget draws where it was made. Opening a
               page announces only unread agent messages, not its existing activity. The
               agent starting or stopping work is no notice: the status in the same line
@@ -2397,7 +2397,7 @@ flowchart TD
                   </td>
                 </tr>
                 <tr id="updates-notice-input">
-                  <td>New on me, 2 new on me</td>
+                  <td>New On Me, 2 new On Me</td>
                   <td>
                     Something new waits on the user, such as a question a reply asks or
                     a decision a revision adds.
@@ -2453,7 +2453,7 @@ flowchart TD
                 <strong><code>leaf page open …</code></strong> Leaves feedback open and
                 clears starts while keeping to-dos. It creates no obligation. Questions
                 that need an answer belong in a thread message with
-                <code>--obligation</code>, so On me opens the conversation.
+                <code>--obligation</code>, so On Me opens the conversation.
               </li>
               <li id="updates-written-idle">
                 <strong><code>leaf page close …</code></strong> The agent has finished
@@ -2479,9 +2479,9 @@ flowchart TD
               </li>
               <li id="updates-written-question">
                 <strong><code>leaf thread reply … --obligation</code></strong>
-                Opens a question on On me and makes the thread read
+                Opens a question on On Me and makes the thread read
                 <em>Your turn</em>. A reply or settling reaction answers it at once, so
-                On me clears without waiting for the agent. A step the user is to take,
+                On Me clears without waiting for the agent. A step the user is to take,
                 such as trying a build, is asked the same way. The agent can end it with
                 <code>leaf task end</code> as answered elsewhere or withdrawn.
               </li>
@@ -2491,7 +2491,7 @@ flowchart TD
                     >leaf thread reply … --obligation message:&lt;id&gt;</code
                   ></strong
                 >
-                Puts a question the user's reply left standing back on On me, such as
+                Puts a question the user's reply left standing back on On Me, such as
                 when they asked something back. It keeps its id and words, so a plan
                 step naming it reads open again, and stands on this message.
               </li>
@@ -2558,7 +2558,7 @@ flowchart TD
             <p id="progress-plan-reading">
               For work with several steps, the agent can publish an outline, which the
               On view's list of the agent's work discloses from the plan's progress and
-              On me can group by. It shows the goal, the current step, and later steps,
+              On Me can group by. It shows the goal, the current step, and later steps,
               including those waiting on the user. A step can name an existing to-do or
               obligation and follow its title, owner, and state, or carry a title and
               state the agent maintains.
@@ -3058,10 +3058,13 @@ flowchart LR
             <h2>Offline exports</h2>
             <p id="runtime-export-record">
               <code>leaf page export PAGE -o FILE</code> captures a stamped version, its
-              resources and recorded state in one HTML file. Reading controls and
-              page-owned code work offline; new Leaf choices, comments, Undo and thread
-              interactions need the served page. An agent need not be running to record
-              a choice on a live server. Pages containing live samples cannot export.
+              resources and the decisions recorded on its widgets in one HTML file. The
+              file holds none of the conversation with the agent, on screen or in its
+              source: no threads or their attachments, to-dos, plan or changelogs.
+              Reading controls and page-owned code work offline; new Leaf choices,
+              comments and Undo need the served page. An agent need not be running to
+              record a choice on a live server. Pages containing live samples cannot
+              export.
             </p>
           </section>
         </lf-tab></lf-tabs

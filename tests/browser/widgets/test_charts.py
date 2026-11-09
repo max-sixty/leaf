@@ -678,6 +678,38 @@ def test_a_chart_in_a_shut_tab_draws_when_the_tab_opens(browser, serve):
     expect(page.locator("#tab-chart svg[role=img]")).to_be_visible()
 
 
+def test_a_chart_first_laid_out_on_paper_draws_at_its_stated_height(browser, serve):
+    """Paper prints a shut tab's panel open, where the theme holds no undrawn box at its
+    stated height and the box is its source's. A chart there still waits for the user to
+    open the tab (`measure`), so it takes the stated height once they do. Drawn for the
+    box paper gave it, it kept the source's height, and a source shorter than Plot's
+    margins drew bars of negative height."""
+    url = serve(
+        leaf_page(
+            "chart printed from a shut tab",
+            '<h1 id="t">Views</h1><lf-tabs id="views">'
+            '<lf-tab id="words" label="Words"><p id="p">Some words.</p></lf-tab>'
+            '<lf-tab id="numbers" label="Numbers">'
+            + chart_markup("tab-chart", MESSAGE_CHART).replace(
+                '<lf-chart id="tab-chart">',
+                '<lf-chart id="tab-chart" data-height="200">',
+            )
+            + "</lf-tab></lf-tabs>",
+        )
+    )
+    page = open_page(browser, url)
+    expect(page.locator("#views.lf-rendered")).to_be_attached()
+    page.emulate_media(media="print")
+    # Two frames: the layout paper gives the open panel, and its delivery.
+    page.evaluate(
+        "() => new Promise((done) => requestAnimationFrame(() =>"
+        " requestAnimationFrame(done)))"
+    )
+    page.emulate_media(media="screen")
+    page.get_by_role("tab", name="Numbers").click()
+    expect(page.locator("#tab-chart svg[role=img]")).to_have_attribute("height", "200")
+
+
 # A chart's values, which a chart says to the pointer, the keyboard and a finger
 # (lf-chart.js, chart-points.js). Two series stacked in two weeks, so a step runs along
 # a series and across to the other, and a stack's share is what a segment measures.
@@ -1508,7 +1540,7 @@ def test_a_reading_goes_as_its_point_scrolls_out_of_the_box_the_chart_scrolls_in
         }"""
     )
     assert shown > 100, shown
-    expect(preview).to_be_hidden(timeout=3000)
+    expect(preview).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -1549,10 +1581,10 @@ def test_a_focused_point_s_reading_returns_as_its_box_scrolls_it_back(
             - box.getBoundingClientRect().top + 20;
         }"""
     )
-    expect(preview).to_be_hidden(timeout=3000)
+    expect(preview).to_be_hidden()
     page.locator("#box").evaluate("el => { el.scrollTop = 0; }")
     expect(chart).to_be_focused()
-    expect(preview).to_be_visible(timeout=3000)
+    expect(preview).to_be_visible()
     assert said(page) == ["Higher", *(f"line {n}" for n in range(2, 7))]
     expect(ring).to_be_visible()
 
@@ -1620,8 +1652,8 @@ def test_a_titled_link_beneath_a_reading_takes_the_pointer_from_it(
     assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", on) == (
         "titled"
     )
-    expect(preview).to_be_hidden(timeout=3000)
-    expect(ring).to_be_hidden(timeout=3000)
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -1707,8 +1739,8 @@ def test_a_tap_after_a_hold_takes_the_reading_and_its_ring_away(browser, serve):
     expect(preview).to_be_visible()
     touch("touchStart", start)
     touch("touchEnd")
-    expect(preview).to_be_hidden(timeout=3000)
-    expect(ring).to_be_hidden(timeout=3000)
+    expect(preview).to_be_hidden()
+    expect(ring).to_be_hidden()
     assert page.evaluate("document.getElementById('hours').lfPreview()") is None
 
 

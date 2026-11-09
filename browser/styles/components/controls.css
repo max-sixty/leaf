@@ -404,7 +404,7 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   color: var(--muted);
 }
 /* The unread dot: news's one mark, wherever it is marked, a reply, a row of Threads,
-   the On me mark and the folded leaf. A margin entry draws the same dot on its corner
+   the On Me mark and the folded leaf. A margin entry draws the same dot on its corner
    (base.css, `[data-lf-unread]`), where it can wear no class. */
 .lf-unread-dot {
   width: 6px;
@@ -775,7 +775,7 @@ summary,
  * (above). A symbol once also came on the word face's bordered card in some widgets, a
  * second look for the same press, until the two merged here. A control that draws its
  * state in its own ink, such as Send or Resolve (response.css), states that ink after
- * this rule, at least as heavily. Its grid lays out what it holds, such as the On me
+ * this rule, at least as heavily. Its grid lays out what it holds, such as the On Me
  * mark's symbol and count, which the library's centring would pack together. */
 .lf-icon-action {
   box-sizing: border-box;
@@ -940,7 +940,7 @@ wa-copy-button.lf-icon-action {
   opacity: 1;
   color: var(--muted);
 }
-/* The answer face: one of the answers a question offers, as On me's cards offer a
+/* The answer face: one of the answers a question offers, as On Me's cards offer a
    decision's choices (floating-panel.js). Each stands in a hairline frame in the ink,
    so the reader sees a set to pick from rather than presses that act, and the chosen
    one is marked as the page marks its chosen option (lf-options), in the ok tone with
@@ -1824,7 +1824,7 @@ textarea.field {
    ways, in small capitals, bold in the ink, muted at the rows' weight and with counts
    short of the rows' ends, until they shared this one. It is no row of the list's
    columns, since a count there would size the column the rows' ends share, and a list
-   whose ends stand inside their names' column, as On me's lines do, would see every
+   whose ends stand inside their names' column, as On Me's lines do, would see every
    end step back. Outside a group's box, as a tab strip's group or a trace's Moments
    stand, it is a line of that face where it stands. */
 .lf-rows-head {
@@ -1865,7 +1865,7 @@ textarea.field {
    with its arrow hanging in the band's start padding, so its name starts where every
    other band's does.
 
-   The user chose the bands for On me on 3 November 2026, asking for a group heading
+   The user chose the bands for On Me on 3 November 2026, asking for a group heading
    that sticks as a thread's author line does, and on 4 November for every list's groups
    to wear them. Rejected: a rule under each heading and faint rules between items,
    which tied the first item to the heading and not the rest; groups parted by space

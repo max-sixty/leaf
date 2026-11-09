@@ -323,14 +323,6 @@ html[data-lf-region-capture]
     -webkit-user-select: text;
   }
 
-  /* A thread and the room a resolved one is still giving back (foldOut) are the same
-     box, so the fold starts from the box the user was looking at rather than from
-     a second description of it. The retiring box says the outcome in paint without
-     also stating that in metrics the fold is animating. */
-
-  /* The response bar and thread card are fixed and anchored to what they point at, and
-     placed only while the visible boundary holds them (floating.js), so they never sit
-     pinned over content that is not theirs. */
   /* Where a control stands decides its face: in the runtime's furniture a press is a
      .lf-btn; beside page content it is the shared .lf-margin-entry. The shadow is what
      this one adds, since it floats over page content rather than the empty rail. */
@@ -387,8 +379,6 @@ html[data-lf-region-capture]
   .lf-drawing-mark.lf-drawing-parked path {
     stroke-dasharray: 7 6;
   }
-  /* A suggestion renders verbatim — its characters are what the next version
-     carries (see msgNode) — so this is where they keep their own line breaks. */
   .lf-live {
     position: fixed;
     width: 1px;

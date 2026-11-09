@@ -6,10 +6,16 @@
 
    - A control previews its name and its keys without declaring either: its accessible
      name where its face shows a symbol or a mark or doesn't say that name, and each
-     press that reaches it (control-keys.js, `controlKeys`) as key chips beside its
-     name, which a coarse pointer leaves out with every other advertised key. A control
+     press that reaches it from where the user is (control-keys.js, `controlKeys`) as
+     key chips beside its name, which a coarse pointer leaves out with every other
+     advertised key. A control
      whose face says its name and that no key reaches previews nothing. A field the user
-     types in previews nothing: its words are what they read.
+     types in previews nothing: its words are what they read. A control is any native
+     or ARIA press, a range and a select among them (control-selectors.js, `PRESSES`),
+     or a custom control whose `data-lf-offer` names its press (widget-elements.js,
+     `PRESSABLE`). The rest of Leaf's chrome, such as a thread card a walk lands on or
+     a pointer rests in, previews no name of its own, since its words are what the user
+     reads.
    - An element declares what pointing at it adds as its `lfPreview(route)`, called once
      as its preview shows on that route (`"pointer"`, `"focus"` or `"hold"`), and again
      for each new presentation of the document while the preview stands, so the words
@@ -99,8 +105,9 @@
    room is the room it holds clear, inside the part of the window the user sees, of
    every other control, tested every 23 px across the box it would draw, and of what
    the preview is about (the box it stands by and the declaration's `about`); a box
-   around the target is a control there only where it takes the pointer, as a card a
-   press opens around a chart does and a scrolling box doesn't. For a finger, whose
+   around the target is a control there only where a press acts on it, as a card a
+   press opens around a chart is and a scrolling box or a widget drawing its own
+   content isn't. For a finger, whose
    hand hides what lies below the touch, below holds none. Where it stands now comes
    first, its top corner on the edge it stands by at the same offsets from the box it
    stands by, and it stays there while
@@ -114,9 +121,11 @@
    sweeps it, and a longer reading grows away from its point or stands afresh. Afresh, as for a new target or a corner whose room no longer holds a line, it takes
    the first side whose room holds it whole, in order: below, then above, from the
    box's start edge and then its end edge, so a right-to-left target's starts at its
-   right edge; beside, toward the nearer window edge first; then centred across the
-   window, a finger's and a point's trying above first. Else it takes
-   the side whose room holds the most whole lines, held there. Only where no side's room
+   right edge, each slid in along that edge until the window holds it, still across
+   the box; beside, toward the nearer window edge first; then centred across the
+   window, a finger's and a point's trying above first. Else it takes the side whose
+   room holds the most whole lines, held there, so it cuts lines only where no side
+   holds them all. Only where no side's room
    holds a line does it stand over what it covers, on the side the window gives the most
    room, over the target itself where no side holds a line at all, and take no pointer,
    so the pointer reaches what it covers (`data-lf-covers`); where even that holds none,
@@ -225,7 +234,12 @@
    pointer through, as one standing over what it covers, went as the pointer left its
    target for it, though the pointer was on its words and on no other target there; it
    now stays while the pointer is over it (`onPreview`), so a chart's point's words past
-   the chart's edge and a covering control's words can both be read. Rejected:
+   the chart's edge and a covering control's words can both be read. Until 7 November
+   2026 every element wearing `data-lf-offer` was a control here, so a thread card
+   previewed its accessible name, its own first words, to a pointer resting in it and to
+   a `t` walk landing on it, where the preview took the Escape that lets go of the
+   thread. Rejected: reading a control off `data-lf-offer` alone, a press marker, which
+   left out Leaf's own ranges and selects, since they wear an empty one;
    `interestfor`, which gives a control the same three routes natively but ships only
    in Chromium; the platform's
    `title` alone for Leaf's controls, which no finger or keyboard reads and which can't
@@ -269,11 +283,12 @@ import {
 import { PREVIEW, PREVIEW_ENDED } from "./widget-upgrade.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
 import { nextRender, sizeObserver } from "./rendering.js";
+import { paintCloseRequests } from "./keyboard/close-requests.js";
 import { atClock, clockNow } from "./presence.js";
 import { watchOwner } from "./arrivals.js";
 import { actionClass } from "./control-faces.js";
-import { aimableAt } from "./widget-elements.js";
-import { WORKS } from "./control-selectors.js";
+import { aimableAt, PRESSABLE } from "./widget-elements.js";
+import { PRESSES, WORKS } from "./control-selectors.js";
 import {
   clippedContents,
   clippedRect,
@@ -490,7 +505,7 @@ function faceLines(reading) {
   return { blocks, rooms, padEnd, counted };
 }
 
-const CONTROL = 'button, summary, a[href], [role="button"], [data-lf-offer]';
+const CONTROL = `${PRESSES}, ${PRESSABLE}`;
 // A proxy stands in for what the pointer takes by itself (control-faces.js, `proxy`),
 // so what it stands for previews: a gloss's proxy, its phrase.
 const PROXY = `.${actionClass("proxy")}`;
@@ -660,6 +675,20 @@ function readOutward(node, route) {
 
 /** @type {Shown | null} */
 let shown = null;
+// Whether a preview stands for Escape to put away, its first step (the `preview` scope).
+// The page holds a close watcher while Escape has a step to take, read in the repaint
+// frame (keyboard/close-requests.js), and a preview comes and goes between frames, so
+// each change of the step reads it again at once (`stepMoved`): a watcher left from a
+// preview put away took the next Escape, or the next back gesture, and did nothing, so
+// inside an open popover the press after the preview's closed nothing, even a frame
+// later.
+const standsForEscape = () => Boolean(shown && !shown.away);
+let stoodForEscape = false;
+function stepMoved() {
+  if (standsForEscape() === stoodForEscape) return;
+  stoodForEscape = !stoodForEscape;
+  paintCloseRequests();
+}
 // When the last preview went, for the warm switch.
 let cooled = -Infinity;
 // What a hovering pointer rests on, in two layers, each kept until whoever said it says
@@ -728,6 +757,7 @@ function away(record) {
   closeNativeLayer(tip);
   anchored = null;
   awaitView(record.holder);
+  stepMoved();
   return false;
 }
 // Whether the release just heard ended a hold that read, whose touch's end it cancels.
@@ -846,10 +876,11 @@ function show(from, route, read = null, at, again = false, aim = false) {
 // by hit tests every `REACH` out from its edge (`clearRoom`), and of what the preview is
 // about. Where it stands now holds while its room holds a whole line. Afresh, its side
 // is the first whose room holds it whole of: below, then above, each from the box's start
-// edge and then its end edge; beside, toward the nearer window edge and then the other;
-// centred across the window below, then above; else the one whose room holds the most
-// whole lines, the preview fitted to it (`fit`). A finger's and a point's try above
-// first, since the finger covers what lies below and a point's axis stands under it.
+// edge and then its end edge, slid in along it until the window holds it; beside,
+// toward the nearer window edge and then the other; centred across the window below,
+// then above; else the one whose room holds the most whole lines, the preview fitted
+// to it (`fit`). A finger's and a point's try above first, since the finger covers
+// what lies below and a point's axis stands under it.
 // Only where no side's room holds a line does the side the window gives the most room
 // stand over what it covers and let the pointer through to it (`data-lf-covers`).
 const EDGE = 8;
@@ -938,8 +969,9 @@ function anchorOf(record, reading) {
 }
 
 // The source the preview was last shown with, where it stood then, what it said, and
-// which side of its stage's mark it stands on.
-/** @type {Element | null} */
+// which side of its stage's mark it stands on. Held weakly, since it outlives the
+// preview and a revision may remove it.
+/** @type {WeakRef<Element> | null} */
 let anchored = null;
 /** @type {Element | null} */
 let seated = null;
@@ -964,14 +996,15 @@ function seat() {
 // other side of its mark, a change the page's watch of its writes reads as one.
 /** @param {HTMLElement} source @param {boolean} standing @param {boolean} moved */
 function open(source, standing, moved) {
-  if (standing && source === anchored && !moved) return;
+  const last = anchored?.deref();
+  if (standing && source === last && !moved) return;
   if (standing) closeNativeLayer(tip);
-  if (!moved && source !== anchored && tip.textContent === said) {
+  if (!moved && source !== last && tip.textContent === said) {
     beforeMark = !beforeMark;
     if (beforeMark) mark.before(tip);
     else mark.after(tip);
   }
-  anchored = source;
+  anchored = new WeakRef(source);
   said = tip.textContent ?? "";
   showNativeLayer(tip, { source });
 }
@@ -1115,14 +1148,18 @@ function stand(record, reading, standing, aim = false) {
       : y === "above"
         ? box.top - gap - room.top
         : room.bottom - box.top;
+  // By the box's start or end edge, slid in along it until the window holds it, still
+  // across the box, so the same side builds the same place from the same geometry.
   // Centred, it stands as near the window's middle as it can while it still stands across
   // its target, so it never reads as standing for something else far off.
+  /** @param {number} left */
+  const slid = (left) => Math.min(Math.max(left, room.left), room.right - width);
   /** @param {Placement["x"]} x */
   const leftOf = (x) =>
     x === "left"
-      ? box.left
+      ? slid(box.left)
       : x === "right"
-        ? box.right - width
+        ? slid(box.right - width)
         : x === "after"
           ? box.right + gap
           : x === "before"
@@ -1294,6 +1331,7 @@ function stand(record, reading, standing, aim = false) {
   fit(reading, held >= height ? Infinity : held);
   record.away = false;
   awaitView(null);
+  stepMoved();
   return true;
 
   // How far a place may grow from its edge before it meets what it is about.
@@ -1332,12 +1370,13 @@ function stand(record, reading, standing, aim = false) {
 function clearRoom(at, reach, holder) {
   const own = holder.getBoundingClientRect();
   const around = new Set(climb(holder));
+  // The boxes around `holder` a press acts on (`targetAt`).
   /** @type {Set<Element>} */
   const taking = new Set();
   for (let up = renderedParent(holder); up; up = renderedParent(up)) {
     const takes = aimableAt(up);
     if (!takes) break;
-    taking.add(takes);
+    if (takes.matches(CONTROL)) taking.add(takes);
     up = takes;
   }
   const down = at.y !== "above";
@@ -1401,8 +1440,12 @@ function hitAt(x, y) {
 // of the page beneath the preview, the nearest around what the point finds. A box
 // around `holder` (`around`) stands under the preview wherever it stands, so it is no
 // control to keep clear of where it takes nothing (widget-elements.js, `aimableAt`),
-// as a scrolling box, a stop Leaf lends code or a tab panel doesn't, and is one where
-// it takes the pointer (`taking`), as a card a press opens around a chart does.
+// as a scrolling box, a stop Leaf lends code or a tab panel doesn't, nor where it takes
+// the pointer only to be read, as a widget drawing its own content or a box that
+// previews, whose controls are tested for themselves; and is one where a press acts on
+// it (`taking`), as a card a press opens around a chart is. Until 8 November 2026 every
+// box around it that took the pointer counted, so inside `lf-toc`, drawn across the
+// column, no side held a line and a row's preview stood over the next row.
 /** @param {number} x @param {number} y @param {Element} holder @param {Set<Element>} around @param {Set<Element>} taking */
 function targetAt(x, y, holder, around, taking) {
   const hit = hitAt(x, y);
@@ -1432,10 +1475,12 @@ function hide() {
     record.holder.removeAttribute("data-lf-held");
   follow(null);
   awaitView(null);
+  placed = null;
   // Its words stay in the closed popover, so the next preview that says the same
   // writes nothing.
   closeNativeLayer(tip);
   cooled = performance.now();
+  stepMoved();
   ended(record);
 }
 // The element whose preview `record` read hears that it ended (`PREVIEW_ENDED`), with
@@ -1801,11 +1846,14 @@ export function mountPreviews(chrome) {
   // Escape is the preview's own step while one shows, ahead of every other, which does
   // nothing else; any other key puts a pointer's away and goes on to its work. A
   // suspended focus reading shows nothing to put away, so Escape goes on to its work
-  // and leaves the reading to come back with its subject.
+  // and leaves the reading to come back with its subject. The step is rooted where the
+  // preview shows, so inside a modal dialog, which makes every scope rooted outside it
+  // inert, it stays the first step there too (keyboard/dispatch.js, `stack`).
   pageScope("preview", {
     title: "A preview",
     escape: "inner",
-    at: () => Boolean(shown && !shown.away),
+    root: () => tip,
+    at: standsForEscape,
     rows: [
       {
         id: "preview.dismiss",
@@ -1823,7 +1871,7 @@ export function mountPreviews(chrome) {
         // Offline the register admits no page scope, this one's included, so the
         // preview takes the press whole itself, as its scope would, and a modal dialog
         // around it stays open.
-        if (offlineInteractive && shown && !shown.away) {
+        if (offlineInteractive && standsForEscape()) {
           event.preventDefault();
           quieten();
         }

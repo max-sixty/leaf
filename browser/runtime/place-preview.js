@@ -15,7 +15,7 @@
      `ownNaming`): a heading's words, a section's leading heading, a tab's label, a
      table's or figure's caption, an `aria-label`; and for a place with no name of its
      own, or one the page draws nothing of, the name of the part it stands in, by the
-     rule On me groups its items by (thread/placement.js, `partOver`): the heading over
+     rule On Me groups its items by (thread/placement.js, `partOver`): the heading over
      it, or the nearest element holding it that the contract names;
    - its first few parts, in the page's order, each as the page draws it now and each a
      line of detail the face fits to its room (preview.js, `fit`): a heading, a

@@ -573,7 +573,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    # On me opens in the panel over the page's foot, beside the card rather than in
+    # On Me opens in the panel over the page's foot, beside the card rather than in
     # its place, and the view's Escape puts it away to the page; the card's own
     # Escape follows.
     panel_settled(page, view="queue")

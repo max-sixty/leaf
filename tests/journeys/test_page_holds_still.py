@@ -296,7 +296,7 @@ DECISIONS_PAGE = leaf_page(
 
 def decisions_page(serve):
     """Fourteen decisions the page itself asks, one on each part but the first, so On
-    me's cards hold widgets' questions and no message for Leaf's reader to draw."""
+    Me's cards hold widgets' questions and no message for Leaf's reader to draw."""
     return Built(live_url(serve(DECISIONS_PAGE)), serve.page_dir, DECISIONS_PAGE)
 
 
@@ -726,7 +726,7 @@ def put_pane(page, built):
 
 
 def put_on_me_row(page, built):
-    """On me open in the panel, its list scrolled past its first rows, the user on a
+    """On Me open in the panel, its list scrolled past its first rows, the user on a
     row in sight."""
     page.locator(".lf-fp-on-user").click()
     rows = page.locator(".lf-fp-on-item")
@@ -739,7 +739,7 @@ def put_on_me_row(page, built):
               n.scrollTop = 3 * row.getBoundingClientRect().height;
               return;
             }
-          throw new Error('On me does not scroll');
+          throw new Error('On Me does not scroll');
         }"""
     )
     row = rows.filter(has_text="Ask 6:")
@@ -749,7 +749,7 @@ def put_on_me_row(page, built):
 
 
 def put_on_me_turned_back(page, built):
-    """On me turned to On <agent> and back by its tabs, which fits the list afresh, then
+    """On Me turned to On <agent> and back by its tabs, which fits the list afresh, then
     scrolled with the wheel past its first cards, the pointer resting on one in sight.
     Nothing the user does after the tab press repaints the panel, and no card holds a
     message for Leaf's reader to draw, so the list's next paint is the news's."""
@@ -759,7 +759,7 @@ def put_on_me_turned_back(page, built):
     tabs = page.locator(".lf-fp-controls .lf-fp-filters button")
     tabs.filter(has_text=re.compile(r"^\s*On (?!me)")).click()
     expect(cards).to_have_count(0)
-    tabs.filter(has_text="On me").click()
+    tabs.filter(has_text="On Me").click()
     expect(cards).to_have_count(ASKS)
     view = page.locator(".lf-floating-panel .lf-fp-view:not([data-lf-leaving])")
     box = view.bounding_box()
@@ -1192,7 +1192,7 @@ def new_thread(page, built, target, place):
 
 
 def ask(page, built, target, place):
-    """The agent asks on the page's opening part, whose row joins On me's head, above
+    """The agent asks on the page's opening part, whose row joins On Me's head, above
     the rows in sight."""
     asked = ["--section", target, "--obligation", "--text", "One more ask?"]
     arriving(
@@ -1542,7 +1542,6 @@ def held(still, message):
 
 ENGINES = {"browser": "chromium", "firefox_browser": "firefox"}
 
-REPLY_BELOW = "the message clicked scrolls 195px up as the answer joins below it"
 REVISION_LANDING = "the revision's landing moves the message clicked 96px up"
 ON_SCREEN = "the paragraph read moves 67.4px down under the paragraph the revision adds"
 REMOVES = "the paragraph read moves 67.4px up into the paragraph the revision takes out"
@@ -1561,8 +1560,6 @@ GROWN_AFTER_GLIDE = (
 MOVES_ON_MAIN = {
     "diff-reading-deletions-chromium": DIFF_READING,
     "diff-reading-deletions-firefox": DIFF_READING,
-    "message-reply-below-chromium": REPLY_BELOW,
-    "message-reply-below-firefox": REPLY_BELOW,
     "message-revision-above-chromium": REVISION_LANDING,
     "message-revision-above-firefox": REVISION_LANDING,
     "reading-page-revision-on-screen-chromium": ON_SCREEN,

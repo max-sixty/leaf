@@ -2871,8 +2871,9 @@ def preview_parts(target, route="pointer"):
     """What `target`'s preview shows a pointer resting on it (runtime/preview.js), or
     with `route="focus"` the keyboard stepping onto it: its name, then each line of
     detail, as the face draws them, key chips left out: of a list, the items it
-    shows and the words for the rest. The pointer leaves it again after, so the
-    next reading is a new one."""
+    shows and the words for the rest. The pointer leaves it again after and waits
+    for its preview to go, so the next reading is a new one and the next Escape
+    reaches what the preview stood over rather than putting the preview away."""
     page = target.page
     tip = page.locator("#lf-preview")
     if route == "focus":
@@ -2892,6 +2893,7 @@ def preview_parts(target, route="pointer"):
     )
     if route == "pointer":
         page.mouse.move(0, 0)
+        expect(tip).to_be_hidden()
     return parts
 
 

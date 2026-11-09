@@ -13,6 +13,7 @@
         padding: 18px 0;
         border-bottom: 1px solid var(--rule);
         scroll-margin-top: 18px;
+        container-type: inline-size;
       }
       .schema-entry h3 {
         margin: 0 0 8px;
@@ -28,12 +29,61 @@
       .schema-fields {
         font-size: var(--t-5);
       }
-      .schema-fields td:first-child code {
+      /* In the table, field names and type names keep each word whole, so the table
+         sizes their columns to the longest word. The theme lets code break between any
+         two characters, and the table then gives a column of names beside a column of
+         sentences almost no width. */
+      .schema-fields td:not(:last-child) {
         overflow-wrap: break-word;
+      }
+      .schema-fields td:not(:last-child) code {
+        overflow-wrap: inherit;
       }
       .schema-variant td {
         color: var(--ink-2);
         font-style: italic;
+      }
+      /* Below 36rem, as on a phone, each field's description takes the row's whole
+         width, on a line under the field's name, type and Required flag, and the
+         heading row stacks the same way. With four columns side by side, the narrowest
+         the first three could be left the description one word per line, and the table
+         scrolled sideways. The table is one grid and each row a subgrid, so names,
+         types and flags still line up in columns. Here names and types break between
+         any two characters where they must. The names' column takes at most 45% of
+         the width: of the shares tried, 45% split the fewest names and types mid-word
+         at 360px and 390px. */
+      @container (inline-size < 36rem) {
+        .schema-fields {
+          display: grid;
+          grid-template-columns: fit-content(45%) 1fr auto;
+        }
+        .schema-fields :is(thead, tbody, tr) {
+          display: grid;
+          grid-column: 1 / -1;
+          grid-template-columns: subgrid;
+        }
+        .schema-fields td:not(:last-child) {
+          overflow-wrap: anywhere;
+        }
+        .schema-fields tr {
+          border-bottom: 1px solid var(--rule);
+        }
+        .schema-fields thead tr {
+          border-bottom-color: var(--border-2);
+        }
+        .schema-fields :is(th, td) {
+          border-bottom: 0;
+        }
+        .schema-fields tr > :not(:last-child) {
+          padding-block-end: 0;
+        }
+        .schema-fields tr > :last-child {
+          grid-column: 1 / -1;
+          padding-inline-start: var(--lf-table-edge);
+        }
+        .schema-fields tr > :last-child:not(:first-child) {
+          padding-block-start: 2px;
+        }
       }
       .schema-entry:target h3 {
         color: var(--accent);

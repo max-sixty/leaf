@@ -362,16 +362,19 @@ def _moved_on(sid: str) -> bool:
     """Whether the session's delivery now runs another Leaf than this process: one
     selected or installed since it started, which its hooks hand themselves to as
     `main` does (`session_runtime.delivering_launcher`), or its own install moved
-    under it to another page protocol (`registry.kernel.installed_protocol`). An
-    install removed or half-written under it reads as unmoved, since a follower
-    started from it again couldn't start."""
+    under it to another page protocol (`registry.kernel.installed_protocol`), or
+    removed, as a selected checkout's is when its worktree goes: the module starts
+    the follower again from its own launcher, which hands it to the Leaf delivering
+    now. A registry read mid-write reads as unmoved until it settles."""
     from .registry.kernel import installed_protocol, kernel_protocol
     from .session_runtime import delivering_launcher, own_launcher
 
+    own = own_launcher()
+    if not os.access(own, os.X_OK):
+        return True
     try:
         return (
-            delivering_launcher(sid) != own_launcher()
-            or installed_protocol() != kernel_protocol()
+            delivering_launcher(sid) != own or installed_protocol() != kernel_protocol()
         )
     except (OSError, ValueError, KeyError):
         return False

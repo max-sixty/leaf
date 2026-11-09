@@ -790,8 +790,9 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
 
 def test_the_leaf_nods_for_each_notice_of_the_users_own_key(browser, serve):
     """The panel's leaf nods once for each notice the user's own key gives, so `m`
-    pressed again over an empty On me shows it landed though its words already stand.
-    The news that On me emptied, which no key asked for, gives no nod."""
+    pressed again over an empty On Me shows it landed though its words already stand.
+    The news that On Me emptied, which no key asked for, gives no nod, and nor does the
+    field leaving a notice's words for a selection's and coming back to them."""
     source = leaf_page(
         "One decision",
         '<h1>One decision</h1><lf-ask id="only-decision"><h2>Pick one</h2>'
@@ -801,13 +802,16 @@ def test_the_leaf_nods_for_each_notice_of_the_users_own_key(browser, serve):
     )
     url = serve(source)
     page = open_page(browser, live_url(url))
+    # The sequence of motions the leaf's mark starts, each its keyframes' turns.
     page.evaluate(
         """() => {
           window.__lfNods = [];
-          document.addEventListener('animationstart', (event) => {
-            if (event.target.closest('.lf-fp-leaf'))
-              window.__lfNods.push(event.animationName);
-          });
+          const animate = Element.prototype.animate;
+          Element.prototype.animate = function (keyframes, options) {
+            if (this.closest('.lf-fp-leaf'))
+              window.__lfNods.push(keyframes.map((k) => k.transform).join(' / '));
+            return animate.call(this, keyframes, options);
+          };
         }"""
     )
     nods = "() => window.__lfNods"
@@ -829,8 +833,18 @@ def test_the_leaf_nods_for_each_notice_of_the_users_own_key(browser, serve):
     page.wait_for_function(f"({nods})().length === 1")
     page.keyboard.press("m")
     page.wait_for_function(f"({nods})().length === 2")
-    assert page.evaluate(nods) == ["lf-fp-nod-odd", "lf-fp-nod-even"]
     expect_panel_says(page, "Nothing waiting on me")
+    nod = page.evaluate(nods)[0]
+    assert "rotate(-12deg)" in nod, nod
+    assert page.evaluate(nods) == [nod, nod]
+
+    # The field says the selected words, then the notice's again once they go.
+    page.locator("h1").select_text()
+    expect_panel_says(page, "No decisions remain")
+    page.evaluate("() => getSelection().removeAllRanges()")
+    expect_panel_says(page, "No decisions remain", says=False)
+    page.evaluate(frames)
+    assert page.evaluate(nods) == [nod, nod]
 
 
 def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):

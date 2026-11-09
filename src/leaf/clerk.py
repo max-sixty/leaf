@@ -70,8 +70,9 @@ hold by when it was written rather than by the turn it names. Restating lines ne
 that changed first.
 
 This module is the fork's one home, shared by every harness: what it is asked
-(`fork_prompt`, with each page's On Me and started items as `page_facts` reads them),
-the answer it must give (`ANSWER`), and what Leaf does with that answer
+(`fork_prompt`, with each page's On Me and started items as `page_facts` reads them)
+and how hard it thinks (`EFFORT`), the answer it must give (`ANSWER`), and what Leaf
+does with that answer
 (`apply_answer`). A harness only makes the fork and carries the two halves
 (`cmd_fork`): Claude Code's hooks module calls `$.model.fork` from `turn.complete`
 (`hooks/claude-code.ts`). Codex would fork with App Server's `thread/fork`
@@ -129,10 +130,11 @@ for input, would close that gap.
 Each fork's outcome goes to the diagnostics of every page the session holds
 (`interaction_log`, type `turn_end_check`), as a fork reply's does (`forks.py`): what
 the fork named on that page, verbatim, what Leaf wrote, changed and told for it, or
-why it wrote no records, with the fork's tokens and time and the request it resent
-(`request` in `hooks/claude-code.ts`, which says where a replay cuts the
-conversation; a turn-end fork reads it to `row`). A fork that failed, or gave an
-answer `ANSWER` refuses, is noted with its reason. Claude Code keeps no copy of a
+why it wrote no records, with the fork's tokens and time, the effort Claude Code
+reports it sent (`effort`), and the main thread's request it resent (`request` in
+`hooks/claude-code.ts`, which says where a replay cuts the conversation; a turn-end
+fork reads it to `row`), whose own `effort` is the session's. A fork that failed, or
+gave an answer `ANSWER` refuses, is noted with its reason. Claude Code keeps no copy of a
 `$.model.fork` exchange, only its token counts in the debug log, so this record is
 what a later replay or audit scores against what the agent did next.
 
@@ -154,12 +156,35 @@ named 34 stale passages against 17 without the text, and gave edits for 26, of w
 every one quoted words the page shows once, 24 landed where the user reads them and
 2, whose changing words cross a link or a code span, were refused; none landed
 anywhere else. The text adds about 1,000 to 11,000 input tokens per page. Claude
-Code's fork reuses the session's cached prefix only while its system prompt, tools
-and effort match the session's, which `$.model.fork` keeps by resending the main
-thread's own last request.
+Code's fork reuses the session's cached prefix while its system prompt and tools
+match the session's, which `$.model.fork` keeps by resending the main thread's own
+last request.
+
+The fork thinks at `EFFORT` whatever the session's own effort. Claude Code takes the
+effort since 2.1.318, and an older one ignores it and thinks at the session's. The
+effort leaves the cache whole: in the claude-code journey on 2026-11-04, with the
+session at xhigh, a low fork read 98% of the conversation from the cache, as one at
+the session's effort did. On turns planted in that journey, which leave an ask in
+the chat, answer it there, make the page stale or set work running that no page
+shows, or leave nothing, the low fork named all 19 planted items and nothing at any
+of the 13 quiet turns over five runs, as the session's effort did, with 0.45 times
+the output (95% interval 0.31–0.63, 32 turns matched across six runs) and 0.62 times
+the time.
+
+A real session's drift is subtler than those plants. The 18 forks that named items
+in real sessions at xhigh on 2026-11-04 were each replayed at low three times. The
+replays matched all of their unshown work and asks left in the chat, 54% of their
+stale passages and none of their offers of bolder work, which put no decision to the
+user. Replays vary even at xhigh. Two of those forks, replayed at xhigh as a control,
+matched their original findings half the time (7 of 14), and on the longest page the
+xhigh and low replays caught the same share of its stale passages. A low replay
+wrote a median 283 output tokens in 5.6 s, against 1,140 in 11.5 s at xhigh. The
+fork runs off the turn's path, but the sooner it answers, the less often a turn
+opened meanwhile drops its asks (`basis`).
 
 `leaf-dev eval 'turn-end-check*' --harness claude-code --base` scores a change to
-what the fork is asked or how Leaf takes its answer, on a short constructed
+what the fork is asked, how hard it thinks or how Leaf takes its answer, on a short
+constructed
 conversation for each decision the prompt asks about (`dev/leaf_dev/fork_eval.py`).
 """
 
@@ -183,6 +208,8 @@ from .state import (
     session_record,
 )
 
+# How hard the fork thinks, whatever the session's effort (the header says why).
+EFFORT = "low"
 # What the fork is asked, as the skill ships it.
 REFERENCE = SKILL_FILE.parent / "references" / "turn-end-check.md"
 # Where Leaf's rule for On Me lives: the first paragraph of its "The On lists".
@@ -430,14 +457,15 @@ def basis(session_id: str) -> dict | None:
 def cmd_fork(session_id: str, payload: dict) -> dict | None:
     """One half of a fork for `session_id`, as `leaf hook --fork` hands it over:
     with neither `answer` nor `failed` in `payload`, the `question`; with either,
-    `take_answer`, and the fork's `usage`, `elapsed_ms` and `request` where the
-    harness gives them."""
+    `take_answer`, and the fork's `usage`, `elapsed_ms`, `effort` and `request`
+    where the harness gives them."""
     if not session_id:
         return None
     if "answer" in payload or "failed" in payload:
         run = {
             "usage": payload.get("usage"),
             "elapsedMs": payload.get("elapsed_ms"),
+            "effort": payload.get("effort"),
             "request": payload.get("request"),
             "failed": payload.get("failed"),
         }
@@ -451,8 +479,8 @@ def cmd_fork(session_id: str, payload: dict) -> dict | None:
 
 
 def question(session_id: str) -> dict | None:
-    """What to fork `session_id`'s conversation with, as `{"prompt", "basis"}`, or
-    None where it holds no page."""
+    """What to fork `session_id`'s conversation with, as `{"prompt", "basis",
+    "effort"}`, or None where it holds no page."""
     from .service import owned_pages
 
     facts = [
@@ -460,7 +488,7 @@ def question(session_id: str) -> dict | None:
     ]
     if not facts:
         return None
-    return {"prompt": fork_prompt(facts), "basis": basis(session_id)}
+    return {"prompt": fork_prompt(facts), "basis": basis(session_id), "effort": EFFORT}
 
 
 def take_answer(

@@ -162,10 +162,6 @@ customElements.define(
       // controller's application selection; painted attributes are output only.
       this.#emphasize();
       this.#voice();
-      // Quoted material is exhibited, not offered: a suggestion inside an
-      // exhibit shows what a pending change looks like, so it keeps the marks
-      // the theme draws and never grows controls to decide it with.
-      if (quoted(this)) return;
     }
 
     disconnectedCallback() {
@@ -177,6 +173,9 @@ customElements.define(
     }
 
     #offer() {
+      // Quoted material is exhibited, not offered: a suggestion inside an
+      // exhibit shows what a pending change looks like, so it keeps the marks
+      // the theme draws and never grows controls to decide it with.
       if (quoted(this) || this.#margin) return;
       this.#ensureCommands();
       this.#margin = registerContribution({

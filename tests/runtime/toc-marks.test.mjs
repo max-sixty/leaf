@@ -22,7 +22,6 @@ function marked(markup, { threads = [], onMe = [], changes = [], toc = "" } = {}
   const reading = {
     label: (/** @type {Element} */ heading) => heading.textContent ?? "",
     chrome: () => false,
-    lends: true,
   };
   const drawing = drawToc(host, reading);
   render(drawing.render(reading), host, { host });

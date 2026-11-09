@@ -12,7 +12,7 @@ from .readings import (
     passive_layout_shift_advice,
     settle_at,
     shrunk_label_advice,
-    squeezed_table_advice,
+    squeezed_advice,
     sweep,
     swept_faults,
 )
@@ -100,7 +100,8 @@ def _render_version_attempt(
     reach, a box cutting off its own content where no scroll reaches it, words drawn on
     top of other words. There it also reads, as advice naming
     the widths it spans, whether a drawing's fit to its box shrinks its labels past
-    reading, and whether a table scrolls sideways with a cell in it wrapped. That pass
+    reading, whether a table scrolls sideways with a cell in it wrapped, and whether a
+    code block scrolls its lines in too little width to read them. That pass
     reports each native flex/grid arrangement change. Console warnings and the issues Chrome's DevTools raises
     are advice wherever they are read. No failures is a pass.
 
@@ -148,7 +149,7 @@ def _render_version_attempt(
         widths = sweep(page, steps, open_widgets(registry))
         samples.extend(widths)
         advice.extend(shrunk_label_advice(widths))
-        advice.extend(squeezed_table_advice(widths))
+        advice.extend(squeezed_advice(widths))
         arrangement.extend(arrangement_changes(widths))
         # Back to the desktop viewport for the readings `_render_scheme` takes last.
         settle_at(page, desktop["width"], desktop["height"])

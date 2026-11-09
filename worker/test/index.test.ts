@@ -1218,37 +1218,49 @@ describe("product-site delivery", () => {
     );
   });
 
-  it("holds a gesture back from a container the rollout has not reached", async () => {
-    const sessionId = "0d".repeat(16);
-    const containerFetch = vi.fn(async (_request: Request) =>
-      Response.json(
-        { id: "e1" },
-        { headers: { "Leaf-Layer": "older-layer", "Leaf-Release": "b".repeat(64) } },
-      ),
-    );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
-    const env = environment();
+  // The browser waits out this answer and asks again (`requestJson` and `delivery.js`).
+  // A fresh visitor's first sample allocates in a container too, so it meets the
+  // rollout as an active page's gesture does.
+  it.each([
+    ["an active page's gesture", "api/event", { kind: "comment", text: "hello" }, true],
+    ["a fresh visitor's sample", "api/samples", { template: "practice" }, false],
+  ])(
+    "holds %s back from a container the rollout has not reached",
+    async (_, inside, body, active) => {
+      const sessionId = "0d".repeat(16);
+      const containerFetch = vi.fn(async (_request: Request) =>
+        Response.json(
+          { id: "e1" },
+          { headers: { "Leaf-Layer": "older-layer", "Leaf-Release": "b".repeat(64) } },
+        ),
+      );
+      vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+      const env = environment();
 
-    const response = await worker.fetch(
-      new Request("https://leaf.page/examples/triage-board/api/event", {
-        method: "POST",
-        headers: {
-          Cookie: `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
-          "Content-Type": "application/json",
-          "Leaf-Layer": LAYER,
-          "Leaf-Release": RELEASE,
-        },
-        body: JSON.stringify({ kind: "comment", text: "hello" }),
-      }),
-      env,
-      executionContext(),
-    );
+      const response = await worker.fetch(
+        new Request(`https://leaf.page/examples/triage-board/${inside}`, {
+          method: "POST",
+          headers: {
+            ...(active && {
+              Cookie: `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
+            }),
+            "Content-Type": "application/json",
+            "Leaf-Layer": LAYER,
+            "Leaf-Release": RELEASE,
+          },
+          body: JSON.stringify(body),
+        }),
+        env,
+        executionContext(),
+      );
 
-    expect(response.status).toBe(503);
-    expect(response.headers.get("Retry-After")).toBe("5");
-    expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
-    expect(env.WEBSITE_EVENTS.writeDataPoint).not.toHaveBeenCalled();
-  });
+      expect(containerFetch).toHaveBeenCalledOnce();
+      expect(response.status).toBe(503);
+      expect(response.headers.get("Retry-After")).toBe("5");
+      expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
+      expect(env.WEBSITE_EVENTS.writeDataPoint).not.toHaveBeenCalled();
+    },
+  );
 
   it("serves a page's immutable runtime without allocating its session", async () => {
     const asset = new Response("export {};", {

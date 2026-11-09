@@ -191,11 +191,11 @@ export function placeThreadEdge(thread, edge) {
 // goes first, since the shorter is soon spent, and then the first in reading order, so
 // the answer depends on the page rather than on which registered first.
 //
-// A step up chooses only where the window holds all of `main` (`mainFits`), as a
-// workspace whose log opens at its newest entry needs: on a page that doesn't scroll, or
-// one that scrolls only by a header or footer beside `main`. Where `main` runs past the
-// window, `k` at the page's top has nothing to read above it, and a log in view it moved
-// would stop following its newest entry.
+// A step up chooses only where the window holds all of `main`, top and bottom
+// (`mainFits`), as a workspace whose log opens at its newest entry needs: on a page that
+// doesn't scroll, or one that scrolls only by a footer after `main`. Where `main` runs
+// past the window, `k` at the page's top has nothing to read above it, and a log in view
+// it moved would stop following its newest entry.
 //
 // The step names the region it chose, so a walk goes on from there, but the page stays
 // ahead of it in both directions until the user acts (`chosenReadingRegion`). The page
@@ -277,11 +277,13 @@ const regionForStep = (amount) => {
   }
   return most;
 };
-// Whether the window holds all of `main`, or of the page where it has none.
-const mainFits = () =>
-  (layoutBox() ?? pageScroller).getBoundingClientRect().height -
-    pageScroller.clientHeight <=
-  SCROLL_SLACK;
+// Whether the window holds all of `main`, top and bottom, or of the page where it has
+// none.
+const mainFits = () => {
+  const { top, bottom } = (layoutBox() ?? pageScroller).getBoundingClientRect();
+  const view = layoutWindow();
+  return top >= view.top - SCROLL_SLACK && bottom <= view.bottom + SCROLL_SLACK;
+};
 /** @param {number} amount @param {"page" | "pixel"} unit */
 const stepReading = (amount, unit) => {
   const named = userReadingRegion();

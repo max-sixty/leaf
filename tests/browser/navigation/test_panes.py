@@ -468,32 +468,43 @@ def test_of_two_panes_the_same_size_on_screen_the_one_with_more_to_scroll_takes_
     ].map((box) => box.scrollTop)""") == [0, 0, 0]
 
 
-@pytest.mark.parametrize("shape", ["long-page", "workspace", "workspace-footer"])
+@pytest.mark.parametrize(
+    "shape", ["long-page", "site-header", "workspace", "workspace-footer"]
+)
 def test_a_step_up_goes_to_a_log_only_where_the_window_holds_main(
     browser, serve, shape
 ):
     """A log that follows its newest entry stands at its end. On a long page, `k` at the
     top moved it with no region named, and the log stopped following; the page keeps that
-    step, as it keeps every step it can take. The window holds all of a workspace's
-    `main`, so there `k` moves the log back from its newest entry, and a site footer
-    beside `main`, which gives the page a little scroll, used to leave `k` moving
-    nothing."""
+    step, as it keeps every step it can take, and so does a short `main` that a site
+    header pushes past the window's foot. The window holds all of a workspace's `main`,
+    so there `k` moves the log back from its newest entry, and a site footer after
+    `main`, which gives the page a little scroll, used to leave `k` moving nothing."""
     entries = "".join(f"<p>Entry {n}: a line of the deploy.</p>" for n in range(60))
     log_markup = f'<div id="log" data-bound="end">{entries}</div>'
-    workspace = shape != "long-page"
-    source = (
-        leaf_page(
+    workspace = shape.startswith("workspace")
+    if workspace:
+        source = leaf_page(
             "a log in a workspace",
             '<header><h1>Deploy</h1></header><lf-pane id="pane" label="Log"><div>'
             f"{log_markup}</div></lf-pane>",
             layout="workspace",
         )
-        if workspace
-        else leaf_page(
+    elif shape == "long-page":
+        source = leaf_page(
             "a log atop a long page",
             f"<h1>Deploy</h1>{log_markup}{BOUNDED_LOG_FILLER}",
         )
-    )
+    else:
+        source = leaf_page(
+            "a log below a site header",
+            f"<h1>Deploy</h1>{log_markup}<p>The deploy's last notes.</p>",
+        ).replace(
+            "<main",
+            '<header><p>A site header.</p><p style="height: 300px">Banner.</p>'
+            "</header><main",
+            1,
+        )
     if shape == "workspace-footer":
         source = source.replace(
             "</main>", "</main><footer><p>A site footer.</p></footer>"
@@ -502,6 +513,12 @@ def test_a_step_up_goes_to_a_log_only_where_the_window_holds_main(
     resized(page, 1440, 900)
     log = page.locator("#log")
     expect(log).to_be_in_viewport()
+    if shape == "site-header":
+        assert page.evaluate("""() => {
+          const { height, bottom } = document.querySelector('body > main')
+            .getBoundingClientRect();
+          return height < innerHeight && bottom > innerHeight;
+        }""")
     end = log.evaluate("log => log.scrollHeight - log.clientHeight")
     assert end > 0
     page.wait_for_function(

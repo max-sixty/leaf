@@ -65,6 +65,7 @@ developer-selected session runtime (`session_runtime`) owns the entire hook;
 `main` execs it before this module publishes lifecycle or reads pages."""
 
 import json
+import os
 import time
 
 from .leases import first_hook_for_tool, mark_hooks
@@ -264,12 +265,13 @@ def cmd_pages(payload: dict) -> None:
     moved or a hold has run out, since a thread's hold starts as its message is
     admitted.
 
-    It exits, without a last list, once the Leaf installed where it was loaded
-    speaks another page protocol (`registry.kernel.installed_protocol`), and the
-    module starts it again under that Leaf. A follower runs as long as its session,
-    and a worktree's checkout can move past a protocol bump meanwhile; the session's
-    hooks then run the newer Leaf, which reads the old follower's lane as no one's.
-    On 8 November one such follower, four days old, kept holding messages that the
+    It exits with `EX_TEMPFAIL`, without a last list, once the session's delivery
+    runs another Leaf than its own (`_moved_on`), and the module starts it again,
+    under that Leaf. A follower runs as long as its session, while the session's
+    hooks hand themselves at each call to the Leaf delivering for it: a newer copy
+    Claude Code installed, a checkout the session selected, or the same checkout
+    moved past a protocol bump. That newer Leaf reads an older follower's lane as no
+    one's. On 8 November one follower, four days old, kept holding messages that the
     fork's step, under the newer Leaf, refused as not held, so each waited out its
     hold with no line."""
     sid = payload.get("session_id") or ""
@@ -294,8 +296,9 @@ def cmd_pages(payload: dict) -> None:
     shown = None
     try:
         while True:
-            if _moved_on():
-                return
+            if _moved_on(sid):
+                # EX_TEMPFAIL: the module starts it again, under that Leaf.
+                raise SystemExit(os.EX_TEMPFAIL)
             held = {page.resolve() for page in owned_pages(sid)}
             leaves = live_leaves(held) if held else []
             # Each page's subscription lives in its memory, which the process
@@ -355,15 +358,21 @@ def cmd_pages(payload: dict) -> None:
             _let_go(sid, looked)
 
 
-def _moved_on() -> bool:
-    """Whether the Leaf installed where this process was loaded speaks another page
-    protocol than the one it loaded. An install removed or half-written under it
-    reads as unmoved: a follower started from it again couldn't start, so this one
-    keeps running."""
+def _moved_on(sid: str) -> bool:
+    """Whether the session's delivery now runs another Leaf than this process: one
+    selected or installed since it started, which its hooks hand themselves to as
+    `main` does (`session_runtime.delivering_launcher`), or its own install moved
+    under it to another page protocol (`registry.kernel.installed_protocol`). An
+    install removed or half-written under it reads as unmoved, since a follower
+    started from it again couldn't start."""
     from .registry.kernel import installed_protocol, kernel_protocol
+    from .session_runtime import delivering_launcher, own_launcher
 
     try:
-        return installed_protocol() != kernel_protocol()
+        return (
+            delivering_launcher(sid) != own_launcher()
+            or installed_protocol() != kernel_protocol()
+        )
     except (OSError, ValueError, KeyError):
         return False
 

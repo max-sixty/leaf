@@ -228,8 +228,8 @@ function follow($: EngineInterface, session: string) {
   void (async () => {
     let line = "";
     let stderr = "";
-    // Whether it ended on its own while it listed pages, as it does once the Leaf it
-    // was loaded from speaks another page protocol (`hooks.cmd_pages`).
+    // Whether it ended to be started again under the Leaf the session's delivery
+    // runs now, which it says by EX_TEMPFAIL, 75 in sysexits.h (`hooks.cmd_pages`).
     let renewed = false;
     try {
       for await (const chunk of stream) {
@@ -247,13 +247,13 @@ function follow($: EngineInterface, session: string) {
           for (const held of page.forks ?? []) forkReply($, session, held);
       }
       const result = await stream.result;
-      if (result.code !== 0 && following === current)
+      renewed = result.code === 75;
+      if (result.code !== 0 && !renewed && following === current)
         report(
           $,
           `Leaf: the pages follower exited with code ${result.code}${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
           result.code,
         );
-      renewed = result.code === 0 && leaves.length > 0;
     } catch (error) {
       if (following === current) $.ui.log(`Leaf: the pages follower failed: ${error}`);
     } finally {

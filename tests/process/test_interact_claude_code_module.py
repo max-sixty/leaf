@@ -321,12 +321,10 @@ def test_a_follower_terminated_from_outside_stays_out_of_the_conversation(
     driven.quit()
 
 
-def test_a_follower_that_ends_while_it_lists_pages_starts_again(
-    spawn, sessionless, tmp_path
-):
-    """A follower ends on its own while the session holds pages once the Leaf it was
-    loaded from speaks another page protocol (`hooks.cmd_pages`), and the module
-    starts it again, under that Leaf."""
+def test_a_follower_that_ends_to_be_renewed_starts_again(spawn, sessionless, tmp_path):
+    """A follower ends with EX_TEMPFAIL once the session's delivery runs another Leaf
+    (`hooks.cmd_pages`), and the module starts it again, under that Leaf, without a
+    word in the conversation."""
     launcher = tmp_path / "bin" / "leaf"
     launcher.parent.mkdir()
     starts = tmp_path / "starts"
@@ -338,13 +336,13 @@ def test_a_follower_that_ends_while_it_lists_pages_starts_again(
         "threads": {"open": 0, "unread": 0},
         "activity": {"kind": "waiting"},
     }
-    # The first follower lists the page and ends; the next lists it and stays.
+    # The first follower lists the page and ends to be renewed; the next stays.
     launcher.write_text(
         "#!/bin/sh\n"
         f"echo started >> {starts}\n"
         f"echo '{json.dumps([page])}'\n"
         f'[ "$(wc -l < {starts})" -gt 1 ] && exec sleep 60\n'
-        "exit 0\n"
+        "exit 75\n"
     )
     launcher.chmod(0o755)
     driven = ClaudeCode(spawn, "cc-renewed", {"pluginRoot": str(tmp_path)})

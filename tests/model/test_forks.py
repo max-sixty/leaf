@@ -35,6 +35,7 @@ from leaf import presence as presence_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import session_runtime as session_runtime_model
 from leaf import thread as thread_model
 from leaf.interaction_log import read_interactions
 from leaf.registry import kernel as kernel_model
@@ -421,13 +422,15 @@ def test_the_pages_follower_holds_the_lane_and_lists_held_threads(
     assert nudged == ["s1"]
 
 
-def test_the_follower_ends_once_its_leaf_speaks_another_protocol(
-    claimed, monkeypatch, capsys
+@pytest.mark.parametrize("moved", ["selected", "protocol"])
+def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
+    claimed, monkeypatch, capsys, moved
 ):
-    """A follower runs as long as its session, and the checkout it was loaded from
-    can move past a page protocol bump meanwhile. It then ends, giving up the lane,
-    for the module to start it again under the newer Leaf, whose readers take the
-    old follower's lane for no one's."""
+    """A follower runs as long as its session, while the session's hooks hand
+    themselves to whichever Leaf delivers for it now: another copy or checkout, or
+    its own checkout moved past a protocol bump. The newer Leaf takes the old
+    follower's lane for no one's, so the follower then ends, giving up the lane, with
+    EX_TEMPFAIL for the module to start it again under that Leaf."""
     serving(claimed, 1)
     server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
     monkeypatch.setattr(presence_model, "PRESENCE_CACHE_S", 0.0)
@@ -438,12 +441,22 @@ def test_the_follower_ends_once_its_leaf_speaks_another_protocol(
         return True
 
     monkeypatch.setattr(file_changes_model, "wait", wait)
-    monkeypatch.setattr(
-        kernel_model,
-        "installed_protocol",
-        lambda: kernel_model.kernel_protocol() + len(waited),
-    )
-    hooks_model.cmd_pages({"session_id": "s1", "forks": True})
+    if moved == "selected":
+        own = session_runtime_model.own_launcher()
+        monkeypatch.setattr(
+            session_runtime_model,
+            "delivering_launcher",
+            lambda _sid: own.with_name("other") if waited else own,
+        )
+    else:
+        monkeypatch.setattr(
+            kernel_model,
+            "installed_protocol",
+            lambda: kernel_model.kernel_protocol() + len(waited),
+        )
+    with pytest.raises(SystemExit) as ended:
+        hooks_model.cmd_pages({"session_id": "s1", "forks": True})
+    assert ended.value.code == os.EX_TEMPFAIL
     assert forks_model.lane_since("s1") is None
     [listed] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert listed[0]["forks"] == []

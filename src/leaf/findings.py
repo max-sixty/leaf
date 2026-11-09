@@ -213,22 +213,24 @@ def _squeezed(at: str, v: dict) -> str:
 
 
 def _squeezed_code(at: str, v: dict) -> str:
-    # In a table cell the table's own advice holds: a column sizes to what its cells
-    # can't break, so the fix is what the cell holds rather than a width for it.
+    # The reading knows the block is too narrow, not what narrowed it, so the words
+    # offer both remedies. In a table cell the table's own advice holds: a column sizes
+    # to what its cells can't break, so the fix is what the cell holds.
     shown = (
         f"{at} has {v['inside']}px for its lines and scrolls {v['scrolls']}px of them"
+        " sideways"
     )
     if v["cell"]:
         return (
-            f"{shown} sideways in its table cell, which a code block asks for no width;"
-            " move a long command out of the table, or write a short one as inline"
-            " <code>, which breaks inside the cell"
+            f"{shown}, since a code block asks its table cell for no width; move a long"
+            " command out of the table, or write a short one as inline <code>, which"
+            " breaks inside the cell"
         )
     return (
-        f"{shown} sideways: a code block asks what holds it for no width, so a box that"
-        " takes its width from its content, such as a flex item, a grid auto track"
-        " beside an fr track or a box sized to fit, leaves it almost none; give the"
-        " block or that box a width, such as a fixed width or a 1fr track"
+        f"{shown}, so it shows a few characters at most; give the block or what holds"
+        " it more room (a box that takes its width from its content gives a code"
+        " block none), or stack or wrap what stands beside it where the window is"
+        ' that narrow (page-layout.md, "Layouts")'
     )
 
 

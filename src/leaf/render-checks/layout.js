@@ -793,16 +793,20 @@ export function misplacedBoxes() {
 // `flex`, a grid `auto` track beside an `fr` track, a table cell, a box sized to fit)
 // sizes without it: two short commands in a flex row stood 30px wide each, with no
 // room inside for a character of their lines. A block is squeezed when it scrolls with
-// less than four times its font size inside, about six characters of a monospace face.
-// Every block such a holder left measured 0–34px inside at 360–1920px, under 2.6 times
-// its 13.5px font, whether nothing else in the holder or a heading or a cell's column
-// set its width. Every block that read well measured 77px or more, from a `flex-grow`
-// column beside a nav at 360px to the column. A sheet that lifted the containment, to
-// read the width the block's holder would give it, also reported a `flex: auto` item
-// beside another, whose basis grew with its lines and took room from its sibling, and
-// it reset every scrolling block to its start. The finding carries the width inside the
-// block and whether a table cell holds it, since the remedy there is the table's: move
-// a long command out, or write a short one as inline <code>.
+// less than four times the size of its words inside, about six characters of a
+// monospace face, whatever narrowed it. Every block such a holder left measured 0–34px
+// inside at 360–1920px, under 2.6 times its 13.5px font, whether nothing else in the
+// holder or a heading or a cell's column set its width. Every block that read well
+// measured 77px or more, from a `flex-grow` column beside a nav at 360px to the
+// column. Tracks too many for the window narrow a block below the floor too, such as
+// four `minmax(0, 1fr)` tracks at 390px (44px inside), which giving the block a width
+// would not fix and stacking the tracks at that width does, so the words offer both. A
+// sheet that lifted the containment, to read the width the block's holder would give
+// it, also reported a `flex: auto` item beside another, whose basis grew with its lines
+// and took room from its sibling, and it reset every scrolling block to its start. The
+// finding carries the width inside the block and whether a table cell holds it, since
+// the remedy there is the table's: move a long command out, or write a short one as
+// inline <code>.
 //
 // Whether a box scrolls depends on the window, so the gate reads this at every width
 // of its sweep, and reports it as advice: the box still scrolls with every word in
@@ -821,6 +825,9 @@ export function squeezedBoxes() {
       if (!uiInside(node.parentElement, cell)) text += node.textContent;
     return text.trim().replace(/\s+/g, " ");
   };
+  // The element whose visible words stand outside the scroller's inner box, or null. A
+  // line's words run from its first character to its last that isn't a space, since a
+  // <pre> keeps the spaces that end a line and scrolls them as far as any word.
   /** @param {Element} scroller */
   const wordsOutside = (scroller) => {
     const box = scroller.getBoundingClientRect();
@@ -836,29 +843,34 @@ export function squeezedBoxes() {
         if (!el || !node.textContent?.trim() || uiInside(el, scroller)) continue;
         if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
           continue;
-        range.selectNodeContents(node);
-        for (const drawn of range.getClientRects())
-          if (drawn.width > 1 && (drawn.left < left - 1 || drawn.right > right + 1))
-            return true;
+        for (const words of node.textContent.matchAll(/\S(?:.*\S)?/g)) {
+          range.setStart(node, words.index);
+          range.setEnd(node, words.index + words[0].length);
+          for (const drawn of range.getClientRects())
+            if (drawn.width > 1 && (drawn.left < left - 1 || drawn.right > right + 1))
+              return el;
+        }
       }
     }
-    return false;
+    return null;
   };
   /** @param {Element} box */
   const scrolls = (box) =>
-    inPage(box) &&
-    box.checkVisibility() &&
-    box.scrollWidth - box.clientWidth > 1 &&
-    wordsOutside(box);
+    inPage(box) && box.checkVisibility() && box.scrollWidth - box.clientWidth > 1
+      ? wordsOutside(box)
+      : null;
   const found = [];
   for (const block of page.querySelectorAll("pre")) {
-    if (!scrolls(block)) continue;
+    // The floor is in the size of the words that run out, which an author's rule on
+    // the <code> inside can set apart from the block's own.
+    const words = scrolls(block);
+    if (!words) continue;
     const style = getComputedStyle(block);
     const inside =
       block.clientWidth -
       parseFloat(style.paddingLeft) -
       parseFloat(style.paddingRight);
-    if (inside >= 4 * parseFloat(style.fontSize)) continue;
+    if (inside >= 4 * parseFloat(getComputedStyle(words).fontSize)) continue;
     found.push({
       code: "squeezed-code",
       at: at(block),

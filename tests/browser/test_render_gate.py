@@ -62,6 +62,7 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     LONG_PAGE,
     OPEN_THREAD_COUNT,
+    ROOT,
     TOKEN,
     _traffic,
     _until,
@@ -3589,23 +3590,32 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     ), squeezed
 
 
-def test_a_code_block_its_holder_sizes_without_is_reported_squeezed(browser, serve):
+def test_a_code_block_its_holder_sizes_without_is_reported_squeezed(
+    browser, serve, subtests
+):
     """The theme contains a code block, so it asks what holds it for no width, and a box
     sized to its content sizes without it: two short commands in a flex row stood 30px
     wide each, showing none of their lines, and `page check --render` said nothing. The
-    gate's reading names each such block, at the narrowest width it sweeps: in a flex
-    row, in an `auto` track beside an `fr` track, beside a heading that sets its flex
-    item's width, in a box sized to fit, and in a table cell, which the finding marks,
-    since the table's own remedy applies there.
+    gate's reading names each block left a few characters, at a phone's widths: in a
+    flex row, in an `auto` track beside an `fr` track, beside a heading that sets its
+    flex item's width, in a box sized to fit, in one of four `1fr` tracks, and in a
+    table cell, which the finding marks, since the table's own remedy applies there. A
+    width for the block can't help the tracks, so the words also offer stacking them,
+    from the section of `page-layout.md` that shows how.
 
     The controls scroll long lines and read well, so the reading leaves them alone: a
     block in the column, `flex: 1` halves, `1fr` halves, `flex: auto` halves under
-    headings, whose bases grow with their lines, a `flex-grow` column beside a nav, and
-    a block in a flex row given the fixed width the finding offers. The table remedy
-    holds too: the cell's command written as inline <code> breaks inside its cell, and
-    the table neither scrolls nor draws a finding."""
+    headings, whose bases grow with their lines, a `flex-grow` column beside a nav, a
+    block in a flex row given a fixed width, and a short line whose trailing spaces are
+    all that runs past the edge. The remedies hold: the four tracks stacked on a phone
+    show their whole lines, and the cell's command written as inline <code> breaks
+    inside its cell, so its table neither scrolls nor draws a finding."""
     long = "const result = await fetchEverything({ retries: 3, timeout: 5000 });"
     longer = long.replace("5000 }", "5000, signal: controller.signal }")
+    tracks = "".join(
+        f'<pre id="four-{n}"><code>const {n} = await fetchEverything();</code></pre>'
+        for n in "abcd"
+    )
     source = leaf_page(
         "Code blocks and their holders",
         f"""<h1>Code blocks and their holders</h1>
@@ -3613,6 +3623,7 @@ def test_a_code_block_its_holder_sizes_without_is_reported_squeezed(browser, ser
 <div class="tracks"><pre id="tracked"><code>make release</code></pre><p>From the root.</p></div>
 <div class="row"><div><h2>Before</h2><pre id="labelled"><code>retry(times=5, backoff=2)</code></pre></div></div>
 <div class="fitted"><h2>Run it</h2><pre id="fitted"><code>uv run leaf-dev probe --state reading</code></pre></div>
+<div class="four">{tracks}</div>
 <table><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody>
 <tr><td><pre id="celled"><code>uv run pytest -k squeeze</code></pre></td><td>Runs the squeeze tests.</td></tr>
 </tbody></table>
@@ -3622,6 +3633,9 @@ def test_a_code_block_its_holder_sizes_without_is_reported_squeezed(browser, ser
 <div class="row"><div class="version"><h2>Before</h2><pre><code>{long}</code></pre></div><div class="version"><h2>After</h2><pre><code>{longer}</code></pre></div></div>
 <div class="row"><nav><ul><li>Overview of the setup</li><li>Install the tools</li></ul></nav><div class="main"><pre><code>{longer}</code></pre></div></div>
 <div class="row"><pre style="width: 20ch"><code>{long}</code></pre><p>Beside it.</p></div>
+<div class="four stacks">{tracks.replace('id="four-', 'id="stacked-')}</div>
+<div class="row"><div><h3>Run this</h3><pre><code>ls
+cd ..         </code></pre></div></div>
 <table id="inline"><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody>
 <tr><td><code>uv run pytest -k squeeze</code></td><td>Runs the squeeze tests.</td></tr>
 </tbody></table>""",
@@ -3629,30 +3643,44 @@ def test_a_code_block_its_holder_sizes_without_is_reported_squeezed(browser, ser
         " .version { flex: auto; } .main { flex-grow: 1; }"
         " .tracks { display: grid; grid-template-columns: auto 1fr; gap: 16px; }"
         " .halves { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }"
+        " .four { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));"
+        " gap: 16px; }"
+        " @media (width < 720px) { .four.stacks { grid-template-columns: 1fr; } }"
         " .fitted { width: fit-content; }</style>",
     )
     page = open_page(browser, serve(source))
-    resized(page, 360, 844)
-    assert page.locator("pre").evaluate_all(
-        "(blocks) => blocks.every((b) => b.scrollWidth - b.clientWidth > 1)"
-    ), "a block that fits is never read, so it says nothing of the reading"
-    inline = page.locator("#inline")
-    assert inline.evaluate("(t) => t.scrollWidth - t.clientWidth") <= 1
+    layout = (ROOT / "skills/leaf/references/page-layout.md").read_text()
+    for width in (390, 360):
+        with subtests.test(width=width):
+            resized(page, width, 844)
+            assert page.locator(":not(.stacks) > pre").evaluate_all(
+                "(blocks) => blocks.every((b) => b.scrollWidth - b.clientWidth > 1)"
+            ), "a block that fits is never read, so it says nothing of the reading"
+            # The two remedies leave nothing to scroll.
+            for remedy in (".stacks > pre", "#inline"):
+                assert page.locator(remedy).evaluate_all(
+                    "(boxes) => boxes.every((b) => b.scrollWidth - b.clientWidth <= 1)"
+                ), remedy
 
-    reading = render_checks_model.evaluate_probe(page, "geometryReading", [])
+            reading = render_checks_model.evaluate_probe(page, "geometryReading", [])
 
-    squeezed = {
-        f["at"]: Finding.read(f, severity="advice") for f in reading["squeezed"]
-    }
-    assert {at: f.values["cell"] for at, f in squeezed.items()} == {
-        "<pre id=start>": False,
-        "<pre id=serve>": False,
-        "<pre id=tracked>": False,
-        "<pre id=labelled>": False,
-        "<pre id=fitted>": False,
-        "<pre id=celled>": True,
-    }, reading["squeezed"]
-    assert {f.code for f in squeezed.values()} == {"squeezed-code"}, squeezed
+            squeezed = {
+                f["at"]: Finding.read(f, severity="advice") for f in reading["squeezed"]
+            }
+            assert {at: f.values["cell"] for at, f in squeezed.items()} == {
+                "<pre id=start>": False,
+                "<pre id=serve>": False,
+                "<pre id=tracked>": False,
+                "<pre id=labelled>": False,
+                "<pre id=fitted>": False,
+                **{f"<pre id=four-{n}>": False for n in "abcd"},
+                "<pre id=celled>": True,
+            }, reading["squeezed"]
+            assert {f.code for f in squeezed.values()} == {"squeezed-code"}, squeezed
+            [cited] = re.findall(
+                r'\(page-layout\.md, "([^"]+)"\)', str(squeezed["<pre id=four-a>"])
+            )
+            assert f"\n## {cited}\n" in layout, cited
 
 
 def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve, subtests):

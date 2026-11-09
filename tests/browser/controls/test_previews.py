@@ -19,15 +19,19 @@ from render_cases_interaction import (
 from render_cases_layout import solid_png
 from render_cases_navigation import _publish
 from render_harness import (
+    LONG_PAGE,
     RELEASE_FOCUS,
     back_gesture,
     leaf_page,
     long_press,
     margins_laid_out,
     open_page,
+    panel_settled,
+    panel_view,
     post_event,
     preview_parts,
     preview_text,
+    put_preview_away,
     tab_onto,
     told,
 )
@@ -642,6 +646,34 @@ def test_a_preview_shown_on_focus_describes_what_focus_is_on(engine, request, se
     page.keyboard.press("Tab")
     expect(entry).not_to_be_focused()
     assert entry.get_attribute("aria-describedby") is None
+
+
+def test_a_focus_preview_on_a_link_elsewhere_keeps_its_new_tab_description(
+    browser, serve, live_leaf
+):
+    """An All pages row opens its page in a new tab and says so as its description. A
+    focus preview on it adds to that description while it stands, rather than the link's
+    own treatment writing over it, and the row says only that once the preview goes."""
+    live_leaf("second", "A second leaf")
+    live_leaf("other", "The other leaf")
+    page = open_page(browser, serve(LONG_PAGE))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    panel_settled(page, view="leaves")
+    rows = page.locator(f"{panel_view('leaves')} a.lf-fp-page")
+    expect(rows.nth(1)).to_have_accessible_description("opens in a new tab")
+    tab_onto(rows.nth(1))
+    preview = page.locator(PREVIEW)
+    expect(preview).to_be_visible()
+    rendered(page)
+    # Element references, which Playwright's accessible description doesn't follow.
+    described = rows.nth(1).evaluate(
+        "row => (row.ariaDescribedByElements ?? []).map((el) => el.textContent)"
+    )
+    assert described == ["opens in a new tab", preview.text_content()]
+    put_preview_away(page)
+    rendered(page)
+    expect(rows.nth(1)).to_have_accessible_description("opens in a new tab")
 
 
 LINKS_PAGE = leaf_page(

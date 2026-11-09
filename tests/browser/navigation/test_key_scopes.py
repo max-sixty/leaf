@@ -1534,6 +1534,9 @@ def test_a_key_at_a_control_scrolled_away_acts_from_what_the_user_reads(
 
     def away(control, key):
         page.locator(control).focus()
+        # Firefox scrolls a text field it focuses to its caret after `focus()` returns,
+        # undoing a scroll made before the page renders.
+        rendered(page)
         page.evaluate(
             """() => scrollTo({behavior: 'instant',
               top: document.getElementById('reading').offsetTop - 200})"""
@@ -1649,6 +1652,9 @@ def test_tab_at_a_control_scrolled_away_goes_on_in_the_column_the_pointer_is_in(
     )
     resized(page, 1200, 800)
     page.locator("#old").focus()
+    # Firefox scrolls a field it focuses to its caret after `focus()` returns, undoing
+    # the scroll below and leaving the pointer's column out of the window.
+    rendered(page)
     page.evaluate(
         """() => scrollTo({behavior: 'instant',
           top: document.getElementById('cols').offsetTop - 100})"""

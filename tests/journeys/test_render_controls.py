@@ -55,6 +55,7 @@ from render_harness import (
     panel_says,
     panel_settled,
     panel_view,
+    put_preview_away,
     resized,
     root_overflow,
     round_trip,
@@ -1701,7 +1702,8 @@ def test_all_pages_takes_the_keyboard(browser, serve, live_leaf, one_user):
     """All pages is a list, and a user walks it without reaching for the mouse: g L
     opens it, up and down step between its links and clamp at the ends, Home and End
     reach the ends, Enter opens the focused one in its own tab, and Esc gives that press
-    back — the user is returned to the reading place they pressed `g L` from."""
+    back — the user is returned to the reading place they pressed `g L` from. The walk
+    shows the row's preview, which the first Escape puts away (preview.js)."""
     live_leaf("second", "A second leaf")
     other_url, _ = live_leaf("other", "The other leaf")
     page = open_page(browser, serve(LONG_PAGE), context=one_user)
@@ -1731,10 +1733,12 @@ def test_all_pages_takes_the_keyboard(browser, serve, live_leaf, one_user):
     tab = opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
     expect(tab).to_have_url(f"{other_url}/")
     tab.close()
+    put_preview_away(page)
+    panel_settled(page, view="leaves")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
-    # One press in, one Escape out, and what the Escape gives back is exactly what the
-    # press took: the reading place `g L` was pressed from.
+    # What the Escape that closes the panel gives back is exactly what the press took:
+    # the reading place `g L` was pressed from.
     assert page.evaluate("() => document.activeElement === document.body")
 
 

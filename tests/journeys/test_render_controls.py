@@ -55,7 +55,6 @@ from render_harness import (
     panel_says,
     panel_settled,
     panel_view,
-    put_preview_away,
     resized,
     root_overflow,
     round_trip,
@@ -1733,7 +1732,6 @@ def test_all_pages_takes_the_keyboard(browser, serve, live_leaf, one_user):
     tab = opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
     expect(tab).to_have_url(f"{other_url}/")
     tab.close()
-    put_preview_away(page)
     panel_settled(page, view="leaves")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)

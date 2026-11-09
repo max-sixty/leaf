@@ -65,6 +65,7 @@ from render_harness import (
     assert_follows_in_every_frame,
     draft_key,
     expect_comment_notes,
+    field_press,
     gesture_writes,
     judge_watches,
     leaf_page,
@@ -2938,7 +2939,7 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
 
-    exit_mode = page.get_by_role("button", name="Exit Design mode")
+    exit_mode = field_press(page).filter(has_text="Close")
     exit_mode.hover()
     expect(page.locator(".lf-inspect")).to_be_hidden()
     page.keyboard.press("g")

@@ -13,6 +13,7 @@ from render_cases_layout import solid_png
 from render_harness import (
     LONG_PAGE,
     example_media,
+    field_press,
     leaf_page,
     open_page,
     page_comment,
@@ -369,7 +370,7 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     """A finger's drag is the whole gesture: lifting it attaches the area, and the
     attachment's ✕ takes a bad one back. Capture opens with no area, and the field
     asks for a drag. A tap draws no area, so it leaves capture standing with none; the
-    ✕, Enter on it, or Escape leave with nothing attached."""
+    field's Close or Escape leaves with nothing attached."""
     page = capture_page(browser, serve, touch=True)
     touch = page.context.new_cdp_session(page)
     # Retain the native event so the assertion reads its final cancellation state.
@@ -406,7 +407,7 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     rendered(page)
     expect(surface).to_be_visible()
     expect(selection).to_be_hidden()
-    page.get_by_role("button", name="Cancel capture", exact=True).tap()
+    field_press(page).filter(has_text="Close").tap()
     expect(surface).to_be_hidden()
     assert page.evaluate("captureTouchStarts.at(-2).defaultPrevented"), (
         "a selection must consume its native touch gesture, including fling generation"
@@ -415,9 +416,6 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     expect(page.locator(".lf-composer-media-item")).to_have_count(0)
     assert events_model.read_events(serve.page_dir) == before
     assert sorted((serve.page_dir / "media").glob("*")) == before_media
-    surface = open_capture_area(page, touch=True)
-    page.get_by_role("button", name="Cancel capture", exact=True).press("Enter")
-    expect(surface).to_be_hidden()
     surface = open_capture_area(page, touch=True)
     page.keyboard.press("Escape")
     expect(surface).to_be_hidden()

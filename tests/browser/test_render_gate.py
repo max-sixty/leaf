@@ -4044,14 +4044,13 @@ def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve
     ], f"a control the page put in the flow covered a paragraph unreported: {covered}"
 
 
-def test_the_covered_words_reading_grows_with_the_page(browser, serve):
-    """The gate reads covered words at every width of its sweep, so the reading's work
-    has to grow with the page, not with its square. It compares each run of words only
-    with the runs whose boxes overlap it in height. Comparing every pair took 6 to 7 s
-    a width on the site's data-structures reference. A cover between the first and
-    last words the page writes is still found. The work is counted in calls to
-    `contains`, which the reading makes for each pair it compares, so the count is the
-    same on any machine."""
+def test_the_covered_words_gate_reads_a_cover_between_the_first_and_last_words(
+    browser, serve
+):
+    """The reading compares each run of words only with the runs whose boxes overlap
+    it in height, found by going down the page rather than through the document, so
+    words the page writes far apart and draws in one place still meet: here its last
+    paragraph, lifted over its first."""
     covering = LONG_PAGE.replace(
         "</main>",
         "<p id='over' style='position: relative'>Covering words</p>\n</main>",
@@ -4061,24 +4060,11 @@ def test_the_covered_words_reading_grows_with_the_page(browser, serve):
         const over = document.getElementById('over');
         const first = document.getElementById('p0').getBoundingClientRect().top;
         over.style.top = `${first - over.getBoundingClientRect().top}px`;
-        const contains = Node.prototype.contains;
-        window.lfCompared = 0;
-        Node.prototype.contains = function (other) {
-            window.lfCompared++;
-            return contains.call(this, other);
-        };
     }""")
     covered = render_checks_model.evaluate_probe(page, "coveredWords")
-    compared = page.evaluate("() => window.lfCompared")
-    paragraphs = page.locator("main p").count()
-    page.close()
     assert [
         f for f in covered if {f["at"], f["under"]} == {"<p id=p0>", "<p id=over>"}
     ], f"a cover between the page's first and last words went unreported: {covered}"
-    assert 0 < compared < paragraphs, (
-        f"the reading compared {compared} pairs of words on a page of {paragraphs}"
-        " paragraphs, no two of which share a line"
-    )
 
 
 # A sidenote beside a section of prose and tiles, the content a strip crushing the

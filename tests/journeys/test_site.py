@@ -46,6 +46,7 @@ from render_harness import (
     open_threads,
     page_comment,
     panel_menu,
+    resized,
     root_overflow,
     select,
     sending,
@@ -63,6 +64,7 @@ from leaf import data as data_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
+from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf.event_log import read_events
 from leaf.events import bare_reaction, build_threads
@@ -328,6 +330,28 @@ def test_published_product_page_renders(site, browser, name):
         url = f"{server.origin}/versions/v1.html?t={server.token}"
         failures = render_gate_model.render_version(browser, url).failures
     assert failures == [], "\n".join(map(str, failures))
+
+
+def test_the_data_structures_tables_read_on_a_phone(hosted, browser, subtests):
+    """The data-structures reference's tables, generated from the schemas, read at a
+    phone's width: on a narrow column each field's description takes the row's whole
+    width under its name, type and flag, so no table scrolls sideways or squeezes a
+    cell to a word a line (`squeezedTables`), as 31 of them did with four columns side
+    by side. At 640px the column is just wide enough for the four-column table, which
+    has to fit there too."""
+    page = browser.new_page(viewport={"width": 640, "height": PHONE["height"]})
+    opened(page, f"{hosted}/data-structures/")
+    wait_until_ready(page)
+    for width in (640, 600, 360):
+        with subtests.test(width=width):
+            resized(page, width, PHONE["height"])
+            scrolling = page.evaluate(
+                "() => [...document.querySelectorAll('table')]"
+                ".filter((table) => table.scrollWidth - table.clientWidth > 1)"
+                ".map((table) => table.closest('section').id)"
+            )
+            squeezed = render_checks_model.evaluate_probe(page, "squeezedTables")
+            assert (scrolling, squeezed) == ([], [])
 
 
 def test_published_examples_keep_the_site_theme_out_of_their_layer(site, monkeypatch):

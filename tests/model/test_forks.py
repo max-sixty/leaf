@@ -38,6 +38,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import thread as thread_model
 from leaf.interaction_log import read_interactions
+from leaf.registry import kernel as kernel_model
 from leaf.served_state.reading import outside_inputs
 from leaf.service import PageTransaction
 from leaf.state import session_file
@@ -548,6 +549,34 @@ def test_the_pages_follower_holds_the_lane_and_lists_held_threads(
         }
     ]
     assert nudged == ["s1"]
+
+
+def test_the_follower_ends_once_its_leaf_speaks_another_protocol(
+    claimed, monkeypatch, capsys
+):
+    """A follower runs as long as its session, and the checkout it was loaded from
+    can move past a page protocol bump meanwhile. It then ends, giving up the lane,
+    for the module to start it again under the newer Leaf, whose readers take the
+    old follower's lane for no one's."""
+    serving(claimed, 1)
+    server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
+    monkeypatch.setattr(presence_model, "PRESENCE_CACHE_S", 0.0)
+    waited = []
+
+    def wait(_marks, _timeout):
+        waited.append(True)
+        return True
+
+    monkeypatch.setattr(file_changes_model, "wait", wait)
+    monkeypatch.setattr(
+        kernel_model,
+        "installed_protocol",
+        lambda: kernel_model.kernel_protocol() + len(waited),
+    )
+    hooks_model.cmd_pages({"session_id": "s1", "forks": True})
+    assert forks_model.lane_since("s1") is None
+    [listed] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert listed[0]["forks"] == []
 
 
 def test_the_follower_keeps_open_the_subscription_of_every_page_it_holds(

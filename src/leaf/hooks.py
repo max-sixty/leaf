@@ -262,13 +262,23 @@ def cmd_pages(payload: dict) -> None:
     looks again as a message is admitted, as a later follower takes the lane, or as
     the earliest hold runs out. It reads a page again only once its reading has
     moved or a hold has run out, since a thread's hold starts as its message is
-    admitted."""
+    admitted.
+
+    It exits, without a last list, once the Leaf installed where it was loaded
+    speaks another page protocol (`registry.kernel.installed_protocol`), and the
+    module starts it again under that Leaf. A follower runs as long as its session,
+    and a worktree's checkout can move past a protocol bump meanwhile; the session's
+    hooks then run the newer Leaf, which reads the old follower's lane as no one's.
+    On 8 November one such follower, four days old, kept holding messages that the
+    fork's step, under the newer Leaf, refused as not held, so each waited out its
+    hold with no line."""
     sid = payload.get("session_id") or ""
     if not owned_pages(sid):
         print("[]", flush=True)
         return
 
     from .presence import PRESENCE_CACHE_S, live_leaves
+    from .registry.kernel import installed_protocol, kernel_protocol
 
     forking = bool(payload.get("forks"))
     if forking:
@@ -285,6 +295,8 @@ def cmd_pages(payload: dict) -> None:
     shown = None
     try:
         while True:
+            if installed_protocol() != kernel_protocol():
+                return
             held = {page.resolve() for page in owned_pages(sid)}
             leaves = live_leaves(held) if held else []
             # Each page's subscription lives in its memory, which the process

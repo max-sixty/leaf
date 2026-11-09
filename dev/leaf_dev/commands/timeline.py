@@ -53,6 +53,7 @@ from leaf_dev.commands.response_times import page_timings
 from leaf_dev.reply_phases import (
     claude_code_debug_records,
     claude_code_records,
+    claude_code_transcript_path,
     transcript_records,
 )
 
@@ -285,15 +286,19 @@ def transcript_path(page: Path, session: str) -> Path | None:
     """Where `session`'s transcript is: beside a journey's evidence, else in Claude
     Code's projects."""
     kept = page / "claude" / f"{session}.jsonl"
-    if kept.exists():
-        return kept
-    found = sorted(claude_directory().glob(f"projects/*/{session}.jsonl"))
-    return found[0] if found else None
+    return kept if kept.exists() else claude_code_transcript_path(session)
 
 
 def debug_log(page: Path, session: str) -> str:
-    for path in (page / "debug.log", claude_directory() / "debug" / f"{session}.txt"):
-        if path.exists():
+    """`session`'s debug log: a journey's, beside its evidence with the transcript of
+    the one session it ran, else Claude Code's own for the session, which only a
+    session started with `--debug` writes."""
+    kept = page / "debug.log"
+    for path in (
+        kept if (page / "claude" / f"{session}.jsonl").exists() else None,
+        claude_directory() / "debug" / f"{session}.txt",
+    ):
+        if path is not None and path.exists():
             return path.read_text(errors="replace")
     return ""
 
@@ -446,7 +451,9 @@ def subagent_entries(meta: Path, session: str) -> list[dict]:
         entry(
             dated[-1]["timestamp"],
             "subagent",
-            f"{name} ended after {tools} tool calls: “{clip(last, 60)}”",
+            # Its last record, which ended it only where Claude Code says so.
+            f"{name} {'ended' if about.get('finished') else 'last wrote'} after "
+            f"{tools} tool calls: “{clip(last, 60)}”",
             session=session,
         ),
     ]
@@ -476,9 +483,10 @@ def debug_entries(log: str, session: str, *, calls: bool) -> list[dict]:
     return out
 
 
-def message_line(row: dict, forks: dict, holds: dict) -> str:
+def message_line(row: dict, holds: dict) -> str:
     """One message's steps, in seconds after its admission: whether admission held
-    it, what its fork did, and the page's and the session's steps on it."""
+    it (`holds`, its `fork_hold` notes), what its fork did, and the page's and the
+    session's steps on it (`row`, `page_timings`' reading of it)."""
     marks = row["milestones"]
 
     def at(name: str) -> str:
@@ -495,13 +503,10 @@ def message_line(row: dict, forks: dict, holds: dict) -> str:
         if hold["lane"] is None
         else "not held (with the session) · "
     )
-    fork = forks.get(row["message_id"])
-    if fork is not None:
-        took = f" {fork['elapsedMs'] / 1000:.1f}s" if "elapsedMs" in fork else ""
+    if (fork := row["fork"]) is not None:
+        took = f" {fork['elapsed_s']:.1f}s" if fork["elapsed_s"] is not None else ""
         told += f"fork {fork['outcome']}{took}" + (
-            f" ({clip(fork['why'], 50)})"
-            if fork.get("why") and "line" not in fork
-            else ""
+            f" ({clip(fork['why'], 50)})" if fork["why"] else ""
         )
     elif hold is None or hold["held"]:
         told += "no fork"
@@ -609,15 +614,11 @@ def show(
         for row in timings["samples"]
         if focus is None or row["input_id"] == focus[0]
     ]
-    notes = read_interactions(page, until=cutoff, types=("fork_reply", "fork_hold"))
-    # The last fork made for a message decided it, as `page_timings` reads it.
-    decided = {
-        input_id: row
-        for row in notes
-        if row["type"] == "fork_reply" and "outcome" in row
-        for input_id in row["inputs"]
+    holds = {
+        row["event"]: row
+        for row in read_interactions(page, until=cutoff, types=("fork_hold",))
+        if row["type"] == "fork_hold"
     }
-    holds = {row["event"]: row for row in notes if row["type"] == "fork_hold"}
     for session, path in paths.items():
         if path is not None:
             found.extend(session_entries(path, session, calls=calls))
@@ -642,7 +643,7 @@ def show(
         log = "debug log" if debug_log(page, session) else "no debug log"
         click.echo(f"  session {session}: {path or 'no transcript here'}; {log}")
     for row in rows:
-        click.echo("  " + message_line(row, decided, holds))
+        click.echo("  " + message_line(row, holds))
     click.echo()
     sent = focus[1] if focus else None
     for item in shown:

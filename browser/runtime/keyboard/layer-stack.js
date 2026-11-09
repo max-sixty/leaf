@@ -56,9 +56,6 @@
    popovers first (`dismissPopoversOutside`), so the reading finds the user already handed
    back from them.
 
-   Each native layer's opening is recorded against the user's input it came under
-   (focus.js, `layerOpened`), as every layer opened through `openLayer` is.
-
    Whether a node is one of these layers, or stands in one as rendered, is asked of
    `shadow-tree.js` (`nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding`), below this module and the
    modules it imports, so focus and inertness ask it too. Every reader that treats the top
@@ -88,7 +85,6 @@ import {
   focusDestination,
   handBack,
   canPlaceFocus,
-  layerOpened,
 } from "../focus.js";
 import { move } from "../dom-move.js";
 import { renderedUnder } from "../shadow-tree.js";
@@ -177,7 +173,6 @@ function pushNativeLayer(node, source = null) {
       entry.opening = false;
     });
   entries.push(entry);
-  layerOpened(node);
   return entry;
 }
 

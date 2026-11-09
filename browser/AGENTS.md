@@ -221,7 +221,7 @@ needs (`../SOUL.md`, "Let the user work as directly as in a terminal").
 
 ### Pointing reads; pressing acts
 
-Hovering, focusing or holding a press on a mark, control or value shows its whole word
+Hovering, Tabbing onto or holding a press on a mark, control or value shows its whole word
 and a preview of what pressing it opens, or of the fact it stands for, so the user can
 judge whether to go there before going (`../SOUL.md`, "Make the work concrete and
 playable").
@@ -241,19 +241,37 @@ playable").
   the reader's zone (`agePreview`). Checks:
   `test_a_thread_previews_where_it_stands_from_its_words_and_its_entry`,
   `test_an_age_previews_its_clock_time_in_the_reader_s_zone`.
-- **Every route reads it.** A resting pointer reads it after a short dwell, keyboard
-  focus the user moved there themselves at once, by Tab or a keyboard walk, as whoever
-  moved focus says, but not focus a surface places as it opens or hands back as it
-  closes, and a finger by a long press, the touch form of pointing, whose release
-  presses nothing and leaves the preview standing until the next press, while a tap
-  still presses (until 5 November 2026 the release pressed, so a finger couldn't read
-  without acting short of sliding off, which on touch often scrolls instead); where
-  a surface can't take a hold, it says the words at rest, as a panel row's cut words
-  stand whole. So no fact is said to hover alone. A preview the user put away stays
-  away until they aim again, whatever the element declares meanwhile. A `title` is its
-  writer's: the browser's tooltip shows it to a pointer, and Leaf's preview to focus
-  and a finger, so two tooltips never stand together. Leaf's own controls declare
-  their words to the preview and write no title on Leaf.
+- **Every route that aims reads it.** A resting pointer reads it after a short dwell,
+  keyboard focus Tab or Shift+Tab moved at once, since Tab is the keyboard's pointing,
+  and a finger by a long press, the touch form of pointing, whose release presses
+  nothing and leaves the preview standing until the next press, while a tap still
+  presses (until 5 November 2026 the release pressed, so a finger couldn't read without
+  acting short of sliding off, which on touch often scrolls instead); where a surface
+  can't take a hold, it says the words at rest, as a panel row's cut words stand whole.
+  So no fact is said to hover alone. A command's landing reads nothing: a walk such as
+  `m`, an arrow key, a surface placing focus as it opens or handing it back as it
+  closes. What the user asked a command for is the place it lands on, already in front
+  of them, so a preview there would cover it and take their next Escape, and `K` reads
+  it there on demand, as an editor's hover key does; until 9
+  November 2026 a walk's landing previewed, and `m`'s covered the words beside the
+  margin entry it reached (check:
+  `test_a_walk_s_landing_previews_nothing_and_tab_reads_it`). A preview the user put
+  away stays away until they aim again, whatever the element declares meanwhile. A `title` is its writer's: the
+  browser's tooltip shows it to a pointer, and Leaf's preview to focus and a finger,
+  so two tooltips never stand together. Leaf's own controls declare their words to the
+  preview and write no title on Leaf.
+- **A preview says what its target doesn't.** It carries what the user can't read
+  where they aim: where a link or mark leads and what waits there, the fact behind a
+  compact face, as the clock time behind an age or the value under a chart's point, a
+  symbol's name, and the keys that press it. It never repeats words the target or what
+  stands beside it already shows, such as a control's label, a figure's caption or a
+  row's heading, and a figure, chart or drawing previews no name of its own, since its
+  content is what the user is looking at. What has nothing more to say previews
+  nothing. The browser's tooltip answers to the same rule: a `title` or an SVG
+  `<title>` shows over everything inside it, so Leaf names a drawing for a reader who
+  can't see it with `aria-label`, as `lf-diagram` does with Mermaid's `accTitle` (until
+  9 November 2026 every diagram showed its name as a tooltip; check: the `lf-diagram`
+  case in `tests/smoke/test_plain_page.py`).
 - **One owner shows every preview.** An element adds to what pointing at it reads
   (`lfPreview`, `../skills/leaf/references/module-input.md`, "Previews"), a control's
   word and keys come from its name and the register, a link an author wrote into the

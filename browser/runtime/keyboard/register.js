@@ -101,6 +101,7 @@ const PAGE_COMMANDS = [
   "thread.walk",
   "queue.walk",
   "change.walk",
+  "preview.show",
   "page.move",
   "scroll.move",
   "reading.align.top",

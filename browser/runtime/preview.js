@@ -8,7 +8,10 @@
      name where its face shows a symbol or a mark or doesn't say that name, and each
      press that reaches it from where the user is (control-keys.js, `controlKeys`) as
      key chips beside its name, which a coarse pointer leaves out with every other
-     advertised key. A control
+     advertised key. Its face is its own words, a select's chosen option rather than
+     every option, and the words of the labels beside it, and it says the name where
+     either holds the other's words, as a key chip or a count beside a name leaves it
+     said. A control
      whose face says its name and that no key reaches previews nothing. A field the user
      types in previews nothing: its words are what they read. A control is any native
      or ARIA press, a range and a select among them (control-selectors.js, `PRESSES`),
@@ -63,6 +66,10 @@
      is on.
    - A link an author wrote into the page previews the place it names, and what that
      place holds (place-preview.js), since that is what pressing it opens.
+   - Whatever supplies it, a reading says only what its target's face doesn't show
+     whole: a line the face shows uncut goes, and a reading left with only the face's
+     own words shows nothing (`beyondFace`), so a status declaring its words for where
+     its row cuts them previews only while the row does.
 
    Nothing standing open (`aria-expanded="true"`) previews, since what pressing it opens
    is already in front of the user, and the search goes on outward from it, as it does
@@ -158,14 +165,18 @@
      reaches while it carries a press, as in a drag. A tab the user leaves takes its
      preview away.
    - Keyboard focus the browser shows (`:focus-visible`) shows its target's preview at
-     once, with no fade, where the user moved it there, as whoever moved it says: a Tab
-     or Shift+Tab, or a placement standing in for one (`step`), and a move to a place
-     (`move`), as a walk lands, the `m` walk onto a margin card's message among them: the
-     cause its mover gives (focus.js, `focusDestination`). Leaving the target hides it.
-     Focus a surface places as it opens, as the Page Map's first row, and focus handed
-     back as a surface closes or as Escape backs the user out (`return`) show nothing:
-     the user is opening or backing out, and a preview there would take their next
-     Escape. A declaration
+     once, with no fade, where the user aimed it there by a Tab or Shift+Tab, or by a
+     placement standing in for one (`step`), the cause its mover gives (focus.js,
+     `focusDestination`): Tab is the keyboard's pointing, a step to the next control
+     the user may press. Leaving the target hides it. Focus any command places shows
+     nothing: a walk or an arrow key landing (`move`), as `m` lands on an On me item's
+     margin entry, a surface placing focus as it opens, as the Page Map's first row,
+     and focus handed back as a surface closes or as Escape backs the user out
+     (`return`). What the user asked a command for is the place it lands on, already in
+     front of them, so a preview there would only cover what they came to read and take
+     their next Escape. `K` (`preview.show`) reads the preview where focus stands
+     on demand, whatever put it there, as an editor's hover key does, so a landing's
+     preview stays one key away. A declaration
      that stops being true, as a grip's once its card is grabbed, says so
      (`previewChanged`), which redraws a preview standing on focus and opens none.
    - A screen reader hears every preview shown on focus, whatever supplied it, as the
@@ -238,7 +249,11 @@
    2026 every element wearing `data-lf-offer` was a control here, so a thread card
    previewed its accessible name, its own first words, to a pointer resting in it and to
    a `t` walk landing on it, where the preview took the Escape that lets go of the
-   thread. Rejected: reading a control off `data-lf-offer` alone, a press marker, which
+   thread. Until 9 November 2026 a walk's or an arrow key's landing previewed too, unless
+   it landed in a surface that opened since the user's last input, which a record of
+   each layer's opening input told apart; the `m` walk then previewed the margin entry
+   it landed on, a thread the user was about to read, over the words beside it.
+   Rejected: reading a control off `data-lf-offer` alone, a press marker, which
    left out Leaf's own ranges and selects, since they wear an empty one;
    `interestfor`, which gives a control the same three routes natively but ships only
    in Chromium; the platform's
@@ -268,8 +283,9 @@ import {
 } from "./keyboard/layer-stack.js";
 import { controlKeys } from "./keyboard/control-keys.js";
 import { advertisesKeys } from "./keyboard/bindings.js";
-import { focused, onCurrentLocation, openedThisInput, typesText } from "./focus.js";
-import { pageScope } from "./keyboard/register.js";
+import { focused, onCurrentLocation, typesText } from "./focus.js";
+import { pageCommand, pageScope } from "./keyboard/register.js";
+import { notice } from "./notifications.js";
 import { offlineInteractive } from "./context.js";
 import { watchPresentation, whenDocumentPresented } from "./semantic-state.js";
 import { plainPress } from "./pointer.js";
@@ -531,15 +547,39 @@ const wordsOf = (text) =>
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
-// What a control's face says: its visible words, or none where it shows a symbol or a
-// mark.
+// The words of the `<label>`s naming a form control, which stand beside it on the
+// page, less the control's own words where a label holds it, as a select's options.
 /** @param {Element} control */
-const faceWords = (control) => wordsOf(control.textContent ?? "");
-// Whether a control's face says its name: its words stand in the name, a word among
-// them. A count alone, as a folded list's "1" beside its mark, names nothing.
+function labelWords(control) {
+  const labels = /** @type {{labels?: NodeListOf<HTMLLabelElement> | null}} */ (control)
+    .labels;
+  const words = [];
+  for (const label of labels ?? []) {
+    const walker = document.createTreeWalker(label, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode())
+      if (!control.contains(node)) words.push(node.textContent ?? "");
+  }
+  return words.join(" ").replace(/\s+/g, " ").trim();
+}
+// What a control's face says: its visible words and its labels' beside it, or none
+// where it shows a symbol or a mark. A select shows the option chosen, not the rest.
+/** @param {Element} control */
+const faceWords = (control) =>
+  wordsOf(
+    `${labelWords(control)} ${
+      control instanceof HTMLSelectElement
+        ? (control.selectedOptions[0]?.textContent ?? "")
+        : (control.textContent ?? "")
+    }`,
+  );
+// Whether a control's face says its name: its words stand in the name, or the name's in
+// its words, as a key chip or a count beside the name leaves it said. A count alone, as
+// a folded list's "1" beside its mark, names nothing.
 /** @param {string} face @param {string} name */
 const faceSays = (face, name) =>
-  /\p{L}/u.test(face) && ` ${wordsOf(name)} `.includes(` ${face} `);
+  /\p{L}/u.test(face) &&
+  (` ${wordsOf(name)} `.includes(` ${face} `) ||
+    ` ${face} `.includes(` ${wordsOf(name)} `));
 // A control's accessible name, as its markup gives it.
 /** @param {Element} control */
 function accessibleName(control) {
@@ -551,7 +591,11 @@ function accessibleName(control) {
       .map((el) => el.textContent?.trim() ?? "")
       .join(" ")
       .trim();
-  return titleOf(control) ?? (control.textContent ?? "").replace(/\s+/g, " ").trim();
+  return (
+    labelWords(control) ||
+    titleOf(control) ||
+    (control.textContent ?? "").replace(/\s+/g, " ").trim()
+  );
 }
 
 // What `node` declares, read once as its preview shows on `route`. A declaration that
@@ -629,7 +673,7 @@ function readingOf(node, route) {
   if (declared === false) return false;
   const title = titleOf(node);
   if (!(node.matches(CONTROL) && !typesText(node)))
-    return lines(declared ?? null, { title });
+    return beyondFace(lines(declared ?? null, { title }), node);
   const name = accessibleName(node);
   const face = faceWords(node);
   const keys = controlKeys(node);
@@ -643,7 +687,41 @@ function readingOf(node, route) {
   // Made of the control's own name and keys alone, it says what a screen reader already
   // hears from them.
   if (reading) reading.restates = !declared && !titled;
-  return reading;
+  return beyondFace(reading, node);
+}
+// What `reading` says beyond the words its target shows whole. A line the face shows
+// uncut goes, as a menu row's own words or a search count's; a name stays to head what
+// is left, and a reading left with nothing more shows nothing. A face that cuts its words
+// short, as a row ending in an ellipsis, leaves every line, since the preview is then
+// where the rest is read. A reading standing by a part of its target (`at`), as a
+// chart's point, is about that part, so the face's other words don't speak for it.
+/** @param {Reading | null} reading @param {Element} node @returns {Reading | null} */
+function beyondFace(reading, node) {
+  if (!reading || reading.at || reading.list || !(node instanceof HTMLElement))
+    return reading;
+  const face = ` ${wordsOf(node.innerText)} `;
+  /** @param {Words | null} line */
+  const shows = (line) =>
+    typeof line === "string" &&
+    /\p{L}/u.test(line) &&
+    face.includes(` ${wordsOf(line)} `);
+  const detail = reading.detail.filter((line) => !shows(line));
+  const bare = !detail.length && !reading.keys.length && shows(reading.name);
+  if ((!bare && detail.length === reading.detail.length) || cutsWords(node))
+    return reading;
+  return bare ? null : { ...reading, detail };
+}
+// Whether `node`, or a box inside it, hides words past its edge, as an ellipsis or a
+// clamp to a few lines does.
+/** @param {Element} node */
+function cutsWords(node) {
+  for (const box of [node, ...node.querySelectorAll("*")]) {
+    if (box.scrollWidth <= box.clientWidth && box.scrollHeight <= box.clientHeight)
+      continue;
+    const { overflowX, overflowY } = getComputedStyle(box);
+    if (overflowX !== "visible" || overflowY !== "visible") return true;
+  }
+  return false;
 }
 // The innermost node along `path` the search stops at, read as its preview shows.
 /** @param {Iterable<EventTarget>} path @returns {Element | null} */
@@ -1832,16 +1910,13 @@ export function mountPreviews(chrome) {
     { capture: true, passive: true },
   );
   // Focus arriving is a new reading, whatever put the target's last one away, and
-  // focus leaving takes its preview along. It shows where the user moved it, as whoever
-  // moved it says (focus.js, `focusDestination`): a Tab, Shift+Tab or a placement
-  // standing in for one (`step`), and a move to a place, as a walk lands (`move`), but
-  // not one into a surface that opened since the user's last input, which is the
-  // surface placing them as it opens (focus.js, `openedThisInput`).
+  // focus leaving takes its preview along. It shows only where the user aimed it, as
+  // whoever moved it says (focus.js, `focusDestination`): a Tab, Shift+Tab or a
+  // placement standing in for one (`step`).
   onCurrentLocation((node, cause) => {
     quiet = null;
     if (shown?.route === "focus" && shown.from !== node) hide();
-    if (node && (cause === "step" || (cause === "move" && !openedThisInput(node))))
-      showFocus(node);
+    if (node && cause === "step") showFocus(node);
   });
   // Escape is the preview's own step while one shows, ahead of every other, which does
   // nothing else; any other key puts a pointer's away and goes on to its work. A
@@ -1863,6 +1938,22 @@ export function mountPreviews(chrome) {
         run: quieten,
       },
     ],
+  });
+  // A command's landing shows no preview, so the keyboard reads the one where it stands
+  // on demand, as an editor's hover key does (Neovim's `K`, VS Code's Show Hover):
+  // whatever put focus there, it reads as Tab's would, and again after Escape put it
+  // away, since asking is aiming again.
+  pageCommand({
+    id: "preview.show",
+    keys: ["Shift+k"],
+    title: "Preview here",
+    touch: false,
+    run: () => {
+      const on = focused();
+      quiet = null;
+      if (!on || on === document.body || !show(on, "focus"))
+        notice("Nothing here has a preview");
+    },
   });
   document.addEventListener(
     "keydown",

@@ -3,7 +3,7 @@ browser lets it, on whichever side of zero the box scrolls, and writes nothing t
 leave a still box where it stands (`runtime/arrivals.js`)."""
 
 import pytest
-from render_harness import leaf_page, open_page
+from render_harness import consume_browser_errors, leaf_page, open_page
 
 # Each style that decides which side of zero a box scrolls on, alone and in the
 # combinations where two of them cancel. Chromium and Firefox agree on every one.
@@ -71,19 +71,21 @@ def test_a_write_from_zero_moves_a_box_as_far_as_the_browser_lets_it(browser, se
 
 
 @pytest.mark.parametrize(
-    "style",
+    ("style", "open_axes"),
     [
-        "body { container-type: normal; direction: rtl; }",
-        "body { container-type: normal; writing-mode: vertical-rl; }",
-        "html { display: flex; flex-direction: column-reverse; }",
-        "body { container-type: inline-size; writing-mode: vertical-rl; }",
+        ("html { display: flex; flex-direction: column-reverse; }", 0),
+        ("body { writing-mode: vertical-rl; }", 1),
     ],
-    ids=["body-rtl", "body-vertical-rl", "root-column-reverse", "contained-body"],
+    ids=["root-column-reverse", "body-vertical-rl"],
 )
-def test_the_page_scrolls_from_the_start_of_its_body_s_flow(browser, serve, style):
-    """The page's own scroll starts where the body's writing mode and direction start
-    its flow, which an HTML page gives the viewport rather than the root's, unless the
-    root or the body is contained; no flex flow on the root reverses it."""
+def test_the_page_scrolls_from_the_start_of_its_principal_flow(
+    browser, serve, style, open_axes
+):
+    """The page's own scroll starts where its principal flow does, which no flex flow on
+    the root reverses. That flow is the root's or the body's, by rules that turn on
+    containment and on which the engines differ, so where the two disagree a write from
+    zero is judged against both sides: it is never dropped, and the one past the side
+    the page doesn't scroll on moves nothing, as the write watch reports."""
     page = open_page(
         browser,
         serve(
@@ -95,3 +97,6 @@ def test_the_page_scrolls_from_the_start_of_its_body_s_flow(browser, serve, styl
         ),
     )
     assert page.evaluate(MISPLACED, "html") == {}
+    if open_axes:
+        unmoved = consume_browser_errors(page, {"code": "unmoved-scroll"})
+        assert len(unmoved) == open_axes, unmoved

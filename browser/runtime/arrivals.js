@@ -384,7 +384,8 @@ const moves = (box, { top, left }) => {
 };
 // The positions a box's scroll takes on each axis, as the browser clamps a write: from
 // zero to the side where the box's content flows from, the negative one where that is
-// the bottom or right edge (`scrollsBack`). Off zero, where the box stands says which.
+// the bottom or right edge (`scrollsBack`). Off zero, where the box stands says which;
+// at zero on an axis whose side the style leaves open, both sides, so no move is lost.
 /** @param {Element} box @returns {{top: [number, number], left: [number, number]}} */
 export function scrollRange(box) {
   const { scrollTop: top, scrollLeft: left } = box;
@@ -394,38 +395,51 @@ export function scrollRange(box) {
     (top === 0 && down) || (left === 0 && across)
       ? scrollsBack(box)
       : { top: false, left: false };
-  return {
-    top: top < 0 || (top === 0 && back.top) ? [-down, 0] : [0, down],
-    left: left < 0 || (left === 0 && back.left) ? [-across, 0] : [0, across],
-  };
+  /** @param {number} at @param {number} span @param {boolean | null} side @returns {[number, number]} */
+  const reach = (at, span, side) =>
+    at > 0 || (at === 0 && side === false)
+      ? [0, span]
+      : at < 0 || side
+        ? [-span, 0]
+        : [-span, span];
+  return { top: reach(top, down, back.top), left: reach(left, across, back.left) };
 }
-// Whether each axis of a box scrolls on the negative side of zero: its scroll origin
-// stands where its content's flow starts, so a box whose flow starts at the bottom or
-// right edge scrolls back from zero. Writing mode and direction place the inline and
-// block starts, and a flex container's main and cross starts follow its direction and
-// wrap. The viewport scrolls from the start of the page's principal flow, whose writing
-// mode and direction an HTML page takes from its body unless the root or the body is
-// contained (CSS Writing Modes, "principal writing mode"; CSS Containment), and no flex
-// flow of the root's reverses it. No API reports a box's scroll range (Firefox's own
-// `scrollTopMin` aside), and a box standing at zero shows nothing of its side, so the
+// Whether each axis of a box scrolls on the negative side of zero, or null where its
+// style leaves that open. A box scrolls from where its content's flow starts, so one
+// whose flow starts at the bottom or right edge scrolls back from zero. Writing mode and
+// direction place the inline and block starts, and a flex container's main and cross
+// starts follow its direction and wrap. No API reports a box's scroll range (Firefox's
+// own `scrollTopMin` aside), and a box standing at zero shows nothing of its side, so the
 // side is read from the style that decides it; Chromium and Firefox agree on every
-// combination (tests/browser/test_scroll_writes.py).
-/** @param {Element} box @returns {{top: boolean, left: boolean}} */
+// combination of those (tests/browser/test_scroll_writes.py).
+//
+// The page scrolls from its principal flow, which no flex flow of the root's reverses:
+// the root's writing mode and direction, or the body's where the page takes them from
+// it. Which one applies turns on containment, content visibility, a hidden body or a
+// frameset, and the engines differ on some of those, so where the root and the body
+// agree that is the side, and where they don't it is open.
+/** @param {Element} box @returns {{top: boolean | null, left: boolean | null}} */
 function scrollsBack(box) {
   const page = box.ownerDocument;
-  const viewport = box === page.scrollingElement;
-  const style = getComputedStyle(box);
-  const body = viewport && page.body ? getComputedStyle(page.body) : null;
-  /** @param {CSSStyleDeclaration} s */
-  const contained = (s) => s.contain !== "none" || s.containerType !== "normal";
-  const { writingMode, direction } =
-    body && !contained(style) && !contained(body) ? body : style;
+  if (box !== page.scrollingElement) return flowsBack(getComputedStyle(box), true);
+  const root = flowsBack(getComputedStyle(box), false);
+  if (!page.body) return root;
+  const body = flowsBack(getComputedStyle(page.body), false);
+  return {
+    top: root.top === body.top ? root.top : null,
+    left: root.left === body.left ? root.left : null,
+  };
+}
+// Whether each axis of a box with `style` starts its flow at the bottom or right edge,
+// counting its flex flow where `flex` asks.
+/** @param {CSSStyleDeclaration} style @param {boolean} flex */
+function flowsBack(style, flex) {
+  const { writingMode, direction, display, flexDirection, flexWrap } = style;
   const vertical = writingMode !== "horizontal-tb";
   // Whether the inline axis starts at its bottom or right end, and the block axis.
   let inline = (writingMode === "sideways-lr") !== (direction === "rtl");
   let block = writingMode === "vertical-rl" || writingMode === "sideways-rl";
-  const { display, flexDirection, flexWrap } = style;
-  if (!viewport && display.endsWith("flex")) {
+  if (flex && display.endsWith("flex")) {
     const reversed = flexDirection.endsWith("-reverse");
     const wrapped = flexWrap === "wrap-reverse";
     if (flexDirection.startsWith("column"))

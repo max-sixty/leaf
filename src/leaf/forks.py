@@ -432,8 +432,7 @@ def agent_held(page: PageTransaction) -> set[str]:
     claim = page.active_claim
     if claim is None:
         return set()
-    stamps = agent_turn_stamps(claim)
-    running = _running(stamps) if stamps else set()
+    running = running_turns(claim)
     if not running:
         return set()
     return {
@@ -457,10 +456,17 @@ def agent_inputs(page: PageTransaction) -> set[str]:
     return set(_picked_in(page.events, claim["id"], set(stamps))) | agent_held(page)
 
 
-def _running(stamps: dict[str, dict]) -> set[str]:
-    """The agent turns of a live session's `stamps` running now."""
+def running_turns(claim: dict) -> set[str]:
+    """The turns of the agents running beside the main thread of the session that
+    holds a page by `claim`, an active claim, believed running now
+    (`activity.running_agent_turns`). What an agent holds moves with this set as a
+    turn closes or lapses, which no file records, so a cache of what the session owes
+    keys on it (`session.watch_between_turns`)."""
     from .activity import running_agent_turns
 
+    stamps = agent_turn_stamps(claim)
+    if not stamps:
+        return set()
     return running_agent_turns(stamps, True, datetime.now().astimezone())
 
 
@@ -483,7 +489,7 @@ def agent_turn_inputs(page: PageTransaction, turn: str) -> list[dict]:
     picked up, in log order: the user's further messages in the threads it holds,
     which its tool boundary hands it (`hook_transport.carry_agent_turn`)."""
     claim = page.active_claim
-    if claim is None or turn not in _running(agent_turn_stamps(claim)):
+    if claim is None or turn not in running_turns(claim):
         return []
     holders = holding_turns(page.events, claim["id"])
     taken = set(_picked_in(page.events, claim["id"], {turn}))

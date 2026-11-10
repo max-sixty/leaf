@@ -10,7 +10,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from threading import Event
+from threading import Event, Thread
 from types import SimpleNamespace
 
 import pytest
@@ -446,6 +446,51 @@ def test_a_fork_whose_thread_was_taken_over_can_not_answer_it(
         thread_model.post_response(
             answer_ref(claimed, asked["id"]), "Yes.", asks_back=False
         )
+
+
+def test_the_watch_wakes_the_idle_session_for_a_thread_its_fork_gave_back(
+    claimed, lane, interactive, capsys, monkeypatch
+):
+    """While a fork holds a thread, the main thread's closed turn owes nothing, so the
+    watch that follows it sleeps. As the fork's turn ends with the thread unanswered,
+    the main thread owes its answer, and the watch wakes the session for it, though
+    the page's log hasn't moved."""
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed)
+    asked, taken = taken_by_a_fork(claimed, "Does the suggest service cache?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    stop = {"hook_event_name": "Stop", "session_id": "s1", "prompt_id": "p1"}
+    context(capsys, "UserPromptSubmit")
+    hooks_model.cmd_hook("claude-code", stop)
+    assert capsys.readouterr().out == ""
+    passed = Event()
+    await_news = session_model.Watch.await_news
+
+    def after_a_pass(watch, mark, *args, **kwargs):
+        passed.set()
+        return await_news(watch, mark, *args, **kwargs)
+
+    monkeypatch.setattr(session_model.Watch, "await_news", after_a_pass)
+    woke: list = []
+    watch = Thread(
+        target=lambda: woke.append(hooks_model.cmd_watch("claude-code", stop)),
+        daemon=True,
+    )
+    watch.start()
+    assert passed.wait(STATED_TIMEOUT), f"the watch never read the pages: {woke}"
+    assert woke == []
+
+    forks_model.ended(
+        "s1",
+        agent="agent-1",
+        turn=None,
+        answer=f"{forks_model.HAND_BACK} the session is changing its startup.",
+        failed=None,
+    )
+    watch.join(STATED_TIMEOUT)
+    assert woke and woke[0].startswith(f"{claimed} has an update still owed an answer")
 
 
 def test_a_follow_up_in_the_thread_reaches_the_fork_at_its_tool_boundary(

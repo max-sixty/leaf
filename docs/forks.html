@@ -45,10 +45,10 @@
             answer it while the session carries on with its own work.
           </p>
           <p id="lede-status">
-            Today every session gets the agent's first words from a fork. A fork that
-            does the work is built, and acts only with
-            <code class="nowrap">LEAF_FORK_WORK=on</code> in Claude Code's environment;
-            the rest of the design is being built or planned. Each part below says
+            Today the first words come from a fork in every Claude Code session. A fork
+            that does the work, and takes its thread's later messages, is built, and
+            acts only with <code class="nowrap">LEAF_FORK_WORK=on</code> in Claude
+            Code's environment; the rest of the design is planned. Each part below says
             which, and <a href="#status">What's built and what's planned</a> lists them.
           </p>
           <p id="lede-contracts">
@@ -222,9 +222,9 @@ flowchart TD
               is changing or about to change (its files and branch, the page's source,
               its pull requests), settles no question the main thread is weighing, and
               waits on nothing the session is running. <code>hand_over</code> means the
-              work belongs with the main thread. Leaf records the judgment for every
-              message in the page's diagnostics (<code>fork_reply</code>). Without the
-              flag, Leaf posts the line and gives every message to the main thread.
+              work belongs with the main thread. Leaf records each judgment in the
+              page's diagnostics (<code>fork_reply</code>). Without the flag, Leaf posts
+              the line and gives every message to the main thread.
             </p>
             <p id="sorting-planned">
               The planned sort splits <code>hand_over</code> in two. Input the main
@@ -245,9 +245,11 @@ flowchart TD
               that turn's pickup of the thread's waiting messages, with a delivery made
               for it (<code>forks._give</code>). The message passes from Leaf keeping it
               back to the fork holding it with no moment in which neither has it. Leaf's
-              hooks module then spawns the working fork with that delivery and tells
-              Leaf which agent runs the turn (<code>forks.started</code>). The fork
-              works with the session's tools and answers with its own
+              hooks module then spawns the working fork with that delivery, or resumes
+              the fork that answered the thread before (<a href="#follow-ups"
+                >Follow-ups and flurries</a
+              >), and tells Leaf which agent runs the turn (<code>forks.started</code>).
+              The fork works with the session's tools and answers with its own
               <code>leaf thread reply</code>, using the reply reference its delivery
               names. <span class="tag ok">built</span>
               <span class="tag">only with the flag</span>
@@ -300,10 +302,10 @@ sequenceDiagram
             stops counting when that turn ends. The main thread works in its own turns,
             and Leaf keeps a turn for each run of a working fork in the session's
             agent-turns record (<code>state.AGENT_TURNS</code>). A fork's turn opens at
-            the take, before Claude Code starts the fork, and closes when the hooks
-            module reports that the fork's run ended. It also lapses when nothing has
-            renewed it within the working grace, 15 minutes; the fork's tool boundaries
-            renew it. <span class="tag ok">built</span>
+            the take, before Claude Code starts or resumes the fork, and closes when the
+            hooks module reports that the fork's run ended. It also lapses when nothing
+            has renewed it within the working grace, 15 minutes; the fork's tool
+            boundaries renew it. <span class="tag ok">built</span>
             <span class="tag">only with the flag</span>
           </p>
           <p id="holding-newest">
@@ -590,12 +592,15 @@ flowchart TD
           <section id="telling" class="layout-flow">
             <h3>How a fork tells the main thread</h3>
             <p id="telling-clerk">
-              Claude Code tells the main thread nothing of a fork a hooks module
-              spawned: no row in its transcript, no notification and no wake. So Leaf
-              tells it, in lines its clerk queues: one as a fork takes a thread, naming
-              the fork so the main thread can SendMessage it, and one as the fork's run
-              ends. A line waits for the main thread's next tool boundary or prompt, and
-              only a thread given back wakes an idle session.
+              Claude Code tells the main thread nothing of a fork a hooks module spawns:
+              no row in its transcript, and no notification or wake when its first run
+              ends. So Leaf tells it, in lines its clerk queues: one as a fork takes a
+              thread, naming the fork so the main thread can SendMessage it, and one as
+              the fork's run ends. A line waits for the main thread's next tool boundary
+              or prompt, and Leaf wakes an idle session only for a thread given back.
+              The end of a resumed run is different: Claude Code notifies the main
+              thread of it, which starts a turn on an idle session, and that turn reads
+              the queued lines.
               <span class="tag ok">built</span>
               <span class="tag">only with the flag</span>
             </p>
@@ -620,12 +625,14 @@ flowchart TD
         <section id="follow-ups" class="layout-flow">
           <h2>Follow-ups and flurries</h2>
           <p id="follow-ups-one-fork">
-            Leaf gives each thread one working fork, named for the thread, so a flurry
-            of messages in one thread makes one worker. A further message goes wherever
-            its thread already is.
+            One working fork works a thread, so a flurry of messages in one thread makes
+            one worker however many messages the user sends. A further message goes
+            wherever its thread already is.
+            <span class="tag ok">built</span>
+            <span class="tag">only with the flag</span>
           </p>
           <figure id="follow-ups-figure" class="diagram-figure">
-            <lf-diagram id="follow-up-flow" data-height="664" parts="all">
+            <lf-diagram id="follow-up-flow" data-height="804" parts="all">
               <pre>
 ---
 config:
@@ -636,50 +643,58 @@ config:
 ---
 flowchart TD
   accTitle: Where a further message in a thread goes
-  accDescr: If a working fork's turn holds the thread, the fork takes the message at its next tool boundary. Otherwise, if the main thread owes the thread, it takes the message as any input. Otherwise, if a fork answered the thread last, the same fork is resumed in a new turn, which is being built. Otherwise the message is kept back for the line fork.
+  accDescr: If a working fork's turn holds the thread, that fork takes the message at its next tool boundary. Otherwise, if the main thread owes the thread, it takes the message as any input. Otherwise the message is kept back for the line fork, which sorts it. On a take, if a fork gave the thread's last answer and its turn has closed, that fork is resumed in a new turn; otherwise a new working fork takes it.
   more["A further message in a thread"]
   q1("Does a working fork's turn hold the thread?")
   a1["That fork, at its next tool boundary"]
   q2("Does the main thread owe the thread?")
   a2["The main thread, as any input"]
-  q3("Did a fork answer the thread last?")
-  a3["The same fork, resumed in a new turn"]
-  a4["Kept back for the line fork"]
+  kept["Kept back for the line fork, which sorts it"]
+  q3("On a take: did a fork whose turn has closed answer it last?")
+  a3["That fork, resumed in a new turn"]
+  a4["A new working fork"]
   more --&gt; q1
   q1 -- yes --&gt; a1
   q1 -- no --&gt; q2
-  q2 -- no --&gt; q3
+  q2 -- no --&gt; kept --&gt; q3
   q2 -- yes --&gt; a2
   q3 -- yes --&gt; a3
   q3 -- no --&gt; a4
-  class a3 planned
 </pre>
             </lf-diagram>
             <figcaption id="follow-ups-caption">
-              <strong>A further message follows its thread.</strong> The dashed box is
-              being built; until it lands, a message after a fork's answer is kept back
-              for the line fork, and a <code>take</code> spawns a new fork.
+              <strong>A further message follows its thread.</strong> A message the line
+              fork judges <code>hand_over</code> goes to the main thread, as any new
+              message does.
             </figcaption>
           </figure>
           <ul id="follow-ups-parts">
             <li id="follow-up-running">
-              <span class="tag ok">built</span>
-              <span class="tag">only with the flag</span>
               Until a fork answers, the user's further messages in its thread reach it
               at its next tool boundary, inline, or by pointer when they are too large
               for the hook, which the fork's own <code>leaf delivery ack</code> records
               into its turn.
             </li>
             <li id="follow-up-same-fork">
-              <span class="tag warn">being built</span>
-              A message in a thread a fork answered goes to the same fork, resumed by
-              name in a new turn, rather than to a new fork. Leaf's message to it lists
-              what the main thread did on the page since the fork's run, which the
-              fork's transcript lacks, and the fork can SendMessage the main thread to
-              ask about it.
+              A message in a thread whose last answer came from a fork's turn that has
+              since closed, in the session's present generation, goes to that fork again
+              (<code>forks._resumable</code>). Leaf opens the new turn under the fork's
+              agent id and records its pickup, as a first take does, and the hooks
+              module resumes the fork by its agent id. Leaf's message resuming it
+              (<code>forks.resume_prompt</code>) carries the thread's delivery and names
+              what the rest of the session did on the page since the fork's last turn
+              began: the threads it wrote in, the revisions it published and the to-dos
+              it opened or ended, which the fork's transcript lacks. The fork can
+              SendMessage the main thread to ask about them.
+            </li>
+            <li id="follow-up-new-fork">
+              A thread the main thread answered last gets a new fork, and so does one
+              whose fork's turn still runs, ran in an earlier generation, or can't be
+              resumed. A message the main thread writes in the thread unasked, such as a
+              correction of the fork's answer, answers nothing, so the thread stays the
+              fork's.
             </li>
             <li id="follow-up-threads">
-              <span class="tag ok">built</span>
               Messages in different threads start a fork each, side by side.
             </li>
             <li id="follow-up-standing">
@@ -782,7 +797,10 @@ flowchart TD
                   <a href="#sorting">The line fork's judgment</a>, <code>take</code> or
                   <code>hand_over</code>
                 </th>
-                <td><small class="tag ok">built</small> recorded on every message</td>
+                <td>
+                  <small class="tag ok">built</small> recorded, acted on only with the
+                  flag
+                </td>
                 <td>
                   <code>forks.ANSWER</code>; the <code>fork_reply</code> diagnostics
                 </td>
@@ -821,8 +839,11 @@ flowchart TD
                     >The same fork for a thread's follow-ups</a
                   >
                 </th>
-                <td><small class="tag warn">being built</small></td>
-                <td>—</td>
+                <td><small class="tag ok">built</small> with the flag</td>
+                <td>
+                  <code>forks._resumable</code>, <code>forks.resume_prompt</code>,
+                  <code>forks._since</code>; the module's <code>resumeFork</code>
+                </td>
               </tr>
               <tr id="status-sorting">
                 <th scope="row">

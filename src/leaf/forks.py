@@ -17,7 +17,7 @@ session (`ANSWER`'s `work`). Where the module makes forks that act, which it doe
 with `LEAF_FORK_WORK=on` while the design is tried, a thread judged `take` goes to a
 fork spawned from the conversation, which does the work and answers the user itself
 (`_give`); otherwise Leaf records the judgment and hands the thread over
-(`notes/fork-replies.md`, "A fork that takes the work").
+(`docs/forks.html`, the design's home).
 
 A fork that takes a thread runs a turn of its own (`state.AGENT_TURNS`), and Leaf
 records the take as that turn's pickup of the thread's waiting messages, with the

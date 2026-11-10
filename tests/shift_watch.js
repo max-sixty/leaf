@@ -1801,15 +1801,18 @@
       // creator's counted input rendering open after its declared completion.
       if (!open.told)
         for (const animation of begun(open.start)) open.own.add(animation);
-      if (open.last) end();
       // A settled reading here counts updates before this one; this frame's own
-      // callbacks may still move a box, so the rendering runs through the next.
+      // callbacks may still move a box, so the rendering runs through the next, and
+      // ends there only if the loop still reads settled. Work queued in between is
+      // the input's too: a wheel's scroll reaches the page a frame after the wheel,
+      // and what the page's scroll listeners queue then answers that scroll.
+      if (open.last && settled()) end();
       else open.last = settled();
     }
     for (const rendering of landing) {
       if (!rendering.told)
         for (const animation of begun(rendering.start)) rendering.own.add(animation);
-      if (rendering.last) landing.delete(rendering);
+      if (rendering.last && settled()) landing.delete(rendering);
       else rendering.last = settled();
     }
     // A gesture owns its counted rendering until canonical completion. News seals

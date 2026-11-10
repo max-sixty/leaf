@@ -275,38 +275,46 @@ since it changes the work the obligation would queue behind.
   take is a pickup in the page log naming the fork's turn, with the receipt. The
   turn whose pickup of a thread's waiting messages is newest holds the thread,
   whether it is the main thread's or a fork's, and every reader of received input
-  asks one function which turn that is (`forks.holding_turns`). Each pickup is
-  checked against that function as it is recorded (`forks.pickable`). A fork's turn
-  picks up only what it holds or no turn holds: its take, its tool boundary and its
-  acknowledgement of a pointer. The main thread picks up a message a fork's running
-  turn holds only once that turn closes or lapses, and that pickup takes the thread
-  over. While the fork's turn runs, the message reads as work in hand, the main
-  thread is neither handed it nor reminded of it, and a further message in the
-  thread goes to the fork at its next tool boundary. The turn lapses as the fork's
-  run ends, or goes unrenewed for the working grace, as a main turn's stamp does.
-  A reply from a fork whose turn no longer holds the message is refused.
+  asks one function which turn that is (`forks.holding_turns`). A fork's turn may
+  act only on the messages it holds or no turn holds, and one rule checks each of
+  its writes as it is made (`forks.refuse_unheld`): its pickups (its take, its tool
+  boundary and its acknowledgement of a pointer), its replies and its starts. The
+  turn closes as the fork's run ends, and lapses when unrenewed for the working
+  grace, as a main turn's stamp does. The main thread picks up a message a fork's
+  turn holds only once that turn has closed or lapsed, and that pickup takes the
+  thread over, so the fork's later pickup, reply or start on it is refused. While
+  the fork's turn runs, the message reads as work in hand, the main thread is
+  neither handed it nor reminded of it, and a further message in the thread goes to
+  the fork at its next tool boundary.
 - **Acting as itself.** Leaf ties work to the turn it runs in: a pickup or start names
   a turn, and lapses when that turn ends. A fork runs in the session's environment,
   so Leaf keeps a turn per agent of the session (`state.AGENT_TURNS`) rather than one
-  per session. Leaf's PreToolUse hook adds the fork's agent id after the `leaf` that
-  begins each of its `leaf` commands (`leaf --agent-id`), so its starts and answer
-  name its turn, and its tool boundaries (its PostToolBatch, which names it) carry
-  the thread's further messages, as the main thread's do. A `leaf` command runs as
-  one of three actors: the main thread, when it names no agent; an agent with an open
-  turn, in that turn; or an agent whose turn has ended, whose replies, starts and
-  acknowledgements are refused rather than made as the main thread's.
+  per session. Leaf's PreToolUse hook adds the agent's id after the `leaf` that
+  begins each `leaf` command of an agent the session has run a turn for, open or
+  ended (`leaf --agent-id`), so a fork's starts and answer name its turn, and its
+  tool boundaries (its PostToolBatch, which names it) carry the thread's further
+  messages, as the main thread's do. A `leaf` command runs as one of three actors:
+  the main thread, when it names no agent; an agent with an open turn, in that turn;
+  or an agent whose turn has ended, whose replies, starts and acknowledgements are
+  refused rather than made as the main thread's. The mark follows the agent rather
+  than its turn, so a fork resumed or running late after its turn ended is still
+  refused. A subagent the session ran no turn for, such as one of the main thread's
+  own workers, goes unmarked and acts as the main thread.
 - **Obligations.** A significant task becomes a to-do on its thread that the agent
   owes until it ends it, as a session's `leaf thread reply --todo` opens today. A
   working fork opens one with the same command when the work proves bigger, and the
   to-do stays the session's after the fork's turn ends. Who opens it for a message
   the line fork sorts as significant, which has no working fork, is step 4's design.
-- **Telling the main thread.** As the fork's run ends, the module tells Leaf. A
-  thread the fork answered is done; one still owed, or a fork that failed, goes to the
-  main thread with the fork's answer reference. The fork tells the main thread what
-  it did and what it left owed, so the session neither redoes nor contradicts it.
-  Today Leaf's clerk queues that line, which waits for the main thread's next tool
-  boundary or prompt; the proposal is the fork's own SendMessage to `main`, which
-  wakes an idle session at once.
+- **Telling the main thread.** As the fork's run ends, the module tells Leaf, which
+  judges each thread by the messages the fork's turn picked up, and Leaf's clerk
+  queues a line for the main thread saying which way it went: the fork answered; it
+  answered and opened a to-do, named with its text, which the main thread now owes
+  and schedules; or it gave the thread back or failed, and the main thread owes the
+  answer, with the fork's answer reference. The line says the thread owes nothing
+  only where nothing waits in it and no to-do on it is open, and it waits for the
+  main thread's next tool boundary or prompt. The proposal is the fork's own SendMessage to `main`, which
+  wakes an idle session at once and can say what the fork did beyond those
+  outcomes, so the session neither redoes nor contradicts it.
 - **Follow-ups.** A later message in a thread a fork answered goes to the same fork,
   resumed by name, rather than to a new fork, so a flurry of messages in one thread
   makes one worker. Leaf's message to it lists what the main thread did on the page
@@ -361,27 +369,32 @@ main thread while the fork works.
    turn runs, the activity fold reads the pickup and the fork's starts as work in
    hand; the main thread's Stop hook, watch and prompt neither hold its turn over the
    message, remind it nor take it in again (`activity.agent_holds`); and its
-   deliveries leave out what the fork holds (`forks.held_inputs`). Every pickup is
-   checked as it is recorded against which turn holds the thread (`forks.pickable`),
-   so a fork's late acknowledgement can't take back a thread the main thread took
-   over. The turn is believed only while renewed within the working grace, as a main
-   turn's stamp is.
+   deliveries leave out what the fork holds (`forks.held_inputs`). The fork's
+   pickups, replies and starts are each checked as they are written against which
+   turn holds the thread (`forks.refuse_unheld`), so a fork that lost its thread to
+   the main thread can neither take it back with a late acknowledgement, nor answer
+   it, nor start on it. The turn is believed only while renewed within the working
+   grace, as a main turn's stamp is.
 
-   Leaf's own PreToolUse hook puts the fork's agent id after the `leaf` that begins
-   each of its commands (`hooks.agent_command`, `leaf --agent-id`), so a permission
-   rule allowing `leaf` commands still matches it. The fork's `leaf thread reply`
-   then posts as the agent's from its turn, and a reply, start or acknowledgement
-   marked with a fork whose turn has ended is refused. The fork's PostToolBatch,
-   which every other subagent's still skips, renews its turn and hands it the
-   thread's further messages (`hook_transport.carry_agent_turn`). As the run of a fork it spawned ends, the
-   module tells Leaf (`forks.ended`), which closes the fork's turn and judges each
-   thread by the messages the turn picked up: an answered thread is done, one the
-   turn still holds is the main thread's to answer, with the fork's answer
-   reference, and one another turn picked up since is that turn's. A fork can also
-   answer with a to-do (`leaf thread reply --todo`), which is the session's and stays
-   open after the fork's turn ends, while the fork's start on it lapses with the turn.
-   `TAKEN`, the posted-for-it answer, the module's deny and its `$.session.send` of
-   follow-ups are gone.
+   Leaf's own PreToolUse hook puts the agent's id after the `leaf` that begins each
+   command of an agent the session has run a turn for (`hooks.agent_command`,
+   `leaf --agent-id`), so a permission rule allowing `leaf` commands still matches
+   it. The fork's `leaf thread reply` then posts as the agent's from its turn. The
+   hook marks an agent whose turn has ended too, so its reply, start or
+   acknowledgement is refused rather than made as the main thread's. The fork's
+   PostToolBatch, which every other subagent's still skips, renews its turn and
+   hands it the thread's further messages (`hook_transport.carry_agent_turn`).
+
+   As the run of a fork it spawned ends, the module tells Leaf (`forks.ended`), which
+   closes the fork's turn and judges each thread by the messages the turn picked up.
+   An answered thread is done. A fork can also answer with a to-do
+   (`leaf thread reply --todo`), which is the session's and stays open after the
+   fork's turn ends, while the fork's start on it lapses with the turn; the main
+   thread hears that the fork answered and opened it, by its text, and now owes it. A
+   thread the turn still holds is the main thread's to answer, with the fork's answer
+   reference, and one another turn picked up since is that turn's. `TAKEN`, the
+   posted-for-it answer, the module's deny and its `$.session.send` of follow-ups are
+   gone.
 
    The turn opens at the take rather than at the fork's `turn.start`, so the hold
    passes to the fork's pickup in one transaction under the page's lock, with no moment

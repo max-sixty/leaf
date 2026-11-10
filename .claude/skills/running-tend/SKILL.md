@@ -179,8 +179,10 @@ once each test it claims to fix failed before the change and passes after it
 (a skipped or deleted test has not passed). For a failure only `test-macos` shows, the
 checks your Linux runner can run suffice (**A red `ci` on main is live** says what
 settles the rest). Pull requests run only the later-tier
-tests they edit, so run the claimed ones yourself. The pull request's CI must
-reach a terminal result on the exact head (`monitor-ci`). A failure there outside
+tests they edit, so run the claimed ones yourself. The merge also waits for the
+pull request's CI to reach a terminal result on the exact head. On a pull request
+with no human author, tend-land does that waiting: the session that pushed records
+the push and doesn't poll (`monitor-ci`, **Which heads to poll**). A failure there outside
 the tests it claims, and not caused by its change, neither blocks the merge nor
 calls for a rerun: the report for that run carries it to its own cause. GitHub's
 applying merge rules still govern the merge.

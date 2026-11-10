@@ -23,20 +23,23 @@ the user's gestures. That process holds a lease the whole state home shares, so 
 machine runs one reading at a time, a page handed over meanwhile looks again until the
 lease is free, and a server stopped or started again mid-reading starts no second one.
 A reading that runs past `DEADLINE_S` is ended by its own alarm, tells nobody anything
-and ends its server's pass, so a page too heavy to read costs that once. Findings reach
-the agent about half a minute after it hands over.
+and ends its server's pass, so a page too heavy to read costs that once. A handover
+right after the last save waits 10 to 15 s for the version to stand and the next look,
+then for the reading: on 2026-11-10 a page whose reading took 7 s told the agent 22 s
+after its turn ended, in each of 3 runs.
 
-**What it costs**, measured 2026-11-05 on the shared 18-core Mac at load 19-28, on 13
-real pages: a median 14 s and 16 CPU-seconds, and 30 s and 36 CPU-seconds on the largest
-(216 KB). A reading leaves out the screens `page check --render` saves, which take the
-check to 18 s and 20 CPU-seconds, and at this niceness it took as long as at 0 under
-that load. A look that finds nothing new costs 0.16 ms of CPU. On the 8,346 revisions of
-227 real pages over 49 days, a reading per revision would have run 174 in the busiest
-hour, 0.75 of a core. A reading per turn runs 37 to 45 there, about 0.2 of a core, and
-161 to 237 on the busiest day, about 0.2% of the machine's day. In 16 eval sessions, 46
-revisions took 22 readings, a median 8 s each. A session saving 100 times in one turn
-pays one reading, and the lease holds the machine to about one core however many turns
-end at once.
+**What it costs**, measured 2026-11-10 on the shared 18-core Mac at load 8-15, on copies
+of 14 real pages. On the 6 that pass plain check, a reading took a median 10 s and 9
+CPU-seconds, and at most 11 s and 12 CPU-seconds; `page check --render`, which also
+saves the screens, took 13 s and 13 CPU-seconds. On the other 8 a reading stops at the
+markup check in 0.1 s, as the check does. On 2026-11-05, at load 19-28, a reading took
+as long at this niceness as at 0. A look that finds nothing new costs 0.16 ms of CPU.
+On the 8,346 revisions of 227 real pages over 49 days, a reading per revision would
+have run 174 in the busiest hour, 0.4 of a core. A reading per turn runs 37 to 45
+there, about 0.1 of a core, and 161 to 237 on the busiest day, about 0.1% of the
+machine's day. In 16 eval sessions on 2026-11-05, 46 revisions took 22 readings, a
+median 8 s each. A session saving 100 times in one turn pays one reading, and the lease
+holds the machine to about one core however many turns end at once.
 
 **What it tells.** Findings the agent hasn't heard, which each reading records, as a
 `render` event (`events.md`) whose handling clause tells failures from advice. A reading
@@ -45,7 +48,7 @@ so the next reading tells them. Under the `error` event's clause agents changed 
 for advice every time; this clause kept every failure fixed and had Claude Code leave
 the advice in 4 of 5. A failure wakes the agent. Of the versions users first reacted to
 on 20 real pages, 2 held one, and both were real. Advice alone wakes nobody and goes
-with the agent's next delivery (`delivery.deliverable`), since 11 of those 20 held only
+with the agent's next delivery (`delivery.deliverable`), since 10 of those 20 held only
 advice, and a wake for it would mostly spend a turn deciding to leave the page alone. A
 finding keeps its place by the element it names, so an edit that moves a measurement
 doesn't tell it again and a fault fixed and reintroduced is told again. A failure told
@@ -85,7 +88,7 @@ VARIABLE = "LEAF_RENDER_PASS"
 LOOK_S = 5
 # How long a version stands before anyone reads it.
 QUIET_S = 10
-# The whole reading, far past the 33 s of the slowest real page sampled. The heaviest
+# The whole reading, far past the 11 s of the slowest real page sampled. The heaviest
 # page the suite renders, the corpus, takes 384 s, so a server spends this on it once.
 # The reading's own alarm ends it, so a reading outlives its server by no more.
 DEADLINE_S = 180

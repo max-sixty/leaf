@@ -110,9 +110,9 @@ so after Escape, with no watch, its messages wait for the page's next change.
 The line goes in as the agent's own (`thread.post_reply` with the claim's identity),
 fenced to the thread being kept back: it writes nothing once the thread is no longer
 kept back as the line fork was asked it, checked under the lock the append takes. The
-page's diagnostics (`interaction_log`) note whether admission kept each thread
-message to a Claude Code session back, and where not, whether its lane was up
-(`fork_kept_back`); each question as Leaf gives it to the module (`fork_asked`), so a
+page's diagnostics (`interaction_log`) note why admission kept each thread message
+to a Claude Code session from the main thread, kept back or held by a running fork
+turn, and where neither, whether its lane was up (`fork_admission`); each question as Leaf gives it to the module (`fork_asked`), so a
 line fork that never answers shows; and every outcome of a thread's forks
 (`fork_outcome`): the line fork's, with its tokens and time, the effort Claude Code
 reports it sent (`effort`), why Leaf refused its line where it did, and the request
@@ -387,13 +387,20 @@ def kept_from_main(page: PageTransaction) -> set:
     } | agent_held(page)
 
 
-def kept_back_at_admission(page: PageTransaction, event: dict) -> bool:
-    """Whether the input `event`, just admitted, is kept from the main thread. For a
-    thread message to a Claude Code session, the page's diagnostics note the answer,
-    and where it is no, whether the session's lane was up (`fork_kept_back`), which is
-    what says why no line fork took a message up."""
-    kept = event["id"] in kept_from_main(page)
+def kept_from_main_at_admission(page: PageTransaction, event: dict) -> bool:
+    """Whether the input `event`, just admitted, is kept from the main thread
+    (`kept_from_main`). For a thread message to a Claude Code session, the page's
+    diagnostics note why (`fork_admission`): kept back for a line fork
+    (`kept_back`), held by a running agent turn (`held_by`, `holding.agent_held`), or
+    neither, with whether the session's lane was up, which is what says why no fork
+    took a message up."""
+    kept = any(event["id"] in thread.inputs for thread in kept_back(page))
     claim = page.active_claim
+    held_by = None
+    if not kept and claim is not None and event["id"] in agent_held(page):
+        held_by = holding_turns(page.events, claim["id"], running_turns(claim)).get(
+            event["id"]
+        )
     if (
         claim is not None
         and claim["harness"] == "claude-code"
@@ -402,14 +409,15 @@ def kept_back_at_admission(page: PageTransaction, event: dict) -> bool:
         _note(
             page.page_dir,
             {
-                "type": "fork_kept_back",
+                "type": "fork_admission",
                 "session": claim["id"],
                 "event": event["id"],
-                "kept": kept,
+                "kept_back": kept,
+                "held_by": held_by,
                 "lane": lane_since(claim["id"]),
             },
         )
-    return kept
+    return kept or held_by is not None
 
 
 def _kept_back_for(page: PageTransaction, session_id: str) -> list[KeptBack]:

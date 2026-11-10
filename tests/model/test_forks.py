@@ -856,7 +856,18 @@ def test_one_fork_works_a_thread_while_its_turn_runs(
         answer_ref(claimed, zone["id"]), "us-east-1b.", asks_back=False
     )
     monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
-    soon = said(claimed, "And the replica's?", parent=zone["id"])
+    status, admitted = endpoint_model.accept_event(
+        claimed,
+        {"kind": "reply", "parent": zone["id"], "revision": 1, "text": "Replica's?"},
+    )
+    assert status == 200, admitted
+    soon = admitted["event"]
+    [note] = [
+        row
+        for row in read_interactions(claimed, types=("fork_admission",))
+        if row["event"] == soon["id"]
+    ]
+    assert (note["kept_back"], note["held_by"]) == (False, running["turn"])
     assert kept_back(claimed) == []
     assert deliverable(claimed) == []
     _opening, envelope = agent_context(capsys, "agent-5").split("\n", 1)
@@ -1823,14 +1834,19 @@ def test_admission_and_each_fork_say_in_the_diagnostics_why_a_message_was_kept_b
     finally:
         leases_model.release_lease(lane)
     notes = [
-        (row["type"], row.get("event"), row.get("kept"), row.get("lane") is not None)
-        if row["type"] == "fork_kept_back"
+        (
+            row["type"],
+            row.get("event"),
+            row.get("kept_back"),
+            row.get("lane") is not None,
+        )
+        if row["type"] == "fork_admission"
         else (row["type"], row["inputs"], row["running"])
-        for row in read_interactions(claimed, types=("fork_kept_back", "fork_asked"))
+        for row in read_interactions(claimed, types=("fork_admission", "fork_asked"))
     ]
     assert notes == [
-        ("fork_kept_back", early, False, False),
-        ("fork_kept_back", later, False, True),
-        ("fork_kept_back", asked, True, True),
+        ("fork_admission", early, False, False),
+        ("fork_admission", later, False, True),
+        ("fork_admission", asked, True, True),
         ("fork_asked", [asked], ["Bash"]),
     ]

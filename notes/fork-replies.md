@@ -178,8 +178,8 @@ out with no line ("no answer within 30 s"). One came while the session ran a 70 
 foreground poll, and the user saw the agent's first words after 64 s. Nothing recorded
 why the other 6 had no fork. The follower now ends once the session's hooks would run
 another Leaf than its own, and the module starts it again (`hooks.cmd_pages`); the
-page now notes whether admission held each message and whether its lane was up
-(`fork_kept_back`), and each fork Leaf asks for (`fork_asked`), which `leaf-dev timeline`
+page now notes whether admission kept each message back, or a fork turn held it, and
+whether its lane was up (`fork_admission`), and each fork Leaf asks for (`fork_asked`), which `leaf-dev timeline`
 reads.
 
 A message no fork answered reads Delivered until the session's first model call ends, a

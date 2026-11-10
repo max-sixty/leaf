@@ -10,8 +10,9 @@ PAGE is a page directory, or any directory holding a page's `events.jsonl` and
 
 - the page's log and diagnostics (`leaf.interaction_log.read_interactions`): each
   message and the agent's words, pickups and receipts, and the records Leaf's hooks
-  and commands leave: `fork_kept_back`, whether admission kept a message back for a line
-  fork and, where not, whether the session's fork lane was up; `fork_asked`, as Leaf
+  and commands leave: `fork_admission`, whether admission kept a message back for a line
+  fork or a running fork turn held it, and where neither, whether the session's fork
+  lane was up; `fork_asked`, as Leaf
   gave a line fork its question; `fork_outcome`, what came of it (`leaf.forks`), a working fork's turn
   and agent among it; `turn_end_check`, the clerk's fork (`leaf.clerk`);
   `leaf_command`, with the agent that ran it where Leaf's PreToolUse hook named one,
@@ -67,7 +68,7 @@ from leaf_dev.reply_phases import (
 # The page's records the timeline reads, besides its log's events.
 DIAGNOSTICS = (
     "event",
-    "fork_kept_back",
+    "fork_admission",
     "fork_asked",
     "fork_outcome",
     "turn_end_check",
@@ -125,13 +126,15 @@ def page_entries(page: Path, since, until) -> tuple[list[dict], set[str], dict]:
                 shown := event_entry(event, threads, messages, lines, agents)
             ) is not None:
                 out.append(shown)
-        elif kind == "fork_kept_back":
+        elif kind == "fork_admission":
             out.append(
                 entry(
                     at,
                     "fork",
                     f"{row['event']} kept back for a line fork"
-                    if row["kept"]
+                    if row["kept_back"]
+                    else f"{row['event']} held by turn {row['held_by'][:8]}"
+                    if row["held_by"]
                     else f"{row['event']} not kept back: "
                     + ("no fork lane" if row["lane"] is None else "with the session"),
                     thread=threads.get(row["event"]),
@@ -578,7 +581,7 @@ def debug_entries(log: str, session: str, *, calls: bool) -> list[dict]:
 
 def message_line(row: dict, kept: dict) -> str:
     """One message's steps, in seconds after its admission: whether admission kept
-    it back (`kept`, its `fork_kept_back` notes), what its fork did, and the page's and the
+    it back or a fork turn held it (`kept`, its `fork_admission` notes), what its fork did, and the page's and the
     session's steps on it (`row`, `page_timings`' reading of it)."""
     marks = row["milestones"]
 
@@ -591,7 +594,9 @@ def message_line(row: dict, kept: dict) -> str:
         ""
         if note is None
         else "kept back · "
-        if note["kept"]
+        if note["kept_back"]
+        else f"held by turn {note['held_by'][:8]} · "
+        if note["held_by"]
         else "not kept back (no fork lane) · "
         if note["lane"] is None
         else "not kept back (with the session) · "
@@ -601,7 +606,7 @@ def message_line(row: dict, kept: dict) -> str:
         told += f"fork {fork['outcome']}{took}" + (
             f" ({clip(fork['why'], 50)})" if fork["why"] else ""
         )
-    elif note is None or note["kept"]:
+    elif note is None or note["kept_back"]:
         told += "no fork"
     pickup = row.get("pickup") or {}
     cause = (
@@ -709,8 +714,8 @@ def show(
     ]
     kept = {
         row["event"]: row
-        for row in read_interactions(page, until=cutoff, types=("fork_kept_back",))
-        if row["type"] == "fork_kept_back"
+        for row in read_interactions(page, until=cutoff, types=("fork_admission",))
+        if row["type"] == "fork_admission"
     }
     for session, path in paths.items():
         if path is not None:

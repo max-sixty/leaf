@@ -4,6 +4,7 @@
  * content, or SVG user units); and the conversion of a viewport movement into a
  * scroller's own offsets. Drawing records points in these frames, so ink follows a
  * transformed, zoomed or resized target. */
+import { scrollRange } from "./arrivals.js";
 import { shownBox } from "./geometry.js";
 import { elementAxes, scrollAxes } from "./element-axes.js";
 import { isHTML } from "./shadow-tree.js";
@@ -228,22 +229,14 @@ export function localScrollBy(source, { x, y }) {
       0,
     );
   };
-  /** @param {number} offset @param {number} current @param {number} minimum @param {number} maximum */
-  const reach = (offset, current, minimum, maximum) =>
+  const range = scrollRange(source);
+  /** @param {number} offset @param {number} current @param {[number, number]} reach */
+  const reach = (offset, current, [minimum, maximum]) =>
     Math.max(minimum - current, Math.min(maximum - current, offset));
-  const horizontalLimit = source.scrollWidth - source.clientWidth;
-  const rtl = getComputedStyle(source).direction === "rtl";
   /** @param {number} offset */
-  const reachLeft = (offset) =>
-    reach(
-      offset,
-      source.scrollLeft,
-      rtl ? -horizontalLimit : 0,
-      rtl ? 0 : horizontalLimit,
-    );
+  const reachLeft = (offset) => reach(offset, source.scrollLeft, range.left);
   /** @param {number} offset */
-  const reachTop = (offset) =>
-    reach(offset, source.scrollTop, 0, source.scrollHeight - source.clientHeight);
+  const reachTop = (offset) => reach(offset, source.scrollTop, range.top);
   if (!horizontal) return { left: 0, top: vertical ? reachTop(along(axes.y)) : 0 };
   if (!vertical) return { left: reachLeft(along(axes.x)), top: 0 };
   const determinant = axes.x.x * axes.y.y - axes.x.y * axes.y.x;

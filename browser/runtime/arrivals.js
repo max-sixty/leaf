@@ -338,14 +338,101 @@ function announceScroll(box) {
 }
 // Complete a scroll write and publish the position that will paint. Native scroll
 // events arrive too late for writes in an animation frame or resize delivery.
+//
+// An instant write that would leave a still box where it stands writes nothing. Its only
+// effect would be one nobody asked for: in Firefox it cancels the rubber band of a flick
+// into an edge, which runs after the box's scroll has ended, so a writer restating where
+// the box stands took that motion from the user (a margin card that put its transcript
+// back at its end at every scroll's end flattened each flick's band). While the browser
+// or a glide moves the box (`browserScrolls`, `holdScroll`), the same write is how a
+// script stops or takes over that motion, as `stopScroll` stops a scroll the browser
+// drives before a landing and a glide takes over a wheel's, so it is written, where the
+// box stands (`stopWhereItStands`); a script's own instant write leaves nothing in
+// motion. Where the box stands is read to the pixel: its scroll size is a whole number
+// of pixels, so an end read from it stands up to a pixel short of the browser's own, as
+// 314 did of Firefox's 314.25 at a 2x display.
 /** @param {Element} box @param {ScrollToOptions} options */
 export function setScroll(box, options) {
   const { scrollTop, scrollLeft } = box;
   const { behavior = "instant" } = options;
+  if (behavior === "instant" && !moves(box, options)) {
+    if (holds.has(box) || browserScrolls(box)) stopWhereItStands(box);
+    placed.set(box, { top: box.scrollTop, left: box.scrollLeft });
+    return;
+  }
   box.scrollTo({ ...options, behavior });
   if (behavior !== "instant") return;
   placed.set(box, { top: box.scrollTop, left: box.scrollLeft });
   if (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft) announceScroll(box);
+}
+// The one scroll write meant to leave a box where it stands, which the write watch
+// knows by this name (tests/write_watch.js, `EXPECTED_SCROLLS`).
+/** @param {Element} box */
+const stopWhereItStands = (box) =>
+  box.scrollTo({ top: box.scrollTop, left: box.scrollLeft, behavior: "instant" });
+// Whether a write to `top` and `left` takes the box a pixel or more from where it
+// stands, once the browser clamps it to the box's range.
+/** @param {Element} box @param {ScrollToOptions} options */
+const moves = (box, { top, left }) => {
+  const range = scrollRange(box);
+  /** @param {number | undefined} to @param {number} at @param {[number, number]} reach */
+  const along = (to, at, [low, high]) =>
+    to !== undefined && Math.abs(Math.min(Math.max(to, low), high) - at) >= 1;
+  return (
+    along(top, box.scrollTop, range.top) || along(left, box.scrollLeft, range.left)
+  );
+};
+// The positions a box's scroll takes on each axis, as the browser clamps a write: from
+// zero to the side where the box's content flows from, the negative one where that is
+// the bottom or right edge (`scrollsBack`). Off zero, where the box stands says which.
+/** @param {Element} box @returns {{top: [number, number], left: [number, number]}} */
+export function scrollRange(box) {
+  const { scrollTop: top, scrollLeft: left } = box;
+  const down = Math.max(box.scrollHeight - box.clientHeight, 0);
+  const across = Math.max(box.scrollWidth - box.clientWidth, 0);
+  const back =
+    (top === 0 && down) || (left === 0 && across)
+      ? scrollsBack(box)
+      : { top: false, left: false };
+  return {
+    top: top < 0 || (top === 0 && back.top) ? [-down, 0] : [0, down],
+    left: left < 0 || (left === 0 && back.left) ? [-across, 0] : [0, across],
+  };
+}
+// Whether each axis of a box scrolls on the negative side of zero: its scroll origin
+// stands where its content's flow starts, so a box whose flow starts at the bottom or
+// right edge scrolls back from zero. Writing mode and direction place the inline and
+// block starts, and a flex container's main and cross starts follow its direction and
+// wrap. The viewport scrolls from the start of the page's principal flow, whose writing
+// mode and direction an HTML page takes from its body unless the root or the body is
+// contained (CSS Writing Modes, "principal writing mode"; CSS Containment), and no flex
+// flow of the root's reverses it. No API reports a box's scroll range (Firefox's own
+// `scrollTopMin` aside), and a box standing at zero shows nothing of its side, so the
+// side is read from the style that decides it; Chromium and Firefox agree on every
+// combination (tests/browser/test_scroll_writes.py).
+/** @param {Element} box @returns {{top: boolean, left: boolean}} */
+function scrollsBack(box) {
+  const page = box.ownerDocument;
+  const viewport = box === page.scrollingElement;
+  const style = getComputedStyle(box);
+  const body = viewport && page.body ? getComputedStyle(page.body) : null;
+  /** @param {CSSStyleDeclaration} s */
+  const contained = (s) => s.contain !== "none" || s.containerType !== "normal";
+  const { writingMode, direction } =
+    body && !contained(style) && !contained(body) ? body : style;
+  const vertical = writingMode !== "horizontal-tb";
+  // Whether the inline axis starts at its bottom or right end, and the block axis.
+  let inline = (writingMode === "sideways-lr") !== (direction === "rtl");
+  let block = writingMode === "vertical-rl" || writingMode === "sideways-rl";
+  const { display, flexDirection, flexWrap } = style;
+  if (!viewport && display.endsWith("flex")) {
+    const reversed = flexDirection.endsWith("-reverse");
+    const wrapped = flexWrap === "wrap-reverse";
+    if (flexDirection.startsWith("column"))
+      [block, inline] = [block !== reversed, inline !== wrapped];
+    else [inline, block] = [inline !== reversed, block !== wrapped];
+  }
+  return vertical ? { top: inline, left: block } : { top: block, left: inline };
 }
 /** @type {WeakSet<Document | ShadowRoot>} */
 const hearing = new WeakSet();

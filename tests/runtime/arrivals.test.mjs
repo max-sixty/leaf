@@ -427,3 +427,51 @@ test("a scroll a script holds ends once, after its release, and stays the script
     box.remove();
   }
 });
+
+test("an instant write reaches a still box only where it moves it, and always while a scroll runs in it", () => {
+  /** @param {number} low @param {number} high @param {number} at */
+  const scroller = (low, high, at) => {
+    const box = document.createElement("div");
+    document.body.append(box);
+    /** @type {number[]} */
+    const writes = [];
+    let top = at;
+    Object.defineProperties(box, {
+      clientHeight: { value: 100 },
+      scrollHeight: { value: 100 + high - low },
+      clientWidth: { value: 100 },
+      scrollWidth: { value: 100 },
+      scrollLeft: { value: 0 },
+      scrollTop: { get: () => top },
+      scrollTo: {
+        value: (/** @type {ScrollToOptions} */ { top: to = top }) => {
+          writes.push(to);
+          top = Math.min(Math.max(to, low), high);
+        },
+      },
+    });
+    return { box, writes };
+  };
+  // At its end, a box takes no write that would leave it there, clamped or a pixel short.
+  const ended = scroller(0, 300, 300);
+  setScroll(ended.box, { top: 300.4 });
+  setScroll(ended.box, { top: 1000 });
+  assert.deepEqual(ended.writes, []);
+  setScroll(ended.box, { top: 250 });
+  assert.deepEqual(ended.writes, [250]);
+  ended.box.remove();
+  // Off zero, the side the box stands on is the side it scrolls on.
+  const reversed = scroller(-300, 0, -300);
+  setScroll(reversed.box, { top: -1000 });
+  setScroll(reversed.box, { top: 0 });
+  assert.deepEqual(reversed.writes, [0]);
+  reversed.box.remove();
+  // While the browser drives a scroll in the box, writing where it stands stops it.
+  const moving = scroller(0, 300, 120);
+  moving.box.dispatchEvent(new window.Event("scroll"));
+  assert.equal(browserScrolls(moving.box), true);
+  setScroll(moving.box, { top: moving.box.scrollTop });
+  assert.deepEqual(moving.writes, [120]);
+  moving.box.dispatchEvent(new window.Event("scrollend"));
+  moving.box.remove();
+});

@@ -29,20 +29,21 @@ started again mid-reading starts no second one. A reading that runs past `DEADLI
 ended by its own alarm, tells nobody anything and ends its server's pass, so a page too
 heavy to read costs that once. A handover right after the last save waits 10 to 15 s for
 the version to stand and the next look, then for the reading: on 2026-11-10 a page whose
-reading took 7 s told the agent 22 s after its turn ended, in each of 3 runs.
+reading took 9 s told the agent 19 s after its turn ended, in each of 3 runs.
 
-**What it costs**, measured 2026-11-10 on the shared 18-core Mac at load 8-15, on copies
-of 14 real pages. On the 6 that pass plain check, a reading took a median 10 s and 9
-CPU-seconds, and at most 11 s and 12 CPU-seconds; `page check --render`, which also
-saves the screens, took 13 s and 13 CPU-seconds. On the other 8 a reading stops at the
-markup check in 0.1 s, as the check does. On 2026-11-05, at load 19-28, a reading took
-as long at this niceness as at 0. A look that finds nothing new costs 0.16 ms of CPU.
-On the 8,346 revisions of 227 real pages over 49 days, a reading per revision would
-have run 174 in the busiest hour, 0.4 of a core. A reading per turn runs 37 to 45
-there, about 0.1 of a core, and 161 to 237 on the busiest day, about 0.1% of the
-machine's day. In 16 eval sessions on 2026-11-05, 46 revisions took 22 readings, a
-median 8 s each. A session saving 100 times in one turn pays one reading, and the lease
-holds the machine to about one core however many turns end at once.
+**What it costs**, measured 2026-11-10 on the shared 18-core Mac at load 3-33, on copies
+of 38 real pages. On the 23 that pass plain check, a reading took a median 12 s and 13
+CPU-seconds, from 8 s and 7 CPU-seconds up to 23 s and 32 CPU-seconds on the larger
+pages; `page check --render`, which also saves the screens, took a median 16 s and 18
+CPU-seconds, up to 31 s and 43. On the other 15 a reading stops at the markup check in
+0.1 s, as the check does. On 2026-11-05, at load 19-28, a reading took as long at this
+niceness as at 0. A look that finds nothing new costs 0.16 ms of CPU. On the 8,346
+revisions of 227 real pages over 49 days, a reading per revision would have run 174 in
+the busiest hour, 0.6 of a core. A reading per turn runs 37 to 45 there, about 0.15 of a
+core, and 161 to 237 on the busiest day, 0.1-0.2% of the machine's day. In 16 eval
+sessions on 2026-11-05, 46 revisions took 22 readings, a median 8 s each. A session
+saving 100 times in one turn pays one reading, and the lease holds the machine to about
+one core however many turns end at once.
 
 **What it tells.** The findings the page's latest reading didn't hold, as a `render`
 event (`events.md`) whose handling clause tells failures from advice. A reading is kept
@@ -75,7 +76,6 @@ from datetime import datetime
 from pathlib import Path
 
 from leaf.event_log import read_events
-from leaf.files import latest_revision
 from leaf.harness import detached_environment
 from leaf.leases import release_lease, take_lease
 from leaf.presence import claimant_reading
@@ -92,7 +92,7 @@ VARIABLE = "LEAF_RENDER_PASS"
 LOOK_S = 5
 # How long a version stands before anyone reads it.
 QUIET_S = 10
-# The whole reading, far past the 11 s of the slowest real page sampled. The heaviest
+# The whole reading, far past the 23 s of the slowest real page sampled. The heaviest
 # page the suite renders, the corpus, takes 384 s, so a server spends this on it once.
 # The reading's own alarm ends it, so a reading outlives its server by no more.
 DEADLINE_S = 180
@@ -196,14 +196,8 @@ def read_and_tell(page_dir: Path) -> bool:
     if lease is None:
         return False
     try:
-        activate_source(page_dir)
-        revision = latest_revision(page_dir)
-        before = read_reading(page_dir)
-        if revision is None or (
-            before and before["digest"] == read_artifact(page_dir, revision).digest
-        ):
-            return True
-        _read_and_tell(page_dir, before)
+        if _unread(page_dir):
+            _read_and_tell(page_dir, read_reading(page_dir))
     finally:
         release_lease(lease)
     return True

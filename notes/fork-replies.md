@@ -6,15 +6,16 @@ stay in the thread, whether the agent's session is idle or busy. Today the media
 first reply takes 17 s when the session is idle and 21 s when it is busy, and the real
 answer 48 s and 100 s ([waits on real pages](leaf-run-sessions.md#waits-on-real-pages)).
 
-On main, `src/leaf/forks.py` holds the states a thread moves through, the hold and the
-working line a fork posts, and `hooks/claude-code.ts` (`lineFork`) makes the fork. This
+On main, `src/leaf/forks.py` holds the states a thread moves through, keeping a
+message back and the working line a fork posts, and `hooks/claude-code.ts`
+(`lineFork`) makes the fork. The Forks guide (`docs/forks.html`) is the design's home. This
 note holds the research behind it: what Claude Code lets a hooks module fork, measured,
 and how well the fork judges what to answer. The main thread is the session's own
 conversation, as against the forks and subagents made from it.
 
 On 2026-11-05 the user took answering out of this fork. A `$.model.fork` fork can't
 call tools, so it now posts only the agent's working line and hands every message to
-the session, and the message reads On it from the moment the hold starts. Answering
+the session, and the message reads On it from the moment Leaf keeps it back. Answering
 moves to a fork that can act ("A fork that takes the work"), and the line fork now
 also judges whether one could take the work. The measurements below are of the fork
 that answered.
@@ -172,9 +173,9 @@ line. That session's pages follower had run since 4 November from its worktree's
 checkout, which moved past two protocol bumps (41 to 42 on 5 November, 43 on 8
 November), while the session's hooks ran the checkout's newer Leaf, which reads the
 follower's lane lease, written at 41, as no one's (`leases.lease_speaks_here`; checked
-on 9 November). Twice the follower, still at 41, held a message and listed it, and the
-fork's step, under the newer Leaf, found it not held and asked no fork, so the hold ran
-out with no line ("no answer within 30 s"). One came while the session ran a 70 s
+on 9 November). Twice the follower, still at 41, kept a message back and listed it, and
+the fork's step, under the newer Leaf, found it not kept back and asked no fork, so its
+bound ran out with no line ("no answer within 30 s"). One came while the session ran a 70 s
 foreground poll, and the user saw the agent's first words after 64 s. Nothing recorded
 why the other 6 had no fork. The follower now ends once the session's hooks would run
 another Leaf than its own, and the module starts it again (`hooks.cmd_pages`); the
@@ -310,7 +311,7 @@ build's protocol check (`pnpm run check:browser`) fails on this branch with
 
 3. **A turn per agent** (built, behind the same flag): the fork's ownership is in
    the log. Leaf keeps a turn per agent the session runs beside its main thread
-   (`state.AGENT_TURNS`). The take, under the hold's fence, opens one for the fork
+   (`state.AGENT_TURNS`). The take, while the thread is still kept back, opens one for the fork
    and records that turn's pickup of the thread, with the receipt and the answer
    reference of a delivery frozen for it; the module spawns the fork with that
    delivery, then tells Leaf which agent runs the turn (`forks.started`). While the
@@ -344,9 +345,9 @@ build's protocol check (`pnpm run check:browser`) fails on this branch with
    posted-for-it answer, the module's deny and its `$.session.send` of follow-ups are
    gone.
 
-   The turn opens at the take rather than at the fork's `turn.start`, so the hold
-   passes to the fork's pickup in one transaction under the page's lock, with no moment
-   in which neither holds the message. The module was to mark the fork's commands
+   The turn opens at the take rather than at the fork's `turn.start`, so the message
+   passes from kept back to the fork's pickup in one transaction under the page's lock,
+   with no moment in which neither has it. The module was to mark the fork's commands
    itself, but Claude Code runs none of a plugin's `tool.call` hooks for an agent the
    plugin spawned (above): the first live run on 2026-11-10 had the fork's reply go in
    unmarked, as the main thread's. In the second, Claude Code applied the PreToolUse

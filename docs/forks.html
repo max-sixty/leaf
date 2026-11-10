@@ -1056,15 +1056,16 @@ flowchart TD
             <li id="source-state">
               <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/state.py"
                 ><code>src/leaf/state.py</code></a
-              >: <code>AGENT_TURNS</code>, <code>agent_known</code> and
-              <code>acting_agent_turn</code>, the record of agent turns and the actor a
-              command runs as.
+              >: <code>AGENT_TURNS</code>, <code>agent_known</code>,
+              <code>unnamed_agent_turns</code> and <code>acting_agent_turn</code>, the
+              record of agent turns and the actor a command runs as.
             </li>
             <li id="source-hooks">
               <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/hooks.py"
                 ><code>src/leaf/hooks.py</code></a
-              >: <code>agent_command</code> and <code>leaf_commands</code>, the marking
-              and the refusal of a compound command; and
+              >: <code>agent_command</code> and <code>leaf_commands</code>, the marking,
+              the denial while a turn awaits its agent and the refusal of a compound
+              command; and
               <a
                 href="https://github.com/max-sixty/leaf/blob/main/src/leaf/hook_transport.py"
                 ><code>src/leaf/hook_transport.py</code></a

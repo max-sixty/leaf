@@ -929,7 +929,8 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
             f"Leaf gave the user's message in thread {basis['thread']} on {page_dir} "
             f"to a fork of this conversation named {agent}, which is doing what it "
             "asks beside you and will answer there; Leaf tells you when it has. Leave "
-            f"that thread to it; to steer or stop it, SendMessage {agent}."
+            f"that thread to it; to steer or stop it, SendMessage {agent}. An answer "
+            "of your own there takes the thread from it."
         ],
     )
     return {

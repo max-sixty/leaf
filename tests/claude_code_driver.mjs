@@ -7,6 +7,8 @@
 // `$.process.spawn` throw; `forkReply`, the text `$.model.fork` answers with;
 // `forkRejects`, which makes every fork reject; `agentId`, the id each
 // `$.agent.spawn` answers with, printing what it was asked as `{"spawned"}`;
+// `sendRefuses`, the reason every `$.session.send` gives for delivering nothing,
+// which otherwise delivers, each send printing what it was asked as `{"sent"}`;
 // `state`, the values `$.state` holds as the module loads, by key, as a reload
 // finds them; and `env`, Claude Code's environment, all that `$.env`
 // reads and what the module's processes inherit over the driver's own. Each
@@ -117,6 +119,12 @@ const $ = {
   plugin: { name: "leaf", root: options.pluginRoot ?? ROOT },
   session: {
     id: async () => session,
+    send: async (args) => {
+      print({ sent: args });
+      return options.sendRefuses === undefined
+        ? { isDelivered: true }
+        : { isDelivered: false, reason: options.sendRefuses };
+    },
   },
   env: {
     get: async (name) => options.env?.[name],

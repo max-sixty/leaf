@@ -4,8 +4,8 @@
 declare module "claude-code" {
   interface PluginState {
     leaf: {
-      // The forks the module spawned to do a thread's work, by agent id, with when
-      // each started, in milliseconds since the epoch.
+      // The forks the module spawned or resumed to do a thread's work, by agent id,
+      // with when each one's present run started, in milliseconds since the epoch.
       forks: Record<string, number>;
     };
   }

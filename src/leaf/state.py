@@ -872,10 +872,12 @@ def _write_agent_turns(session_id: str, turns: dict[str, dict]) -> None:
     AGENT_TURNS.write(session_file(session_id, AGENT_TURNS.kind), {"turns": turns})
 
 
-def open_agent_turn(session_id: str) -> str | None:
-    """Open a turn for an agent the session is about to start, before its harness
-    names it (`name_agent_turn`), and return its id; None for a session that has
-    ended. Each opening mints a new id, so a closed turn never reopens."""
+def open_agent_turn(session_id: str, agent: str | None = None) -> str | None:
+    """Open a turn for an agent the session is about to start or resume, and return
+    its id; None for a session that has ended. A new agent's turn is named once its
+    harness starts it (`name_agent_turn`); a resumed agent's, whose harness id Leaf
+    knows, is named `agent` from the start, so none of its commands meets the turn
+    unnamed. Each opening mints a new id, so a closed turn never reopens."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if not session_live(record):
@@ -887,7 +889,7 @@ def open_agent_turn(session_id: str) -> str | None:
             {
                 **agent_turns(session_id),
                 turn: {
-                    "agent": None,
+                    "agent": agent,
                     "generation": record["generation"],
                     "opened": now,
                     "renewed": now,

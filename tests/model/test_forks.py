@@ -644,6 +644,180 @@ def test_a_follow_up_too_large_for_the_hook_reaches_the_fork_by_pointer(
     assert agent_context(capsys, "agent-1") == ""
 
 
+def answered_by_a_fork(page_dir, monkeypatch, text: str, agent: str) -> dict:
+    """The user's message in a thread of its own, which a fork the module spawned as
+    `agent` took, answered from its own turn, and ended; the message."""
+    asked, taken = taken_by_a_fork(page_dir, text)
+    forks_model.started(
+        "s1", basis(page_dir, asked["id"], asked["id"]), taken["turn"], agent
+    )
+    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, agent)
+    assert thread_model.post_response(
+        answer_ref(page_dir, asked["id"]), f"The answer to: {text}", asks_back=False
+    )
+    monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
+    forks_model.ended("s1", agent=agent, turn=None, answer="Answered.", failed=None)
+    clerk_model.heard("s1", clerk_model.queued("s1"))
+    return asked
+
+
+def taken_again(page_dir, thread: str, more: dict) -> dict:
+    """What Leaf did as the line's fork judged the work of the user's message `more`
+    in `thread` a fork's."""
+    assert held(page_dir) == [(thread, (more["id"],))]
+    taken = forks_model.take(
+        "s1",
+        basis(page_dir, thread, more["id"]),
+        answer=judged("looking into it", "take"),
+        failed=None,
+        work_forks=True,
+    )
+    assert taken["outcome"] == "take", taken
+    return taken
+
+
+def test_a_follow_up_after_the_forks_run_goes_to_that_fork_again(
+    claimed, lane, monkeypatch
+):
+    """The user's further message in a thread a fork answered, once the fork's run
+    has ended, goes to the same fork in a new turn of its own, which Leaf opens under
+    the fork's agent id and records the pickup in, so the fork works the thread
+    however many messages it gets. Leaf's message resuming it carries the delivery.
+    The fork's answer from that turn is its own, and the turn's end reports it."""
+    asked = answered_by_a_fork(claimed, monkeypatch, "Which Python?", "agent-1")
+    more = said(claimed, "And which uv?", parent=asked["id"])
+    taken = taken_again(claimed, asked["id"], more)
+    assert taken["resume"]["agentId"] == "agent-1"
+    assert state_model.agent_turn_of("s1", "agent-1") == taken["turn"]
+    pickup = [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"][-1]
+    assert (pickup["events"], pickup["turn"]) == ([more["id"]], taken["turn"])
+    resume = taken["resume"]["prompt"]
+    assert resume.startswith(forks_model.WORK_OPENING)
+    assert "And which uv?" in resume and answer_ref(claimed, more["id"]) in resume
+    assert "the session has done nothing on the page" in resume
+    assert len(resume) < len(taken["prompt"])
+
+    assert forks_model.started(
+        "s1", basis(claimed, asked["id"], more["id"]), taken["turn"], "agent-1"
+    )["outcome"] == ("start")
+    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-1")
+    answer = thread_model.post_response(
+        answer_ref(claimed, more["id"]), "uv 0.9 or later.", asks_back=False
+    )
+    assert answer is not None and answer["responds"] == more["id"]
+    monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
+    assert forks_model.ended(
+        "s1", agent="agent-1", turn=None, answer="Answered.", failed=None
+    ) == [{"page": str(claimed), "thread": asked["id"], "outcome": "answer"}]
+    assert state_model.open_agent_turns("s1") == {}
+
+
+def test_a_fork_that_cannot_be_resumed_gives_way_to_a_new_one(
+    claimed, lane, monkeypatch, capsys
+):
+    """A thread whose last answer the main thread gave goes to a new fork, and so
+    does one whose fork ran in an earlier generation of the session, which ended
+    with it, or still runs, which a resume would reach only at a tool boundary it
+    may not have. Where the module can't resume the fork, the fork it spawns
+    instead takes over the turn Leaf opened, and the old fork's commands act in no
+    turn."""
+    asked, given = taken_by_a_fork(claimed, "Does the suggest service cache?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), given["turn"], "agent-1"
+    )
+    forks_model.ended(
+        "s1",
+        agent="agent-1",
+        turn=None,
+        answer=f"{forks_model.HAND_BACK} the session is changing it.",
+        failed=None,
+    )
+    context(capsys, "UserPromptSubmit")
+    assert thread_model.post_response(
+        answer_ref(claimed, asked["id"]), "Yes, for an hour.", asks_back=False
+    )
+    more = said(claimed, "And the autocomplete service?", parent=asked["id"])
+    assert "resume" not in taken_again(claimed, asked["id"], more)
+
+    earlier = answered_by_a_fork(claimed, monkeypatch, "Which region?", "agent-2")
+    turns = state_model.agent_turns("s1")
+    for entry in turns.values():
+        entry["generation"] = "an earlier generation"
+    state_model.AGENT_TURNS.write(
+        session_file("s1", state_model.AGENT_TURNS.kind), {"turns": turns}
+    )
+    later = said(claimed, "And staging?", parent=earlier["id"])
+    assert "resume" not in taken_again(claimed, earlier["id"], later)
+
+    lost = answered_by_a_fork(claimed, monkeypatch, "Which shard?", "agent-3")
+    again = said(claimed, "And its replica?", parent=lost["id"])
+    taken = taken_again(claimed, lost["id"], again)
+    assert taken["resume"]["agentId"] == "agent-3"
+    forks_model.started(
+        "s1", basis(claimed, lost["id"], again["id"]), taken["turn"], "agent-4"
+    )
+    assert state_model.agent_turn_of("s1", "agent-4") == taken["turn"]
+    assert state_model.agent_turn_of("s1", "agent-3") is None
+
+    zone, running = taken_by_a_fork(claimed, "Which zone?")
+    forks_model.started(
+        "s1", basis(claimed, zone["id"], zone["id"]), running["turn"], "agent-5"
+    )
+    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-5")
+    assert thread_model.post_response(
+        answer_ref(claimed, zone["id"]), "us-east-1b.", asks_back=False
+    )
+    monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
+    soon = said(claimed, "And the replica's?", parent=zone["id"])
+    assert "resume" not in taken_again(claimed, zone["id"], soon)
+
+
+def test_the_resume_names_what_the_session_did_on_the_page_since_the_forks_run(
+    claimed, lane, monkeypatch
+):
+    """Leaf's message resuming a fork names what the session did on the page after
+    the fork's last turn ended, which the fork's transcript lacks: the threads it
+    wrote in, the fork's own among them, the revisions it published, and the to-dos
+    it opened or ended. What came before that turn ended, the fork saw."""
+    elsewhere = said(claimed, "Is the lease renewed?")
+    seen = thread_model.post_reply(claimed, {"responds": elsewhere["id"]}, "Yes.")
+    assert seen is not None
+    asked = answered_by_a_fork(claimed, monkeypatch, "Which Python?", "agent-1")
+    later = said(claimed, "What does the follower print?")
+    thread_model.post_reply(claimed, {"responds": later["id"]}, "Each page's line.")
+    thread_model.post_reply(
+        claimed, {"parent": asked["id"]}, "To correct the fork: 3.13 or later."
+    )
+    page_file = claimed / "index.html"
+    page_file.write_text(page_file.read_text().replace("</main>", "<p>New.</p></main>"))
+    stamped = stamp(claimed, "Added a paragraph")
+    assert stamped.exit_code == 0, stamped.output
+    todo = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "create", str(claimed), "page", "--title", "Profile the cold start"],
+    )
+    assert todo.exit_code == 0, todo.output
+    [opened] = [e for e in events_model.read_events(claimed) if e["kind"] == "todo"]
+    ended = CliRunner().invoke(
+        cli_model.cli, ["task", "end", str(claimed), opened["id"], "done"]
+    )
+    assert ended.exit_code == 0, ended.output
+    [stamped_note] = [
+        e for e in events_model.read_events(claimed) if e["kind"] == "note"
+    ]
+    revision = stamped_note["revision"]
+
+    more = said(claimed, "And which uv?", parent=asked["id"])
+    resume = taken_again(claimed, asked["id"], more)["resume"]["prompt"]
+    assert (
+        f"the session wrote in thread {later['id']}, this thread; "
+        f"published revision {revision}; "
+        f"opened the to-do “Profile the cold start” ({opened['id']}); "
+        f"ended the to-do “Profile the cold start” ({opened['id']}) as done."
+    ) in resume
+    assert elsewhere["id"] not in resume
+
+
 def lapse(turn: str) -> None:
     """Leave the agent turn `turn` unrenewed for the working grace."""
     turns = state_model.agent_turns("s1")

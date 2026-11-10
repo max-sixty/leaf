@@ -11,11 +11,14 @@ import { overlaps } from "/runtime/rect.js";
 import {
   arrivals,
   inSeatingOrder,
+  packReach,
   packRow,
   pinSpot,
   rowPlacement,
+  seatReach,
   seatRow,
   seatsBy,
+  shiftedPin,
 } from "/runtime/annotation-overlay/margin-placement.js";
 
 const posture = (blockRight, over = {}) =>
@@ -440,4 +443,97 @@ test("rail packing preserves already held pin footprints", () => {
   const held = rect(1141, 162, 31, 26);
   const pushes = packRows([{ key: "rail", rect: rect(1126, 162) }], 4, [held]);
   assert.equal(pushes.get("rail"), 30);
+});
+
+// Footprints scattered over the card or the rail, from a seeded generator so a failure
+// repeats.
+const scatterer = (seed) => {
+  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const scatter = (count, left = 0, width = 420) =>
+    Array.from({ length: count }, () => {
+      const at = { left: left + random() * width, top: random() * 320 };
+      return {
+        ...at,
+        right: at.left + 8 + random() * 90,
+        bottom: at.top + 8 + random() * 60,
+      };
+    });
+  // `kept` in its order, with each of `added` put in at a random place.
+  const interleave = (kept, added) => {
+    const all = [...kept];
+    for (const one of added)
+      all.splice(Math.floor(random() * (all.length + 1)), 0, one);
+    return all;
+  };
+  return { scatter, interleave };
+};
+
+test("a footprint outside a pin's reach leaves its seat as it was", () => {
+  // What the layout relies on to keep a row's seat when only rows elsewhere changed
+  // (margin-layout.js, `seatings`): footprints added or taken away where they miss the
+  // reach leave the pin its seat.
+  const { scatter, interleave } = scatterer(11);
+  const crowd = [box(24, 60, 366, 96), box(24, 104, 300, 140)];
+  const pins = [
+    pin(),
+    pin({ cover: [title] }),
+    pin({ floor: 300, cover: [title, box(24, 148, 200, 184)] }),
+    pin({ cover: crowd, controls: [crowd[0]] }),
+    pin({ seats: [outside, corner, above].map(wide), cover: crowd, folds }),
+    pin({ level: true, seats: [null, corner], floor: 144, cover: [title] }),
+    pin({ cover: crowd, controls: crowd, bounds: box(4, 40, 386, 260) }),
+  ];
+  let moved = 0;
+  for (let round = 0; round < 2000; round += 1) {
+    const input = pins[round % pins.length];
+    const occupied = scatter(5);
+    const seat = seatRow(input, { gap: 4, occupied });
+    const reach = seatReach(input, seat.rect, 4);
+    const within = occupied.filter((one) => overlaps(one, reach));
+    const missing = scatter(12).filter((one) => !overlaps(one, reach));
+    const again = seatRow(input, { gap: 4, occupied: interleave(within, missing) });
+    assert.deepEqual(again, seat, JSON.stringify({ round, occupied, reach }));
+    if (seatRow(input, { gap: 4 }).rect.top !== seat.rect.top) moved += 1;
+  }
+  // The footprints moved enough of the pins that keeping their seats proves something.
+  assert.ok(moved > 40, `only ${moved} pins sat anywhere but where they sit alone`);
+});
+
+test("a footprint outside a rail row's reach leaves its push as it was", () => {
+  const { scatter, interleave } = scatterer(5);
+  let pushed = 0;
+  for (let round = 0; round < 400; round += 1) {
+    const held = round % 5 === 0;
+    const row = {
+      rect: rect(1079, 40 + (round % 7) * 30),
+      held,
+      pushed: held ? 12 : 0,
+    };
+    const occupied = scatter(6, 1040, 120);
+    const push = packRow(row, 4, occupied);
+    const reach = packReach(row, push, 4);
+    const within = occupied.filter((one) => overlaps(one, reach));
+    const missing = scatter(12, 1040, 120).filter((one) => !overlaps(one, reach));
+    assert.equal(packRow(row, 4, interleave(within, missing)), push, `round ${round}`);
+    if (push !== row.pushed) pushed += 1;
+  }
+  assert.ok(pushed > 40, `only ${pushed} rows were pushed`);
+});
+
+test("a pin read before a scroll seats where the scroll carried its seat", () => {
+  const crowd = [box(24, 60, 366, 96), box(24, 104, 300, 140)];
+  const input = pin({ seats: [outside, corner, above].map(wide), cover: crowd, folds });
+  const occupied = [corner, box(318, 148, 362, 192)];
+  /** @param {{left: number, right: number, top: number, bottom: number}} one */
+  const carry = (one) => ({
+    left: one.left + 13,
+    right: one.right + 13,
+    top: one.top - 250,
+    bottom: one.bottom - 250,
+  });
+  const { rect: seat, folded } = seatRow(input, { gap: 4, occupied });
+  assert.deepEqual(
+    seatRow(shiftedPin(input, 13, -250), { gap: 4, occupied: occupied.map(carry) }),
+    { rect: carry(seat), folded },
+  );
 });

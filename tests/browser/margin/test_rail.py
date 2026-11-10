@@ -620,6 +620,52 @@ def test_new_rail_keeps_a_pin_reachable(browser, serve, subtests):
                 margins_laid_out(page)
 
 
+def test_a_row_pushed_down_comes_back_up_when_the_row_above_it_leaves(browser, serve):
+    """Rail rows on three short lines stand pushed one below another, and when the
+    first leaves, the pass that change brings stands the rest back where a fresh pass
+    of the whole margin would, the second level with its line again. That pass reads
+    and seats again only the rows the change can reach (margin-layout.js,
+    `seatings`), so this fails if it leaves a pushed row in its old seat."""
+    lines = "".join(
+        f'<p id="line-{n}" style="margin:0">Line {n}.</p>' for n in (1, 2, 3)
+    )
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(
+        browser,
+        serve(leaf_page("Pushed rows", f"<h1>Pushed rows</h1>{lines}")),
+        context=context,
+    )
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} = await window.__lfWidgetApi();
+      window.lineRows = [1, 2, 3].map((n) => registerContribution({
+        key: `line-${n}`,
+        target: document.getElementById(`line-${n}`),
+        read: () => ({entries: [contributionEntry({key: 'go', glyph: 'G', label: `Go ${n}`})]}),
+        activate: () => {},
+      }));
+    }""")
+    margins_laid_out(page)
+    read = """() => [2, 3].map((n) => ({
+      line: document.getElementById(`line-${n}`).getBoundingClientRect().top,
+      row: document.querySelector(`[data-lf-margin-for="line-${n}"]`)
+        .getBoundingClientRect().top,
+      place: document.querySelector(`[data-lf-margin-for="line-${n}"]`).dataset.lfPlace,
+    }))"""
+    second, third = page.evaluate(read)
+    assert second["place"] == third["place"] == "rail", (second, third)
+    assert second["row"] > second["line"] + 1, "the second row was never pushed"
+    # Wait for the pass the row's leaving brings, not one a layout change forces.
+    page.evaluate("""() => new Promise((resolve) => {
+      document.addEventListener('lf-margin-layout', resolve, {once: true});
+      window.lineRows[0].unregister();
+    })""")
+    second, third = page.evaluate(read)
+    assert abs(second["row"] - second["line"]) < 1, second
+    left = page.evaluate(read)
+    margins_laid_out(page)
+    assert page.evaluate(read) == left
+
+
 @pytest.mark.watch_shifts
 def test_new_pin_keeps_a_rail_reachable(browser, serve, subtests):
     """A new pin leaves a rail row where it stood, held or not, with both still taking

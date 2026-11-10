@@ -1,4 +1,4 @@
-"Initial presentation, polling, presence, and projected-data tests."
+"A tab finds its server again after the server restarts."
 
 import re
 

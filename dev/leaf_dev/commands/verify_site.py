@@ -863,11 +863,6 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     await_presentation(page, url, failures)
     page.locator("#saved-state-recall").wait_for(state="visible")
     page.locator("#heat-opt-window[chosen]").wait_for(state="visible")
-    go_to_threads(page)
-    page.locator(f'.lf-fp-thread[data-lf-key="{seeded["comment"]}"]').click()
-    page.locator(panel_view("thread")).get_by_text(
-        "Saved before the container stopped.", exact=True
-    ).wait_for(state="visible")
     state_response = read_state(context.request, state_url)
     check(
         state_response.headers.get("leaf-state-source") == "durable",
@@ -907,6 +902,14 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     check(
         worker.containers() == asleep, "reading saved content started a page container"
     )
+    # Opening the thread focuses its comment box, which starts the container for the
+    # reply the visitor is about to write (`prewarmContainer`), so it comes after the
+    # checks that reading left the container asleep.
+    go_to_threads(page)
+    page.locator(f'.lf-fp-thread[data-lf-key="{seeded["comment"]}"]').click()
+    page.locator(panel_view("thread")).get_by_text(
+        "Saved before the container stopped.", exact=True
+    ).wait_for(state="visible")
     check(not failures, f"saved-state browser errors: {failures}")
     profile = startup_reading(page)
     # Media ingestion uses the same canonical write transaction but dispatches no

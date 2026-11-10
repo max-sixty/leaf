@@ -79,8 +79,9 @@ diagnostics (`fork_reply`):
 
 With `--fork-work` (`LEAF_FORK_WORK=on`), `fork-idle`'s question goes to a fork that
 does the work: the line's fork judges it a fork's, and a fork spawned from the
-conversation answers it in the thread as the agent while the session stays idle.
-`fork-work` then checks that the session's next turn didn't answer it again.
+conversation, in a turn of its own that picked the comment up, answers it in the
+thread itself with `leaf thread reply` while the session stays idle. `fork-work` then
+checks that the session's next turn didn't answer it again.
 
 Then `quit`, by `/exit`.
 
@@ -673,28 +674,43 @@ def steps(
 
         def forked_work(started: float) -> None:
             """`fork-idle` with forks that do the work: its fork judges the question a
-            fork's, posts the agent's working line, and a fork it spawns answers it
-            in the thread as the agent, while the session stays idle."""
+            fork's and posts the agent's working line, and a fork it spawns, in a
+            turn of its own that picked the comment up, answers it in the thread with
+            `leaf thread reply`, while the session stays idle."""
+            comment = user.ids["fork-idle"]
             cc.until(
                 lambda: user.answered("fork-idle"),
                 "fork-idle: no fork answered it",
             )
-            records = [
-                record
-                for record in (user.forks() if user.forks else [])
-                if user.ids["fork-idle"] in record["inputs"]
-            ]
+
+            def records() -> list[dict]:
+                return [
+                    record
+                    for record in (user.forks() if user.forks else [])
+                    if comment in record["inputs"]
+                ]
+
             taken = require(
-                next((r for r in records if r["outcome"] == "take"), None),
-                f"fork-idle: no fork took the work: {[fork_summary(r) for r in records]}",
+                next((r for r in records() if r["outcome"] == "take"), None),
+                f"fork-idle: no fork took the work: {[fork_summary(r) for r in records()]}",
             )
-            joined = require(
-                next((r for r in records if r.get("step") == "join"), None),
-                "fork-idle: the fork that took the work never joined",
+            cc.until(
+                lambda: any(r.get("step") == "join" for r in records()),
+                "fork-idle: the turn of the fork that took the work never ended",
+                60,
             )
+            joined = next(r for r in records() if r.get("step") == "join")
             require(
                 joined["outcome"] == "answer",
-                f"fork-idle: the fork gave no answer: {fork_summary(joined)}",
+                f"fork-idle: the fork gave the thread back: {fork_summary(joined)}",
+            )
+            require(
+                picked_up(page, comment) == [taken["turn"]],
+                "fork-idle: a turn other than the fork's picked the comment up: "
+                f"{picked_up(page, comment)}",
+            )
+            [reply] = require(
+                answers(page, comment), "fork-idle: the comment has no answer"
             )
             # Nothing wakes the idle session for a comment its fork answered: it
             # takes the comment in, settled, with the clerk's line, at its next turn.
@@ -710,8 +726,8 @@ def steps(
                 detail=(
                     f"`fork-idle` had its first reply after "
                     f"{timings['first_reply']['elapsed_s']:.1f} s, and the fork "
-                    f"{taken['agent']} answered it after {joined['elapsedMs'] / 1000:.1f} s "
-                    f"of work: {joined['text'][:200]!r}"
+                    f"{taken['agent']} answered it in its own turn, which ended after "
+                    f"{joined['elapsedMs'] / 1000:.1f} s: {reply['text'][:200]!r}"
                 ),
             )
 

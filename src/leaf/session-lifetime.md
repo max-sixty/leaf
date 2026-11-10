@@ -102,7 +102,8 @@ through the failure answer `thread.fail_answer` writes.
 
 Each consumer selects its own obligations. `leaf page close` refuses over
 `activity.blocking_obligations`, and the Stop hook holds the turn over
-`activity.turn_obligations`, the blocking ones the open turn has not started. A start
+`activity.turn_obligations`, the blocking ones the open turn has not started and no
+agent turn holds (below). A start
 is the agent's answer for now, and it does not carry into the next turn. Only the
 records the agent owes enter activity counts. Pickup never declares a status, and
 ending a turn settles none of its input.
@@ -120,6 +121,20 @@ other reader, of the record or of a claim's view of it, asks `state.turn_open`,
 record holds closed. `state.end_harness_instance` says
 which generations SessionEnd ends and which, such as a desktop Codex chat's or a
 background job's, outlive the harness instance.
+
+A session can run agents beside its main thread, such as a fork of its conversation
+that took a thread's work (`forks.py`), and each run of one is a turn of its own, in
+the session's agent-turns record (`state.AGENT_TURNS`). Leaf opens it as the session
+starts the agent, the agent's tool boundary renews it, and it closes as the harness
+says the run ended, or with the session's generation or instance. A pickup or start
+names it as it names the main thread's turn: the page's served reading carries the
+claimant's agent turns (`agent_turns`), and the fold believes one running while it is
+open and renewed within the working grace (`activity.running_agent_turns`). An update
+whose newest pickup opened in a running agent turn is in hand for that turn: the main
+thread's hooks neither hold its turn over it, remind it of it, nor take it in again
+(`activity.agent_holds`), and its deliveries leave out what an agent took or holds
+(`forks.agent_inputs`). Once the agent's turn ends, an update still owed is the main
+thread's like any it received, with the reference the agent's delivery gave it.
 
 Where nothing answers for the declaration, activity reports the page `unheld`. A page
 with a persistent service spends most of its life unheld, and picks up again when a

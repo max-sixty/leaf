@@ -224,8 +224,14 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
   and `CLAUDE_PID` are the session's), so a `leaf` command it runs acts for the
   session, as any subagent's does (`harness.ClaudeCodeHarness`).
 - Every hook but the one that spawned it sees its turns and tool calls with its
-  `agentId`, so the module can deny one of its calls (`tool.call` returning `deny`,
-  which the fork reads and works around) or rewrite it.
+  `agentId`, so another plugin's module can deny one of its calls (`tool.call`
+  returning `deny`, which the fork reads and works around) or rewrite it. The plugin
+  that spawned it can't: in 2.1.322 Claude Code skipped all of Leaf's `tool.call`
+  hooks for a fork Leaf spawned from the pages follower, logging "tool.call skipped:
+  re-entry (the plugin's own code raised it; origin leaf)", while its
+  `turn.complete` hook ran, and so did `hooks.json`'s command hooks, PreToolUse and
+  PostToolBatch, whose payloads name the fork (`agent_id`) and whose PreToolUse can
+  rewrite the call (`updatedInput`).
 - `$.session.send({ to: { agentId } })` reaches it as a coordinator's message at its
   next tool boundary, and it acts on it.
 - The main thread learns nothing of it: its transcript gets no row for the spawn, and
@@ -247,30 +253,32 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
   files and branch, the page's source, its pull requests), settles none of its open
   questions, and waits on nothing it is running. The fork doing the work may still
   hand the thread back once it learns more.
-- **Doing.** On `take`, the module spawns a fork with Leaf's task carrying the
-  thread as Leaf would deliver it. The fork does the work with the session's tools and
-  ends with its answer; the module denies its `leaf` commands, and Leaf posts the
-  answer as the agent's when the fork joins, as it posted the 2026-10-31 fork's
-  replies.
-- **Owning.** A thread a fork has taken is held for longer (`TAKEN`): not deliverable
-  to the session, read as On it, and bounded by `WORK_BOUND_S` rather than the line's
-  30 s. A further message in it goes to the fork (`$.session.send`), and a receipt
-  for later input, which moves the acknowledgement cursor past it, leaves it held.
+- **Doing.** On `take`, Leaf opens a turn for the fork and records that turn's
+  pickup of the thread, and the module spawns a fork with Leaf's task carrying the
+  delivery Leaf froze for it. The fork does the work with the session's tools and
+  answers in the thread itself, with the `leaf thread reply` the delivery names.
+- **Owning.** The fork holds the thread as any turn holds what it picked up: the
+  take is a pickup in the page log naming the fork's turn, with the receipt, so every
+  reader of received input agrees on it. While that turn runs, the message reads as
+  work in hand, the main thread is neither handed it nor reminded of it, and a
+  further message in the thread goes to the fork at its next tool boundary; a receipt
+  for later input changes none of that. The turn lapses as the fork's run ends, or
+  goes unrenewed for the working grace, as a main turn's stamp does.
 - **Acting as itself.** Leaf ties work to the turn it runs in: a pickup or start names
-  the session's turn, and lapses when that turn ends. A fork runs in the session's
-  environment, so its own pickups and starts would name the main thread's turn, and
-  the update would read Stopped once the main thread's turn ended. Leaf posting the
-  fork's answer avoids that while a fork only answers. A fork that changes the page,
-  starts work or answers with markup needs a turn of its own: the module would
-  prefix the fork's commands with its `agentId` and tell Leaf as its turns open and
-  close, so Leaf keeps a turn per agent of the session rather than one per session.
-- **Joining.** As the fork's turn completes, the module tells Leaf. A thread the fork
-  answered is done; one it gave back (`HAND BACK:`), or a fork that failed, goes to
-  the main thread as a hand-over. Either way the clerk queues a line for the main
-  thread naming the fork, the thread and what the fork did, so the session neither
-  redoes nor contradicts it. Nothing wakes an idle main thread for an answered
-  message: it takes the message in, settled, with the clerk's line, at its next
-  turn.
+  a turn, and lapses when that turn ends. A fork runs in the session's environment,
+  so Leaf keeps a turn per agent of the session (`state.AGENT_TURNS`) rather than one
+  per session: Leaf's PreToolUse hook marks the fork's `leaf` commands with its
+  agent id (`LEAF_AGENT_ID`), so its starts and answer name its turn, and its tool
+  boundaries (its PostToolBatch, which names it) carry the thread's further
+  messages, as the main thread's do.
+- **Joining.** As the fork's turn completes, the module tells Leaf, which closes it.
+  A thread the fork answered is done; one it gave back (`HAND BACK:`), left
+  unanswered, or whose fork failed, is the main thread's to answer, as any update it
+  received, with the fork's answer reference. Either way the clerk queues a line
+  for the main thread naming the fork, the thread and what the fork did, so the
+  session neither redoes nor contradicts it. Nothing wakes an idle main thread for
+  an answered message: it takes the message in, settled, with the clerk's line, at
+  its next turn.
 - **The main thread in charge.** As a fork takes a thread, the clerk's line tells the
   main thread which fork took what, by name, so it can steer or stop it with
   SendMessage, or take the thread over.
@@ -304,15 +312,42 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
    module reload, a failed join or an exit lost. Each could be patched, but each
    patch would teach one more reader about a second record of who holds a message.
 
-3. **A turn per agent**: the fork's ownership goes into the log, as a pickup naming
-   the fork's run, so every reader of received input agrees; Leaf keeps a turn per
-   agent of the session, opened and closed from the module's `turn.start` and
-   `turn.complete`, so the activity fold reads a pickup or start in a live fork run
-   as current work rather than stale; and the module marks the fork's commands with
-   its run, so the fork answers with `leaf thread reply` from a delivery of its own
-   and its tool boundaries carry the thread's further messages, as the main thread's
-   do (a subagent's tool batches are skipped today, `state.worker_tool_batch`). That
-   removes `TAKEN`, the posted-for-it answer and the deny of its `leaf` commands.
+3. **A turn per agent** (built, behind the same flag): the fork's ownership is in
+   the log. Leaf keeps a turn per agent the session runs beside its main thread
+   (`state.AGENT_TURNS`). The take, under the hold's fence, opens one for the fork
+   and records that turn's pickup of the thread, with the receipt and the answer
+   reference of a delivery frozen for it; the module spawns the fork with that
+   delivery, then tells Leaf which agent runs the turn (`forks.started`). While the
+   turn runs, the activity fold reads the pickup and the fork's starts as work in
+   hand; the main thread's Stop hook, watch and prompt neither hold its turn over the
+   message, remind it nor take it in again (`activity.agent_holds`); and its
+   deliveries leave out what the fork took or holds (`forks.agent_inputs`). The turn
+   is believed only while renewed within the working grace, as a main turn's stamp
+   is. Leaf's own PreToolUse hook marks the fork's `leaf` commands with its agent id
+   (`hooks.agent_command`), so its `leaf thread reply` posts as the agent's from its
+   turn, and its PostToolBatch, which every other subagent's still skips, renews the
+   turn and hands it the thread's further messages
+   (`hook_transport.carry_agent_turn`). As any agent's run ends the module tells Leaf
+   (`forks.ended`), which closes a fork's turn: an answered thread is done, and one
+   still owed is the main thread's, with the fork's answer reference. `TAKEN`, the
+   posted-for-it answer, the module's deny and its `$.session.send` of follow-ups are
+   gone.
+
+   The turn opens at the take rather than at the fork's `turn.start`, so the hold
+   passes to the fork's pickup in one transaction under the page's lock, with no moment
+   in which neither holds the message. The module was to mark the fork's commands
+   itself, but Claude Code runs none of a plugin's `tool.call` hooks for an agent the
+   plugin spawned (above): the first live run on 2026-11-10 had the fork's reply go in
+   unmarked, as the main thread's. In the second, Claude Code applied the PreToolUse
+   hook's `updatedInput` ("modified tool input keys: [command, description]" in its
+   debug log). Each run's "What did I ask you to do with this page?" had the line
+   at 4.0 s and 3.2 s, the fork's pickup in its own turn in the same instant, its
+   own `leaf thread reply` answer at 9.9 s and 9.6 s, and its turn ended 9.2 s after
+   it started, all while the session stayed idle. Its next turn didn't answer the
+   message again. That was on a host at load 8 to 20. No live run yet sends a
+   follow-up while a fork works, so the PostToolBatch hand-over is proved only by
+   the model tests (`tests/model/test_forks.py`).
+
 4. **Measuring it**: an outcome eval comparing a fork's answers with the session's on
    replayed hand-overs, and the decision and coherence evals below, before forks that
    act become the default.

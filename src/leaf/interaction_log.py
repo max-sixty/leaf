@@ -98,7 +98,8 @@ def launched() -> float:
 
 def record_command(command: str) -> None:
     """Record in each page this command acted on how long it has taken, with the
-    harness session that ran it, once: a later call records nothing. A diagnostic
+    harness session that ran it and the agent of the session the hooks module named
+    (`state.AGENT_VARIABLE`), once: a later call records nothing. A diagnostic
     the system won't let this process gather or write, as a sandbox may refuse a
     session record or a page, is dropped, since the command's own result has
     already been decided."""
@@ -109,11 +110,13 @@ def record_command(command: str) -> None:
     import psutil
 
     from .harness import session_harness
+    from .state import AGENT_VARIABLE
 
     try:
         started = launched()
         harness = session_harness()
         session = harness.session if harness is not None else None
+        agent = os.environ.get(AGENT_VARIABLE)
         record = {
             "source": "cli",
             "type": "leaf_command",
@@ -121,6 +124,7 @@ def record_command(command: str) -> None:
             "started": datetime.fromtimestamp(started, UTC).isoformat(),
             "durationMs": round((ended - started) * 1000, 1),
             "session": session,
+            **({"agent": agent} if agent else {}),
             "context": session_context(session),
         }
     except (OSError, psutil.Error):

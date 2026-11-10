@@ -587,6 +587,12 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_its_reader_confirms(
     reason = continued(answer)
     assert harness.fits_hook_context(reason)
     [delivery_id] = re.findall(r'<leaf-delivery id="(\w+)"', reason)
+    # The pointer reads as the user's input waiting, like an inline delivery: it
+    # opens on how many updates it holds and from which page, and asks to be read
+    # before answering.
+    opening = reason.splitlines()[0]
+    assert "1 update" in opening and str(claimed) in opening
+    assert f"leaf delivery read {delivery_id}" in opening
     assert acknowledged_through(claimed) == 0
     assert all(e["kind"] != "pickup" for e in events_model.read_events(claimed))
 

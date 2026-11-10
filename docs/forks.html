@@ -101,6 +101,30 @@
               The user's messages in a thread since the agent's last answer there. The
               newest one owes the thread's answer.
             </dd>
+            <dt id="term-kept-back">Kept back</dt>
+            <dd>
+              A new thread message Leaf withholds from the main thread while a line fork
+              writes its working line and sorts it, for 30 s at most.
+            </dd>
+            <dt id="term-holds">Holds</dt>
+            <dd>
+              A turn holds a thread's messages from the moment it takes the thread, by
+              picking up its messages or answering it, until another turn does.
+              <a href="#holding">Who holds a message</a> gives the exact rule.
+            </dd>
+            <dt id="term-take">Take</dt>
+            <dd>
+              The line fork's judgment that a working fork should do the work
+              (<code>take</code>), and the act that gives the thread to one: a turn Leaf
+              opens for the fork picks the thread's messages up.
+            </dd>
+            <dt id="term-hand-over">Hand over, hand back</dt>
+            <dd>
+              Leaf hands a kept-back message over to the main thread, as the line fork's
+              <code>hand_over</code> judgment asks or when keeping it back ends. A
+              working fork hands its thread back to the main thread, with
+              <code>HAND BACK:</code> or by ending unanswered (<code>hand_back</code>).
+            </dd>
             <dt id="term-pages-follower">Pages follower</dt>
             <dd>
               The background process Leaf's hooks module runs for a session that holds a
@@ -148,10 +172,11 @@
           <h2>The path of one thread message</h2>
           <p id="path-kept">
             When the user writes in a thread, none of whose waiting messages has reached
-            the main thread or been handed to it, and all of them arrived while the
-            session's pages follower was running, Leaf keeps the new message back from
-            the main thread and asks a line fork for the working line. From then until
-            the agent answers, the message reads
+            the main thread or been handed to it, all of them arrived while the
+            session's pages follower was running, and no running fork's turn took the
+            thread, Leaf keeps the new message back from the main thread and asks a line
+            fork for the working line. From then until the agent answers, the message
+            reads
             <a href="/how-it-works/#stages-working">On it</a>. The line fork reads the
             message against the conversation, writes the working line, and sorts the
             message by who should do the work. Leaf posts the line as the agent's and
@@ -196,6 +221,23 @@ flowchart TD
               <code class="nowrap">LEAF_FORK_WORK=on</code>.
             </figcaption>
           </figure>
+
+          <p id="path-record">
+            Keeping a message back is the one state of a thread that Leaf reads partly
+            from outside the page log. A hand-over goes in the session's
+            <code>forks</code> file (<code>forks.HANDED</code>), and whether the pages
+            follower runs comes from its lease. Every reader asks one function which
+            messages Leaf keeps back (<code>forks.kept_back</code>), so none disagrees.
+            The log can't hold this state: keeping back also ends when the follower
+            stops, which nothing writes, so a live lease decides it whatever the log
+            says. A lost hand-over record only has the follower hand the message over
+            again at its next look. Which turn holds a message is different: every
+            reader has to agree on it, it outlives the fork, and it decides whose writes
+            stand, so a take is a pickup in the log, and an answer is a reply there that
+            names its turn. Moving hand-overs into the log too would add an event to
+            nearly every thread message in a Claude Code session, and change the
+            protocol, while the lease still decided when keeping back ends.
+          </p>
 
           <section id="sorting" class="layout-flow">
             <h3>How the line fork sorts a message</h3>
@@ -468,12 +510,12 @@ flowchart TD
             <span class="tag">only with the flag</span>
           </p>
           <figure id="acting-figure" class="diagram-figure">
-            <lf-diagram id="acting-flow" data-height="646" parts="all">
+            <lf-diagram id="acting-flow" data-height="844" parts="all">
               <pre>
 ---
 config:
   flowchart:
-    wrappingWidth: 90
+    wrappingWidth: 84
     nodeSpacing: 8
     rankSpacing: 26
 ---
@@ -481,7 +523,7 @@ flowchart TD
   accTitle: Who a leaf command acts as
   accDescr: A Bash call that runs leaf, from an agent that runs no open turn while a turn Leaf opened awaits its agent, is denied with the instruction to run it again. Otherwise, from an agent the session ran no turn for, it acts as the main thread. From an agent the session ran a turn for, a call where leaf isn't the first word, or runs twice, is denied. Otherwise the hook marks it with the agent's id; it acts in the agent's turn while that turn is open, on what the turn holds, and is refused once the turn has ended.
   bash["A Bash call runs leaf"]
-  waits("Does the agent run no open turn, while a turn awaits its agent?")
+  waits("Does it run no turn, while a new turn awaits its agent?")
   again["Denied: run it again"]
   known("Did the session run a turn for this agent?")
   main["It acts as the main thread"]
@@ -598,7 +640,7 @@ flowchart TD
             <span class="tag">only with the flag</span>
           </p>
           <figure id="ending-figure" class="diagram-figure">
-            <lf-diagram id="ending-flow" data-height="685" parts="all">
+            <lf-diagram id="ending-flow" data-height="721" parts="all">
               <pre>
 ---
 config:
@@ -734,7 +776,7 @@ flowchart TD
             <span class="tag">only with the flag</span>
           </p>
           <figure id="follow-ups-figure" class="diagram-figure">
-            <lf-diagram id="follow-up-flow" data-height="786" parts="all">
+            <lf-diagram id="follow-up-flow" data-height="894" parts="all">
               <pre>
 ---
 config:

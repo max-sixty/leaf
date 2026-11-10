@@ -15,7 +15,7 @@ conversation, as against the forks and subagents made from it.
 On 2026-11-05 the user took answering out of this fork. A `$.model.fork` fork can't
 call tools, so it now posts only the agent's working line and hands every message to
 the session, and the message reads On it from the moment the hold starts. Answering
-moves to a fork that can act ("A fork that takes the work"), and the line's fork now
+moves to a fork that can act ("A fork that takes the work"), and the line fork now
 also judges whether one could take the work. The measurements below are of the fork
 that answered.
 

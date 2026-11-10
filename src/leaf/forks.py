@@ -1,7 +1,11 @@
-"""Forked working lines: a fork of a Claude Code session's conversation that posts
-the agent's working line on the user's waiting messages in a thread at once, then
-hands them to the session. It runs only in Claude Code, from Leaf's hooks module
-(`hooks/claude-code.ts`).
+"""Forks of a Claude Code session's conversation that answer the user's thread
+messages: a line fork, which posts the agent's working line on a thread's waiting
+messages at once and sorts them, and, with `LEAF_FORK_WORK=on` in Claude Code's
+environment while the design is tried, a working fork with the session's tools, which
+does a thread's work and answers it. Both run only in Claude Code, from Leaf's hooks
+module (`hooks/claude-code.ts`). `docs/forks.html` is the design's home, diagrams
+included; this header holds the rules this module keeps and the choices behind them,
+and `holding.py` the rule for which turn holds a message.
 
 On real pages the session's answer to a thread message took a median 48 s when it
 was idle and 100 s when it was busy, and the thread showed nothing from the agent
@@ -9,128 +13,116 @@ for a median 35 s after a message, until the session's first model call ended
 (`notes/fork-replies.md`, "Forks on real pages"). `$.model.fork` resends the
 session's last request with one more message, at any moment, mid-command too, and a
 fork decided in a median 3 s. The user chose on 2026-10-31 a fork that answers or
-hands over. On 2026-11-05 they had a fork that hands over post the agent's working
-line, and then had the fork post only that line, always handing over: a fork can't
-call tools (`$.model.fork` denies every one), and answering is left to a fork that
-can act. The fork also judges whether such a fork could do the work beside the
-session (`ANSWER`'s `work`). Where the module makes forks that act, which it does only
-with `LEAF_FORK_WORK=on` while the design is tried, a thread judged `take` goes to a
-fork spawned from the conversation, which does the work and answers the user itself
-(`_take`); otherwise Leaf records the judgment and hands the thread over
-(`docs/forks.html`, the design's home).
-
-A fork that takes a thread runs a turn of its own (`state.AGENT_TURNS`), and Leaf
-records the take as that turn's pickup of the thread's waiting messages, with the
-receipt, under the hold's fence: the page log then says which turn holds the message
-(`holding.py`, which owns that rule for every turn of a session, the main thread's
-included), so every reader of received input agrees on it. While the fork's turn runs, the activity fold
-reads the pickup and the fork's starts as work in hand (`activity.agent_holds`), the
-main thread is neither handed the thread's messages nor reminded of them
-(`kept_from_main`, `delivery.deliverable`), and the user's further messages in the thread
-go to the fork at its tool boundaries (`hook_transport.carry_agent_turn`). Leaf's
-PreToolUse hook marks the fork's `leaf` commands with its agent id
-(`hooks.agent_command`), so the fork answers with `leaf thread reply` from the delivery
-Leaf gave it, writing as the agent, in its own turn (`state.acting_turn`). As its run
-ends the module says so (`ended`), which closes the turn. An answered thread is done,
-though a to-do the fork opened with its answer stays open for the main thread to
-schedule. A thread still owed, which the fork gave back (`HAND_BACK`) or left, is the
-main thread's like any update it received, whose hooks and watch then remind it with
-the fork's answer reference.
-
-The user chose on 2026-11-10 that one fork works a thread: a later message the line's
-fork judges `take`, in a thread whose last answer came from a fork's turn, goes to
-that fork again, in a new turn under the same agent id (`_resumable`), rather than to
-a new fork. Leaf's message resuming it (`resume_prompt`) carries the thread's delivery
-and names what the rest of the session did on the page since the fork's last turn
-began (`_since`), which the fork's transcript lacks. A thread whose fork ran in an
-earlier generation of the session goes to a new fork, and so does one whose fork the
-module fails to resume; that new fork takes over the turn Leaf opened for the old one
-(`started`).
-
-The line is the agent's progress message in the thread (`thread.post_reply`), which
-the thread shows until the session's own words replace it. From the moment the hold
-starts, and while the line stands, the thread's waiting messages read On it
-(`forked`, which `served_state.work` serves as their workflows' `at_work`, so every
-surface showing whether the agent is at work agrees), as the user chose
-on 2026-11-05. That word is all the fork changes: as a receipt's progress the line
-takes nothing in hand (`thread.Receipt`), so every reader that ages, nudges or holds
-a turn reads the message's delivery. A start would read as the session's turn,
-renewing it after an interrupt and holding the message at Working before the
-session had it, which hid it from the nudge and the overdue count.
-
-The fork thinks at `EFFORT` whatever the session's own effort, since every second it
-takes keeps the thread's messages from the session. The turn-end check's fork has an
-effort of its own (`clerk.EFFORT`), measured on its own work. On 2026-11-09 low wrote
-lines as good as xhigh's. On 40 recorded thread messages, each replayed from its
-session's transcript (`notes/fork-replies.md`, "How well the fork judges"), a judge
-blind to the effort passed 35 lines at each effort and preferred low's on 19, xhigh's
-on 16 and neither on 5; `leaf-dev eval 'line-fork*'` passed 35 of 35 at each over
-five repeats. Neither effort thought on the recorded messages, so their output and
-time matched there (low wrote 1.03 times the tokens, 95% interval 0.97–1.10). On the
-eval's short conversations xhigh thought over 5 of its 35 lines, taking up to 3.5 s
-where a line took a median 1 s, and low over none, for 0.85 times xhigh's time
-(0.75–0.95). So low removes the occasional line xhigh spends seconds thinking over,
-and the line's time no longer depends on the session's effort.
+hands over. On 2026-11-05 they had the fork post only the agent's working line,
+always handing over: a line fork can't call tools (`$.model.fork` denies every one),
+and answering is left to a fork that can act. The line fork also judges whether a
+working fork could do the work beside the session (`ANSWER`'s `work`): `take` gives
+the thread to one, where the module makes them (`_take`), and otherwise Leaf records
+the judgment and hands the thread over.
 
 A thread's waiting messages are the user's messages since the agent's last answer in
-it, the newest of which owes the thread's answer. Each thread with waiting messages
-is in one of these states, which `held` and `agent_inputs` compute from the page's
-log, the session's hand-overs (`HANDED`), its agents' turns and the forks' lane;
-nothing stores the state itself:
+it, the newest of which owes the thread's answer (`holding.rounds`). Each thread with
+waiting messages is in one of these states, which `kept_back` and `holding.py`
+compute from the page's log, the session's hand-overs (`HANDED`), its agents' turns
+and the forks' lane; nothing stores the state itself:
 
 | State | Means | Entered by |
 | --- | --- | --- |
-| held | Leaf keeps the thread's waiting messages from the session while a fork writes its line | a user message in a thread none of whose waiting messages the session has received or been handed, while the session's lane is live and has been since the first of them arrived |
-| taken | a fork that acts does the work in a turn of its own, which picked the messages up; the user's further messages in the thread go to that fork while the turn runs, and once it has ended, one the line's fork judges a fork's goes to the same fork, resumed | the line's fork judging the work a fork's, where the module makes such forks (`take`) |
-| with the session | delivered as any input is | a hand-over: the fork's line posted, a failed fork, or the lane's once `BOUND_S` has passed since the newest waiting message (`look`); the lane going down; or a taken thread's fork turn ending without answering it (`ended`) |
+| kept back | Leaf keeps the thread's waiting messages from the main thread while a line fork writes its line | a user message in a thread none of whose waiting messages the session has received or been handed, and which no running fork turn took, while the session's lane is live and has been since the first of them arrived |
+| taken | a working fork does the work in a turn of its own, which picked the messages up and holds the thread until another turn takes it (`holding.py`) | the line fork judging `take`, where the module makes working forks (`_take`) |
+| with the session | delivered as any input is | a hand-over: the line posted, a failed line fork, or the lane's once `BOUND_S` has passed since the newest waiting message (`look`); the lane going down; a working fork's turn ending with the thread unanswered (`ended`); or the main thread's answer taking the thread from a working fork |
 
-The main session hears as a fork takes a thread and as it answers or gives it back
-(`clerk.queue`), since Claude Code tells it nothing of a fork a module made, and it
-can steer or stop the fork by the name Leaf gives it.
+A working fork runs a turn of its own (`state.AGENT_TURNS`), which Leaf opens at the
+take and names once the module says which agent runs it (`started`). Leaf records
+the take as that turn's pickup of the thread's waiting messages, with their receipt,
+fenced to the thread still being kept back, so the messages go from kept back to held
+with no moment in which neither has them. The fork's `leaf` commands act in its turn
+(`hooks.agent_command`), and as its run ends the module says so (`ended`), which
+closes the turn and judges each thread by what the turn picked up and wrote. The main
+session hears as a fork takes a thread and as its run ends (`clerk.queue`), since
+Claude Code tells it nothing of a fork a module made, and it can steer or stop the
+fork by the name Leaf gives it.
 
-Another message while the thread is held keeps it held, with a fork for the new
-set, and drops the earlier fork's line (`take`); a thread with the session stays
-there until the session answers it, and a message after that answer makes the
-thread held again. Held input is not `delivery.deliverable`, which the hooks, the
-watch and its nudges read, and admission doesn't nudge for it (`event_endpoint`),
-since the hold has to start before the watch would wake the session.
+The user chose on 2026-11-10 that one fork works a thread. While a fork's turn runs,
+its thread's further messages are its own, and Leaf keeps none back for another
+(`_kept_back`). A later message the line fork judges `take`, in a thread whose last
+answer names a fork's turn that has since closed, goes to that fork again, resumed in
+a new turn (`_resumable`), with a message (`resume_prompt`) naming what the rest of
+the session did on the page since the fork's last turn began (`_since`), which the
+fork's transcript lacks.
 
-Each way out of the hold but the lane going down is a write the session's waiters
-already read, made under the page's lock: a hand-over in `HANDED`, which the
-watch's reading stamps (`served_state.reading`), and it nudges a session no watch
-follows, as admission would have. So the bound is the lane's to keep, for every page
-the session holds, and the state needs no clock. The lane going down writes nothing,
-so the page's presence reading names the lane (`presence.live_facts`), and a tab
-showing On it for a held message re-reads within the reading's cache interval.
+The line is the agent's progress message in the thread (`thread.post_reply`), which
+the thread shows until the session's own words replace it. From the moment Leaf
+starts keeping a thread back, and while the line stands, the thread's waiting
+messages read On it (`forked`, which `served_state.work` serves as their workflows'
+`at_work`, so every surface showing whether the agent is at work agrees), as the user
+chose on 2026-11-05. That word is all the line fork changes: as a receipt's progress
+the line takes nothing in hand (`thread.Receipt`), so every reader that ages, nudges
+or holds a turn reads the message's delivery. A start would read as the session's
+turn, renewing it after an interrupt and holding the message at Working before the
+session had it, which hid it from the nudge and the overdue count.
+
+The line fork thinks at `EFFORT` whatever the session's own effort, since every
+second it takes keeps the thread's messages from the session. The turn-end check's
+fork has an effort of its own (`clerk.EFFORT`), measured on its own work. On
+2026-11-09 low wrote lines as good as xhigh's. On 40 recorded thread messages, each
+replayed from its session's transcript (`notes/fork-replies.md`, "How well the fork
+judges"), a judge blind to the effort passed 35 lines at each effort and preferred
+low's on 19, xhigh's on 16 and neither on 5; `leaf-dev eval 'line-fork*'` passed 35
+of 35 at each over five repeats. Neither effort thought on the recorded messages, so
+their output and time matched there (low wrote 1.03 times the tokens, 95% interval
+0.97–1.10). On the eval's short conversations xhigh thought over 5 of its 35 lines,
+taking up to 3.5 s where a line took a median 1 s, and low over none, for 0.85 times
+xhigh's time (0.75–0.95). So low removes the occasional line xhigh spends seconds
+thinking over, and the line's time no longer depends on the session's effort.
+
+Another message while the thread is kept back keeps it back, with a line fork for the
+new set, and drops the earlier line fork's line (`route`); a thread with the session
+stays there until the session answers it, and a message after that answer is kept
+back again. Kept-back input is not `delivery.deliverable`, which the hooks, the watch
+and its nudges read, and admission doesn't nudge for it (`event_endpoint`), since
+keeping it back has to start before the watch would wake the session.
+
+Each way out of keeping a thread back but the lane going down is a write the
+session's waiters already read, made under the page's lock: a hand-over in `HANDED`,
+which the watch's reading stamps (`served_state.reading`), and it nudges a session no
+watch follows, as admission would have. So the bound is the lane's to keep, for every
+page the session holds, and the state needs no clock. The lane going down writes
+nothing, so the page's presence reading names the lane (`presence.live_facts`), and a
+tab showing On it for a kept-back message re-reads within the reading's cache
+interval. Since the lane's lease decides when keeping back ends, the state stays
+outside the page log, while a take, which says which turn holds a message, is a
+pickup in it (`docs/forks.html`, "The path of one thread message").
 
 The lane is the session's pages follower (`hooks.cmd_pages`) while it holds the
-lease at `lane_path`: the follower prints each held thread with the session's pages
-(`look`), and the module forks each one (`ask`), then hands the fork's line back
-(`take`). Python writes the prompt (`line_prompt`); the module only carries it and
-the line, and names the tool calls the session is running, which the fork can't see:
-its last request predates them. A lane holds only what arrived while it ran, so a
-thread the lane going down gave to the session stays there when the next lane comes
-up, and a fork of the old lane's writes nothing. A follower that gives up the lane
-with a thread held, as one exiting or finding a newer follower holding it does, then
-nudges what its holds leave, as a watch does when it gives up its lease
-(`session.nudge_pending`); one killed outright nudges nothing, so after Escape, with
-no watch, its messages wait for the page's next change.
+lease at `lane_path`: the follower prints each kept-back thread with the session's
+pages (`look`), and the module asks a line fork about each one (`ask`), then hands
+its answer back (`route`). Python writes the prompt (`line_prompt`); the module only
+carries it and the line, and names the tool calls the session is running, which the
+line fork can't see: its last request predates them. A lane keeps back only what
+arrived while it ran, so a thread the lane going down gave to the session stays
+there when the next lane comes up, and a line fork of the old lane's writes nothing.
+A follower that gives up the lane with a thread kept back, as one exiting or finding
+a newer follower holding it does, then nudges what it kept back, as a watch does when
+it gives up its lease (`session.nudge_pending`); one killed outright nudges nothing,
+so after Escape, with no watch, its messages wait for the page's next change.
 
 The line goes in as the agent's own (`thread.post_reply` with the claim's identity),
-fenced to the hold: it writes nothing once the thread is no longer held as the fork
-was asked it, checked under the lock the append takes. The page's diagnostics
-(`interaction_log`) note whether admission held each thread message to a Claude Code
-session, and where not, whether its lane was up (`fork_kept_back`); each question as Leaf
-gives it to the module (`fork_asked`), so a fork that never answers shows; and every
-outcome (`fork_outcome`), with the fork's tokens and time, the effort Claude Code
+fenced to the thread being kept back: it writes nothing once the thread is no longer
+kept back as the line fork was asked it, checked under the lock the append takes. The
+page's diagnostics (`interaction_log`) note whether admission kept each thread
+message to a Claude Code session back, and where not, whether its lane was up
+(`fork_kept_back`); each question as Leaf gives it to the module (`fork_asked`), so a
+line fork that never answers shows; and every outcome of a thread's forks
+(`fork_outcome`): the line fork's, with its tokens and time, the effort Claude Code
 reports it sent (`effort`), why Leaf refused its line where it did, and the request
 it resent (`request` in `hooks/claude-code.ts`, which says where a replay cuts the
 conversation: to `sent` while `running` lists a call, else to `row`; its own
 `effort` is the session's), as the clerk's `turn_end_check` notes have it, which is
-what a later replay or audit scores. `leaf-dev timeline` reads them beside the
-session's transcript.
+what a later replay or audit scores; and a working fork's start and end (`step`).
+`leaf-dev timeline` reads them beside the session's transcript.
 `leaf-dev eval 'line-fork*' --harness claude-code --base` scores a change to the
-prompt on a short constructed conversation for each kind of message
+line fork's prompt on a short constructed conversation for each kind of message
 (`dev/leaf_dev/fork_eval.py`).
 """
 
@@ -165,9 +157,9 @@ from .state import (
     session_lock_path,
 )
 
-# How long Leaf holds a thread's waiting messages from the session, counted from the
-# newest one's admission, before the lane hands them to it whatever the fork does
-# (`look`). Forks on real pages decided in a median 3 s.
+# How long Leaf keeps a thread's waiting messages back from the session, counted
+# from the newest one's admission, before the lane hands them to it whatever the line
+# fork does (`look`). Forks on real pages decided in a median 3 s.
 BOUND_S = 30.0
 
 HANDED = Record(
@@ -199,16 +191,17 @@ LANE_START = Record(
     since=37,
 )
 
-# The words that open the fork's question, which the transcript carries, and the
-# question of a fork that does the work.
+# The words that open the line fork's question, which the transcript carries, and
+# the working fork's task.
 LINE_OPENING = "<leaf-line-fork>"
 WORK_OPENING = "<leaf-fork-work>"
 # How a fork that took the work ends when the work belongs with the session after all.
 HAND_BACK = "HAND BACK:"
 
-# What a fork answers (`line_prompt`): the agent's working line, and whether a fork
+# What a line fork answers (`line_prompt`): the agent's working line, and whether a fork
 # of the session could do the work beside it (`take`) or the work belongs with the
-# session (`hand_over`). Leaf records that judgment and hands every thread over.
+# session (`hand_over`). Leaf records the judgment, and acts on `take` where the module
+# makes working forks (`route`).
 ANSWER = {
     "type": "object",
     "properties": {
@@ -219,7 +212,7 @@ ANSWER = {
     "additionalProperties": False,
 }
 
-# How hard the fork thinks, whatever the session's effort (the header says why).
+# How hard the line fork thinks, whatever the session's effort (the header says why).
 EFFORT = "low"
 # How many of the threads the session wrote in, and of the to-dos it opened or
 # ended, Leaf names to a fork it resumes before counting the rest (`_since`), since

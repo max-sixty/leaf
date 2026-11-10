@@ -1673,7 +1673,7 @@ def target_session(
     "--fork-work",
     is_flag=True,
     help="On claude-code, --forks with forks that do the work of a message the "
-    "line's fork judges theirs (LEAF_FORK_WORK=on).",
+    "line fork judges theirs (LEAF_FORK_WORK=on).",
 )
 @click.option(
     "--case",

@@ -232,7 +232,7 @@ def answer_ref(page_dir, input_id: str) -> str:
 def test_a_fork_takes_work_it_judges_its_own_as_a_pickup_in_its_own_turn(
     claimed, lane, capsys
 ):
-    """Where the module makes forks that do the work, a thread the line's fork judges
+    """Where the module makes forks that do the work, a thread the line fork judges
     `take` goes to a fork in a turn Leaf opens for it: the log records that turn's
     pickup of the message, with the receipt and the answer reference the fork's
     delivery gives it, so every reader agrees who has it. While that turn runs the
@@ -736,7 +736,7 @@ def answered_by_a_fork(page_dir, monkeypatch, text: str, agent: str) -> dict:
 
 
 def taken_again(page_dir, thread: str, more: dict) -> dict:
-    """What Leaf did as the line's fork judged the work of the user's message `more`
+    """What Leaf did as the line fork judged the work of the user's message `more`
     in `thread` a fork's."""
     assert kept_back(page_dir) == [(thread, (more["id"],))]
     taken = forks_model.route(

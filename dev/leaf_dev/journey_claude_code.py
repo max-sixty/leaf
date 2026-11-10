@@ -78,7 +78,7 @@ diagnostics (`fork_outcome`):
   the session picks it up and answers it in that turn or the next.
 
 With `--fork-work` (`LEAF_FORK_WORK=on`), `fork-idle`'s question goes to a fork that
-does the work: the line's fork judges it a fork's, and a fork spawned from the
+does the work: the line fork judges it a fork's, and a fork spawned from the
 conversation, in a turn of its own that picked the comment up, answers it in the
 thread itself with `leaf thread reply` while the session stays idle. Then
 `fork-follow-up`: a question a fork takes and looks up in the page's source, and the
@@ -1130,7 +1130,7 @@ def answering(
     """The user at the page an interactive Claude Code session serves, once it has,
     and the steps that follow: with `forks`, forks of its conversation answer the
     user's thread messages, and with `fork_work` a fork does the work of one the
-    line's fork judges a fork's."""
+    line fork judges a fork's."""
     require(shutil.which("tmux") is not None, "the claude-code journey drives tmux")
 
     environment = partial(

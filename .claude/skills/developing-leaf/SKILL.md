@@ -269,7 +269,8 @@ touches:
   `hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`, or the watch between turns
   in `session.py`. Add `--sandbox` after a change to `bridge.py`, the README's "Agent
   sandboxes" settings, or what a `leaf` command needs from outside its page directory,
-  and `--forks` after a change to `forks.py` or the module's `lineFork`.
+  and `--forks` after a change to `forks.py` or the module's `lineFork`, or
+  `--fork-work` after a change to `holding.py` or the module's `workFork`.
 - `codex-app-server` and `codex-queue` (`journey_codex.py`), both: after a change to
   `codex.py`, `codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's turn
   in `service.py`. Add `--preview` for a change to preview startup or lifetime, and

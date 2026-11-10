@@ -89,7 +89,7 @@ let remote: boolean | undefined;
 // Code's process: `LEAF_FORK_REPLIES=off` in Claude Code's environment leaves every
 // message to the session, as the claude-code journey's delivery steps need.
 let lineForks = true;
-// Whether a thread whose line's fork judged the work a fork's goes to a fork that does
+// Whether a thread whose line fork judged the work a fork's goes to a fork that does
 // it (`workFork`): `LEAF_FORK_WORK=on` in Claude Code's environment, while the design
 // in docs/forks.html is tried.
 let workForks = false;

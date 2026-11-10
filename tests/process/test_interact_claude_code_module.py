@@ -571,7 +571,7 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
 def test_a_fork_given_a_threads_work_runs_in_a_turn_leaf_keeps_for_it(
     page_dir, monkeypatch, spawn, sessionless
 ):
-    """With forks that do the work, a thread the line's fork judges `take` goes to a
+    """With forks that do the work, a thread the line fork judges `take` goes to a
     fork the module spawns with Leaf's task, and Leaf hears which agent runs the turn
     it opened for it. As that agent's run ends its turn closes, and the main thread
     hears what came of the thread."""

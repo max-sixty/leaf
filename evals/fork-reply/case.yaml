@@ -1,11 +1,11 @@
-# The fork that answers a held thread message or hands it to the session
-# (`src/leaf/forks.py`), replayed on a short conversation written for each decision
-# its prompt asks about. Run every case with `uv run leaf-dev eval 'fork-reply*'
-# --harness claude-code`; inputs, decisions and rubrics are in
+# The fork that writes the agent's working line on a held thread message before
+# Leaf hands the message to the session (`src/leaf/forks.py`), replayed on a short
+# conversation written for each kind of message. Run every case with `uv run
+# leaf-dev eval 'fork-reply*' --harness claude-code`; inputs and the rubric are in
 # workflows/fork_eval.yaml.
 description: Forked thread reply
 metadata:
-  purpose: A question about why the session's finding holds is answered from the conversation.
+  purpose: A question the conversation already answers gets a line saying the agent will look into it, without the answer.
   tags: [workflow, forks, threads]
   harnesses: [claude-code]
   conditions: [leaf]
@@ -15,24 +15,24 @@ variants:
   meaning:
     metadata:
       scenario: meaning
-      purpose: A question about what something means is answered from what the session read.
+      purpose: A question about code the session has read gets a line naming what the agent will check, without explaining the code.
   work-request:
     metadata:
       scenario: work-request
-      purpose: A request for a change, however small, goes to the session.
+      purpose: A request for a small change gets a line saying the agent is making that change.
   user-decides:
     metadata:
       scenario: user-decides
-      purpose: The user's answer to the session's question goes to the session to record.
+      purpose: The user's answer to the session's question gets a line saying the agent is recording the choice and acting on it.
   still-running:
     metadata:
       scenario: still-running
-      purpose: A question whose answer is a running command's result goes to the session.
+      purpose: A question about a running command's result gets a line about that run, claiming no result.
   work-out:
     metadata:
       scenario: work-out
-      purpose: A question the session never looked at, which the fork would have to work out, goes to the session.
+      purpose: A question the session never looked into gets a line saying what the agent will check, without guessing the answer.
   still-deciding:
     metadata:
       scenario: still-deciding
-      purpose: A question whose answer would settle what the session is still deciding goes to the session.
+      purpose: A request to settle what the session is still deciding gets a line saying the agent is choosing now, naming no choice.

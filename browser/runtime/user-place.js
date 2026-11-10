@@ -90,7 +90,9 @@ import { pointerAt } from "./pointer.js";
 import { repaint } from "./repaint.js";
 
 // The box a control stands at, where a rule names one: a thread where its reply box
-// waits, or a hidden stand-in where what it stands for is (details-shelf.js).
+// waits, a hidden stand-in where what it stands for is (details-shelf.js), or the On me
+// card the `m` walk rings for the stop it reached (floating-panel.js). The first rule
+// matching the node that names a box decides.
 /** @type {[string, (node: Element) => Element | null][]} */
 const standing = [];
 /** @param {string} selector @param {(node: Element) => Element | null} at */
@@ -98,8 +100,13 @@ export function standsAt(selector, at) {
   standing.push([selector, at]);
 }
 /** @param {Element} node */
-const boxStoodAt = (node) =>
-  standing.find(([selector]) => node.matches(selector))?.[1](node) ?? null;
+const boxStoodAt = (node) => {
+  for (const [selector, at] of standing) {
+    const box = node.matches(selector) ? at(node) : null;
+    if (box) return box;
+  }
+  return null;
+};
 
 // The focused node while it is where the user is: while any of it, or the box it stands
 // at (`standsAt`), is in front of them (geometry.js, `seenRect`), or while a motion under
@@ -258,7 +265,8 @@ export function holdPlace(node, standIn = () => null) {
 // it rides in a scroller, not stuck there, as a Page Map row or a message in a margin
 // card's transcript does, and a search field in a dialog's fixed head does not. A
 // container the user is on stands at the box a rule names for it (`standsAt`), as a
-// thread they sent from waits at its reply box. A user whose focus is scrolled away
+// thread they sent from waits at its reply box, unless the caret a click on its words
+// left lies outside that box (`caretPlace`). A user whose focus is scrolled away
 // reads something else, so what stands at the reading line in its column comes last
 // (`readingAt`). The keep puts back the first of these the change moved, so a pointer
 // resting on a rail of its own, which nothing here moves, leaves the reading line to be
@@ -298,6 +306,29 @@ const placeOf = (node) => {
   const [scroller] = scrollersOf(place);
   return scroller && !stuckBox(place, scroller) ? place : null;
 };
+// The caret a click on a focused container's words leaves, where it lies in what the
+// container shows outside the box it stands at: the letter after it, which the keep
+// holds as it holds words at the reading line. A message the user clicked in a thread
+// is where they stand, though the thread waits at its reply box, so it stays as a
+// message above it grows or an answer joins below it, and the box moves. A caret in
+// the box, or in a field the user types in, is the box's or field's to hold, since
+// typing and a send rewrite the words the range holds.
+/** @param {Element} node @returns {Range | null} */
+const caretPlace = (node) => {
+  const selection = getSelection();
+  const text = selection?.focusNode;
+  if (!selection || !(text instanceof Text) || !text.length || !node.contains(text))
+    return null;
+  if (boxStoodAt(node)?.contains(text)) return null;
+  const at = Math.min(selection.focusOffset, text.length - 1);
+  const caret = document.createRange();
+  caret.setStart(text, at);
+  caret.setEnd(text, at + 1);
+  const holder = holderOf(caret);
+  if (!holder || !seenRect(caret, new Map())) return null;
+  const [scroller] = scrollersOf(holder);
+  return scroller && !stuckBox(holder, scroller) ? caret : null;
+};
 // The element under a pointer resting over the window, where one does.
 const pointed = () => {
   const { x, y } = pointerAt();
@@ -311,10 +342,14 @@ export function holdUserPlace() {
   const pointer = pointed();
   const first = recentPlaceInput() === "pointer" && !typesText(node);
   const named = first ? [pointer, node] : [node, pointer];
+  const field = typesText(node) ? node : null;
   /** @type {{place: Element | Range, focus: boolean}[]} */
   const places = [];
   for (const candidate of named) {
-    const place = placeOf(candidate);
+    const place =
+      (candidate === node && node && node !== document.body && !field
+        ? caretPlace(node)
+        : null) ?? placeOf(candidate);
     if (place && !places.some((each) => each.place === place))
       places.push({ place, focus: candidate === node });
   }
@@ -324,7 +359,6 @@ export function holdUserPlace() {
   }
   if (!places.length) return () => {};
   const choices = scrollChoices();
-  const field = typesText(node) ? node : null;
   let acted = false;
   const unwatch = onUserInput((event) => {
     if (event.type === "pointerdown" || event.type === "touchstart") acted = true;

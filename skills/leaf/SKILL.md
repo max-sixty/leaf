@@ -21,7 +21,7 @@ Read [SOUL.md](SOUL.md) before authoring or responding on a Leaf page.
 
 ## Must remember
 
-Everything waiting on the user is an obligation on their On me list, including
+Everything waiting on the user is an obligation on their On Me list, including
 each decision you leave to them that your next step doesn't depend on. Register
 it before a page heading, a chat open item or a `needs input:` line mentions it.
 `references/conversation-loop.md`, "The On lists", owns registration and

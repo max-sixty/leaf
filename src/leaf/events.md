@@ -16,6 +16,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 | <a id="kind-read"></a>`read`                 | user            | `POST /api/event`                                                               | `messages: [{message, version}]`                                                                                                                                       | records the agent-content versions the user has read; bookkeeping ("Read state")                                                                                                              |
 | <a id="kind-seen"></a>`seen`                 | user            | `POST /api/event`                                                               | `revision`                                                                                                                                                             | records the newest live revision a tab showed the user, as they leave; bookkeeping ("Read state")                                                                                             |
 | <a id="kind-thread_title"></a>`thread_title` | agent           | `leaf thread edit --title`, or Leaf's own title request (`thread_titles.py`)    | `thread`, `title`                                                                                                                                                      | names a thread; the latest title wins                                                                                                                                                         |
+| <a id="kind-activation"></a>`activation`     | page            | revision activation                                                             | `revision`, `publication`                                                                                                                                              | a revision a read activated after another went live here, before the reanchors it caused                                                                                                      |
 | <a id="kind-reanchor"></a>`reanchor`         | page            | revision activation                                                             | `thread`, `revision`, `anchor: {section} or null`                                                                                                                      | moves an open thread whose passage or visual part no longer resolves to its surviving section, or detaches it, adding no message ("Anchors")                                                  |
 | <a id="kind-summary"></a>`summary`           | agent           | `leaf thread summarize`                                                         | `thread`, `from`, `through`, `text`; optional `label`                                                                                                                  | folds a contiguous range of a thread under optional Markdown; the originals stay revealable                                                                                                   |
 | <a id="kind-resolve"></a>`resolve`           | user or agent   | `POST /api/event`, `leaf thread resolve`                                        | `parent`                                                                                                                                                               | closes a thread                                                                                                                                                                               |
@@ -26,6 +27,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 | <a id="kind-receipt"></a>`receipt`           | page            | delivery receipt (`delivery.receive_batch`)                                     | `through`, the seq the receipt confirms                                                                                                                                | the complete delivery of the log through `through` reached its durable consumer; the greatest `through` is the acknowledgement cursor                                                         |
 | <a id="kind-note"></a>`note`                 | agent           | `leaf page stamp`                                                               | `version`, `revision`, changelog `text`, `restated`, `settles` (the `report` ids it answers and the `todo` ids its `--completes` ends)                                 | maps a public version to an immutable revision, naming the decisions it takes back                                                                                                            |
 | <a id="kind-error"></a>`error`               | page            | the runtime                                                                     | `text`                                                                                                                                                                 | a failure the page reported in front of the user; the agent hears it as a report                                                                                                              |
+| <a id="kind-render"></a>`render`             | page            | the page's server (`render_gate/handover_pass.py`)                              | `revision`, `findings` (`findings.Finding.json`, less `values`)                                                                                                        | what the render check newly found in a version the agent handed over                                                                                                                          |
 | <a id="kind-todo"></a>`todo`                 | agent           | `leaf task create`, or a reply's `todo` (`leaf thread reply --todo`)            | `subject` (a thread, a widget, another element, or the page); `title`; server-stamped `revision` on a widget to-do                                                     | opens work the agent owes (`todos.py`)                                                                                                                                                        |
 | <a id="kind-todo_end"></a>`todo_end`         | agent           | `leaf task end`                                                                 | `todo`, an open to-do's id or a question's obligation id; `outcome` (`done`, `failed` or `dropped`); optional `detail`                                                 | ends a to-do, or retires a question asked in words without answering it (`todos.py`)                                                                                                          |
 | <a id="kind-start"></a>`start`               | agent           | `leaf task start`, or progress posted to an owed update                         | `item`, an owed update's event id or an open to-do's; `text`, the status line; `turn`                                                                                  | takes the item in hand until it ends or a `status` follows; the newest start on an item replaces the one before (`todos.py`)                                                                  |
@@ -84,10 +86,13 @@ drawing without an anchor or `box`, and does not re-read it. `$events.handling.c
 tells the agent how to read a drawing, and `leaf page picture` redraws one as the user
 saw it (`render_gate/picture.py`).
 
-A note, a reply that publishes the saved source, or the first automatic `reanchor` may
-carry `publication`, the exact immutable bundle name (`r<revision>-<digest>`). Only the
-checked source publisher supplies it; `revisioning.py`'s header says how a publication
-and the anchor moves that depend on it land together.
+A note, a reply that publishes the saved source, or an `activation` carries
+`publication`, the exact immutable bundle name (`r<revision>-<digest>`). It is the
+first event of the revision's publication, and its seq is the revision's place in the
+log. A page's first revision, when a read activates it, has no such event, since no
+comparison reads its place. Only the checked source publisher supplies it;
+`revisioning.py`'s header says how a publication and the anchor moves that depend on
+it land together.
 
 ## Undo
 
@@ -149,7 +154,9 @@ verb declares `attention: true` (`$state`). `workflows.attention_reading` compar
 those readings before and
 after the gesture, and the decision survives later replies, versions and to-do endings,
 so a cancellation delivered to the agent stays input after the work it withdrew ends.
-Reports and errors always carry attention, and agent messages never do. An undo carries
+Reports, errors and a render reading holding a failure always carry attention, and agent
+messages never do. Advice in a render reading carries none, and goes with whatever next
+reaches the agent (`delivery.deliverable`). An undo carries
 it whenever the gesture it withdraws did: the agent was told of that gesture, so it is
 told of the withdrawal, whether it has yet to read the gesture or has already acted on
 it. A user's edit
@@ -309,7 +316,7 @@ While a thread is open, the user's message after a state-answered obligation in 
 that obligation to the agent, still open, until the agent answers that turn or ends the
 to-do a reply promised (`obligations.thread_obligation_readings`). A thread anchored on
 a page obligation does the same, so an obligation the user has commented on leaves their
-On me list while the reply owed to the comment stands on the agent's, and a promised
+On Me list while the reply owed to the comment stands on the agent's, and a promised
 to-do keeps that obligation the agent's even after the thread is resolved
 (`obligations.anchors_with_agent`). A question asked in words (`obligation: true`)
 is answered by that message instead, along with every open question before it, or by a reaction whose token

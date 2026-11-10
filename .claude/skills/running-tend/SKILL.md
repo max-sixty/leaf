@@ -53,6 +53,27 @@ deferral condition in **Fix the underlying issue**. A fix for a red test that mo
 the interface beyond what the breaking change meant to, or gives up that change's
 intent without the issue **Reading a red suite** requires, is a regression.
 
+## Issues a change finishes
+
+A `backlog` issue left open once a change has settled it tells the next session
+there is work still to do. So the review checks each change against the open
+backlog: list the open `backlog` issues, and read each one whose subject the change
+touches, with the pull requests that already name it, to learn what of it remains.
+
+- Where the change leaves nothing of an issue to do, by finishing what remains,
+  removing its premise or recording a decision against what it asks, the
+  description says `Closes #N`, so merging closes it.
+- Where it does part, the description says `Part of #N` and what is left, so the
+  review of the last part can tell that it finishes the issue. A `Closes #N` for
+  an issue the change only partly does becomes this.
+
+On Tend's own pull request, edit the description (**Keeping PR titles and
+descriptions current** in `/tend-ci-runner:open-pr`). On someone else's, ask in
+the review, naming each issue and what is left, since its author owns the
+description and may rewrite it. The ask doesn't withhold approval, since it changes
+no code and an edit to the description starts no new review. Where nothing else is
+found, approve with the ask as the review's body.
+
 ## Review test selection
 
 Before approving a product change, select and run focused checks through
@@ -261,13 +282,17 @@ Tend's. Change these owners, not model names throughout the tree.
 Prepare a pull request upgrading a default to its suitable stable successor,
 preserving each role's purpose and weighing quality, latency and cost; a newer model
 in a different tier is a candidate to evaluate, not an automatic replacement.
-Verify the exact model id and availability through the actual harness and login,
-and run a small representative eval or journey for the affected role, including
-grading when a judge changes. Record the old and new models, upstream sources
-and validation, and keep model pins the same across arms in a Leaf comparison.
-Regenerate Tend workflows from its config when Tend's default changes, and follow
-**Landing** for changes requiring the control-plane owner's approval. If access
-or a material tradeoff prevents a bump, report what remains to establish.
+Bump prospectively: check the exact id against the provider's current models
+page, run whatever eval or journey for the affected role the session can reach
+(including grading when a judge changes), and land the bump without waiting on a
+check that needs a harness or login the session lacks; the role's own runs after
+landing, such as `publish-site`'s hosted journey, validate it, and a failure there
+comes back as a CI report. Record the old and new models, upstream sources, the
+validation that ran and the validation left to those runs, and keep model pins the
+same across arms in a Leaf comparison. Regenerate Tend workflows from its config
+when Tend's default changes, and follow **Landing** for changes requiring the
+control-plane owner's approval. If a material tradeoff prevents a bump, report what
+remains to establish.
 
 ### Harness opportunities
 

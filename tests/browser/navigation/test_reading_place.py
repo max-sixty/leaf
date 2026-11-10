@@ -384,12 +384,13 @@ def test_back_returns_the_passage_chosen_between_trips(
     """A passage the user chose after one trip, by click or Tab, is where the next trip
     departs from, even while the first landing still shows: Back returns to it, and
     another Back to the original reading. A click on words that take no focus is
-    returned as the selection it left."""
+    returned as the selection it left. The large landing's paragraph follows its
+    section, since a click on the commented section opens its thread instead."""
     stop = ' tabindex="0"' if focusable else ""
     elsewhere = f'<p id="elsewhere"{stop}>This independent paragraph has no thread.</p>'
     first = (
         '<section id="first"><p>The first discussion concerns the importer.</p>'
-        f'<div style="height:1800px"></div>{elsewhere}</section>'
+        f'<div style="height:1800px"></div></section>{elsewhere}'
         if large
         else f'<p id="first">The first discussion concerns the importer.</p>{elsewhere}'
     )
@@ -727,7 +728,7 @@ def test_reading_restore_leaves_a_concealed_landmark_alone(browser, serve, subte
 def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     """Each step of the obligation walk somewhere else adds a history entry where the user
     stood, as each trip to a thread does, so Back returns to the obligation the user was
-    on, though answering it took it out of On me, and then to where they were reading.
+    on, though answering it took it out of On Me, and then to where they were reading.
     `m` from a thread `t` reached comes back to the thread, its card open again beside
     its passage."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
@@ -811,7 +812,7 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     assert landed < reading - 1000
     assert entry() == start + 1
 
-    # Answering the obligation takes it out of On me, so no walk's Shift reaches it again.
+    # Answering the obligation takes it out of On Me, so no walk's Shift reaches it again.
     page.keyboard.press("1")
     expect(page.locator("#se-rota[chosen]")).to_have_count(1)
     page.keyboard.press("Shift+m")

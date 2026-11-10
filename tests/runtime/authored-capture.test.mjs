@@ -141,7 +141,6 @@ test("the contents drawing keeps its native state and keyed rows through revisio
   const reading = {
     label: (heading) => heading.textContent,
     chrome: () => false,
-    lends: true,
   };
   const live = drawToc(host, reading);
   render(live.render(reading), host, { host });

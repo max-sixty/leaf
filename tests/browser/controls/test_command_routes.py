@@ -7,7 +7,7 @@ import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import SEATED_OBLIGATION_LAYER
 from render_cases_navigation import go_to_address
-from render_harness import leaf_page, open_page
+from render_harness import leaf_page, open_page, put_preview_away
 
 from browser.navigation import offered_routes
 from leaf.render_checks import rendered
@@ -724,6 +724,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     ).to_be_focused()
     page.keyboard.press("x")
     expect(result).to_have_text("Applied 3")
+    # The Tab showed the control's preview, Escape's first step (WCAG 1.4.13).
+    put_preview_away(page)
     page.keyboard.press("Escape")
     expect(result).to_have_text("Applied 4")
 

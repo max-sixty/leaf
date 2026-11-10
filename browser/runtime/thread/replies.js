@@ -12,7 +12,8 @@
    words are the user's draft. Everything that asks whether the user is writing reads
    the session (`replyIsEditing`), a margin card's news as a margin's entry
    (annotation-overlay/thread-preview.js, `endNewsMoves`); the edge the card holds
-   asks only whether a text field in it has focus (`heldEdge`). Rejected:
+   asks only whether the user is typing words in its reply box (`heldEdge`), not the
+   session, which stands through a send until the server accepts it. Rejected:
    beginning on every `focusin`, which made an opening's caret a session nobody began
    and kept a resolved thread's card standing over its empty box (the same class as the
    send's caret, #5364; found on 4 November 2026).
@@ -79,7 +80,7 @@ import { tick } from "../version-signal.js";
  * landSent: ReturnType<typeof import("./landing.js").createThreadLanding>["landSent"],
  * landInThread: ReturnType<typeof import("./landing.js").createThreadLanding>["landInThread"]}} ReplyCommands */
 /** @typedef {Partial<Pick<import("../composing/input.js").InputOptions,
- * "hint" | "hintParts" | "hintLead" | "accessibleName" | "busy">> & {
+ * "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy">> & {
  * onChange?: () => void,
  * editLast?: ReturnType<typeof import("./message-edit.js").threadRewrites>["editLast"] | null,
  * sending?: (() => void) | null, sent?: (() => unknown) | null}} ReplyOptions */
@@ -376,13 +377,13 @@ function sendReply(draftCtx, key, text, owns, actions) {
 /** @param {string} key @param {HTMLDivElement} row
  * @param {ReturnType<typeof import("../composing/text-field.js").textField>} input
  * @param {ReplyCommands} commands
- * @param {Required<Pick<ReplyOptions, "hint" | "hintParts" | "hintLead" | "accessibleName" | "busy">>} options */
+ * @param {Required<Pick<ReplyOptions, "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy">>} options */
 function wireReply(
   key,
   row,
   input,
   commands,
-  { hint, hintParts, hintLead, accessibleName, busy },
+  { hint, hintParts, hintLead, enters, accessibleName, busy },
 ) {
   row.classList.add("lf-comment-box");
   input.setAttribute("data-lf-voice", "leaf");
@@ -392,6 +393,7 @@ function wireReply(
     hint,
     hintParts,
     hintLead,
+    enters,
     accessibleName,
     busy,
     sends: "send",
@@ -559,7 +561,7 @@ export async function restoreReplyEditing(editing, land) {
 // Native editor construction has one home; cards and package fragments share its
 // draft, input, delivery and recovery lifetime rather than constructing another one.
 // A presentation may say what its empty box reads (`hint`), what stands before that
-// (`hintLead`), and is named (`accessibleName`), hold its sends while it covers the box's words (`busy`), and
+// (`hintLead`), the press its end offers (`enters`), and is named (`accessibleName`), hold its sends while it covers the box's words (`busy`), and
 // land a send's turn itself (`sent`), as the floating panel's view does at its end,
 // told before the send draws (`sending`). The view draws its row again
 // on `redraw`, as it takes another in its place.
@@ -575,6 +577,7 @@ export function createReplyView(
     hint = () => REPLY_HINT,
     hintParts = null,
     hintLead = () => "",
+    enters = () => "",
     accessibleName = "Reply",
     busy = () => false,
     sending = null,
@@ -590,6 +593,7 @@ export function createReplyView(
       hint,
       hintParts,
       hintLead,
+      enters,
       accessibleName,
       busy,
     });

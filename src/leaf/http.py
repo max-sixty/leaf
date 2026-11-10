@@ -255,6 +255,33 @@ class PostRoute:
     events: bool = False
 
 
+# Every answer a Leaf server gives, on this machine or on leaf.page, may be stored but
+# is asked for again before each reuse, unless its address names its bytes
+# (`IMMUTABLE_CACHE_CONTROL`). Document and state answers carry no validator, so a load
+# asks again and shows the page as it is now. A document Chrome loads from its history,
+# as on Back without the back/forward cache or on restoring tabs, reuses stored answers
+# without asking, so a state answer names by `Vary` the request headers its body turns
+# on: else that document, which holds no reading, would be handed a tail of a reading an
+# earlier document held. Storing is what lets the browser keep the whole page in its
+# back/forward cache, so Back restores it at once, focus, selection and open
+# disclosures included, and the runtime catches up from there. Firefox keeps no page
+# whose document said `no-store`, and Chrome drops one once a fetch also says so or an
+# HttpOnly cookie changes, as acting on a leaf.page page does.
+#
+# The stored copy outlives the visit in the browser's disk cache. Locally it holds what
+# the page directory already holds in plain files, for the same user. On leaf.page it
+# holds a visitor's comments, replies and images, and Back shows them to whoever next
+# uses that browser profile. leaf.page answered `no-store` to keep them out until
+# 2026-11-08, when the maintainer reversed that choice for an instant Back (issue
+# #4024).
+CACHE_CONTROL = "no-cache"
+# A revision's resources and page media (`media.media_name`) are named by digests of
+# their bytes, so a name never changes what it answers and the browser keeps one copy
+# for every document that names it. Starlette's file answer ignores a validator, so
+# `no-cache` here would fetch each whole on every load.
+IMMUTABLE_CACHE_CONTROL = "private, max-age=31536000, immutable"
+
+
 class PageEndpoint:
     """One request against one page, from its arrival to the response it becomes.
 
@@ -265,25 +292,6 @@ class PageEndpoint:
     is the page's own boundary — selection, the key, the layer gate, and the faults the
     page's status has to be able to show.
     """
-
-    # Every answer that isn't an immutable revision resource may be stored but is asked
-    # for again before each reuse. Document and state answers carry no validator, so
-    # a load asks again and shows the page as it is now. A document Chrome loads from
-    # its history, as on Back without the back/forward cache or on restoring tabs,
-    # reuses stored answers without asking, so a state answer names by `Vary` the
-    # request headers its body turns on: else that document, which holds no reading,
-    # would be handed a tail of a reading an earlier document held. Storing is what lets
-    # the browser keep the whole page in its back/forward cache, so Back restores it at
-    # once and the runtime catches up from there. Chrome keeps no page whose document or
-    # fetches said `no-store`, nor Firefox one whose document did. The disk copy holds
-    # what the page directory already holds in plain files, for the same user. leaf.page
-    # overrides it (`WebsitePageEndpoint`).
-    cache_control = "no-cache"
-    # Page media is named by a digest of its bytes (`media.media_name`), so a name never
-    # changes what it answers, and a revision naming the same image reuses the copy.
-    # Starlette's file answer ignores a validator, so `no-cache` here would fetch every
-    # image whole on every load.
-    media_cache_control = "private, max-age=31536000, immutable"
 
     def __init__(
         self,
@@ -408,7 +416,7 @@ class PageEndpoint:
         async def deliver(message):
             if message["type"] == "http.response.start":
                 headers = MutableHeaders(scope=message)
-                headers.setdefault("Cache-Control", self.cache_control)
+                headers.setdefault("Cache-Control", CACHE_CONTROL)
                 # An opaque parent is not expressible as a frame-ancestors source,
                 # so a child capability's documents carry no policy and admit
                 # nested samples.
@@ -553,9 +561,12 @@ class PageEndpoint:
         )
         return {**answer, "events": scope_page_urls(answer["events"], self.page_root)}
 
-    def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
-        """One revision projected at an exact already-observed log boundary."""
-        return self._state_service().page_browser_view(view_revision, through_seq)
+    def page_comparison(
+        self, revision: int, through_seq: int, shown: int | None
+    ) -> dict:
+        """What a comparison with one revision folds, at an exact already-observed log
+        boundary, and what the version `shown` was saved after."""
+        return self._state_service().page_comparison(revision, through_seq, shown)
 
     def requested_view_revision(self) -> int | None:
         raw = self.query.get("revision", [None])[-1] or self.headers.get(
@@ -1072,7 +1083,7 @@ class PageEndpoint:
             # live samples are each a whole runtime importing the same modules, and
             # refetching each one per document queued them behind one another on the
             # origin's few connections for seconds.
-            response.headers["Cache-Control"] = "private, max-age=31536000, immutable"
+            response.headers["Cache-Control"] = IMMUTABLE_CACHE_CONTROL
         return response
 
     def _revision_resource(
@@ -1136,7 +1147,7 @@ class PageEndpoint:
             )
             response = self._resource_content(resource)
             if path.startswith(f"/{MEDIA_DIR}/"):
-                response.headers["Cache-Control"] = self.media_cache_control
+                response.headers["Cache-Control"] = IMMUTABLE_CACHE_CONTROL
             return response
         return None
 
@@ -1170,7 +1181,7 @@ class PageEndpoint:
             self.response_layer = self._revision_layer(revision)
             answer = self._json_body(self.sent(state))
             # What the answer holds turns on the reading, data and revision the tab
-            # names (`cache_control`).
+            # names (`CACHE_CONTROL`).
             answer.headers["Vary"] = (
                 "Leaf-Held-Basis, Leaf-Data-Version, Leaf-View-Revision"
             )
@@ -1189,10 +1200,15 @@ class PageEndpoint:
                 if revision is None:
                     raise ValueError("view revision is required")
                 sequence = self.requested_view_sequence()
-                browser = self.page_browser_view(revision, sequence)
+                shown = self.query.get("shown", [None])[-1]
+                answer = self.page_comparison(
+                    revision,
+                    sequence,
+                    None if shown in (None, "") else _query_int(shown, "shown", 1),
+                )
             except ValueError as error:
                 return self._json({"error": str(error)}, 400)
-            return self._json({"browser": browser})
+            return self._json(answer)
         if path == "/api/inspect":
             from .page_inspection import inspect_artifact, inspection_views
 
@@ -1502,9 +1518,6 @@ class SampleEndpoint(PageEndpoint):
         self.parent = parent
         self.sample = sample
         self.retained_samples = parent.retained_samples
-        # A child is stored on its parent's terms, which on leaf.page are the site's.
-        self.cache_control = parent.cache_control
-        self.media_cache_control = parent.media_cache_control
         # The address inside the child, below the capability its parent matched.
         self.path = path
         self.asset_root = asset_root

@@ -1085,10 +1085,10 @@ function overPress(ended) {
 }
 /** @param {Press} ended */
 const overSoon = (ended) => setTimeout(() => overPress(ended));
-// A press that commits at its release, as a held word does or the panel's field handing
-// selected words to the comment box, leaves the browser's own click after it to land on
-// whatever the release put under the pointer. The release claims that click, the one the
-// press under way owes; a keyboard's carries no count and is never it.
+// A press that commits at its release, as the panel's field handing selected words to
+// the comment box does, leaves the browser's own click after it to land on whatever the
+// release put under the pointer. The release claims that click, the one the press under
+// way owes; a keyboard's carries no count and is never it.
 export const claimReleaseClick = () => {
   if (press) press.clickClaimed = true;
 };
@@ -1250,7 +1250,13 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
     (event) => {
       if (type === "pointerdown")
         pressedPath = event.composedPath().map((node) => new WeakRef(node));
-      else if (type === "keydown") pressedPath = null;
+      else if (type === "keydown") {
+        pressedPath = null;
+        // A key gives the node focus is already on its ring with no focus event, and a
+        // rule reading the mark can style that key's own default, as a fold Enter
+        // closes from the keyboard skips its motion, so the mark lands before it.
+        queueFocusPaint();
+      }
       stepping = null;
       if (type === "keydown" || type === "pointerdown") {
         const step = event instanceof KeyboardEvent && sequential(event) ? event : null;

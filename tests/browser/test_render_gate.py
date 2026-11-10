@@ -16,6 +16,7 @@ from interact_support import (
     COMMAND_HUB_PACKAGE,
     STATED_TIMEOUT,
     add_test_widget,
+    element_declaration,
     running_http_server,
 )
 from known_widget_findings import KNOWN, PACKAGES
@@ -61,6 +62,7 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     LONG_PAGE,
     OPEN_THREAD_COUNT,
+    ROOT,
     TOKEN,
     _traffic,
     _until,
@@ -184,6 +186,88 @@ def test_startup_shift_evidence_serializes_as_advice(browser, serve, monkeypatch
     movement = shift["values"]["entries"][1]["sources"][0]
     assert movement["node"] == "<p id=shifted>"
     assert (movement["before"]["y"], movement["after"]["y"]) == (10, 60)
+
+
+# A widget that draws 240px tall two frames after it upgrades, as a diagram draws once
+# its renderer loads. Page CSS keeps a stated height larger than the drawing, as the
+# diagram package's does.
+SKETCH_DECLARATION = {
+    **{
+        key: value
+        for key, value in element_declaration("lf-sketch", upgrade=True).items()
+        if key != "x-verbatim"
+    },
+    "x-height": True,
+}
+SKETCH_WIDGET = """
+import {PendingTaskEvent, once} from '/runtime/portable-api.js';
+customElements.define('lf-sketch', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    this.dispatchEvent(new PendingTaskEvent(new Promise((drawn) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const drawing = document.createElement('div');
+        drawing.style.blockSize = '240px';
+        this.replaceChildren(drawing);
+        this.classList.add('lf-rendered');
+        drawn();
+      })))));
+  }
+});
+"""
+
+
+def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serve):
+    """Advice gives a drawing's height wherever the box before it drew differed.
+
+    The boxes before drawing: nothing stated, a stated height too small and one too
+    large, beside a stated height that matches and an authored body that already
+    takes the drawing's height, as an inline diff's source text can.
+    """
+    findings, _, completed = render_gate_scheme._render_scheme(
+        browser,
+        serve(
+            leaf_page(
+                "Drawn heights",
+                """
+<h1>Drawn heights</h1>
+<lf-sketch id="unstated"></lf-sketch>
+<lf-sketch id="short" data-height="100"></lf-sketch>
+<lf-sketch id="tall" data-height="400"></lf-sketch>
+<lf-sketch id="exact" data-height="240"></lf-sketch>
+<lf-sketch id="authored"><div style="block-size: 240px"></div></lf-sketch>
+""",
+                head="<style>lf-sketch { display: block }"
+                " lf-sketch.lf-rendered"
+                " { min-block-size: attr(data-lf-height px, 0px) }</style>",
+            ),
+            layer_registry={"lf-sketch": SKETCH_DECLARATION},
+            layer_widgets={"lf-sketch.js": SKETCH_WIDGET},
+        ),
+        "light",
+        {"width": 1200, "height": 900},
+        3_000,
+        [],
+    )
+    assert completed, findings
+    drawn = {
+        finding.at: (finding.values, finding.severity)
+        for finding in findings
+        if finding.code == "drawn-height"
+    }
+    assert drawn == {
+        "<lf-sketch id=unstated>": ({"before": 0, "drawn": 240, "box": 240}, "advice"),
+        "<lf-sketch id=short>": ({"before": 100, "drawn": 240, "box": 240}, "advice"),
+        "<lf-sketch id=tall>": ({"before": 400, "drawn": 240, "box": 400}, "advice"),
+    }, findings
+    words = {
+        finding.at: str(finding)
+        for finding in findings
+        if finding.code == "drawn-height"
+    }
+    assert "moved down 140px" in words["<lf-sketch id=short>"], words
+    assert "leaving 160px blank" in words["<lf-sketch id=tall>"], words
+    assert 'data-height="240"' in words["<lf-sketch id=tall>"], words
 
 
 def _panel(name: str) -> str:
@@ -3499,11 +3583,118 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     table = page.locator("#held")
     assert table.evaluate("(el) => el.scrollWidth - el.clientWidth") > 1
 
-    squeezed = render_checks_model.evaluate_probe(page, "squeezedTables")
+    squeezed = render_checks_model.evaluate_probe(page, "squeezedBoxes")
 
     assert any(
         f["code"] == "squeezed-table" and f["at"] == "<table id=held>" for f in squeezed
     ), squeezed
+
+
+def test_a_code_block_its_holder_sizes_without_is_reported_squeezed(
+    browser, serve, subtests
+):
+    """The theme contains a code block, so it asks what holds it for no width, and a box
+    sized to its content sizes without it: two short commands in a flex row stood 30px
+    wide each, showing none of their lines, and `page check --render` said nothing. The
+    gate's reading names each block left a few characters, at a phone's widths: in a
+    flex row, in an `auto` track beside an `fr` track, beside a heading that sets its
+    flex item's width, in a box sized to fit, in one of four `1fr` tracks, and in a
+    table cell, which the finding marks, since the table's own remedy applies there. A
+    width for the block can't help the tracks, so the words also offer letting them wrap
+    or stack, and cite the `page-layout.md` sections that give `layout-tiles` and a grid
+    that stacks below a width. A heading or a cell's label gives its holder the width
+    its font draws, so those holders' labels are three letters, which left their blocks
+    13–22px inside in every font tried, against the 54px floor; under "Before" a Linux
+    runner's serif left 59px.
+
+    The controls scroll long lines and read well, so the reading leaves them alone: a
+    block in the column, `flex: 1` halves, `1fr` halves, `flex: auto` halves under
+    headings, whose bases grow with their lines, a `flex-grow` column beside a nav, a
+    block in a flex row given a fixed width, and a short line whose trailing spaces are
+    all that runs past the edge. The remedies hold: the four tracks stacked on a phone
+    show their whole lines, and the cell's command written as inline <code> breaks
+    inside its cell, so its table neither scrolls nor draws a finding.
+
+    A table still counts the spaces a cell keeps, which only a code block's lines leave
+    out: an Exit column whose `white-space: pre` cell ends in spaces holds the column
+    open, and the prose beside it wraps, which is a squeezed table."""
+    long = "const result = await fetchEverything({ retries: 3, timeout: 5000 });"
+    longer = long.replace("5000 }", "5000, signal: controller.signal }")
+    tracks = "".join(
+        f'<pre id="four-{n}"><code>const {n} = await fetchAll();</code></pre>'
+        for n in "abcd"
+    )
+    source = leaf_page(
+        "Code blocks and their holders",
+        f"""<h1>Code blocks and their holders</h1>
+<div class="row"><pre id="start"><code>npm start</code></pre><pre id="serve"><code>uv run serve</code></pre></div>
+<div class="tracks"><pre id="tracked"><code>make release</code></pre><p>From the root.</p></div>
+<div class="row"><div><h2>Run</h2><pre id="labelled"><code>retry(times=5, backoff=2)</code></pre></div></div>
+<div class="fitted"><h2>Run</h2><pre id="fitted"><code>uv run leaf-dev probe --state reading</code></pre></div>
+<div class="four">{tracks}</div>
+<table><thead><tr><th>Run</th><th>What it does</th></tr></thead><tbody>
+<tr><td><pre id="celled"><code>uv run pytest -k squeeze</code></pre></td><td>Runs the squeeze tests.</td></tr>
+</tbody></table>
+<pre id="column"><code>{long}</code></pre>
+<div class="row"><div class="half"><pre><code>{long}</code></pre></div><div class="half"><pre><code>{long}</code></pre></div></div>
+<div class="halves"><pre><code>{long}</code></pre><pre><code>{long}</code></pre></div>
+<div class="row"><div class="version"><h2>Before</h2><pre><code>{long}</code></pre></div><div class="version"><h2>After</h2><pre><code>{longer}</code></pre></div></div>
+<div class="row"><nav><ul><li>Setup</li><li>Install</li></ul></nav><div class="main"><pre><code>{longer}</code></pre></div></div>
+<div class="row"><pre style="width: 20ch"><code>{long}</code></pre><p>Beside it.</p></div>
+<div class="four stacks">{tracks.replace('id="four-', 'id="stacked-')}</div>
+<pre style="box-sizing: content-box; inline-size: 6ch"><code>ls
+cd ..         </code></pre>
+<table id="spaced"><thead><tr><th>Step</th><th>What happened</th><th>Exit</th></tr>
+</thead><tbody><tr><td>test</td>
+<td>Ran the suite; three tests in the render gate failed on a fresh checkout.</td>
+<td style="white-space: pre">failed{" " * 100}</td></tr></tbody></table>
+<table id="inline"><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody>
+<tr><td><code>uv run pytest -k squeeze</code></td><td>Runs the squeeze tests.</td></tr>
+</tbody></table>""",
+        head="<style>.row { display: flex; gap: 16px; } .half { flex: 1; }"
+        " .version { flex: auto; } .main { flex-grow: 1; }"
+        " .tracks { display: grid; grid-template-columns: auto 1fr; gap: 16px; }"
+        " .halves { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }"
+        " .four { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));"
+        " gap: 16px; }"
+        " @media (width < 720px) { .four.stacks { grid-template-columns: 1fr; } }"
+        " .fitted { width: fit-content; }</style>",
+    )
+    page = open_page(browser, serve(source))
+    layout = (ROOT / "skills/leaf/references/page-layout.md").read_text()
+    for width in (390, 360):
+        with subtests.test(width=width):
+            resized(page, width, 844)
+            assert page.locator(":not(.stacks) > pre").evaluate_all(
+                "(blocks) => blocks.every((b) => b.scrollWidth - b.clientWidth > 1)"
+            ), "a block that fits is never read, so it says nothing of the reading"
+            # The two remedies leave nothing to scroll.
+            for remedy in (".stacks > pre", "#inline"):
+                assert page.locator(remedy).evaluate_all(
+                    "(boxes) => boxes.every((b) => b.scrollWidth - b.clientWidth <= 1)"
+                ), remedy
+
+            reading = render_checks_model.evaluate_probe(page, "geometryReading", [])
+
+            squeezed = {
+                f["at"]: Finding.read(f, severity="advice") for f in reading["squeezed"]
+            }
+            blocks = ["start", "serve", "tracked", "labelled", "fitted", "celled"]
+            assert {at: f.code for at, f in squeezed.items()} == {
+                **{f"<pre id={b}>": "squeezed-code" for b in blocks},
+                **{f"<pre id=four-{n}>": "squeezed-code" for n in "abcd"},
+                "<table id=spaced>": "squeezed-table",
+            }, reading["squeezed"]
+            assert [at for at, f in squeezed.items() if f.values.get("cell")] == [
+                "<pre id=celled>"
+            ]
+            [cites] = re.findall(
+                r"\(page-layout\.md, ([^)]+)\)", str(squeezed["<pre id=four-a>"])
+            )
+            sections = re.findall(r'"([^"]+)"', cites)
+            assert sections, cites
+            for section in sections:
+                assert f"\n## {section}\n" in layout, section
 
 
 def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve, subtests):
@@ -3714,7 +3905,45 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
     assert len(advice) == 5
     assert all(finding.severity == "advice" for finding in advice)
     assert 'class="layout-flow"' in str(advice[0])
-    assert "put data-width on that holder" in str(advice[0])
+    assert "put data-width on the frame" in str(advice[0])
+
+
+def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
+    browser, serve
+):
+    """A text block starts at its holder's edge, so a wrapper reaching before the prose
+    moves its words off the column, on a page the rest of which stands on it. A wide
+    wrapper keeps the prose's start edge, a caption belongs to its figure, and a
+    question takes no width at all."""
+    source = leaf_page(
+        "Words off the column",
+        """<h1>Words off the column</h1><p>Prose sets the column.</p>
+        <section id="words" data-width="available"><h2>Off</h2><p>Words.</p></section>
+        <details id="more" data-width="available" open><summary>More</summary>
+          <p>Words.</p></details>
+        <section id="flowing" class="layout-flow"><section id="inner" data-width="available">
+          <p>Words.</p></section></section>
+        <section id="wide" data-width="wide"><p>Keeps its start edge.</p></section>
+        <figure id="pictured" data-width="available"><div>Picture.</div>
+          <figcaption>Caption.</figcaption></figure>
+        <div id="exhibit" data-width="available"><table><tr><td>Cell</td></tr></table></div>
+        <lf-ask id="asked" data-width="available"><h2>Ship it?</h2><p>Words.</p>
+          <lf-options id="choice" choose><lf-option id="yes">Yes</lf-option></lf-options>
+        </lf-ask>""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    reading = render_checks_model.evaluate_probe(page, "geometryReading", [])
+    found = [
+        finding["at"]
+        for finding in reading["contained"]
+        if finding["code"] == "words-off-column"
+    ]
+    assert found == ["<section id=words>", "<details id=more>", "<section id=inner>"]
+    advice = render_gate_readings.swept_faults([(1440, reading)])
+    worded = [finding for finding in advice if finding.code == "words-off-column"]
+    assert all(finding.severity == "advice" for finding in worded) and len(worded) == 3
+    assert 'class="layout-flow"' in str(worded[0])
 
 
 def test_the_sweep_reads_each_width_as_a_load_there_shows_it(browser, serve):
@@ -3772,9 +4001,12 @@ def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, 
 
 
 def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
-    """An explicitly widened obligation keeps its evidence inside the ring. Boxes
-    pulled or sized past the actual page edge remain render-gate findings."""
-    item = """<lf-ask id="{id}" data-width="wide"><h2>Which one?</h2>
+    """An obligation holding a wide block keeps it inside the ring. Boxes pulled or
+    sized past the actual page edge remain render-gate findings: each is past the
+    column, and a box pulled off the leading edge, which no scroll reaches, is also
+    clipped out. A box sized past only the trailing edge is reached by the root's
+    sideways scroll, so it is not clipped out."""
+    item = """<lf-ask id="{id}"><h2>Which one?</h2>
   <figure data-width="wide"><p>Evidence the room holds.</p></figure>
   <lf-options id="{id}-o" choose><lf-option id="{id}-a">This one</lf-option></lf-options>
 </lf-ask>"""
@@ -3807,12 +4039,51 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     found = sorted((m["code"], m["at"]) for m in misplaced)
     assert found == [
         ("clipped-out", "<div id=bare>"),
-        ("clipped-out", "<div id=sized>"),
         ("clipped-out", "<div id=tinted>"),
         ("past-column", "<div id=bare>"),
         ("past-column", "<div id=sized>"),
         ("past-column", "<div id=tinted>"),
     ], misplaced
+
+
+def test_an_item_its_content_holds_past_the_column_is_told_to_drop_its_minimum(
+    browser, serve
+):
+    """A flex or grid item is no narrower than its content by default, so a box that
+    scrolls sideways inside one widens it past a phone's column, and the box beside it
+    with it. The finding on a flex or grid item whose minimum is still `auto` offers
+    `min-width: 0` first and keeps the other remedies after it; a box the page sized,
+    and an item whose minimum the page set, are offered only the other remedies."""
+    line = '<div style="overflow-x: auto"><span style="white-space: nowrap">' + (
+        "2026-11-05T13:04:22Z INFO worker-7 shipped batch 4412 to the export bucket"
+        "</span></div>"
+    )
+    source = leaf_page(
+        "Held out by their content",
+        f"""<h1>Held out by their content</h1>
+<div class="row"><div id="flexed"><h2>Log</h2>{line}</div><p id="beside">Beside it.</p></div>
+<div class="tracks"><div id="tracked">{line}</div><p id="track-beside">Beside it.</p></div>
+<div class="row"><div id="minimum">An item whose minimum the page set.</div></div>
+<div id="sized" style="width: 600px">A box the page sized past the column.</div>""",
+        head="<style>.row { display: flex; gap: 16px; }"
+        " .tracks { display: grid; grid-template-columns: auto 1fr; gap: 16px; }"
+        " #minimum { min-width: 600px; }</style>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 390, 844)
+    misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    past = {m["at"]: m for m in misplaced if m["code"] == "past-column"}
+    assert {at: m.get("item") for at, m in past.items()} == {
+        "<div id=flexed>": "flex",
+        "<p id=beside>": "flex",
+        "<div id=tracked>": "grid",
+        "<p id=track-beside>": "grid",
+        "<div id=minimum>": None,
+        "<div id=sized>": None,
+    }, misplaced
+    offered = str(Finding.read(past["<div id=flexed>"]))
+    assert offered.index("min-width: 0") < offered.index('data-width="wide"'), offered
+    assert "min-width: 0" not in str(Finding.read(past["<div id=sized>"]))
 
 
 def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):
@@ -3879,6 +4150,29 @@ def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve
         for f in covered
         if {f["at"], f["under"]} == {"<p id=under>", "<span id=over>"}
     ], f"a control the page put in the flow covered a paragraph unreported: {covered}"
+
+
+def test_the_covered_words_gate_reads_a_cover_between_the_first_and_last_words(
+    browser, serve
+):
+    """The reading compares each run of words only with the runs whose boxes overlap
+    it in height, found by going down the page rather than through the document, so
+    words the page writes far apart and draws in one place still meet: here its last
+    paragraph, lifted over its first."""
+    covering = LONG_PAGE.replace(
+        "</main>",
+        "<p id='over' style='position: relative'>Covering words</p>\n</main>",
+    )
+    page = open_page(browser, serve(covering))
+    page.evaluate("""() => {
+        const over = document.getElementById('over');
+        const first = document.getElementById('p0').getBoundingClientRect().top;
+        over.style.top = `${first - over.getBoundingClientRect().top}px`;
+    }""")
+    covered = render_checks_model.evaluate_probe(page, "coveredWords")
+    assert [
+        f for f in covered if {f["at"], f["under"]} == {"<p id=p0>", "<p id=over>"}
+    ], f"a cover between the page's first and last words went unreported: {covered}"
 
 
 # A sidenote beside a section of prose and tiles, the content a strip crushing the
@@ -4191,7 +4485,7 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     restore_cases = user_view_restore_cases(page)
     assert len(restore_cases) > 1, "the runtime declares nothing to arrive in"
 
-    # The control, and the whole reason the silences below say anything: opening On me
+    # The control, and the whole reason the silences below say anything: opening On Me
     # by hand is the gesture whose motion the arrivals must not have. What it paints
     # is the runtime's business and is not named here; that it paints at all is this
     # reading's, and a reading that reports nothing when something moved would pass
@@ -4522,6 +4816,48 @@ def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, 
         resized(page, width, 720)
         scrolls = page.locator("#held").evaluate("(t) => t.scrollWidth - t.clientWidth")
         assert scrolls == 0, (width, scrolls)
+
+
+def test_a_short_name_in_a_rows_first_cell_stays_on_one_line(browser, serve):
+    """The other side of the rule above: an option table, a column of short names beside
+    a column of sentences. With every name breakable anywhere, the table's automatic
+    layout gave the name column almost nothing past one character, so `--output-dir`
+    stood as `--output-` over `dir` on the full measure and every name took two or
+    three lines in a 420px window. A row's first cell keeps its name whole, and the
+    table still fits."""
+    rows = (
+        ("--plugin", "Loads the named plugin before the run starts, so its commands"),
+        ("--dry-run", "Reports what the run would change without writing anything,"),
+        ("--output-dir", "Writes every generated file under this directory instead of"),
+    )
+    body = "".join(
+        f"<tr><td><code>{name}</code></td><td>{does} {does.lower()} {does.lower()}</td></tr>"
+        for name, does in rows
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Options",
+                '<h1>Options</h1><table id="options"><thead><tr><th>Option</th>'
+                f"<th>What it does</th></tr></thead><tbody>{body}</tbody></table>",
+            )
+        ),
+    )
+    for width in (1600, 800, 420):
+        resized(page, width, 900)
+        measured = page.locator("#options").evaluate(
+            """(t) => {
+            const range = document.createRange();
+            return { scrolls: t.scrollWidth - t.clientWidth,
+                     lines: [...t.querySelectorAll('td code')].map((c) => {
+                         range.selectNodeContents(c.firstChild);
+                         return new Set([...range.getClientRects()]
+                             .map((r) => Math.round(r.top))).size;
+                     }) };
+        }"""
+        )
+        assert measured == {"scrolls": 0, "lines": [1, 1, 1]}, (width, measured)
 
 
 def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, serve):

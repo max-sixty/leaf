@@ -174,7 +174,6 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
     text = parsed.html
     assert main.source_location is not None
     _, start = parsed.offsets(main.source_location.start_tag)
-    assert main.source_location is not None
     end, _ = parsed.offsets(main.source_location.end_tag)
 
     first = next(
@@ -189,7 +188,6 @@ def main_body(source: Path, parsed: SourceDocument) -> str:
         assert first.source_location is not None
         cut_start = parsed.offsets(first.source_location.start_tag)[0]
         if not text[start:cut_start].strip():
-            assert first.source_location is not None
             start = parsed.offsets(first.source_location.end_tag)[1]
     return text[start:end].strip()
 

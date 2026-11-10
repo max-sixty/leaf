@@ -420,6 +420,9 @@ export class Shot extends HTMLElement {
     const handle = this.#comparison?.shadowRoot?.querySelector('[role="scrollbar"]');
     if (!handle) return;
     keeps(handle, "aria-label", `Before and after — ${this.getAttribute("alt")}`);
+    // The alt describes the picture the user is looking at, so the divider's preview
+    // names only the divider.
+    Object.assign(handle, { lfPreview: () => ({ name: "Before and after" }) });
     keeps(
       handle,
       "aria-valuetext",
@@ -480,7 +483,7 @@ export class Shot extends HTMLElement {
 
   /** @param {[HTMLImageElement, HTMLImageElement]} images */
   async #pixelMask(images) {
-    const { width, height, data } = await compareImagePixels(...images);
+    const { width, height, data } = compareImagePixels(...images);
     const canvas = new OffscreenCanvas(width, height);
     canvas2D(canvas).putImageData(new ImageData(data, width, height), 0, 0);
     const url = URL.createObjectURL(await canvas.convertToBlob({ type: "image/png" }));

@@ -344,7 +344,7 @@
     ) {
       const pending = pendingDetailsToggle(event.target);
       detailsToggles.delete(event.target);
-      // A held-word release already activated its synthetic click before the
+      // A held preview's release already activated its synthetic click before the
       // browser's following click is swallowed. A cancelled later activation
       // cannot erase that earlier default from the coalesced toggle.
       const source = pending?.source ?? null;
@@ -440,9 +440,8 @@
   const post = MessagePort.prototype.postMessage;
   const onmessage = Object.getOwnPropertyDescriptor(MessagePort.prototype, "onmessage");
   // Leaf's ports send plain objects, and the source rides on each as one extra field,
-  // which a peer this watch is not installed in reads past: Playwright's Firefox
-  // leaves some sample frames without init scripts, and a message wrapped whole
-  // would mean nothing there.
+  // which a peer this watch is not installed in reads past, where a message wrapped
+  // whole would mean nothing.
   const CARRIED = "lfInputWorkSource";
   const adoptedPorts = new WeakSet();
   const adoptPort = (port) => {

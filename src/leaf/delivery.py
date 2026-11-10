@@ -334,7 +334,7 @@ _DELIVERED_EVENT = {
             ),
             "settled": described(
                 "On the user's message in a thread, the agent's questions in words it "
-                "answered by rule, whatever it says, so they have left On me "
+                "answered by rule, whatever it says, so they have left On Me "
                 "(`obligations.settled_by_message`). Each is the obligation's `id` and "
                 "the `text` that asked it.",
                 {
@@ -1140,8 +1140,9 @@ def deliverable(
     why (`hook_transport.remedies`).
 
     Less, too, each waiting message of a thread a fork of the owner's conversation
-    is deciding on (`forks.held`), until the fork answers or hands it over, which
-    keeps the watch from waking the session for it as it arrives.
+    is deciding on (`forks.held`), until the fork posts its line and hands it over
+    or the hold runs out, which keeps the watch from waking the session for it as
+    it arrives.
 
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. Codex's tool hook runs after every tool call, so it passes
@@ -1151,7 +1152,8 @@ def deliverable(
     (`harness.CodexHarness.offer_at_step`). Claude Code's tool-boundary hook asks
     the same before it folds its pages (`hook_transport.new_input`)."""
     pending = unacknowledged(page.events, page.cursor)
-    if pending and (held := awaiting_receipt(page)):
+    held = awaiting_receipt(page) if pending else ()
+    if held:
         pending = [event for event in pending if event["id"] not in held]
     if pending:
         from .forks import held_inputs
@@ -1165,7 +1167,16 @@ def deliverable(
 
     if write_refusal(page.page_dir):
         return []
-    return sorted([*owed, *pending], key=lambda event: event["seq"])
+    # Advice wakes nobody, so it goes with what does (`render_gate.handover_pass`).
+    advice = [
+        event
+        for event in page.events
+        if event["seq"] > page.cursor
+        and event["kind"] == "render"
+        and not event["attention"]
+        and event["id"] not in held
+    ]
+    return sorted([*owed, *pending, *advice], key=lambda event: event["seq"])
 
 
 def handed_into_turn(events: list[dict], session: str, turn: str) -> list[str]:

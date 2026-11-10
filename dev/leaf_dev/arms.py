@@ -115,7 +115,7 @@ JUDGE_MODELS = {
     CodexHarness.name: "gpt-6-astra",
 }
 # Models an experiment compares beside the pinned authors and judges.
-COMPARED_MODELS = ("claude-fable-5-1",)
+COMPARED_MODELS = ("claude-fable-5-2",)
 
 
 def run_directory(parent: Path) -> Path:

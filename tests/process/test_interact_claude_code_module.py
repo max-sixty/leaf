@@ -22,7 +22,9 @@ from interact_support import (
     wait_for,
 )
 
+from leaf import clerk as clerk_model
 from leaf import event_log as events_model
+from leaf import forks as forks_model
 from leaf import leases as leases_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
@@ -67,7 +69,7 @@ class ClaudeCode:
             elif "band" in record:
                 self.bands.put(record["band"])
             elif "forked" in record:
-                self.forks.put(record["forked"])
+                self.forks.put(record)
             elif {"copied", "toast"} & record.keys():
                 self.pressed.put(record)
             else:
@@ -320,6 +322,42 @@ def test_a_follower_terminated_from_outside_stays_out_of_the_conversation(
     driven.quit()
 
 
+def test_a_follower_that_ends_to_be_renewed_starts_again(spawn, sessionless, tmp_path):
+    """A follower ends with EX_TEMPFAIL once the session's delivery runs another Leaf
+    (`hooks.cmd_pages`), and the module starts it again, under that Leaf, without a
+    word in the conversation."""
+    launcher = tmp_path / "bin" / "leaf"
+    launcher.parent.mkdir()
+    starts = tmp_path / "starts"
+    page = {
+        "page_key": "k",
+        "url": "http://127.0.0.1:1/?t=k",
+        "title": "Release",
+        "on_user": 0,
+        "threads": {"open": 0, "unread": 0},
+        "activity": {"kind": "waiting"},
+    }
+    # The first follower lists the page and ends to be renewed; the next stays.
+    launcher.write_text(
+        "#!/bin/sh\n"
+        f"echo started >> {starts}\n"
+        f"echo '{json.dumps([page])}'\n"
+        f'[ "$(wc -l < {starts})" -gt 1 ] && exec sleep 60\n'
+        "exit 75\n"
+    )
+    launcher.chmod(0o755)
+    driven = ClaudeCode(spawn, "cc-renewed", {"pluginRoot": str(tmp_path)})
+    driven.emit("session.start", {"cwd": str(tmp_path), "isInteractive": True})
+    wait_for(
+        lambda: starts.read_text() if starts.exists() else "",
+        lambda read: read.count("started") == 2,
+        failure="the module did not start the follower again",
+    )
+    driven.settle()
+    assert driven.diagnostics.empty()
+    driven.quit()
+
+
 # The main thread's last request as a fork's diagnostics name it: the newest row
 # stored as it went out, and the newest by the time of the fork, such as its reply.
 RESENT = {
@@ -328,6 +366,13 @@ RESENT = {
     "messages": 12,
     "sent": "r1",
     "row": "r2",
+}
+# The usage the driver's fork reports (`tests/claude_code_driver.mjs`).
+FORK_USAGE = {
+    "input_tokens": 10,
+    "output_tokens": 20,
+    "cache_read_input_tokens": 1000,
+    "cache_creation_input_tokens": 0,
 }
 
 
@@ -355,7 +400,7 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
 ):
     """As a main-loop turn the model answered ends in a session holding a live page,
     the module forks the conversation with the clerk's question and hands the answer
-    back, and Leaf asks what it names On me, in a thread of its own. A subagent's turn, or an interrupted
+    back, and Leaf asks what it names On Me, in a thread of its own. A subagent's turn, or an interrupted
     one, forks nothing."""
     page = page_dir.resolve()
     reply = json.dumps(
@@ -388,7 +433,10 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
     driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "a1"})
     driven.emit("turn.complete", {**ended, "reason": "aborted", "isAborted": True})
     driven.emit("turn.complete", {**ended, "reason": "answer"})
-    assert "<leaf-fork-check>" in driven.forks.get(timeout=STATED_TIMEOUT)
+    forked = driven.forks.get(timeout=STATED_TIMEOUT)
+    assert "<leaf-fork-check>" in forked["forked"]
+    # Claude Code thinks at the effort Leaf names, whatever the session's own.
+    assert forked["effort"] == clerk_model.EFFORT
     told = wait_for(
         lambda: driven.debug.get(timeout=STATED_TIMEOUT),
         lambda line: line.startswith("Leaf: the clerk"),
@@ -408,15 +456,19 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
     )
     [note] = read_interactions(page_dir, types=("turn_end_check",))
     assert note["request"] == RESENT, note
+    # The note gives the effort the fork was sent at, not the session's in `request`.
+    assert note["effort"] == clerk_model.EFFORT != RESENT["effort"], note
+    assert note["usage"] == FORK_USAGE and note["elapsedMs"] >= 0, note
     driven.quit()
 
 
 def test_a_failed_fork_stays_out_of_the_conversation_and_the_next_turn_forks(
     page_dir, monkeypatch, spawn, sessionless
 ):
-    """A fork the model refuses writes nothing and reaches only the debug log, since
-    the user never meets the clerk, and a turn that ended while it was out still forks
-    after it. Neither waits on the band: Leaf says whether the session holds a page."""
+    """A fork the model refuses writes nothing and reaches only the debug log and the
+    page's diagnostics, since the user never meets the clerk, and a turn that ended
+    while it was out still forks after it. Neither waits on the band: Leaf says
+    whether the session holds a page."""
     driven = ClaudeCode(spawn, "cc-fork-refused", {"forkRejects": True})
     holding_page(driven, page_dir, monkeypatch)
     ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "reason": "answer"}
@@ -424,7 +476,7 @@ def test_a_failed_fork_stays_out_of_the_conversation_and_the_next_turn_forks(
     driven.emit("turn.complete", {**ended, "turnId": "t1"})
     driven.emit("turn.complete", {**ended, "turnId": "t2"})
     for _ in range(2):
-        assert "<leaf-fork-check>" in driven.forks.get(timeout=STATED_TIMEOUT)
+        assert "<leaf-fork-check>" in driven.forks.get(timeout=STATED_TIMEOUT)["forked"]
         told = wait_for(
             lambda: driven.debug.get(timeout=STATED_TIMEOUT),
             lambda line: line.startswith("Leaf: the clerk"),
@@ -432,10 +484,14 @@ def test_a_failed_fork_stays_out_of_the_conversation_and_the_next_turn_forks(
                 f"the clerk never reported: {list(driven.diagnostics.queue)}"
             ),
         )
-        assert "wrote nothing: Error: the model refused the request" in told, told
+        assert "gave no answer (Error: the model refused the request)" in told, told
     driven.settle()
     assert driven.forks.empty()
     assert driven.diagnostics.empty()
+    notes = read_interactions(page_dir, types=("turn_end_check",))
+    assert [note["failed"] for note in notes] == [
+        "Error: the model refused the request"
+    ] * 2, notes
     assert not [
         event
         for event in events_model.read_events(page_dir)
@@ -467,9 +523,12 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     asked = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Why 2 s?"}
     )
-    prompt = driven.forks.get(timeout=STATED_TIMEOUT)
+    forked = driven.forks.get(timeout=STATED_TIMEOUT)
+    prompt = forked["forked"]
     assert prompt.startswith("<leaf-fork-reply>"), prompt
     assert "Why 2 s?" in prompt
+    # Claude Code thinks at the effort Leaf names, whatever the session's own.
+    assert forked["effort"] == forks_model.EFFORT
     told = wait_for(
         lambda: driven.debug.get(timeout=STATED_TIMEOUT),
         lambda line: line.startswith("Leaf: a fork took"),
@@ -489,5 +548,8 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     )
     [note] = read_interactions(page_dir, types=("fork_reply",))
     assert note["request"] == RESENT, note
+    # The note gives the effort the fork was sent at, not the session's in `request`.
+    assert note["effort"] == forks_model.EFFORT != RESENT["effort"], note
+    assert note["usage"] == FORK_USAGE and note["elapsedMs"] >= 0, note
     assert driven.diagnostics.empty()
     driven.quit()

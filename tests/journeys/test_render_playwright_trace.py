@@ -34,6 +34,33 @@ from leaf_dev.example_data import named_source
 from leaf_dev.page_fixtures import example_media
 
 
+def said_by_marks(scope):
+    """Write what each mark under `scope` says when pointed at (its `lfPreview()`,
+    preview.js) into its `data-test-tip`, its name and each line of detail on a line of
+    its own, so a locator can find a mark by its words. An element whose declaration
+    adds nothing now (null), as a caption with no words, is no mark."""
+    scope.evaluate(
+        """async (scope) => {
+          const {render} = await window.__lfWidgetApi();
+          for (const mark of scope.querySelectorAll('*')) {
+            if (typeof mark.lfPreview !== 'function') continue;
+            const said = mark.lfPreview();
+            if (!said) continue;
+            const tip = [said.name, ...(said.detail ?? [])]
+              .filter(Boolean)
+              .map((words) => {
+                const box = document.createElement('div');
+                render(words, box);
+                return box.textContent;
+              })
+              .join('\\n');
+            // Written only where it changed, as the page's write watch asks.
+            if (mark.dataset.testTip !== tip) mark.dataset.testTip = tip;
+          }
+        }"""
+    )
+
+
 def expect_after_checkpoint(root, seconds):
     """The playhead stands on an After checkpoint: the point's details name it and the
     toolbar says its time, each once (lf-trace.js, labels at rest)."""
@@ -173,8 +200,8 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         timeline, f"trace-{record['archive']['sha256']}-phase-{action['id']}-after"
     )
     # Each activation advances exactly once in the complete capture chronology.
-    next_button = widget.get_by_role("button", name="Next", exact=True)
-    previous_button = widget.get_by_role("button", name="Previous", exact=True)
+    next_button = widget.get_by_role("button", name="Next capture", exact=True)
+    previous_button = widget.get_by_role("button", name="Previous capture", exact=True)
     selected_time = widget.locator(".lf-trace-position").inner_text()
     next_button.click()
     following_time = widget.locator(".lf-trace-position").inner_text()
@@ -227,7 +254,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     editor = user.locator(".lf-fab-input")
     expect(editor).to_be_visible()
     user.keyboard.insert_text("The API review button needs explanation.")
-    widget.get_by_role("button", name="Next", exact=True).click()
+    widget.get_by_role("button", name="Next capture", exact=True).click()
     user.keyboard.press("Escape")
     user.keyboard.press("g")
     user.keyboard.press("i")
@@ -354,10 +381,15 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     card.get_by_role("button", name="Next thread").click()
     expect(card).to_contain_text("This exact captured frame.")
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
-    expect(card.locator(".lf-page-thread")).to_be_focused()
+    # A click on ‹ or › lands in the reply (thread/focus.js, `openingPart`).
+    reply = card.get_by_role("textbox", name="Reply", exact=True)
+    expect(reply).to_be_focused()
     card.get_by_role("button", name="Previous thread").click()
     expect(widget.locator(f'[data-lf-datum="{target}"]')).to_be_visible()
     expect(widget.locator(".lf-trace-phase")).to_have_text("After checkpoint")
+    expect(reply).to_be_focused()
+    # Escape stands the user on the thread, where `t` walks rather than types.
+    user.keyboard.press("Escape")
     expect(card.locator(".lf-page-thread")).to_be_focused()
     user.keyboard.press("t")
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
@@ -452,7 +484,9 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         <= widget.locator(".lf-trace-body").bounding_box()["width"]
     )
     assert (
-        widget.get_by_role("button", name="Next", exact=True).bounding_box()["height"]
+        widget.get_by_role("button", name="Next capture", exact=True).bounding_box()[
+            "height"
+        ]
         >= 44
     )
 
@@ -517,7 +551,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         f"{((late_frame['timestamp']) - record['streams'][0]['monotonicTime']) / 1000:.3f} s"
     )
     expect(widget.locator(".lf-trace-caption")).to_contain_text("Captured frame")
-    widget.get_by_role("button", name="Previous", exact=True).click()
+    widget.get_by_role("button", name="Previous capture", exact=True).click()
     expect(widget.locator(".lf-trace-position")).to_have_text(
         f"{((early_call['endTime']) - record['streams'][0]['monotonicTime']) / 1000:.3f} s"
     )
@@ -590,7 +624,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     expect(broken_widget.locator(".lf-trace-tools-status")).to_have_text(
         "Image unavailable"
     )
-    broken_widget.get_by_role("button", name="Next", exact=True).click()
+    broken_widget.get_by_role("button", name="Next capture", exact=True).click()
     rendered(broken)
 
 
@@ -715,7 +749,7 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
     expect(widget.get_by_role("radiogroup", name="Recording scope")).to_be_hidden()
     expect(widget.locator(".lf-trace-action")).to_have_text(first_call["title"])
     expect(widget.locator(".lf-trace-phase")).to_contain_text("Start")
-    widget.get_by_role("button", name="Next", exact=True).click()
+    widget.get_by_role("button", name="Next capture", exact=True).click()
     expect(widget.locator(".lf-trace-phase")).to_have_text("Completion")
     expect(widget.locator(".lf-trace-position")).to_have_text(
         f"{(first_call['endTime'] - record['streams'][0]['monotonicTime']) / 1000:.3f} s"
@@ -753,7 +787,7 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
     first_scope = widget.get_by_role("radio", name="Stream 1", exact=True)
     second_scope = widget.get_by_role("radio", name="Stream 2", exact=True)
     expect(first_scope).to_have_attribute("aria-checked", "true")
-    widget.get_by_role("button", name="Next", exact=True).click()
+    widget.get_by_role("button", name="Next capture", exact=True).click()
     first_position = widget.locator(".lf-trace-position").inner_text()
     first_scope.focus()
     first_scope.press("ArrowRight")
@@ -762,7 +796,7 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
     # The arrow's rendering ends before the next press: Playwright scrolls Next into
     # view first, and a scroll inside the arrow's rendering is charged to the arrow.
     rendered(user)
-    widget.get_by_role("button", name="Next", exact=True).click()
+    widget.get_by_role("button", name="Next capture", exact=True).click()
     expect(widget.locator(".lf-trace-position")).to_have_text("0.030 s")
     first_scope.click()
     expect(widget.locator(".lf-trace-position")).to_have_text(first_position)
@@ -848,7 +882,8 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
             # The numbered flag on the timeline reaches the same result, and,
             # standing beside the evidence, moves nothing on the page.
             scroll = user.evaluate("scrollY")
-            widget.locator(f'.lf-trace-word[data-lf-tip*="{label}"]').click()
+            said_by_marks(widget)
+            widget.locator(f'.lf-trace-word[data-test-tip*="{label}"]').click()
             expect_after_checkpoint(widget, elapsed)
             assert user.evaluate("scrollY") == scroll
             continue
@@ -1011,7 +1046,7 @@ def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve
         play.tap() if touch else play.click()
         expect(pause).to_be_visible()
         user.clock.run_for(round(duration * 0.75))
-        widget.get_by_role("button", name="Next", exact=True).click()
+        widget.get_by_role("button", name="Next capture", exact=True).click()
         expect(play).to_be_visible()
         user.clock.resume()
 
@@ -1167,7 +1202,7 @@ def test_trace_page_scrolling_preserves_playback(browser, serve):
             expect(pause).to_have_count(1)
             pause.press("Tab")
             expect(
-                widget.get_by_role("button", name="Previous", exact=True)
+                widget.get_by_role("button", name="Previous capture", exact=True)
             ).to_be_focused()
             expect(pause).to_have_count(1)
         user.clock.run_for(round(duration * 0.75))
@@ -1504,7 +1539,7 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
                 != target
             ):
                 expect(
-                    widget.get_by_role("button", name="Next", exact=True)
+                    widget.get_by_role("button", name="Next capture", exact=True)
                 ).to_be_enabled()
                 timeline.press("ArrowRight")
                 rendered(user)
@@ -1750,11 +1785,15 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
 
         # Close moments share a flag at the overview; zoom separates them.
         pins = widget.locator(".lf-trace-moment-pin")
+        said_by_marks(widget)
         tips = "\n".join(
-            pins.evaluate_all("nodes => nodes.map(node => node.dataset.lfTip)")
+            pins.evaluate_all("nodes => nodes.map(node => node.dataset.testTip)")
         )
-        assert re.findall(r"^(\d+) · ", tips, re.MULTILINE) == ["1", "2", "3"]
-        third = widget.locator('.lf-trace-moment-pin[data-lf-tip^="3 ·"]')
+        # Each moment is said once across the flags, on a line of its own: a flag's
+        # own under its label, a shared flag's after each label it holds.
+        assert re.findall(r"Moment (\d+) · ", tips) == ["1", "2", "3"]
+        # The flag of the third moment alone, which its number names.
+        third = pins.filter(has_text=re.compile(r"^\s*3\s*$"))
         for _ in range(8):
             if third.count():
                 break
@@ -1847,7 +1886,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
             // or the right edge of a label pointing back from the scale's end.
             offsets: marks.map(mark => {
               const r = mark.getBoundingClientRect();
-              const at = track.left + edge + Number(mark.style.getPropertyValue('--t')) * span;
+              const at = track.left + edge + Number(mark.style.getPropertyValue('--lf-axis-at')) * span;
               return Math.abs((mark.hasAttribute('data-lf-flip') ? r.right : r.left) - at);
             }),
             flags: [...node.querySelectorAll('.lf-trace-moment-pin')].map(pin => {
@@ -1872,11 +1911,13 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
 
     first = visible_marks()
     # A shared flag lists every moment it stands for, in time order.
+    said_by_marks(widget)
     tips = "\n".join(
-        pins.evaluate_all("nodes => nodes.map(node => node.dataset.lfTip)")
+        pins.evaluate_all("nodes => nodes.map(node => node.dataset.testTip)")
     )
-    for number in range(2, 22):
-        assert re.search(rf"^{number} · ", tips, re.MULTILINE), number
+    assert re.findall(r" · Moment (\d+) · ", tips) == [
+        str(number) for number in range(2, 22)
+    ], tips
     pins.first.click()
     expect(widget.locator(".lf-trace-bookmark:visible")).to_have_count(20)
     expect(
@@ -2048,15 +2089,26 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     shared, solo = pins.nth(0), pins.nth(1)
     docs_time = (stop_time(record, clicks[0]["phases"]["after"]) - origin) / 1000
     api_time = (stop_time(record, clicks[1]["phases"]["after"]) - origin) / 1000
-    tip = widget.locator(".lf-trace-tip")
+    # What a flag says to a resting pointer is its preview (preview.js).
+    tip = user.locator("#lf-preview")
     for color_scheme in ("light", "dark"):
         user.emulate_media(color_scheme=color_scheme)
         shared.hover()
         expect(tip).to_be_visible()
-        expect(tip).to_have_text(
-            f"1 · {labels[0]} · {docs_time:.3f} s\n2 · {labels[1]} · {docs_time:.3f} s"
+        # The flag names its count and each moment's words on a line of its own. The
+        # lanes around it leave room above for its first line, so the rest is cut
+        # there, as any preview held to a room is (preview.js, `fit`), and says
+        # itself whole where the room allows.
+        expect(tip.locator(".lf-preview-word")).to_be_visible()
+        expect(tip.locator(".lf-preview-word, .lf-preview-detail")).to_have_text(
+            [
+                "2 moments",
+                f"{labels[0]} · Moment 1 · {docs_time:.3f} s",
+                f"{labels[1]} · Moment 2 · {docs_time:.3f} s",
+            ]
         )
-        reading = tip.evaluate(
+        # Its face is what is drawn, ink on its ground (preview.js).
+        reading = tip.locator(".lf-preview-face").evaluate(
             """node => {
               const canvas = document.createElement('canvas');
               canvas.width = canvas.height = 1;
@@ -2079,9 +2131,15 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
             }"""
         )
         assert reading["contrast"] >= 4.5, (color_scheme, reading)
-        # The tooltip never covers the flag it describes.
+        # The tooltip never covers the flag it describes, standing beside its lane or
+        # above or below it.
         tip_box, pin_box = tip.bounding_box(), shared.bounding_box()
-        assert tip_box["y"] + tip_box["height"] <= pin_box["y"] + 1
+        assert (
+            tip_box["y"] + tip_box["height"] <= pin_box["y"] + 1
+            or tip_box["y"] >= pin_box["y"] + pin_box["height"] - 1
+            or tip_box["x"] + tip_box["width"] <= pin_box["x"] + 1
+            or tip_box["x"] >= pin_box["x"] + pin_box["width"] - 1
+        ), (tip_box, pin_box)
     user.emulate_media(color_scheme="light")
     user.mouse.move(0, 0)
     expect(tip).to_be_hidden()
@@ -2092,7 +2150,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     expect_moment(widget, 1, labels[0])
     expect(rows.locator(".lf-trace-moment-number")).to_have_text(["1", "2", "3"])
     solo.hover()
-    expect(tip).to_have_text(f"3 · {labels[2]} · {api_time:.3f} s")
+    expect(tip).to_have_text(f"{labels[2]}Moment 3 · {api_time:.3f} s")
     solo.click()
     expect(widget.locator(f'[data-lf-datum="{api}"]')).to_be_visible()
     expect(solo).to_have_attribute("data-lf-current", "")

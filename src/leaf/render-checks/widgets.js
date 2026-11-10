@@ -358,6 +358,44 @@ export function changedBoxes() {
   }));
 }
 
+// x-height's paint ($marks in runtime/kernel-registry.json): the stated height a page
+// reserves for a drawing, or empty where it states none.
+const STATED_HEIGHT = "data-lf-height";
+
+// Each drawn element whose tag declares x-height and whose drawing is taller or shorter
+// than the box it first showed before drawing (`undrawnHeights` in driver.js). The
+// drawing's height is the element's box with its paint lifted for one read, since a
+// package may keep a stated height larger than its drawing, as the diagram's does. The
+// box the element holds now is reported beside both, so the finding can say whether
+// what follows moved as it drew or sits below blank room. An element hidden now has no
+// drawing a reader sees, and one its module never marked drawn, such as a file tree
+// held at its stated height for good, has no drawing for that height to estimate.
+export function drawnHeights() {
+  const found = [];
+  for (const [element, before] of globalThis.__leafRenderDriver.undrawnHeights()) {
+    if (
+      !(element instanceof HTMLElement) ||
+      !element.classList.contains("lf-rendered") ||
+      !shown(element)
+    )
+      continue;
+    const box = element.offsetHeight;
+    const paint = element.getAttribute(STATED_HEIGHT) ?? "";
+    element.removeAttribute(STATED_HEIGHT);
+    const drawn = element.offsetHeight;
+    element.setAttribute(STATED_HEIGHT, paint);
+    if (Math.abs(drawn - before) < ROUNDING) continue;
+    found.push({
+      code: "drawn-height",
+      at: locate(element),
+      before: Math.round(before),
+      drawn,
+      box,
+    });
+  }
+  return found;
+}
+
 // How tall a block `heldScrollers` adds to a box: taller than any widget's own bound.
 const ADDED_BLOCK = 4000;
 const WRITTEN_IN = `input, select, ${TEXT_BOX}`;

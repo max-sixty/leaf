@@ -1,6 +1,5 @@
-/* When a page first painted each goal a benchmark waits for: `leaf-dev
- * bench-latency`'s transitions, and `leaf-dev scaling`'s click showing the server's
- * reading (`painted.py`).
+/* When a page first painted each goal a benchmark waits for: each input `leaf-dev
+ * bench`'s paint pass times (`painted.py`).
  *
  * Installed before each document. The goals stay in sessionStorage so a revision
  * that reloads the page is sampled by the document that replaces it. Sampling
@@ -21,7 +20,8 @@
  * was read. `message`, `card` and `delivered`'s event stay once there, and
  * `delivered` and `revision` also ask that presentation has finished, which a later
  * reading can only delay. `status` stays only while nothing else sets the page's
- * status, as in bench-latency's runs.
+ * status, as in bench's runs. `met` reads one goal's fact once, without sampling,
+ * for a reader that only waits for the result.
  */
 (() => {
   if (window !== window.top || location.protocol === "about:") return;
@@ -126,7 +126,7 @@
           for (const goal of watch.goals) {
             if (goal.at !== null || !painting.has(goal.name)) continue;
             goal.at = at;
-            // Where a trace of the page finds this frame (`bench-latency --profile`).
+            // Where a trace of the page finds this frame (`bench --profile`).
             performance.mark(`lf-bench:${goal.name}`);
           }
           sessionStorage.setItem(WATCH, JSON.stringify(watch));
@@ -177,6 +177,7 @@
         sample();
       },
       watch: watched,
+      met: (fact, arg) => facts[fact](arg),
       disarm() {
         stopWatching?.();
         stopWatching = null;

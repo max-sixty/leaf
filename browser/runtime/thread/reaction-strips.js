@@ -4,7 +4,6 @@ import { isHTML } from "../shadow-tree.js";
    The strip below a reply's words holds its reactions; its trigger stands with the
    message's other controls at its head (messages.js), which draws `trigger`. */
 import { html, ref, render, repeat } from "/runtime/framework.js";
-import { HOLDS_WORD } from "../held-word.js";
 import { offeredAction } from "../widget-elements.js";
 
 /** @typedef {{registerSurface: ReturnType<typeof import("../reactions.js").createReactionController>["registerReactSurface"],
@@ -43,9 +42,8 @@ export class ReactionStripView {
           (choice) => choice.name,
           (choice) =>
             html` <button
-              ${offeredAction("reaction", `lf-react ${HOLDS_WORD}`)}
+              ${offeredAction("reaction", "lf-react")}
               data-lf-token=${choice.name}
-              title=${choice.label}
               aria-label=${choice.label}
               aria-pressed=${String(Boolean(choice.inForce))}
               @click=${() => this.#press(model, choice)}

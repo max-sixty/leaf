@@ -297,6 +297,12 @@ the harness, the model's wait and generation, and the agent's other tools. Model
 varies widely from run to run, so compare a phase Leaf owns directly, and the whole
 reply over enough runs to see past that spread.
 
+To find out what happened to one message, on a real page or in a journey's evidence
+directory, run `leaf-dev timeline PAGE --message ID`: it lays the page's log and
+diagnostics beside the Claude Code session's transcript and debug log, so it shows
+whether a fork was held, asked and answered, when Leaf handed the message over, and
+what the session was doing meanwhile (`dev/leaf_dev/commands/timeline.py`).
+
 ## Compare checkout versions
 
 `uv run leaf-dev compare <example>` serves the merge-base runtime beside this checkout,

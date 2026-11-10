@@ -27,9 +27,12 @@ from render_harness import (
     panel_menu,
     panel_view,
     refuse,
+    select_words,
     sending,
     take_browser_errors,
+    ticked,
     told,
+    wait_for_revision,
     write,
 )
 
@@ -444,3 +447,62 @@ def test_a_revision_the_page_has_to_refuse_leaves_the_beat_beating(browser, serv
     finally:
         page.unroute("**/revisions/*", answer)
         page.unroute("**/registry.json", revendored)
+
+
+def test_a_latest_press_whose_revision_failed_to_load_leaves_it_waiting_on_a_comment(
+    browser, serve
+):
+    """Latest installs the newer revision over an unfinished comment. When that
+    revision fails to load, the chip stays lit for another press and the first one is
+    spent: once the revision loads, it waits for the comment as any revision does."""
+    first = leaf_page(
+        "Waiting first",
+        '<h1>Waiting</h1>\n<p id="wt-line">The cutover has not started yet.</p>',
+    )
+    page = open_page(browser, live_url(serve(first)))
+    failed, loaded = [], []
+
+    def fail(route):
+        failed.append(route)
+        refuse(route)
+
+    def load(route):
+        loaded.append(route)
+        route.continue_()
+
+    page.route("**/revisions/*", fail)
+    try:
+        (serve.page_dir / "index.html").write_text(
+            first.replace("has not started yet", "finished on Tuesday")
+        )
+        latest = page.locator(".lf-fp-row-notice-press").filter(has_text="Latest")
+        expect(latest).to_be_visible()
+        before = len(failed)
+        latest.click()
+        # The press's own load, after any the beat already had in flight.
+        holding(page, failed, before + 2, "the revision's loads after the press")
+        select_words(page, "#wt-line")
+        page.keyboard.press("c")
+        editor = page.locator(".lf-fab-input")
+        write(editor, "Hold the revision for this.")
+    finally:
+        page.unroute("**/revisions/*", fail)
+    page.route("**/revisions/*", load)
+    try:
+        holding(page, loaded, 1, "the revision's load once it recovers")
+        # The beat that loaded it judges the install before its tick; one more tick
+        # outlasts a beat that was already past its load.
+        ticked(page)
+        ticked(page)
+        expect(page.locator("#wt-line")).to_have_text(
+            "The cutover has not started yet."
+        )
+        latest.click()
+        wait_for_revision(page, 2)
+        expect(page.locator("#wt-line")).to_have_text(
+            "The cutover finished on Tuesday."
+        )
+        expect(editor).to_have_js_property("value", "Hold the revision for this.")
+    finally:
+        page.unroute("**/revisions/*", load)
+    assert all(is_problem(p, "failed to load") for p in take_browser_errors(page))

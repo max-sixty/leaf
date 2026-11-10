@@ -206,8 +206,9 @@ def _stored_events(data: bytes, before: int = 0) -> list[dict]:
         except (json.JSONDecodeError, UnicodeDecodeError):
             # The final line is a concurrent append mid-flush, complete on the
             # next read. An earlier one is the tear a crash left, standing alone
-            # because append_event repairs the discipline before writing: that
-            # event's sender already saw its send fail, the seqs around it hold,
+            # because _append_event_unlocked repairs the discipline before
+            # writing: that event's sender already saw its send fail, the seqs
+            # around it hold,
             # and there is nothing anyone could do with a fragment — so it is
             # skipped, not raised over, and the page keeps reading.
             continue

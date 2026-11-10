@@ -55,7 +55,7 @@ delivered at prompt:
             leaves, which delivering what was asked doesn't settle. `--obligation`
             when it is the user's: it leaves them a decision, or something to try
             or review before making one, or asks them for an answer or permission.
-            That puts your answer on their On me list until they reply or resolve
+            That puts your answer on their On Me list until they reply or resolve
             the thread, even where the decision itself is already there. Where your
             answer asks a question of its own whose answers you can list, such as
             which of two ways to proceed or whether to take an action, put them

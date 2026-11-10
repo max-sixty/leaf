@@ -284,7 +284,7 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
 
 
 def test_a_reply_next_on_me_lands_on_rings_its_card(browser, serve):
-    """Next on me lands on the agent's long question in its card, and the card wears
+    """Next On Me lands on the agent's long question in its card, and the card wears
     the ring, whole, as for the thread itself: the card is the thread's one frame. The
     message wore its own outline, a frame in the frame whose top its sticky head
     painted over."""
@@ -303,7 +303,7 @@ def test_a_reply_next_on_me_lands_on_rings_its_card(browser, serve):
     drawn = rings_drawn(page)
     worn = [seen["who"].split(" ")[0] for seen in drawn if seen["here"]]
     assert worn == ["div.lf-margin-preview-card"], drawn
-    assert not (faults := ring_faults(drawn, "on the reply Next on me reached")), (
+    assert not (faults := ring_faults(drawn, "on the reply Next On Me reached")), (
         "\n".join(faults)
     )
 
@@ -361,12 +361,12 @@ def agent_says(page, page_dir, words):
 def test_news_at_a_card_s_end_shows_where_its_held_edge_keeps_the_reply_still(
     browser, serve, size, side
 ):
-    """The caret a click's opening leaves in the box holds the foot of a card beside
-    its words, so the answer the user waits for shows at once, growing the card up,
-    and so does one arriving once they type, the box staying where it stood. A card
-    under its words keeps its top, so the answer grows it down past the box: it shows
-    while the caret only rests in the empty box, and waits behind the card's notice
-    once the user types there (thread-preview.js, `endNewsMoves`)."""
+    """The caret a click's opening leaves in the empty box holds no line, so the card
+    keeps its top and the answer the user waits for shows at once, growing the card
+    down past the box. Once the user types there, a card beside its words holds its
+    foot, so an answer shows at once and grows it up, the box staying where it stood; a
+    card under its words keeps its top, so an answer waits behind the card's notice
+    (thread-preview.js, `heldEdge`, `endNewsMoves`)."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
     resized(page, *size)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
@@ -384,10 +384,7 @@ def test_news_at_a_card_s_end_shows_where_its_held_edge_keeps_the_reply_still(
     expect(preview.locator(".lf-thread-news:visible")).to_have_count(0)
     rendered(page)
     shown = preview.evaluate(REPLY_BOX)
-    if side == "below":
-        assert shown[0] > resting[0] + 10, (resting, shown)
-    else:
-        assert shown == pytest.approx(resting, abs=0.5), (resting, shown)
+    assert shown[0] > resting[0] + 10, (resting, shown)
 
     page.keyboard.type("Which")
     rendered(page)
@@ -495,13 +492,12 @@ CARD_DRAWN = """card => {
 }"""
 
 
-def test_a_card_send_moves_the_card_as_one_stream(browser, serve):
-    """A send from a margin card slides the card up as one stream, as the floating
-    panel's does: at the motion's first frame the card's outline, its head row and every
-    turn already there stand one shared distance below where they come to rest, so the
-    picture starts as it stood and nothing the reader reads overtakes anything else.
-    The new turn starts that far below its rest too, coming up from the foot. Read at
-    the first frame, held, and again at rest."""
+def test_a_card_send_grows_the_card_down_past_what_the_user_read(browser, serve):
+    """A send from a margin card beside its words, with room below it, keeps the
+    card's outline, its head row and the turn already there where they stood, from the
+    send's first frame to rest: the sent turn joins under them and the reply box moves
+    down, rather than the whole transcript moving up (thread-preview.js). Read at the
+    first frame, held, and again at rest."""
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
     page.emulate_media(reduced_motion="no-preference")
     resized(page, 1440, 900)
@@ -522,10 +518,9 @@ def test_a_card_send_moves_the_card_as_one_stream(browser, serve):
     page.evaluate("() => window.__lfHeld.splice(0).forEach(motion => motion.finish())")
     page.wait_for_function(CARD_AT_REST)
     rest = preview.evaluate(CARD_DRAWN)
-    offsets = [d - r for d, r in zip(drawn, rest, strict=True)]
-    assert offsets[0] > 10, f"the card grew in place: {offsets}"
-    assert max(offsets) - min(offsets) < 1, f"the stream came apart: {offsets}"
     assert drawn[:3] == pytest.approx(stood, abs=1), (stood, drawn)
+    assert rest[:3] == pytest.approx(stood, abs=1), (stood, rest)
+    assert rest[3] > stood[2] + 10, (stood, rest)
 
 
 # Where a card's outline, its head row, each turn and each turn's name are drawn now.
@@ -985,6 +980,33 @@ def test_a_card_at_its_end_keeps_its_last_turn_as_the_window_shortens(browser, s
     rendered(page)
     assert transcript.evaluate("list => list.clientHeight") < room - 100
     assert transcript.evaluate(past_end) <= 1
+
+
+def test_a_card_wheeled_to_its_end_stays_where_the_browser_put_it(browser, serve):
+    """A transcript the user scrolls to its end takes no scroll write from the card.
+    Every scroll's end placed the card again, and the placement put a transcript at
+    its end back at its end, though nothing had moved the end. The write stops the
+    scroll the browser drives: in Firefox it flattened the rubber band a flick into the
+    end had started, every 90ms, since the browser's end stood a fraction of a pixel
+    past the whole-pixel one written."""
+    page, _, transcript = open_long_thread(browser, serve)
+    transcript.evaluate(
+        """list => {
+          list.lfWrites = [];
+          for (const name of ["scrollTo", "scroll", "scrollBy"]) {
+            const own = list[name].bind(list);
+            list[name] = (...args) => (list.lfWrites.push(name), own(...args));
+          }
+        }"""
+    )
+    page.mouse.wheel(0, 2000)
+    page.wait_for_function(
+        "list => list.scrollHeight - list.clientHeight - list.scrollTop < 1",
+        arg=transcript.element_handle(),
+    )
+    scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
+    rendered(page)
+    assert transcript.evaluate("list => list.lfWrites") == []
 
 
 @pytest.mark.parametrize("comment_repeats", [0, 17])
@@ -2025,9 +2047,10 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reply(
     scrollbar_browser, serve, request, pending
 ):
     """An ongoing answer keeps its identity across the user's interjection. Its tokens
-    stay live while the user writes and after Send, accepted or pending, growing the
-    card up from its reply row, which stays where it stands while the caret is in the
-    box, until the card meets the window's head. They need no news press."""
+    stay live while the user writes, growing the card up from its reply row, which
+    stays where it stands. Send empties the box, so the card keeps its top through the
+    send and the tokens after it, accepted or pending, grow it down from the reading.
+    They need no news press."""
     from browser.threads import claim_for_codex, stream_reply
 
     url = serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT])
@@ -2098,7 +2121,7 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reply(
     expect(streamed).to_have_text(waiting.strip())
     expect(card.locator(".lf-thread-news")).to_have_count(0)
     rendered(page)
-    assert positions()["reply"] == pytest.approx(before_send["reply"], abs=0.5)
+    assert positions()["card"] == pytest.approx(before_send["card"], abs=0.5)
     if not pending:
         held.pop().continue_()
         round_trip(page)
@@ -2121,8 +2144,12 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reply(
         before = positions()
         stream_tokens(repetitions)
         after = positions()
-        assert after["reply"] == pytest.approx(before["reply"], abs=0.5)
-        return before, after
+        assert after["card"] == pytest.approx(before["card"], abs=0.5)
+        assert after["messages"] == pytest.approx(before["messages"], abs=0.5), (
+            before,
+            after,
+        )
+        assert after["reply"] > before["reply"] + 10, (before, after)
 
     before_stream = positions()
     page.evaluate(
@@ -2139,15 +2166,15 @@ def test_sending_during_a_stream_keeps_later_tokens_from_moving_the_reply(
           requestAnimationFrame(sample);
         }"""
     )
-    rising = append_tokens(8)
-    assert rising[1]["messages"][0] < rising[0]["messages"][0] - 10, rising
+    append_tokens(8)
     frames = page.evaluate("""() => {
       streamMotion.active = false;
       return streamMotion.frames;
     }""")
     assert frames
     for frame in frames:
-        assert frame["reply"] == pytest.approx(before_stream["reply"], abs=0.5)
+        assert frame["card"] == pytest.approx(before_stream["card"], abs=0.5)
+        assert frame["messages"] == pytest.approx(before_stream["messages"], abs=0.5)
     if pending:
         expect(sent).to_have_attribute("aria-busy", "true")
         held.pop().continue_()

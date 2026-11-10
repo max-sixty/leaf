@@ -108,7 +108,7 @@ if TYPE_CHECKING:
 PORT = 8080
 # The model every hosted task runs on. Its threads are titled on Codex's title
 # model (`thread_titles.CODEX_TITLE_MODEL`).
-HOSTED_MODEL = "gpt-5.6-luna"
+HOSTED_MODEL = "gpt-6-luna"
 WEBSITE_AGENT = "Agent"
 WEBSITE_AGENT_SESSION = "leaf-website-agent"
 
@@ -1403,13 +1403,6 @@ def released_path(pages: dict, path: str) -> str | None:
 
 class WebsitePageEndpoint(PageEndpoint):
     """Bind every clean website route to one initialized page directory."""
-
-    # A visitor's private comments, replies and attached images would otherwise stay
-    # in the browser's disk cache after their session ends, for anyone who later uses
-    # that browser profile to read. The price is the back/forward cache, which keeps
-    # no such page.
-    cache_control = "no-store"
-    media_cache_control = cache_control
 
     def __init__(
         self,

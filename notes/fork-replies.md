@@ -239,12 +239,19 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
   PreToolUse and PostToolBatch still name it. A send to an agent with no transcript
   delivers nothing and says why (2.1.322 on 2026-11-10, a probe module on Sonnet).
 - The main thread learns nothing of it: its transcript gets no row for the spawn, and
-  the fork's first completion sends it no notification and wakes no idle session. The
-  main thread finds it by name with ListAgents, and a SendMessage to that name resumes
-  it. A resumed run's completion, whether the main thread's SendMessage or the
-  module's send resumed it, does notify the main thread and starts a turn on an idle
-  session. A module's `prompt.submit` hook can drop that notification's prompt, and
-  Claude Code then shows the user "Prompt dropped by a hook".
+  the fork's first completion sends it no notification and wakes no idle session.
+  Claude Code skips that notification as already sent, logging
+  `[enqueueAgentNotification] skipped … reason=already-notified`, and a module can
+  start a fork no other way: `$.tool.call({ tool: "Agent", … })` is refused with
+  "runs the Agent tool: that is $.agent.spawn (host check)". The main thread finds
+  the fork by name with ListAgents, and a SendMessage to that name resumes it.
+  A resumed run's completion, whether the main thread's SendMessage or the module's
+  send resumed it, does notify the main thread, as a `<task-notification>` carrying
+  the fork's final message, and starts a turn on an idle session 30 ms later. A
+  module's `prompt.submit` hook can drop that notification's prompt, and Claude Code
+  then shows the user "Prompt dropped by a hook" (2.1.322 on 2026-11-10; the probe
+  module is in `.tmp/resume-probe/` of the `send-pickup-latency` worktree, which may
+  be gone, run with `uv run python .tmp/resume-probe/run.py sonnet`).
 - The fork can message the main thread itself: its SendMessage to `main` arrived as
   an `<agent-message from="…">` and started a turn on the idle main session 60 ms
   later (2026-11-07). The module's `$.session.send` to its own session id fails as
@@ -335,10 +342,12 @@ since it changes the work the obligation would queue behind.
   resumed under its agent id in a new turn, where the line's fork judges the message
   a fork's. Leaf's message resuming it lists what the rest of the session did on the
   page since the fork's last turn began, which the fork's transcript lacks, and the
-  fork can SendMessage the main thread to ask about it. Messages in different threads
-  start a fork each; if that proves wasteful, one standing fork per session would take
-  every small message in turn, cheaper but slower when threads arrive together. (The
-  user chose this on 2026-11-10.)
+  fork can SendMessage the main thread to ask about it. A resumed run's end notifies
+  the main thread and wakes it while idle, which the fork's first run's end doesn't
+  ("What Claude Code gives the module"). Messages in different threads start a fork
+  each; if that proves wasteful, one standing fork per session would take every small
+  message in turn, cheaper but slower when threads arrive together. (The user chose
+  this on 2026-11-10.)
 - **The main thread as coordinator.** Told by name as each fork takes a thread, the
   main thread can steer it or stop it with SendMessage, or take the thread over. It
   takes obligations in the order it judges and runs those bigger than a message in
@@ -462,13 +471,21 @@ main thread while the fork works.
    doesn't (above, "What Claude Code gives the module"); Leaf leaves that notification
    as it is while how a fork tells the main thread what it did is open.
 
-   On 2026-11-10 the journey's `fork-resume` step, on a host at load 6 to 7, sent a
-   further question to a thread whose fork had answered it and ended. The line came
-   2.9 s after sending, and the same fork, resumed under its agent id, answered from
-   a new turn that had picked the message up, at 15.0 s, while the session stayed
-   idle; the resumed run took 16.8 s. Claude Code's notification of that run's end
-   then started a turn on the main thread, whose prompt carried the clerk's queued
-   lines about every fork so far, and that turn didn't answer the message again.
+   On 2026-11-10 the journey's `fork-resume` step, run twice on a host at load 3 to
+   7, sent a further question to a thread whose fork had answered it and ended. The
+   line came 2.9 s after sending both times, and the same fork, resumed under its
+   agent id, answered from a new turn that had picked the message up, at 15.0 s and
+   12.9 s, while the session stayed idle; the resumed run took 16.8 s and 13.2 s.
+   Claude Code's notification of that run's end then started a turn on the main
+   thread, which checked both forks' answers against the page and found nothing to
+   correct. It took 22.7 s and 27.5 s, on 4 and 5 Opus requests that read 215k and
+   289k tokens from the cache, wrote 6.8k and 4.3k, and output 1.2k and 1.9k, and it
+   didn't answer the message again. Leaf's prompt hook for that turn ran beside the
+   module's report of the run's end, and both times read the clerk's queue before
+   that report added its line, so the line saying the fork answered reached the main
+   thread at its first tool boundary, 5 s later. Whichever runs first, a pickup by the main thread leaves out
+   what a running fork turn holds (`forks.pickable`), so it can't take a message
+   while the fork's turn is still open.
 
 5. **Measuring it**: an outcome eval comparing a fork's answers with the session's on
    replayed hand-overs, and the decision and coherence evals below, before forks that

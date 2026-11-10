@@ -68,7 +68,8 @@
 // beside the scroll offsets of the boxes that carry it. A scroll may hold it still,
 // or take back part of what the gesture's own layout moved it, or bring it whole into
 // the view of a box that showed only part of it (its scrollport less its
-// scroll-padding, which the aim's scroll-margin must clear) by no more than the part
+// scroll-padding, which the aim's scroll-margin must clear, on each side the box can
+// still scroll toward; a side it has reached bounds nothing) by no more than the part
 // it hid, as the browser's own focus does, and carry it no further. A gesture that takes the user somewhere may:
 // a command declares it (`travels` on its register row, which the dispatcher's
 // `lf-command-invoked` carries), and so does the history entry a gesture adds, as a
@@ -1960,18 +1961,38 @@
   // Where a scroller shows what it holds whole: its scrollport less its scroll-padding,
   // the region the browser's own reveals bring a target into, clear of what the
   // scroller declares stands over its edges (a stuck header, a strip's edge press).
+  // A side the scroller has reached the end of bounds nothing: no scroll brings more
+  // past it, so a reveal toward it, the browser's own included, ends at the clamp with
+  // as much shown as can be, and a strip hides its edge press where there is no more.
   const shownBy = (box) => {
     const root = box === document.scrollingElement;
     const rect = root ? { left: 0, top: 0 } : box.getBoundingClientRect();
     const style = getComputedStyle(box);
+    const vertical = !style.writingMode.startsWith("horizontal");
+    const rtl = style.direction === "rtl";
+    // Offsets run negative away from a scroll origin at the right or bottom.
+    const ends = (offset, room, flipped) => {
+      const [low, high] = flipped ? [-room, 0] : [0, room];
+      return [offset <= low + 0.5, offset >= high - 0.5];
+    };
+    const [atLeft, atRight] = ends(
+      box.scrollLeft,
+      box.scrollWidth - box.clientWidth,
+      vertical ? style.writingMode.endsWith("rl") : rtl,
+    );
+    const [atTop, atBottom] = ends(
+      box.scrollTop,
+      box.scrollHeight - box.clientHeight,
+      vertical && rtl,
+    );
     const inset = (side) => pixels(style[`scrollPadding${side}`]) ?? 0;
     const left = rect.left + (root ? 0 : box.clientLeft);
     const top = rect.top + (root ? 0 : box.clientTop);
     return {
-      left: left + inset("Left"),
-      top: top + inset("Top"),
-      right: left + box.clientWidth - inset("Right"),
-      bottom: top + box.clientHeight - inset("Bottom"),
+      left: atLeft ? -Infinity : left + inset("Left"),
+      top: atTop ? -Infinity : top + inset("Top"),
+      right: atRight ? Infinity : left + box.clientWidth - inset("Right"),
+      bottom: atBottom ? Infinity : top + box.clientHeight - inset("Bottom"),
     };
   };
   // A control as a reveal brings it into view: out to its scroll-margin, its ring's room.

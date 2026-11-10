@@ -180,11 +180,19 @@ the complete suite takes hours, and later changes may have removed the cause. A 
 alone does not clear a failure that comes and goes.
 
 Establish the conflict before applying **Reading a red suite**'s revert-and-decision
-route. An unresolved diagnosis or a missing verification environment remains
-engineering work, owned by the cause's session through `/tend-ci-runner:triage`'s
-**A cause issue** route.
+route. An unresolved diagnosis, or a verification environment you can reach another
+way, remains engineering work, owned by the cause's session through
+`/tend-ci-runner:triage`'s **A cause issue** route.
 For a local website gate the sandbox cannot run, `worker/README.md`, **Local
 development**, gives its non-deploying CI route.
+
+A cause waits on the maintainer when its next step is one only they can take: a
+decision, or reproducing a failure only `test-macos` shows once the failing run's
+diagnostics, pictures and the code leave its cause open, since no runner you can
+reach has macOS. Label it `waits-on-user` while it waits (`TODO.md` defines the
+label), say in it what you found and what their answer or reproduction should
+settle, and remove the label once they act. A cause that asks the maintainer
+something without the label is missing from the list of what waits on them.
 
 For each durable failure, look for the pull request that introduced it, first
 among those merged since the last run where the failing check passed and then

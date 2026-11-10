@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   combineSemanticNews,
   currentSemanticNews,
+  newsMoment,
   observeSemanticNews,
   semanticNewsNotice,
   semanticNewsReading,
@@ -613,4 +614,62 @@ test("held producer batches preserve interrupted news and merge later arrivals",
     before,
     "showing deferred news must not announce it again",
   );
+});
+
+test("a reading's news gives the leaf one moment, its most pressing", () => {
+  const content = {
+    kind: "agent_content",
+    key: "content:m",
+    thread: "t",
+    version: "m",
+    message: message("m"),
+  };
+  const asked = {
+    kind: "user_obligation",
+    key: "obligation:q",
+    sourceKey: "q",
+    episode: 1,
+    source: "q",
+    thread: "t",
+    message: "m",
+  };
+  const emptied = { kind: "on_me_empty", key: "on-me:empty" };
+  const failed = {
+    kind: "response_failure",
+    key: "response:input",
+    condition: "failed",
+    input: "input",
+    thread: "t",
+    seq: 3,
+  };
+  assert.equal(newsMoment([content]), "reply");
+  assert.equal(newsMoment([content, asked]), "new-on-me");
+  assert.equal(newsMoment([failed, emptied]), "on-me-empty");
+  assert.equal(newsMoment([failed]), null);
+});
+
+test("a notice of the user's own command, and an error about no field, each give the leaf a moment", async (t) => {
+  const { notice, gestureReading } = await import("/runtime/notifications.js");
+  const { dismissErrors, raiseError } = await import("/runtime/errors.js");
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  t.after(() => window.happyDOM.cancelAsync());
+  const moments = [];
+  const step = (run) => {
+    const before = gestureReading().beat;
+    run();
+    const after = gestureReading();
+    if (after.beat !== before) moments.push(after.moment);
+  };
+  // The user's own command, and the same words again.
+  step(() => notice("No search to repeat"));
+  step(() => notice("No search to repeat"));
+  // News is its producer's moment to give, as it arrives, not the seat's when it shows.
+  step(() => notice("Updated to v2", { background: true }));
+  step(() => t.mock.timers.tick(4000));
+  step(() => t.mock.timers.tick(4000));
+  // An error the panel says shakes the leaf; one standing at a box of its own doesn't.
+  step(() => raiseError("Wait for the current change to finish before undoing"));
+  step(() => raiseError("Not sent", { subject: document.createElement("textarea") }));
+  dismissErrors();
+  assert.deepEqual(moments, ["notice", "notice", "error"]);
 });

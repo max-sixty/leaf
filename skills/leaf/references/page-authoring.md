@@ -118,9 +118,10 @@ page composes the route and its document as siblings:
 ```
 
 The browser places that route before JavaScript runs and wraps it with the document
-when narrow. The contents map fills the track's height, so put a verdict or status the
-reader should see at once at the top of the body, and detailed evidence and history in
-the body or behind a disclosure. See `page-layout.md`, "A sidebar page", for the
+when narrow. Under a mouse a sidebar holding the contents map alone narrows to the
+map's spine, whose labels show over the page when the reader points at it, so put a verdict or
+status the reader should see at once at the top of the body, and detailed evidence and
+history in the body or behind a disclosure. See `page-layout.md`, "A sidebar page", for the
 shared composition and width contract.
 
 Workspaces and root page tabs have their own navigation, and so does a
@@ -284,9 +285,11 @@ descendants. For a box that scrolls vertically, see `page-layout.md`, "Bounds an
 
 Leaf fits an image or SVG to its container on every page. On a page that wears the
 reading face, as a themed page does (`package-themes.md`, "Personal themes"), Leaf
-also scrolls a `<pre>` wider than its container, so it needs no width, and a table's
-columns size to their content, so leave its cells' widths and wrapping to Leaf too. A
-table scrolls inside a box that sets its own width, such as the column, a panel or any
+also scrolls a `<pre>` wider than its container, and a table's columns size to their
+content, so leave its cells' widths and wrapping to Leaf too. A `<pre>` asks its
+container for no width, so a box that takes its width from its content can leave it
+too narrow to read, which `page check --render` reports. A table scrolls inside a box
+that sets its own width, such as the column, a panel or any
 other block. A box that takes its width from its content, such as a flex item or a
 grid `auto` track, widens to the table's columns instead, past a phone's window if
 they need it, so give that box `min-width: 0` to keep the table scrolling inside it.

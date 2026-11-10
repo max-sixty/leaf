@@ -357,6 +357,11 @@ customElements.define(
           if (next !== this.drawn) this.paint(next).catch(failed);
         };
         resized();
+        // The drawing settles in Leaf's next rendering pass, never inside the size
+        // delivery that measured its room or its legend: the page presents itself in
+        // the reaction to this settling, and a box that moves above the one the browser
+        // just delivered is a ResizeObserver loop error.
+        await new Promise((done) => nextRender(done));
       } catch (err) {
         failed(err);
       }

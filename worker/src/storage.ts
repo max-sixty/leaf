@@ -363,6 +363,8 @@ export class PageStore {
     if (rows.length === 0) return null;
     const response = rows[0];
     const headers = new Headers(JSON.parse(response.headers));
+    // Served while the container is stopped, so the tab reads that its next write
+    // waits for the container to launch (`writeLaunchesAgent` in `layer-client.js`).
     headers.set("Leaf-State-Source", "durable");
     if (request.method === "HEAD") return new Response(null, { headers });
     const body = this.body(JSON.parse(response.chunks));

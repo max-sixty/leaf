@@ -315,7 +315,12 @@ import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
-import { noticeReading, noticeWords, offeredPress } from "./notifications.js";
+import {
+  gestureReading,
+  noticeReading,
+  noticeWords,
+  offeredPress,
+} from "./notifications.js";
 import {
   dismissError,
   dismissErrors,
@@ -520,6 +525,111 @@ export function createFloatingPanel({
   const viewResizeMs = () => motionTime("--lf-motion-disclosure", host);
   const fadeMs = () => motionTime("--lf-motion-view-in", host);
   const outMs = () => motionTime("--lf-motion-view-out", host);
+  // The leaf answers the moments notifications.js passes on (`gesture`) with a motion
+  // each, once per moment, its length on the panel's sheet (`--lf-motion-leaf-nod` and
+  // its siblings, named for each motion). A new one takes over from one still playing,
+  // which stops where it is rather than carrying on once the new one ends. Each
+  // turns, lifts or scales the mark about its centre and comes back to rest, every
+  // stretch with its own easing, so it plays over the pose the tone holds
+  // (floating-panel.css, `data-lf-tone="away"`). The nod answers the user's own key, so
+  // a press shows it landed although the field's words, quiet and already standing on a
+  // repeat, may not; the user picked it on 9 November 2026 over the words brightening
+  // and the panel tinting, and then each other moment's motion from a playground of
+  // them, leaving the leaf still while the agent works. The leaf's personality is still
+  // evolving (browser/AGENTS.md, "Motion is brief and keeps the user oriented"). Each
+  // motion moves the whole mark, since the panel draws it as the layer's icon.svg
+  // masking a filled square (chrome.css), which leaves it no parts to move. Parts, such
+  // as a blade flexing on its stem, need icon.svg drawn as named shapes, where today it
+  // is one path, and the panel drawing the mark from them, as the tab already reads
+  // icon.svg's `lf-tone` element (page-status.js). A package's replacement mark without
+  // those shapes would move whole.
+  const MOTIONS = {
+    nod: [
+      { transform: "none", easing: "ease-out" },
+      { transform: "rotate(-12deg) scale(1.15)", offset: 0.35, easing: "ease-out" },
+      { transform: "rotate(6deg)", offset: 0.7, easing: "ease-out" },
+      { transform: "none" },
+    ],
+    // The nod's "no".
+    shake: [
+      { transform: "none", easing: "ease-in-out" },
+      {
+        transform: "translateX(-3px) rotate(-5deg)",
+        offset: 0.14,
+        easing: "ease-in-out",
+      },
+      {
+        transform: "translateX(3px) rotate(5deg)",
+        offset: 0.36,
+        easing: "ease-in-out",
+      },
+      {
+        transform: "translateX(-2px) rotate(-3deg)",
+        offset: 0.58,
+        easing: "ease-in-out",
+      },
+      { transform: "translateX(1px) rotate(1deg)", offset: 0.8, easing: "ease-in-out" },
+      { transform: "none" },
+    ],
+    perk: [
+      { transform: "none", easing: "ease-out" },
+      { transform: "translateY(-3px) scale(1.14)", offset: 0.4, easing: "ease-out" },
+      { transform: "translateY(0.5px) scale(0.98)", offset: 0.75, easing: "ease-out" },
+      { transform: "none" },
+    ],
+    // A leaf in a breeze: two swings, each smaller.
+    sway: [
+      { transform: "none", easing: "ease-in-out" },
+      { transform: "rotate(10deg)", offset: 0.22, easing: "ease-in-out" },
+      { transform: "rotate(-6deg)", offset: 0.55, easing: "ease-in-out" },
+      { transform: "rotate(2.5deg)", offset: 0.82, easing: "ease-in-out" },
+      { transform: "none" },
+    ],
+    twirl: [
+      { transform: "rotate(0deg)", easing: "ease-in" },
+      { transform: "rotate(180deg) scale(1.15)", offset: 0.5, easing: "ease-out" },
+      { transform: "rotate(360deg)" },
+    ],
+    beckon: [
+      { transform: "none", easing: "ease-in-out" },
+      {
+        transform: "rotate(14deg) translateX(1px)",
+        offset: 0.2,
+        easing: "ease-in-out",
+      },
+      { transform: "none", offset: 0.45, easing: "ease-in-out" },
+      {
+        transform: "rotate(14deg) translateX(1px)",
+        offset: 0.7,
+        easing: "ease-in-out",
+      },
+      { transform: "none" },
+    ],
+  };
+  /** @type {Record<import("./notifications.js").Moment, keyof typeof MOTIONS>} */
+  const GESTURES = {
+    notice: "nod",
+    walk: "nod",
+    error: "shake",
+    pickup: "perk",
+    version: "sway",
+    reply: "sway",
+    "new-on-me": "beckon",
+    "on-me-empty": "twirl",
+  };
+  /** @type {Animation | null} */
+  let gesturing = null;
+  /** @param {import("./notifications.js").Moment} moment */
+  const gestureLeaf = (moment) => {
+    const motion = GESTURES[moment];
+    const leaf = host.querySelector(".lf-fp-leaf > svg");
+    if (!leaf) return;
+    gesturing?.cancel();
+    gesturing = playMotion(leaf, MOTIONS[motion], {
+      duration: motionTime(`--lf-motion-leaf-${motion}`, host),
+      easing: "linear",
+    });
+  };
   host.setAttribute("role", "region");
   host.setAttribute("aria-label", "Leaf");
   let expanded = false;
@@ -972,6 +1082,8 @@ export function createFloatingPanel({
   // anything typed, a line break included.
   let drafted = false;
   let postureMoved = true;
+  // The beat of the moment the leaf last answered (`gestureLeaf`).
+  let answered = gestureReading().beat;
   // The thread the reader lands in once its reading is drawn: on opening,
   // at the turn the user comes back for (`showReturnTurn`); after the user's turn,
   // past it, at its end (`end`); after a press on its held news, at the first message
@@ -1842,6 +1954,8 @@ export function createFloatingPanel({
   function streamSend() {
     following.stream();
   }
+  let writtenBand = 0;
+  let bandFrame = 0;
   function followBox() {
     // How far the box reaches up from the window's foot, which the root's
     // `scroll-padding-bottom` keeps every landing clear of, with the gap above the box
@@ -1861,8 +1975,18 @@ export function createFloatingPanel({
       .map(Number.parseFloat);
     const band = atLayoutPrecision(Math.max(rest, reach + clear));
     if (stateFootBand(band)) {
-      setRuntimeRootStyle(root, "scroll-padding-bottom", `${band}px`);
-      announceRoom();
+      // This runs in the box's size delivery, which may write only what no one observes
+      // (page-layout.js). The root's style is a page attribute the margin hears, and its
+      // pass places an open thread card in the same delivery, resizing a box shallower
+      // than any the delivery can still reach: a ResizeObserver loop. So the padding and
+      // the news of the room wait for the frame; Leaf's own landings read the band
+      // stated above at once.
+      writtenBand = band;
+      bandFrame ||= nextRender(() => {
+        bandFrame = 0;
+        setRuntimeRootStyle(root, "scroll-padding-bottom", `${writtenBand}px`);
+        announceRoom();
+      });
     }
     const compact = host.dataset.lfRest === "mark";
     const duration = compact
@@ -4301,13 +4425,22 @@ export function createFloatingPanel({
   /** @param {"menu" | "you" | "agent" | "threads"} current */
   function onTabs(current) {
     const lists = queueLists();
+    // A list is counted once the server's reading is in, as Threads is (`openCount`),
+    // so no tab says 0 of a list the page can't read yet or offline.
+    const counted = readQueues().phase === "ready";
     return tabs(
       ["menu", "you", "agent", "threads"],
       current,
       (tab) => (tab === "menu" || tab === "threads" ? TAB_LABELS[tab] : tabLabel(tab)),
       onTab,
       (tab) =>
-        tab === "menu" ? null : tab === "threads" ? openCount() : lists[tab].length,
+        tab === "menu"
+          ? null
+          : tab === "threads"
+            ? openCount()
+            : counted
+              ? lists[tab].length
+              : null,
     );
   }
   // A tab keeps the user on it, as turning between the lists always has, so the press
@@ -4598,9 +4731,16 @@ export function createFloatingPanel({
     keeps(host, "data-lf-presses", presses ? "" : null);
     keeps(host, "data-lf-tone", status().tone || null);
     keeps(host, "data-lf-asks", status().asks ? "" : null);
+    // Each moment the leaf answers has a beat of its own (notifications.js), so it plays
+    // once per moment, a press repeating the words standing included, however often the
+    // field leaves those words and returns; of several in one task, the latest.
+    const { moment, beat } = gestureReading();
+    const gestures = beat !== answered ? moment : null;
+    answered = beat;
 
     render(panelTemplate(), host);
     noteDrawnSections();
+    if (gestures) gestureLeaf(gestures);
 
     // Geometry, native focus and reading regions consume the committed tree.
     for (const copy of copyItems.values()) if (!copy.isConnected) copy.remove();

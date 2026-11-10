@@ -2355,7 +2355,7 @@ def go_to(page: Page) -> None:
 
 
 def contents_by_keyboard(page: Page) -> None:
-    """The contents map with focus on its first section link."""
+    """The contents map revealed by focus on its first section link."""
     page.keyboard.press("Tab")
     page.locator("lf-toc li a").first.focus()
 
@@ -2974,8 +2974,9 @@ STATES = (
         topic_contents,
         region="#bg-topic-contents",
     ),
-    # The contents map draws only in a sidebar's track beside a `.layout-column`. No
-    # example draws one, so these states read a fixture built that way.
+    # The contents map draws only in a document's sidebar narrowed to it, beside a
+    # `.layout-column` under a mouse. No example draws one, so these states read a
+    # fixture built that way.
     State(
         "contents-map-keyboard",
         "sidebar-contents",

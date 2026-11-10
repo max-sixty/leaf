@@ -51,9 +51,8 @@ thread's model, system prompt and tools. Its effort can differ without missing t
 cache: since Claude Code 2.1.318 `$.model.fork` takes one, and a fork at low in a
 session at xhigh read the whole conversation from the cache (2026-11-04,
 `src/leaf/clerk.py`), though a `claude -p --resume --fork-session` fork at
-`--effort low` had read none of it (2026-10-24). The turn-end check runs at low, and
-the fork that writes the working line at the session's effort (`src/leaf/forks.py`
-has its measurement at low).
+`--effort low` had read none of it (2026-10-24). Both forks now run at low, each
+module recording its own measurement (`src/leaf/clerk.py`, `src/leaf/forks.py`).
 
 `$.agent.spawn({ prompt, subagentType: "fork" })` starts a background subagent with
 the main thread's current transcript and all its tools. It started within 40 ms of the
@@ -82,10 +81,10 @@ reported the row and treated its question as answered.
 - A handed-over message reaches the main thread one fork decision later. An idle
   session wakes that much later; a busy one notices only if a tool boundary falls
   inside that wait.
-- The fork answers from the main thread's last request, with the same model and
-  effort, and has no tools. A forked subagent (`$.agent.spawn`) could also answer
-  questions that need a look at files, with its writes denied at `tool.call`, and
-  would keep a transcript the main thread could be pointed at.
+- The fork answers from the main thread's last request, with the same model, and
+  has no tools. A forked subagent (`$.agent.spawn`) could also answer questions
+  that need a look at files, with its writes denied at `tool.call`, and would keep
+  a transcript the main thread could be pointed at.
 - Claude Code only. The Leaf side is harness-neutral: Codex App Server has
   `thread/fork`, and Pi's extension could resend its session (`clerk.py`).
 - `$.model.fork` has nothing to fork until the main thread sends a request: in a new

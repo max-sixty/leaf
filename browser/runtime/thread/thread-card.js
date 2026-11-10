@@ -936,7 +936,6 @@ export class ThreadView {
     return html`<button
       type="button"
       ${offeredAction("inline", "lf-next-unread")}
-      title="Next unread"
       ?disabled=${!left}
       ?data-lf-unoffered=${!left}
       @click=${() => void this.#commands.read.firstUnread(key)}

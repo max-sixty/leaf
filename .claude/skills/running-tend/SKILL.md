@@ -53,6 +53,27 @@ deferral condition in **Fix the underlying issue**. A fix for a red test that mo
 the interface beyond what the breaking change meant to, or gives up that change's
 intent without the issue **Reading a red suite** requires, is a regression.
 
+## Issues a change finishes
+
+A `backlog` issue left open once a change has settled it tells the next session
+there is work still to do. So the review checks each change against the open
+backlog: list the open `backlog` issues, and read each one whose subject the change
+touches, with the pull requests that already name it, to learn what of it remains.
+
+- Where the change leaves nothing of an issue to do, by finishing what remains,
+  removing its premise or recording a decision against what it asks, the
+  description says `Closes #N`, so merging closes it.
+- Where it does part, the description says `Part of #N` and what is left, so the
+  review of the last part can tell that it finishes the issue. A `Closes #N` for
+  an issue the change only partly does becomes this.
+
+On Tend's own pull request, edit the description (**Keeping PR titles and
+descriptions current** in `/tend-ci-runner:open-pr`). On someone else's, ask in
+the review, naming each issue and what is left, since its author owns the
+description and may rewrite it. The ask doesn't withhold approval, since it changes
+no code and an edit to the description starts no new review. Where nothing else is
+found, approve with the ask as the review's body.
+
 ## Review test selection
 
 Before approving a product change, select and run focused checks through

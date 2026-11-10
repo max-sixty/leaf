@@ -420,6 +420,9 @@ export class Shot extends HTMLElement {
     const handle = this.#comparison?.shadowRoot?.querySelector('[role="scrollbar"]');
     if (!handle) return;
     keeps(handle, "aria-label", `Before and after — ${this.getAttribute("alt")}`);
+    // The alt describes the picture the user is looking at, so the divider's preview
+    // names only the divider.
+    Object.assign(handle, { lfPreview: () => ({ name: "Before and after" }) });
     keeps(
       handle,
       "aria-valuetext",

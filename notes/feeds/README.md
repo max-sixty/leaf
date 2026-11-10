@@ -50,8 +50,9 @@ same four verbs (`HumanInterruptConfig`: accept, edit, respond, ignore), and
   So a card approved hours later reaches the agent that wrote it. Codex and Pi
   have no equivalent.
 - **No list spans pages.** All pages shows each live page's agent status. A page's
-  row (`server_rows.py`) carries `{title, session_cwd, activity}`, whose counts
-  are updates the agent owes; nothing from On Me. `presence.other_leaves` keeps
+  row (`server_rows.py`) carries counts: `activity` the updates the agent owes,
+  `on_user` how many rows On Me holds, `threads` the open and unread threads. It
+  carries none of On Me's items. `presence.other_leaves` keeps
   only rows whose server is live and whose page isn't closed, so a page with no
   server drops out.
 

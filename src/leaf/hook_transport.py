@@ -508,6 +508,21 @@ CONFIRM_WITHIN = HOOK_TIMEOUT_S / 2
 INLINE_OPENING = (
     "Leaf has new input for your turn. Read this complete delivery before answering."
 )
+
+
+def pointer_opening(delivery: dict) -> str:
+    """The line that opens a pointer delivery. It says what the inline opening says,
+    with how many updates the pointer holds and from which pages, since a pointer
+    shows none of its input and would otherwise read as one more line of context."""
+    count = sum(len(batch["events"]) for batch in delivery["batches"])
+    pages = ", ".join(batch["page"] for batch in delivery["batches"])
+    updates = "1 update" if count == 1 else f"{count} updates"
+    return (
+        f"Leaf has {updates} from the user on {pages} for your turn. Read them with "
+        f"`leaf delivery read {delivery['id']}` before answering."
+    )
+
+
 # The words that open what a turn owes, as a reminder of its own or after a delivery.
 ATTENTION_OPENING = "Leaf needs attention:"
 
@@ -706,7 +721,13 @@ def carry_turn(
         else:
             if expected:
                 note_pointer(sid, expected, delivery, deadline=deadline)
-            message = "\n".join([delivery_pointer_prompt(delivery["id"]), *attention])
+            message = "\n".join(
+                [
+                    pointer_opening(delivery),
+                    delivery_pointer_prompt(delivery["id"]),
+                    *attention,
+                ]
+            )
     if message:
         assert event is not None
         print(json.dumps(harness.hook_context(event, message)), flush=True)

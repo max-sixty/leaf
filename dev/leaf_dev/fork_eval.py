@@ -25,11 +25,10 @@ reaches the conversation; an arm without it passes no findings on and gets no li
 The conversation is rendered as a Claude Code transcript under the same session id,
 in a home and cwd of its own outside the repository (`claude_child`), and resumed
 once with `claude -p` and the prompt, on the author model at the effort the arm's
-Leaf names for the fork (`clerk.EFFORT`), as a live fork runs, so `--base` scores a
-change of effort as it scores one of wording. A fork Leaf names none for runs at
-the session's own, for which the replay takes medium. The records keep the shapes
-Claude Code writes, without thinking blocks. A background command's result records
-no task id: Claude Code tells a resumed session that a task it recorded has
+Leaf names for the fork (`clerk.EFFORT`, `forks.EFFORT`), as a live fork runs, so
+`--base` scores a change of effort as it scores one of wording. The records keep the
+shapes Claude Code writes, without thinking blocks. A background command's result
+records no task id: Claude Code tells a resumed session that a task it recorded has
 stopped, which a live fork never hears, so the replay needs no sentence of its own
 in the prompt. The request keeps Claude Code's tool definitions, as a live fork
 resends the session's, with its per-machine sections moved out of the system prompt
@@ -508,7 +507,7 @@ def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
     outside the repository, keeping its stream and transcript under `work`; its
     answer, or why it gave none."""
     stream = work / "fork.jsonl"
-    effort = asked.get("effort", "medium")
+    effort = asked["effort"]
     with tempfile.TemporaryDirectory(prefix="leaf-fork-") as directory:
         cwd = Path(directory).resolve() / "cwd"
         cwd.mkdir()

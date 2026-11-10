@@ -96,7 +96,7 @@
         },
         {
           "id": "size-rises",
-          "says": "Beside its text it rises instead, the window's foot lifting it, as an answer arrives. While a text field in it has your caret, it keeps its foot, so the line you're typing stays still as the conversation grows above it."
+          "says": "Beside its text it rises instead, the window's foot lifting it, as an answer arrives. While you write words in its reply box, it keeps its foot, so the line you're typing stays still as the conversation grows above it. A send empties the box, so the card grows down past it."
         },
         {
           "id": "size-page-still",

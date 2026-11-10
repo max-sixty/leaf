@@ -74,7 +74,10 @@
      one shows, so the two never read through each other. The row gathers into its
      leaf on a curve of its own before that one object finishes travelling; its layout
      is already final, so the two visual phases never delay input. The corner mark
-     and the peek fade in and out in a disclosure's time. They stand here, in
+     and the peek fade in and out in a disclosure's time. The leaf's gestures
+     (floating-panel.js, `MOTIONS`) take a third of a second or a little more, long
+     enough to read as a gesture, and nothing waits on them; the pose a tone holds
+     settles in as long. They stand here, in
      the runtime's sheet, rather than in the theme a page vendors, since a page served
      by a later runtime keeps its own theme. */
   .lf-floating-panel {
@@ -82,6 +85,13 @@
     --lf-motion-panel-fold: 280ms;
     --lf-motion-view-in: 90ms;
     --lf-motion-view-out: 60ms;
+    --lf-motion-leaf-nod: 320ms;
+    --lf-motion-leaf-shake: 360ms;
+    --lf-motion-leaf-perk: 320ms;
+    --lf-motion-leaf-sway: 420ms;
+    --lf-motion-leaf-twirl: 420ms;
+    --lf-motion-leaf-beckon: 400ms;
+    --lf-motion-leaf-pose: 400ms;
   }
 
   /* The surface (runtime/box-motion.js, chrome.css): a layer over the whole window,
@@ -201,6 +211,17 @@
   .lf-fp-leaf > svg[data-lf-icon="leaf"] {
     inline-size: 19px;
     block-size: 19px;
+    transition-property: rotate, scale;
+    transition-duration: var(--lf-motion-leaf-pose);
+    transition-timing-function: ease-in-out;
+  }
+  /* While the agent is away the leaf droops, a pose it holds as long as the tone does.
+     It is set in the transform's own parts, which the gestures' transform plays over
+     (floating-panel.js, `MOTIONS`), and under reduced motion it stands without settling
+     in (state.css). The user picked it on 9 November 2026. */
+  .lf-fp-leaf[data-lf-tone="away"] > svg[data-lf-icon="leaf"] {
+    rotate: 18deg;
+    scale: 0.92;
   }
   /* An error waiting unseen in the leaf's menu marks the leaf's corner. */
   .lf-fp-error-dot {

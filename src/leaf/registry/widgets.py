@@ -295,7 +295,7 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
             schema = properties[attr]
             for value in values:
                 tested = {"key": declaration, "attr": attr, "value": value}
-                # Booleans test presence, just as `obligations.asking` reads them.
+                # Booleans test presence, just as `contract.matches_when` reads them.
                 if isinstance(value, bool):
                     continue
                 if errors := sorted(json_validator(schema).iter_errors(value), key=str):

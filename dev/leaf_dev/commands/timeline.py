@@ -14,9 +14,9 @@ PAGE is a page directory, or any directory holding a page's `events.jsonl` and
   where not, whether the session's fork lane was up; `fork_asked`, as Leaf gave a fork
   its question; `fork_reply`, what came of it (`leaf.forks`), a working fork's turn
   and agent among it; `turn_end_check`, the clerk's fork (`leaf.clerk`);
-  `leaf_command`, with the agent that ran it where the hooks module named one, and
-  `watch` (`leaf.interaction_log.record_command`, `record_watch`); and the browser's
-  own `event_submit` and `reply_visible`;
+  `leaf_command`, with the agent that ran it where Leaf's PreToolUse hook named one,
+  and `watch` (`leaf.interaction_log.record_command`, `record_watch`); and the
+  browser's own `event_submit` and `reply_visible`;
 - each Claude Code session the page names: its transcript, from `claude/` in the PAGE
   directory, where a journey keeps it, or Claude Code's configuration directory
   (`CLAUDE_CONFIG_DIR`, else `~/.claude`), with its turns, the Leaf input its hooks
@@ -296,7 +296,8 @@ def in_turn(turn: str | None, agents: dict[str, str]) -> str:
 
 def fork_entries(row: dict) -> list[dict]:
     """A `fork_reply` record as its fork's start, where its time says when, and its
-    end."""
+    end; for a fork that took a thread's work, the agent that runs its turn and the
+    turn's end."""
     at, thread = row["ts"], row["thread"]
     elapsed = row.get("elapsedMs")
     step = row.get("step")

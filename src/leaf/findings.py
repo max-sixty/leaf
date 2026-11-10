@@ -212,6 +212,29 @@ def _squeezed(at: str, v: dict) -> str:
     )
 
 
+def _squeezed_code(at: str, v: dict) -> str:
+    # The reading knows the block is too narrow, not what narrowed it, so the words
+    # offer both remedies. In a table cell the table's own advice holds: a column sizes
+    # to what its cells can't break, so the fix is what the cell holds.
+    shown = (
+        f"{at} has {v['inside']}px for its lines and scrolls {v['scrolls']}px of them"
+        " sideways"
+    )
+    if v["cell"]:
+        return (
+            f"{shown}, since a code block asks its table cell for no width; move a long"
+            " command out of the table, or write a short one as inline <code>, which"
+            " breaks inside the cell"
+        )
+    return (
+        f"{shown}, so it shows a few characters at most; give the block or what holds"
+        " it more room (a box that takes its width from its content gives a code"
+        " block none), or let what stands beside it wrap or stack where the window is"
+        " that narrow, with layout-tiles or a grid that stacks below a width"
+        ' (page-layout.md, "Layouts" and "A workspace")'
+    )
+
+
 def _drawn_height(at: str, v: dict) -> str:
     # `box` is the height the element holds now: past `before`, what follows it moved
     # as it drew; past `drawn`, a stated height larger than the drawing left room.
@@ -725,6 +748,7 @@ _TEXT = {
         ' that needs the room, and give this wrapper class="layout-flow"'
     ),
     "squeezed-table": _squeezed,
+    "squeezed-code": _squeezed_code,
     "drawn-height": _drawn_height,
     "shrunk-labels": lambda at, v: (
         f"{at} draws labels below {v['threshold']}px, {v['labels']} at"

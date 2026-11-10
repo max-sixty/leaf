@@ -2049,6 +2049,16 @@ def test_a_chart_picks_the_point_plot_s_own_pointer_picks(engine, request, serve
         )
         differ = []
         for fx, fy in steps:
+            # Plot's tip reads each place afresh, so the chart is probed from where no
+            # reading stands. A probe slower than the page's dwell shows the chart's
+            # preview, which holds its point while the pointer crosses empty drawing and
+            # until the pointer has been off the chart for a dwell, and puts the ring
+            # away in the rendering pass after that.
+            page.wait_for_function(
+                """(name) => !document.getElementById('lf-preview').matches(':popover-open')
+                  && !document.querySelector(`#${name} .lf-chart-at:not([display=none])`)""",
+                arg=name,
+            )
             [mine] = _picked(page, f"#{name} svg[role=img]", ours, fx, fy) or [None]
             tips = _picked(page, f"#{name}-alone", plots, fx, fy)
             aim = [plots["width"] * fx, plots["height"] * fy]

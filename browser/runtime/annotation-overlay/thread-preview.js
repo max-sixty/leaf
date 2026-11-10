@@ -181,8 +181,8 @@ import { keepThreadLanding, showReturnTurn } from "../thread/reply-landing.js";
  * focusPending: {holding: Element | null} | null, withheldFocus: ReturnType<typeof holdFocus>,
  * transcript: HTMLElement | null, settled: (() => void) | null, answering: (() => boolean) | null,
  * stopRegion: (() => void) | null, stopFoot: (() => void) | null, side: ReturnType<typeof commentPlacement>,
- * reading: {input: number, scroll: number, end: boolean} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
- * @typedef {{latest: boolean, end: boolean, scroll: number, keepTop: boolean, transcript: HTMLElement}} Reading
+ * reading: {input: number, scroll: number, limit: number, end: boolean} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
+ * @typedef {{latest: boolean, end: boolean, scroll: number, limit: number, keepTop: boolean, transcript: HTMLElement}} Reading
  */
 
 // A margin card's reply box.
@@ -631,8 +631,19 @@ export function createThreadPreview({
     ].some((box) => box && box.scrollHeight > box.clientHeight + 0.5);
     if (!(worn >= 0) || cap < height - 0.5 || (overflow && cap > height + 0.5))
       preview.style.setProperty("--lf-thread-max-height", layoutPx(cap));
+    // A reader at the end follows it only where it moved since the reading, as an answer
+    // growing the transcript or this fit rewrapping it moves it. A placement that moves
+    // nothing writes nothing: a script's write stops the scroll the browser is driving,
+    // and every scroll's end places the card again (user-place.js repaints), so in
+    // Firefox a flick into the end snapped its rubber band back every 90ms, where the
+    // write's whole-pixel end stood a fraction short of the browser's.
     if (reading?.latest) showArrival(session, reading.transcript);
-    else if (reading?.end && !session.answering?.()) scrollToEnd(reading.transcript);
+    else if (
+      reading?.end &&
+      !session.answering?.() &&
+      scrollLimit(reading.transcript) !== reading.limit
+    )
+      scrollToEnd(reading.transcript);
     return preview.getBoundingClientRect().height;
   }
   // A card opens on its first unread turn, else its latest, at that turn's start
@@ -787,6 +798,7 @@ export function createThreadPreview({
             reading ??= session.transcript && {
               end: !fresh && (priorReading?.end ?? followsEnd(session.transcript)),
               scroll: priorReading?.scroll ?? session.transcript.scrollTop,
+              limit: priorReading?.limit ?? scrollLimit(session.transcript),
               keepTop: stationary && !fresh && edge === "top" && !held.typing,
               latest: session.arriving,
               transcript: session.transcript,
@@ -1041,6 +1053,7 @@ export function createThreadPreview({
     session.reading = session.transcript && {
       input: inputCount(),
       scroll: session.transcript.scrollTop,
+      limit: scrollLimit(session.transcript),
       end: Boolean(follow),
     };
     const present = () => {

@@ -25,9 +25,10 @@
  * reading. Its signal advances after the marked DOM and comparison selection have
  * changed together; a pending picker choice stays separate from that committed reading.
  *
- * Executable identity selects the install. An unchanged registry, module graph, and
- * inline module bodies permit an in-place patch; changed executable inputs require a
- * fresh document. Prose, styles, and media can change without reloading. Served identity
+ * Executable identity (`revision_artifact.py`) selects the install. An unchanged layer
+ * generation, page declarations, module graph and script elements permit an in-place
+ * patch; changed executable inputs require a fresh document. Prose, styles, and media
+ * can change without reloading. Served identity
  * is captured before upgrade: upgraded DOM cannot supply those baselines. The patch
  * retains unchanged widgets and recaptures replaced widgets against the arriving source. A widget declaring `x-patch: members` is
  * patched inside its members instead, while the revision keeps its shell.

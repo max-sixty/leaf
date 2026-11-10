@@ -345,7 +345,7 @@ svg[data-lf-icon] {
 .lf-react-strip > .lf-react-palette:popover-open {
   position: fixed;
   position-anchor: --lf-react-trigger;
-  position-visibility: anchors-visible;
+  position-visibility: var(--lf-anchor-visible);
   position-try-fallbacks: flip-block;
   top: calc(anchor(bottom) + 4px);
   right: anchor(right);

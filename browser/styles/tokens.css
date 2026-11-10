@@ -586,6 +586,19 @@
   --series-3: light-dark(#25966a, #50a069);
   --series-4: light-dark(#6c489a, #7a4faf);
   --series-5: light-dark(#8c2d2a, #b13d54);
+  /* `position-visibility`'s value that hides a box once its anchor is out of sight, in
+     the spelling this engine reads. The CSS working group renamed `anchors-visible` to
+     `anchor-visible`: Chromium 157 and WebKit 27 read both, Chromium 158 warns on the
+     plural in the console, where `page check --render` reports it against the page, and
+     Firefox 159 reads only the plural. A custom property's value is parsed only where a
+     declaration uses it, so no engine meets the spelling it doesn't take
+     (notes/browser-support.md, "Two spellings of position-visibility"). */
+  --lf-anchor-visible: anchors-visible;
+}
+@supports (position-visibility: anchor-visible) {
+  :root {
+    --lf-anchor-visible: anchor-visible;
+  }
 }
 /* What anyone wrote in a thread, wherever the thread stands (a card, the floating
    panel, a widget's seat), the comment being typed, and an On Me question: Leaf's own

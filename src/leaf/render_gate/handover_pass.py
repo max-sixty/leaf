@@ -48,18 +48,18 @@ one core however many turns end at once.
 **What it tells.** The findings the page's latest reading didn't hold, as a `render`
 event (`events.md`) whose handling clause tells failures from advice. A reading is kept
 only once the agent has heard every finding in it: an agent's own `page check --render`
-reports them all, and the server keeps its reading once it has told it. A reading whose
-version a save has replaced since the check froze the source tells nothing and leaves
-the page's reading as it was, so the next reading tells its findings. Under the `error`
-event's clause agents changed the page for advice every time; this clause kept every
-failure fixed and had Claude Code leave the advice in 4 of 5. A failure wakes the agent.
-Of the versions users first reacted to on 20 real pages, 2 held one, and both were real.
-Advice alone wakes nobody and goes with the agent's next delivery
-(`delivery.deliverable`), since 10 of those 20 held only advice, and a wake for it would
-mostly spend a turn deciding to leave the page alone. A finding keeps its place by the
-element it names (`_place`), so an edit that moves a measurement doesn't tell it again
-and a fault fixed and reintroduced is told again. A failure told once isn't told again
-while it stands, so an agent that can't fix it isn't woken for each attempt, and a
+reports them all, and the server keeps its reading once it has told the agent what was
+new in it. A reading whose version a save has replaced since the check froze the source
+tells nothing and leaves the page's reading as it was, so the next reading tells its
+findings. Under the `error` event's clause agents changed the page for advice every
+time; this clause kept every failure fixed and had Claude Code leave the advice in 4 of
+5. A failure wakes the agent. Of the versions users first reacted to on 20 real pages, 2
+held one, and both were real. Advice alone wakes nobody and goes with the agent's next
+delivery (`delivery.deliverable`), since 10 of those 20 held only advice, and a wake for
+it would mostly spend a turn deciding to leave the page alone. A finding keeps its place
+by the element it names (`_place`), so an edit that moves a measurement doesn't tell it
+again and a fault fixed and reintroduced is told again. A failure told once isn't told
+again while it stands, so an agent that can't fix it isn't woken for each attempt, and a
 version the agent checked itself is neither read twice nor told back to it.
 
 A reading a browser couldn't finish (`UNFINISHED`) says nothing of the page, so it

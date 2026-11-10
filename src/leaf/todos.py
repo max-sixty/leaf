@@ -387,8 +387,11 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
     start consumer reads either form through `start_reading`. A start on a page
     declared `idle` reopens it (`activity.declaration`)."""
     from .event_contracts import append_admitted
+    from .forks import authorize
     from .state import acting_turn
 
+    # A fork shows itself at work only on what its turn holds.
+    authorize(page, identity.get("session"), [item])
     turn = acting_turn(page.claim, identity.get("session"))
     record, _ = append_admitted(
         page,

@@ -137,8 +137,9 @@ neither hold its turn over it, remind it of it, nor take it in again
 (`activity.agent_holds`), and its deliveries leave it out (`forks.held_inputs`). Once
 the agent's turn ends or lapses, a message still owed is the main thread's like any it
 received, with the reference the agent's delivery gave it, and the main thread's
-pickup of it takes the thread over: the agent's reply to it is then refused
-(`thread.post_reply`).
+pickup of it takes the thread over. An agent's turn may pick up, answer or start on
+only the messages it holds or no turn holds, so it is then refused all three
+(`forks.refuse_unheld`).
 
 Where nothing answers for the declaration, activity reports the page `unheld`. A page
 with a persistent service spends most of its life unheld, and picks up again when a

@@ -435,31 +435,59 @@ def taken_over(input_ids) -> str:
     )
 
 
+def refuse_unheld(
+    events: list[dict], session: str, turn: str, input_ids: list[str]
+) -> None:
+    """The one rule for an agent's turn acting on messages: it may act only on the
+    messages it holds or that no turn holds (`holding_turns`), and is refused the
+    rest (`taken_over`). Its pickups (`pickable`), replies and starts (`authorize`)
+    all ask this, so a fork that lost its thread to the main thread can neither take
+    it back nor answer it nor show itself at work on it."""
+    from .delivery import ReceiptRefused
+
+    holders = holding_turns(events, session)
+    if taken := [i for i in input_ids if holders.get(i) not in (None, turn)]:
+        raise ReceiptRefused(taken_over(taken))
+
+
+def authorize(page: PageTransaction, session: str | None, input_ids: list[str]) -> None:
+    """Refuse a write a command of `session` makes about the messages `input_ids` on
+    `page`, a reply to one or a start on one, where its actor may not make it: an
+    agent whose turn has ended (`state.acting_agent_turn`), or an agent's turn acting
+    on a message another turn holds (`refuse_unheld`). The main thread acts on
+    whatever its session owes, and a session that doesn't hold the page is no
+    agent's."""
+    from .state import acting_agent_turn
+
+    claim = page.claim
+    if session is None or claim is None or claim["id"] != session:
+        return
+    if (turn := acting_agent_turn(session)) is not None:
+        refuse_unheld(page.events, session, turn, input_ids)
+
+
 def pickable(
     page: PageTransaction, input_ids: list[str], session: str, turn: str | None
 ) -> list[str]:
     """Which of `input_ids` the turn `turn` of `session` may record an opened pickup
     of, under the page's transaction (`delivery.record_pickup`, which every pickup
     goes through), so no pickup moves a thread against this rule. An agent's turn
-    picks up only messages it holds or no turn holds (`holding_turns`): its take, its
-    tool boundary and its acknowledgement of a pointer; a late acknowledgement of a
-    thread another turn has since taken over is refused (`taken_over`), and records
-    nothing. Any other turn's pickup of a message an agent's running turn holds would
-    take the thread over, which waits until that turn closes or lapses, so it leaves
-    those messages out."""
-    from .delivery import ReceiptRefused
-
+    picks up only what `refuse_unheld` lets it act on: its take, its tool boundary
+    and its acknowledgement of a pointer; a late acknowledgement of a thread another
+    turn has since taken over is refused, and records nothing. Any other turn's
+    pickup of a message an agent's running turn holds would take the thread over,
+    which waits until that turn has closed or lapsed, so it leaves those messages
+    out."""
     claim = page.active_claim
     if claim is None or claim["id"] != session:
         return input_ids
     stamps = agent_turn_stamps(claim)
     if not stamps:
         return input_ids
-    holders = holding_turns(page.events, session)
     if turn in stamps:
-        if taken := [i for i in input_ids if holders.get(i) not in (None, turn)]:
-            raise ReceiptRefused(taken_over(taken))
+        refuse_unheld(page.events, session, turn, input_ids)
         return input_ids
+    holders = holding_turns(page.events, session)
     running = running_turns(claim)
     return [i for i in input_ids if holders.get(i) not in running]
 

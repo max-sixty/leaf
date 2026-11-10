@@ -465,18 +465,30 @@ def test_the_newest_pickup_holds_a_thread_so_a_lapsed_fork_takes_nothing_back(
     assert agent_context(capsys, "agent-1") == ""
 
 
-def test_a_fork_whose_thread_was_taken_over_can_not_answer_it(
-    claimed, lane, capsys, monkeypatch
+def test_a_fork_whose_thread_was_taken_over_can_neither_answer_nor_start_it(
+    claimed, lane, capsys
 ):
-    """A takeover revokes the fork's answer: its reply with the answer reference its
-    delivery gave it is refused once the main thread holds the message, as a
-    reference stops working once another session claims the page."""
+    """A takeover revokes the fork's hold on the thread, by the same rule that
+    refuses it the pickup: its reply with the answer reference its delivery gave it,
+    and its start on the message, are refused once the main thread holds the
+    message, and write nothing."""
     asked, _taken = taken_over(claimed, capsys)
-    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-1")
-    with pytest.raises(delivery_model.ReceiptRefused, match="no longer holds"):
-        thread_model.post_response(
-            answer_ref(claimed, asked["id"]), "Yes.", asks_back=False
-        )
+    events = events_model.read_events(claimed)
+    for command in (
+        [
+            "thread",
+            "reply",
+            answer_ref(claimed, asked["id"]),
+            "--done",
+            "--text",
+            "Yes",
+        ],
+        ["task", "start", str(claimed), asked["id"], "--text", "checking the cache"],
+    ):
+        ran = CliRunner().invoke(cli_model.cli, ["--agent-id", "agent-1", *command])
+        assert ran.exit_code != 0, command
+        assert "no longer holds" in ran.output, ran.output
+    assert events_model.read_events(claimed) == events
 
 
 def test_the_watch_wakes_the_idle_session_for_a_thread_its_fork_gave_back(

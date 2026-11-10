@@ -520,7 +520,14 @@ def post_reply(
         )
         if addressed is None:
             return None
-        _refuse_taken_over(page, address, posting_identity.get("session"))
+        from .forks import authorize
+
+        # A fork may answer only what its turn holds, and an ended one nothing.
+        authorize(
+            page,
+            posting_identity.get("session"),
+            [address["responds"]] if address.get("responds") else [],
+        )
         record, published = _compose_and_append(
             page,
             addressed,
@@ -544,28 +551,6 @@ def post_reply(
         # Read apart from the page lease, so the user's page sees the reply at once.
         note(*_revision_advice(page_dir, published))
     return record
-
-
-def _refuse_taken_over(
-    page: PageTransaction, address: dict, session: str | None
-) -> None:
-    """Refuse a reply to `address` from an agent's turn that no longer holds the
-    message it responds to (`forks.holding_turns`), as when the session's main
-    thread took a thread over from a fork whose turn lapsed, and any reply from an
-    agent whose turn has ended (`state.acting_agent_turn`). A takeover revokes the
-    old turn's answer, as a claim another session took revokes its references. The
-    main thread answers whatever its session owes."""
-    from .forks import holding_turns, taken_over
-    from .state import acting_agent_turn
-
-    if session is None:
-        return
-    turn = acting_agent_turn(session)
-    responds = address.get("responds")
-    if turn is None or responds is None:
-        return
-    if holding_turns(page.events, session).get(responds) != turn:
-        raise ReceiptRefused(taken_over([responds]))
 
 
 class _Published(NamedTuple):

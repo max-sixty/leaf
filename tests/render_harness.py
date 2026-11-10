@@ -1438,9 +1438,10 @@ def judge_watches():
     Chrome hands a frame's shifts to the observer only after it paints, so a test whose
     last act moves the page or takes words away would end before the report. Judgement
     waits for that evidence with a hang deadline; elapsed time cannot count as a
-    completed paint. A detached frame has no further paint to judge; native frame
-    lifetime, rather than protocol error text, releases its pending read. Scripts-disabled
-    pages have no script-driven sensors to judge.
+    completed paint, and a frame that never completes fails the test, named. A
+    detached frame has no further paint to judge; native frame lifetime, rather than
+    protocol error text, releases its pending read. Scripts-disabled pages have no
+    script-driven sensors to judge.
     `conftest.py` calls this as the test body returns, while the
     pages' servers still answer: a page left painting
     after its server is gone lets its failed fetches reach the console."""
@@ -1448,61 +1449,44 @@ def judge_watches():
         if not page.is_closed() and page.lf_java_script_enabled:
             for frame in page.frames:
                 try:
-                    if not _reachable(frame):
-                        continue
                     _judge_frame_watches(frame)
-                except PlaywrightError:
+                except PlaywrightError as error:
                     # Enumeration owns no frame lifetime: a sample or its page can
                     # disappear across any subsequent protocol request. Native
                     # lifetime facts release it; every live-frame failure propagates.
                     if not frame.is_detached() and not page.is_closed():
+                        error.add_note(f"judging the watches in {frame.url}")
                         raise
 
 
-def _reachable(frame):
-    """Whether Playwright holds a document in `frame` that can answer it.
-
-    Playwright's Firefox loses some sample frames: it reports one at `about:blank`
-    or at an earlier URL of its document, runs none of the suite's init scripts in
-    it, and an evaluate there never returns. Such a frame has no watch to judge.
-    Every frame in another engine, and every top-level document, is asked."""
-    if (
-        frame.parent_frame is None
-        or frame.page.context.browser.browser_type.name != "firefox"
-    ):
-        return True
-    try:
-        frame.wait_for_function(
-            "() => true", polling=100, timeout=render_checks_model.SERVED_TIMEOUT_MS
-        )
-    except PlaywrightTimeout:
-        return False
-    return True
+# Starts a frame's drain on its first reading and answers on the reading that finds it
+# complete, so the hang deadline bounds the start as well as the drain.
+_JUDGE_FRAME = """() => {
+  let judgement = window.lfWatchJudgement;
+  if (!judgement) {
+    judgement = window.lfWatchJudgement = { complete: false, error: null };
+    Promise.resolve().then(async () => {
+      await window.lfShiftsJudged?.();
+      await window.lfWordsJudged?.();
+      await window.lfSwapsJudged?.();
+    }).then(() => { judgement.complete = true; },
+      error => { judgement.error = error; });
+  }
+  if (judgement.error) {
+    delete window.lfWatchJudgement;
+    throw judgement.error;
+  }
+  if (!judgement.complete) return false;
+  delete window.lfWatchJudgement;
+  return true;
+}"""
 
 
 def _judge_frame_watches(frame):
     """Drain a frame while its page owns it; the caller handles native detachment."""
-    frame.evaluate(
-        """() => {
-            const judgement = window.lfWatchJudgement = { complete: false, error: null };
-            Promise.resolve().then(async () => {
-              await window.lfShiftsJudged?.();
-              await window.lfWordsJudged?.();
-              await window.lfSwapsJudged?.();
-            }).then(() => { judgement.complete = true; },
-              error => { judgement.error = error; });
-        }"""
-    )
     frame.wait_for_function(
-        """() => {
-            const judgement = window.lfWatchJudgement;
-            if (judgement.error) throw judgement.error;
-            return judgement.complete;
-        }""",
-        polling=10,
-        timeout=render_checks_model.SERVED_TIMEOUT_MS,
+        _JUDGE_FRAME, polling=10, timeout=render_checks_model.SERVED_TIMEOUT_MS
     )
-    frame.evaluate("delete window.lfWatchJudgement")
 
 
 def watched(page, *, java_script_enabled=True):

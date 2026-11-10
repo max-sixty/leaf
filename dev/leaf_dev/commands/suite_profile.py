@@ -89,15 +89,17 @@ def pytest_configure(config):
 
     sync = SyncBase._sync
 
-    def timed(self, coro):
+    def timed(self, awaitable):
         __tracebackhide__ = True
         if _calls is None or greenlet.getcurrent().parent is not None:
-            return sync(self, coro)
+            return sync(self, awaitable)
         start = time.perf_counter()
         try:
-            return sync(self, coro)
+            return sync(self, awaitable)
         finally:
-            tally = _calls.setdefault(f"{_method(coro)} from {_caller()}", [0.0, 0])
+            tally = _calls.setdefault(
+                f"{_method(awaitable)} from {_caller()}", [0.0, 0]
+            )
             tally[0] += time.perf_counter() - start
             tally[1] += 1
 

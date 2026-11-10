@@ -47,8 +47,13 @@ import {
   readPublicationCommit,
 } from "./storage";
 
-import { agentLog, dispatchAgentTask } from "./agent";
-import { projectInteractionBatch, sampleInteractionReference } from "./interactions";
+import { agentLog, dispatchAgentTask, prewarmContainer } from "./agent";
+import {
+  projectInteractionBatch,
+  sampleInteractionReference,
+  startsTyping,
+  type InteractionProjection,
+} from "./interactions";
 import { proxyModelRequest } from "./model-proxy";
 import {
   activeCookie,
@@ -433,6 +438,7 @@ async function recordInteractions(
   route: PageRoute,
   identity: InteractionIdentity,
   release: string,
+  admitted: (batch: InteractionProjection) => void = () => undefined,
 ): Promise<Response> {
   const raw = await readBoundedText(request, MAX_INTERACTION_BYTES);
   if (raw === null)
@@ -453,6 +459,7 @@ async function recordInteractions(
     release,
     ...batch,
   });
+  admitted(batch);
   return new Response(null, { status: 204 });
 }
 
@@ -702,7 +709,19 @@ export default {
       if (existing === null) {
         return new Response("interaction batch has no page session", { status: 400 });
       }
-      return recordInteractions(request, route, { reference }, manifest.release);
+      const sourceId = request.headers.get("CF-Connecting-IP") ?? sessionId;
+      return recordInteractions(
+        request,
+        route,
+        { reference },
+        manifest.release,
+        (batch) => {
+          if (startsTyping(batch))
+            ctx.waitUntil(
+              prewarmContainer(env, privateContainer, reference, route.root, sourceId),
+            );
+        },
+      );
     }
     // Geometry is disposable observation, not a gesture that opens private state.
     if (!active && request.method === "POST" && route.inside === "api/user-view") {

@@ -28,6 +28,8 @@ from ..files import STAGED, entry_stamps, file_stamp
 from ..schema import (
     DATA_DIR,
     INTERACTIONS_FILE,
+    LAYER_FILE,
+    PACKAGES_DIR,
     PAGE_PROCESS_FILES,
     SESSION_FILES,
     USER_VIEWS_FILE,
@@ -213,6 +215,27 @@ def source_readings(page_dir: Path) -> tuple[str, str]:
     status and acknowledging a delivery append to the log, which is history.
     """
     return _split(_page_stamps(page_dir))
+
+
+def version_written(page_dir: Path) -> int:
+    """When a file a version is built from was last written, in nanoseconds since the
+    epoch: the document, the layer it selects with the page's package copies, and the
+    trees a capture reads (`revision_artifact.CAPTURED_TREES`). A data update, for one,
+    moves the source but makes no new version. A stamp inside a tree is named under the
+    tree's own name (`_page_stamps`)."""
+    # Here rather than at the top, so that a reader that never asks this, such as a
+    # hook, doesn't import the capture.
+    from ..revision_artifact import CAPTURED_TREES
+
+    inputs = {"index.html", LAYER_FILE, PACKAGES_DIR, *CAPTURED_TREES}
+    return max(
+        (
+            stamp[1]
+            for name, stamp in _page_stamps(page_dir)
+            if isinstance(stamp, tuple) and name.split("/", 1)[0] in inputs
+        ),
+        default=0,
+    )
 
 
 def _split(stamps: list[tuple[str, object]]) -> tuple[str, str]:

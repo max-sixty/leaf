@@ -613,7 +613,7 @@ An interrupted upload therefore retains at most one successor until that page
 retries; other pages' concurrent uploads and readers remain protected.
 
 Each container is a custom instance of one vCPU and 3 GiB (`wrangler.toml` gives the
-reason). `max_instances` caps them at 1,400 for production and 90 for `dev`, under the
+reason). `max_instances` caps them at 1,470 for production and 20 for `dev`, under the
 account's default limit of 1,500 concurrent vCPU. A container with no requests stops
 after ten minutes (`sleepAfter` in `worker/src/index.ts`). A rollout replaces a
 container as soon as it reaches it, however recently the container started

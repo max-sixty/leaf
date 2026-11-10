@@ -68,7 +68,7 @@ describe("deployment configuration", () => {
     expect(dev.workers_dev).toBe(true);
     expect(dev.routes).toEqual([]);
     expect(devContainer.name).toBe("leaf-website-dev-leafexamplesession");
-    expect(devContainer.max_instances).toBe(90);
+    expect(devContainer.max_instances).toBe(20);
     expect({
       ...devContainer,
       name: container.name,

@@ -5,8 +5,7 @@
  * fork that writes the agent's working line on a thread's waiting messages at
  * once (`forkReply`), and, with `LEAF_FORK_WORK=on`, a fork with the session's tools
  * that does a thread's work in a turn Leaf keeps for it (`workFork`), telling Leaf
- * as any agent's run ends, which closes the turn of a fork Leaf gave a thread
- * (`forks.ended`). Claude Code runs none of this module's hooks for that fork's
+ * as that fork's run ends, which closes its turn (`forks.ended`). Claude Code runs none of this module's hooks for that fork's
  * tool calls, as a plugin's hooks never see the calls of an agent it spawned
  * (measured at 2.1.322), so `hooks.json`'s PreToolUse marks its `leaf` commands
  * (`hooks.agent_command`). Claude
@@ -472,8 +471,24 @@ function forkReply($: EngineInterface, session: string, held: Held) {
 }
 
 // The forks doing a thread's work, by agent id, with when each started, which the
-// end of each one's run reports.
-const working = new Map<string, number>();
+// end of each one's run reports. `$.state` keeps them, which a reload of this module's
+// code leaves standing, so a fork made before a reload still ends its turn
+// (types/leaf-state.d.ts).
+const FORKS = { plugin: "leaf", key: "forks" } as const;
+
+/** Change the forks kept in `$.state` by `change`, against concurrent changes. */
+async function changeForks(
+  $: EngineInterface,
+  change: (forks: Record<string, number>) => Record<string, number>,
+) {
+  for (;;) {
+    const held = await $.state.get(FORKS);
+    const set = await $.state.set(FORKS, change(held.value ?? {}), {
+      ifVersion: held.version,
+    });
+    if (set.isSet) return;
+  }
+}
 
 /** Spawn the fork Leaf gave a thread's work to (`forks.take`): a fork of the
  * conversation with Leaf's task, named so the main thread can reach it, then tell
@@ -501,7 +516,8 @@ async function workFork(
     });
     return;
   }
-  working.set(agentId, await $.clock.now());
+  const started = await $.clock.now();
+  await changeForks($, (forks) => ({ ...forks, [agentId as string]: started }));
   await forkStep($, session, {
     thread: held,
     started: { turn: given.turn, agent: agentId },
@@ -573,14 +589,15 @@ export const register: Register = (on) => {
     return next(e);
   });
 
-  // Every agent's run ending, which closes the turn Leaf keeps for it where it is a
-  // fork Leaf gave a thread, made by this module's run or by one before a reload.
+  // The run of a fork this module spawned ending, which closes the turn Leaf keeps
+  // for it; any other agent's ends with nothing for Leaf to do.
   on("turn.complete", async ($, e, next) => {
     const completed = await next(e);
     if (e.agentId !== undefined) {
       const agentId = e.agentId;
-      const started = working.get(agentId);
-      working.delete(agentId);
+      const started = (await $.state.get(FORKS)).value?.[agentId];
+      if (started === undefined) return completed;
+      await changeForks($, ({ [agentId]: _ended, ...forks }) => forks);
       const session = await sessionOf($);
       const now = await $.clock.now();
       void forkStep($, session, {
@@ -588,7 +605,7 @@ export const register: Register = (on) => {
           agent: agentId,
           ...(e.reason === "answer" ? { answer: e.answer } : { failed: e.reason }),
         },
-        ...(started === undefined ? {} : { elapsed_ms: now - started }),
+        elapsed_ms: now - started,
       }).catch((error) =>
         $.ui.log(`Leaf: agent ${agentId}'s turn could not end: ${error}`, {
           to: "debug",

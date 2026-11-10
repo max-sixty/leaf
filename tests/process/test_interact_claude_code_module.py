@@ -58,6 +58,7 @@ class ClaudeCode:
         self.pressed = queue.Queue()
         self.forks = queue.Queue()
         self.spawned = queue.Queue()
+        self.steps = queue.Queue()
         threading.Thread(target=self.route, daemon=True).start()
         self.pid = self.read()["pid"]
 
@@ -74,6 +75,8 @@ class ClaudeCode:
                 self.forks.put(record)
             elif "spawned" in record:
                 self.spawned.put(record["spawned"])
+            elif "forkStep" in record:
+                self.steps.put(record["forkStep"])
             elif {"copied", "toast"} & record.keys():
                 self.pressed.put(record)
             else:
@@ -612,4 +615,22 @@ def test_a_fork_given_a_threads_work_runs_in_a_turn_leaf_keeps_for_it(
         lambda lines: any(f"gave thread {asked['id']}" in line for line in lines),
         failure=lambda: f"the main thread never heard: {clerk_model.queued('cc-work')}",
     )
+    driven.quit()
+
+
+def test_leaf_hears_of_the_end_of_a_fork_the_module_spawned_and_no_other(
+    spawn, sessionless
+):
+    """The module keeps the forks it spawned in `$.state`, which a reload of its code
+    leaves standing, so it tells Leaf as such a fork's run ends, even one spawned
+    before the module loaded, and runs nothing for any other agent's end."""
+    driven = ClaudeCode(spawn, "cc-ends", {"state": {"forks": {"agent-7": 1}}})
+    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
+    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-9"})
+    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-7"})
+    step = driven.steps.get(timeout=STATED_TIMEOUT)
+    assert step["ended"] == {"agent": "agent-7", "answer": "Done."}, step
+    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-7"})
+    driven.settle()
+    assert driven.steps.empty()
     driven.quit()

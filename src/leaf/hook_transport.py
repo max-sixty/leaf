@@ -741,17 +741,20 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
     further messages in the threads it took (`forks.agent_turn_inputs`), as a
     tool boundary of the main thread hands it new input. The delivery goes inline
     and is recorded as opened in the agent's turn with its receipt
-    (`delivery.receive_one`); one too large for the hook's context, or not recorded
-    by `CONFIRM_WITHIN`, stays with the agent until its next boundary, and goes to
-    the main thread once the agent's turn ends. Nothing else of the main thread's,
-    its input, debt, reminders or the clerk's lines, reaches an agent."""
+    (`delivery.receive_one`). One too large for the hook's context, or not recorded
+    by `CONFIRM_WITHIN`, goes by pointer, as the main thread's does, and the agent's
+    own `leaf delivery ack` records it into its turn (`delivery.receive_delivery`);
+    its later boundaries hand nothing it carries again (`state.note_agent_pointer`).
+    Nothing else of the main thread's, its input, debt, reminders or the clerk's
+    lines, reaches an agent."""
     from .delivery import current_responses
     from .forks import agent_turn_inputs
-    from .state import renew_agent_turn
+    from .state import agent_turns, note_agent_pointer, renew_agent_turn
 
     turn = renew_agent_turn(sid, agent)
     if turn is None:
         return
+    pointed = agent_turns(sid)[turn].get("pointed", {})
     batches = []
     for page_dir in owned_pages(sid):
         try:
@@ -759,7 +762,11 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
                 claim = page.active_claim
                 if claim is None or claim["id"] != sid:
                     continue
-                if inputs := agent_turn_inputs(page, turn):
+                if inputs := [
+                    event
+                    for event in agent_turn_inputs(page, turn)
+                    if event["seq"] > pointed.get(str(page_dir), 0)
+                ]:
                     batches.append(
                         batch_data(
                             page_dir,
@@ -775,17 +782,19 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
     delivery = freeze_delivery(batches)
     message = "\n".join([INLINE_OPENING, json.dumps(delivery, ensure_ascii=False)])
     deadline = started + CONFIRM_WITHIN
-    if not harness.fits_hook_context(message) or time.monotonic() >= deadline:
-        return
-    recorded = receive_held(delivery, sid, None, deadline=deadline, agent_turn=turn)
+    recorded = (
+        receive_held(delivery, sid, None, deadline=deadline, agent_turn=turn)
+        if harness.fits_hook_context(message) and time.monotonic() < deadline
+        else []
+    )
     if recorded:
         inline = {**delivery, "batches": recorded}
-        print(
-            json.dumps(
-                harness.hook_context(
-                    "PostToolBatch",
-                    "\n".join([INLINE_OPENING, json.dumps(inline, ensure_ascii=False)]),
-                )
-            ),
-            flush=True,
+        message = "\n".join([INLINE_OPENING, json.dumps(inline, ensure_ascii=False)])
+    else:
+        note_agent_pointer(
+            sid,
+            turn,
+            {batch["page"]: batch["through_seq"] for batch in delivery["batches"]},
         )
+        message = delivery_pointer_prompt(delivery["id"])
+    print(json.dumps(harness.hook_context("PostToolBatch", message)), flush=True)

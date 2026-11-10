@@ -5,6 +5,7 @@ thread over."""
 
 import json
 import os
+import re
 import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -544,6 +545,33 @@ def test_a_follow_up_in_the_thread_reaches_the_fork_at_its_tool_boundary(
     assert agent_context(capsys, "agent-1") == ""
     assert agent_context(capsys, "agent-2") == ""
     assert deliverable(claimed) == []
+
+
+def test_a_follow_up_too_large_for_the_hook_reaches_the_fork_by_pointer(
+    claimed, lane, capsys
+):
+    """A follow-up too large for the hook's context goes to the fork by pointer, as the
+    main thread's does, and once: the fork's own acknowledgement records it into the
+    fork's turn, and the main thread is handed none of it meanwhile."""
+    asked, taken = taken_by_a_fork(claimed, "Does the autocomplete service cache?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    clerk_model.heard("s1", clerk_model.queued("s1"))
+    more = said(claimed, "Here is its config:\n" + "cache: warm\n" * 1200, asked["id"])
+    pointer = agent_context(capsys, "agent-1")
+    [delivery] = re.findall(r'<leaf-delivery id="([0-9a-f]+)"', pointer)
+    assert agent_context(capsys, "agent-1") == ""
+    assert deliverable(claimed) == []
+
+    acked = CliRunner().invoke(
+        cli_model.cli, ["--agent-id", "agent-1", "delivery", "ack", delivery]
+    )
+    assert acked.exit_code == 0, acked.output
+    pickup = [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"][-1]
+    assert (pickup["events"], pickup["turn"]) == ([more["id"]], taken["turn"])
+    assert deliverable(claimed) == []
+    assert agent_context(capsys, "agent-1") == ""
 
 
 def test_a_fork_turn_that_ends_unanswered_gives_its_thread_to_the_main_thread(

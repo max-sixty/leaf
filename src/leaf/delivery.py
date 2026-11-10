@@ -78,6 +78,7 @@ from .service import (
 from .state import (
     STRING,
     Record,
+    acting_agent_turn,
     described,
     flocked,
     object_schema,
@@ -936,7 +937,7 @@ def earlier_pickup(payload: dict, session_id: str):
 
     record = session_record(session_id)
     assert record is not None
-    turn = record["turn"]
+    turn = acting_agent_turn(session_id) or record["turn"]
     turns, answers = set(), []
     for batch in payload["batches"]:
         page_dir = Path(batch["page"])
@@ -1365,11 +1366,18 @@ def receive_delivery(delivery_id: str) -> list[Path]:
     consumer is running even if its prompt hook failed. The canonical opener preserves known provider
     lifecycle authority. Pointer receipt also retains its origin's reservation,
     including the exact turn a Codex hook offered it to. Automatic hook and
-    provider receipts observe an already-open turn through `receive` instead.
+    provider receipts observe an already-open turn through `receive` instead. An
+    agent of the session acknowledges a pointer its tool boundary handed it into its
+    own turn (`state.acting_agent_turn`, `hook_transport.carry_agent_turn`).
     """
     payload = read_delivery(delivery_id)
     acting_on_delivery(payload)
     harness = session_harness()
+    if harness and (turn := acting_agent_turn(harness.session)):
+        return [
+            receive_one(batch, harness.session, agent_turn=turn)
+            for batch in payload["batches"]
+        ]
     if harness:
         open_session_turn(harness.session)
         if payload["acknowledge"] is None:

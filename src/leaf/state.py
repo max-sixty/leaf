@@ -767,8 +767,9 @@ AGENT_TURNS = Record(
         "fork of its conversation that took a thread's work, in the state home's "
         "`sessions/<digest>.agent-turns` (`session_file`): by turn id, the agent's "
         "id in its harness (null until the harness starts it), the session "
-        "generation it opened in, when it opened and was last renewed, and when it "
-        "closed, or null while it is open.",
+        "generation it opened in, when it opened and was last renewed, when it "
+        "closed, or null while it is open, and, by page directory, the last log "
+        "position a delivery it was handed by pointer carries (`pointed`).",
         object_schema(
             {
                 "turns": {
@@ -780,7 +781,13 @@ AGENT_TURNS = Record(
                             "opened": TIME,
                             "renewed": TIME,
                             "closed": _TIME_OR_NONE,
-                        }
+                        },
+                        {
+                            "pointed": {
+                                "type": "object",
+                                "additionalProperties": {"type": "integer"},
+                            }
+                        },
                     ),
                 }
             }
@@ -903,6 +910,20 @@ def renew_agent_turn(session_id: str, agent: str) -> str | None:
                 turns[turn] = {**turns[turn], "renewed": now_iso()}
                 _write_agent_turns(session_id, turns)
         return turn
+
+
+def note_agent_pointer(session_id: str, turn: str, pages: dict[str, int]) -> None:
+    """Note that the open agent turn `turn` was handed, by pointer, each page's input
+    through the log position `pages` gives it, so its next tool boundary hands it
+    none of that again while it reads and acknowledges the delivery
+    (`hook_transport.carry_agent_turn`)."""
+    with flocked(session_lock_path(session_id)):
+        turns = agent_turns(session_id)
+        entry = turns.get(turn)
+        if entry is None or not agent_turn_open(entry, session_record(session_id)):
+            return
+        turns[turn] = {**entry, "pointed": {**entry.get("pointed", {}), **pages}}
+        _write_agent_turns(session_id, turns)
 
 
 def close_agent_turns(

@@ -169,7 +169,11 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
     rows = {row["input_id"]: row for row in report["samples"]}
     # The fork that handed the message over decided its edit too, and the update
     # read Delivered from its opened pickup to the agent's first words.
-    assert rows["edited"]["fork"] == {"outcome": "hand_over", "elapsed_s": 2.1}
+    assert rows["edited"]["fork"] == {
+        "outcome": "hand_over",
+        "elapsed_s": 2.1,
+        "why": "it asks for a measurement",
+    }
     assert rows["first"]["fork"] is None
     assert report["summary"]["fork_hand_over"]["inputs"] == 2
     assert report["summary"]["fork_hand_over"]["p50_s"] == 5

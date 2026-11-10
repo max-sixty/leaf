@@ -710,12 +710,18 @@ export default {
         return new Response("interaction batch has no page session", { status: 400 });
       }
       const sourceId = request.headers.get("CF-Connecting-IP") ?? sessionId;
-      return recordInteractions(request, route, { reference }, manifest.release, (batch) => {
-        if (startsTyping(batch))
-          ctx.waitUntil(
-            prewarmContainer(env, privateContainer, reference, route.root, sourceId),
-          );
-      });
+      return recordInteractions(
+        request,
+        route,
+        { reference },
+        manifest.release,
+        (batch) => {
+          if (startsTyping(batch))
+            ctx.waitUntil(
+              prewarmContainer(env, privateContainer, reference, route.root, sourceId),
+            );
+        },
+      );
     }
     // Geometry is disposable observation, not a gesture that opens private state.
     if (!active && request.method === "POST" && route.inside === "api/user-view") {

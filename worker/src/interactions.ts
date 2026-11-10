@@ -249,7 +249,10 @@ const projection = z.object({
   ),
 });
 
-export type InteractionProjection = { session: string; entries: Record<string, unknown>[] };
+export type InteractionProjection = {
+  session: string;
+  entries: Record<string, unknown>[];
+};
 
 // The batch as the edge logs it, or null when the batch is refused.
 export function projectInteractionBatch(value: unknown): InteractionProjection | null {

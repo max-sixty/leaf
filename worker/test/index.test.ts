@@ -1043,7 +1043,9 @@ describe("product-site delivery", () => {
     const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
     const env = environment();
     const start = vi.fn(async () => undefined);
-    vi.mocked(getContainer).mockClear().mockReturnValue({ start } as never);
+    vi.mocked(getContainer)
+      .mockClear()
+      .mockReturnValue({ start } as never);
     const pending: Promise<unknown>[] = [];
     const focused = (control: string) =>
       worker.fetch(

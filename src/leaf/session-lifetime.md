@@ -129,12 +129,16 @@ starts the agent, the agent's tool boundary renews it, and it closes as the harn
 says the run ended, or with the session's generation or instance. A pickup or start
 names it as it names the main thread's turn: the page's served reading carries the
 claimant's agent turns (`agent_turns`), and the fold believes one running while it is
-open and renewed within the working grace (`activity.running_agent_turns`). An update
-whose newest pickup opened in a running agent turn is in hand for that turn: the main
-thread's hooks neither hold its turn over it, remind it of it, nor take it in again
-(`activity.agent_holds`), and its deliveries leave out what an agent took or holds
-(`forks.agent_inputs`). Once the agent's turn ends, an update still owed is the main
-thread's like any it received, with the reference the agent's delivery gave it.
+open and renewed within the working grace (`activity.running_agent_turns`). The turn
+whose pickup of a thread's waiting messages is newest holds them, the main thread's or
+an agent's, and every reader asks one function which that is (`forks.holding_turns`).
+A message a running agent turn holds is in hand for that turn: the main thread's hooks
+neither hold its turn over it, remind it of it, nor take it in again
+(`activity.agent_holds`), and its deliveries leave it out (`forks.held_inputs`). Once
+the agent's turn ends or lapses, a message still owed is the main thread's like any it
+received, with the reference the agent's delivery gave it, and the main thread's
+pickup of it takes the thread over: the agent's reply to it is then refused
+(`thread.post_reply`).
 
 Where nothing answers for the declaration, activity reports the page `unheld`. A page
 with a persistent service spends most of its life unheld, and picks up again when a

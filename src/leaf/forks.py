@@ -384,28 +384,77 @@ def _held(
 
 def held_inputs(page: PageTransaction) -> set:
     """What `delivery.deliverable` keeps from the session's main thread: every
-    waiting message of the page's held threads (`held`), and what an agent of the
-    session took or holds (`agent_inputs`)."""
+    waiting message of the page's held threads (`held`), and every one an agent's
+    running turn holds (`agent_held`)."""
     return {
         input_id for thread in held(page) for input_id in thread.inputs
-    } | agent_inputs(page)
+    } | agent_held(page)
+
+
+def holding_turns(events: list[dict], session: str) -> dict[str, str]:
+    """The turn of `session` that holds each of the user's waiting thread messages:
+    the turn of the newest opened pickup, by `session`, of any waiting message in its
+    thread, whether the main thread's or an agent's (`state.AGENT_TURNS`). A turn
+    that picks up a thread's messages, as a fork's take, a fork's tool boundary or
+    the main thread's prompt does, takes the whole thread from whichever turn had it.
+
+    This is the one reading of who holds a message: delivery (`held_inputs`), an
+    agent's tool boundary (`agent_turn_inputs`), the activity fold and every hook
+    that reads it (`activity.agent_holds`), the end of an agent's run (`ended`) and a
+    reply's authority (`thread.post_reply`) all ask it rather than filtering the
+    pickups themselves."""
+    newest: dict[str, tuple[int, str]] = {}
+    for event in events:
+        if (
+            event["kind"] == "pickup"
+            and event["phase"] == "opened"
+            and event["session"] == session
+            and event["turn"]
+        ):
+            for input_id in event["events"]:
+                newest[input_id] = (event["seq"], event["turn"])
+    if not newest:
+        return {}
+    waiting, _lined = _waiting(events)
+    holders = {}
+    for said in waiting.values():
+        picked = [newest[event["id"]] for event in said if event["id"] in newest]
+        if picked:
+            turn = max(picked)[1]
+            holders.update((event["id"], turn) for event in said)
+    return holders
+
+
+def agent_held(page: PageTransaction) -> set[str]:
+    """The waiting messages an agent's running turn holds (`holding_turns`), which
+    go to that agent at its tool boundary rather than to the main thread. With no
+    active claim, no agent speaks for the page."""
+    claim = page.active_claim
+    if claim is None:
+        return set()
+    stamps = agent_turn_stamps(claim)
+    running = _running(stamps) if stamps else set()
+    if not running:
+        return set()
+    return {
+        input_id
+        for input_id, turn in holding_turns(page.events, claim["id"]).items()
+        if turn in running
+    }
 
 
 def agent_inputs(page: PageTransaction) -> set[str]:
-    """What an agent the page's claimant runs beside its main thread took or holds:
-    each input a turn of such an agent picked up, open or closed, which that turn
-    received as it picked it up, and each waiting message of a thread an agent's
-    running turn took, which goes to it at its tool boundary. Whoever records a
-    receipt passes them (`delivery.receive_passed`). With no active claim, no agent
-    speaks for the page."""
+    """What whoever records a receipt passes for the page's agents
+    (`delivery.receive_passed`): what an agent's running turn holds (`agent_held`),
+    and each input a turn of an agent picked up, open or closed, which that turn
+    received as it picked it up."""
     claim = page.active_claim
     if claim is None:
         return set()
     stamps = agent_turn_stamps(claim)
     if not stamps:
         return set()
-    picked = _picked_in(page.events, claim["id"], set(stamps))
-    return set(picked) | set(_agent_held(page.events, picked, _running(stamps)))
+    return set(_picked_in(page.events, claim["id"], set(stamps))) | agent_held(page)
 
 
 def _running(stamps: dict[str, dict]) -> set[str]:
@@ -429,53 +478,19 @@ def _picked_in(events: list[dict], session: str, turns: set[str]) -> dict[str, s
     }
 
 
-def _agent_held(
-    events: list[dict], picked: dict[str, str], running: set[str]
-) -> dict[str, str]:
-    """Each waiting message of a thread one of the agent turns `running` took, by
-    picking up one of its waiting messages (`picked`), with that turn."""
-    if not running.intersection(picked.values()):
-        return {}
-    waiting, _lined = _waiting(events)
-    held = {}
-    for said in waiting.values():
-        turn = next(
-            (
-                picked[event["id"]]
-                for event in said
-                if picked.get(event["id"]) in running
-            ),
-            None,
-        )
-        if turn is not None:
-            held.update((event["id"], turn) for event in said)
-    return held
-
-
 def agent_turn_inputs(page: PageTransaction, turn: str) -> list[dict]:
-    """The waiting messages of the threads the agent turn `turn` took that it hasn't
-    yet picked up, in log order: the user's further messages there, which its tool
-    boundary hands it (`hook_transport.carry_agent_turn`)."""
+    """The waiting messages the running agent turn `turn` holds that it hasn't yet
+    picked up, in log order: the user's further messages in the threads it holds,
+    which its tool boundary hands it (`hook_transport.carry_agent_turn`)."""
     claim = page.active_claim
-    if claim is None:
+    if claim is None or turn not in _running(agent_turn_stamps(claim)):
         return []
-    stamps = agent_turn_stamps(claim)
-    if turn not in _running(stamps):
-        return []
-    picked = _picked_in(page.events, claim["id"], set(stamps))
-    held = _agent_held(page.events, picked, {turn})
-    taken = {
-        input_id
-        for event in page.events
-        if event["kind"] == "pickup"
-        and event["phase"] == "opened"
-        and event["turn"] == turn
-        for input_id in event["events"]
-    }
+    holders = holding_turns(page.events, claim["id"])
+    taken = set(_picked_in(page.events, claim["id"], {turn}))
     return [
         event
         for event in page.events
-        if event["id"] in held and event["id"] not in taken
+        if holders.get(event["id"]) == turn and event["id"] not in taken
     ]
 
 
@@ -900,7 +915,8 @@ def ended(
     harness names `agent`, or `turn` where it never started, and say what came of
     each thread it took: answered, or still owed, which makes it the main thread's
     (`activity.agent_holds`), as the fork's last words gave it back (`HAND_BACK`),
-    it failed (`failed`) or it ended without answering. The main session hears
+    it failed (`failed`) or it ended without answering. A thread another turn took
+    over meanwhile (`holding_turns`) is that turn's, and goes unreported. The main session hears
     either way (`clerk.queue`), a session no watch follows is nudged for a thread it
     now owes, and the page's diagnostics note each outcome; the outcomes, one for
     each thread. An agent with no open turn, as most of a session's are, ends
@@ -928,18 +944,22 @@ def ended(
                     continue
                 threads = _turn_threads(page.events, session_id, closed)
                 waiting, _lined = _waiting(page.events)
-                owed = {
-                    thread
-                    for thread, inputs in threads.items()
-                    if any(event["id"] in inputs for event in waiting.get(thread, []))
+                holders = holding_turns(page.events, session_id)
+                # Each thread still waiting, by whether the closed turn held it.
+                still = {
+                    thread: holders.get(said[0]["id"]) in closed
+                    for thread in threads
+                    if (said := waiting.get(thread))
                 }
-                if owed:
+                if any(still.values()):
                     nudge_unwatched(page)
         except FileNotFoundError:
             continue
         for thread, inputs in threads.items():
             name = _fork_name(thread)
-            if thread in owed:
+            if still.get(thread) is False:
+                continue
+            if still.get(thread):
                 outcome = {"outcome": "hand_over", "why": why}
                 told.append(
                     f"Your fork {name} gave thread {thread} on {page_dir} back to "

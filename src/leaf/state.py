@@ -943,16 +943,21 @@ def _update_agent_turns(session_id: str, matches, **fields) -> bool:
         return bool(chosen)
 
 
+def acting_agent_turn(session: str) -> str | None:
+    """The open turn of the agent of `session` the environment names
+    (`AGENT_VARIABLE`), which a command it runs acts in; None for a command of the
+    main thread, or of an agent running no turn of the session's."""
+    agent = os.environ.get(AGENT_VARIABLE)
+    return agent_turn_of(session, agent) if agent else None
+
+
 def acting_turn(claim: dict | None, session: str | None) -> str | None:
-    """The turn a command of `session` acts in on a page held by `claim`: the open
-    turn of the agent the environment names (`AGENT_VARIABLE`), and otherwise the
-    claim's turn; None for a command of a session that doesn't hold the page."""
+    """The turn a command of `session` acts in on a page held by `claim`: its agent's
+    (`acting_agent_turn`), and otherwise the claim's turn; None for a command of a
+    session that doesn't hold the page."""
     if claim is None or session is None or claim["id"] != session:
         return None
-    agent = os.environ.get(AGENT_VARIABLE)
-    if agent and (turn := agent_turn_of(session, agent)):
-        return turn
-    return claim["turn"]
+    return acting_agent_turn(session) or claim["turn"]
 
 
 def end_session(session_id: str) -> None:

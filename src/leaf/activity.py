@@ -372,15 +372,14 @@ def running_agent_turns(
 
 
 def agent_holds(obligation: dict, state: dict) -> bool:
-    """Whether an agent's running turn holds this owed update: the newest pickup of
-    it opened in a running turn of an agent the claimant's session runs beside its
-    main thread (`state.AGENT_TURNS`), such as a fork that took a thread's work. The
-    main thread neither holds its turn over it, is reminded of it, nor takes it in
-    again (`hook_transport.pick_up_acknowledged`) until that turn ends; once it does,
-    an update still owed is the main thread's like any it received."""
-    return obligation["delivery_session"] == state["claim_session"] and obligation[
-        "delivery_turn"
-    ] in running_agent_turns(
+    """Whether an agent's running turn holds this owed update: the turn that holds
+    it (`holder`, `forks.holding_turns`) is a running turn of an agent the claimant's
+    session runs beside its main thread (`state.AGENT_TURNS`), such as a fork that
+    took a thread's work. The main thread neither holds its turn over it, is
+    reminded of it, nor takes it in again (`hook_transport.pick_up_acknowledged`)
+    until that turn ends; once it does, an update still owed is the main thread's
+    like any it received."""
+    return obligation["holder"] in running_agent_turns(
         state["agent_turns"],
         state["session_alive"] is True,
         datetime.now().astimezone(),
@@ -654,6 +653,7 @@ def canonical_activity(
     its authored words supply the status's detail. Harness observations and general
     status declarations have no exact input source. Consumers never recover one
     by matching the displayed words."""
+    from .forks import holding_turns
     from .todos import TodoReading
 
     log = todo_reading or TodoReading(events)
@@ -686,9 +686,14 @@ def canonical_activity(
     )
     held = not unheld
     # The turns the agents the claimant's session runs beside its main thread are
-    # running now, each of which holds what it picked up and started.
+    # running now, and the turn that holds each waiting message.
     agents = running_agent_turns(
         present["agent_turns"], present["session_alive"] is True, now
+    )
+    holders = (
+        holding_turns(events, present["claim_session"])
+        if present.get("claim_session")
+        else {}
     )
     workflows, aging = _canonical_workflows(
         interaction_evidence, present, now, held=held, turn=turn, agents=agents
@@ -777,14 +782,9 @@ def canonical_activity(
         if item.get("delivery_session") == present.get("claim_session")
         and item.get("delivery_turn") == present["turn"]
     ]
-    # An update an agent's running turn picked up is in hand for that turn, whatever
+    # An update an agent's running turn holds is in hand for that turn, whatever
     # the main thread's turn does.
-    in_agent_turn = [
-        item
-        for item in opened
-        if item.get("delivery_session") == present.get("claim_session")
-        and item.get("delivery_turn") in agents
-    ]
+    in_agent_turn = [item for item in opened if holders.get(item["input"]) in agents]
     handling = (in_this_turn if turn.running else []) + in_agent_turn
     for item in opened:
         if item in handling:
@@ -907,6 +907,8 @@ def canonical_activity(
                 **item,
                 "obligation": owing[item["input"]]["id"],
                 "answer": owed_answer(item),
+                # The claimant's turn that holds it (`forks.holding_turns`).
+                "holder": holders.get(item["input"]),
             }
             for item in obligations
         ],

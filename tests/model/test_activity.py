@@ -1366,6 +1366,7 @@ def test_a_claim_closed_before_its_first_turn_still_names_what_it_owes():
         "delivery_seq": 1,
         "delivery_session": "s1",
         "delivery_turn": None,
+        "holder": None,
         "started_by": [],
     }
     state = {

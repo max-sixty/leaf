@@ -398,6 +398,56 @@ def test_the_forks_leaf_commands_are_marked_to_act_in_its_turn(claimed, lane, ca
     assert before(None, "u3") == ""
 
 
+def taken_over(claimed, capsys) -> tuple[dict, dict]:
+    """A message a fork took, whose turn then went unheard for the working grace,
+    so the main thread's prompt took it in."""
+    asked, taken = taken_by_a_fork(claimed, "Does the suggest service cache?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    turns = state_model.agent_turns("s1")
+    long_ago = datetime.now().astimezone() - activity_model.WORKING_GRACE
+    turns[taken["turn"]]["renewed"] = long_ago.isoformat()
+    state_model.AGENT_TURNS.write(
+        session_file("s1", state_model.AGENT_TURNS.kind), {"turns": turns}
+    )
+    context(capsys, "UserPromptSubmit")
+    claim = service_model.page_claim(claimed)
+    assert claim is not None
+    picked = [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"]
+    assert [pickup["turn"] for pickup in picked] == [taken["turn"], claim["turn"]]
+    return asked, taken
+
+
+def test_the_newest_pickup_holds_a_thread_so_a_lapsed_fork_takes_nothing_back(
+    claimed, lane, capsys
+):
+    """The turn whose pickup of a thread is newest holds it, whichever agent's it is.
+    Once the main thread's prompt has taken a lapsed fork's message in, the fork's
+    turn, renewed at its next boundary, takes nothing back, and a further message in
+    the thread goes to the main thread."""
+    asked, taken = taken_over(claimed, capsys)
+    assert agent_context(capsys, "agent-1") == ""
+    assert taken["turn"] in state_model.open_agent_turns("s1")
+    more = said(claimed, "And the autocomplete service?", parent=asked["id"])
+    assert more["id"] in deliverable(claimed)
+    assert agent_context(capsys, "agent-1") == ""
+
+
+def test_a_fork_whose_thread_was_taken_over_can_not_answer_it(
+    claimed, lane, capsys, monkeypatch
+):
+    """A takeover revokes the fork's answer: its reply with the answer reference its
+    delivery gave it is refused once the main thread holds the message, as a
+    reference stops working once another session claims the page."""
+    asked, _taken = taken_over(claimed, capsys)
+    monkeypatch.setenv(state_model.AGENT_VARIABLE, "agent-1")
+    with pytest.raises(delivery_model.ReceiptRefused, match="no longer holds"):
+        thread_model.post_response(
+            answer_ref(claimed, asked["id"]), "Yes.", asks_back=False
+        )
+
+
 def test_a_follow_up_in_the_thread_reaches_the_fork_at_its_tool_boundary(
     claimed, lane, capsys
 ):

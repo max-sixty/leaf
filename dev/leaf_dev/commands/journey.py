@@ -1098,8 +1098,8 @@ def user_at(
         # The reader's own gap records come whatever type is asked for.
         return [
             record
-            for record in read_interactions(place.page, types=("fork_reply",))
-            if record["type"] == "fork_reply"
+            for record in read_interactions(place.page, types=("fork_outcome",))
+            if record["type"] == "fork_outcome"
         ]
 
     user = User(
@@ -1335,8 +1335,8 @@ class User:
     """The user across a journey's steps, at one end (`HttpEnd` or `BrowserEnd`):
     the release ask, each later step's comment, and how long each step took. A
     harness module drives the steps and checks them; `events` reads the page's log,
-    `forks` the `fork_reply` records its forks left in the page's diagnostics
-    (`leaf.forks.take`), and `terminal` is the session, where the journey runs
+    `forks` the `fork_outcome` records its forks left in the page's diagnostics
+    (`leaf.forks.route`), and `terminal` is the session, where the journey runs
     them."""
 
     def __init__(
@@ -1502,7 +1502,7 @@ class User:
         return {"userEnd": self.end.name, "case": self.case, **release, "steps": steps}
 
 
-# What a sample keeps of a fork's `fork_reply` record (`leaf.forks.take`).
+# What a sample keeps of a fork's `fork_outcome` record (`leaf.forks.route`).
 FORK_READING = ("outcome", "why", "elapsedMs", "usage")
 # The usage counts a fork reports, as a step prints them.
 FORK_TOKENS = (
@@ -1514,7 +1514,7 @@ FORK_TOKENS = (
 
 
 def fork_summary(record: dict) -> str:
-    """A fork's `fork_reply` record as a step prints it: what the fork did, in how
+    """A fork's `fork_outcome` record as a step prints it: what the fork did, in how
     long, on how many tokens, and the working line it posted as it handed the
     thread over, or Leaf's reason where Leaf handed it."""
     usage = record.get("usage") or {}

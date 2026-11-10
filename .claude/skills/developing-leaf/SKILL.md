@@ -269,7 +269,7 @@ touches:
   `hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`, or the watch between turns
   in `session.py`. Add `--sandbox` after a change to `bridge.py`, the README's "Agent
   sandboxes" settings, or what a `leaf` command needs from outside its page directory,
-  and `--forks` after a change to `forks.py` or the module's `forkReply`.
+  and `--forks` after a change to `forks.py` or the module's `lineFork`.
 - `codex-app-server` and `codex-queue` (`journey_codex.py`), both: after a change to
   `codex.py`, `codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's turn
   in `service.py`. Add `--preview` for a change to preview startup or lifetime, and
@@ -297,7 +297,7 @@ reply over enough runs to see past that spread.
 To find out what happened to one message, on a real page or in a journey's evidence
 directory, run `leaf-dev timeline PAGE --message ID`: it lays the page's log and
 diagnostics beside the Claude Code session's transcript and debug log, so it shows
-whether a fork was held, asked and answered, when Leaf handed the message over, and
+whether Leaf kept it back for a line fork, what the line fork judged, when Leaf handed the message over, and
 what the session was doing meanwhile (`dev/leaf_dev/commands/timeline.py`).
 
 ## Compare checkout versions

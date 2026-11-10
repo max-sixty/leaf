@@ -1,5 +1,5 @@
-"""Forked working lines: each state a thread with waiting user messages moves
-through (`forks.py`'s table), what Leaf holds from the session meanwhile, and how
+"""Forks of a Claude Code session: each state a thread with waiting user messages
+moves through (`forks.py`'s table), what Leaf keeps back from the session meanwhile, and how
 the message reads once a fork has posted the agent's working line and handed the
 thread over."""
 
@@ -57,7 +57,7 @@ from leaf.state import session_file
 
 def past_the_take() -> None:
     """Wait for the clock to leave the millisecond session s1's lane was taken in,
-    since a message admitted within it stays with the session (`forks.held`)."""
+    since a message admitted within it stays with the session (`forks.kept_back`)."""
     since = forks_model.lane_since("s1")
     assert since is not None
     while time.time() < since + 0.001:
@@ -91,9 +91,11 @@ def said(page_dir, text: str, parent: str | None = None) -> dict:
     )
 
 
-def held(page_dir) -> list:
+def kept_back(page_dir) -> list:
     with PageTransaction(page_dir) as page:
-        return [(thread.thread, thread.inputs) for thread in forks_model.held(page)]
+        return [
+            (thread.thread, thread.inputs) for thread in forks_model.kept_back(page)
+        ]
 
 
 def deliverable(page_dir) -> list[str]:
@@ -126,26 +128,26 @@ def forked(page_dir) -> list[str]:
     ]
 
 
-def test_a_held_message_gets_the_forks_working_line_and_goes_to_the_session(
+def test_a_kept_back_message_gets_the_forks_working_line_and_goes_to_the_session(
     claimed, lane
 ):
-    """A message in a thread the session hasn't received is held: not deliverable,
+    """A message in a thread the session hasn't received is kept back: not deliverable,
     so neither a hook nor the watch hands it over, while a fork writes the agent's
     working line, and it reads On it from the start. The line goes in as the agent's
     progress without taking the message in hand, and the thread goes to the session
     at once, still owing its answer and still reading On it until that answer."""
     asked = said(claimed, "Why a 2-second poll?")
-    assert held(claimed) == [(asked["id"], (asked["id"],))]
+    assert kept_back(claimed) == [(asked["id"], (asked["id"],))]
     assert deliverable(claimed) == []
     assert forked(claimed) == [asked["id"]]
 
     question = forks_model.ask("s1", basis(claimed, asked["id"], asked["id"]), [])
     assert question is not None
-    assert question["prompt"].startswith(forks_model.OPENING)
+    assert question["prompt"].startswith(forks_model.LINE_OPENING)
     assert "Why a 2-second poll?" in question["prompt"]
     assert "ends where the session last sent it to the model" in question["prompt"]
 
-    handed = forks_model.take(
+    handed = forks_model.route(
         "s1",
         question["thread"],
         answer=judged(" checking why the poll is 2 s\n", "take"),
@@ -167,7 +169,7 @@ def test_a_held_message_gets_the_forks_working_line_and_goes_to_the_session(
     # The line is the agent's words, not the session's start: every reader but the
     # word keeps the message where its delivery is until the session takes it in hand.
     assert "start" not in line
-    assert held(claimed) == []
+    assert kept_back(claimed) == []
     assert deliverable(claimed) == [asked["id"]]
     assert session_file("s1", forks_model.HANDED.kind).resolve() in outside_inputs(
         claimed
@@ -185,7 +187,7 @@ def taken_by_a_fork(page_dir, text: str) -> tuple[dict, dict]:
     """The user's message in a thread of its own, and what Leaf did as the line's
     fork judged its work a fork's, where the module makes forks that do it."""
     asked = said(page_dir, text)
-    taken = forks_model.take(
+    taken = forks_model.route(
         "s1",
         basis(page_dir, asked["id"], asked["id"]),
         answer=judged(f"looking into: {text}", "take"),
@@ -480,7 +482,7 @@ def test_the_newest_pickup_holds_a_thread_so_a_lapsed_fork_takes_nothing_back(
 def test_a_fork_whose_thread_was_taken_over_can_neither_answer_nor_start_it(
     claimed, lane, capsys
 ):
-    """A takeover revokes the fork's hold on the thread, by the same rule that
+    """A takeover takes the thread from the fork, by the same rule that
     refuses it the pickup: its reply with the answer reference its delivery gave it,
     and its start on the message, are refused once the main thread holds the
     message, and write nothing."""
@@ -603,7 +605,7 @@ def test_a_follow_up_in_the_thread_reaches_the_fork_at_its_tool_boundary(
     )
     clerk_model.heard("s1", clerk_model.queued("s1"))
     more = said(claimed, "And the suggest service?", parent=asked["id"])
-    assert held(claimed) == []
+    assert kept_back(claimed) == []
     assert deliverable(claimed) == []
     assert context(capsys, "PostToolBatch") == ""
 
@@ -665,8 +667,8 @@ def answered_by_a_fork(page_dir, monkeypatch, text: str, agent: str) -> dict:
 def taken_again(page_dir, thread: str, more: dict) -> dict:
     """What Leaf did as the line's fork judged the work of the user's message `more`
     in `thread` a fork's."""
-    assert held(page_dir) == [(thread, (more["id"],))]
-    taken = forks_model.take(
+    assert kept_back(page_dir) == [(thread, (more["id"],))]
+    taken = forks_model.route(
         "s1",
         basis(page_dir, thread, more["id"]),
         answer=judged("looking into it", "take"),
@@ -969,8 +971,8 @@ def test_a_fork_that_answered_is_reported_however_its_thread_moves_on(
     assert clerk_model.queued("s1") == []
     joins = [
         row["outcome"]
-        for row in read_interactions(claimed, types=("fork_reply",))
-        if row.get("step") == "join"
+        for row in read_interactions(claimed, types=("fork_outcome",))
+        if row.get("step") == "end"
     ]
     assert joins == ["answer", "taken_over"]
 
@@ -1080,7 +1082,7 @@ def test_a_fork_turn_that_ends_unanswered_gives_its_thread_to_the_main_thread(
         {
             "page": str(claimed),
             "thread": asked["id"],
-            "outcome": "hand_over",
+            "outcome": "hand_back",
             "why": "the session is changing its startup.",
         }
     ]
@@ -1120,13 +1122,13 @@ def test_a_failed_fork_gives_the_thread_to_the_session_bare(claimed, lane):
     stands."""
     failed = said(claimed, "And the lane?")
     blank = said(claimed, "What does the follower print?")
-    assert forks_model.take(
+    assert forks_model.route(
         "s1", basis(claimed, failed["id"], failed["id"]), answer=None, failed="aborted"
     ) == {"outcome": "hand_over", "why": "the fork failed: aborted"}
-    assert forks_model.take(
+    assert forks_model.route(
         "s1", basis(claimed, blank["id"], blank["id"]), answer=judged(" "), failed=None
     )["why"].startswith("the fork failed: the fork's answer doesn't fit its schema")
-    assert held(claimed) == []
+    assert kept_back(claimed) == []
     assert deliverable(claimed) == [failed["id"], blank["id"]]
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(claimed)
@@ -1153,39 +1155,39 @@ def test_a_hold_ends_with_its_bound_or_its_lane(claimed, lane, monkeypatch):
     assert nudged == [claimed.resolve()]
 
     other = said(claimed, "And without a lane?")
-    assert held(claimed) == [(other["id"], (other["id"],))]
+    assert kept_back(claimed) == [(other["id"], (other["id"],))]
     assert forked(claimed) == [other["id"]]
     # No page file records the lane going down, so the presence reading names the
     # lane itself, and a tab re-reads once its cache interval passes.
     monkeypatch.setattr(presence_model, "PRESENCE_CACHE_S", 0)
     before = presence_model.presence_reading(claimed, "files")
     leases_model.release_lease(lane)
-    assert held(claimed) == []
+    assert kept_back(claimed) == []
     assert deliverable(claimed) == [asked["id"], other["id"]]
     assert forked(claimed) == []
     assert presence_model.presence_reading(claimed, "files") != before
 
 
-def test_without_a_lane_nothing_is_held(claimed):
+def test_without_a_lane_nothing_is_kept_back(claimed):
     """A session without Leaf's hooks module, or any other harness, delivers as
     before."""
     asked = said(claimed, "Anyone there?")
-    assert held(claimed) == []
+    assert kept_back(claimed) == []
     assert deliverable(claimed) == [asked["id"]]
 
 
-def test_a_message_while_held_starts_a_fork_for_both_and_drops_the_first_answer(
+def test_a_message_while_kept_back_starts_a_fork_for_both_and_drops_the_first_answer(
     claimed, lane
 ):
-    """A second message in a held thread keeps it held, now with both, and the fork
+    """A second message in a kept-back thread keeps it back, now with both, and the line fork
     asked about the first alone writes nothing: the thread's newest message carries
     its one answer."""
     first = said(claimed, "Why 30 s?")
     second = said(claimed, "Or rather, why not 20?", parent=first["id"])
-    assert held(claimed) == [(first["id"], (first["id"], second["id"]))]
+    assert kept_back(claimed) == [(first["id"], (first["id"], second["id"]))]
     assert forks_model.ask("s1", basis(claimed, first["id"], first["id"]), []) is None
 
-    assert forks_model.take(
+    assert forks_model.route(
         "s1",
         basis(claimed, first["id"], first["id"]),
         answer=judged("Thirty covers a cold cache."),
@@ -1195,7 +1197,7 @@ def test_a_message_while_held_starts_a_fork_for_both_and_drops_the_first_answer(
         "text": "Thirty covers a cold cache.",
         "work": "hand_over",
     }
-    assert held(claimed) == [(first["id"], (first["id"], second["id"]))]
+    assert kept_back(claimed) == [(first["id"], (first["id"], second["id"]))]
     assert not any(
         event["kind"] == "reply" and event["author"] == "agent"
         for event in events_model.read_events(claimed)
@@ -1207,13 +1209,13 @@ def test_a_thread_the_session_owes_stays_with_it_and_a_follow_up_is_forked(
 ):
     """Once the session has received a thread's message, a message after it in that
     thread goes to the session too; once the agent has answered, the user's
-    follow-up is held again, and its fork sees the earlier exchange."""
+    follow-up is kept back again, and its line fork sees the earlier exchange."""
     asked = said(claimed, "Where does the hold live?")
     leases_model.release_lease(lane)
     assert "Where does the hold live?" in context(capsys, "UserPromptSubmit")
     lane = take_lane()
     more = said(claimed, "And who reads it?", parent=asked["id"])
-    assert held(claimed) == []
+    assert kept_back(claimed) == []
     assert more["id"] in deliverable(claimed)
     leases_model.release_lease(lane)
 
@@ -1225,7 +1227,7 @@ def test_a_thread_the_session_owes_stays_with_it_and_a_follow_up_is_forked(
     )
     lane = take_lane()
     follow_up = said(claimed, "Thanks. Does the watch read it too?", parent=asked["id"])
-    assert held(claimed) == [(asked["id"], (follow_up["id"],))]
+    assert kept_back(claimed) == [(asked["id"], (follow_up["id"],))]
     question = forks_model.ask("s1", basis(claimed, asked["id"], follow_up["id"]), [])
     assert question is not None
     assert "In `delivery.deliverable`." in question["prompt"]
@@ -1235,14 +1237,14 @@ def test_a_thread_the_session_owes_stays_with_it_and_a_follow_up_is_forked(
 def test_the_session_taking_the_message_first_leaves_the_fork_nothing_to_write(
     claimed, lane, capsys
 ):
-    """A held message the session picks up anyway, as once the bound has passed, is
+    """A kept-back message the session picks up anyway, as once the bound has passed, is
     the session's: the fork's later answer writes nothing."""
     asked = said(claimed, "Which wins?")
     with PageTransaction(claimed) as page:
         [event] = [e for e in page.events if e["id"] == asked["id"]]
         delivery_model.record_pickup(page, [event], session="s1", turn="t1")
-    assert held(claimed) == []
-    assert forks_model.take(
+    assert kept_back(claimed) == []
+    assert forks_model.route(
         "s1",
         basis(claimed, asked["id"], asked["id"]),
         answer=judged("The fork."),
@@ -1265,7 +1267,7 @@ def test_a_hold_ending_while_the_reply_goes_in_leaves_the_thread_to_the_session(
         return checked(page_dir, text)
 
     monkeypatch.setattr(thread_model, "checked_text", bound_passes)
-    assert forks_model.take(
+    assert forks_model.route(
         "s1",
         basis(claimed, asked["id"], asked["id"]),
         answer=judged("Yes."),
@@ -1286,8 +1288,8 @@ def test_a_thread_the_lane_going_down_gave_over_stays_with_the_session(claimed, 
     assert deliverable(claimed) == [asked["id"]]
     again = take_lane()
     try:
-        assert held(claimed) == []
-        assert forks_model.take(
+        assert kept_back(claimed) == []
+        assert forks_model.route(
             "s1",
             basis(claimed, asked["id"], asked["id"]),
             answer=judged("Yes."),
@@ -1298,12 +1300,12 @@ def test_a_thread_the_lane_going_down_gave_over_stays_with_the_session(claimed, 
 
 
 def test_a_fork_the_page_has_since_left_writes_nothing_on_it(claimed, lane):
-    """The hold is the claimant's: a fork of another session's conversation, as one
+    """Keeping back is the claimant's: a fork of another session's conversation, as one
     returning after the page passed to a new session, neither hands the thread over
     nor answers it."""
     asked = said(claimed, "Who holds this?")
     assert (
-        forks_model.take(
+        forks_model.route(
             "s2",
             basis(claimed, asked["id"], asked["id"]),
             answer=judged("checking who holds it"),
@@ -1311,7 +1313,7 @@ def test_a_fork_the_page_has_since_left_writes_nothing_on_it(claimed, lane):
         )["outcome"]
         == "dropped"
     )
-    assert held(claimed) == [(asked["id"], (asked["id"],))]
+    assert kept_back(claimed) == [(asked["id"], (asked["id"],))]
     assert not session_file("s2", forks_model.HANDED.kind).exists()
 
 
@@ -1328,13 +1330,13 @@ def test_the_running_tool_reaches_the_prompt(claimed, lane):
     assert 'Bash command: "pytest -x" description: "tests"' in question["prompt"]
 
 
-def test_the_pages_follower_holds_the_lane_and_lists_held_threads(
+def test_the_pages_follower_holds_the_lane_and_lists_kept_back_threads(
     claimed, monkeypatch, capsys
 ):
     """Asked for forks, the follower is the session's lane while it runs and lists
-    each page's held threads for the module. It waits on the page's subscription,
+    each page's kept-back threads for the module. It waits on the page's subscription,
     so a message wakes it as it is admitted rather than at the next presence read.
-    Stopping with a thread held, it nudges what the hold leaves, as a watch giving
+    Stopping with a thread kept back, it nudges what it kept back, as a watch giving
     up its lease does."""
     serving(claimed, 1)
     server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
@@ -1370,8 +1372,8 @@ def test_the_pages_follower_holds_the_lane_and_lists_held_threads(
         hooks_model.cmd_pages({"session_id": "s1", "forks": True})
     assert forks_model.lane_since("s1") is None
     listed = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
-    assert listed[0][0]["forks"] == []
-    assert listed[1][0]["forks"] == [
+    assert listed[0][0]["kept_back"] == []
+    assert listed[1][0]["kept_back"] == [
         {
             "page": str(claimed.resolve()),
             "thread": asked[0]["id"],
@@ -1425,7 +1427,7 @@ def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
     assert ended.value.code == os.EX_TEMPFAIL
     assert forks_model.lane_since("s1") is None
     [listed] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
-    assert listed[0]["forks"] == []
+    assert listed[0]["kept_back"] == []
 
 
 def test_the_follower_keeps_open_the_subscription_of_every_page_it_holds(
@@ -1456,7 +1458,7 @@ def test_the_follower_keeps_open_the_subscription_of_every_page_it_holds(
 
 def test_the_follower_forgets_the_bound_of_a_page_that_is_gone(claimed, monkeypatch):
     """A page that is gone holds nothing, so the follower keeps no bound of its to
-    wake at: one kept past its hold would end every wait at once until the next
+    wake at: one kept past its bound would end every wait at once until the next
     presence read."""
     monkeypatch.setattr(session_model, "nudge_pending", lambda _sid: None)
     later = 0.0
@@ -1498,7 +1500,7 @@ def test_the_follower_keeps_the_bound_of_a_page_it_does_not_list(
     claimed, monkeypatch, capsys
 ):
     """A page whose server isn't running goes unlisted, yet the follower still hands
-    its held threads to the session at their bound. That hand-over nudges for itself,
+    its kept-back threads to the session at their bound. That hand-over nudges for itself,
     so a follower that then exits holding nothing sends no nudge of its own, which
     could wake a session its Stop hook's watch is about to wake."""
     monkeypatch.setattr(forks_model, "BOUND_S", 0.0)
@@ -1550,10 +1552,10 @@ def test_a_lane_counts_from_when_it_took_the_name(claimed, lane, monkeypatch):
     monkeypatch.setattr(Path, "stat", coarse_clock)
     again = forks_model.take_lane("s1")
     try:
-        assert held(claimed) == []
+        assert kept_back(claimed) == []
         assert deliverable(claimed) == [asked[0]["id"]]
         assert (
-            forks_model.take(
+            forks_model.route(
                 "s1",
                 basis(claimed, asked[0]["id"], asked[0]["id"]),
                 answer=judged("Yes."),
@@ -1567,7 +1569,7 @@ def test_a_lane_counts_from_when_it_took_the_name(claimed, lane, monkeypatch):
 
 def test_admission_waits_for_the_lane_cutoff_to_be_published(claimed, monkeypatch):
     """An event admitted after the cutoff waits for publication before deciding
-    whether to nudge the session. It cannot be deliverable now and held later."""
+    whether to nudge the session. It cannot be deliverable now and kept back later."""
     assert stamp(claimed).exit_code == 0
     before = said(claimed, "Before the lane started")
     write = forks_model.LANE_START.write
@@ -1621,16 +1623,16 @@ def test_admission_waits_for_the_lane_cutoff_to_be_published(claimed, monkeypatc
                 if event.get("text") == "During publication"
             ]
             assert nudged == []
-            assert held(claimed) == [(asked["id"], (asked["id"],))]
+            assert kept_back(claimed) == [(asked["id"], (asked["id"],))]
             assert deliverable(claimed) == [before["id"]]
         finally:
             leases_model.release_lease(lane)
 
 
-def test_admission_and_each_fork_say_in_the_diagnostics_why_a_message_was_held(
+def test_admission_and_each_fork_say_in_the_diagnostics_why_a_message_was_kept_back(
     claimed, monkeypatch
 ):
-    """Whether admission held each thread message for a fork, and where it didn't,
+    """Whether admission kept each thread message back for a line fork, and where it didn't,
     whether the session's lane was up, goes in the page's diagnostics, as does each
     fork Leaf asks for, so a message no fork took up, or whose fork never answered,
     says why."""
@@ -1662,14 +1664,14 @@ def test_admission_and_each_fork_say_in_the_diagnostics_why_a_message_was_held(
     finally:
         leases_model.release_lease(lane)
     notes = [
-        (row["type"], row.get("event"), row.get("held"), row.get("lane") is not None)
-        if row["type"] == "fork_hold"
+        (row["type"], row.get("event"), row.get("kept"), row.get("lane") is not None)
+        if row["type"] == "fork_kept_back"
         else (row["type"], row["inputs"], row["running"])
-        for row in read_interactions(claimed, types=("fork_hold", "fork_asked"))
+        for row in read_interactions(claimed, types=("fork_kept_back", "fork_asked"))
     ]
     assert notes == [
-        ("fork_hold", early, False, False),
-        ("fork_hold", later, False, True),
-        ("fork_hold", asked, True, True),
+        ("fork_kept_back", early, False, False),
+        ("fork_kept_back", later, False, True),
+        ("fork_kept_back", asked, True, True),
         ("fork_asked", [asked], ["Bash"]),
     ]

@@ -1,5 +1,5 @@
 """What happened on a Leaf page and in the Claude Code sessions that held it, in time
-order: the user's messages, Leaf's holds and forks, what Leaf handed each session and
+order: the user's messages, what Leaf kept back and its forks, what Leaf handed each session and
 when, the session's turns and commands, and the agent's words on the page, with a line
 per message saying how long each step took after the user sent it.
 
@@ -10,9 +10,9 @@ PAGE is a page directory, or any directory holding a page's `events.jsonl` and
 
 - the page's log and diagnostics (`leaf.interaction_log.read_interactions`): each
   message and the agent's words, pickups and receipts, and the records Leaf's hooks
-  and commands leave: `fork_hold`, whether admission held a message for a fork and,
-  where not, whether the session's fork lane was up; `fork_asked`, as Leaf gave a fork
-  its question; `fork_reply`, what came of it (`leaf.forks`), a working fork's turn
+  and commands leave: `fork_kept_back`, whether admission kept a message back for a line
+  fork and, where not, whether the session's fork lane was up; `fork_asked`, as Leaf
+  gave a line fork its question; `fork_outcome`, what came of it (`leaf.forks`), a working fork's turn
   and agent among it; `turn_end_check`, the clerk's fork (`leaf.clerk`);
   `leaf_command`, with the agent that ran it where Leaf's PreToolUse hook named one,
   and `watch` (`leaf.interaction_log.record_command`, `record_watch`); and the
@@ -67,9 +67,9 @@ from leaf_dev.reply_phases import (
 # The page's records the timeline reads, besides its log's events.
 DIAGNOSTICS = (
     "event",
-    "fork_hold",
+    "fork_kept_back",
     "fork_asked",
-    "fork_reply",
+    "fork_outcome",
     "turn_end_check",
     "leaf_command",
     "watch",
@@ -104,9 +104,9 @@ def page_entries(page: Path, since, until) -> tuple[list[dict], set[str], dict]:
     messages = kinds_declaring("message")
     rows = read_interactions(page, since=since, until=until, types=DIAGNOSTICS)
     lines = {
-        row["line"] for row in rows if row["type"] == "fork_reply" and "line" in row
+        row["line"] for row in rows if row["type"] == "fork_outcome" and "line" in row
     }
-    forks = [row for row in rows if row["type"] == "fork_reply"]
+    forks = [row for row in rows if row["type"] == "fork_outcome"]
     # Each turn Leaf opened for a fork that took a thread's work, and each agent id
     # its harness gave one, by the fork's name (`leaf.forks.started`).
     agents = {row["turn"]: row["agent"] for row in forks if "turn" in row}
@@ -125,14 +125,14 @@ def page_entries(page: Path, since, until) -> tuple[list[dict], set[str], dict]:
                 shown := event_entry(event, threads, messages, lines, agents)
             ) is not None:
                 out.append(shown)
-        elif kind == "fork_hold":
+        elif kind == "fork_kept_back":
             out.append(
                 entry(
                     at,
                     "fork",
-                    f"{row['event']} held for a fork"
-                    if row["held"]
-                    else f"{row['event']} not held: "
+                    f"{row['event']} kept back for a line fork"
+                    if row["kept"]
+                    else f"{row['event']} not kept back: "
                     + ("no fork lane" if row["lane"] is None else "with the session"),
                     thread=threads.get(row["event"]),
                 )
@@ -147,7 +147,7 @@ def page_entries(page: Path, since, until) -> tuple[list[dict], set[str], dict]:
                     thread=row["thread"],
                 )
             )
-        elif kind == "fork_reply":
+        elif kind == "fork_outcome":
             out.extend(fork_entries(row))
         elif kind == "turn_end_check":
             outcome = {k: row[k] for k in ("asks", "refused", "failed") if row.get(k)}
@@ -295,13 +295,13 @@ def in_turn(turn: str | None, agents: dict[str, str]) -> str:
 
 
 def fork_entries(row: dict) -> list[dict]:
-    """A `fork_reply` record as its fork's start, where its time says when, and its
+    """A `fork_outcome` record as its fork's start, where its time says when, and its
     end; for a fork that took a thread's work, the agent that runs its turn and the
     turn's end."""
     at, thread = row["ts"], row["thread"]
     elapsed = row.get("elapsedMs")
     step = row.get("step")
-    if step == "join":
+    if step == "end":
         took = f" after {elapsed / 1000:.1f} s" if elapsed is not None else ""
         return [
             entry(
@@ -576,9 +576,9 @@ def debug_entries(log: str, session: str, *, calls: bool) -> list[dict]:
     return out
 
 
-def message_line(row: dict, holds: dict) -> str:
-    """One message's steps, in seconds after its admission: whether admission held
-    it (`holds`, its `fork_hold` notes), what its fork did, and the page's and the
+def message_line(row: dict, kept: dict) -> str:
+    """One message's steps, in seconds after its admission: whether admission kept
+    it back (`kept`, its `fork_kept_back` notes), what its fork did, and the page's and the
     session's steps on it (`row`, `page_timings`' reading of it)."""
     marks = row["milestones"]
 
@@ -586,22 +586,22 @@ def message_line(row: dict, holds: dict) -> str:
         mark = marks.get(name)
         return "—" if mark is None else f"{mark['elapsed_s']:.1f}s"
 
-    hold = holds.get(row["message_id"])
+    note = kept.get(row["message_id"])
     told = (
         ""
-        if hold is None
-        else "held · "
-        if hold["held"]
-        else "not held (no fork lane) · "
-        if hold["lane"] is None
-        else "not held (with the session) · "
+        if note is None
+        else "kept back · "
+        if note["kept"]
+        else "not kept back (no fork lane) · "
+        if note["lane"] is None
+        else "not kept back (with the session) · "
     )
     if (fork := row["fork"]) is not None:
         took = f" {fork['elapsed_s']:.1f}s" if fork["elapsed_s"] is not None else ""
         told += f"fork {fork['outcome']}{took}" + (
             f" ({clip(fork['why'], 50)})" if fork["why"] else ""
         )
-    elif hold is None or hold["held"]:
+    elif note is None or note["kept"]:
         told += "no fork"
     pickup = row.get("pickup") or {}
     cause = (
@@ -707,10 +707,10 @@ def show(
         for row in timings["samples"]
         if focus is None or row["input_id"] == focus[0]
     ]
-    holds = {
+    kept = {
         row["event"]: row
-        for row in read_interactions(page, until=cutoff, types=("fork_hold",))
-        if row["type"] == "fork_hold"
+        for row in read_interactions(page, until=cutoff, types=("fork_kept_back",))
+        if row["type"] == "fork_kept_back"
     }
     for session, path in paths.items():
         if path is not None:
@@ -736,7 +736,7 @@ def show(
         log = "debug log" if debug_log(page, session) else "no debug log"
         click.echo(f"  session {session}: {path or 'no transcript here'}; {log}")
     for row in rows:
-        click.echo("  " + message_line(row, holds))
+        click.echo("  " + message_line(row, kept))
     click.echo()
     sent = focus[1] if focus else None
     for item in shown:

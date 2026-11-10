@@ -7,7 +7,7 @@ first reply takes 17 s when the session is idle and 21 s when it is busy, and th
 answer 48 s and 100 s ([waits on real pages](leaf-run-sessions.md#waits-on-real-pages)).
 
 On main, `src/leaf/forks.py` holds the states a thread moves through, the hold and the
-working line a fork posts, and `hooks/claude-code.ts` (`forkReply`) makes the fork. This
+working line a fork posts, and `hooks/claude-code.ts` (`lineFork`) makes the fork. This
 note holds the research behind it: what Claude Code lets a hooks module fork, measured,
 and how well the fork judges what to answer. The main thread is the session's own
 conversation, as against the forks and subagents made from it.
@@ -96,7 +96,7 @@ reported the row and treated its question as answered.
 
 Thread messages replayed at the moment each arrived: a copy of the session's transcript
 cut there, resumed under `claude -p` with every tool denied, given the prompt
-`forks.reply_prompt` builds from the page log cut at the message. Each case was
+`forks.line_prompt` builds from the page log cut at the message. Each case was
 labelled from what the session did next before any fork ran. The first set holds 25
 messages from 15 sessions (Oct 20–30), 15 idle and 10 mid-turn; the fresh set 15 from
 15 other sessions (mostly Oct 10–19), 9 idle and 6 mid-turn. By those labels only 8 of
@@ -152,7 +152,7 @@ agent's first words a median 10.6 s after sending; handed 27 to the session, a m
 3.2 s after sending; and failed on 7. The session's own first words on those 27 came a
 median 35 s after sending, 140 s at p90, and the thread showed nothing from the agent
 until then. The session opened 26 of them with a line, and each time the fork's reason
-(`why` in its `fork_reply` record) had already named the same work, such as "needs a
+(`why` in its `fork_outcome` record) had already named the same work, such as "needs a
 new survey of real pages' event counts" against the session's "Surveying real pages'
 log lengths and growth".
 
@@ -179,7 +179,7 @@ foreground poll, and the user saw the agent's first words after 64 s. Nothing re
 why the other 6 had no fork. The follower now ends once the session's hooks would run
 another Leaf than its own, and the module starts it again (`hooks.cmd_pages`); the
 page now notes whether admission held each message and whether its lane was up
-(`fork_hold`), and each fork Leaf asks for (`fork_asked`), which `leaf-dev timeline`
+(`fork_kept_back`), and each fork Leaf asks for (`fork_asked`), which `leaf-dev timeline`
 reads.
 
 A message no fork answered reads Delivered until the session's first model call ends, a
@@ -276,8 +276,8 @@ main thread while the fork works.
 ### Steps
 
 1. **The judgment** (built): the working-line fork answers `{"line", "work"}`; Leaf
-   records `work` in the page's diagnostics (`fork_reply`) and still hands every
-   thread over, and `fork-reply/*` scores the judgment against each case's label.
+   records `work` in the page's diagnostics (`fork_outcome`) and still hands every
+   thread over, and `line-fork/*` scores the judgment against each case's label.
    Real pages then show how often a fork would take a message, and what the session
    did with those.
 2. **Doing and joining** (a prototype, only with `LEAF_FORK_WORK=on` in Claude
@@ -292,7 +292,7 @@ main thread while the fork works.
    line at 2.0 s and the working fork's answer at 5.1 s, with no tool call.
 
    A review of the prototype found its ownership record the wrong primitive. TAKEN
-   says who has a message outside the log, and only `forks._held` and
+   says who has a message outside the log, and only `forks._kept_back` and
    `delivery.deliverable` read it. Every other reader of received input reads the
    log: once a receipt for later input moves the cursor past a taken message, the
    main session's next prompt records a pickup for it as an acknowledged update it
@@ -311,7 +311,7 @@ main thread while the fork works.
    turn runs, the activity fold reads the pickup and the fork's starts as work in
    hand; the main thread's Stop hook, watch and prompt neither hold its turn over the
    message, remind it nor take it in again (`activity.agent_holds`); and its
-   deliveries leave out what the fork holds (`forks.held_inputs`). The fork's
+   deliveries leave out what the fork holds (`forks.kept_from_main`). The fork's
    pickups, replies and starts are each checked as they are written against which
    turn holds the thread (`holding.refuse_unheld`), so a fork that lost its thread to
    the main thread can neither take it back with a late acknowledgement, nor answer

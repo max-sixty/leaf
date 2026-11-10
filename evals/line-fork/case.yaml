@@ -1,9 +1,9 @@
 # The fork that writes the agent's working line on a held thread message and judges
 # whether a fork of the session could take the work (`src/leaf/forks.py`), replayed
 # on a short conversation written for each judgment its prompt asks about. Run every
-# case with `uv run leaf-dev eval 'fork-reply*' --harness claude-code`; inputs,
+# case with `uv run leaf-dev eval 'line-fork*' --harness claude-code`; inputs,
 # labels and rubrics are in workflows/fork_eval.yaml.
-description: Forked thread reply
+description: Line fork
 metadata:
   purpose: A question about why the session's finding holds is work a fork could take.
   tags: [workflow, forks, threads]

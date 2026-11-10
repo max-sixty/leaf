@@ -571,8 +571,8 @@ cases:
       - *items
 
   why-ci:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     conversation:
       - from: flaky
       - *flaky-reply
@@ -591,8 +591,8 @@ cases:
     assert:
       - *line
   meaning:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     conversation:
       - from: flaky
       - *flaky-reply
@@ -611,8 +611,8 @@ cases:
     assert:
       - *line
   work-request:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     conversation:
       - from: flaky
       - *flaky-reply
@@ -631,8 +631,8 @@ cases:
     assert:
       - *line
   user-decides:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     log:
       - kind: comment
         author: agent
@@ -673,8 +673,8 @@ cases:
     assert:
       - *line
   still-running:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     conversation:
       - from: flaky
       - *flaky-reply
@@ -705,8 +705,8 @@ cases:
     assert:
       - *line
   work-out:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     conversation:
       - from: flaky
       - *flaky-reply
@@ -725,8 +725,8 @@ cases:
     assert:
       - *line
   still-deciding:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     conversation:
       - from: flaky
       - *flaky-reply

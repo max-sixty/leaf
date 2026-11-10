@@ -252,8 +252,8 @@ flowchart TD
               its pull requests), settles no question the main thread is weighing, and
               waits on nothing the session is running. <code>hand_over</code> means the
               work belongs with the main thread. Leaf records each judgment in the
-              page's diagnostics (<code>fork_reply</code>). Without the flag, Leaf posts
-              the line and gives every message to the main thread.
+              page's diagnostics (<code>fork_outcome</code>). Without the flag, Leaf
+              posts the line and gives every message to the main thread.
             </p>
             <p id="sorting-planned">
               The planned sort splits <code>hand_over</code> in two. Input the main
@@ -272,7 +272,7 @@ flowchart TD
               When the line fork judges <code>take</code>, Leaf posts the working line,
               then in one transaction under the page's lock opens a turn for a working
               fork and records that turn's pickup of the thread's waiting messages, with
-              a delivery made for it (<code>forks._give</code>). The message goes
+              a delivery made for it (<code>forks._take</code>). The message goes
               straight from kept back to held by the fork's turn, with no moment in
               which neither has it. Leaf's hooks module then spawns the working fork
               with that delivery, or resumes the fork that answered the thread before
@@ -401,8 +401,8 @@ flowchart TD
             <p id="takeover-waits">
               While a fork's turn runs, the main thread isn't given the messages the
               fork holds. Its deliveries leave them out
-              (<code>forks.held_inputs</code>), its Stop hook and watch neither keep its
-              turn from ending over them nor remind it of them
+              (<code>forks.kept_from_main</code>), its Stop hook and watch neither keep
+              its turn from ending over them nor remind it of them
               (<code>activity.agent_holds</code>), and its own pickups leave them out
               (<code>holding.pickable</code>). Until the fork answers, the thread's
               further messages go to the fork.
@@ -558,12 +558,12 @@ config:
 ---
 flowchart TD
   accTitle: How Leaf judges a thread when a fork's run ends
-  accDescr: When a fork's run ends, Leaf closes its turn. If a message it picked up still waits and its closed turn still holds the thread, the outcome is hand_over. If one still waits and another turn holds it, taken_over. Otherwise the fork answered: todo where it opened a to-do on the thread that is still open, else answer.
+  accDescr: When a fork's run ends, Leaf closes its turn. If a message it picked up still waits and its closed turn still holds the thread, the outcome is hand_back. If one still waits and another turn holds it, taken_over. Otherwise the fork answered: todo where it opened a to-do on the thread that is still open, else answer.
   ends["The run ends; Leaf closes the fork's turn"]
   q1("Is a message it picked up still waiting, held by its closed turn?")
   q2("Is one still waiting, held by another turn?")
   q3("Is a to-do on the thread, opened since it took the thread, still open?")
-  hand["hand_over"]
+  hand["hand_back"]
   taken["taken_over"]
   todo["todo"]
   answer["answer"]
@@ -616,8 +616,8 @@ flowchart TD
                   which the main thread now owes and schedules.
                 </td>
               </tr>
-              <tr id="ending-hand-over">
-                <th scope="row"><code>hand_over</code></th>
+              <tr id="ending-hand-back">
+                <th scope="row"><code>hand_back</code></th>
                 <td>
                   A message it picked up still waits, and the closed turn still holds
                   the thread: the fork gave it back with <code>HAND BACK:</code> and a
@@ -942,7 +942,7 @@ flowchart TD
               <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/forks.py"
                 ><code>src/leaf/forks.py</code></a
               >: its header holds the states a thread moves through and why the line
-              fork runs as it does; <code>_give</code> and <code>ended</code> hold the
+              fork runs as it does; <code>_take</code> and <code>ended</code> hold the
               rules this page names for a working fork's take and end.
             </li>
             <li id="source-state">
@@ -965,7 +965,7 @@ flowchart TD
             <li id="source-module">
               <a href="https://github.com/max-sixty/leaf/blob/main/hooks/claude-code.ts"
                 ><code>hooks/claude-code.ts</code></a
-              >: <code>forkReply</code>, <code>workFork</code> and the
+              >: <code>lineFork</code>, <code>workFork</code> and the
               <code>turn.complete</code> hook, which make the forks and report a working
               fork's end.
             </li>

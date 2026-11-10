@@ -351,7 +351,7 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
         {
             "ts": at(4),
             "source": "cli",
-            "type": "fork_reply",
+            "type": "fork_outcome",
             "thread": "c1",
             "inputs": ["c1"],
             "outcome": "hand_over",
@@ -363,7 +363,7 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
         {
             "ts": at(12),
             "source": "cli",
-            "type": "fork_reply",
+            "type": "fork_outcome",
             "thread": "c2",
             "inputs": ["c2"],
             "outcome": "hand_over",

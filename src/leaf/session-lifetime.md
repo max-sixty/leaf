@@ -135,7 +135,7 @@ thread's or an agent's, and every reader asks one function which that is
 (`holding.holding_turns`). A message a running agent turn holds is in hand for that
 turn: the main thread's hooks neither hold its turn over it, remind it of it, nor take
 it in again (`activity.agent_holds`), and its deliveries leave it out
-(`forks.held_inputs`). Once the agent's turn ends or lapses, a message still owed is
+(`forks.kept_from_main`). Once the agent's turn ends or lapses, a message still owed is
 the main thread's like any it received, with the reference the agent's delivery gave
 it, and the main thread's pickup of it takes the thread over. An agent's turn may pick
 up, answer or start on only the messages it holds or no turn holds, so it is then
@@ -192,10 +192,10 @@ Every watcher watches every page the session holds, and every transport hands ov
 same envelope (`../../skills/leaf/references/event-batches.md`, "One envelope on every
 transport"). What a watcher delivers is `delivery.deliverable`, which includes the
 updates a page's previous owner received and left unanswered. It leaves out the
-waiting messages of a thread a fork of a Claude Code session's conversation is
-deciding on, while that session's pages follower holds its forks lane
-(`sessions/<session>.fork-lane`), until the thread is handed over, by the fork
-once it has posted its line or by the follower once the hold runs out, which
+waiting messages Leaf keeps back while a line fork of a Claude Code session's
+conversation writes its line, while that session's pages follower holds its forks
+lane (`sessions/<session>.fork-lane`), until the thread is handed over, by the line
+fork once it has posted its line or by the follower once its bound runs out, which
 `sessions/<session>.forks` records (`forks.py`).
 
 ### The hook

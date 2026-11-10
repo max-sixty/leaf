@@ -428,7 +428,7 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
             "findings": [],
         }
     )
-    driven = ClaudeCode(spawn, "cc-fork", {"forkReply": reply})
+    driven = ClaudeCode(spawn, "cc-fork", {"forkAnswer": reply})
     holding_page(driven, page_dir, monkeypatch)
     server_id = read_record(page_dir / "service.json")["server_id"]
     server_rows_model.RowPublisher(page_dir, server_id).refresh()
@@ -515,12 +515,12 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     page_dir, monkeypatch, spawn, sessionless
 ):
     """The pages follower holds the session's forks lane, so the user's message in a
-    new thread is held from the session, and the module forks the conversation with
+    new thread is kept back from the session, and the module forks the conversation with
     Leaf's prompt for it as it arrives and hands the line back: it goes in as the
     agent's working line, and the thread goes to the session."""
     said = "Checking why the poll is 2 s"
     driven = ClaudeCode(
-        spawn, "cc-reply", {"forkReply": json.dumps({"line": said, "work": "take"})}
+        spawn, "cc-reply", {"forkAnswer": json.dumps({"line": said, "work": "take"})}
     )
     holding_page(driven, page_dir, monkeypatch)
     server_id = read_record(page_dir / "service.json")["server_id"]
@@ -538,16 +538,16 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     )
     forked = driven.forks.get(timeout=STATED_TIMEOUT)
     prompt = forked["forked"]
-    assert prompt.startswith("<leaf-fork-reply>"), prompt
+    assert prompt.startswith("<leaf-line-fork>"), prompt
     assert "Why 2 s?" in prompt
     # Claude Code thinks at the effort Leaf names, whatever the session's own.
     assert forked["effort"] == forks_model.EFFORT
     told = wait_for(
         lambda: driven.debug.get(timeout=STATED_TIMEOUT),
-        lambda line: line.startswith("Leaf: a fork took"),
+        lambda line: line.startswith("Leaf: the line fork for thread"),
         failure=lambda: f"the fork never reported: {list(driven.diagnostics.queue)}",
     )
-    assert told == f"Leaf: a fork took thread {asked['id']}: hand_over", told
+    assert told == f"Leaf: the line fork for thread {asked['id']}: hand_over", told
     [line] = [
         event
         for event in events_model.read_events(page_dir)
@@ -559,7 +559,7 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
         "cc-reply",
         True,
     )
-    [note] = read_interactions(page_dir, types=("fork_reply",))
+    [note] = read_interactions(page_dir, types=("fork_outcome",))
     assert note["request"] == RESENT, note
     # The note gives the effort the fork was sent at, not the session's in `request`.
     assert note["effort"] == forks_model.EFFORT != RESENT["effort"], note
@@ -579,7 +579,7 @@ def test_a_fork_given_a_threads_work_runs_in_a_turn_leaf_keeps_for_it(
         spawn,
         "cc-work",
         {
-            "forkReply": json.dumps({"line": "Checking the version", "work": "take"}),
+            "forkAnswer": json.dumps({"line": "Checking the version", "work": "take"}),
             "agentId": "agent-1",
             "env": {"LEAF_FORK_WORK": "on"},
         },
@@ -635,7 +635,7 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
         spawn,
         "cc-resume",
         {
-            "forkReply": json.dumps({"line": "Checking the version", "work": "take"}),
+            "forkAnswer": json.dumps({"line": "Checking the version", "work": "take"}),
             "agentId": ["agent-1", "agent-2"],
             "env": {"LEAF_FORK_WORK": "on"},
             **({} if resumes else {"sendRefuses": "No transcript found"}),

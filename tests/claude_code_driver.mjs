@@ -4,7 +4,7 @@
 //
 // Arguments: the session id, then the driver's options as JSON: `pluginRoot`, the
 // plugin's directory in place of this tree; `throwSpawn`, which makes every
-// `$.process.spawn` throw; `forkReply`, the text `$.model.fork` answers with;
+// `$.process.spawn` throw; `forkAnswer`, the text `$.model.fork` answers with;
 // `forkRejects`, which makes every fork reject; `agentId`, the id each
 // `$.agent.spawn` answers with, or a list of them answered in turn, the last for
 // every spawn after, each printing what it was asked as `{"spawned"}`;
@@ -172,7 +172,7 @@ const $ = {
     // A redraw of the band, printed as `{"band": {<surface>: <its tree, or null>}}`.
     invalidate: () => setImmediate(drawBand),
   },
-  // A fork answers with `options.forkReply`, printing the prompt and effort it was
+  // A fork answers with `options.forkAnswer`, printing the prompt and effort it was
   // asked for as `{"forked": <prompt>, "effort": <effort>}`, and reports that effort
   // as the one it sent, as Claude Code does; with none it has nothing to fork, as
   // before a turn's end.
@@ -186,11 +186,11 @@ const $ = {
         cache_read_input_tokens: 1000,
         cache_creation_input_tokens: 0,
       };
-      return options.forkReply === undefined
+      return options.forkAnswer === undefined
         ? { isAnswered: false, reason: "nothing-to-fork" }
         : {
             isAnswered: true,
-            text: options.forkReply,
+            text: options.forkAnswer,
             usage,
             ...(effort === undefined ? {} : { effort }),
           };

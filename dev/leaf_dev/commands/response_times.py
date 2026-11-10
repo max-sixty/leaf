@@ -220,7 +220,7 @@ def page_timings(
             "run_context",
             "leaf_command",
             "watch",
-            "fork_reply",
+            "fork_outcome",
         ),
     )
     contexts = [
@@ -244,7 +244,7 @@ def page_timings(
     fork_lines = {
         row["line"]: row["inputs"][-1]
         for row in observations
-        if row["type"] == "fork_reply" and "line" in row
+        if row["type"] == "fork_outcome" and "line" in row
     }
     messages = kinds_declaring("message")
     threads = thread_names([observation["event"] for observation in semantic])
@@ -422,7 +422,7 @@ def page_timings(
     watches = [
         row for row in observations if row["source"] == "cli" and row["type"] == "watch"
     ]
-    forks = [row for row in observations if row["type"] == "fork_reply"]
+    forks = [row for row in observations if row["type"] == "fork_outcome"]
     # The last fork made for a message decided it: another message in its held
     # thread forks again for them all, dropping the earlier fork's line.
     decided = {message: fork for fork in forks for message in fork["inputs"]}

@@ -1150,12 +1150,12 @@ def deliverable(
     so input waits here only on a page whose renewal was refused, and the hooks name
     why (`hook_transport.remedies`).
 
-    Less, too, each waiting message of a thread a fork of the owner's conversation
-    is deciding on (`forks.held`), until the fork posts its line and hands it over
-    or the hold runs out, which keeps the watch from waking the session for it as
-    it arrives; and what an agent of the owner's session took, which its own turn
+    Less, too, each waiting message Leaf keeps back while a line fork of the
+    owner's conversation writes its line (`forks.kept_back`), until the line fork
+    hands it over or its bound runs out, which keeps the watch from waking the
+    session for it as it arrives; and what an agent of the owner's session took, which its own turn
     received, or holds, the further messages of a thread it took, which go to it at
-    its tool boundary while its turn runs (`forks.held_inputs`).
+    its tool boundary while its turn runs (`forks.kept_from_main`).
 
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. Codex's tool hook runs after every tool call, so it passes
@@ -1170,11 +1170,11 @@ def deliverable(
         pending = [event for event in pending if event["id"] not in held]
     owed = unreferenced(page, obligations) if received else []
     if pending or owed:
-        from .forks import held_inputs
+        from .forks import kept_from_main
 
-        # A held message the cursor has passed is owed and unreferenced, and stays
-        # held all the same; so does one an agent's turn holds.
-        if forked := held_inputs(page):
+        # A kept-back message the cursor has passed is owed and unreferenced, and
+        # stays kept back all the same; so does one an agent's turn holds.
+        if forked := kept_from_main(page):
             pending = [event for event in pending if event["id"] not in forked]
             owed = [event for event in owed if event["id"] not in forked]
     if not pending and not owed:

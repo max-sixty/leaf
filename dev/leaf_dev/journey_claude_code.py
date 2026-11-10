@@ -68,7 +68,7 @@ Then the delivery steps:
 
 Or, with `--forks`, the fork steps, each timed from the comment's admission to the
 reply, with the fork's own time and tokens from its record in the page's
-diagnostics (`fork_reply`):
+diagnostics (`fork_outcome`):
 
 - `fork-idle`: with the session idle, a question the conversation already answers
   gets the agent's working line from a fork as its first reply, and the session
@@ -711,14 +711,14 @@ def steps(
                 f"fork-idle: no fork took the work: {[fork_summary(r) for r in records()]}",
             )
             cc.until(
-                lambda: any(r.get("step") == "join" for r in records()),
+                lambda: any(r.get("step") == "end" for r in records()),
                 "fork-idle: the turn of the fork that took the work never ended",
                 60,
             )
-            joined = next(r for r in records() if r.get("step") == "join")
+            run_end = next(r for r in records() if r.get("step") == "end")
             require(
-                joined["outcome"] in ("answer", "todo"),
-                f"fork-idle: the fork gave the thread back: {fork_summary(joined)}",
+                run_end["outcome"] in ("answer", "todo"),
+                f"fork-idle: the fork gave the thread back: {fork_summary(run_end)}",
             )
             require(
                 picked_up(page, comment) == [taken["turn"]],
@@ -743,7 +743,7 @@ def steps(
                     f"`fork-idle` had its first reply after "
                     f"{timings['first_reply']['elapsed_s']:.1f} s, and the fork "
                     f"{taken['agent']} answered it in its own turn, which ended after "
-                    f"{joined['elapsedMs'] / 1000:.1f} s: {reply['text'][:200]!r}"
+                    f"{run_end['elapsedMs'] / 1000:.1f} s: {reply['text'][:200]!r}"
                 ),
             )
 
@@ -842,7 +842,7 @@ def steps(
                 )
 
             cc.settle(
-                lambda: any(r.get("step") == "join" for r in records(asked)),
+                lambda: any(r.get("step") == "end" for r in records(asked)),
                 "fork-resume: the fork that answered the thread never ended its run",
             )
             agent = require(
@@ -880,13 +880,13 @@ def steps(
             # notice of it, which must come after the answer and leave it the only one.
             cc.settle(
                 lambda: (
-                    any(r.get("step") == "join" for r in records(again))
+                    any(r.get("step") == "end" for r in records(again))
                     and any(t.get("origin") == "task_notification" for t in woken())
                 ),
                 "fork-resume: the session never took Claude Code's notice that the "
                 "resumed fork finished",
             )
-            joined = next(r for r in records(again) if r.get("step") == "join")
+            run_end = next(r for r in records(again) if r.get("step") == "end")
             replies = require(
                 answers(page, again), "fork-resume: nobody answered the message"
             )
@@ -923,7 +923,7 @@ def steps(
                     f"`fork-resume`: {agent}'s working line came "
                     f"{after(taken['line']):.1f} s after the message was sent, and its "
                     f"answer from a new turn at {after(replies[0]['id']):.1f} s; the "
-                    f"resumed run took {joined['elapsedMs'] / 1000:.1f} s: "
+                    f"resumed run took {run_end['elapsedMs'] / 1000:.1f} s: "
                     f"{replies[0]['text'][:200]!r}"
                 ),
             )

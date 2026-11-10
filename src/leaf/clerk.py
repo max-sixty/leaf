@@ -44,9 +44,12 @@ What the fork is asked is prose in the shipped skill,
 the clerk's lines puzzles it; `fork_prompt` sends it verbatim with each page's facts
 and the answer's form. It asks for two things. Asks: what Leaf's rule for On Me puts
 there that the agent left to the user and no On Me item holds. The fork reads that
-rule as the agent does (`on_me_rule`), since the user chose on 2026-10-31 that the
-fork apply Leaf's standard policy rather than a wording of its own, so a question
-such as whether a suggested follow-up goes On Me is settled once, by that rule.
+rule, and the guidance for how a question reads in a thread, as the agent does
+(`guidance`), since the user chose on 2026-10-31 that the fork apply Leaf's standard
+policy rather than a wording of its own, so a question such as whether a suggested
+follow-up goes On Me is settled once, by that rule. On 2026-11-05 they chose the same
+for how a question reads: the reference's own wording for it gave 47 of 47 recorded
+questions as one unbroken paragraph, and the agent's guidance now shapes both.
 Findings for the agent:
 a page that still says what the work or the conversation has since changed, an On Me
 item already settled elsewhere, and work promised or set running that no page shows,
@@ -210,11 +213,18 @@ from .state import (
 
 # How hard the fork thinks, whatever the session's effort (the header says why).
 EFFORT = "low"
+REFERENCES = SKILL_FILE.parent / "references"
 # What the fork is asked, as the skill ships it.
-REFERENCE = SKILL_FILE.parent / "references" / "turn-end-check.md"
-# Where Leaf's rule for On Me lives: the first paragraph of its "The On lists".
-ON_LISTS = SKILL_FILE.parent / "references" / "conversation-loop.md"
-ON_LISTS_HEADING = "## The On lists\n\n"
+REFERENCE = REFERENCES / "turn-end-check.md"
+# The agent's own guidance the fork follows for its asks, each a paragraph of a
+# reference named by the words that open it: what goes On Me, what a question holds,
+# how a message reads in a thread's narrow card, and what it links.
+GUIDANCE = (
+    ("conversation-loop.md", "The user's **On Me** list holds"),
+    ("authoring-on-me.md", "Make each question self-contained"),
+    ("threads.md", "A thread shows in a narrow card"),
+    ("page-authoring.md", "Link each pull request"),
+)
 
 _WORDS = {"type": "string", "minLength": 1, "pattern": r"\S"}
 
@@ -410,22 +420,28 @@ def _block(facts: dict) -> str:
     return "\n".join(parts)
 
 
-def on_me_rule() -> str:
-    """Leaf's rule for what goes On Me, as the agent reads it: the paragraph that
-    opens `conversation-loop.md`'s "The On lists"."""
-    text = ON_LISTS.read_text()
-    start = text.index(ON_LISTS_HEADING) + len(ON_LISTS_HEADING)
-    return text[start : text.index("\n\n", start)]
+def guidance() -> list[str]:
+    """The agent's guidance the fork follows (`GUIDANCE`), each paragraph as the
+    agent reads it."""
+
+    def paragraph(name: str, opening: str) -> str:
+        text = (REFERENCES / name).read_text()
+        start = text.index(f"\n\n{opening}") + 2
+        end = text.find("\n\n", start)
+        return text[start:] if end < 0 else text[start:end]
+
+    return [paragraph(*passage) for passage in GUIDANCE]
 
 
 def fork_prompt(pages: list[dict]) -> str:
     """The one message a fork answers: the skill's account of the check
-    (`REFERENCE`), Leaf's rule for On Me (`on_me_rule`), each page's facts
+    (`REFERENCE`), the agent's guidance for asking (`guidance`), each page's facts
     (`page_facts`) and the answer's form (`answer_form`, `ANSWER`)."""
     blocks = "\n\n".join(_block(facts) for facts in pages)
+    rules = "\n\n".join(guidance())
     return (
-        f"{OPENING}\n{REFERENCE.read_text().strip()}\n\n## Leaf's rule for On Me\n\n"
-        f"{on_me_rule()}\n\n## Page state\n\n{blocks}\n\n{answer_form()}\n</leaf-fork-check>"
+        f"{OPENING}\n{REFERENCE.read_text().strip()}\n\n## Leaf's guidance for asking\n\n"
+        f"{rules}\n\n## Page state\n\n{blocks}\n\n{answer_form()}\n</leaf-fork-check>"
     )
 
 

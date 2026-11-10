@@ -17,7 +17,7 @@ session (`ANSWER`'s `work`). Where the module makes forks that act, which it doe
 with `LEAF_FORK_WORK=on` while the design is tried, a thread judged `take` goes to a
 fork spawned from the conversation, which does the work and answers the user itself
 (`_give`); otherwise Leaf records the judgment and hands the thread over
-(`notes/fork-replies.md`, "A fork that takes the work").
+(`docs/forks.html`, the design's home).
 
 A fork that takes a thread runs a turn of its own (`state.AGENT_TURNS`), and Leaf
 records the take as that turn's pickup of the thread's waiting messages, with the
@@ -137,7 +137,7 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 from .leases import lease_speaks_here, release_lease, take_wait_lease
 from .registry.kernel import kinds_declaring
@@ -1198,6 +1198,11 @@ def started(session_id: str, basis: dict, turn: str, agent: str) -> dict:
     return outcome
 
 
+# What came of a thread an agent's turn took, as `ended` judges it once the turn's
+# run ends.
+Ending = Literal["answer", "todo", "hand_over", "taken_over"]
+
+
 def ended(
     session_id: str,
     *,
@@ -1249,7 +1254,8 @@ def ended(
                 holders = holding_turns(page.events, session_id)
                 seqs = {event["id"]: event["seq"] for event in page.events}
                 owed = TodoReading(page.events).owed
-                judged, owing, opened = {}, {}, {}
+                judged: dict[str, Ending] = {}
+                owing, opened = {}, {}
                 # The threads where the user wrote again after the fork's answer.
                 since = {thread for thread in threads if waiting.get(thread)}
                 for thread, inputs in threads.items():

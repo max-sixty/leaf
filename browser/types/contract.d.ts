@@ -26,6 +26,7 @@ export interface EventMap {
 "report": { "attention": boolean; "id": string; "ts": string; "author": string; "kind": "report"; "seq": number; "widget": string; "action": string; "detail": { [key: string]: unknown; }; "meaning": { "scope": "page" | "thread"; "unit": string; "depends": ReadonlyArray<string>; "state"?: { "origin": string; "unit": string; "record": { [key: string]: unknown; } | null; "creates": { [key: string]: unknown; } | null; "decides": boolean; "detail": { [key: string]: unknown; } | boolean; }; }; "revision": number; "agent"?: string; "session"?: string; };
 "note": { "attention": boolean; "id": string; "ts": string; "author": string; "kind": "note"; "seq": number; "version": number; "revision": number; "publication"?: string; "text": string; "restated"?: ReadonlyArray<string>; "settles"?: ReadonlyArray<{ "kind": "report" | "todo"; "id": string; }>; "agent"?: string; "session"?: string; };
 "error": { "attention": boolean; "id": string; "ts": string; "author": string; "kind": "error"; "seq": number; "revision"?: number; "text": string; };
+"render": { "attention": boolean; "id": string; "ts": string; "author": "page"; "kind": "render"; "seq": number; "revision": number; "findings": ReadonlyArray<{ "code": string; "severity": "error" | "advice"; "text": string; }>; };
 }
 type Keys<T> = T extends unknown ? keyof T : never;
 export type CompleteUnion<T, Whole = T> = T extends unknown ? T & Partial<Record<Exclude<Keys<Whole>, keyof T>, never>> : never;

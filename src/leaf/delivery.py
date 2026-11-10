@@ -1165,7 +1165,8 @@ def deliverable(
     (`harness.CodexHarness.offer_at_step`). Claude Code's tool-boundary hook asks
     the same before it folds its pages (`hook_transport.new_input`)."""
     pending = unacknowledged(page.events, page.cursor)
-    if pending and (held := awaiting_receipt(page)):
+    held = awaiting_receipt(page) if pending else ()
+    if held:
         pending = [event for event in pending if event["id"] not in held]
     owed = unreferenced(page, obligations) if received else []
     if pending or owed:
@@ -1182,7 +1183,16 @@ def deliverable(
 
     if write_refusal(page.page_dir):
         return []
-    return sorted([*owed, *pending], key=lambda event: event["seq"])
+    # Advice wakes nobody, so it goes with what does (`render_gate.handover_pass`).
+    advice = [
+        event
+        for event in page.events
+        if event["seq"] > page.cursor
+        and event["kind"] == "render"
+        and not event["attention"]
+        and event["id"] not in held
+    ]
+    return sorted([*owed, *pending, *advice], key=lambda event: event["seq"])
 
 
 def handed_into_turn(events: list[dict], session: str, turn: str) -> list[str]:

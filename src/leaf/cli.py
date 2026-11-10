@@ -566,6 +566,15 @@ def check(page_dir: Path, render: bool) -> Reported:
     return Reported(report, report["status"])
 
 
+@page.command("_read", hidden=True)
+@page_argument(renew=False)
+def _read(page_dir: Path) -> None:
+    """Private child process of a page's server (`render_gate.handover_pass`)."""
+    from leaf.render_gate.handover_pass import cmd_read
+
+    cmd_read(page_dir)
+
+
 @page.command(
     "inspect", short_help="Read page source metrics and browser observations."
 )

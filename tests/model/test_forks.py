@@ -41,6 +41,7 @@ from leaf import session as session_model
 from leaf import session_runtime as session_runtime_model
 from leaf import state as state_model
 from leaf import thread as thread_model
+from leaf import todos as todos_model
 from leaf.interaction_log import read_interactions
 from leaf.registry import kernel as kernel_model
 from leaf.served_state.context import read_page
@@ -314,6 +315,47 @@ def test_the_fork_answers_with_its_own_reply_in_its_own_turn(
     assert (
         forks_model.ended("s1", agent="agent-1", turn=None, answer="", failed=None)
         == []
+    )
+
+
+def test_a_to_do_the_fork_opens_stays_the_sessions_after_its_turn_ends(
+    claimed, lane, monkeypatch
+):
+    """A fork that finds the work bigger than an answer opens a to-do with its reply
+    (`leaf thread reply --todo`), from the delivery Leaf gave it. The reply answers
+    the message, and the to-do is the session's: it stays open, on the session's
+    page, after the fork's run ends, while the fork's start on it lapses with the
+    fork's turn."""
+    asked, taken = taken_by_a_fork(claimed, "Why is the cold start slow?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    monkeypatch.setenv(state_model.AGENT_VARIABLE, "agent-1")
+    reply = thread_model.post_response(
+        answer_ref(claimed, asked["id"]),
+        "That needs a profile of the start; I've put it on the list.",
+        todo="Profile the cold start",
+    )
+    assert reply is not None
+    assert (reply["session"], reply["todo"]) == ("s1", "Profile the cold start")
+    todos_model.cmd_start(claimed, reply["id"], "profiling the cold start")
+    activity = reading(claimed)["activity"]
+    assert activity["obligations"] == []
+    assert (activity["kind"], activity["detail"]) == (
+        "working",
+        "profiling the cold start",
+    )
+
+    [ended] = forks_model.ended(
+        "s1", agent="agent-1", turn=None, answer="Opened a to-do.", failed=None
+    )
+    assert ended["outcome"] == "answer"
+    [todo] = reading(claimed)["activity"]["todos"]
+    assert (todo["id"], todo["title"], todo["session"], todo["running"]) == (
+        reply["id"],
+        "Profile the cold start",
+        "s1",
+        None,
     )
 
 

@@ -252,10 +252,11 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
   files and branch, the page's source, its pull requests), settles none of its open
   questions, and waits on nothing it is running. The fork doing the work may still
   hand the thread back once it learns more.
-- **Doing.** On `take`, Leaf opens a turn for the fork and records that turn's
-  pickup of the thread, and the module spawns a fork with Leaf's task carrying the
-  delivery Leaf froze for it. The fork does the work with the session's tools and
-  answers in the thread itself, with the `leaf thread reply` the delivery names.
+- **Doing.** On `take`, the module spawns a fork with Leaf's task carrying the
+  thread as Leaf would deliver it. The fork does the work with the session's tools and
+  ends with its answer; the module denies its `leaf` commands, and Leaf posts the
+  answer as the agent's when the fork joins, as it posted the 2026-10-31 fork's
+  replies.
 - **Owning.** The fork holds the thread as any turn holds what it picked up: the
   take is a pickup in the page log naming the fork's turn, with the receipt, so every
   reader of received input agrees on it. While that turn runs, the message reads as
@@ -270,14 +271,13 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
   agent id (`LEAF_AGENT_ID`), so its starts and answer name its turn, and its tool
   boundaries (its PostToolBatch, which names it) carry the thread's further
   messages, as the main thread's do.
-- **Joining.** As the fork's turn completes, the module tells Leaf, which closes it.
-  A thread the fork answered is done; one it gave back (`HAND BACK:`), left
-  unanswered, or whose fork failed, is the main thread's to answer, as any update it
-  received, with the fork's answer reference. Either way the clerk queues a line
-  for the main thread naming the fork, the thread and what the fork did, so the
-  session neither redoes nor contradicts it. Nothing wakes an idle main thread for
-  an answered message: it takes the message in, settled, with the clerk's line, at
-  its next turn.
+- **Joining.** As the fork's turn completes, the module tells Leaf. A thread the fork
+  answered is done; one it gave back (`HAND BACK:`), or a fork that failed, goes to
+  the main thread as a hand-over. Either way the clerk queues a line for the main
+  thread naming the fork, the thread and what the fork did, so the session neither
+  redoes nor contradicts it. Nothing wakes an idle main thread for an answered
+  message: it takes the message in, settled, with the clerk's line, at its next
+  turn.
 - **The main thread in charge.** As a fork takes a thread, the clerk's line tells the
   main thread which fork took what, by name, so it can steer or stop it with
   SendMessage, or take the thread over.
@@ -328,9 +328,11 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
    turn and hands it the thread's further messages
    (`hook_transport.carry_agent_turn`). As any agent's run ends the module tells Leaf
    (`forks.ended`), which closes a fork's turn: an answered thread is done, and one
-   still owed is the main thread's, with the fork's answer reference. `TAKEN`, the
-   posted-for-it answer, the module's deny and its `$.session.send` of follow-ups are
-   gone.
+   still owed is the main thread's, with the fork's answer reference. A fork can also
+   answer with a to-do (`leaf thread reply --todo`), which is the session's and stays
+   open after the fork's turn ends, while the fork's start on it lapses with the turn.
+   `TAKEN`, the posted-for-it answer, the module's deny and its `$.session.send` of
+   follow-ups are gone.
 
    The turn opens at the take rather than at the fork's `turn.start`, so the hold
    passes to the fork's pickup in one transaction under the page's lock, with no moment

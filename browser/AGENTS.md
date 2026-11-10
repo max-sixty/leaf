@@ -303,9 +303,9 @@ Motion helps the eye follow a change, and costs the user time whenever they wait
   agent work in progress. It stops when the work ends and is static under reduced
   motion.
 - **The panel's leaf has a personality, and the user is still evolving it.** Leaf's
-  mark answers moments with a brief gesture, such as a nod at the user's own key or a
-  twirl as On Me empties, and droops while the agent is away (`runtime/floating-panel.js`,
-  `MOTIONS`). A change that adds a moment the user notices, such as a new kind of news,
+  mark answers moments with a brief gesture (`runtime/floating-panel.js`, `MOTIONS`),
+  such as a nod at the user's own key or a twirl as On Me empties, and droops while the
+  agent is away. A change that adds a moment the user notices, such as a new kind of news,
   asks whether the leaf should answer it (`runtime/notifications.js`, `gesture`). Each
   gesture so far moves the whole mark; giving the mark parts that move on their own,
   such as a blade that flexes on its stem, would give it more dexterity, and `MOTIONS`

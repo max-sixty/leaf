@@ -691,7 +691,7 @@ def canonical_activity(
         present["agent_turns"], present["session_alive"] is True, now
     )
     holders = (
-        holding_turns(events, present["claim_session"])
+        holding_turns(events, present["claim_session"], agents)
         if present.get("claim_session")
         else {}
     )

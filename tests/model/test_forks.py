@@ -297,7 +297,10 @@ def test_the_fork_answers_with_its_own_reply_in_its_own_turn(
 
     progress = thread_model.post_response(ref, "reading pyproject.toml", ephemeral=True)
     assert progress is not None
-    assert progress["start"] == {"item": asked["id"], "turn": taken["turn"]}
+    assert (progress["start"], progress["turn"]) == (
+        {"item": asked["id"]},
+        taken["turn"],
+    )
     state_model.close_session_turn("s1")
     activity = reading(claimed)["activity"]
     assert (activity["kind"], activity["detail"]) == (
@@ -508,12 +511,11 @@ def test_a_fork_whose_thread_was_taken_over_can_neither_answer_nor_start_it(
 def test_a_fork_repeats_its_own_answer_but_not_one_another_turn_gave(
     claimed, lane, capsys
 ):
-    """An answered message is held by the turn whose pickup of it is newest. A fork
-    whose thread the main thread took over and answered is refused, though its
-    delivery's answer reference is the one the main thread used, rather than handed
-    the main thread's answer as the repeat of its own, which its end would then
-    report as the fork's. A fork that repeats its own reply gets its own record
-    back."""
+    """An answered message is held by the turn that answered it. A fork whose thread
+    the main thread took over and answered is refused, though its delivery's answer
+    reference is the one the main thread used, rather than handed the main thread's
+    answer as the repeat of its own, which its end would then report as the fork's.
+    A fork that repeats its own reply gets its own record back."""
     asked, _taken = taken_over(claimed, capsys)
     ref = answer_ref(claimed, asked["id"])
     assert thread_model.post_response(ref, "Yes, for an hour.", asks_back=False)
@@ -545,6 +547,72 @@ def test_a_fork_repeats_its_own_answer_but_not_one_another_turn_gave(
         and not event.get("ephemeral")
     ]
     assert answers == ["Python 3.12 or later."]
+
+
+def test_the_main_thread_answering_over_a_running_fork_takes_its_thread(
+    claimed, lane, monkeypatch
+):
+    """The main thread is sovereign: its answer to a message a running fork holds
+    takes the thread over at once, with whatever answer reference it uses, since
+    the answer names the turn that posted it. The fork's later reply with that
+    reference is refused rather than handed the main thread's answer as the repeat
+    of its own, and so is its start on the message. Its end reports the thread
+    taken over, which the main thread isn't told of, and the thread's next message
+    goes to a new fork rather than to that one, resumed."""
+    asked, taken = taken_by_a_fork(claimed, "Does the suggest service cache?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    clerk_model.heard("s1", clerk_model.queued("s1"))
+    ref = answer_ref(claimed, asked["id"])
+    answer = thread_model.post_response(ref, "Yes, for an hour.", asks_back=False)
+    claim = service_model.page_claim(claimed)
+    assert answer is not None and claim is not None
+    assert answer["turn"] == claim["turn"]
+    events = events_model.read_events(claimed)
+    for command in (
+        ["thread", "reply", ref, "--done", "--text", "No, it never caches."],
+        ["task", "start", str(claimed), asked["id"], "--text", "checking the cache"],
+    ):
+        ran = CliRunner().invoke(cli_model.cli, ["--agent-id", "agent-1", *command])
+        assert ran.exit_code != 0, command
+        assert "no longer holds" in ran.output, ran.output
+    assert events_model.read_events(claimed) == events
+
+    assert forks_model.ended(
+        "s1", agent="agent-1", turn=None, answer="Answered.", failed=None
+    ) == [{"page": str(claimed), "thread": asked["id"], "outcome": "taken_over"}]
+    assert clerk_model.queued("s1") == []
+    more = said(claimed, "And the autocomplete service?", parent=asked["id"])
+    assert "resume" not in taken_again(claimed, asked["id"], more)
+
+
+def test_a_forks_end_reports_only_what_its_own_turn_wrote(claimed, lane, monkeypatch):
+    """The end of a fork's run says the fork answered, and names the to-dos it
+    opened, only by what its own turn wrote: a to-do the main thread opened on the
+    thread meanwhile is the main thread's, so the fork's answer is reported as an
+    answer, and the thread, owing that to-do, isn't said to owe nothing."""
+    asked, taken = taken_by_a_fork(claimed, "Why is the cold start slow?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    clerk_model.heard("s1", clerk_model.queued("s1"))
+    created = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "create", str(claimed), asked["id"], "--title", "Profile it"],
+    )
+    assert created.exit_code == 0, created.output
+    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-1")
+    assert thread_model.post_response(
+        answer_ref(claimed, asked["id"]), "The cache starts cold.", asks_back=False
+    )
+    monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
+    assert forks_model.ended(
+        "s1", agent="agent-1", turn=None, answer="Answered.", failed=None
+    ) == [{"page": str(claimed), "thread": asked["id"], "outcome": "answer"}]
+    [told] = clerk_model.queued("s1")
+    assert "answered" in told
+    assert "Profile it" not in told and "owes nothing" not in told
 
 
 def test_the_watch_wakes_the_idle_session_for_a_thread_its_fork_gave_back(
@@ -720,12 +788,11 @@ def test_a_fork_that_cannot_be_resumed_gives_way_to_a_new_one(
 ):
     """A thread whose last answer the main thread gave goes to a new fork, even
     where the main thread answered a message the fork gave back with the fork's own
-    answer reference, before any pickup of its own; and so does one whose fork ran
-    in an earlier generation of the session, which ended with it, or still runs,
-    which a resume would reach only at a tool boundary it may not have, or runs
-    another turn, as one resumed for a message the user took back does. Where the
-    module can't resume the fork, the fork it spawns instead takes over the turn
-    Leaf opened, and the old fork's commands act in no turn."""
+    answer reference, before any pickup of its own, since the answer names the turn
+    that posted it; and so does one whose fork ran in an earlier generation of the
+    session, which ended with it. Where the module can't resume the fork, the fork
+    it spawns instead takes over the turn Leaf opened, and the old fork's commands
+    act in no turn."""
     asked, given = taken_by_a_fork(claimed, "Does the suggest service cache?")
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), given["turn"], "agent-1"
@@ -763,28 +830,72 @@ def test_a_fork_that_cannot_be_resumed_gives_way_to_a_new_one(
     assert state_model.agent_turn_of("s1", "agent-4") == taken["turn"]
     assert state_model.agent_turn_of("s1", "agent-3") is None
 
-    region = answered_by_a_fork(claimed, monkeypatch, "Which region now?", "agent-6")
-    first = said(claimed, "And its zones?", parent=region["id"])
-    resumed = taken_again(claimed, region["id"], first)
-    assert resumed["resume"]["agentId"] == "agent-6"
-    append_carried_log_record(
-        claimed, {"kind": "undo", "author": "user", "undoes": first["id"]}
-    )
-    instead = said(claimed, "And its subnets?", parent=region["id"])
-    assert "resume" not in taken_again(claimed, region["id"], instead)
-    assert state_model.agent_turn_of("s1", "agent-6") == resumed["turn"]
 
+def test_one_fork_works_a_thread_while_its_turn_runs(
+    claimed, lane, capsys, monkeypatch
+):
+    """A thread a running fork turn took is never kept back for a second fork. The
+    user's message after the fork answered, while its turn still runs, is that
+    fork's: the main thread isn't given it, and the fork's next tool boundary
+    carries it. One that arrives as the fork's run ends goes to the same fork,
+    resumed. A resumed fork whose message the user took back still holds the
+    thread's next one; and a thread the main thread took over by answering, while
+    the fork still runs, gives its next message to the main thread."""
     zone, running = taken_by_a_fork(claimed, "Which zone?")
     forks_model.started(
         "s1", basis(claimed, zone["id"], zone["id"]), running["turn"], "agent-5"
     )
+    clerk_model.heard("s1", clerk_model.queued("s1"))
     monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-5")
     assert thread_model.post_response(
         answer_ref(claimed, zone["id"]), "us-east-1b.", asks_back=False
     )
     monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
     soon = said(claimed, "And the replica's?", parent=zone["id"])
-    assert "resume" not in taken_again(claimed, zone["id"], soon)
+    assert kept_back(claimed) == []
+    assert deliverable(claimed) == []
+    _opening, envelope = agent_context(capsys, "agent-5").split("\n", 1)
+    [batch] = json.loads(envelope)["batches"]
+    assert [event["id"] for event in batch["events"]] == [soon["id"]]
+    pickup = [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"][-1]
+    assert (pickup["events"], pickup["turn"]) == ([soon["id"]], running["turn"])
+
+    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-5")
+    assert thread_model.post_response(
+        answer_ref(claimed, soon["id"]), "us-east-1c.", asks_back=False
+    )
+    monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
+    late = said(claimed, "And the third?", parent=zone["id"])
+    assert kept_back(claimed) == []
+    forks_model.ended("s1", agent="agent-5", turn=None, answer="Done.", failed=None)
+    assert taken_again(claimed, zone["id"], late)["resume"]["agentId"] == "agent-5"
+
+    region = answered_by_a_fork(claimed, monkeypatch, "Which region now?", "agent-6")
+    first = said(claimed, "And its zones?", parent=region["id"])
+    resumed = taken_again(claimed, region["id"], first)
+    assert resumed["resume"]["agentId"] == "agent-6"
+    forks_model.started(
+        "s1", basis(claimed, region["id"], first["id"]), resumed["turn"], "agent-6"
+    )
+    append_carried_log_record(
+        claimed, {"kind": "undo", "author": "user", "undoes": first["id"]}
+    )
+    instead = said(claimed, "And its subnets?", parent=region["id"])
+    assert kept_back(claimed) == []
+    assert instead["id"] not in deliverable(claimed)
+    assert instead["id"] in agent_context(capsys, "agent-6")
+
+    shard, kept = taken_by_a_fork(claimed, "Which shard?")
+    forks_model.started(
+        "s1", basis(claimed, shard["id"], shard["id"]), kept["turn"], "agent-7"
+    )
+    assert thread_model.post_response(
+        answer_ref(claimed, shard["id"]), "Shard 4.", asks_back=False
+    )
+    next_one = said(claimed, "And its replica?", parent=shard["id"])
+    assert kept_back(claimed) == []
+    assert next_one["id"] in deliverable(claimed)
+    assert agent_context(capsys, "agent-7") == ""
 
 
 def test_the_resume_names_what_the_session_did_on_the_page_while_the_fork_ran(
@@ -891,7 +1002,7 @@ def test_a_late_acknowledgement_does_not_take_a_thread_back(claimed, lane, capsy
     claim = service_model.page_claim(claimed)
     assert claim is not None
     with PageTransaction(claimed) as page:
-        held = holding_model.holding_turns(page.events, "s1")
+        held = holding_model.holding_turns(page.events, "s1", set())
     assert held[more["id"]] == claim["turn"]
 
     late = CliRunner().invoke(
@@ -900,7 +1011,7 @@ def test_a_late_acknowledgement_does_not_take_a_thread_back(claimed, lane, capsy
     assert late.exit_code != 0
     assert "no longer holds" in late.output
     with PageTransaction(claimed) as page:
-        assert holding_model.holding_turns(page.events, "s1") == held
+        assert holding_model.holding_turns(page.events, "s1", set()) == held
 
 
 def test_a_command_marked_with_an_ended_fork_acts_as_nobody(claimed, lane, capsys):
@@ -956,7 +1067,7 @@ def test_a_fork_that_answered_is_reported_however_its_thread_moves_on(
         "s1", agent="agent-1", turn=None, answer="Answered.", failed=None
     ) == [{"page": str(claimed), "thread": asked["id"], "outcome": "answer"}]
     [told] = clerk_model.queued("s1")
-    assert "answered" in told and "since reaches you" in told
+    assert "answered" in told and "written there since" in told
 
     other, kept = taken_by_a_fork(claimed, "How many shards does staging have?")
     forks_model.started(

@@ -867,12 +867,12 @@
             "start": {
               "type": "object",
               "properties": {
-                "item": { "type": "string", "minLength": 1 },
-                "turn": { "type": "string", "minLength": 1 }
+                "item": { "type": "string", "minLength": 1 }
               },
               "required": ["item"],
               "additionalProperties": false
             },
+            "turn": { "type": "string", "minLength": 1 },
             "failure": { "type": "string", "minLength": 1 },
             "responds": { "type": "string", "minLength": 1 },
             "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" },
@@ -971,6 +971,9 @@
               },
               {
                 "required": ["start"]
+              },
+              {
+                "required": ["turn"]
               },
               {
                 "required": ["title"]

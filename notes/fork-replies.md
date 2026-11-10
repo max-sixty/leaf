@@ -271,7 +271,13 @@ research above and the steps below stay here.
 
 Landing steps 1 to 3 on `main` needs a protocol bump: a Leaf at protocol 43 doesn't
 know that a fork's pickup holds the message, and picks the message up again for the
-main thread while the fork works.
+main thread while the fork works. The same bump carries a change to the `reply`
+event: an agent's reply names the turn that posted it (`turn`), which the rule for who
+holds a message reads to tell which turn answered (`holding.py`), and an ephemeral
+reply's `start` no longer carries a `turn` of its own. Until the bump, the browser
+build's protocol check (`pnpm run check:browser`) fails on this branch with
+`reply.start.turn: the field is gone`; the landing bumps `$events.protocol` and runs
+`pnpm run build:browser`, which also regenerates the event types.
 
 ### Steps
 

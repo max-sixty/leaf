@@ -1,5 +1,5 @@
 # Complete agent-facing outputs through real hooks, wait and thread reply commands.
-# Only page paths, event/delivery/attempt and claim identities, and timestamps are normalized.
+# Only page paths, event/delivery/attempt, turn and claim identities, and timestamps are normalized.
 # A null hook output means the turn can end without a reminder.
 
 idle before pickup:
@@ -129,6 +129,7 @@ answer:
   text: >-
     I will add the camera first.
   responds: event-3
+  turn: <turn>
   attempt: <attempt>
   revision: 1
   id: event-7

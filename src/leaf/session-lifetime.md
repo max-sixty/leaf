@@ -124,24 +124,29 @@ background job's, outlive the harness instance.
 
 A session can run agents beside its main thread, such as a fork of its conversation
 that took a thread's work (`forks.py`), and each run of one is a turn of its own, in
-the session's agent-turns record (`state.AGENT_TURNS`). Leaf opens it as the session
-starts or resumes the agent, the agent's tool boundary renews it, and it closes as the
-harness says the run ended, or with the session's generation or instance. A pickup or
-start names it as it names the main thread's turn: the page's served reading carries
-the claimant's agent turns (`agent_turns`), and the fold believes one running while it
-is open and renewed within the working grace (`activity.running_agent_turns`). The
-turn whose pickup of a thread's waiting messages is newest holds them, the main
-thread's or an agent's, and every reader asks one function which that is
-(`holding.holding_turns`). A message a running agent turn holds is in hand for that
-turn: the main thread's hooks neither hold its turn over it, remind it of it, nor take
-it in again (`activity.agent_holds`), and its deliveries leave it out
+the session's agent-turns record (`state.AGENT_TURNS`). Leaf opens it as a fork takes
+a thread, before the harness starts or resumes the agent, and names it with the
+agent's harness id once the harness has started it, or at once for an agent it
+resumes. The agent's tool boundary renews it, and it closes as the harness says the
+run ended, or with the session's generation or instance. A pickup, a start or a reply
+names it as it names the main thread's turn: the page's served reading carries the
+claimant's agent turns (`agent_turns`), and the fold believes one running while it is
+open and renewed within the working grace (`activity.running_agent_turns`).
+
+Which turn holds each thread message, the main thread's or an agent's, is one reading
+every reader asks (`holding.py`, whose header states the rule): the newest pickup of a
+thread's waiting messages holds them, an answer takes its thread as a pickup does, and
+a running agent turn that last took a thread holds the messages the user writes in it
+until another turn picks them up. A message a running agent turn holds is in hand for
+that turn: the main thread's hooks neither hold its turn over it, remind it of it, nor
+take it in again (`activity.agent_holds`), and its deliveries leave it out
 (`forks.kept_from_main`). Once the agent's turn ends or lapses, a message still owed is
 the main thread's like any it received, with the reference the agent's delivery gave
-it, and the main thread's pickup of it takes the thread over. An agent's turn may pick
-up, answer or start on only the messages it holds or no turn holds, so it is then
-refused all three (`holding.refuse_unheld`). For that rule an answered message is held
-by the turn whose pickup of it is newest, so a fork can repeat its own answer but not
-answer again one the main thread took over and answered.
+it, and the main thread's pickup of it takes the thread over; the main thread's answer
+takes the thread over at once, even while the agent's turn runs. An agent's turn may
+pick up, answer or start on only the messages it holds or no turn holds, so a fork can
+repeat its own answer but is refused all three on a thread another turn took
+(`holding.refuse_unheld`).
 
 Where nothing answers for the declaration, activity reports the page `unheld`. A page
 with a persistent service spends most of its life unheld, and picks up again when a

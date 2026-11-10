@@ -885,13 +885,14 @@ def _compose_and_append(
     if ephemeral:
         event["ephemeral"] = True
     if in_hand is not None:
-        from .state import acting_turn
+        event["start"] = {"item": in_hand}
+    from .state import acting_turn
 
-        turn = acting_turn(page.claim, posting_identity.get("session"))
-        event["start"] = {
-            "item": in_hand,
-            **({"turn": turn} if turn else {}),
-        }
+    # The turn the reply's command acts in, which names the start it carries
+    # (`todos.start_reading`) and holds the messages it answers
+    # (`holding.refuse_unheld`).
+    if turn := acting_turn(page.claim, posting_identity.get("session")):
+        event["turn"] = turn
     if explicit_obligation:
         event["obligation"] = explicit_obligation
     if todo is not None:

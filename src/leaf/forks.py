@@ -143,9 +143,8 @@ from typing import Literal, NamedTuple
 from .holding import (
     agent_held,
     holding_turns,
-    newest_pickups,
-    picked_in,
     rounds,
+    running_turns,
     taken_by_agent_turns,
     turn_threads,
 )
@@ -335,7 +334,11 @@ def _kept_back(
     It reads the log, never the page's fold, which costs about 100 ms, since
     admission, every hook and every served reading ask it: a user's message after
     the agent's last answer in its thread owes the thread's answer, and `ask` hands
-    over one the fold says owes none."""
+    over one the fold says owes none.
+
+    A thread a running agent turn took is never kept back for another fork, so one
+    fork works a thread at a time: its further messages go to that turn, which holds
+    them, or to the main thread where it took the thread over (`holding.py`)."""
     if claim is None:
         return []
     since = lane_since(claim["id"])
@@ -357,6 +360,8 @@ def _kept_back(
     }
     handed = handed_inputs(claim["id"], page_dir)
     waiting = rounds(events).waiting
+    running = running_turns(claim)
+    worked = set(turn_threads(events, claim["id"], running)) if running else set()
     found = [
         KeptBack(
             thread,
@@ -369,6 +374,7 @@ def _kept_back(
         # message in the lane's own first millisecond may have come first, so it stays
         # with the session.
         if _admitted(said[0]) > since
+        and thread not in worked
         and all(
             event["id"] in pending
             and event["id"] not in picked
@@ -743,71 +749,52 @@ def _fork_name(thread: str) -> str:
 def _resumable(
     page: PageTransaction, session_id: str, thread: str
 ) -> tuple[str, dict] | None:
-    """The fork turn that gave `thread`'s last answer, by its id and as
-    `agent_turns` keeps it, whose fork Leaf gives the thread's waiting messages to
-    again. The turn whose opened pickup of the answered message is newest gave the
-    answer if it posted before that turn closed, since an agent whose turn has ended
-    can't post (`state.acting_agent_turn`); an answer after then, such as the main
-    thread's to a message the fork gave back, is the main thread's. A message the
-    main thread wrote in the thread unasked, such as a correction of the fork's
-    answer, answers nothing, so the thread stays the fork's. None where the main
-    thread answered last, or the fork's turn still runs or was opened in an earlier
-    generation of the session, whose agents ended with it, or the fork runs another
-    turn, as one resumed for a message the user then took back does, since an agent
-    runs one turn at a time (`state.agent_turn_of`)."""
+    """The fork turn that gave `thread`'s last answer, the turn the answer names
+    (`thread.post_reply`), by its id and as `agent_turns` keeps it, whose fork Leaf
+    gives the thread's waiting messages to again. A message the main thread wrote in
+    the thread unasked, such as a correction of the fork's answer, answers nothing,
+    so the thread stays the fork's. None where the main thread answered last, or the
+    fork's turn still runs or was opened in an earlier generation of the session,
+    whose agents ended with it, or the fork runs another turn, as one resumed for a
+    message the user then took back does, since an agent runs one turn at a time
+    (`state.agent_turn_of`)."""
     from .state import agent_turn_of, agent_turns
 
     claim = page.active_claim
     answer = rounds(page.events).answers.get(thread)
-    if claim is None or answer is None:
+    if claim is None or answer is None or "turn" not in answer:
         return None
-    picked = newest_pickups(page.events, session_id).get(answer["responds"])
-    if picked is None:
-        return None
-    turn = picked[1]
+    turn = answer["turn"]
     entry = agent_turns(session_id).get(turn)
     if (
         entry is None
         or entry["agent"] is None
         or entry["closed"] is None
         or entry["generation"] != claim["generation"]
-        or datetime.fromisoformat(answer["ts"])
-        > datetime.fromisoformat(entry["closed"])
         or agent_turn_of(session_id, entry["agent"]) is not None
     ):
         return None
     return turn, entry
 
 
-def _since(
-    events: list[dict], session_id: str, turn: str, entry: dict, thread: str
-) -> str:
+def _since(events: list[dict], turn: str, entry: dict, thread: str) -> str:
     """What the rest of the session did on the page from when the fork's last turn
     `turn` opened, as `agent_turns` keeps it (`entry`), which the fork is told on its
     resume (`resume_prompt`): the threads it wrote in, the revisions it published,
     and the to-dos it opened or ended, each named so the fork can look it up. The
     fork's transcript holds what the session had done when that turn opened, from
     the conversation it was forked from or Leaf's earlier messages, and nothing it
-    did while the fork ran. The fork's own answers from that turn are left out, each
-    a reply to a message the turn picked up, posted before it closed, with the
-    to-dos they opened. The delivery carries the thread's own messages, so this
+    did while the fork ran. What the fork's own turn wrote is left out: the replies
+    that name it (`thread.post_reply`), with the to-dos they opened and the revisions
+    they published. The delivery carries the thread's own messages, so this
     names only where the session wrote, and it names at most `SINCE_NAMED` other
     threads and to-dos, counting the rest."""
     from .events import taken_back
     from .thread_context import thread_names
     from .todos import TodoReading
 
-    opened, closed = (
-        datetime.fromisoformat(entry["opened"]),
-        datetime.fromisoformat(entry["closed"]),
-    )
-    picked = set(picked_in(events, session_id, {turn}))
-    own = {
-        event["id"]
-        for event in events
-        if event.get("responds") in picked
-        and datetime.fromisoformat(event["ts"]) <= closed
-    }
+    opened = datetime.fromisoformat(entry["opened"])
+    own = {event["id"] for event in events if event.get("turn") == turn}
 
     def theirs(event: dict) -> bool:
         return event["id"] not in own and datetime.fromisoformat(event["ts"]) > opened
@@ -916,7 +903,7 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
             since = (
                 None
                 if answered is None
-                else _since(page.events, session_id, *answered, basis["thread"])
+                else _since(page.events, *answered, basis["thread"])
             )
             delivery = freeze_delivery([data])
             by_id = {event["id"]: event for event in page.events}
@@ -990,20 +977,21 @@ def ended(
     elapsed_ms: float | None = None,
 ) -> list[dict]:
     """Close the turn of an agent of the session whose run ended, the one its
-    harness names `agent`, or `turn` where it never started, and say what came of
-    each thread it took, judged by the messages the turn picked up itself: none of
-    them still waiting, it answered (`answer`), whatever the user has written since,
-    or answered and opened a to-do on the thread that is still open (`todo`), which
-    the main thread now owes and schedules (`todos`); still waiting and held by the
-    closed turn (`holding_turns`), it gave the thread back (`hand_back`), as its last
-    words did (`HAND_BACK`), it failed (`failed`) or it ended without answering, and
-    the main thread owes it now (`activity.agent_holds`); still waiting and held by
-    another turn, that turn took it over (`taken_over`). The main session hears of
-    an answer, a to-do or a hand-over (`clerk.queue`), and that the thread owes
-    nothing only where nothing waits in it and no to-do on it is open. A session no
-    watch follows is nudged for a thread it now owes, and the page's diagnostics
-    note each outcome; the outcomes, one for each thread. An agent with no open
-    turn, as most of a session's are, ends nothing."""
+    harness names `agent`, or `turn`, and say what came of each thread it took,
+    judged by the messages the turn picked up itself and what the turn wrote
+    (`holding.py`): a message still waiting that the closed turn holds means it gave
+    the thread back (`hand_back`), as its last words did (`HAND_BACK`), it failed
+    (`failed`) or it ended without answering, and the main thread owes it now
+    (`activity.agent_holds`); otherwise a message another turn holds or answered
+    means that turn took the thread over (`taken_over`); otherwise the turn answered
+    every one (`answer`), and opened a to-do on the thread with a reply of its own
+    that is still open (`todo`), which the main thread now owes and schedules
+    (`todos`). A message the user took back counts for nothing. The main session
+    hears of an answer, a to-do or a thread given back (`clerk.queue`), and that the
+    thread owes nothing only where nothing waits in it and no to-do on it is open. A
+    session no watch follows is nudged for a thread it now owes, and the page's
+    diagnostics note each outcome; the outcomes, one for each thread. An agent with
+    no open turn, as most of a session's are, ends nothing."""
     from .clerk import queue
     from .presence import nudge_unwatched
     from .todos import TodoReading
@@ -1026,30 +1014,41 @@ def ended(
                 claim = page.active_claim
                 if claim is None or claim["id"] != session_id:
                     continue
-                threads = turn_threads(page.events, session_id, closed)
-                waiting = rounds(page.events).waiting
-                holders = holding_turns(page.events, session_id)
-                seqs = {event["id"]: event["seq"] for event in page.events}
+                found = rounds(page.events)
+                # Read after the close, so the closed turn holds only what it
+                # picked up.
+                holders = holding_turns(
+                    page.events, session_id, running_turns(claim), found
+                )
+                # The ids of the replies the closed turn wrote.
+                own = {e["id"] for e in page.events if e.get("turn") in closed}
                 owed = TodoReading(page.events).owed
+                threads: dict[str, list[str]] = {}
                 judged: dict[str, Ending] = {}
                 owing, opened = {}, {}
-                # The threads where the user wrote again after the fork's answer.
-                since = {thread for thread in threads if waiting.get(thread)}
-                for thread, inputs in threads.items():
+                for thread, picked in turn_threads(
+                    page.events, session_id, closed
+                ).items():
+                    inputs = [i for i in picked if i in holders or i in found.answered]
+                    if not inputs:
+                        continue
+                    threads[thread] = inputs
                     subject = {"kind": "thread", "id": thread}
                     owing[thread] = [t for t in owed if t["subject"] == subject]
-                    # The open to-dos opened after the messages the fork took.
-                    taken = min(seqs[input_id] for input_id in inputs)
-                    opened[thread] = [t for t in owing[thread] if t["seq"] > taken]
-                    waits = {event["id"] for event in waiting.get(thread, [])}
-                    still = [input_id for input_id in inputs if input_id in waits]
+                    opened[thread] = [t for t in owing[thread] if t["id"] in own]
+                    answered = [found.answered[i] for i in inputs if i not in holders]
                     judged[thread] = (
-                        ("todo" if opened[thread] else "answer")
-                        if not still
-                        else "hand_back"
-                        if holders.get(still[0]) in closed
+                        "hand_back"
+                        if any(holders.get(i) in closed for i in inputs)
                         else "taken_over"
+                        if len(answered) < len(inputs)
+                        or any(answer["id"] not in own for answer in answered)
+                        else "todo"
+                        if opened[thread]
+                        else "answer"
                     )
+                # The threads where the user wrote again after the fork's answer.
+                since = {thread for thread in threads if found.waiting.get(thread)}
                 if "hand_back" in judged.values():
                     nudge_unwatched(page)
         except FileNotFoundError:
@@ -1086,8 +1085,8 @@ def ended(
                     + ". Read its answer there: where what you know shows it wrong, "
                     "correct it there"
                     + (
-                        "; the user's message there since reaches you as any new "
-                        "one does."
+                        "; the user has written there since, which Leaf passes on as "
+                        "any new message."
                         if thread in since
                         else "; otherwise the thread owes nothing."
                         if not owing[thread]

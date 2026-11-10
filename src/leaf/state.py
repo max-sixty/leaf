@@ -794,6 +794,10 @@ AGENT_TURNS = Record(
 # in the session's own environment, with nothing that names it
 # (`harness.ClaudeCodeHarness`).
 AGENT_VARIABLE = "LEAF_AGENT_ID"
+# How often at most an agent's tool boundary renews its turn (`renew_agent_turn`), well
+# inside the working grace a reader believes an unrenewed turn for
+# (`activity.running_agent_turns`).
+AGENT_RENEWAL = timedelta(minutes=1)
 
 
 def agent_turns(session_id: str) -> dict[str, dict]:
@@ -886,13 +890,17 @@ def name_agent_turn(session_id: str, turn: str, agent: str) -> bool:
 
 def renew_agent_turn(session_id: str, agent: str) -> str | None:
     """Renew the open turn of `agent`, as its tool boundary does, and return its id;
-    None where the agent runs no open turn."""
+    None where the agent runs no open turn. A renewal within `AGENT_RENEWAL` of the
+    last writes nothing, since each write moves every reading of the session's pages
+    (`served_state.reading.outside_inputs`)."""
     with flocked(session_lock_path(session_id)):
         turn = agent_turn_of(session_id, agent)
         if turn is not None:
             turns = agent_turns(session_id)
-            turns[turn] = {**turns[turn], "renewed": now_iso()}
-            _write_agent_turns(session_id, turns)
+            renewed = datetime.fromisoformat(turns[turn]["renewed"])
+            if datetime.now().astimezone() - renewed >= AGENT_RENEWAL:
+                turns[turn] = {**turns[turn], "renewed": now_iso()}
+                _write_agent_turns(session_id, turns)
         return turn
 
 

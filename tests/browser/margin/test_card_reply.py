@@ -14,7 +14,7 @@ from render_cases_interaction import (
     PANEL_PAGE,
     panel_comment,
 )
-from render_cases_layout import ring_faults, rings_drawn
+from render_cases_layout import ring_faults, rings_drawn, solid_png
 from render_harness import (
     example_media,
     holding,
@@ -50,6 +50,7 @@ from browser.margin import (
     open_long_thread,
     send_anchored_comment,
 )
+from leaf import media as media_model
 from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -979,6 +980,42 @@ def test_a_card_at_its_end_keeps_its_last_turn_as_the_window_shortens(browser, s
     resized(page, 1440, 700)
     rendered(page)
     assert transcript.evaluate("list => list.clientHeight") < room - 100
+    assert transcript.evaluate(past_end) <= 1
+
+
+def test_a_card_at_its_end_follows_its_last_turn_as_it_grows(browser, serve):
+    """A transcript standing at its end stays there as its last turn grows after it
+    is drawn, here as the picture in an answer loads. The card followed only the growth
+    a reading of the thread brought, so the picture pushed the turn's end below the
+    transcript's foot, out of sight of the reader who stood there."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=LONG_THREAD))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+    held = []
+    page.route("**/media/051bee487bfb5d13.png", lambda route: held.append(route))
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    transcript = page.locator(".lf-margin-preview .lf-thread-transcript")
+    expect(transcript).to_be_visible()
+    rendered(page)
+    past_end = "list => list.scrollHeight - list.clientHeight - list.scrollTop"
+    assert transcript.evaluate(past_end) <= 1
+    agent_says(
+        page,
+        serve.page_dir,
+        "The capture:\n\n![Release output](/media/051bee487bfb5d13.png)",
+    )
+    holding(page, held, 1, "the answer's picture")
+    rendered(page)
+    assert transcript.evaluate(past_end) <= 1
+    picture = transcript.locator('img[src="/media/051bee487bfb5d13.png"]')
+    before = picture.evaluate("image => image.getBoundingClientRect().height")
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
+    held[0].fulfill(body=pixels, content_type="image/png")
+    page.wait_for_function(
+        "([image, before]) => image.complete && image.getBoundingClientRect().height > before + 40",
+        arg=[picture.element_handle(), before],
+    )
+    rendered(page)
     assert transcript.evaluate(past_end) <= 1
 
 
@@ -2489,3 +2526,60 @@ def test_a_card_says_new_reply_for_an_answer_past_its_transcript_s_foot(browser,
     expect(press).to_have_text("New reply")
     turn("Thanks.")
     expect(press).to_have_count(0)
+
+
+@pytest.mark.parametrize("progress", [False, True])
+def test_an_answer_a_card_followed_says_new_reply_once_its_picture_outgrows_it(
+    browser, serve, progress
+):
+    """An answer the card's end followed into sight, since it fit with the user's turn
+    as it was drawn, is placed by the same rule once it grows, here as a tall picture in
+    it loads: following the end would carry the user's turn away, so the turn stays in
+    sight and New reply stands for the rest of the answer. So is one that replaced
+    taller progress, which moved nothing as it shrank the transcript."""
+    page, preview, transcript = open_long_thread(browser, serve, height=600)
+    press = preview.locator(".lf-new-reply")
+    held = []
+    picture = media_model.store_uploaded_media(
+        serve.page_dir, solid_png(400, 1600, (64, 64, 64)), "image/png"
+    )
+    page.route(f"**{picture}", lambda route: held.append(route))
+    preview.locator(".lf-thread-reply leaf-text").click()
+    page.keyboard.insert_text("And the capture?")
+    with sending(page, "the turn"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    rendered(page)
+    if progress:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": LONG_THREAD_ROOT["id"],
+                "revision": 1,
+                "text": "Checking the release capture. " * 20,
+                "ephemeral": True,
+            },
+        )
+        told(page)
+        rendered(page)
+    agent_says(
+        page,
+        serve.page_dir,
+        "The capture shows the release output as it stood after the deploy. " * 3
+        + f"\n\n![Capture]({picture})",
+    )
+    holding(page, held, 1, "the answer's picture")
+    rendered(page)
+    past_end = "list => list.scrollHeight - list.clientHeight - list.scrollTop"
+    assert transcript.evaluate(past_end) <= 2
+    expect(press).to_have_count(0)
+    held[0].continue_()
+    expect(press).to_have_text("New reply")
+    rendered(page)
+    asked = transcript.locator(".lf-msg", has_text="And the capture?")
+    head = asked.locator(".lf-msg-head").bounding_box()
+    words = asked.bounding_box()
+    assert transcript.bounding_box()["y"] <= head["y"], head
+    assert words["y"] + words["height"] <= press.bounding_box()["y"], words

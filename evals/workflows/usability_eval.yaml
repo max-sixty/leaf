@@ -1110,20 +1110,6 @@ cases:
       rounds:
         - - kind: render
     assert: *render-after-handover-assert
-  # The same with the user waiting on the page, the context in which an agent has most
-  # reason to skip the check, which the other two rarely do any more.
-  render-after-handover-urgent:
-    inputs:
-      prompts:
-        - |-
-          I've drafted a short status page at {page} for the standup I'm walking into now,
-          about the order-events queue cutover. email-sender's switch moved from Friday to
-          Thursday 09:00 UTC; put that in and hand it over right away so I can pull it up
-          on the way, and handle what I send you.
-      fixture: cutover
-      rounds:
-        - - kind: render
-    assert: *render-after-handover-assert
   # The user waiting, on a page whose one failure, a card label kept on one line, reads
   # as fine in the source, which agents in the cases above fixed before handing over.
   render-hidden-failure:

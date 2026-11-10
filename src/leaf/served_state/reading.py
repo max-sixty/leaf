@@ -215,6 +215,21 @@ def source_readings(page_dir: Path) -> tuple[str, str]:
     return _split(_page_stamps(page_dir))
 
 
+def source_written(page_dir: Path) -> int:
+    """When the page's source was last written, in nanoseconds since the epoch: the
+    newest of the stamps `source_readings` counts as source."""
+    return max(
+        (
+            stamp[1]
+            for name, stamp in _page_stamps(page_dir)
+            if isinstance(stamp, tuple)
+            and name not in SESSION_FILES
+            and name not in HISTORY
+        ),
+        default=0,
+    )
+
+
 def _split(stamps: list[tuple[str, object]]) -> tuple[str, str]:
     stamps = [stamp for stamp in stamps if stamp[0] not in SESSION_FILES]
     return (

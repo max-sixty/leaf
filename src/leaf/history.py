@@ -13,7 +13,7 @@ in, the widget a row links to — stays with the page, which holds those places;
 this reading carries their ids and anchors.
 
 Bookkeeping stays out: `read`, `pickup`, `receipt`, `summary`, `thread_title`,
-`reanchor`, `error`, `render`, and `undo`, which marks the gesture it took back instead of
+`reanchor`, `error`, and `undo`, which marks the gesture it took back instead of
 appearing as its own row.
 
 `history` is a served reading only a page that renders it pays for: the state

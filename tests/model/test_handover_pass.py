@@ -3,8 +3,10 @@ once, one reading at a time on the machine, a failure wakes the agent, and advic
 with what next reaches it."""
 
 import json
+import os
 import signal
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -25,6 +27,7 @@ from leaf import hooks as hooks_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as state_model
+from leaf.event_log import read_events
 from leaf.files import latest_revision
 from leaf.findings import Finding
 from leaf.leases import release_lease, take_lease
@@ -32,6 +35,7 @@ from leaf.render_gate import handover_pass as handover_pass_model
 from leaf.revision_artifact import read_artifact
 from leaf.revisioning import activate_source
 from leaf.state import state_home
+from leaf.validation.source import check_source
 
 FAILURE: dict[str, Any] = {
     "code": "past-column",
@@ -66,11 +70,17 @@ def pass_page(claimed, monkeypatch):
     )
 
 
-def save(page_dir: Path, words: str) -> None:
+def write_unread(page_dir: Path, words: str) -> None:
+    """Save the page as an agent does, with no tab open to make the save live."""
     source = page_dir / "index.html"
     source.write_text(
         source.read_text().replace("</section>", f"<p>{words}</p></section>", 1)
     )
+
+
+def save(page_dir: Path, words: str) -> None:
+    """Save the page with a tab open, which makes the save live."""
+    write_unread(page_dir, words)
     assert activate_source(page_dir).error is None
 
 
@@ -80,19 +90,33 @@ def read_digest(page_dir: Path) -> str:
     return read_artifact(page_dir, revision).digest
 
 
+def browser_read(findings: list[dict]) -> SimpleNamespace:
+    """A browser that finished reading the page and found `findings`, as
+    `command.BrowserCheck` answers."""
+    return SimpleNamespace(
+        unavailable=None,
+        findings=lambda: [
+            SimpleNamespace(code=finding["code"], json=lambda f=finding: f)
+            for finding in findings
+        ],
+    )
+
+
 def leave_reading(
     page_dir: Path, findings: list[dict], digest: str | None = None
 ) -> None:
+    """The reading an agent's own `page check --render` leaves."""
     handover_pass_model.remember_reading(
-        page_dir,
-        digest or read_digest(page_dir),
-        SimpleNamespace(
-            unavailable=None,
-            findings=lambda: [
-                SimpleNamespace(code=finding["code"], json=lambda f=finding: f)
-                for finding in findings
-            ],
-        ),
+        page_dir, digest or read_digest(page_dir), browser_read(findings)
+    )
+
+
+def checking(findings: list[dict], digest: str | None = None):
+    """`check_page` with the browser's part standing in: a reading of `findings` in the
+    live version, or in the version `digest`."""
+    return lambda page_dir, **_options: (
+        {},
+        (digest or read_digest(page_dir), browser_read(findings)),
     )
 
 
@@ -129,18 +153,33 @@ def test_work_in_hand_waits_and_a_page_declared_open_is_read_in_its_turn(pass_pa
 
 
 def test_a_save_reaches_a_reading_with_no_tab_open_to_activate_it(pass_page):
-    """Nothing has read the page since the save, so the look makes it live itself."""
-    source = pass_page.dir / "index.html"
-    source.write_text(
-        source.read_text().replace("</section>", "<p>unread</p></section>", 1)
-    )
+    """Nothing has read the page since the save, so the look makes it live itself, once a
+    reading is due: the saves inside a turn make no revisions."""
+    made = latest_revision(pass_page.dir) or 0
+    write_unread(pass_page.dir, "unread")
+    pass_page.passes.look()
+    assert (latest_revision(pass_page.dir) or 0) == made and pass_page.reads == []
+
     state_model.close_session_turn("s1")
+    pass_page.passes.look()
+    assert latest_revision(pass_page.dir) == made + 1 and len(pass_page.reads) == 1
+
+
+def test_a_declaration_in_the_millisecond_of_the_save_hands_it_over(pass_page):
+    """The declaration keeps its time to the millisecond, so a save later in the same
+    millisecond was made before it."""
+    write_unread(pass_page.dir, "handed over at once")
+    status = session_model.cmd_waiting(pass_page.dir)
+    declared = round(datetime.fromisoformat(status["ts"]).timestamp() * 1000)
+    saved = declared * 1_000_000 + 999_999
+    os.utime(pass_page.dir / "index.html", ns=(saved, saved))
     pass_page.passes.look()
     assert len(pass_page.reads) == 1
 
 
 def test_a_version_a_reading_has_read_is_not_read_again_by_a_later_server(pass_page):
-    """The reading outlives the server, so reopening a page reads only what changed."""
+    """The reading outlives the server, so reopening a page reads only what changed, and
+    the agent's own check leaves one, so a version it checked isn't read again."""
     save(pass_page.dir, "read before")
     leave_reading(pass_page.dir, [])
     state_model.close_session_turn("s1")
@@ -176,14 +215,6 @@ def test_a_page_its_agent_closed_has_nobody_to_tell(pass_page):
     assert pass_page.reads == []
 
 
-def test_a_version_the_agent_checked_itself_is_not_read_again(pass_page):
-    save(pass_page.dir, "checked")
-    leave_reading(pass_page.dir, [])
-    state_model.close_session_turn("s1")
-    pass_page.passes.look()
-    assert pass_page.reads == []
-
-
 def test_the_machine_runs_one_reading_at_a_time(pass_page, monkeypatch):
     """A reading finding another under way reads nothing, and its server asks again."""
     save(pass_page.dir, "queued")
@@ -212,7 +243,7 @@ def test_a_server_started_again_mid_reading_reads_nothing_twice(claimed, monkeyp
     def read_again(*_args, **_kwargs):
         raise AssertionError("read a version a reading had read")
 
-    monkeypatch.setattr("leaf.validation.command.cmd_check", read_again)
+    monkeypatch.setattr("leaf.validation.command.check_page", read_again)
     assert handover_pass_model.read_and_tell(claimed) is True
     assert [e for e in events_of(claimed) if e["kind"] == "render"] == []
 
@@ -258,10 +289,7 @@ def told(claimed, monkeypatch):
 
     def read(findings: list[dict]) -> list[dict]:
         save(claimed, f"version {next(versions)}")
-        monkeypatch.setattr(
-            "leaf.validation.command.cmd_check",
-            lambda page_dir, **_options: leave_reading(page_dir, findings),
-        )
+        monkeypatch.setattr("leaf.validation.command.check_page", checking(findings))
         handover_pass_model.read_and_tell(claimed)
         return [e for e in events_of(claimed) if e["kind"] == "render"]
 
@@ -345,6 +373,42 @@ def test_only_what_the_last_reading_did_not_hold_is_told(claimed, told):
     assert told([]) and len(told([moved])) == 2
 
 
+def test_a_finding_naming_no_element_is_not_told_again_for_its_measurements(
+    claimed, told
+):
+    """A layout shift's words carry when it started, and a sideways scroll's how far,
+    and neither names an element, so another reading that measures them anew holds
+    nothing the agent hasn't heard."""
+    shift = {
+        "code": "startup-layout-shift",
+        "severity": "advice",
+        "values": {"cls": 0.12, "entries": [{"at": 812.4, "value": 0.12}]},
+        "text": "startup CLS 0.1200 before first settled presentation; …812.4…",
+    }
+    scrolls = {
+        "code": "page-scrolls",
+        "severity": "error",
+        "widths": [360, 480],
+        "values": {"past": 206},
+        "text": "at 360–480px wide, the page scrolls sideways by 206px",
+    }
+    assert len(told([shift, scrolls])) == 1
+    remeasured = [
+        {
+            **shift,
+            "values": {"cls": 0.12, "entries": [{"at": 905.1, "value": 0.12}]},
+            "text": "startup CLS 0.1200 before first settled presentation; …905.1…",
+        },
+        {
+            **scrolls,
+            "widths": [360, 400],
+            "values": {"past": 190},
+            "text": "at 360–400px wide, the page scrolls sideways by 190px",
+        },
+    ]
+    assert len(told(remeasured)) == 1
+
+
 def test_console_errors_are_told_apart_by_their_words(claimed, told):
     """A console error names no element, so its words are what make it another fault."""
     first = {
@@ -358,6 +422,26 @@ def test_console_errors_are_told_apart_by_their_words(claimed, told):
     assert len(told([first, second])) == 2
 
 
+def test_a_save_before_the_check_froze_the_source_is_the_version_told(claimed):
+    """The check reads the source as it stands when it starts, a save the activation
+    before it missed included, and that save is the version the agent hears about."""
+    activate_source(claimed)
+
+    def saved_first(page_dir, **_options):
+        write_unread(page_dir, "saved as the check began")
+        checked = check_source(page_dir, read_events(page_dir))
+        assert checked.artifact is not None
+        return checking([FAILURE], checked.artifact.digest)(page_dir)
+
+    with pytest.MonkeyPatch.context() as patched:
+        patched.setattr("leaf.validation.command.check_page", saved_first)
+        handover_pass_model.read_and_tell(claimed)
+    [event] = [e for e in events_of(claimed) if e["kind"] == "render"]
+    assert event["revision"] == latest_revision(claimed)
+    reading = handover_pass_model.read_reading(claimed)
+    assert reading is not None and reading["digest"] == read_digest(claimed)
+
+
 def test_a_save_past_the_version_read_leaves_its_findings_to_the_next_reading(
     claimed, told, monkeypatch
 ):
@@ -366,10 +450,10 @@ def test_a_save_past_the_version_read_leaves_its_findings_to_the_next_reading(
     stale = read_digest(claimed)
 
     def moved_on(page_dir, **_options):
-        leave_reading(page_dir, [FAILURE], stale)
         save(page_dir, "moved on")
+        return checking([FAILURE], stale)(page_dir)
 
-    monkeypatch.setattr("leaf.validation.command.cmd_check", moved_on)
+    monkeypatch.setattr("leaf.validation.command.check_page", moved_on)
     handover_pass_model.read_and_tell(claimed)
     assert [e for e in events_of(claimed) if e["kind"] == "render"] == []
 

@@ -573,7 +573,6 @@ contract and its cost. These runs scored it against the merge base, where the dr
 ```sh
 uv run leaf-dev eval document/render-hidden-failure --harness claude-code --base --repeat 6 -j 2
 uv run leaf-dev eval document/render-hidden-failure --harness codex --base --repeat 6 -j 2
-uv run leaf-dev eval document/render-after-handover-urgent --harness claude-code --base --repeat 6 -j 2
 uv run leaf-dev eval document/render-advice-with-comment --harness claude-code --base --repeat 4 -j 2
 uv run leaf-dev eval document/render-after-handover-quick --harness claude-code --base --repeat 10 -j 3
 ```
@@ -593,8 +592,11 @@ uv run leaf-dev eval document/render-after-handover-quick --harness claude-code 
 | quick, Claude Code                 | base | 10 of 10             | —                         | 1 of 1                               | —                                  | 0 of 10          | —               |
 | quick, Claude Code                 | head | 10 of 10             | —                         | —                                    | —                                  | 0 of 10          | —               |
 
-Every run in the table passed its rubric (76 of 76), whose findings outcome holds where nothing was delivered. The base arm delivers the same findings as the
-page's `error`, under its clause. Codex's own `--render` runs aren't counted, since the
+The urgent rows come from `render-after-handover-urgent`, dropped on 2026-11-10: its
+prompt was `render-hidden-failure`'s, and it mostly measured advice being held. Every
+run in the table passed its rubric (76 of 76), whose findings outcome holds where
+nothing was delivered. The base arm delivers the same findings as the page's `error`,
+under its clause. Codex's own `--render` runs aren't counted, since the
 script found its commands only in Claude Code's stream. The Codex head row combines 6
 samples run before the dropped-tell fix with 4 after it. In the first 6, one session's
 failures were lost and its final page failed.
@@ -625,7 +627,8 @@ table ran:
   after its last save as a handover, which 20 of 21 handovers made.
 - A reading whose version a save replaced while it ran dropped its tell, and the next
   reading treated those findings as known. That cost 2 of 16 head samples their
-  failures. Each reading now records which findings the agent has heard.
+  failures. Such a reading now leaves the page's reading as it was, so the next one
+  tells them.
 
 Across 16 Claude Code head sessions (46 revisions) the servers ran 22 readings, a median
 8.0 s each.

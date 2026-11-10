@@ -81,6 +81,7 @@ from .state import (
     described,
     flocked,
     object_schema,
+    open_agent_turns,
     open_session_turn,
     retire_if_gone,
     session_lock_path,
@@ -1142,8 +1143,9 @@ def deliverable(
     Less, too, each waiting message of a thread a fork of the owner's conversation
     is deciding on (`forks.held`), until the fork posts its line and hands it over
     or the hold runs out, which keeps the watch from waking the session for it as
-    it arrives; and of a thread a fork took the work of, until that fork answers or
-    gives it back.
+    it arrives; and what an agent of the owner's session took, which its own turn
+    received, or holds, the further messages of a thread it took, which go to it at
+    its tool boundary while its turn runs (`forks.held_inputs`).
 
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. Codex's tool hook runs after every tool call, so it passes
@@ -1160,7 +1162,7 @@ def deliverable(
         from .forks import held_inputs
 
         # A held message the cursor has passed is owed and unreferenced, and stays
-        # held all the same.
+        # held all the same; so does one an agent's turn holds.
         if forked := held_inputs(page):
             pending = [event for event in pending if event["id"] not in forked]
             owed = [event for event in owed if event["id"] not in forked]
@@ -1221,6 +1223,7 @@ def confirm_entered(harness, payload: dict) -> None:
     hook of a harness whose hooks don't commit their context runs this before it
     reads the page, so the prompt a nudge wakes after an interrupt confirms what the
     interrupted turn read before it hands anything over."""
+    from .forks import agent_inputs
     from .service import owned_pages
 
     entered = harness.entered_context(payload)
@@ -1241,14 +1244,27 @@ def confirm_entered(harness, payload: dict) -> None:
                     for event_id in pickup["events"]
                     if event_id in entered
                 }
-                through = page.cursor
-                for event in unacknowledged(page.events, page.cursor):
-                    if event["id"] not in shown:
-                        break
-                    through = event["seq"]
-                record_receipt(page, through)
+                receive_passed(page, shown | agent_inputs(page))
         except FileNotFoundError:
             continue
+
+
+def receive_passed(page: PageTransaction, passed: set[str]) -> None:
+    """Record the receipt of the page's pending input through the last of the
+    unbroken run, from the cursor, of inputs in `passed`, under the caller's page
+    transaction (`record_receipt`): the cursor passes every input before the
+    position it moves to, so it stops at the first input nobody has taken.
+
+    Whoever takes input passes what an agent of the session took or holds
+    (`forks.agent_inputs`): an agent's turn receives what it picked up as it picks it
+    up, and the further messages of a thread it took go to it at its tool boundary,
+    whatever the cursor says, so neither is input the main thread awaits."""
+    through = page.cursor
+    for event in unacknowledged(page.events, page.cursor):
+        if event["id"] not in passed:
+            break
+        through = event["seq"]
+    record_receipt(page, through)
 
 
 def unreferenced(
@@ -1376,15 +1392,18 @@ def receive(payload: dict, session_id: str | None) -> list[Path]:
 def receive_held(
     payload: dict,
     session_id: str,
-    expected: dict,
+    expected: dict | None,
     *,
     deadline: float | None = None,
     confirm: bool = True,
+    agent_turn: str | None = None,
 ) -> list[dict]:
     """Record each batch of a delivery its hook is handing to `session_id`'s open
     turn, the lifecycle `expected` it planned under, as opened in it, and return
     the batches it recorded. `confirm` also records the receipt, where the harness
     has the context once the hook returns (`Harness.commits_hook_context`).
+    `agent_turn` names a turn of an agent the session runs beside its main thread
+    instead (`receive_one`).
 
     A refusal is the batch's own: a page that changed hands or went, a turn that
     ended or was replaced, a log this Leaf may not write
@@ -1400,6 +1419,7 @@ def receive_held(
                 deadline=deadline,
                 expected=expected,
                 confirm=confirm,
+                agent_turn=agent_turn,
             )
         except (FileNotFoundError, Refused, TimeoutError):
             continue
@@ -1414,15 +1434,42 @@ def receive_one(
     deadline: float | None = None,
     expected: dict | None = None,
     confirm: bool = True,
+    agent_turn: str | None = None,
 ) -> Path:
     """Confirm one consumer-read batch under its current page ownership, into the
     session lifecycle `expected` where the caller names one; `confirm` as
-    `receive_batch` takes it."""
+    `receive_batch` takes it.
+
+    With `agent_turn`, an open turn of an agent the session runs beside its main
+    thread (`state.AGENT_TURNS`) takes the batch: its pickup names that turn, and the
+    receipt follows at once, since the agent's context has it once its hook returns,
+    through what the session's agents took (`receive_passed`), which never passes
+    input the main thread still awaits."""
     page_dir = Path(batch["page"])
     with (
         PageTransaction(page_dir, deadline=deadline) as page,
-        receive_batch(page, batch, session_id=session_id, confirm=confirm) as events,
+        receive_batch(
+            page,
+            batch,
+            session_id=session_id,
+            confirm=confirm and agent_turn is None,
+        ) as events,
     ):
+        if agent_turn is not None:
+            from .forks import agent_inputs
+
+            assert session_id is not None
+            if agent_turn not in open_agent_turns(session_id):
+                raise ReceiptRefused("the receiving agent's turn has ended")
+            record_pickup(
+                page,
+                events,
+                session=session_id,
+                turn=agent_turn,
+                refs=batch_refs(batch),
+            )
+            receive_passed(page, agent_inputs(page))
+            return page_dir
         turn = None
         if session_id:
             observed = session_record(session_id)

@@ -36,6 +36,10 @@
       "since": 13,
       "schema": {"description":"The key every page this machine serves is read with (`host_key`), in the state home's `access.json`.","type":"object","properties":{"token":{"type":"string"}},"required":["token"]}
     },
+    "agent-turns": {
+      "since": 43,
+      "schema": {"description":"The turns of the agents a session runs beside its main thread, such as a fork of its conversation that took a thread's work, in the state home's `sessions/<digest>.agent-turns` (`session_file`): by turn id, the agent's id in its harness (null until the harness starts it), the session generation it opened in, when it opened and was last renewed, and when it closed, or null while it is open.","type":"object","properties":{"turns":{"type":"object","additionalProperties":{"type":"object","properties":{"agent":{"type":["string","null"]},"generation":{"type":"string"},"opened":{"type":"string","format":"date-time"},"renewed":{"type":"string","format":"date-time"},"closed":{"anyOf":[{"type":"null"},{"type":"string","format":"date-time"}]}},"required":["agent","generation","opened","renewed","closed"]}}},"required":["turns"]}
+    },
     "bridge": {
       "since": 13,
       "schema": {"description":"Where an installed tree's running bridge listens, in the state home's `bridge/<key>.json`.","type":"object","properties":{"port":{"description":"The loopback port it listens on.","type":"integer"},"token":{"description":"The token a request carries.","type":"string"},"pid":{"description":"The bridge's process.","type":"integer"}},"required":["port","token","pid"]}

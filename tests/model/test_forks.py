@@ -23,12 +23,14 @@ from interact_support import (
     stamp,
 )
 
+from leaf import activity as activity_model
 from leaf import clerk as clerk_model
 from leaf import delivery as delivery_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import file_changes as file_changes_model
 from leaf import forks as forks_model
+from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import page_memory as page_memory_model
@@ -37,9 +39,11 @@ from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import session_runtime as session_runtime_model
+from leaf import state as state_model
 from leaf import thread as thread_model
 from leaf.interaction_log import read_interactions
 from leaf.registry import kernel as kernel_model
+from leaf.served_state.context import read_page
 from leaf.served_state.reading import outside_inputs
 from leaf.service import PageTransaction
 from leaf.state import session_file
@@ -171,118 +175,229 @@ def test_a_held_message_gets_the_forks_working_line_and_goes_to_the_session(
     assert forked(claimed) == []
 
 
-def test_a_fork_takes_work_it_judges_its_own_and_its_answer_goes_in_as_the_agents(
-    claimed, lane
+def taken_by_a_fork(page_dir, text: str) -> tuple[dict, dict]:
+    """The user's message in a thread of its own, and what Leaf did as the line's
+    fork judged its work a fork's, where the module makes forks that do it."""
+    asked = said(page_dir, text)
+    taken = forks_model.take(
+        "s1",
+        basis(page_dir, asked["id"], asked["id"]),
+        answer=judged(f"looking into: {text}", "take"),
+        failed=None,
+        work_forks=True,
+    )
+    assert taken["outcome"] == "take", taken
+    return asked, taken
+
+
+def reading(page_dir) -> dict:
+    """The page's presence and activity, as the hooks read them."""
+    work = read_page(page_dir, events_model.read_events(page_dir)).work
+    return {**work.presence, "activity": work.activity}
+
+
+def agent_context(capsys, agent: str) -> str:
+    """What a tool boundary of the agent its harness names `agent` adds to its
+    context."""
+    hooks_model.cmd_hook(
+        "claude-code",
+        {
+            "hook_event_name": "PostToolBatch",
+            "session_id": "s1",
+            "prompt_id": "p1",
+            "agent_id": agent,
+        },
+    )
+    out = capsys.readouterr().out
+    return json.loads(out)["hookSpecificOutput"]["additionalContext"] if out else ""
+
+
+def answer_ref(page_dir, input_id: str) -> str:
+    """The answer reference the newest pickup carrying one gave `input_id`."""
+    return next(
+        event["refs"][input_id]["ref"]
+        for event in reversed(events_model.read_events(page_dir))
+        if event["kind"] == "pickup" and input_id in event.get("refs", {})
+    )
+
+
+def test_a_fork_takes_work_it_judges_its_own_as_a_pickup_in_its_own_turn(
+    claimed, lane, capsys
 ):
     """Where the module makes forks that do the work, a thread the line's fork judges
-    `take` stays held, past the line's bound, while a fork named for it does the
-    work: the message reads On it and goes to no one else, and the main session
-    hears which fork has it. The fork's answer goes in as the agent's, and the main
-    session hears that too."""
-    asked = said(claimed, "Which Python does the project need?")
-    taken = forks_model.take(
-        "s1",
-        basis(claimed, asked["id"], asked["id"]),
-        answer=judged("checking the project's Python requirement", "take"),
-        failed=None,
-        work_forks=True,
-    )
-    agent = f"leaf-{asked['id']}"
-    assert (taken["outcome"], taken["agent"]) == ("take", agent)
+    `take` goes to a fork in a turn Leaf opens for it: the log records that turn's
+    pickup of the message, with the receipt and the answer reference the fork's
+    delivery gives it, so every reader agrees who has it. While that turn runs the
+    message is the fork's: nothing hands it to the main thread, a receipt for later
+    input doesn't give it back, the main thread's prompt neither owes nor takes it
+    in, and the page reads the agent at work on it."""
+    asked, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
+    agent, turn = f"leaf-{asked['id']}", taken["turn"]
+    assert taken["agent"] == agent
+    assert turn in state_model.open_agent_turns("s1")
     assert taken["prompt"].startswith(forks_model.WORK_OPENING)
     assert "Which Python does the project need?" in taken["prompt"]
-    [line] = [e for e in events_model.read_events(claimed) if e["kind"] == "reply"]
-    assert (line["id"], line["ephemeral"]) == (taken["line"], True)
+    [pickup] = [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"]
+    assert (pickup["events"], pickup["phase"], pickup["session"], pickup["turn"]) == (
+        [asked["id"]],
+        "opened",
+        "s1",
+        turn,
+    )
+    assert answer_ref(claimed, asked["id"]) in taken["prompt"]
+    with PageTransaction(claimed) as page:
+        assert page.cursor >= asked["seq"]
     assert deliverable(claimed) == []
-    assert forked(claimed) == [asked["id"]]
     [told] = clerk_model.queued("s1")
     assert agent in told and f"SendMessage {agent}" in told
-    # A receipt for later input, past the message, gives it to no one.
+    assert session_file("s1", state_model.AGENT_TURNS.kind).resolve() in outside_inputs(
+        claimed
+    )
+
     with PageTransaction(claimed) as page:
         delivery_model.record_receipt(page, page.events[-1]["seq"])
-    assert deliverable(claimed) == []
-    assert forked(claimed) == [asked["id"]]
-    # The line's bound has passed; the fork's has not.
-    admitted = datetime.fromisoformat(asked["ts"]).timestamp()
-    [still] = forks_model.look("s1", claimed, now=admitted + forks_model.BOUND_S + 1)
-    assert (still.thread, still.agent) == (asked["id"], agent)
-    assert deliverable(claimed) == []
-
-    joined = forks_model.join(
-        "s1",
-        still.basis(claimed),
-        answer="Python 3.12 or later, from pyproject.toml.",
-        failed=None,
-    )
-    assert joined["outcome"] == "answer"
-    replies = [e for e in events_model.read_events(claimed) if e["kind"] == "reply"]
-    assert (replies[-1]["id"], replies[-1]["text"], replies[-1].get("ephemeral")) == (
-        joined["reply"],
-        "Python 3.12 or later, from pyproject.toml.",
+    state = reading(claimed)
+    [owed] = state["activity"]["obligations"]
+    assert (owed["input"], owed["stage"], owed["condition"]) == (
+        asked["id"],
+        "picked_up",
         None,
     )
-    assert held(claimed) == []
-    assert forked(claimed) == []
-    assert forks_model.look("s1", claimed) == []
-    assert agent in clerk_model.queued("s1")[-1]
-    assert "answered" in clerk_model.queued("s1")[-1]
+    assert state["activity"]["kind"] == "working"
+    assert activity_model.turn_obligations(state, watched=False) == []
+    context(capsys, "UserPromptSubmit")
+    assert [
+        e["turn"] for e in events_model.read_events(claimed) if e["kind"] == "pickup"
+    ] == [turn]
 
 
-def test_a_fork_that_took_the_work_passes_on_further_messages_or_gives_it_back(
-    claimed, lane
+def test_the_fork_answers_with_its_own_reply_in_its_own_turn(
+    claimed, lane, monkeypatch
 ):
-    """A further message in a thread a fork took goes to that fork rather than to a
-    new one; a fork that finds the work belongs with the main session gives the
-    thread back, which then holds all its messages; and a fork that outruns its own
-    bound loses the thread to the session."""
-    asked = said(claimed, "Does the autocomplete service start its cache this way?")
-    taken = forks_model.take(
-        "s1",
-        basis(claimed, asked["id"], asked["id"]),
-        answer=judged("checking the autocomplete service's cache start", "take"),
-        failed=None,
-        work_forks=True,
+    """The module marks the commands of the fork its harness started with the fork's
+    agent id, so the fork's progress and answer, from the delivery Leaf gave it, post
+    as the agent's, and its start names the fork's turn: the page reads the fork at
+    work whatever the main thread's turn does, and the answer settles the message.
+    As the fork's run ends its turn closes, and the main thread hears it answered."""
+    asked, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
+    started = forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
     )
+    assert started["outcome"] == "start"
+    monkeypatch.setenv(state_model.AGENT_VARIABLE, "agent-1")
+    ref = answer_ref(claimed, asked["id"])
+
+    progress = thread_model.post_response(ref, "reading pyproject.toml", ephemeral=True)
+    assert progress is not None
+    assert progress["start"] == {"item": asked["id"], "turn": taken["turn"]}
+    state_model.close_session_turn("s1")
+    activity = reading(claimed)["activity"]
+    assert (activity["kind"], activity["detail"]) == (
+        "working",
+        "reading pyproject.toml",
+    )
+
+    answer = thread_model.post_response(ref, "Python 3.12 or later.", asks_back=False)
+    assert answer is not None
+    assert (answer["author"], answer["session"], answer["responds"]) == (
+        "agent",
+        "s1",
+        asked["id"],
+    )
+    assert reading(claimed)["activity"]["obligations"] == []
+    assert forks_model.ended(
+        "s1", agent="agent-1", turn=None, answer="Answered.", failed=None
+    ) == [{"page": str(claimed), "thread": asked["id"], "outcome": "answer"}]
+    assert state_model.open_agent_turns("s1") == {}
+    assert "answered" in clerk_model.queued("s1")[-1]
+    # Another run of the agent ends nothing more.
+    assert (
+        forks_model.ended("s1", agent="agent-1", turn=None, answer="", failed=None)
+        == []
+    )
+
+
+def test_a_follow_up_in_the_thread_reaches_the_fork_at_its_tool_boundary(
+    claimed, lane, capsys
+):
+    """The user's further message in a thread a fork's running turn took is the
+    fork's: the main thread is neither handed it nor woken for it, and the fork's next
+    tool boundary carries it, once, recorded in the fork's turn. A worker running no
+    turn of the session's is handed nothing."""
+    asked, taken = taken_by_a_fork(claimed, "Does the autocomplete service cache?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    clerk_model.heard("s1", clerk_model.queued("s1"))
     more = said(claimed, "And the suggest service?", parent=asked["id"])
-    grown = {
-        **basis(claimed, asked["id"], asked["id"], more["id"]),
-        "agent": taken["agent"],
-    }
-    passed = forks_model.extend("s1", grown)
-    assert passed is not None
-    assert "And the suggest service?" in passed["message"]
-    assert "Does the autocomplete" not in passed["message"]
+    assert held(claimed) == []
+    assert deliverable(claimed) == []
+    assert context(capsys, "PostToolBatch") == ""
+
+    opening, envelope = agent_context(capsys, "agent-1").split("\n", 1)
+    assert opening == hook_transport_model.INLINE_OPENING
+    [batch] = json.loads(envelope)["batches"]
+    assert [event["id"] for event in batch["events"]] == [more["id"]]
+    pickup = [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"][-1]
+    assert (pickup["events"], pickup["turn"]) == ([more["id"]], taken["turn"])
+    assert agent_context(capsys, "agent-1") == ""
+    assert agent_context(capsys, "agent-2") == ""
     assert deliverable(claimed) == []
 
-    back = forks_model.join(
-        "s1",
-        grown,
-        answer=f"{forks_model.HAND_BACK} the session is changing that service's startup.",
-        failed=None,
+
+def test_a_fork_turn_that_ends_unanswered_gives_its_thread_to_the_main_thread(
+    claimed, lane
+):
+    """A fork that gives the thread back, fails to start, or goes unheard for the
+    working grace leaves the thread's answer owed by the main thread, as any update
+    it received is, with the answer reference the fork's delivery gave it; and the
+    main thread hears which fork gave which thread back, and why."""
+    asked, taken = taken_by_a_fork(claimed, "Does the suggest service cache?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
     )
-    assert back == {
-        "outcome": "hand_over",
-        "why": "the session is changing that service's startup.",
-    }
-    assert deliverable(claimed) == [asked["id"], more["id"]]
+    assert forks_model.ended(
+        "s1",
+        agent="agent-1",
+        turn=None,
+        answer=f"{forks_model.HAND_BACK} the session is changing its startup.",
+        failed=None,
+    ) == [
+        {
+            "page": str(claimed),
+            "thread": asked["id"],
+            "outcome": "hand_over",
+            "why": "the session is changing its startup.",
+        }
+    ]
+    [owed] = activity_model.turn_obligations(reading(claimed), watched=False)
+    assert owed["input"] == asked["id"]
+    assert owed["answer"]["ref"] == answer_ref(claimed, asked["id"])
     assert "gave thread" in clerk_model.queued("s1")[-1]
 
-    other = said(claimed, "How many shards does staging have?")
-    forks_model.take(
-        "s1",
-        basis(claimed, other["id"], other["id"]),
-        answer=judged("counting staging's shards", "take"),
-        failed=None,
-        work_forks=True,
+    unstarted, given = taken_by_a_fork(claimed, "How many shards does staging have?")
+    [failed] = forks_model.ended(
+        "s1", agent=None, turn=given["turn"], answer=None, failed="it did not start"
     )
-    forks_model.look("s1", claimed, now=time.time() + forks_model.WORK_BOUND_S + 1)
-    assert other["id"] in deliverable(claimed)
-    assert (
-        forks_model.join(
-            "s1", basis(claimed, other["id"], other["id"]), answer="Five.", failed=None
-        )["outcome"]
-        == "dropped"
+    assert failed["why"] == "the fork failed: it did not start"
+
+    quiet, kept = taken_by_a_fork(claimed, "Which region is staging in?")
+    owing = {
+        item["input"]
+        for item in activity_model.turn_obligations(reading(claimed), watched=False)
+    }
+    assert owing == {asked["id"], unstarted["id"]}
+    turns = state_model.agent_turns("s1")
+    long_ago = datetime.now().astimezone() - activity_model.WORKING_GRACE
+    turns[kept["turn"]]["renewed"] = long_ago.isoformat()
+    state_model.AGENT_TURNS.write(
+        session_file("s1", state_model.AGENT_TURNS.kind), {"turns": turns}
     )
+    owing = {
+        item["input"]
+        for item in activity_model.turn_obligations(reading(claimed), watched=False)
+    }
+    assert quiet["id"] in owing
 
 
 def test_a_failed_fork_gives_the_thread_to_the_session_bare(claimed, lane):

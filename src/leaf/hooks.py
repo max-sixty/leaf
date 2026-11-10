@@ -98,6 +98,14 @@ def cmd_hook(harness: str, payload: dict) -> None:
     if not sid:
         return
     assert isinstance(event, str)
+    if event == "PostToolBatch" and (agent := payload.get("agent_id")):
+        # A boundary of an agent running a turn of the session's own
+        # (`state.worker_tool_batch`), which carries only that turn's input.
+        from .harness import hook_harness
+        from .hook_transport import carry_agent_turn
+
+        carry_agent_turn(hook_harness(harness, sid), sid, agent, started=started)
+        return
     if event == "PreToolUse" and not first_hook_for_tool(
         sid, payload.get("tool_use_id")
     ):
@@ -463,8 +471,9 @@ def main(
         cmd_pages(payload)
         return
     if fork:
-        # A held thread's fork (`forks`), or else the clerk's.
-        if "thread" in payload:
+        # A held thread's fork, or the end of an agent's run (`forks`), or else
+        # the clerk's.
+        if "thread" in payload or "ended" in payload:
             from .forks import cmd_reply as cmd_fork
         else:
             from .clerk import cmd_fork

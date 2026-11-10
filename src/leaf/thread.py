@@ -875,12 +875,9 @@ def _compose_and_append(
     if ephemeral:
         event["ephemeral"] = True
     if in_hand is not None:
-        claim = page.claim
-        turn = (
-            claim["turn"]
-            if claim and claim["id"] == posting_identity.get("session")
-            else None
-        )
+        from .state import acting_turn
+
+        turn = acting_turn(page.claim, posting_identity.get("session"))
         event["start"] = {
             "item": in_hand,
             **({"turn": turn} if turn else {}),

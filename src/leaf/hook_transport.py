@@ -118,9 +118,15 @@ Leaf reading the turn's liveness, or its current step, from the hooks itself.
 
 The prompt hook and a tool boundary also carry what Leaf's clerk wrote or found at
 the last turn's end, and what each fork that took a thread's work did with it
-(`forks.join`), one line each (`clerk.queued`), and take them off the queue once
+(`forks.ended`), one line each (`clerk.queued`), and take them off the queue once
 printed (`clerk.heard`). Stop carries none: the clerk forks only after the turn has
 ended.
+
+A tool boundary of an agent the session runs beside its main thread, such as a fork
+that took a thread's work, carries only that agent's turn: the user's further
+messages in the threads it took (`carry_agent_turn`). Claude Code names the agent in
+the payload of a subagent's PostToolBatch, which every other subagent's skips
+(`state.worker_tool_batch`).
 
 A harness reads a hook's output only after the hook exits, and discards it if the
 hook times out. So the hook records its handover only before `CONFIRM_WITHIN`, well
@@ -271,7 +277,7 @@ def new_input(session_id: str) -> bool:
 
 
 def read_plans(session_id: str) -> list[PagePlan]:
-    from .activity import acknowledged_obligations, turn_obligations
+    from .activity import acknowledged_obligations, agent_holds, turn_obligations
     from .event_contracts import write_refusal
     from .served_state.context import read_page
     from .vendoring import renew_layer
@@ -342,7 +348,11 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         if pending
                         else None,
                         owed,
-                        acknowledged_obligations(state),
+                        [
+                            item
+                            for item in acknowledged_obligations(state)
+                            if not agent_holds(item, state)
+                        ],
                         watched,
                         (page_dir / PREVIEW_FILE).exists(),
                         write_refusal(page_dir),
@@ -441,8 +451,10 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
     A later receipt revalidates captured identities independently. This pickup
     likewise checks generation and turn after reacquiring the page transaction.
     A page this Leaf may not write records none; `remedies` tells the turn why.
+    Debt an agent's running turn holds is that turn's (`activity.agent_holds`), so
+    the prompt takes none of it.
     """
-    from .activity import acknowledged_obligations
+    from .activity import acknowledged_obligations, agent_holds
     from .served_state.context import read_page
 
     for plan in plans:
@@ -465,7 +477,9 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
                 work = read_page(plan.page, page.events).work
                 current = {**work.presence, "activity": work.activity}
                 still_owed = {
-                    item["input"] for item in acknowledged_obligations(current)
+                    item["input"]
+                    for item in acknowledged_obligations(current)
+                    if not agent_holds(item, current)
                 }
                 by_id = {event["id"]: event for event in page.events}
                 record_pickup(
@@ -697,3 +711,60 @@ def carry_turn(
         assert event is not None
         print(json.dumps(harness.hook_context(event, message)), flush=True)
         heard(sid, told)
+
+
+def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) -> None:
+    """At a tool boundary of an agent the session runs beside its main thread, which
+    the hook's payload names `agent` (Claude Code's PostToolBatch in a subagent):
+    renew the agent's turn (`state.renew_agent_turn`), and hand it the user's
+    further messages in the threads it took (`forks.agent_turn_inputs`), as a
+    tool boundary of the main thread hands it new input. The delivery goes inline
+    and is recorded as opened in the agent's turn with its receipt
+    (`delivery.receive_one`); one too large for the hook's context, or not recorded
+    by `CONFIRM_WITHIN`, stays with the agent until its next boundary, and goes to
+    the main thread once the agent's turn ends. Nothing else of the main thread's,
+    its input, debt, reminders or the clerk's lines, reaches an agent."""
+    from .delivery import current_responses
+    from .forks import agent_turn_inputs
+    from .state import renew_agent_turn
+
+    turn = renew_agent_turn(sid, agent)
+    if turn is None:
+        return
+    batches = []
+    for page_dir in owned_pages(sid):
+        try:
+            with PageTransaction(page_dir) as page:
+                claim = page.active_claim
+                if claim is None or claim["id"] != sid:
+                    continue
+                if inputs := agent_turn_inputs(page, turn):
+                    batches.append(
+                        batch_data(
+                            page_dir,
+                            page,
+                            inputs,
+                            responses=current_responses(page_dir, page.events),
+                        )
+                    )
+        except FileNotFoundError:
+            continue
+    if not batches:
+        return
+    delivery = freeze_delivery(batches)
+    message = "\n".join([INLINE_OPENING, json.dumps(delivery, ensure_ascii=False)])
+    deadline = started + CONFIRM_WITHIN
+    if not harness.fits_hook_context(message) or time.monotonic() >= deadline:
+        return
+    recorded = receive_held(delivery, sid, None, deadline=deadline, agent_turn=turn)
+    if recorded:
+        inline = {**delivery, "batches": recorded}
+        print(
+            json.dumps(
+                harness.hook_context(
+                    "PostToolBatch",
+                    "\n".join([INLINE_OPENING, json.dumps(inline, ensure_ascii=False)]),
+                )
+            ),
+            flush=True,
+        )

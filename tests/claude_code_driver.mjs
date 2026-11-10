@@ -5,8 +5,9 @@
 // Arguments: the session id, then the driver's options as JSON: `pluginRoot`, the
 // plugin's directory in place of this tree; `throwSpawn`, which makes every
 // `$.process.spawn` throw; `forkReply`, the text `$.model.fork` answers with;
-// `forkRejects`, which makes every fork reject; and `env`, Claude Code's
-// environment, all that `$.env`
+// `forkRejects`, which makes every fork reject; `agentId`, the id each
+// `$.agent.spawn` answers with, printing what it was asked as `{"spawned"}`; and
+// `env`, Claude Code's environment, all that `$.env`
 // reads and what the module's processes inherit over the driver's own. Each stdin line is `{"emit": <event>, "e": <input>}`:
 // the driver runs that event's hooks over `e`, the bottom of the chain answering
 // with the input it reached, and prints `{"event", "result"}` once they resolve. A
@@ -113,6 +114,12 @@ const $ = {
   },
   clock: {
     now: async () => Date.now(),
+  },
+  agent: {
+    spawn: async (args) => {
+      print({ spawned: args });
+      return { agentId: options.agentId ?? "agent-1" };
+    },
   },
   ui: {
     // A line for Claude Code's debug log prints as `{"debug": <text>}`.

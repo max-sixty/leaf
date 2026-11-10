@@ -41,7 +41,6 @@ from render_harness import (
     panel_field,
     panel_settled,
     panel_view,
-    put_preview_away,
     refuse,
     resized,
     round_trip,
@@ -233,12 +232,10 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
         for root in roots
     ]
 
-    # Leaf's controls with no layer up: focus arriving on one shows its preview
-    # (preview.js), which the first Escape puts away; the second lets go onto the page.
+    # Leaf's controls with no layer up: Escape lets go of one onto the page.
     expect(marker).to_be_visible()
     for control in (toggle, marker):
         control.focus()
-        put_preview_away(page)
         expect(control).to_be_focused()
         page.keyboard.press("Escape")
         assert page.evaluate(on_body)
@@ -647,11 +644,10 @@ HOVER_CARD_PAGE = """<!doctype html>
 def test_escape_passes_a_manual_popover_the_user_is_not_in(browser, serve):
     """A manual popover the user isn't in, such as a hover card, leaves Escape its steps
     beneath it: the panel's comment field and a link let go under it as they do with no
-    card open. A focused link previews the place it names, and the first Escape puts that
-    preview away (preview.js), so the link lets go at the second. The browser never
-    closes a manual popover on Escape, so standing the steps down under one left every
-    press dead until the card closed (#5582). Focus inside the card makes it the user's
-    layer again, and the page beneath stays out of Escape's reach."""
+    card open. The browser never closes a manual popover on Escape, so standing the steps
+    down under one left every press dead until the card closed (#5582). Focus inside the
+    card makes it the user's layer again, and the page beneath stays out of Escape's
+    reach."""
     page = open_page(browser, serve(HOVER_CARD_PAGE))
     card = page.locator("#card")
     link = page.locator("#link")
@@ -659,7 +655,6 @@ def test_escape_passes_a_manual_popover_the_user_is_not_in(browser, serve):
 
     link.focus()
     page.evaluate(show)
-    put_preview_away(page)
     expect(link).to_be_focused()
     page.keyboard.press("Escape")
     expect(link).not_to_be_focused()
@@ -1534,6 +1529,9 @@ def test_a_key_at_a_control_scrolled_away_acts_from_what_the_user_reads(
 
     def away(control, key):
         page.locator(control).focus()
+        # Firefox scrolls a text field it focuses to its caret after `focus()` returns,
+        # undoing a scroll made before the page renders.
+        rendered(page)
         page.evaluate(
             """() => scrollTo({behavior: 'instant',
               top: document.getElementById('reading').offsetTop - 200})"""
@@ -1649,6 +1647,9 @@ def test_tab_at_a_control_scrolled_away_goes_on_in_the_column_the_pointer_is_in(
     )
     resized(page, 1200, 800)
     page.locator("#old").focus()
+    # Firefox scrolls a field it focuses to its caret after `focus()` returns, undoing
+    # the scroll below and leaving the pointer's column out of the window.
+    rendered(page)
     page.evaluate(
         """() => scrollTo({behavior: 'instant',
           top: document.getElementById('cols').offsetTop - 100})"""
@@ -1845,10 +1846,11 @@ def test_a_back_gesture_never_throws_away_unsent_words(browser, serve, owner):
 
 def test_an_obligations_pick_stays_a_place_to_stand_after_the_answer(browser, serve):
     """A pick inside an obligation wears the chrome face, as a margin marker does, and is not
-    a control of Leaf's for all that: it is inside a destination, so Escape lets go of
-    it onto the page. The obligation is the obligations view's own reading rather than the ring's
-    paint, which only the obligation the walk stands at wears, so the word does not change
-    under an unmoved focus when Space answers the obligation and the ring comes off."""
+    a control of Leaf's for all that: it is inside a destination, so Escape lets go of it
+    onto the page. The obligation is the obligations view's own reading rather than the
+    ring's paint, which only the obligation the walk stands at wears, so the word does not
+    change under an unmoved focus when Space answers the obligation and the ring comes
+    off."""
     page = open_page(browser, serve(BINDING_BADGE_PAGE))
     pick = page.locator("#cards .lf-pick").first
     pick.focus()
@@ -1859,6 +1861,7 @@ def test_an_obligations_pick_stays_a_place_to_stand_after_the_answer(browser, se
     assert page.evaluate(
         "() => document.activeElement.closest('#cards-decision') !== null"
     )
+    expect(pick).to_be_focused()
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
 

@@ -2355,9 +2355,28 @@ def go_to(page: Page) -> None:
 
 
 def contents_by_keyboard(page: Page) -> None:
-    """The contents map with focus on its first section link."""
+    """The contents map revealed by focus on its first section link."""
     page.keyboard.press("Tab")
     page.locator("lf-toc li a").first.focus()
+
+
+def contents_marks(page: Page) -> None:
+    """Where each section's threads and On me items stand along the contents: on the
+    map where the track stands beside the body, and in the outline the reader opened
+    where the track stacks over it."""
+    toggle = page.locator("lf-toc .lf-toc-toggle")
+    if toggle.is_visible():
+        toggle.click()
+        expect(page.locator("lf-toc details")).to_have_attribute("open", "")
+    settle(page)
+
+
+def contents_marks_changes(page: Page) -> None:
+    """The contents' marks with the changes view on, each changed section marked."""
+    contents_marks(page)
+    page.keyboard.press("v")
+    expect(page.locator(".lf-ins-block").first).to_be_attached()
+    settle(page)
 
 
 def topic_contents(page: Page) -> None:
@@ -2955,12 +2974,22 @@ STATES = (
         topic_contents,
         region="#bg-topic-contents",
     ),
-    # The contents map draws only in a sidebar's track beside a `.layout-column`. No
-    # example draws one, so these states read a fixture built that way.
+    # The contents map draws only in a document's sidebar narrowed to it, beside a
+    # `.layout-column` under a mouse. No example draws one, so these states read a
+    # fixture built that way.
     State(
         "contents-map-keyboard",
         "sidebar-contents",
         contents_by_keyboard,
+    ),
+    State(
+        "contents-marks", "sidebar-contents", contents_marks, region="#rotation-route"
+    ),
+    State(
+        "contents-marks-changes",
+        "sidebar-contents",
+        contents_marks_changes,
+        region="#rotation-route",
     ),
     State("playground-controls", "notification-playground", playground_controls),
     State("playground-instruction", "notification-playground", playground_instruction),

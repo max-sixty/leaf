@@ -74,6 +74,7 @@ from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
+from leaf import publishing as publishing_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import state as cleanup_model
@@ -210,16 +211,44 @@ ANCHOR_SOURCES = (
 def stamp_page(
     page_dir: Path, html: str, text: str, *, completes: tuple[str, ...] = ()
 ) -> dict:
-    """Save HTML as the next revision and stamp that exact source."""
+    """Save HTML as the next revision and stamp that exact source.
+
+    The source and its stamp land in one step (`page stamp --replace`): a live tab's
+    news poll activates any changed source it reads, so a separate write would let
+    the poll activate the revision itself and add an `activation` event to the log.
+    """
     order = max(files_model.list_revisions(page_dir), default=0) + 1
     source = html.replace("</body>", f"<!-- test revision {order} -->\n</body>")
-    (page_dir / "index.html").write_text(source, encoding="utf-8")
-    complete_args = [arg for widget in completes for arg in ("--completes", widget)]
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "stamp", str(page_dir), "--text", text, *complete_args],
-        catch_exceptions=False,
+    previous = publishing_model.authored_files(
+        page_dir / "index.html", page_dir / "page"
     )
+    complete_args = [arg for widget in completes for arg in ("--completes", widget)]
+    # The candidate sits beside the page, in the test's own directory, and goes
+    # with the stamp.
+    candidate = page_dir.with_name(f"{page_dir.name}.candidate-{order}")
+    try:
+        candidate.mkdir()
+        for name, data in previous.items():
+            (candidate / name).parent.mkdir(parents=True, exist_ok=True)
+            (candidate / name).write_bytes(data)
+        (candidate / "index.html").write_text(source, encoding="utf-8")
+        result = CliRunner().invoke(
+            cli_model.cli,
+            [
+                "page",
+                "stamp",
+                str(page_dir),
+                "--text",
+                text,
+                "--replace",
+                str(candidate),
+                publishing_model.authored_digest(previous),
+                *complete_args,
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        shutil.rmtree(candidate, ignore_errors=True)
     assert result.exit_code == 0, result.output
     return json.loads(result.output)
 
@@ -1715,18 +1744,34 @@ def reported_browser_errors(page, *expected):
     def complete(errors):
         return len(errors) == len(expected) and all(map(is_problem, errors, expected))
 
-    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
-    while not complete(page.lf_errors) and time.monotonic() < deadline:
-        page.wait_for_timeout(25)
+    _await_browser_errors(page, complete)
     errors = take_browser_errors(page)
     assert complete(errors), shown(errors)
     return errors
 
 
+def _await_browser_errors(page, arrived):
+    """Pump the driver until `arrived(page.lf_errors)` holds or the served deadline
+    passes, leaving the list for the caller to read. A closed page sends nothing more."""
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
+    while (
+        not arrived(page.lf_errors)
+        and not page.is_closed()
+        and time.monotonic() < deadline
+    ):
+        page.wait_for_timeout(25)
+
+
 def consume_browser_errors(page, *expected):
     """Consume the problems a test caused on one page, each of which must be one of
-    `expected` (`is_problem`)."""
+    `expected` (`is_problem`).
+
+    A problem can reach this process after what the page drew from it, such as a
+    widget's failure box, so this waits for the first one rather than reading the list
+    the moment the drawing shows (`reported_browser_errors` says why the wait is a
+    Playwright call)."""
     assert expected, "expected browser problems cannot be empty"
+    _await_browser_errors(page, bool)
     errors = take_browser_errors(page)
     assert errors and all(
         any(is_problem(error, wanted) for wanted in expected) for error in errors
@@ -2871,8 +2916,9 @@ def preview_parts(target, route="pointer"):
     """What `target`'s preview shows a pointer resting on it (runtime/preview.js), or
     with `route="focus"` the keyboard stepping onto it: its name, then each line of
     detail, as the face draws them, key chips left out: of a list, the items it
-    shows and the words for the rest. The pointer leaves it again after, so the
-    next reading is a new one."""
+    shows and the words for the rest. The pointer leaves it again after and waits
+    for its preview to go, so the next reading is a new one and the next Escape
+    reaches what the preview stood over rather than putting the preview away."""
     page = target.page
     tip = page.locator("#lf-preview")
     if route == "focus":
@@ -2892,6 +2938,7 @@ def preview_parts(target, route="pointer"):
     )
     if route == "pointer":
         page.mouse.move(0, 0)
+        expect(tip).to_be_hidden()
     return parts
 
 

@@ -156,7 +156,7 @@ describes.
 
 A widget whose entry declares `x-thread-seat` appends the box where the user starts a
 thread about it, built with `threadBox(this, hint)`. It returns `null` in Leaf's
-interface or in quoted markup.
+interface, in quoted markup or in an export.
 
 ### Owning the primary conversation presentation
 

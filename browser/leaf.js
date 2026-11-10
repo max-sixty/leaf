@@ -395,7 +395,6 @@ async function boot() {
   app = mountApplication({
     arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
     nextObligationWithin: (options) => queueWalk.nextWithin(options),
-    threadAvailable: !offlineInteractive,
     createEngagement,
     targetPickerOpen: () => targets.targetPickerOpen(),
     wireInput: inputs.wireInput,

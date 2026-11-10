@@ -24,14 +24,17 @@ from render_harness import (
     panel_view,
     post_event,
     preview_parts,
+    refuse,
     resized,
     round_trip,
     show_done,
     told,
+    watched,
 )
 
 from browser.navigation import expect_walk_position
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import panel_tab
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -384,6 +387,24 @@ def test_on_me_s_tabs_stand_where_a_view_names_itself(browser, serve):
     )
     assert tabs == start, (tabs, start)
     assert page.locator(".lf-fp-head").bounding_box()["height"] == 0
+
+
+def test_an_on_list_the_page_cannot_read_counts_nothing(browser, serve):
+    """With the server's reading refused, On Me says it can't be had, and neither On
+    list's tab gives a count, as Threads' doesn't: a 0 there would claim an empty list
+    the page never read, on a page that asks the user for several decisions."""
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    watched(page)
+    page.route("**/api/state*", refuse)
+    page.goto(serve(OBLIGATIONS_PAGE), wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    on_me = open_on_me(page)
+    expect(on_me.locator(".lf-rows-empty")).to_have_text(
+        "On Me is unavailable while the server is offline."
+    )
+    for tab in ("On Me", "On the agent", "Threads"):
+        expect(panel_tab(page, tab)).to_be_visible()
+        expect(panel_tab(page, tab).locator(".lf-fp-count")).to_have_count(0)
 
 
 def test_show_on_a_card_goes_where_m_arrives_and_only_where_that_is_elsewhere(

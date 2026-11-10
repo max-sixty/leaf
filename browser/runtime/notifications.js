@@ -19,7 +19,13 @@
    with more on the user, offers its press alone (`offerPress`), which the field says at
    its end after the words it already says. There is no second surface for news, so
    nothing floats in a corner to become a stale pointer target. A failure is no news: it
-   goes through errors.js, which keeps it until the user has dealt with it. */
+   goes through errors.js, which keeps it until the user has dealt with it.
+
+   The moments the panel's leaf answers with a gesture (`Moment`) pass through here too
+   (`gesture`), each with its ordinal, so the leaf plays once for each, a repeat
+   included (floating-panel.js, `GESTURES`). A notice of the user's own command is
+   one; each other moment's producer gives it, news as it arrives rather than when its
+   notice shows. */
 import { el, elementDirective } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 import { effect, signal, untracked } from "/runtime/framework.js";
@@ -29,6 +35,7 @@ import { onUserInput } from "./focus.js";
 
 /** @typedef {import("./voice.js").Words} Words
  * @typedef {import("./semantic-news.js").SemanticNews} SemanticNews
+ * @typedef {"notice" | "walk" | "error" | "pickup" | "version" | "reply" | "new-on-me" | "on-me-empty"} Moment
  * @typedef {{key: "semantic-news", value: readonly SemanticNews[],
  * combine: (older: readonly SemanticNews[], newer: readonly SemanticNews[]) => readonly SemanticNews[],
  * format: (value: readonly SemanticNews[]) => Words}} SemanticBackground
@@ -63,6 +70,15 @@ const noticePresentation = signal(
 );
 
 export const noticeReading = () => noticePresentation.value;
+
+// The latest moment the leaf answers, with its ordinal among them (`beat`).
+/** @type {import("@preact/signals-core").Signal<Readonly<{moment: Moment | null, beat: number}>>} */
+const gestures = signal(Object.freeze({ moment: null, beat: 0 }));
+export const gestureReading = () => gestures.value;
+/** @param {Moment} moment */
+export function gesture(moment) {
+  gestures.value = Object.freeze({ moment, beat: gestures.peek().beat + 1 });
+}
 const noticeVisible = () => noticePresentation.peek().visible;
 
 // A notice is Leaf's news, so a notice given as a string is Leaf's words; one that
@@ -102,6 +118,7 @@ addEventListener(ANNOUNCE, (event) => announce(event.detail));
 /** @param {Words} msg @param {Background | null} background @param {NoticePress | null} [press] */
 function showNotice(msg, background = null, press = null) {
   presentNotice(msg, true, press);
+  if (!background) gesture("notice");
   showingBackground = background;
   clearTimeout(noticeTimer);
   stopWatchingPress();

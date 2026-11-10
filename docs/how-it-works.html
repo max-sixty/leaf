@@ -1785,11 +1785,8 @@ flowchart TD
                   class="drawing"
                   viewBox="0 0 320 218"
                   role="img"
-                  aria-labelledby="revision-before-title"
+                  aria-label="Before revision: queue policy selected, proposal text above it"
                 >
-                  <title id="revision-before-title">
-                    Before revision: queue policy selected, proposal text above it
-                  </title>
                   <rect class="box" x="1" y="1" width="318" height="216" rx="8" />
                   <text class="label" x="22" y="32">Queue policy · v1</text>
                   <text x="22" y="58">Bursts can fill the queue.</text>
@@ -1816,11 +1813,8 @@ flowchart TD
                   class="drawing"
                   viewBox="0 0 320 218"
                   role="img"
-                  aria-labelledby="revision-after-title"
+                  aria-label="After revision: changed explanation, same selected queue policy"
                 >
-                  <title id="revision-after-title">
-                    After revision: changed explanation, same selected queue policy
-                  </title>
                   <rect class="box" x="1" y="1" width="318" height="216" rx="8" />
                   <text class="label" x="22" y="32">Queue policy · v2</text>
                   <rect class="changed" x="16" y="44" width="288" height="43" rx="4" />
@@ -3058,10 +3052,13 @@ flowchart LR
             <h2>Offline exports</h2>
             <p id="runtime-export-record">
               <code>leaf page export PAGE -o FILE</code> captures a stamped version, its
-              resources and recorded state in one HTML file. Reading controls and
-              page-owned code work offline; new Leaf choices, comments, Undo and thread
-              interactions need the served page. An agent need not be running to record
-              a choice on a live server. Pages containing live samples cannot export.
+              resources and the decisions recorded on its widgets in one HTML file. The
+              file holds none of the conversation with the agent, on screen or in its
+              source: no threads or their attachments, to-dos, plan or changelogs.
+              Reading controls and page-owned code work offline; new Leaf choices,
+              comments and Undo need the served page. An agent need not be running to
+              record a choice on a live server. Pages containing live samples cannot
+              export.
             </p>
           </section>
         </lf-tab></lf-tabs

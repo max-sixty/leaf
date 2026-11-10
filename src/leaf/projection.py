@@ -247,6 +247,11 @@ class PageReading(NamedTuple):
         return self.reading.within
 
     @property
+    def floors(self) -> dict:
+        """What the versions through this revision took back (`retractions`)."""
+        return retractions(self.events, self.revision)
+
+    @property
     def logged_words(self) -> dict:
         """What the log in force changes in this page's words (`logged_words`)."""
         return logged_words(self.projection, self.document.ids)

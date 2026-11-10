@@ -434,6 +434,8 @@ def page_timings(
             else {
                 "outcome": fork["outcome"],
                 "elapsed_s": fork["elapsedMs"] / 1000 if "elapsedMs" in fork else None,
+                # Leaf's reason, where Leaf handed the thread over without a line.
+                "why": None if "line" in fork else fork.get("why"),
             }
         )
         answered = row["milestones"].get("answered")

@@ -347,10 +347,7 @@ async function recordStartup(
     currentRelease: manifest.release,
     ...parsed.data,
   });
-  return new Response(null, {
-    status: 204,
-    headers: { "Cache-Control": "no-store" },
-  });
+  return new Response(null, { status: 204 });
 }
 
 // The events a passive session's runtime sends on its own, which the edge answers
@@ -395,9 +392,7 @@ function unrecordedRead(
     findings: [],
     ...(read.attempt !== undefined && { attempt: read.attempt }),
   };
-  const answer = Response.json(refusal, {
-    headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
-  });
+  const answer = Response.json(refusal, { headers: { "Leaf-Session": "passive" } });
   stampDelivery(answer.headers, route, manifest, reference);
   return answer;
 }
@@ -423,7 +418,7 @@ function recordPageFault(
   });
   const answer = new Response(null, {
     status: 204,
-    headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
+    headers: { "Leaf-Session": "passive" },
   });
   stampDelivery(answer.headers, route, manifest, reference);
   return answer;
@@ -458,7 +453,7 @@ async function recordInteractions(
     release,
     ...batch,
   });
-  return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+  return new Response(null, { status: 204 });
 }
 
 // The event an accepted POST's answer names, and whether it owes the agent an
@@ -564,8 +559,15 @@ async function staticState(
   if (!response.ok) return new Response("state unavailable", { status: 503 });
   const state = (await response.json()) as ServedState;
   prepareStateDelivery(state, request);
+  // Stored and asked for again before each reuse, as every Leaf server's state answer
+  // is (`CACHE_CONTROL`, `src/leaf/http.py`), so it names the request headers its body
+  // turns on.
   const answer = Response.json(state, {
-    headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
+    headers: {
+      "Cache-Control": "no-cache",
+      Vary: "Leaf-Data-Version, Leaf-View-Revision",
+      "Leaf-Session": "passive",
+    },
   });
   stampDelivery(answer.headers, route, manifest, reference);
   return answer;
@@ -592,6 +594,8 @@ async function rollingOut(
   if (request.method === "GET" && route.inside === "api/state") {
     answer = await staticState(request, env, manifest, route, reference);
   } else {
+    // A history load reuses a stored answer without asking, so a stored refusal would
+    // stand in for the document or API answer after the rollout ends.
     answer = new Response("this release is still starting", {
       status: 503,
       headers: { "Retry-After": "5", "Cache-Control": "no-store" },

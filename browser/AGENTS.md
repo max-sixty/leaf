@@ -50,9 +50,9 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   whose header lists what it credits.
 - **A box's controls stand on an edge the box holds as its content changes**, or the
   box holds its size while they act. A thread card holds the edge it is attached by,
-  and beside its subject its foot while the user types in it; the floating panel,
-  standing on the window's foot, holds a list's foot, and a thread's height while a
-  press on its head line acts. Each box's header says how (`floating-panel.js`,
+  and beside its subject its foot while the user writes words in its reply box; the
+  floating panel, standing on the window's foot, holds a list's foot, and a thread's
+  height while a press on its head line acts. Each box's header says how (`floating-panel.js`,
   **Opened**; `annotation-overlay/thread-preview.js`).
 - **News moves what the reader reads only in the thread they are in.** News from the
   server grows above the screen, where scroll anchoring absorbs it, or below it. In the
@@ -221,7 +221,7 @@ needs (`../SOUL.md`, "Let the user work as directly as in a terminal").
 
 ### Pointing reads; pressing acts
 
-Hovering, focusing or holding a press on a mark, control or value shows its whole word
+Hovering, Tabbing onto or holding a press on a mark, control or value shows its whole word
 and a preview of what pressing it opens, or of the fact it stands for, so the user can
 judge whether to go there before going (`../SOUL.md`, "Make the work concrete and
 playable").
@@ -241,19 +241,38 @@ playable").
   the reader's zone (`agePreview`). Checks:
   `test_a_thread_previews_where_it_stands_from_its_words_and_its_entry`,
   `test_an_age_previews_its_clock_time_in_the_reader_s_zone`.
-- **Every route reads it.** A resting pointer reads it after a short dwell, keyboard
-  focus the user moved there themselves at once, by Tab or a keyboard walk, as whoever
-  moved focus says, but not focus a surface places as it opens or hands back as it
-  closes, and a finger by a long press, the touch form of pointing, whose release
-  presses nothing and leaves the preview standing until the next press, while a tap
-  still presses (until 5 November 2026 the release pressed, so a finger couldn't read
-  without acting short of sliding off, which on touch often scrolls instead); where
-  a surface can't take a hold, it says the words at rest, as a panel row's cut words
-  stand whole. So no fact is said to hover alone. A preview the user put away stays
-  away until they aim again, whatever the element declares meanwhile. A `title` is its
-  writer's: the browser's tooltip shows it to a pointer, and Leaf's preview to focus
-  and a finger, so two tooltips never stand together. Leaf's own controls declare
-  their words to the preview and write no title on Leaf.
+- **Every route that aims reads it.** A resting pointer reads it after a short dwell,
+  keyboard focus Tab or Shift+Tab moved at once, since Tab is the keyboard's pointing,
+  and a finger by a long press, the touch form of pointing, whose release presses
+  nothing and leaves the preview standing until the next press, while a tap still
+  presses (until 5 November 2026 the release pressed, so a finger couldn't read without
+  acting short of sliding off, which on touch often scrolls instead); where a surface
+  can't take a hold, it says the words at rest, as a panel row's cut words stand whole.
+  So no fact is said to hover alone. A command's landing reads nothing: a walk such as
+  `m`, an arrow key, a surface placing focus as it opens or handing it back as it
+  closes. What the user asked a command for is the place it lands on, already in front
+  of them, so a preview there would cover it and take their next Escape, and `K` reads
+  it there on demand, inside a modal dialog too, as an editor's hover key does; until 9
+  November 2026 a walk's landing previewed, and `m`'s covered the words beside the
+  margin entry it reached (check:
+  `test_a_walk_s_landing_previews_nothing_and_tab_reads_it`). A preview the user put
+  away stays away until they aim again, whatever the element declares meanwhile. A `title` is its writer's: the
+  browser's tooltip shows it to a pointer, and Leaf's preview to focus and a finger,
+  so two tooltips never stand together. Leaf's own controls declare their words to the
+  preview and write no title on Leaf.
+- **A preview says what its target doesn't.** It carries what the user can't read
+  where they aim: where a link or mark leads and what waits there, the fact behind a
+  compact face, as the clock time behind an age or the value under a chart's point, a
+  symbol's name, and the keys that press it. It never repeats what the target or what
+  stands beside it already shows whole, such as a control's label, a menu row's key
+  chip, a figure's caption or a row's heading, and a figure, chart or drawing previews no
+  name of its own, since its content is what the user is looking at. Words a box cuts
+  short, the target's or one around it, aren't shown, so their preview reads them whole.
+  What has nothing more to say previews nothing. The browser's tooltip answers to the same rule: a `title` or an SVG
+  `<title>` shows over everything inside it, so Leaf names a drawing for a reader who
+  can't see it with `aria-label`, as `lf-diagram` does with Mermaid's `accTitle` (until
+  9 November 2026 every diagram showed its name as a tooltip; check: the `lf-diagram`
+  case in `tests/smoke/test_plain_page.py`).
 - **One owner shows every preview.** An element adds to what pointing at it reads
   (`lfPreview`, `../skills/leaf/references/module-input.md`, "Previews"), a control's
   word and keys come from its name and the register, a link an author wrote into the
@@ -302,6 +321,14 @@ Motion helps the eye follow a change, and costs the user time whenever they wait
   is the sheen (`@keyframes lf-sheen` in `styles/components/surfaces.css`), which marks
   agent work in progress. It stops when the work ends and is static under reduced
   motion.
+- **The panel's leaf has a personality, and the user is still evolving it.** Leaf's
+  mark answers moments with a brief gesture (`runtime/floating-panel.js`, `MOTIONS`),
+  such as a nod at the user's own key or a twirl as On Me empties, and droops while the
+  agent is away. A change that adds a moment the user notices, such as a new kind of news,
+  asks whether the leaf should answer it (`runtime/notifications.js`, `gesture`). Each
+  gesture so far moves the whole mark; giving the mark parts that move on their own,
+  such as a blade that flexes on its stem, would give it more dexterity, and `MOTIONS`
+  says what that takes.
 
 ### A region that must scroll behaves like the document
 
@@ -350,7 +377,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Widget capture and lifecycle                                                                                | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js`                                           |
 | Vocabulary and public helpers                                                                               | `registry.js`, `widget-api.js`, `portable-api.js`, `widget-elements.js`, `widget-upgrade.js`                                                               |
 | External data                                                                                               | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                  |
-| Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`                                                      |
+| Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`, `change-provenance.js`                              |
 | Repaint and geometry                                                                                        | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `shown-box.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js`             |
 | Chrome and available space                                                                                  | `chrome.js`, `floating-panel.js`, `page-layout.js`, `root-headers.js`, `page-controls.js`, `preview.js`, `place-preview.js`                                |
 | Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                         |
@@ -630,6 +657,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Who says a word a seat shows about the work, and the face it says it in                               | `voice.js` `agentSays`, `leafSays`, `voiced`                                       |
 | Words as a label reads them, a count with its noun, and a label opening a sentence                    | `words.js` `labelWords`, `counted`, `capitalized`                                  |
 | Whether the page can copy here, with or without the Clipboard API                                     | `copy-control.js` `canCopy`                                                        |
+| What a version the comparison shows was saved after: the user's messages that waited                  | `change-provenance.js` `versionProvenance`                                         |
 | A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowWord`, `progressFace`, `todoWord`                    |
 | A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                             |
 | What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                    |

@@ -32,6 +32,18 @@ stages the revision's files, appends the event naming the staged bundle in
 `publication`, and writes the revision marker last. If that is interrupted, the next
 `PageTransaction` finishes it (`finish_publications`) before anyone else reads or
 writes the page.
+
+A revision a read activates has no reply or note to name it, so its activation
+appends an `activation` event naming the bundle, before the reanchors it causes,
+where the revision can be compared against an earlier one. The event gives the
+revision its place in the log, and a comparison reads only the places of the
+revisions after its base (`provenance.saved_after`), so a revision with none live
+before it appends nothing: a fresh page, a sample and a published page's first read
+write nothing to the log. An event naming the bundle is the first of its
+publication: the publication's prerequisite, which `finish_publications` completes,
+and its seq is the revision's place. A first revision has no prerequisite, so one
+interrupted before its marker stays absent until a read activates the source again.
+A refused reply or note appends nothing, its revision included.
 """
 
 from contextlib import nullcontext
@@ -141,7 +153,7 @@ def planned_activation(page_dir: Path, checked: SourceCheck) -> Activation:
     return Activation(checked.revision.candidate, None, not checked.revision.unchanged)
 
 
-def _append_reanchors(page, revision, moves, *, view=None, publication=None):
+def _append_reanchors(page, revision, moves, *, view=None):
     for thread, anchor in moves.items():
         append_admitted(
             page,
@@ -151,11 +163,9 @@ def _append_reanchors(page, revision, moves, *, view=None, publication=None):
                 "revision": revision,
                 "thread": thread,
                 "anchor": anchor,
-                **({"publication": publication} if publication else {}),
             },
             view=view,
         )
-        publication = None
 
 
 def finish_publications(page: PageTransaction, publications: list[dict]) -> None:
@@ -236,13 +246,18 @@ def _publish_checked_source(page, checked, event=None):
             predecessor,
             candidate_revision=revision,
         )
-    _append_reanchors(
-        page,
-        revision,
-        moves,
-        view=view,
-        publication=publication if event is None else None,
-    )
+    elif publication and checked.revision.active:
+        append_admitted(
+            page,
+            {
+                "kind": "activation",
+                "author": "page",
+                "revision": revision,
+                "publication": publication,
+            },
+            view=view,
+        )
+    _append_reanchors(page, revision, moves, view=view)
     if publication:
         publish_artifact(page.page_dir, publication, checked.reading)
     return activation, accepted

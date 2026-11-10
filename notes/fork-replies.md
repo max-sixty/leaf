@@ -46,9 +46,12 @@ pays that request's new part uncached each time. The main thread writes one-hour
 cache entries (`ephemeral_1h` in every run), so a session idle for longer than that,
 or just resumed, makes its first fork write the whole context, as the resumed copy's
 first fork did; the forks after it read that fork's entry. The fork keeps the main
-thread's model, system prompt, tools and effort, since any difference misses the
-cache: a `claude -p --resume --fork-session` fork at `--effort low` read none of it
-(2026-10-24).
+thread's model, system prompt and tools. Its effort can differ without missing the
+cache: since Claude Code 2.1.318 `$.model.fork` takes one, and a fork at low in a
+session at xhigh read the whole conversation from the cache (2026-11-04,
+`src/leaf/clerk.py`), though a `claude -p --resume --fork-session` fork at
+`--effort low` had read none of it (2026-10-24). Both forks now run at low, each
+module recording its own measurement (`src/leaf/clerk.py`, `src/leaf/forks.py`).
 
 `$.agent.spawn({ prompt, subagentType: "fork" })` starts a background subagent with
 the main thread's current transcript and all its tools. It started within 40 ms of the
@@ -77,10 +80,10 @@ reported the row and treated its question as answered.
 - A handed-over message reaches the main thread one fork decision later. An idle
   session wakes that much later; a busy one notices only if a tool boundary falls
   inside that wait.
-- The fork answers from the main thread's last request, with the same model and
-  effort, and has no tools. A forked subagent (`$.agent.spawn`) could also answer
-  questions that need a look at files, with its writes denied at `tool.call`, and
-  would keep a transcript the main thread could be pointed at.
+- The fork answers from the main thread's last request, with the same model, and
+  has no tools. A forked subagent (`$.agent.spawn`) could also answer questions
+  that need a look at files, with its writes denied at `tool.call`, and would keep
+  a transcript the main thread could be pointed at.
 - Claude Code only. The Leaf side is harness-neutral: Codex App Server has
   `thread/fork`, and Pi's extension could resend its session (`clerk.py`).
 - `$.model.fork` has nothing to fork until the main thread sends a request: in a new
@@ -159,6 +162,24 @@ summary (2), or a restart of Claude Code (1 shown by a version change, 1 presume
 fork after 5.9 idle hours with none of them succeeded. Each of those sessions was idle,
 so the hand-over's nudge woke it in about 2 s, and a failure cost only the answer a fork
 might have given.
+
+From 6 to 9 November, under the fork that only writes the line, 19 thread messages on
+5 pages: 9 got the line, the 7 of them `response-times` times a median 2.4 s after
+sending (1.9–5.3 s); 1 failed `nothing-to-fork`; 1 got an answer from a session still
+running the module it started with on 4 November; and 8, all on one session, got no
+line. That session's pages follower had run since 4 November from its worktree's
+checkout, which moved past two protocol bumps (41 to 42 on 5 November, 43 on 8
+November), while the session's hooks ran the checkout's newer Leaf, which reads the
+follower's lane lease, written at 41, as no one's (`leases.lease_speaks_here`; checked
+on 9 November). Twice the follower, still at 41, held a message and listed it, and the
+fork's step, under the newer Leaf, found it not held and asked no fork, so the hold ran
+out with no line ("no answer within 30 s"). One came while the session ran a 70 s
+foreground poll, and the user saw the agent's first words after 64 s. Nothing recorded
+why the other 6 had no fork. The follower now ends once the session's hooks would run
+another Leaf than its own, and the module starts it again (`hooks.cmd_pages`); the
+page now notes whether admission held each message and whether its lane was up
+(`fork_hold`), and each fork Leaf asks for (`fork_asked`), which `leaf-dev timeline`
+reads.
 
 A message no fork answered reads Delivered until the session's first model call ends, a
 median 14 s and 41 s at p90. In 12 of 14 idle sessions that call posted the one-line

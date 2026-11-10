@@ -213,6 +213,10 @@ ANSWER = {
 
 # How hard the fork thinks, whatever the session's effort (the header says why).
 EFFORT = "low"
+# How many of the threads the session wrote in, and of the to-dos it opened or
+# ended, Leaf names to a fork it resumes before counting the rest (`_since`), since
+# the fork reads the list on every resume.
+SINCE_NAMED = 5
 
 
 class Held(NamedTuple):
@@ -971,8 +975,10 @@ def _resumable(
     main thread wrote in the thread unasked, such as a correction of the fork's
     answer, answers nothing, so the thread stays the fork's. None where the main
     thread answered last, or the fork's turn still runs or was opened in an earlier
-    generation of the session, whose agents ended with it."""
-    from .state import agent_turns
+    generation of the session, whose agents ended with it, or the fork runs another
+    turn, as one resumed for a message the user then took back does, since an agent
+    runs one turn at a time (`state.agent_turn_of`)."""
+    from .state import agent_turn_of, agent_turns
 
     claim = page.active_claim
     answer = _threads(page.events).answers.get(thread)
@@ -990,6 +996,7 @@ def _resumable(
         or entry["generation"] != claim["generation"]
         or datetime.fromisoformat(answer["ts"])
         > datetime.fromisoformat(entry["closed"])
+        or agent_turn_of(session_id, entry["agent"]) is not None
     ):
         return None
     return turn, entry
@@ -1007,7 +1014,8 @@ def _since(
     did while the fork ran. The fork's own answers from that turn are left out, each
     a reply to a message the turn picked up, posted before it closed, with the
     to-dos they opened. The delivery carries the thread's own messages, so this
-    names only where the session wrote."""
+    names only where the session wrote, and it names at most `SINCE_NAMED` other
+    threads and to-dos, counting the rest."""
     from .events import taken_back
     from .thread_context import thread_names
     from .todos import TodoReading
@@ -1031,9 +1039,7 @@ def _since(
     names = thread_names(events)
     withdrawn = taken_back(events)
     wrote = dict.fromkeys(
-        "this thread"
-        if names[event["id"]] == thread
-        else f"thread {names[event['id']]}"
+        names[event["id"]]
         for event in events
         if event["kind"] in messages
         and event["author"] == "agent"
@@ -1042,31 +1048,55 @@ def _since(
         and event["id"] in names
         and theirs(event)
     )
+    others = [written for written in wrote if written != thread]
+    places = (["this thread"] if thread in wrote else []) + [
+        f"thread {written}" for written in others[:SINCE_NAMED]
+    ]
     revisions = [
         event["revision"]
         for event in events
         if "publication" in event and theirs(event)
     ]
+    changes = []
+    for todo in TodoReading(events).todos:
+        began = theirs(todo)
+        ended = todo["outcome"] is not None and theirs(todo["outcome"])
+        verb = "opened and ended" if began and ended else "opened" if began else "ended"
+        if began or ended:
+            changes.append(
+                f"{verb} the to-do “{todo['title']}” ({todo['id']})"
+                + (f" as {todo['state']}" if ended else "")
+            )
     done = []
-    if wrote:
-        done.append(f"wrote in {', '.join(wrote)}")
+    if places:
+        done.append(
+            f"wrote in {', '.join(places)}"
+            + (
+                f" and {_counted(len(others) - SINCE_NAMED, 'other thread')}"
+                if len(others) > SINCE_NAMED
+                else ""
+            )
+        )
     if revisions:
         done.append(
             f"published revision {revisions[0]}"
             if len(revisions) == 1
             else f"published revisions {revisions[0]} to {revisions[-1]}"
         )
-    for todo in TodoReading(events).todos:
-        if theirs(todo):
-            done.append(f"opened the to-do “{todo['title']}” ({todo['id']})")
-        if todo["outcome"] is not None and theirs(todo["outcome"]):
-            done.append(
-                f"ended the to-do “{todo['title']}” ({todo['id']}) as {todo['state']}"
-            )
-    began = "Since your last turn began, the rest of the session"
+    done.extend(changes[:SINCE_NAMED])
+    if len(changes) > SINCE_NAMED:
+        done.append(f"changed {_counted(len(changes) - SINCE_NAMED, 'other to-do')}")
+    opening = "Since your last turn began, the rest of the session"
     if not done:
-        return f"{began} has done nothing on the page."
-    return f"{began} {'; '.join(done)}."
+        return f"{opening} has done nothing on the page."
+    cut = len(others) > SINCE_NAMED or len(changes) > SINCE_NAMED
+    return f"{opening} {'; '.join(done)}." + (
+        " `leaf page state` lists the rest." if cut else ""
+    )
+
+
+def _counted(count: int, noun: str) -> str:
+    return f"{count} {noun}{'' if count == 1 else 's'}"
 
 
 def _give(session_id: str, basis: dict, line: str) -> dict:

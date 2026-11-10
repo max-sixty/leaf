@@ -535,7 +535,14 @@ export function createFloatingPanel({
   // a press shows it landed although the field's words, quiet and already standing on a
   // repeat, may not; the user picked it on 9 November 2026 over the words brightening
   // and the panel tinting, and then each other moment's motion from a playground of
-  // them, leaving the leaf still while the agent works.
+  // them, leaving the leaf still while the agent works. The leaf's personality is still
+  // evolving (browser/AGENTS.md, "Motion is brief and keeps the user oriented"). Each
+  // motion moves the whole mark, since the panel draws it as the layer's icon.svg
+  // masking a filled square (chrome.css), which leaves it no parts to move. Parts, such
+  // as a blade flexing on its stem, need icon.svg drawn as named shapes, where today it
+  // is one path, and the panel drawing the mark from them, as the tab already reads
+  // icon.svg's `lf-tone` element (page-status.js). A package's replacement mark without
+  // those shapes would move whole.
   const MOTIONS = {
     nod: [
       { transform: "none", easing: "ease-out" },

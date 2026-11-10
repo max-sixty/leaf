@@ -971,12 +971,12 @@ Firefox gap. The CSS working group renamed `position-visibility: anchors-visible
 remove the plural later). On 2026-11-10, `CSS.supports("position-visibility", …)`
 and the computed value read:
 
-| Engine                                                     | `anchors-visible`              | `anchor-visible` |
-| ---------------------------------------------------------- | ------------------------------ | ---------------- |
-| Chromium headless shell 158.0.8127.18 (Playwright 1.65.0)  | read, with a console warning   | read             |
-| Google Chrome 157.0.8103.50, installed                     | read                           | read             |
-| WebKit 27.2 (Playwright build 2388)                        | read                           | read             |
-| Firefox 159.0 (Playwright 1.65.0)                          | read                           | refused          |
+| Engine                                                    | `anchors-visible`            | `anchor-visible` |
+| --------------------------------------------------------- | ---------------------------- | ---------------- |
+| Chromium headless shell 158.0.8127.18 (Playwright 1.65.0) | read, with a console warning | read             |
+| Google Chrome 157.0.8103.50, installed                    | read                         | read             |
+| WebKit 27.2 (Playwright build 2388)                       | read                         | read             |
+| Firefox 159.0 (Playwright 1.65.0)                         | read                         | refused          |
 
 Chromium 158 warns on the plural wherever it parses it, a second declaration after it
 or a false `@supports` block included, and `page check --render` reports that warning

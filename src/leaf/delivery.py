@@ -1050,6 +1050,11 @@ def record_pickup(
     owed input's ref to the owner who can use it (`activity._receipt_bindings`). A
     transition that carries no envelope, such as the prompt re-presenting debt an
     earlier receipt recorded, passes none.
+
+    An opened pickup says which turn holds a thread (`forks.holding_turns`), so this
+    records one only where that turn may take the message (`forks.pickable`): an
+    agent's turn, only what it holds or nobody does, refusing the rest; another
+    turn, nothing an agent's running turn holds.
     """
     claim = page.claim
     if session is None and claim:
@@ -1088,6 +1093,10 @@ def record_pickup(
             or (event_id in refs and not usable(event_id))
         )
     )
+    if phase == "opened" and session is not None:
+        from .forks import pickable
+
+        fresh = pickable(page, fresh, session, turn)
     if not fresh:
         return None
     carried = {event_id: refs[event_id] for event_id in fresh if event_id in refs}

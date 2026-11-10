@@ -554,7 +554,7 @@ def _refuse_taken_over(
     thread took a thread over from a fork whose turn lapsed. A takeover revokes the
     old turn's answer, as a claim another session took revokes its references. The
     main thread answers whatever its session owes."""
-    from .forks import holding_turns
+    from .forks import holding_turns, taken_over
     from .state import acting_agent_turn
 
     responds = address.get("responds")
@@ -563,13 +563,8 @@ def _refuse_taken_over(
     turn = acting_agent_turn(session)
     if turn is None:
         return
-    holder = holding_turns(page.events, session).get(responds)
-    if holder != turn:
-        raise ReceiptRefused(
-            f"this agent's turn no longer holds {responds}: the session's main "
-            "thread took its thread over and answers it, so leave it and end your "
-            "turn"
-        )
+    if holding_turns(page.events, session).get(responds) != turn:
+        raise ReceiptRefused(taken_over([responds]))
 
 
 class _Published(NamedTuple):

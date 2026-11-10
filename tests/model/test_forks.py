@@ -574,6 +574,55 @@ def test_a_follow_up_too_large_for_the_hook_reaches_the_fork_by_pointer(
     assert agent_context(capsys, "agent-1") == ""
 
 
+def lapse(turn: str) -> None:
+    """Leave the agent turn `turn` unrenewed for the working grace."""
+    turns = state_model.agent_turns("s1")
+    long_ago = datetime.now().astimezone() - activity_model.WORKING_GRACE
+    turns[turn]["renewed"] = long_ago.isoformat()
+    state_model.AGENT_TURNS.write(
+        session_file("s1", state_model.AGENT_TURNS.kind), {"turns": turns}
+    )
+
+
+def pointer_in(text: str) -> str | None:
+    """The delivery a hook's context points at, if it points at one."""
+    return next(iter(re.findall(r'<leaf-delivery id="([0-9a-f]+)"', text)), None)
+
+
+def test_a_late_acknowledgement_does_not_take_a_thread_back(claimed, lane, capsys):
+    """Where a pickup is recorded, an agent's turn may take only messages it holds or
+    nobody does. A fork handed a follow-up by pointer whose turn lapses before it
+    acknowledges it loses the thread to the main thread's pickup, and its late
+    acknowledgement is refused, records nothing, and leaves the thread the main
+    thread's."""
+    asked, taken = taken_by_a_fork(claimed, "Does the autocomplete service cache?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    clerk_model.heard("s1", clerk_model.queued("s1"))
+    more = said(claimed, "Here is its config:\n" + "cache: warm\n" * 1200, asked["id"])
+    stale = pointer_in(agent_context(capsys, "agent-1"))
+    assert stale is not None
+    lapse(taken["turn"])
+    handed = context(capsys, "UserPromptSubmit")
+    if main_pointer := pointer_in(handed):
+        acked = CliRunner().invoke(cli_model.cli, ["delivery", "ack", main_pointer])
+        assert acked.exit_code == 0, acked.output
+    claim = service_model.page_claim(claimed)
+    assert claim is not None
+    with PageTransaction(claimed) as page:
+        held = forks_model.holding_turns(page.events, "s1")
+    assert held[more["id"]] == claim["turn"]
+
+    late = CliRunner().invoke(
+        cli_model.cli, ["--agent-id", "agent-1", "delivery", "ack", stale]
+    )
+    assert late.exit_code != 0
+    assert "no longer holds" in late.output
+    with PageTransaction(claimed) as page:
+        assert forks_model.holding_turns(page.events, "s1") == held
+
+
 def test_a_fork_turn_that_ends_unanswered_gives_its_thread_to_the_main_thread(
     claimed, lane
 ):

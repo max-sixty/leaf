@@ -425,6 +425,45 @@ def holding_turns(events: list[dict], session: str) -> dict[str, str]:
     return holders
 
 
+def taken_over(input_ids) -> str:
+    """What an agent's turn is told as it acts on messages another turn of its
+    session now holds (`holding_turns`)."""
+    return (
+        f"this agent's turn no longer holds {', '.join(input_ids)}: another turn of "
+        "the session took its thread over and answers it, so leave it and end your "
+        "turn"
+    )
+
+
+def pickable(
+    page: PageTransaction, input_ids: list[str], session: str, turn: str | None
+) -> list[str]:
+    """Which of `input_ids` the turn `turn` of `session` may record an opened pickup
+    of, under the page's transaction (`delivery.record_pickup`, which every pickup
+    goes through), so no pickup moves a thread against this rule. An agent's turn
+    picks up only messages it holds or no turn holds (`holding_turns`): its take, its
+    tool boundary and its acknowledgement of a pointer; a late acknowledgement of a
+    thread another turn has since taken over is refused (`taken_over`), and records
+    nothing. Any other turn's pickup of a message an agent's running turn holds would
+    take the thread over, which waits until that turn closes or lapses, so it leaves
+    those messages out."""
+    from .delivery import ReceiptRefused
+
+    claim = page.active_claim
+    if claim is None or claim["id"] != session:
+        return input_ids
+    stamps = agent_turn_stamps(claim)
+    if not stamps:
+        return input_ids
+    holders = holding_turns(page.events, session)
+    if turn in stamps:
+        if taken := [i for i in input_ids if holders.get(i) not in (None, turn)]:
+            raise ReceiptRefused(taken_over(taken))
+        return input_ids
+    running = running_turns(claim)
+    return [i for i in input_ids if holders.get(i) not in running]
+
+
 def agent_held(page: PageTransaction) -> set[str]:
     """The waiting messages an agent's running turn holds (`holding_turns`), which
     go to that agent at its tool boundary rather than to the main thread. With no

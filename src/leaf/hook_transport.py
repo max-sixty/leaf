@@ -277,7 +277,7 @@ def new_input(session_id: str) -> bool:
 
 
 def read_plans(session_id: str) -> list[PagePlan]:
-    from .activity import acknowledged_obligations, agent_holds, turn_obligations
+    from .activity import acknowledged_obligations, turn_obligations
     from .event_contracts import write_refusal
     from .served_state.context import read_page
     from .vendoring import renew_layer
@@ -348,11 +348,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         if pending
                         else None,
                         owed,
-                        [
-                            item
-                            for item in acknowledged_obligations(state)
-                            if not agent_holds(item, state)
-                        ],
+                        acknowledged_obligations(state),
                         watched,
                         (page_dir / PREVIEW_FILE).exists(),
                         write_refusal(page_dir),
@@ -451,10 +447,10 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
     A later receipt revalidates captured identities independently. This pickup
     likewise checks generation and turn after reacquiring the page transaction.
     A page this Leaf may not write records none; `remedies` tells the turn why.
-    Debt an agent's running turn holds is that turn's (`activity.agent_holds`), so
-    the prompt takes none of it.
+    Debt an agent's running turn holds is that turn's, so the pickup leaves it out
+    (`forks.pickable`).
     """
-    from .activity import acknowledged_obligations, agent_holds
+    from .activity import acknowledged_obligations
     from .served_state.context import read_page
 
     for plan in plans:
@@ -477,9 +473,7 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
                 work = read_page(plan.page, page.events).work
                 current = {**work.presence, "activity": work.activity}
                 still_owed = {
-                    item["input"]
-                    for item in acknowledged_obligations(current)
-                    if not agent_holds(item, current)
+                    item["input"] for item in acknowledged_obligations(current)
                 }
                 by_id = {event["id"]: event for event in page.events}
                 record_pickup(

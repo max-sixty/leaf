@@ -395,10 +395,10 @@ sequenceDiagram
             </li>
             <li id="holding-unpicked">
               A message no turn has picked up yet is held by the turn that last took its
-              thread, by a pickup or an answer, while that turn is a fork's still
-              running. So a running fork keeps its thread's further messages even after
-              it has answered, and the main thread gets them once its own answer took
-              the thread over.
+              thread, by a pickup or an answer, if that turn is a running fork's. So a
+              running fork keeps its thread's further messages even after it has
+              answered, and the main thread gets them once its own answer took the
+              thread over.
             </li>
             <li id="holding-answered">
               An answered message is held by the turn that answered it, which the reply

@@ -722,7 +722,14 @@
    * track holding anything else, an aside after the body, every track under touch,
    * where nothing reaches in by pointing, and paper, where nothing reaches in at all.
    * Rejected (9 November 2026): narrowing every document sidebar. It broke a
-   * paragraph in one into a few letters a line, and the render check passed it. */
+   * paragraph in one into a few letters a line, and the render check passed it.
+   * TODO: `x-spine` and the names it brings (`data-lf-spine`, `--sidebar-spine`,
+   * `--lf-track-spine`) widen the public interface for one widget's look. Narrowing
+   * automatically needs some declaration, since the aside is a size container and takes
+   * no width from its content. Without one, the page would narrow its sidebar with
+   * `--aside`, this rule would let any track narrower than words lay its overflow over
+   * the body, and the map would take its spine form from its own width, so the spine
+   * would be a look each page opts into. */
   @media screen and (hover: hover) and (pointer: fine) {
     .layout-sidebar:has(> aside:only-of-type ~ .layout-column):has(
         > aside > .layout-track:only-child > [data-lf-spine]:only-child

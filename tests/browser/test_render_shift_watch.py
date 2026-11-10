@@ -3209,6 +3209,44 @@ def test_a_press_may_bring_its_control_whole_into_its_scroller(browser, by, foun
         )
 
 
+# The strip's first tab, scrolled 14px under the strip's 30px start padding, as a strip
+# stands just short of its start with its edge press over the tab: its press scrolls
+# the strip by what `data-by` says, back to the start where the padding can't be
+# cleared.
+CLAMPED = """<!doctype html><body style="margin:0">
+<div id="strip" style="width:200px;overflow-x:auto;white-space:nowrap;
+  scroll-padding:0 30px;margin:20px"><button id="tab"
+  style="width:60px;box-sizing:border-box">Tab</button><span
+  style="display:inline-block;width:400px"></span></div>
+<script>
+  strip.scrollLeft = 14;
+  tab.addEventListener("click", () => strip.scrollBy(+document.body.dataset.by, 0));
+</script>"""
+
+
+@pytest.mark.parametrize(("by", "found"), [(-14, False), (20, True)])
+def test_a_press_may_bring_its_control_to_its_scrollers_start(browser, by, found):
+    """A scroller's padding bounds no reveal on a side it has reached the end of: a
+    press bringing a tab back to the strip's start shows it as far as any scroll can,
+    though the start padding still covers it, while a scroll carrying it further under
+    the padding is still the gesture's (`shift_watch.js`, "Scrolls a gesture makes")."""
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(CLAMPED))
+    paint(page)
+    page.evaluate("by => { document.body.dataset.by = by; }", str(by))
+    # Press the part the strip shows; a locator's click would scroll the tab in first.
+    strip = page.locator("#strip").bounding_box()
+    page.mouse.click(strip["x"] + 40, strip["y"] + strip["height"] / 2)
+    page.wait_for_function(f"strip.scrollLeft === {14 + by}")
+    paint(page)
+    judge_watches()
+    if found:
+        consume_browser_errors(
+            page,
+            {"code": "gesture-scrolled", "node": ["button#tab"], "by": [-by, 0]},
+        )
+
+
 def test_editor_caret_navigation_may_scroll_but_an_edit_may_not(browser, serve):
     """Editors implement the platform's caret keys themselves, preventing their
     defaults. Their navigation may scroll, while an ordinary edit still holds aim."""

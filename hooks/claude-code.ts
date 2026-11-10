@@ -355,7 +355,8 @@ async function clerk($: EngineInterface, session: string) {
 // fork names: the model and effort the main thread named, how many messages it
 // carried and the newest row stored as it went out
 // (`turn.step`, `sent`), with the newest row stored by the time of the fork (`row`),
-// each the transcript's id from `session.append`. The fork reads the conversation as
+// each the transcript's id from `session.append`, which skips attachments, hook
+// context and compaction summaries. The fork reads the conversation as
 // it would next go out: with a tool call running, to `sent`, since the call's
 // tool_use can't go out before its result; otherwise to `row`, a turn's final reply
 // included (`notes/fork-replies.md`, under the fork probes, and a turn-end ask in the
@@ -494,11 +495,16 @@ export const register: Register = (on) => {
     return yield* next(e);
   });
 
-  on("session.append", async ($, e, next) => {
-    const stored = await next(e);
-    if (e.agentId === undefined && stored.deny === undefined) lastRow = stored.uuid;
-    return stored;
-  });
+  // Only the doors of the conversation's own rows: attachments, hook context and
+  // compaction summaries are left to the plugins that rewrite them, and Claude Code
+  // tells the user when one of those sends a row past a handler beneath it (read
+  // at 2.1.321).
+  for (const door of ["model", "prompt", "tool-message", "queue", "note"] as const)
+    on("session.append", { door }, async ($, e, next) => {
+      const stored = await next(e);
+      if (e.agentId === undefined && stored.deny === undefined) lastRow = stored.uuid;
+      return stored;
+    });
 
   // A resumed or cleared session raises no session.start, so its first turn follows.
   on("turn.start", ($, e, next) => {

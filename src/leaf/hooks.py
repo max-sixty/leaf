@@ -68,6 +68,7 @@ developer-selected session runtime (`session_runtime`) owns the entire hook;
 
 import json
 import os
+import re
 import shlex
 import time
 
@@ -75,7 +76,6 @@ from .leases import first_hook_for_tool, mark_hooks
 from .refusals import Refused
 from .service import owned_pages
 from .state import (
-    AGENT_VARIABLE,
     advance_turn,
     agent_turn_of,
     close_session_turn,
@@ -205,23 +205,37 @@ def cmd_hook(harness: str, payload: dict) -> None:
         close_session_turn(sid, turn_id, expected=expected)
 
 
+# A command that begins with `leaf`, by name or by a path to the launcher.
+LEADING_LEAF = re.compile(r"\s*(?:\S*/)?leaf(?=\s|$)")
+
+
 def agent_command(sid: str, payload: dict) -> dict | None:
-    """What Claude Code's PreToolUse hook answers for a `leaf` command of an agent
-    running a turn of the session's own, such as a fork that took a thread's work
-    (`state.AGENT_TURNS`): the command, marked with the agent's id
-    (`state.AGENT_VARIABLE`), so it acts in that turn (`state.acting_turn`); None
-    for any other command. A subagent's command runs in the session's environment
-    with nothing naming the agent, and only the hook's payload names it
-    (`agent_id`). The answer names no decision, so the call goes on through the
-    permission flow, which reads the marked command. Leaf's hooks module can't mark
-    it: Claude Code runs none of a plugin's hooks for the calls of an agent that
-    plugin spawned (measured at 2.1.322), while `hooks.json`'s run for every agent."""
+    """What Claude Code's PreToolUse hook answers for a command that begins with
+    `leaf` from an agent running a turn of the session's own, such as a fork that
+    took a thread's work (`state.AGENT_TURNS`): the command with `--agent-id` and
+    the agent's id after its leading `leaf`, so it acts in that turn
+    (`state.acting_turn`); None for any other command, which runs as it came. A
+    subagent's command runs in the session's environment with nothing naming the
+    agent, and only the hook's payload names it (`agent_id`).
+
+    The command still begins with `leaf`, so a permission rule allowing `leaf`
+    commands still matches it; a marker of any other form, such as an `export`
+    before it, is a command of its own that Claude Code asks about (measured at
+    2.1.322). The answer names no decision, so the call goes on through the
+    permission flow. Leaf's hooks module can't mark the command: Claude Code runs
+    none of a plugin's hooks for the calls of an agent that plugin spawned
+    (measured at 2.1.322), while `hooks.json`'s run for every agent."""
     agent, given = payload.get("agent_id"), payload.get("tool_input")
     if not agent or not isinstance(given, dict) or "command" not in given:
         return None
-    if agent_turn_of(sid, agent) is None:
+    leading = LEADING_LEAF.match(given["command"])
+    if leading is None or agent_turn_of(sid, agent) is None:
         return None
-    command = f"export {AGENT_VARIABLE}={shlex.quote(agent)}; {given['command']}"
+    command = (
+        given["command"][: leading.end()]
+        + f" --agent-id {shlex.quote(agent)}"
+        + given["command"][leading.end() :]
+    )
     return {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",

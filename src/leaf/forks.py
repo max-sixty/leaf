@@ -702,7 +702,7 @@ This message comes from Leaf, not the user. The user just wrote in a thread on a
 Leaf's delivery of the thread to you; "events" are the user's messages, oldest first, and the one that owes the thread's answer carries its `answer`:
 {json.dumps(delivery, ensure_ascii=False)}
 
-Do the work, then answer the user in the thread yourself, as the session would, with the `leaf thread reply` the delivery's `answer` names. Leaf hands you anything else the user writes in the thread at your next tool call, and your answer then goes to their newest message. If the work turns out to belong with the main session, because it would change what the session is changing or settle a question it is weighing, don't answer: end your turn with "{HAND_BACK}" and one line saying why, and Leaf gives the thread to the main session. Leaf tells the main session what you did either way.
+Do the work, then answer the user in the thread yourself, as the session would, with the `leaf thread reply` the delivery's `answer` names. Run each `leaf` command as a command of its own that begins with `leaf`, which is how Leaf knows it is yours; give a reply's text with `--text`, or with `--file` naming a file an earlier command wrote. Leaf hands you anything else the user writes in the thread at your next tool call, and your answer then goes to their newest message. If the work turns out to belong with the main session, because it would change what the session is changing or settle a question it is weighing, don't answer: end your turn with "{HAND_BACK}" and one line saying why, and Leaf gives the thread to the main session. Leaf tells the main session what you did either way.
 </leaf-fork-work>"""
 
 

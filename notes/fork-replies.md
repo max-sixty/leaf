@@ -268,7 +268,7 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
   a turn, and lapses when that turn ends. A fork runs in the session's environment,
   so Leaf keeps a turn per agent of the session (`state.AGENT_TURNS`) rather than one
   per session: Leaf's PreToolUse hook marks the fork's `leaf` commands with its
-  agent id (`LEAF_AGENT_ID`), so its starts and answer name its turn, and its tool
+  agent id (`leaf --agent-id`), so its starts and answer name its turn, and its tool
   boundaries (its PostToolBatch, which names it) carry the thread's further
   messages, as the main thread's do.
 - **Joining.** As the fork's turn completes, the module tells Leaf. A thread the fork
@@ -322,9 +322,11 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
    message, remind it nor take it in again (`activity.agent_holds`); and its
    deliveries leave out what the fork took or holds (`forks.agent_inputs`). The turn
    is believed only while renewed within the working grace, as a main turn's stamp
-   is. Leaf's own PreToolUse hook marks the fork's `leaf` commands with its agent id
-   (`hooks.agent_command`), so its `leaf thread reply` posts as the agent's from its
-   turn, and its PostToolBatch, which every other subagent's still skips, renews the
+   is. Leaf's own PreToolUse hook puts the fork's agent id after the leading `leaf`
+   of each command that begins with it (`hooks.agent_command`, `leaf --agent-id`),
+   so a permission rule allowing `leaf` commands still matches, and its
+   `leaf thread reply` posts as the agent's from its turn, and its PostToolBatch,
+   which every other subagent's still skips, renews the
    turn and hands it the thread's further messages
    (`hook_transport.carry_agent_turn`). As any agent's run ends the module tells Leaf
    (`forks.ended`), which closes a fork's turn: an answered thread is done, and one

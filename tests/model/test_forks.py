@@ -14,6 +14,7 @@ from threading import Event, Thread
 from types import SimpleNamespace
 
 import pytest
+from click.testing import CliRunner
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
@@ -25,6 +26,7 @@ from interact_support import (
 
 from leaf import activity as activity_model
 from leaf import clerk as clerk_model
+from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
@@ -285,7 +287,7 @@ def test_the_fork_answers_with_its_own_reply_in_its_own_turn(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
     )
     assert started["outcome"] == "start"
-    monkeypatch.setenv(state_model.AGENT_VARIABLE, "agent-1")
+    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-1")
     ref = answer_ref(claimed, asked["id"])
 
     progress = thread_model.post_response(ref, "reading pyproject.toml", ephemeral=True)
@@ -330,7 +332,7 @@ def test_a_to_do_the_fork_opens_stays_the_sessions_after_its_turn_ends(
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
     )
-    monkeypatch.setenv(state_model.AGENT_VARIABLE, "agent-1")
+    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-1")
     reply = thread_model.post_response(
         answer_ref(claimed, asked["id"]),
         "That needs a profile of the start; I've put it on the list.",
@@ -361,17 +363,18 @@ def test_a_to_do_the_fork_opens_stays_the_sessions_after_its_turn_ends(
 
 def test_the_forks_leaf_commands_are_marked_to_act_in_its_turn(claimed, lane, capsys):
     """Claude Code's PreToolUse hook names the agent whose command is about to run,
-    so before a `leaf` command of an agent running a turn of the session's own, the
-    hook hands back the command marked with the agent's id, which is what makes it
-    act in that turn; any other agent's command, and the main thread's, run as they
-    came."""
+    so before a command that begins with `leaf` from an agent running a turn of the
+    session's own, the hook hands back the command with the agent's id after its
+    leading `leaf`, which still begins with `leaf`, so a permission rule allowing
+    `leaf` commands still matches it, and the command then acts in the agent's turn.
+    Any other command, another agent's, and the main thread's run as they came."""
     asked, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
     )
-    command = "cd /tmp && leaf thread reply abc:0:e1 --done --text 'Python 3.12'"
+    uses = iter(range(100))
 
-    def before(agent: str | None, tool_use: str) -> str:
+    def before(command: str, agent: str | None = "agent-1") -> str | None:
         hooks_model.cmd_hook(
             "claude-code",
             {
@@ -379,23 +382,45 @@ def test_the_forks_leaf_commands_are_marked_to_act_in_its_turn(claimed, lane, ca
                 "session_id": "s1",
                 "prompt_id": "p1",
                 "tool_name": "Bash",
-                "tool_use_id": tool_use,
+                "tool_use_id": f"u{next(uses)}",
                 "tool_input": {"command": command, "description": "Answer"},
                 **({"agent_id": agent} if agent else {}),
             },
         )
-        return capsys.readouterr().out
+        out = capsys.readouterr().out
+        if not out:
+            return None
+        output = json.loads(out)["hookSpecificOutput"]
+        assert output["updatedInput"]["description"] == "Answer"
+        return output["updatedInput"]["command"]
 
-    output = json.loads(before("agent-1", "u1"))["hookSpecificOutput"]
-    assert output == {
-        "hookEventName": "PreToolUse",
-        "updatedInput": {
-            "command": f"export {state_model.AGENT_VARIABLE}=agent-1; {command}",
-            "description": "Answer",
-        },
-    }
-    assert before("agent-2", "u2") == ""
-    assert before(None, "u3") == ""
+    reply = "thread reply abc:0:e1 --done --text 'Python 3.12'"
+    assert before(f"leaf {reply}") == f"leaf --agent-id agent-1 {reply}"
+    assert (
+        before(f"/plugin/bin/leaf {reply}")
+        == f"/plugin/bin/leaf --agent-id agent-1 {reply}"
+    )
+    assert before(f"cd /tmp && leaf {reply}") is None
+    assert before("ls leaf") is None
+    assert before(f"leaf {reply}", "agent-2") is None
+    assert before(f"leaf {reply}", None) is None
+
+    started = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "--agent-id",
+            "agent-1",
+            "task",
+            "start",
+            str(claimed),
+            asked["id"],
+            "--text",
+            "reading pyproject.toml",
+        ],
+    )
+    assert started.exit_code == 0, started.output
+    [start] = [e for e in events_model.read_events(claimed) if e["kind"] == "start"]
+    assert start["turn"] == taken["turn"]
 
 
 def taken_over(claimed, capsys) -> tuple[dict, dict]:
@@ -441,7 +466,7 @@ def test_a_fork_whose_thread_was_taken_over_can_not_answer_it(
     delivery gave it is refused once the main thread holds the message, as a
     reference stops working once another session claims the page."""
     asked, _taken = taken_over(claimed, capsys)
-    monkeypatch.setenv(state_model.AGENT_VARIABLE, "agent-1")
+    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-1")
     with pytest.raises(delivery_model.ReceiptRefused, match="no longer holds"):
         thread_model.post_response(
             answer_ref(claimed, asked["id"]), "Yes.", asks_back=False

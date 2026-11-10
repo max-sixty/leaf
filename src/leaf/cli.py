@@ -17,6 +17,7 @@ its watch.
 """
 
 import json
+import os
 import shlex
 import sys
 from pathlib import Path
@@ -258,7 +259,25 @@ class LeafGroup(click.Group):
         sys.exit(status)
 
 
+def _acting_agent(_ctx: click.Context, _param: click.Parameter, value) -> None:
+    """Run the command as the agent of the session its harness names `value`
+    (`state.AGENT_ID_VARIABLE`)."""
+    if value:
+        from leaf.state import AGENT_ID_VARIABLE
+
+        os.environ[AGENT_ID_VARIABLE] = value
+
+
 @click.group(cls=LeafGroup)
+@click.option(
+    "--agent-id",
+    metavar="ID",
+    expose_value=False,
+    is_eager=True,
+    hidden=True,
+    callback=_acting_agent,
+    help="Run as the session's agent with this harness id; Leaf's hook adds it.",
+)
 @click.option(
     "--version",
     is_flag=True,

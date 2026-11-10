@@ -788,12 +788,13 @@ AGENT_TURNS = Record(
     ),
     since=43,
 )
-# The variable Leaf's PreToolUse hook sets on the `leaf` commands of an agent running a
-# turn of the session's own, naming it by its harness's agent id, so the command acts in
-# that turn (`acting_turn`, `hooks.agent_command`): a subagent's commands otherwise run
-# in the session's own environment, with nothing that names it
-# (`harness.ClaudeCodeHarness`).
-AGENT_VARIABLE = "LEAF_AGENT_ID"
+# Where a `leaf` command names the agent of the session that runs it, by its harness's
+# agent id: `leaf --agent-id ID`, which Leaf's PreToolUse hook adds to the `leaf`
+# commands of an agent running a turn of the session's own (`hooks.agent_command`),
+# sets it in the command's process (`cli`), so the command acts in that turn
+# (`acting_turn`). A subagent's commands otherwise run in the session's own
+# environment, with nothing that names it (`harness.ClaudeCodeHarness`).
+AGENT_ID_VARIABLE = "LEAF_AGENT_ID"
 # How often at most an agent's tool boundary renews its turn (`renew_agent_turn`), well
 # inside the working grace a reader believes an unrenewed turn for
 # (`activity.running_agent_turns`).
@@ -944,10 +945,10 @@ def _update_agent_turns(session_id: str, matches, **fields) -> bool:
 
 
 def acting_agent_turn(session: str) -> str | None:
-    """The open turn of the agent of `session` the environment names
-    (`AGENT_VARIABLE`), which a command it runs acts in; None for a command of the
+    """The open turn of the agent of `session` the command names
+    (`AGENT_ID_VARIABLE`), which a command it runs acts in; None for a command of the
     main thread, or of an agent running no turn of the session's."""
-    agent = os.environ.get(AGENT_VARIABLE)
+    agent = os.environ.get(AGENT_ID_VARIABLE)
     return agent_turn_of(session, agent) if agent else None
 
 

@@ -6,7 +6,8 @@
 // plugin's directory in place of this tree; `throwSpawn`, which makes every
 // `$.process.spawn` throw; `forkReply`, the text `$.model.fork` answers with;
 // `forkRejects`, which makes every fork reject; `agentId`, the id each
-// `$.agent.spawn` answers with, printing what it was asked as `{"spawned"}`;
+// `$.agent.spawn` answers with, or a list of them answered in turn, the last for
+// every spawn after, each printing what it was asked as `{"spawned"}`;
 // `sendRefuses`, the reason every `$.session.send` gives for delivering nothing,
 // which otherwise delivers, each send printing what it was asked as `{"sent"}`;
 // `state`, the values `$.state` holds as the module loads, by key, as a reload
@@ -34,6 +35,8 @@ const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const [session, options] = [process.argv[2], JSON.parse(process.argv[3])];
 const print = (line) => process.stdout.write(`${JSON.stringify(line)}\n`);
 // `$.state`'s values by key, each with its version.
+// How many forks `$.agent.spawn` has started.
+let spawns = 0;
 const held = new Map(
   Object.entries(options.state ?? {}).map(([key, value]) => [
     key,
@@ -145,7 +148,8 @@ const $ = {
   agent: {
     spawn: async (args) => {
       print({ spawned: args });
-      return { agentId: options.agentId ?? "agent-1" };
+      const ids = [options.agentId ?? "agent-1"].flat();
+      return { agentId: ids[Math.min(spawns++, ids.length - 1)] };
     },
   },
   ui: {

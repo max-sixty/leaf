@@ -848,7 +848,6 @@ def steps(
             agent = require(
                 agent_of(first["turn"]), "fork-resume: the first fork never started"
             )
-            before = claimed(page)["turn"]
             again = PageClient(url).post(
                 {
                     "kind": "reply",
@@ -865,27 +864,36 @@ def steps(
                 f"fork-resume: the message did not go back to {agent}: "
                 f"{fork_summary(taken)}",
             )
-            # The session's turns seen before the answer: each poll reads the
-            # answer first, since the resumed run's end starts a turn of its own.
-            woke: set[str] = set()
+            sent = instant(next(e["ts"] for e in read_events(page) if e["id"] == again))
 
-            def answered_first() -> bool:
-                if answers(page, again):
-                    return True
-                if (turn := claimed(page)["turn"]) != before:
-                    woke.add(turn)
-                return False
+            def woken() -> list[dict]:
+                """The session's turns since the message was sent, as Claude Code
+                recorded each start."""
+                return [
+                    record
+                    for record in claude_code_records(native_records(cc.home, session))
+                    if record["type"] == "turn_start"
+                    and instant(record["received_at"]) > sent
+                ]
 
-            cc.until(answered_first, "fork-resume: nobody answered the message", 150)
-            require(
-                not woke,
-                "fork-resume: the session started a turn before the fork answered",
-            )
+            # The resumed run's end starts a turn on the session, for Claude Code's
+            # notice of it, which must come after the answer and leave it the only one.
             cc.settle(
-                lambda: any(r.get("step") == "join" for r in records(again)),
-                "fork-resume: the resumed fork's turn never ended",
+                lambda: (
+                    any(r.get("step") == "join" for r in records(again))
+                    and any(t.get("origin") == "task_notification" for t in woken())
+                ),
+                "fork-resume: the session never took Claude Code's notice that the "
+                "resumed fork finished",
             )
             joined = next(r for r in records(again) if r.get("step") == "join")
+            replies = require(
+                answers(page, again), "fork-resume: nobody answered the message"
+            )
+            require(
+                instant(woken()[0]["received_at"]) > instant(replies[0]["ts"]),
+                "fork-resume: the session started a turn before the fork answered",
+            )
             require(
                 agent_of(taken["turn"]) == agent,
                 f"fork-resume: another agent ran the new turn: "
@@ -896,7 +904,6 @@ def steps(
                 "fork-resume: a turn other than the resumed fork's picked the message "
                 f"up: {picked_up(page, again)}",
             )
-            replies = answers(page, again)
             require(
                 len(replies) == 1,
                 f"fork-resume: the message has {len(replies)} answers",

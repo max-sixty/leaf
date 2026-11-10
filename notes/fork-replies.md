@@ -450,17 +450,17 @@ main thread while the fork works.
    resumes the fork with Leaf's message (`forks.resume_prompt`): the thread's
    delivery, and what the rest of the session did on the page since the fork's last
    turn began, read from the log (`forks._since`), which names the threads it wrote
-   in, the revisions it published and the to-dos it opened or ended. The fork's
-   transcript holds what the session had done when that turn began, and nothing it did
-   while the fork ran. A correction the main thread posts in the thread unasked leaves
-   the thread with the fork. A thread the main thread answered last, which includes an
-   answer posted after the fork's turn closed, or whose fork's turn still runs or ran
-   in an earlier generation, gets a new fork, and so does one whose fork the module
-   fails to resume; that new fork takes over the turn Leaf opened (`forks.started`).
-   Each resumed run's end wakes an idle main thread with Claude Code's notification of
-   it, which the first run's end doesn't (above, "What Claude Code gives the module");
-   Leaf leaves that notification as it is while how a fork tells the main thread what
-   it did is open.
+   in, the revisions it published and the to-dos it opened or ended, a few of each by
+   name and the rest counted. The fork's transcript holds what the session had done
+   when that turn began, and nothing it did while the fork ran. A correction the main
+   thread posts in the thread unasked leaves the thread with the fork. A thread the
+   main thread answered last, which includes an answer posted after the fork's turn
+   closed, or whose fork still runs a turn or ran in an earlier generation, gets a new
+   fork, and so does one whose fork the module fails to resume; that new fork takes
+   over the turn Leaf opened (`forks.started`). Each resumed run's end wakes an idle
+   main thread with Claude Code's notification of it, which the first run's end
+   doesn't (above, "What Claude Code gives the module"); Leaf leaves that notification
+   as it is while how a fork tells the main thread what it did is open.
 
    On 2026-11-10 the journey's `fork-resume` step, on a host at load 6 to 7, sent a
    further question to a thread whose fork had answered it and ended. The line came

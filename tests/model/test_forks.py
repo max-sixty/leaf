@@ -719,7 +719,8 @@ def test_a_fork_that_cannot_be_resumed_gives_way_to_a_new_one(
     where the main thread answered a message the fork gave back with the fork's own
     answer reference, before any pickup of its own; and so does one whose fork ran
     in an earlier generation of the session, which ended with it, or still runs,
-    which a resume would reach only at a tool boundary it may not have. Where the
+    which a resume would reach only at a tool boundary it may not have, or runs
+    another turn, as one resumed for a message the user took back does. Where the
     module can't resume the fork, the fork it spawns instead takes over the turn
     Leaf opened, and the old fork's commands act in no turn."""
     asked, given = taken_by_a_fork(claimed, "Does the suggest service cache?")
@@ -758,6 +759,17 @@ def test_a_fork_that_cannot_be_resumed_gives_way_to_a_new_one(
     )
     assert state_model.agent_turn_of("s1", "agent-4") == taken["turn"]
     assert state_model.agent_turn_of("s1", "agent-3") is None
+
+    region = answered_by_a_fork(claimed, monkeypatch, "Which region now?", "agent-6")
+    first = said(claimed, "And its zones?", parent=region["id"])
+    resumed = taken_again(claimed, region["id"], first)
+    assert resumed["resume"]["agentId"] == "agent-6"
+    append_carried_log_record(
+        claimed, {"kind": "undo", "author": "user", "undoes": first["id"]}
+    )
+    instead = said(claimed, "And its subnets?", parent=region["id"])
+    assert "resume" not in taken_again(claimed, region["id"], instead)
+    assert state_model.agent_turn_of("s1", "agent-6") == resumed["turn"]
 
     zone, running = taken_by_a_fork(claimed, "Which zone?")
     forks_model.started(
@@ -817,16 +829,24 @@ def test_the_resume_names_what_the_session_did_on_the_page_while_the_fork_ran(
         e for e in events_model.read_events(claimed) if e["kind"] == "note"
     ]
 
+    later = said(claimed, "Is the cache warm?")
+    thread_model.post_reply(claimed, {"responds": later["id"]}, "Warm.")
+    another = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "create", str(claimed), "page", "--title", "Warm the cache"],
+    )
+    assert another.exit_code == 0, another.output
     more = said(claimed, "And which uv?", parent=asked["id"])
+    monkeypatch.setattr(forks_model, "SINCE_NAMED", 1)
     resume = taken_again(claimed, asked["id"], more)["resume"]["prompt"]
     # The whole sentence, so nothing else is listed: not the thread the session
     # answered before the fork began, nor the to-do the fork's own answer opened.
     assert (
-        "Since your last turn began, the rest of the session wrote in thread "
-        f"{meanwhile['id']}, this thread; "
+        "Since your last turn began, the rest of the session wrote in this thread, "
+        f"thread {meanwhile['id']} and 1 other thread; "
         f"published revision {stamped_note['revision']}; "
-        f"opened the to-do “Profile the cold start” ({opened['id']}); "
-        f"ended the to-do “Profile the cold start” ({opened['id']}) as done. "
+        f"opened and ended the to-do “Profile the cold start” ({opened['id']}) as "
+        "done; changed 1 other to-do. `leaf page state` lists the rest. "
         "To ask the main session"
     ) in resume
 

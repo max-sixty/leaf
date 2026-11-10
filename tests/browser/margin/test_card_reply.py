@@ -982,6 +982,33 @@ def test_a_card_at_its_end_keeps_its_last_turn_as_the_window_shortens(browser, s
     assert transcript.evaluate(past_end) <= 1
 
 
+def test_a_card_wheeled_to_its_end_stays_where_the_browser_put_it(browser, serve):
+    """A transcript the user scrolls to its end takes no scroll write from the card.
+    Every scroll's end placed the card again, and the placement put a transcript at
+    its end back at its end, though nothing had moved the end. The write stops the
+    scroll the browser drives: in Firefox it flattened the rubber band a flick into the
+    end had started, every 90ms, since the browser's end stood a fraction of a pixel
+    past the whole-pixel one written."""
+    page, _, transcript = open_long_thread(browser, serve)
+    transcript.evaluate(
+        """list => {
+          list.lfWrites = [];
+          for (const name of ["scrollTo", "scroll", "scrollBy"]) {
+            const own = list[name].bind(list);
+            list[name] = (...args) => (list.lfWrites.push(name), own(...args));
+          }
+        }"""
+    )
+    page.mouse.wheel(0, 2000)
+    page.wait_for_function(
+        "list => list.scrollHeight - list.clientHeight - list.scrollTop < 1",
+        arg=transcript.element_handle(),
+    )
+    scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
+    rendered(page)
+    assert transcript.evaluate("list => list.lfWrites") == []
+
+
 @pytest.mark.parametrize("comment_repeats", [0, 17])
 def test_a_margin_reply_grows_before_it_scrolls(browser, serve, comment_repeats):
     """Visible and already clipped transcripts both yield writing space."""

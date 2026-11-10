@@ -54,6 +54,12 @@ COMMENTS = {
         "triage-why",
         "Rename this heading to ‘Why the migration alone blocks the release’.",
     ),
+    # A question a fork takes and looks up in the page's source, which the user
+    # follows up in its thread as the fork starts (`FOLLOW_UP`).
+    "fork-lookup": (
+        "triage-lede",
+        "How many cards does this page's source hold? Count them in the file.",
+    ),
     # Real author intent exercises the rich interface without naming its commands.
     "rich-choice": (
         "triage-lede",

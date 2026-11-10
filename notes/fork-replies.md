@@ -347,9 +347,11 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
    at 4.0 s and 3.2 s, the fork's pickup in its own turn in the same instant, its
    own `leaf thread reply` answer at 9.9 s and 9.6 s, and its turn ended 9.2 s after
    it started, all while the session stayed idle. Its next turn didn't answer the
-   message again. That was on a host at load 8 to 20. No live run yet sends a
-   follow-up while a fork works, so the PostToolBatch hand-over is proved only by
-   the model tests (`tests/model/test_forks.py`).
+   message again. That was on a host at load 8 to 20. The journey's
+   `fork-follow-up` step then sent a further message 0.1 s after a fork took a
+   question it had to look up in the page's source: the fork's first tool boundary,
+   5 s later, picked it up in the fork's turn, and the fork answered it 17.0 s after
+   it was sent, with the main session idle throughout.
 
    Landing steps 1–3 on main needs a protocol bump. A pickup naming a fork's turn
    means the fork holds the thread only to a Leaf that reads the agent-turn record;

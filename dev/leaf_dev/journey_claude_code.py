@@ -80,8 +80,12 @@ diagnostics (`fork_reply`):
 With `--fork-work` (`LEAF_FORK_WORK=on`), `fork-idle`'s question goes to a fork that
 does the work: the line's fork judges it a fork's, and a fork spawned from the
 conversation, in a turn of its own that picked the comment up, answers it in the
-thread itself with `leaf thread reply` while the session stays idle. `fork-work` then
-checks that the session's next turn didn't answer it again.
+thread itself with `leaf thread reply` while the session stays idle. Then
+`fork-follow-up`: a question a fork takes and looks up in the page's source, and the
+user's further message in its thread sent as the fork starts, which the fork's next
+tool boundary hands it: the fork's turn picks it up and the fork answers it, while the
+session stays idle. `fork-work` then checks that the session's next turn didn't answer
+the forks' questions again.
 
 Then `quit`, by `/exit`.
 
@@ -110,6 +114,7 @@ import time
 import uuid
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
+from datetime import datetime
 from functools import partial
 from pathlib import Path
 
@@ -117,6 +122,7 @@ import click
 import psutil
 
 from leaf.delivery import DELIVERY, delivery_pointer_prompt
+from leaf.event_log import read_events
 from leaf.harness import (
     NUDGE_WORDS,
     ClaudeCodeHarness,
@@ -157,6 +163,10 @@ from leaf_dev.review_scenario import (
     prepare,
     require,
 )
+
+# The user's further message in the thread of `fork-lookup`'s question, sent as the
+# fork that took the question starts.
+FOLLOW_UP = "And how many of them mention the migration?"
 
 # How a hook context that hands a delivery over by its pointer begins.
 POINTER_OPENING = delivery_pointer_prompt("00000000").partition(" id=")[0]
@@ -731,6 +741,64 @@ def steps(
                 ),
             )
 
+        def followed_up(started: float) -> None:
+            """`fork-follow-up`: the user's further message in the thread of a
+            question a fork took, sent as the fork starts, reaches the fork at its
+            next tool boundary, in the fork's own turn, and the fork answers it while
+            the session stays idle."""
+            # Posted apart from the user's timed comments, whose timing reads each one's
+            # own answer: the fork's answers the further message, which settles both.
+            url = require(running_server(page), "the page has no server")["url"]
+            asked = post(url, "fork-lookup")
+
+            def records() -> list[dict]:
+                return [
+                    record
+                    for record in (user.forks() if user.forks else [])
+                    if asked in record["inputs"]
+                ]
+
+            cc.until(
+                lambda: any(record["outcome"] == "take" for record in records()),
+                "fork-follow-up: no fork took the question",
+                60,
+            )
+            taken = next(record for record in records() if record["outcome"] == "take")
+            more = PageClient(url).post(
+                {
+                    "kind": "reply",
+                    "parent": asked,
+                    "attempt": attempt("fork-follow-up"),
+                    "text": FOLLOW_UP,
+                }
+            )["id"]
+            cc.until(
+                lambda: bool(answers(page, more)) and cc.idle(),
+                "fork-follow-up: nobody answered the further message",
+                150,
+            )
+            require(
+                picked_up(page, asked) == [taken["turn"]]
+                and picked_up(page, more) == [taken["turn"]],
+                "fork-follow-up: a turn other than the fork's picked the thread up: "
+                f"{picked_up(page, asked)}, {picked_up(page, more)}",
+            )
+            events = {event["id"]: event for event in read_events(page)}
+            [reply] = answers(page, more)
+            after = (
+                datetime.fromisoformat(reply["ts"])
+                - datetime.fromisoformat(events[more]["ts"])
+            ).total_seconds()
+            step(
+                "fork-follow-up",
+                started,
+                detail=(
+                    f"`fork-follow-up`: {taken['agent']} took the question, its turn "
+                    f"picked up the further message, and it answered that "
+                    f"{after:.1f} s after it was sent: {reply['text'][:200]!r}"
+                ),
+            )
+
         def lined(name: str) -> float:
             """Require the fork on step `name`'s comment to have posted the agent's
             working line, as the comment's first reply, and handed the comment over;
@@ -751,6 +819,7 @@ def steps(
         user.comment("fork-idle")
         if fork_work:
             forked_work(started)
+            followed_up(time.monotonic())
         else:
             cc.until(answered("fork-idle"), "fork-idle: the session did not answer it")
             first = lined("fork-idle")

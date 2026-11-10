@@ -245,95 +245,14 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
 
 ### The design
 
-The user's model, 2026-11-10: forks handle the questions and small tasks they can;
-significant work becomes an obligation the agent owes, which the main thread
-prioritizes; and the main thread coordinates, running work bigger than a message in
-subagents. Each thread message goes one of three ways:
-
-| The message                                                               | Where it goes                                  | Of the 27 hand-overs above |
-| ------------------------------------------------------------------------- | ---------------------------------------------- | -------------------------: |
-| a question or small task a fork can finish: a lookup, a dispatch          | a working fork answers it                      |                       7–13 |
-| significant work: the session's tree, page or PRs, or research of minutes | an obligation, which the main thread schedules |                       7–13 |
-| needed now: the user's answer to the session's own question, or steering  | the main thread, at once                       |                          7 |
-
-Research taking minutes sits on the line: a fork can do it, but it is long enough to
-need progress lines of its own, so whether it is small or significant is the fork's
-call on the message. Input the main thread needs now can't wait as an obligation,
-since it changes the work the obligation would queue behind.
-
-- **Deciding.** The fork that writes the working line, which reads the message
-  against the conversation in about 3 s, sorts it. Today it judges two ways, `take`
-  where the work needs nothing the session is changing (its files and branch, the
-  page's source, its pull requests), settles none of its open questions, and waits
-  on nothing it is running, and `hand_over` otherwise; step 4 splits `hand_over`
-  into an obligation and needed now. A working fork may still find the work bigger
-  than it looked and make it an obligation.
-- **Doing.** On a small task the module spawns a fork of the session with the thread
-  as Leaf would deliver it. The fork works with the session's tools in a turn of its
-  own and answers with its own `leaf thread reply`.
-- **Owning.** The fork holds the thread as any turn holds what it picked up. Its
-  take is a pickup in the page log naming the fork's turn, with the receipt. The
-  turn whose pickup of a thread's waiting messages is newest holds the thread,
-  whether it is the main thread's or a fork's, and every reader of received input
-  asks one function which turn that is (`forks.holding_turns`). A fork's turn may
-  act only on the messages it holds or no turn holds, and one rule checks each of
-  its writes as it is made (`forks.refuse_unheld`): its pickups (its take, its tool
-  boundary and its acknowledgement of a pointer), its replies and its starts. For
-  that rule an answered message is held by the turn whose pickup of it is newest, so
-  a fork may repeat its own answer but not answer again a message the main thread
-  took over and answered. The
-  turn closes as the fork's run ends, and lapses when unrenewed for the working
-  grace, as a main turn's stamp does. The main thread picks up a message a fork's
-  turn holds only once that turn has closed or lapsed, and that pickup takes the
-  thread over, so the fork's later pickup, reply or start on it is refused. While
-  the fork's turn runs, the message reads as work in hand, the main thread is
-  neither handed it nor reminded of it, and a further message in the thread goes to
-  the fork at its next tool boundary.
-- **Acting as itself.** Leaf ties work to the turn it runs in: a pickup or start names
-  a turn, and lapses when that turn ends. A fork runs in the session's environment,
-  so Leaf keeps a turn per agent of the session (`state.AGENT_TURNS`) rather than one
-  per session. Leaf's PreToolUse hook adds the agent's id after the `leaf` that
-  begins each `leaf` command of an agent the session has run a turn for, open or
-  ended (`leaf --agent-id`), so a fork's starts and answer name its turn, and its
-  tool boundaries (its PostToolBatch, which names it) carry the thread's further
-  messages, as the main thread's do. A `leaf` command runs as one of three actors:
-  the main thread, when it names no agent; an agent with an open turn, in that turn;
-  or an agent whose turn has ended, whose replies, starts and acknowledgements are
-  refused rather than made as the main thread's. The mark follows the agent rather
-  than its turn, so a fork resumed or running late after its turn ended is still
-  refused. A subagent the session ran no turn for, such as one of the main thread's
-  own workers, goes unmarked and acts as the main thread. A known agent's Bash call
-  that runs `leaf` anywhere but as its first word, as `cd x && leaf …` does, is
-  denied with the instruction to run each `leaf` command on its own, since it would
-  act as the main thread's and a mark spliced into it could land in quoted text.
-- **Obligations.** A significant task becomes a to-do on its thread that the agent
-  owes until it ends it, as a session's `leaf thread reply --todo` opens today. A
-  working fork opens one with the same command when the work proves bigger, and the
-  to-do stays the session's after the fork's turn ends. Who opens it for a message
-  the line fork sorts as significant, which has no working fork, is step 4's design.
-- **Telling the main thread.** As the fork's run ends, the module tells Leaf, which
-  judges each thread by the messages the fork's turn picked up, and Leaf's clerk
-  queues a line for the main thread saying which way it went: the fork answered; it
-  answered and opened a to-do, named with its text, which the main thread now owes
-  and schedules; or it gave the thread back or failed, and the main thread owes the
-  answer, with the fork's answer reference. The line says the thread owes nothing
-  only where nothing waits in it and no to-do on it is open, and it waits for the
-  main thread's next tool boundary or prompt. The proposal is the fork's own
-  SendMessage to `main`, which wakes an idle session at once and can say what the
-  fork did beyond those outcomes, so the session neither redoes nor contradicts it.
-- **Follow-ups.** A later message in a thread a fork answered goes to the same fork,
-  resumed by name in a new turn, rather than to a new fork, so a flurry of messages
-  in one thread makes one worker. Leaf's message to it lists what the main thread did
-  on the page since the fork's run, which the fork's transcript lacks, and the fork
-  can SendMessage the main thread to ask about it. Messages in different threads
-  start a fork each; if that proves wasteful, one standing fork per session would
-  take every small message in turn, cheaper but slower when threads arrive
-  together. (The user chose this on 2026-11-10.)
-- **The main thread as coordinator.** Told by name as each fork takes a thread, the
-  main thread can steer it or stop it with SendMessage, or take the thread over. It
-  takes obligations in the order it judges and runs those bigger than a message in
-  subagents, as the shipped skill's "Stay responsive" already asks. A fork never
-  changes the session's files or plan.
+The design's home is the [Forks](../docs/forks.html) guide in How it works,
+published at `/forks/`: the path of a thread message, who holds a message, who acts,
+what the main thread hears when a fork ends, follow-ups and flurries, the main thread
+as coordinator, and which parts are built and which planned. The user set its model
+on 2026-11-10 (forks do the questions and small tasks they can, significant work
+becomes a to-do the main thread schedules, and the main thread coordinates), and
+chose the same day that a thread's follow-ups go to the fork that answered it. The
+research above and the steps below stay here.
 
 Landing steps 1 to 3 on `main` needs a protocol bump: a Leaf at protocol 43 doesn't
 know that a fork's pickup holds the message, and picks the message up again for the

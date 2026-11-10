@@ -127,7 +127,7 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 from .leases import lease_speaks_here, release_lease, take_wait_lease
 from .registry.kernel import kinds_declaring
@@ -995,6 +995,11 @@ def started(session_id: str, basis: dict, turn: str, agent: str) -> dict:
     return outcome
 
 
+# What came of a thread an agent's turn took, as `ended` judges it once the turn's
+# run ends.
+Ending = Literal["answer", "todo", "hand_over", "taken_over"]
+
+
 def ended(
     session_id: str,
     *,
@@ -1046,7 +1051,8 @@ def ended(
                 holders = holding_turns(page.events, session_id)
                 seqs = {event["id"]: event["seq"] for event in page.events}
                 owed = TodoReading(page.events).owed
-                judged, owing, opened = {}, {}, {}
+                judged: dict[str, Ending] = {}
+                owing, opened = {}, {}
                 # The threads where the user wrote again after the fork's answer.
                 since = {thread for thread in threads if waiting.get(thread)}
                 for thread, inputs in threads.items():

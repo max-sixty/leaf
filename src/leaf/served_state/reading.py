@@ -28,6 +28,9 @@ from ..files import STAGED, entry_stamps, file_stamp
 from ..schema import (
     DATA_DIR,
     INTERACTIONS_FILE,
+    LAYER_FILE,
+    MEDIA_DIR,
+    PACKAGES_DIR,
     PAGE_PROCESS_FILES,
     SESSION_FILES,
     USER_VIEWS_FILE,
@@ -215,16 +218,21 @@ def source_readings(page_dir: Path) -> tuple[str, str]:
     return _split(_page_stamps(page_dir))
 
 
-def source_written(page_dir: Path) -> int:
-    """When the page's source was last written, in nanoseconds since the epoch: the
-    newest of the stamps `source_readings` counts as source."""
+# What a version is built from (`revision_artifact.capture_artifact`): the document, the
+# layer it selects with the page's package copies, and the trees a capture reads. A
+# data update, for one, moves the source but makes no new version.
+VERSION_INPUTS = frozenset({"index.html", LAYER_FILE, PACKAGES_DIR, "page", MEDIA_DIR})
+
+
+def version_written(page_dir: Path) -> int:
+    """When a file a version is built from (`VERSION_INPUTS`) was last written, in
+    nanoseconds since the epoch."""
     return max(
         (
             stamp[1]
             for name, stamp in _page_stamps(page_dir)
             if isinstance(stamp, tuple)
-            and name not in SESSION_FILES
-            and name not in HISTORY
+            and (name in VERSION_INPUTS or name.startswith("page/"))
         ),
         default=0,
     )

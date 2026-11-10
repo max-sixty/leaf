@@ -17,11 +17,13 @@ from interact_support import (
     append_carried_log_record,
     append_command,
     continued,
+    declare_data_input,
     delivered,
     last_deliverable_seq,
     working,
 )
 
+from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import hooks as hooks_model
 from leaf import service as service_model
@@ -163,6 +165,17 @@ def test_a_save_reaches_a_reading_with_no_tab_open_to_activate_it(pass_page):
     state_model.close_session_turn("s1")
     pass_page.passes.look()
     assert latest_revision(pass_page.dir) == made + 1 and len(pass_page.reads) == 1
+
+
+def test_a_data_update_after_the_declaration_still_hands_the_version_over(pass_page):
+    """A data update makes no new version, so a process that keeps updating the page's
+    data takes back no declaration and holds off no reading."""
+    # The save that binds the data, which a tab makes live.
+    declare_data_input(pass_page.dir, "builds", {"type": "array"})
+    session_model.cmd_waiting(pass_page.dir)
+    data_model.cmd_data_set(pass_page.dir, "builds", ["green"])
+    pass_page.passes.look()
+    assert len(pass_page.reads) == 1
 
 
 def test_a_declaration_in_the_millisecond_of_the_save_hands_it_over(pass_page):

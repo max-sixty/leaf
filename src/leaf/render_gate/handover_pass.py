@@ -7,10 +7,10 @@ quick edit hands the page over without it: 8 of 20 in the 2026-10-24 eval
 handover fixed the page in the same wake. So the server reads the version itself, and
 the agent hears what it found at its next delivery.
 
-**What starts a reading.** A live claimant has handed the page over, its source has
-stood for `QUIET_S` since the last save (`source_written`), and its live version is not
-the one the latest reading read. A handover is the turn's end, as the activity fold
-reads it (`presence.claimant_reading`), or the agent declaring the page open for
+**What starts a reading.** A live claimant has handed the page over, no file its version
+is built from has been written for `QUIET_S` (`version_written`), and its live version
+is not the one the latest reading read. A handover is the turn's end, as the activity
+fold reads it (`presence.claimant_reading`), or the agent declaring the page open for
 feedback (`leaf page open`) after its last save, whichever its harness records first: on
 2026-11-05, in 23 of 24 eval sessions the turn record closed only as the session ended,
 if at all, and 20 of 21 handovers declared the page open after the last save. The
@@ -81,7 +81,7 @@ from leaf.leases import release_lease, take_lease
 from leaf.presence import claimant_reading
 from leaf.revision_artifact import read_artifact
 from leaf.revisioning import activate_source
-from leaf.served_state.reading import source_readings, source_written
+from leaf.served_state.reading import source_readings, version_written
 from leaf.service import PageTransaction, requires_agent_attention
 from leaf.state import STRING, Record, described, object_schema, page_key, state_home
 
@@ -318,7 +318,7 @@ class HandoverPass:
             return
         present, turn = claimant_reading(page_dir, read_events(page_dir))
         if present["session_alive"] and present["status"]["state"] != "idle":
-            saved = source_written(page_dir)
+            saved = version_written(page_dir)
             if (
                 not _handed_over(present, turn, saved)
                 or time.time() - saved / 1e9 < QUIET_S

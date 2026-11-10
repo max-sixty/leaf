@@ -112,6 +112,9 @@ function describe(event) {
   if (control) {
     entry.control = locator(control);
     entry.controlNode = nodeIdentity(control);
+    // leaf.page's Worker starts a visitor's container when focus enters one
+    // (`startsTyping`), since what they type there is about to be a write.
+    if (control.matches(TEXT_BOX)) entry.textBox = true;
   }
   const labelTarget = control ?? target;
   if (labelTarget instanceof Element) {

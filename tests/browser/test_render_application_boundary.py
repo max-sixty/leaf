@@ -117,7 +117,8 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
         leaf_page(
             "Interaction trace",
             '<h1>Interaction trace</h1><input id="trace-input" aria-label="Entry">'
-            '<button id="trace-button">Continue</button>',
+            '<button id="trace-button">Continue</button>'
+            '<textarea id="trace-note" aria-label="Note"></textarea>',
         )
     )
     page = open_page(browser, url)
@@ -136,6 +137,8 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
         page.locator("#trace-input").fill("hello")
     with page.expect_response(lambda response: contains(response, "click")):
         page.locator("#trace-button").click()
+    with page.expect_response(lambda response: contains(response, "focusin")):
+        page.locator("#trace-note").focus()
     page.locator("h1").click()
     with page.expect_response(lambda response: contains(response, "command")):
         page.keyboard.press("?")
@@ -162,6 +165,14 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
     assert any(
         any("button#trace-button" in part for part in row["target"]) for row in clicks
     )
+    # leaf.page's Worker starts the visitor's container on a text box's focus.
+    focused = {
+        row["control"]: row.get("textBox")
+        for row in rows
+        if row.get("type") == "focusin" and "control" in row
+    }
+    assert focused["textarea#trace-note"] is True
+    assert focused["input#trace-input"] is None
     reference = next(row for row in commands if row["id"] == "command.reference.open")
     assert reference["title"]
     assert "description" in reference

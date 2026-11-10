@@ -1047,7 +1047,7 @@ describe("product-site delivery", () => {
       .mockClear()
       .mockReturnValue({ start } as never);
     const pending: Promise<unknown>[] = [];
-    const focused = (control: string) =>
+    const focused = (control: string, textBox?: true) =>
       worker.fetch(
         new Request("https://leaf.page/examples/triage-board/api/interaction", {
           method: "POST",
@@ -1063,6 +1063,7 @@ describe("product-site delivery", () => {
                 type: "focusin",
                 target: [control],
                 control,
+                textBox,
               },
             ],
           }),
@@ -1073,7 +1074,7 @@ describe("product-site delivery", () => {
     try {
       expect((await focused("button")).status).toBe(204);
       expect(pending).toHaveLength(0);
-      expect((await focused("leaf-text")).status).toBe(204);
+      expect((await focused("leaf-text", true)).status).toBe(204);
       await Promise.all(pending);
       expect(getContainer).toHaveBeenCalledExactlyOnceWith(
         env.PAGES,

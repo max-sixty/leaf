@@ -591,14 +591,19 @@ Reply with this JSON alone: {{"line": "<the line>", "work": "take" or "hand_over
 
 def work_prompt(delivery: dict, agent: str) -> str:
     """The task of the fork that does a thread's work: what it is for, the delivery
-    of the thread Leaf recorded as its turn's (`_take`), and how it ends."""
+    of the thread Leaf recorded as its turn's (`_take`), and the three ways it ends:
+    an answer, an answer that opens a to-do for work bigger than a message, which the
+    main thread schedules, or `HAND_BACK` for a message the main thread has to act on
+    now (`docs/forks.html`, "To-dos")."""
     return f"""{WORK_OPENING}
 This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds, and you are a fork of the session, named {agent}, made to do what the message asks beside the main session, which carries on with its own work and leaves this thread to you. You have the session's tools. Change nothing the main session is changing or about to change: its files and branch, the page's source, its pull requests.
 
 Leaf's delivery of the thread to you; "events" are the user's messages, oldest first, and the one that owes the thread's answer carries its `answer`:
 {json.dumps(delivery, ensure_ascii=False)}
 
-Do the work, then answer the user in the thread yourself, as the session would, with the `leaf thread reply` the delivery's `answer` names. Run each `leaf` command as a command of its own that begins with `leaf`, which is how Leaf knows it is yours; give a reply's text with `--text`, or with `--file` naming a file an earlier command wrote. Leaf hands you anything else the user writes in the thread at your next tool call, and your answer then goes to their newest message. If the work turns out to belong with the main session, because it would change what the session is changing or settle a question it is weighing, don't answer: end your turn with "{HAND_BACK}" and one line saying why, and Leaf gives the thread to the main session. Leaf tells the main session what you did either way.
+Do the work, then answer the user in the thread yourself, as the session would, with the `leaf thread reply` the delivery's `answer` names. Run each `leaf` command as a command of its own that begins with `leaf`, which is how Leaf knows it is yours; give a reply's text with `--text`, or with `--file` naming a file an earlier command wrote. Leaf hands you anything else the user writes in the thread at your next tool call, and your answer then goes to their newest message.
+
+If the work proves bigger than a message, such as a change to the session's files, branch, page or pull requests, or research long enough to need progress of its own, do what you can without changing those, then answer with what you found and add `--todo "<the rest of the work, in a few words>"` to that reply. The to-do is the session's: the main session takes it up in its own order, after its current work. If instead the main session has to act on the message now, because it answers a question the session asked, steers its current work, or would settle a question it is weighing, don't answer: end your turn with "{HAND_BACK}" and one line saying why, and Leaf gives the thread to the main session. Leaf tells the main session what you did either way.
 </leaf-fork-work>"""
 
 
@@ -614,7 +619,7 @@ This message comes from Leaf, not the user. The user wrote again in the thread y
 Leaf's delivery of the thread to you; "events" are the user's new messages, oldest first, and the one that owes the thread's answer carries its `answer`:
 {json.dumps(delivery, ensure_ascii=False)}
 
-Answer as before: do the work, then reply with the `leaf thread reply` the delivery's `answer` names, run as a command of its own that begins with `leaf`; or, if the work belongs with the main session, end your turn with "{HAND_BACK}" and one line saying why.
+Answer as before: do the work, then reply with the `leaf thread reply` the delivery's `answer` names, run as a command of its own that begins with `leaf`, adding `--todo` where the rest of the work is bigger than a message; or, if the main session has to act on the message now, end your turn with "{HAND_BACK}" and one line saying why.
 </leaf-fork-work>"""
 
 

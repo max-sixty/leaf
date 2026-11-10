@@ -245,6 +245,9 @@ def test_a_fork_takes_work_it_judges_its_own_as_a_pickup_in_its_own_turn(
     assert turn in state_model.open_agent_turns("s1")
     assert taken["prompt"].startswith(forks_model.WORK_OPENING)
     assert "Which Python does the project need?" in taken["prompt"]
+    # The fork's task offers each way it ends: an answer, one opening a to-do, or
+    # the thread given back.
+    assert "--todo" in taken["prompt"] and forks_model.HAND_BACK in taken["prompt"]
     [pickup] = [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"]
     assert (pickup["events"], pickup["phase"], pickup["session"], pickup["turn"]) == (
         [asked["id"]],
@@ -766,6 +769,7 @@ def test_a_follow_up_after_the_forks_run_goes_to_that_fork_again(
     assert resume.startswith(forks_model.WORK_OPENING)
     assert "And which uv?" in resume and answer_ref(claimed, more["id"]) in resume
     assert "the rest of the session has done nothing on the page" in resume
+    assert "--todo" in resume and forks_model.HAND_BACK in resume
     assert len(resume) < len(taken["prompt"])
 
     assert forks_model.started(

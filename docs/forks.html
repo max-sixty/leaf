@@ -863,11 +863,18 @@ flowchart TD
             <p id="obligations-fork">
               <span class="tag ok">built</span>
               <span class="tag">only with the flag</span>
-              A working fork that finds the work bigger than it looked can answer with a
-              to-do, with <code>leaf thread reply --todo</code> as the main thread does.
-              The to-do is the session's and stays open after the fork's turn ends,
-              while the fork's start on it stops counting with the turn. The main thread
-              hears that the fork opened it (the <code>todo</code> outcome above).
+              A working fork that finds the work bigger than a message, such as a change
+              to the session's files, branch, page or pull requests, or research long
+              enough to need progress of its own, does what it can without those
+              changes, answers with what it found, and opens a to-do on the thread with
+              <code>leaf thread reply --todo</code>, as the main thread does. Its task
+              (<code>forks.work_prompt</code>) offers that beside
+              <code>HAND BACK:</code>, which it keeps for a message the main thread has
+              to act on now: an answer to a question the main thread asked, steering its
+              current work, or a question it is weighing. The to-do is the session's and
+              stays open after the fork's turn ends, while the fork's start on it stops
+              counting with the turn. The main thread hears that the fork opened it (the
+              <code>todo</code> outcome above).
             </p>
             <p id="obligations-significant">
               <span class="tag">planned</span>

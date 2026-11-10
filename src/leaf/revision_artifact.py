@@ -999,26 +999,23 @@ def _capture_artifact(
     # prose, and markup are absent because an open document can be given all of
     # them, and a revision that only edits those should keep the user's document.
     #
-    # The vocabulary is digested without `$layer`, whose selection the vocabulary
-    # already reflects. Its generation is the one part a document runs under, since
-    # a tab speaks it to the server (`runtime/layer-client.js`), so a new selection
-    # gives every later revision a new executable and the tab a new document. The
-    # runtime's and the layer's modules are not captured; a change to either reaches
-    # an open document as a server that refuses it (`runtime_selection`).
+    # Only what the page owns goes in, so every Leaf that captures the same source
+    # captures the same revision. A page is often read by two Leafs at once, as a
+    # server keeps the Leaf it started with while the agent's commands run a newer
+    # one, and each composes its own vocabulary: digesting that vocabulary had each
+    # publish the other's capture again and reload the tab every time. What an open
+    # document runs under comes from the serving Leaf instead: a change to its
+    # runtime or a bundled package reaches the tab as a server that refuses it
+    # (`runtime_selection`), and a new selection or package copy as a new
+    # generation (`vendoring`), which a tab speaks to the server
+    # (`runtime/layer-client.js`).
+    declarations = resources.get(PAGE_DECLARATIONS)
     executable = _digest(
         _canonical_json(
             {
                 "generation": layer.get("generation"),
                 "annotations": annotation_mode(document),
-                "vocabulary": _digest(
-                    _canonical_json(
-                        {
-                            tag: entry
-                            for tag, entry in registry.items()
-                            if tag != "$layer"
-                        }
-                    )
-                ),
+                "page_declarations": declarations.digest if declarations else None,
                 "modules": {
                     path: resource.digest
                     for path, resource in resources.items()
@@ -1051,7 +1048,6 @@ def _capture_artifact(
             "title": document.authoring.title.strip(),
             "entries": sorted(set(entries)),
             "executable": executable,
-            "public_modules": list(PUBLIC_MODULES),
             "layer": layer,
             "declarations": dict(declaration_sources or {}),
             "implementations": implementations,

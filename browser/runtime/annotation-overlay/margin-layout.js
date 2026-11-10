@@ -235,8 +235,15 @@ export const THREAD_CARD = "lf-margin-preview";
 // row (thread-preview.js), so a seated row whose target moves into it would
 // otherwise push the row down and the card the user is reading with it.
 // `optionsOpen` includes ordinary inline peers; only a requested expansion holds a seat.
-const HELD = `:hover, :focus-within, :has([data-lf-held]), [data-lf-options-expanded], :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
-const HELD_ROW = `.lf-margin-cluster:is(${HELD})`;
+// The selector names a held row or the part inside it that holds it (`heldRows`), so
+// one query over the layer finds them all without asking `:has()` of every row.
+const ROW = ".lf-margin-cluster";
+const HELD = `${ROW}:is(:hover, :focus-within, [data-lf-options-expanded]), ${ROW} :is([data-lf-held], [aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
+/** @param {Layer} layer */
+const heldRows = (layer) =>
+  new Set(
+    [...layer.projection.querySelectorAll(HELD)].map((part) => part.closest(ROW)),
+  );
 let pending = 0;
 
 // A pass works only for what changed since the last one, as each change's owner records
@@ -1665,8 +1672,7 @@ function layoutMountedRows(layer) {
   pageMoved = false;
   const restless = new Set(unsettled);
   unsettled.clear();
-  /** @type {Set<Element>} */
-  const holding = new Set(layer.projection.querySelectorAll(HELD_ROW));
+  const holding = heldRows(layer);
   /** @param {HTMLElement} row */
   const keptSeating = (row) => {
     const seating =
@@ -1713,7 +1719,9 @@ function layoutMountedRows(layer) {
   const reaches = new Map();
   /** @type {Read[]} */
   const reads = [];
-  // A row kept from its record stays watched as the pass that read it watched it.
+  // A row kept from its record stays watched as the pass that read it watched it, and a
+  // row gone stays watched until a pass reads every row, at the cost of a pass should one
+  // of its boxes resize meanwhile.
   const geometry = new Set(still ? wantedGeometry : []);
   const parents = new Set();
   /** @param {Element} target */

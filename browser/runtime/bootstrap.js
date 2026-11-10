@@ -189,9 +189,21 @@
   // press, which neither starts nor ends one. After a beat the held keys are shown, so a
   // press visibly landed; a runtime that takes the run within the beat shows nothing.
   //
+  // They are shown where the page says what it is doing, the floating panel's field,
+  // which says them in place of the status once the panel offers it as their seat
+  // (`lf-held-keys-seat`, floating-panel.js). The boot module's graph can take half a
+  // second to load on a loaded machine, and the panel stands only once it has, so until
+  // then the keys are shown in a stand-in for the panel's row drawn here: the panel's
+  // own sheet, whose text the document already carries for the runtime
+  // (stylesheets.js), on the panel's own classes, so its box, leaf and words stand
+  // where the panel's will, and the panel takes the words over in place. It takes no
+  // press, and goes as the panel offers its seat. The user asked on 10 November 2026
+  // for the panel's look and field in place of the notice the keys had stood in, a
+  // second interface beside the panel, often standing beside it.
+  //
   // The hold ends when the runtime takes it, when the document reports it cannot start
   // (`recover`, and the runtime's own `letHeldKeysGo` where it gives the document up),
-  // or when the user lets go as above, and never on a clock. The notice says the keys
+  // or when the user lets go as above, and never on a clock. The words say the keys
   // run when the page is ready, and a healthy page can take any time to get there on
   // a loaded machine or a slow network. Rejected: ending the hold ten seconds in (#1213),
   // on the reading that a page not upgraded by then had faulted, which dropped the keys
@@ -217,38 +229,108 @@
     /** @type {(() => boolean) | null} */
     let keep = null;
     let beat = 0;
-    const echo = document.createElement("p");
-    echo.className = "lf-held-keys";
-    echo.setAttribute("data-lf-runtime", "");
-    echo.setAttribute("role", "status");
-    const show = () => {
-      const keys = held.map(({ key }) => {
-        const badge = document.createElement("kbd");
-        badge.className = "lf-key-badge";
-        badge.textContent = key === " " ? "Space" : key;
-        return badge;
-      });
-      echo.replaceChildren(
-        "Page still loading —",
-        ...keys,
-        keys.length === 1 ? "runs when it's ready" : "run when it's ready",
+    // The words shown, as text, or "" while none are.
+    let shown = "";
+    /** @type {((words: HeldWords | null) => void) | null} */
+    let seat = null;
+    /** @type {{root: HTMLElement, sheet: CSSStyleSheet} | null} */
+    let standIn = null;
+    // What the held keys say, wherever they show: each key as its badge, then Leaf's
+    // words. The keys lead, so a narrow field that cuts the line short keeps them.
+    /** @returns {HeldWords} */
+    const words = () => [
+      ...held.flatMap(({ key }, at) => [
+        ...(at ? [" "] : []),
+        { key: key === " " ? "Space" : key },
+      ]),
+      held.length === 1
+        ? " runs when the page is ready"
+        : " run when the page is ready",
+    ];
+    const dropStandIn = () => {
+      if (!standIn) return;
+      const { root, sheet } = standIn;
+      standIn = null;
+      root.remove();
+      document.adoptedStyleSheets = document.adoptedStyleSheets.filter(
+        (adopted) => adopted !== sheet,
       );
-      // After the body and the chrome's root, which it ties with (base.css,
-      // `.lf-held-keys`); before the body is parsed it would stand ahead of both.
-      if (!echo.isConnected && document.body) document.documentElement.append(echo);
+    };
+    // The words in the stand-in's field, drawn as the panel's field draws its own
+    // (composing/input.js), once the body and the sheets the runtime reads are parsed.
+    /** @param {HeldWords} said */
+    const drawStandIn = (said) => {
+      const sheets = document.querySelector(
+        'script[type="application/json"][data-lf-runtime][data-lf-sheets]',
+      );
+      if (!document.body || !sheets?.textContent) return;
+      if (!standIn) {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync(JSON.parse(sheets.textContent).chrome);
+        document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+        const root = document.createElement("div");
+        root.className = "lf-chrome";
+        root.setAttribute("data-lf-runtime", "");
+        root.innerHTML =
+          '<div class="lf-ui lf-floating-panel" part="panel" data-lf-stand-in>' +
+          '<div class="lf-fp-card"><div class="lf-fp-inner"><div class="lf-fp-row">' +
+          '<span class="lf-icon-action lf-fp-leaf lf-ui lf-ui-face">' +
+          '<svg viewBox="0 0 16 16" aria-hidden="true" class="lf-action-icon" ' +
+          'data-lf-icon="leaf"><rect width="16" height="16" fill="currentColor" ' +
+          'stroke="none"></rect></svg></span><div class="lf-fp-field">' +
+          '<div class="lf-compose-field"><span class="lf-fp-held" role="status">' +
+          '<span class="lf-compose-placeholder"><span ' +
+          'class="lf-compose-placeholder-words"></span></span></span></div></div>' +
+          "</div></div></div></div>";
+        // After body, where the runtime's chrome root will stand (base.css).
+        document.body.after(root);
+        standIn = { root, sheet };
+      }
+      standIn.root.querySelector(".lf-compose-placeholder-words")?.replaceChildren(
+        ...said.map((part) => {
+          const node = document.createElement(
+            typeof part === "string" ? "span" : "kbd",
+          );
+          if (typeof part === "string") {
+            node.setAttribute("data-lf-voice", "leaf");
+            node.textContent = part;
+          } else {
+            node.className = "lf-key-badge lf-held-key";
+            node.textContent = part.key;
+          }
+          return node;
+        }),
+      );
+    };
+    // Words already shown are not shown again: the panel's field repaints for each, and
+    // each of its paints asks the keyboard owner to take the keys again
+    // (controller.js, `watchCommandAvailability`), which pauses on the same key.
+    const show = () => {
+      beat = 0;
+      const said = words();
+      const text = JSON.stringify(said);
+      if (text === shown) return;
+      shown = text;
+      if (seat) seat(said);
+      else drawStandIn(said);
+    };
+    const hide = () => {
+      clearTimeout(beat);
+      beat = 0;
+      shown = "";
+      seat?.(null);
+      dropStandIn();
     };
     const letGo = () => {
       held.length = 0;
-      clearTimeout(beat);
-      beat = 0;
-      echo.remove();
+      hide();
     };
     /** @param {KeyboardEvent} event */
     const queue = (event) => {
       if (event.repeat) return;
       held.push(event);
       if (taken) return;
-      if (echo.isConnected) show();
+      if (shown) show();
       else beat ||= setTimeout(show, 150);
     };
     /** @param {KeyboardEvent} event */
@@ -288,9 +370,10 @@
       event.stopImmediatePropagation();
     };
     const pointed = () => letGo();
-    // The controller takes a run, so the notice comes down, but the hold stands until its
-    // owner has pressed the last key in it: a printed key pressed meanwhile joins the
-    // same run rather than running ahead of the keys pressed before it.
+    // The controller takes a run, but the hold stands until its owner has pressed the
+    // last key in it: a printed key pressed meanwhile joins the same run rather than
+    // running ahead of the keys pressed before it. Words already shown stand until the
+    // run is pressed or pauses on a key that must still wait, which they then name.
     /** @param {DocumentEventMap["lf-held-keys"]} event */
     const take = (event) => {
       ready = event.detail.ready;
@@ -301,7 +384,7 @@
       }
       taken = true;
       clearTimeout(beat);
-      echo.remove();
+      beat = 0;
       event.detail.keys = held;
       event.detail.pause = () => {
         taken = false;
@@ -310,13 +393,21 @@
       };
       event.detail.release = () => {
         taken = false;
+        hide();
         if (!keep?.()) stopHoldingKeys();
       };
+    };
+    /** @param {DocumentEventMap["lf-held-keys-seat"]} event */
+    const seated = (event) => {
+      dropStandIn();
+      seat = event.detail.show;
+      if (shown) seat(words());
     };
     stopHoldingKeys = () => {
       window.removeEventListener("keydown", hold, true);
       window.removeEventListener("pointerdown", pointed, true);
       document.removeEventListener("lf-held-keys", take);
+      document.removeEventListener("lf-held-keys-seat", seated);
       letGo();
     };
     window.addEventListener("keydown", hold, true);
@@ -324,6 +415,7 @@
     // The keyboard owner takes the held keys as the document upgrades and runs them through
     // its own handler (runtime/keyboard/controller.js).
     document.addEventListener("lf-held-keys", take);
+    document.addEventListener("lf-held-keys-seat", seated);
   }
 
   // A small public-site profile separates browser upgrade from the first state

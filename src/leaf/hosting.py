@@ -591,6 +591,7 @@ def cmd_serve(
     """
     from .http import page_endpoint
     from .layer import payload_provenance
+    from .render_gate.handover_pass import HandoverPass
     from .server_rows import RowPublisher
 
     lease = None
@@ -684,6 +685,7 @@ def cmd_serve(
         if httpd is None or not announced:
             return
         threading.Thread(target=rows.run, daemon=True).start()
+        threading.Thread(target=HandoverPass(page_dir).run, daemon=True).start()
         threading.Thread(
             target=stop_when_service_ends,
             args=(page_dir,),

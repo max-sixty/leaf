@@ -218,7 +218,7 @@
   // The hosts of the shadow trees holding a node, innermost first.
   const hosts = (node) => {
     const found = [];
-    for (let root = node.getRootNode(); root instanceof ShadowRoot; ) {
+    for (let root = node.getRootNode(); root instanceof ShadowRoot;) {
       found.push(root.host);
       root = root.host.getRootNode();
     }

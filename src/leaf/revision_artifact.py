@@ -1000,15 +1000,15 @@ def _capture_artifact(
     # them, and a revision that only edits those should keep the user's document.
     #
     # Only what the page owns goes in, so every Leaf that captures the same source
-    # captures the same revision. A page is often read by two Leafs at once, as a
-    # server keeps the Leaf it started with while the agent's commands run a newer
-    # one, and each composes its own vocabulary: digesting that vocabulary had each
-    # publish the other's capture again and reload the tab every time. What an open
-    # document runs under comes from the serving Leaf instead: a change to its
-    # runtime or a bundled package reaches the tab as a server that refuses it
-    # (`runtime_selection`), and a new selection or package copy as a new
-    # generation (`vendoring`), which a tab speaks to the server
-    # (`runtime/layer-client.js`).
+    # captures the same revision. A page is often read by two Leaf versions at
+    # once, as a server keeps the Leaf it started with while the agent's commands
+    # run a newer one, and each composes its own vocabulary: digesting that
+    # vocabulary had each publish the other's capture again and reload the tab
+    # every time. What an open document runs under comes from the serving Leaf
+    # instead: a change to its runtime or a bundled package reaches the tab as a
+    # server that refuses it (`runtime_selection`), and a new selection or a
+    # changed package copy as a new generation (`vendoring`), which a tab speaks
+    # to the server (`runtime/layer-client.js`).
     declarations = resources.get(PAGE_DECLARATIONS)
     executable = _digest(
         _canonical_json(

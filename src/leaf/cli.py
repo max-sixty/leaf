@@ -17,6 +17,7 @@ its watch.
 """
 
 import json
+import os
 import shlex
 import sys
 from pathlib import Path
@@ -229,7 +230,9 @@ class LeafGroup(click.Group):
         finally:
             from leaf.interaction_log import record_command
 
-            record_command(invocation.get("leaf_command", ""))
+            record_command(
+                invocation.get("leaf_command", ""), agent=invocation.get("agent")
+            )
 
     def _run_standalone(self, args, prog_name, complete_var, **extra) -> None:
         try:
@@ -258,7 +261,38 @@ class LeafGroup(click.Group):
         sys.exit(status)
 
 
+def _acting_agent(ctx: click.Context, _param: click.Parameter, value) -> None:
+    """Run the command as the agent of the session its harness names `value`
+    (`state.AGENT_ID_VARIABLE`), for this command alone: the variable goes back as
+    the command ends, so a command run in the same process, as a test's are, acts as
+    whoever it names. Its diagnostics name the agent (`record_command`)."""
+    if not value:
+        return
+    from leaf.state import AGENT_ID_VARIABLE
+
+    before = os.environ.get(AGENT_ID_VARIABLE)
+    os.environ[AGENT_ID_VARIABLE] = value
+    ctx.ensure_object(dict)["agent"] = value
+
+    def restore() -> None:
+        if before is None:
+            os.environ.pop(AGENT_ID_VARIABLE, None)
+        else:
+            os.environ[AGENT_ID_VARIABLE] = before
+
+    ctx.call_on_close(restore)
+
+
 @click.group(cls=LeafGroup)
+@click.option(
+    "--agent-id",
+    metavar="ID",
+    expose_value=False,
+    is_eager=True,
+    hidden=True,
+    callback=_acting_agent,
+    help="Run as the session's agent with this harness id; Leaf's hook adds it.",
+)
 @click.option(
     "--version",
     is_flag=True,

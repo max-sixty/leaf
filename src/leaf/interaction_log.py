@@ -96,9 +96,10 @@ def launched() -> float:
     return process.create_time()
 
 
-def record_command(command: str) -> None:
+def record_command(command: str, *, agent: str | None = None) -> None:
     """Record in each page this command acted on how long it has taken, with the
-    harness session that ran it, once: a later call records nothing. A diagnostic
+    harness session that ran it and the agent of the session it ran as (`agent`,
+    `leaf --agent-id`), once: a later call records nothing. A diagnostic
     the system won't let this process gather or write, as a sandbox may refuse a
     session record or a page, is dropped, since the command's own result has
     already been decided."""
@@ -121,6 +122,7 @@ def record_command(command: str) -> None:
             "started": datetime.fromtimestamp(started, UTC).isoformat(),
             "durationMs": round((ended - started) * 1000, 1),
             "session": session,
+            **({"agent": agent} if agent else {}),
             "context": session_context(session),
         }
     except (OSError, psutil.Error):

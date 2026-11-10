@@ -1,9 +1,14 @@
 /**
  * Leaf's Claude Code hooks module: the band above the prompt that shows the
  * session's pages, the drawing of Leaf's own rows in the conversation, the fork
- * of the conversation Leaf's clerk asks at each turn's end (`clerk`), and the
+ * of the conversation Leaf's clerk asks at each turn's end (`clerk`), the
  * fork that writes the agent's working line on a thread's waiting messages at
- * once (`forkReply`). Claude
+ * once (`forkReply`), and, with `LEAF_FORK_WORK=on`, a fork with the session's tools
+ * that does a thread's work in a turn Leaf keeps for it (`workFork`), telling Leaf
+ * as that fork's run ends, which closes its turn (`forks.ended`). Claude Code runs none of this module's hooks for that fork's
+ * tool calls, as a plugin's hooks never see the calls of an agent it spawned
+ * (measured at 2.1.322), so `hooks.json`'s PreToolUse marks its `leaf` commands
+ * (`hooks.agent_command`). Claude
  * Code loads it from the installed plugin (measured at 2.1.305). It neither
  * watches nor wakes the session: `hooks.json`'s background Stop registration
  * keeps the watch between turns. A watch here would wake with a prompt, which
@@ -83,6 +88,10 @@ let remote: boolean | undefined;
 // Code's process: `LEAF_FORK_REPLIES=off` in Claude Code's environment leaves every
 // message to the session, as the claude-code journey's delivery steps need.
 let repliesFork = true;
+// Whether a thread whose line's fork judged the work a fork's goes to a fork that does
+// it (`workFork`): `LEAF_FORK_WORK=on` in Claude Code's environment, while the design
+// in notes/fork-replies.md ("A fork that takes the work") is tried.
+let workForks = false;
 
 // The summary `hooks.json` gives the background watch's wake, which Claude Code
 // draws as a task notification's row, and the words of the nudge Leaf sends
@@ -143,6 +152,7 @@ async function sessionOf($: EngineInterface) {
   if (!claudePid) {
     claudePid = (await $.process.run(["/bin/sh", "-c", "echo $PPID"])).stdout.trim();
     repliesFork = (await $.env.get("LEAF_FORK_REPLIES")) !== "off";
+    workForks = (await $.env.get("LEAF_FORK_WORK")) === "on";
   }
   return $.session.id();
 }
@@ -438,11 +448,13 @@ function forkReply($: EngineInterface, session: string, held: Held) {
       const outcome = await forkStep($, session, {
         thread: held,
         running: calls,
+        work_forks: workForks,
         ...ran,
       });
       $.ui.log(`Leaf: a fork took thread ${held.thread}: ${outcome?.outcome}`, {
         to: "debug",
       });
+      if (outcome?.outcome === "take") await workFork($, session, held, outcome);
     } catch (error) {
       // Leaf's own step failed. Telling Leaf hands the thread to the session now and
       // notes why in the page, which a session without a debug log keeps nowhere
@@ -456,6 +468,60 @@ function forkReply($: EngineInterface, session: string, held: Held) {
       }).catch(() => undefined);
     }
   })();
+}
+
+// The forks doing a thread's work, by agent id, with when each started, which the
+// end of each one's run reports. `$.state` keeps them, which a reload of this module's
+// code leaves standing, so a fork made before a reload still ends its turn
+// (types/leaf-state.d.ts).
+const FORKS = { plugin: "leaf", key: "forks" } as const;
+
+/** Change the forks kept in `$.state` by `change`, against concurrent changes. */
+async function changeForks(
+  $: EngineInterface,
+  change: (forks: Record<string, number>) => Record<string, number>,
+) {
+  for (;;) {
+    const held = await $.state.get(FORKS);
+    const set = await $.state.set(FORKS, change(held.value ?? {}), {
+      ifVersion: held.version,
+    });
+    if (set.isSet) return;
+  }
+}
+
+/** Spawn the fork Leaf gave a thread's work to (`forks.take`): a fork of the
+ * conversation with Leaf's task, named so the main thread can reach it, then tell
+ * Leaf which agent runs the turn it opened for it (`forks.started`). One that fails
+ * to start ends that turn at once, which gives the thread back (`forks.ended`). */
+async function workFork(
+  $: EngineInterface,
+  session: string,
+  held: Held,
+  given: { agent: string; prompt: string; text: string; turn: string },
+) {
+  let agentId: string | undefined;
+  try {
+    const spawned = await $.agent.spawn({
+      prompt: given.prompt,
+      subagentType: "fork",
+      name: given.agent,
+      description: `Leaf: ${given.text}`,
+    });
+    agentId = spawned.agentId;
+    if (agentId === undefined) throw new Error("no agent started");
+  } catch (error) {
+    await forkStep($, session, {
+      ended: { turn: given.turn, failed: `the fork did not start: ${error}` },
+    });
+    return;
+  }
+  const started = await $.clock.now();
+  await changeForks($, (forks) => ({ ...forks, [agentId as string]: started }));
+  await forkStep($, session, {
+    thread: held,
+    started: { turn: given.turn, agent: agentId },
+  });
 }
 
 export const register: Register = (on) => {
@@ -523,9 +589,30 @@ export const register: Register = (on) => {
     return next(e);
   });
 
+  // The run of a fork this module spawned ending, which closes the turn Leaf keeps
+  // for it; any other agent's ends with nothing for Leaf to do.
   on("turn.complete", async ($, e, next) => {
     const completed = await next(e);
-    if (e.agentId !== undefined) return completed;
+    if (e.agentId !== undefined) {
+      const agentId = e.agentId;
+      const started = (await $.state.get(FORKS)).value?.[agentId];
+      if (started === undefined) return completed;
+      await changeForks($, ({ [agentId]: _ended, ...forks }) => forks);
+      const session = await sessionOf($);
+      const now = await $.clock.now();
+      void forkStep($, session, {
+        ended: {
+          agent: agentId,
+          ...(e.reason === "answer" ? { answer: e.answer } : { failed: e.reason }),
+        },
+        elapsed_ms: now - started,
+      }).catch((error) =>
+        $.ui.log(`Leaf: agent ${agentId}'s turn could not end: ${error}`, {
+          to: "debug",
+        }),
+      );
+      return completed;
+    }
     const session = await sessionOf($);
     follow($, session);
     // Only a turn the model answered: an interrupted one has no reply to read.

@@ -117,9 +117,16 @@ says how long the line has stood. This was the user's choice (28 October 2026) o
 Leaf reading the turn's liveness, or its current step, from the hooks itself.
 
 The prompt hook and a tool boundary also carry what Leaf's clerk wrote or found at
-the last turn's end, one line each (`clerk.queued`), and take them off the queue
-once printed (`clerk.heard`). Stop carries none: the clerk forks only after the
-turn has ended.
+the last turn's end, and what each fork that took a thread's work did with it
+(`forks.ended`), one line each (`clerk.queued`), and take them off the queue once
+printed (`clerk.heard`). Stop carries none: the clerk forks only after the turn has
+ended.
+
+A tool boundary of an agent the session runs beside its main thread, such as a fork
+that took a thread's work, carries only that agent's turn: the user's further
+messages in the threads it took (`carry_agent_turn`). Claude Code names the agent in
+the payload of a subagent's PostToolBatch, which every other subagent's skips
+(`state.worker_tool_batch`).
 
 A harness reads a hook's output only after the hook exits, and discards it if the
 hook times out. So the hook records its handover only before `CONFIRM_WITHIN`, well
@@ -440,6 +447,8 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
     A later receipt revalidates captured identities independently. This pickup
     likewise checks generation and turn after reacquiring the page transaction.
     A page this Leaf may not write records none; `remedies` tells the turn why.
+    Debt an agent's running turn holds is that turn's, so the pickup leaves it out
+    (`forks.pickable`).
     """
     from .activity import acknowledged_obligations
     from .served_state.context import read_page
@@ -587,8 +596,9 @@ def carry_turn(
     could not serve again (`unserved`, `reconnect.serve_again`) into the one hook
     output its harness reads, recording a delivery it hands over inline by
     `CONFIRM_WITHIN` after `started`, the hook's `time.monotonic()` as it began."""
-    # What Leaf's clerk wrote or found since the agent last heard (`clerk.queued`),
-    # which the next prompt or tool boundary carries.
+    # What Leaf's clerk wrote or found, and what forks that took a thread's work did,
+    # since the agent last heard (`clerk.queued`), which the next prompt or tool
+    # boundary carries.
     told = queued(sid) if event in {"UserPromptSubmit", "PostToolBatch"} else []
     due = event == "PostToolBatch" and status_check_due(sid)
     if event == "PostToolBatch" and not told and not due and not new_input(sid):
@@ -716,3 +726,69 @@ def carry_turn(
         assert event is not None
         print(json.dumps(harness.hook_context(event, message)), flush=True)
         heard(sid, told)
+
+
+def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) -> None:
+    """At a tool boundary of an agent the session runs beside its main thread, which
+    the hook's payload names `agent` (Claude Code's PostToolBatch in a subagent):
+    renew the agent's turn (`state.renew_agent_turn`), and hand it the user's
+    further messages in the threads it took (`forks.agent_turn_inputs`), as a
+    tool boundary of the main thread hands it new input. The delivery goes inline
+    and is recorded as opened in the agent's turn with its receipt
+    (`delivery.receive_one`). One too large for the hook's context, or not recorded
+    by `CONFIRM_WITHIN`, goes by pointer, as the main thread's does, and the agent's
+    own `leaf delivery ack` records it into its turn (`delivery.receive_delivery`);
+    its later boundaries hand nothing it carries again (`state.note_agent_pointer`).
+    Nothing else of the main thread's, its input, debt, reminders or the clerk's
+    lines, reaches an agent."""
+    from .delivery import current_responses
+    from .forks import agent_turn_inputs
+    from .state import agent_turns, note_agent_pointer, renew_agent_turn
+
+    turn = renew_agent_turn(sid, agent)
+    if turn is None:
+        return
+    pointed = agent_turns(sid)[turn].get("pointed", {})
+    batches = []
+    for page_dir in owned_pages(sid):
+        try:
+            with PageTransaction(page_dir) as page:
+                claim = page.active_claim
+                if claim is None or claim["id"] != sid:
+                    continue
+                if inputs := [
+                    event
+                    for event in agent_turn_inputs(page, turn)
+                    if event["seq"] > pointed.get(str(page_dir), 0)
+                ]:
+                    batches.append(
+                        batch_data(
+                            page_dir,
+                            page,
+                            inputs,
+                            responses=current_responses(page_dir, page.events),
+                        )
+                    )
+        except FileNotFoundError:
+            continue
+    if not batches:
+        return
+    delivery = freeze_delivery(batches)
+    message = "\n".join([INLINE_OPENING, json.dumps(delivery, ensure_ascii=False)])
+    deadline = started + CONFIRM_WITHIN
+    recorded = (
+        receive_held(delivery, sid, None, deadline=deadline, agent_turn=turn)
+        if harness.fits_hook_context(message) and time.monotonic() < deadline
+        else []
+    )
+    if recorded:
+        inline = {**delivery, "batches": recorded}
+        message = "\n".join([INLINE_OPENING, json.dumps(inline, ensure_ascii=False)])
+    else:
+        note_agent_pointer(
+            sid,
+            turn,
+            {batch["page"]: batch["through_seq"] for batch in delivery["batches"]},
+        )
+        message = delivery_pointer_prompt(delivery["id"])
+    print(json.dumps(harness.hook_context("PostToolBatch", message)), flush=True)

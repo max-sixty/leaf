@@ -32,7 +32,9 @@ on, so they always run. Claude Code's PreToolUse runs before each `leaf`
 command, and in such a session opens the turn the skipped prompt hook would have,
 so a claim that command makes joins it; of its runs for one tool call, one per
 registration the command matches, only the first does its work
-(`leases.first_hook_for_tool`). Hooks
+(`leases.first_hook_for_tool`). For an agent running a turn of the session's own, such
+as a fork that took a thread's work, that work includes marking the command with the
+agent's id, so it acts in that turn (`agent_command`). Hooks
 that do run with no retained claim avoid page reading, and import the harness
 declarations only once the payload names a session. Page-owning prompt and Stop
 hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
@@ -66,6 +68,8 @@ developer-selected session runtime (`session_runtime`) owns the entire hook;
 
 import json
 import os
+import re
+import shlex
 import time
 
 from .leases import first_hook_for_tool, mark_hooks
@@ -73,6 +77,7 @@ from .refusals import Refused
 from .service import owned_pages
 from .state import (
     advance_turn,
+    agent_known,
     close_session_turn,
     flocked,
     held_claims,
@@ -98,6 +103,14 @@ def cmd_hook(harness: str, payload: dict) -> None:
     if not sid:
         return
     assert isinstance(event, str)
+    if event == "PostToolBatch" and (agent := payload.get("agent_id")):
+        # A boundary of an agent running a turn of the session's own
+        # (`state.worker_tool_batch`), which carries only that turn's input.
+        from .harness import hook_harness
+        from .hook_transport import carry_agent_turn
+
+        carry_agent_turn(hook_harness(harness, sid), sid, agent, started=started)
+        return
     if event == "PreToolUse" and not first_hook_for_tool(
         sid, payload.get("tool_use_id")
     ):
@@ -116,10 +129,13 @@ def cmd_hook(harness: str, payload: dict) -> None:
             # The launcher skipped this turn's prompt hook (`bin/leaf`),
             # so the turn a claim joins opens here, before the command.
             prompt_turn(sid, turn_id)
-        elif not hooked.commits_hook_context:
+            return
+        if not hooked.commits_hook_context:
             from .delivery import confirm_entered
 
             confirm_entered(hooked, payload)
+        if harness == "claude-code" and (marked := agent_command(sid, payload)):
+            print(json.dumps(marked), flush=True)
         return
     # What kept a page the session still means to serve from serving again.
     unserved = []
@@ -187,6 +203,102 @@ def cmd_hook(harness: str, payload: dict) -> None:
     )
     if ended:
         close_session_turn(sid, turn_id, expected=expected)
+
+
+# A command that begins with `leaf`, by name or by a path to the launcher.
+LEADING_LEAF = re.compile(r"\s*(?:\S*/)?leaf(?=\s|$)")
+# The operators that start a new command in a Bash command line, outside quotes.
+COMMAND_BREAKS = frozenset(";&|(\n")
+ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")
+# A here-document's body, which is a command's input rather than commands.
+HERE_DOCUMENT = re.compile(
+    r"(<<-?[ \t]*(['\"]?)(\w+)\2[^\n]*)\n.*?\n[ \t]*\3[ \t]*(?=\n|$)", re.S
+)
+
+
+def leaf_commands(command: str) -> list[int]:
+    """The token index at which each `leaf` command in the Bash command line
+    `command` starts: the word `leaf`, or a path ending in `/leaf`, where a command
+    starts, which is the line's start or after `;`, `&`, `|`, `(` or a newline
+    outside quotes, past any variable assignments. A here-document's body is input,
+    not commands. A line Bash couldn't parse, with a quote left open, has none."""
+    lexer = shlex.shlex(
+        HERE_DOCUMENT.sub(r"\1", command), posix=True, punctuation_chars="();<>|&\n"
+    )
+    lexer.whitespace = " \t\r"
+    lexer.whitespace_split = True
+    try:
+        tokens = list(lexer)
+    except ValueError:
+        return []
+    starts, starting = [], True
+    for index, token in enumerate(tokens):
+        if token and set(token) <= COMMAND_BREAKS:
+            starting = True
+        elif starting and not ASSIGNMENT.match(token):
+            if token == "leaf" or token.endswith("/leaf"):
+                starts.append(index)
+            starting = False
+    return starts
+
+
+def agent_command(sid: str, payload: dict) -> dict | None:
+    """What Claude Code's PreToolUse hook answers for a command that begins with
+    `leaf` from an agent the session has run a turn of its own for, such as a fork
+    that took a thread's work (`state.agent_known`): the command with `--agent-id`
+    and the agent's id after its leading `leaf`, so it acts in that agent's open
+    turn, or is refused once that turn has ended (`state.acting_agent_turn`). The
+    mark follows the agent, not its turn, so a fork resumed or running late after
+    its turn ended can't act with the main thread's authority. Any other command,
+    such as one of the main thread's own workers, which the record doesn't name,
+    runs as it came, as the session's. A subagent's command runs in the session's
+    environment with nothing naming the agent, and only the hook's payload names it
+    (`agent_id`).
+
+    The command still begins with `leaf`, so a permission rule allowing `leaf`
+    commands still matches it; a marker of any other form, such as an `export`
+    before it, is a command of its own that Claude Code asks about (measured at
+    2.1.322). The answer names no decision, so the call goes on through the
+    permission flow. Leaf's hooks module can't mark the command: Claude Code runs
+    none of a plugin's hooks for the calls of an agent that plugin spawned
+    (measured at 2.1.322), while `hooks.json`'s run for every agent.
+
+    Such an agent's command that runs `leaf` other than as its leading word, as
+    `cd x && leaf …` or a second `leaf` after `&&` does (`leaf_commands`), would act
+    as the main thread's, and a mark spliced into it could land inside quoted text,
+    so the answer denies it and tells the agent to run each `leaf` command on its
+    own, beginning with `leaf`."""
+    agent, given = payload.get("agent_id"), payload.get("tool_input")
+    if not agent or not isinstance(given, dict) or "command" not in given:
+        return None
+    leading = LEADING_LEAF.match(given["command"])
+    starts = leaf_commands(given["command"])
+    if (leading is None and not starts) or not agent_known(sid, agent):
+        return None
+    if leading is None or starts not in ([], [0]):
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": (
+                    "Run each `leaf` command as a Bash call of its own, beginning "
+                    "with `leaf`, with no `cd` or other command before it or "
+                    "another `leaf` after it: Leaf marks only a leading `leaf` as "
+                    "this agent's, and any other would act as the main thread's."
+                ),
+            }
+        }
+    command = (
+        given["command"][: leading.end()]
+        + f" --agent-id {shlex.quote(agent)}"
+        + given["command"][leading.end() :]
+    )
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "updatedInput": {**given, "command": command},
+        }
+    }
 
 
 def reload_skill(session_id: str) -> str | None:
@@ -463,8 +575,9 @@ def main(
         cmd_pages(payload)
         return
     if fork:
-        # A held thread's fork (`forks`), or else the clerk's.
-        if "thread" in payload:
+        # A held thread's fork, or the end of an agent's run (`forks`), or else
+        # the clerk's.
+        if "thread" in payload or "ended" in payload:
             from .forks import cmd_reply as cmd_fork
         else:
             from .clerk import cmd_fork

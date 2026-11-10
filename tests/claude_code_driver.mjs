@@ -5,9 +5,12 @@
 // Arguments: the session id, then the driver's options as JSON: `pluginRoot`, the
 // plugin's directory in place of this tree; `throwSpawn`, which makes every
 // `$.process.spawn` throw; `forkReply`, the text `$.model.fork` answers with;
-// `forkRejects`, which makes every fork reject; and `env`, Claude Code's
-// environment, all that `$.env`
-// reads and what the module's processes inherit over the driver's own. Each stdin line is `{"emit": <event>, "e": <input>}`:
+// `forkRejects`, which makes every fork reject; `agentId`, the id each
+// `$.agent.spawn` answers with, printing what it was asked as `{"spawned"}`;
+// `state`, the values `$.state` holds as the module loads, by key, as a reload
+// finds them; and `env`, Claude Code's environment, all that `$.env`
+// reads and what the module's processes inherit over the driver's own. Each
+// `leaf hook --fork` the module runs prints its payload as `{"forkStep"}`. Each stdin line is `{"emit": <event>, "e": <input>}`:
 // the driver runs that event's hooks over `e`, the bottom of the chain answering
 // with the input it reached, and prints `{"event", "result"}` once they resolve. A
 // line `{"flush": true}` prints `{"flushed": true}` once the module has done what
@@ -28,6 +31,13 @@ import { register } from "../hooks/claude-code.ts";
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const [session, options] = [process.argv[2], JSON.parse(process.argv[3])];
 const print = (line) => process.stdout.write(`${JSON.stringify(line)}\n`);
+// `$.state`'s values by key, each with its version.
+const held = new Map(
+  Object.entries(options.state ?? {}).map(([key, value]) => [
+    key,
+    { value, version: 1 },
+  ]),
+);
 let band = { terminal: null, desktop: null };
 
 function start(argv, env, input) {
@@ -114,6 +124,22 @@ const $ = {
   clock: {
     now: async () => Date.now(),
   },
+  state: {
+    get: async ({ key }) => held.get(key) ?? { value: undefined, version: 0 },
+    set: async ({ key }, value, { ifVersion } = {}) => {
+      const version = held.get(key)?.version ?? 0;
+      if (ifVersion !== undefined && ifVersion !== version)
+        return { isSet: false, version };
+      held.set(key, { value: JSON.parse(JSON.stringify(value)), version: version + 1 });
+      return { isSet: true, version: version + 1 };
+    },
+  },
+  agent: {
+    spawn: async (args) => {
+      print({ spawned: args });
+      return { agentId: options.agentId ?? "agent-1" };
+    },
+  },
   ui: {
     // A line for Claude Code's debug log prints as `{"debug": <text>}`.
     log: (text, options) =>
@@ -161,6 +187,7 @@ const $ = {
   process: {
     run: (argv, init = {}) =>
       new Promise((resolve, reject) => {
+        if (argv.includes("--fork")) print({ forkStep: JSON.parse(init.stdin) });
         const child = start(argv, init.env, init.stdin);
         let stdout = "";
         let stderr = "";

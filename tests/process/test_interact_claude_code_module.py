@@ -1,6 +1,6 @@
 """Leaf's Claude Code hooks module (`hooks/claude-code.ts`) drawing the session's
-pages above the prompt, and forking the conversation for Leaf's clerk as a turn
-ends.
+pages above the prompt, forking the conversation for Leaf's clerk as a turn
+ends, and running the forks that write a thread's working line or do its work.
 
 `claude_code_driver.mjs` stands in for Claude Code around the module, which calls
 the real launcher, so these hold the module and the follower it runs together."""
@@ -30,6 +30,7 @@ from leaf import server as server_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import state as state_model
 from leaf.harness import NUDGE_WORDS
 from leaf.interaction_log import read_interactions
 
@@ -56,6 +57,8 @@ class ClaudeCode:
         self.bands = queue.Queue()
         self.pressed = queue.Queue()
         self.forks = queue.Queue()
+        self.spawned = queue.Queue()
+        self.steps = queue.Queue()
         threading.Thread(target=self.route, daemon=True).start()
         self.pid = self.read()["pid"]
 
@@ -70,6 +73,10 @@ class ClaudeCode:
                 self.bands.put(record["band"])
             elif "forked" in record:
                 self.forks.put(record)
+            elif "spawned" in record:
+                self.spawned.put(record["spawned"])
+            elif "forkStep" in record:
+                self.steps.put(record["forkStep"])
             elif {"copied", "toast"} & record.keys():
                 self.pressed.put(record)
             else:
@@ -507,8 +514,10 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     new thread is held from the session, and the module forks the conversation with
     Leaf's prompt for it as it arrives and hands the line back: it goes in as the
     agent's working line, and the thread goes to the session."""
-    answer = "Checking why the poll is 2 s"
-    driven = ClaudeCode(spawn, "cc-reply", {"forkReply": answer})
+    said = "Checking why the poll is 2 s"
+    driven = ClaudeCode(
+        spawn, "cc-reply", {"forkReply": json.dumps({"line": said, "work": "take"})}
+    )
     holding_page(driven, page_dir, monkeypatch)
     server_id = read_record(page_dir / "service.json")["server_id"]
     server_rows_model.RowPublisher(page_dir, server_id).refresh()
@@ -542,7 +551,7 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     ]
     assert (line["parent"], line["text"], line["session"], line["ephemeral"]) == (
         asked["id"],
-        answer,
+        said,
         "cc-reply",
         True,
     )
@@ -552,4 +561,76 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     assert note["effort"] == forks_model.EFFORT != RESENT["effort"], note
     assert note["usage"] == FORK_USAGE and note["elapsedMs"] >= 0, note
     assert driven.diagnostics.empty()
+    driven.quit()
+
+
+def test_a_fork_given_a_threads_work_runs_in_a_turn_leaf_keeps_for_it(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """With forks that do the work, a thread the line's fork judges `take` goes to a
+    fork the module spawns with Leaf's task, and Leaf hears which agent runs the turn
+    it opened for it. As that agent's run ends its turn closes, and the main thread
+    hears what came of the thread."""
+    driven = ClaudeCode(
+        spawn,
+        "cc-work",
+        {
+            "forkReply": json.dumps({"line": "Checking the version", "work": "take"}),
+            "agentId": "agent-1",
+            "env": {"LEAF_FORK_WORK": "on"},
+        },
+    )
+    holding_page(driven, page_dir, monkeypatch)
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    wait_for(
+        lambda: band_lines(
+            driven.bands.get(timeout=STATED_TIMEOUT)["terminal"], "terminal"
+        ),
+        bool,
+        failure="the band never showed the page",
+    )
+    main_thread_request(driven)
+    asked = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Which Python?"}
+    )
+    spawned = driven.spawned.get(timeout=STATED_TIMEOUT)
+    assert (spawned["subagentType"], spawned["name"]) == ("fork", f"leaf-{asked['id']}")
+    assert spawned["prompt"].startswith("<leaf-fork-work>"), spawned["prompt"]
+    wait_for(
+        lambda: state_model.agent_turn_of("cc-work", "agent-1"),
+        bool,
+        failure="Leaf never heard which agent runs the fork's turn",
+    )
+
+    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
+    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-1"})
+    wait_for(
+        lambda: state_model.open_agent_turns("cc-work"),
+        lambda turns: turns == {},
+        failure="the fork's turn never closed",
+    )
+    wait_for(
+        lambda: clerk_model.queued("cc-work"),
+        lambda lines: any(f"gave thread {asked['id']}" in line for line in lines),
+        failure=lambda: f"the main thread never heard: {clerk_model.queued('cc-work')}",
+    )
+    driven.quit()
+
+
+def test_leaf_hears_of_the_end_of_a_fork_the_module_spawned_and_no_other(
+    spawn, sessionless
+):
+    """The module keeps the forks it spawned in `$.state`, which a reload of its code
+    leaves standing, so it tells Leaf as such a fork's run ends, even one spawned
+    before the module loaded, and runs nothing for any other agent's end."""
+    driven = ClaudeCode(spawn, "cc-ends", {"state": {"forks": {"agent-7": 1}}})
+    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
+    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-9"})
+    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-7"})
+    step = driven.steps.get(timeout=STATED_TIMEOUT)
+    assert step["ended"] == {"agent": "agent-7", "answer": "Done."}, step
+    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-7"})
+    driven.settle()
+    assert driven.steps.empty()
     driven.quit()

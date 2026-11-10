@@ -445,9 +445,10 @@ def fork_prompt(pages: list[dict]) -> str:
     )
 
 
-def read_answer(text: str) -> dict:
-    """A fork's reply as an answer `ANSWER` takes, or `Refused` saying why not. A
-    fenced or prefaced object is read from its first `{` to its last `}`."""
+def read_answer(text: str, schema: dict = ANSWER) -> dict:
+    """A fork's reply as an answer `schema` takes, the clerk's `ANSWER` unless
+    another fork's, or `Refused` saying why not. A fenced or prefaced object is read
+    from its first `{` to its last `}`."""
     from .refusals import Refused
     from .registry.schema import json_validator
 
@@ -458,7 +459,7 @@ def read_answer(text: str) -> dict:
         answer = json.loads(text[start : end + 1])
     except json.JSONDecodeError as error:
         raise Refused(f"the fork's answer is not JSON ({error.msg})") from error
-    errors = sorted(json_validator(ANSWER).iter_errors(answer), key=str)
+    errors = sorted(json_validator(schema).iter_errors(answer), key=str)
     if errors:
         raise Refused(f"the fork's answer doesn't fit its schema: {errors[0].message}")
     return answer
@@ -955,9 +956,14 @@ def _changed(words: str, put: str) -> tuple[int, int, str]:
     return start, end, put[start : len(put) - (len(words) - end)].strip()
 
 
+def queue(session_id: str, lines: list[str]) -> None:
+    """Queue `lines` for the session's next step (`queued`)."""
+    with flocked(session_lock_path(session_id)):
+        _append(session_id, lines)
+
+
 def _append(session_id: str, lines: list[str]) -> None:
-    """Queue `lines` for the session's next step (`queued`), for a caller holding
-    the session's lock."""
+    """`queue`, for a caller already holding the session's lock."""
     if lines:
         path = session_file(session_id, QUEUED.kind)
         held = QUEUED.read(path) or {"lines": []}
@@ -1000,7 +1006,8 @@ def _told(path: str, title: str, text: str, passage: str, record: dict):
 
 
 def queued(session_id: str) -> list[str]:
-    """What the session's next step hears from the clerk."""
+    """What the session's next step hears from the clerk and from forks that took a
+    thread's work."""
     held = QUEUED.read(session_file(session_id, QUEUED.kind))
     return held["lines"] if held else []
 

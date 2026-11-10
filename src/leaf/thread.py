@@ -498,6 +498,16 @@ def post_reply(
                 for event in page.events
             ):
                 raise ReceiptRefused("response no longer matches its page log")
+        from .forks import authorize
+
+        # A fork may answer only what its turn holds, and an ended one nothing; it
+        # asks first, so a refused fork is never handed another turn's answer as the
+        # repeat of its own.
+        authorize(
+            page,
+            posting_identity.get("session"),
+            [address["responds"]] if address.get("responds") else [],
+        )
         if attempt is not None and (
             repeated := _repeated_reply(
                 page.events,
@@ -875,12 +885,9 @@ def _compose_and_append(
     if ephemeral:
         event["ephemeral"] = True
     if in_hand is not None:
-        claim = page.claim
-        turn = (
-            claim["turn"]
-            if claim and claim["id"] == posting_identity.get("session")
-            else None
-        )
+        from .state import acting_turn
+
+        turn = acting_turn(page.claim, posting_identity.get("session"))
         event["start"] = {
             "item": in_hand,
             **({"turn": turn} if turn else {}),

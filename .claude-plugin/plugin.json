@@ -7,6 +7,7 @@
   "homepage": "https://github.com/max-sixty/leaf",
   "repository": "https://github.com/max-sixty/leaf",
   "license": "MIT",
+  "types": "./types/leaf-state.d.ts",
   "keywords": [
     "generative-ui",
     "plan-review",

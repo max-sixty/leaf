@@ -129,7 +129,10 @@
             <dd>
               The background process Leaf's hooks module runs for a session that holds a
               page. It lists the messages Leaf keeps back, and the module asks a line
-              fork about each.
+              fork about each. While it runs it holds the session's fork lane, a lock
+              whose recorded start tells Leaf since when the follower has been running
+              (<code>forks.take_lane</code>), so the code says “lane” where this page
+              says the follower is running.
             </dd>
             <dt id="term-turn">Turn</dt>
             <dd>

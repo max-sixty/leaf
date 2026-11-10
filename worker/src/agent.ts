@@ -4,7 +4,8 @@
  * The fetch handler hands an accepted event that owes a reply to `dispatchAgentTask`,
  * which reserves the source's capacity and asks the user's container to start the
  * turn, or to write the rate-limit or startup failure receipt the user reads in its
- * place. Every record these and the model proxy write goes through `leafAgentLog`,
+ * place. `prewarmContainer` starts a visitor's container while they type their first
+ * write. Every record these and the model proxy write goes through `leafAgentLog`,
  * whose fields `worker/README.md`, "Hosted turns", describes.
  */
 
@@ -129,6 +130,42 @@ async function runAgentTask(env: Env, params: AgentTaskParams): Promise<AgentRes
       failure: "rate_limited",
     }),
   );
+}
+
+// A page's first write waits while its container boots, restores the session's record
+// and starts the App Server. A visitor who focuses a text box is about to write, so the
+// edge starts the container then and the boot overlaps their typing. Reads alone still
+// start nothing (`worker/README.md`, "Saved state and capacity").
+export async function prewarmContainer(
+  env: Env,
+  containerId: string,
+  reference: string,
+  route: string,
+  sourceId: string,
+): Promise<void> {
+  const started = Date.now();
+  try {
+    const allowed = await env.SOURCE_AGENT_RATE_LIMITER.limit({
+      key: `prewarm:${sourceId}`,
+    });
+    if (!allowed.success) {
+      leafAgentLog("container_prewarm_denied", { reference, route });
+      return;
+    }
+    await getContainer(env.PAGES, containerId).start();
+    leafAgentLog("container_prewarm_completed", {
+      reference,
+      route,
+      durationMs: Date.now() - started,
+    });
+  } catch (error) {
+    leafAgentLog("container_prewarm_failed", {
+      reference,
+      route,
+      durationMs: Date.now() - started,
+      error: errorName(error),
+    });
+  }
 }
 
 export async function dispatchAgentTask(

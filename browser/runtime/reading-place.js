@@ -70,8 +70,9 @@ import {
   shownWindow,
   userScrollport,
   stuckBox,
+  drawsText,
 } from "./geometry.js";
-import { skipped, skipper } from "./shown-box.js";
+import { skipped, skipper } from "./shadow-tree.js";
 import {
   blockAt,
   closestAcross,
@@ -83,6 +84,7 @@ import {
   quoteFrom,
   rangeOf,
   readingFrom,
+  segmentsBox,
 } from "./passages.js";
 import {
   ADDRESSABLE,
@@ -165,7 +167,7 @@ const DRAWN_PLACE = Symbol("live drawn place");
 const drawnPlace = (reading) => {
   const place = reading?.[DRAWN_PLACE];
   const node = place?.node.deref();
-  if (!place || !node?.isConnected || !drawsLandmark(node)) return null;
+  if (!place || !node?.isConnected || !drawsText(node)) return null;
   const top = () => {
     const rect = shownBox(node);
     return rect.top + place.through * rect.height;
@@ -196,21 +198,7 @@ export const textBlocks = (root = pageDocument()) =>
   pageBlocks().filter((block) => under(block, root));
 
 // Source blocks include concealed words, since an anchor can reveal them. A reading
-// place instead requires words the browser draws. Ask the text's own parent, rather
-// than its block: display: contents still draws text, and a child can restore visibility
-// inside a concealed block. Skipped subtrees are left alone before asking for any boxes.
-/** @param {Element | null} parent */
-const drawsLandmark = (parent) => {
-  if (!parent || skipped(parent) || getComputedStyle(parent).visibility !== "visible")
-    return false;
-  // Text in display: contents has no parent box to ask. Its first boxed ancestor
-  // supplies the browser's opacity/display reading; visibility belongs to the text
-  // parent, since its children may override that ancestor.
-  /** @type {Element | null} */
-  let box = parent;
-  while (box && getComputedStyle(box).display === "contents") box = renderedParent(box);
-  return Boolean(box?.checkVisibility({ opacityProperty: true }));
-};
+// place instead requires words the browser draws (geometry.js, `drawsText`).
 /** @type {WeakMap<import("./passages.js").PageReading, BlockRun[]>} */
 const blockRuns = new WeakMap();
 // The browser can bound a block's text in one Range read, including positioned
@@ -278,7 +266,7 @@ function* renderedBlocks(blocks, within = null) {
         continue;
       }
       const parent = renderedParent(node);
-      if (!drawn.has(parent)) drawn.set(parent, drawsLandmark(parent));
+      if (!drawn.has(parent)) drawn.set(parent, drawsText(parent));
       if (!drawn.get(parent)) {
         hidden = parent && skipper(parent);
         run = null;
@@ -765,9 +753,7 @@ const drawnQuote = (view) => {
   const segments = targetSegments(
     view.quote ? resolveAnchor({ ...view, quote: view.quote }) : null,
   );
-  return segments.every(({ node }) => drawsLandmark(renderedParent(node)))
-    ? segments
-    : [];
+  return segments.every(({ node }) => drawsText(renderedParent(node))) ? segments : [];
 };
 // What a place stands on now, found as `restorePlace` finds it: the live focused
 // destination, the drawing the edge cut, the passage's drawn words, or the drawn
@@ -784,11 +770,11 @@ function landmarkOf(view) {
   if (first)
     return {
       node: first.node,
-      top: () => rangeOf(segments).getBoundingClientRect().top,
+      top: () => segmentsBox(segments).top,
     };
   const section =
     view.section && targetElement(resolveAnchor({ section: view.section }));
-  return section && drawsLandmark(section)
+  return section && drawsText(section)
     ? { node: section, top: () => shownBox(section).top }
     : null;
 }
@@ -862,17 +848,14 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
       if (drawn && under(drawn.node, body)) {
         moveScrollerBy(box, drawn.top() - boxTop);
       } else if (segments.length && view.quote) {
-        moveScrollerBy(
-          box,
-          rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop,
-        );
+        moveScrollerBy(box, segmentsBox(segments).top - boxTop - view.quoteTop);
       } else if (!currentLocation) {
         // An unresolved or concealed passage leaves live focus as the precise
         // destination; section and raw-offset fallbacks belong to readings without one.
         const found = view.section
           ? targetElement(resolveAnchor({ section: view.section }))
           : null;
-        const section = found && drawsLandmark(found) ? found : null;
+        const section = found && drawsText(found) ? found : null;
         if (section && view.section) {
           // A section containing the scroller cannot align its contents by its
           // outer rectangle. Keep the old offset only where it still fits.

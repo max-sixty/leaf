@@ -48,7 +48,7 @@ of a `glyph` (text), an `action` (one of Leaf's actions, whose symbol it shows;
 `module-reading.md`, "Icons") or an `icon` (a Leaf icon, for an entry that shows what it
 holds rather than what it does). `behavior`, `tone`, `rank` and
 `state` default to an ordinary primary action; `CONTRIBUTION_ENTRY_SCHEMA` lists their
-values.
+values and, under `options`, every field an entry accepts.
 
 Pressing an entry calls `activate(activation, context)`, where an entry's `activation`
 defaults to its key. An entry for one of the widget's declared commands instead sets
@@ -156,7 +156,7 @@ describes.
 
 A widget whose entry declares `x-thread-seat` appends the box where the user starts a
 thread about it, built with `threadBox(this, hint)`. It returns `null` in Leaf's
-interface or in quoted markup.
+interface, in quoted markup or in an export.
 
 ### Owning the primary conversation presentation
 

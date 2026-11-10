@@ -45,7 +45,9 @@ let ready;
 // `message` picks the reading. A message keeps each line break its writer typed, and
 // reads neither a line's leading spaces as code nor a `---` under a line as a heading's
 // underline, since a person typing a message rarely means either; a fence is a
-// message's one way to write code. A Markdown file reads as CommonMark and GitHub
+// message's one way to write code, and the words on its opening line are that code's
+// first line, unless one word names the language of the code below (`fence_words`). A
+// Markdown file reads as CommonMark and GitHub
 // render a file: a soft line break is a space, since a file's lines wrap for its editor
 // rather than its reader, four spaces after a blank line open code, and a line of `=`
 // or `-` underlines a heading. A Markdown body (`paintMarkdown`), such as a draft,
@@ -54,6 +56,8 @@ let ready;
 export const renderMarkdown = (text, message = true) => render(text, message);
 // The words a user sees in rendered Markdown, for a surface that shows them as plain
 // text: an excerpt, a label, a passage. Until the parser lands they are the source.
+// With `imageAlt`, an image counts as the words its control is named by, its alt text,
+// else Image.
 /** @param {string} html @param {boolean} [imageAlt] */
 export function renderedWords(html, imageAlt = false) {
   const parsed = document.createElement("template");
@@ -69,7 +73,7 @@ function fragmentWords(fragment, imageAlt = false) {
     br.replaceWith(document.createTextNode("\n"));
   if (imageAlt)
     for (const image of fragment.querySelectorAll("img"))
-      image.replaceWith(document.createTextNode(image.alt));
+      image.replaceWith(document.createTextNode(image.alt || "Image"));
   return fragment.textContent;
 }
 /** @param {string} text @param {boolean} [message] the reading (`renderMarkdown`) */
@@ -709,7 +713,8 @@ function sourcePositions(markdown) {
 // The blocks the parser emits whole, with no opening and closing pair.
 const BLOCK_LEAVES = new Set(["fence", "code_block", "hr"]);
 
-// The parser for a reading (`renderMarkdown`). passages.py reads the same two dialects.
+// The parser for a reading (`renderMarkdown`). passages.py reads the same two dialects,
+// short of `fence_words`, since it reads no fence in a message.
 /** @param {typeof import("/vendor/markdown-it.esm.js")} module @param {boolean} message */
 export function makeMarkdown(module, message) {
   const markdown = new module.MarkdownIt({
@@ -717,7 +722,24 @@ export function makeMarkdown(module, message) {
     breaks: message,
     linkify: true,
   }).use(module.taskLists, { enabled: false });
-  if (message) markdown.disable(["lheading", "code"]);
+  if (message) {
+    markdown.disable(["lheading", "code"]);
+    // CommonMark takes all of a fence's opening line as its info string and shows none
+    // of it, so a person who typed or pasted code after the marks lost those words. Only
+    // one word over code below it stays a language. Rejected: a label on the box for
+    // every info string, which would caption each block an agent names a language for.
+    markdown.core.ruler.after("block", "fence_words", (state) => {
+      for (const token of state.tokens) {
+        const words = token.info.trim();
+        if (token.type !== "fence" || !words) continue;
+        if (token.content && !/\s/.test(words)) continue;
+        token.content = `${words}\n${token.content}`;
+        token.info = "";
+        const opening = token.lfSource?.markers?.[0];
+        if (opening) opening[2] = opening[1] + token.markup.length;
+      }
+    });
+  }
   // A bare domain is indistinguishable from a file name such as setup.py. Require
   // an explicit URL or Markdown link instead of inventing an external destination.
   markdown.linkify.set({ fuzzyLink: false });

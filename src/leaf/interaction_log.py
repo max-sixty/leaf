@@ -27,9 +27,11 @@ leaf.page's Worker admits it by too (`admit_batch`). The reader skips malformed 
 deduplicates retries and reports sequence gaps before selection. Stored ts belongs
 to the host clock; observed_at and monotonic_ms belong to one browser tab.
 
-TODO(privacy): Define retention, export, and deletion before pages are shared
-with other users. Client traces can contain draft text and entered values;
-decide which fields to redact or omit for those users.
+A page's trace keeps entered values, draft text and selections for debugging, with no
+limit on its size; only a password field's characters stay out, also after a
+show-password toggle, except in a closed shadow root (`interaction-log.js`).
+The user chose this on 2026-11-04 over recording only the structural fields leaf.page's
+Worker keeps, and over recording nothing unless the user turns it on.
 """
 
 import contextlib

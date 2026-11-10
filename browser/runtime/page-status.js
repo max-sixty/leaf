@@ -11,11 +11,12 @@ import { keeps } from "./keeps.js";
 import { el } from "./widget-elements.js";
 import { WEBSITE_DELIVERY, runtime, runtimeResource } from "./context.js";
 import { chromeRoot } from "./chrome.js";
-import { announce } from "./notifications.js";
+import { announce, gesture } from "./notifications.js";
 import { effect, signal, untracked } from "/runtime/framework.js";
 import { agentName, readPart } from "./semantic-state.js";
 import { UPGRADE } from "./presentation.js";
-import { readQueues } from "./queue-api.js";
+import { onUserCount, readQueues } from "./queue-api.js";
+import { paintTabTitle } from "./tab-title.js";
 import { holdingError } from "./errors.js";
 
 // ---------- status ----------
@@ -133,6 +134,8 @@ function paintTab() {
 let saidKind;
 /** @type {string | null | undefined} */
 let saidActionableWork;
+/** @type {string | undefined} */
+let saidTone;
 // A refused key, or a reading the page could not apply, is an error the user should see
 // wherever they are (errors.js), held while the status says it, since it asks the user to
 // act. An unreachable server is not: the page reconnects on its own, so the status
@@ -159,9 +162,15 @@ function paintStatus(current) {
     saidKind !== undefined &&
     (saidKind !== kind ||
       (actionableWork !== null && actionableWork !== saidActionableWork));
+  // The tone turning to working after the first reading is a moment the panel's leaf
+  // answers (notifications.js, `gesture`). A read that failed says nothing of the agent,
+  // so the tone it shows is passed over: work the page reconnects to isn't picked up.
+  const pickedUp = saidTone !== undefined && tone === "working" && saidTone !== tone;
   saidKind = kind;
   saidActionableWork = actionableWork;
+  if (tone !== "blocked") saidTone = tone;
   if (changed) announce(model.explanation);
+  if (pickedUp) gesture("pickup");
 }
 
 /** Start the page status. */
@@ -170,6 +179,11 @@ export function mountPageStatus() {
   effect(() => {
     const current = currentStatus();
     untracked(() => paintStatus(current));
+  });
+  // The count follows the same reading as the panel's badge (tab-title.js).
+  effect(() => {
+    const count = onUserCount();
+    untracked(() => paintTabTitle(count));
   });
   document.addEventListener(
     UPGRADE,

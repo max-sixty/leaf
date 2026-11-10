@@ -84,8 +84,8 @@ available skills before invoking one.
 ## Leave taste to the authoring agent
 
 Code enforces only what Leaf needs to work: a contract between modules, or a guarantee
-the user relies on, such as a gesture being recorded or a pressed control staying where
-it was (`browser/AGENTS.md`, "The page holds still under the user's aim"). Taste goes
+the user relies on, such as a gesture being recorded or a field staying still as the
+user types in it (`browser/AGENTS.md`, "The page holds still under the user's aim"). Taste goes
 in the shipped instructions as a
 goal with its reason, so the authoring agent weighs it against its own page. A CSS
 rule, validator or Layout that fixes how many tiles share a row overrides every page
@@ -293,6 +293,12 @@ which `dev/leaf_dev/reply_phases.py` attributes to Leaf's delivery, commands and
 the harness, the model's wait and generation, and the agent's other tools. Model time
 varies widely from run to run, so compare a phase Leaf owns directly, and the whole
 reply over enough runs to see past that spread.
+
+To find out what happened to one message, on a real page or in a journey's evidence
+directory, run `leaf-dev timeline PAGE --message ID`: it lays the page's log and
+diagnostics beside the Claude Code session's transcript and debug log, so it shows
+whether a fork was held, asked and answered, when Leaf handed the message over, and
+what the session was doing meanwhile (`dev/leaf_dev/commands/timeline.py`).
 
 ## Compare checkout versions
 

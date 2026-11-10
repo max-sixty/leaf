@@ -57,8 +57,6 @@
   grid-area: 1 / 1;
   justify-self: left;
   align-self: start;
-  margin-left: var(--lf-margin-x, 0px);
-  margin-top: var(--lf-margin-y, 0px);
   display: inline-flex;
   align-items: center;
   gap: var(--margin-gap);
@@ -70,7 +68,7 @@
 .lf-margin-cluster:not([data-lf-place]) {
   visibility: hidden;
 }
-/* A pin folded for want of room (`seatRows`, margin-placement.js) opens over whatever
+/* A pin folded for want of room (`seatRow`, margin-placement.js) opens over whatever
  * stands beside it, which keeps its place. */
 .lf-margin-cluster[data-lf-place="pin"][data-lf-folded][data-lf-options-open] {
   z-index: 3;
@@ -128,7 +126,16 @@
   display: none;
 }
 /* A pin's entries stand at the aim floor, smaller than a rail marker's under a mouse
-   (the entry face's pin, controls.css). */
+   (the entry face's pin, controls.css).
+
+   TODO(#4041): under a finger, draw the pin at 26px inside a 44px aim given by a reach
+   (surfaces.css), so it covers fewer words. Seating that needs two boxes per pin, which
+   margin-placement.js doesn't have: the face, kept off words and touching its target,
+   and the aim, kept off controls and other rows. CSS alone gives a pin one box. With
+   margins making the row the aim, every seat stayed, but a pin seated outside its
+   target drew 9px further from it, past the 12px `leaf-dev pins` allows, on 18 of its
+   26 cases at 390px. With the row the face, the aim lay over a neighbouring control's
+   press on 9 of 270 sentences. */
 .lf-margin-cluster[data-lf-place="pin"] {
   --margin-entry: max(26px, var(--aim-floor));
 }

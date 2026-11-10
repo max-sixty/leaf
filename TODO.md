@@ -13,6 +13,14 @@
 - **Make tasks and work in progress clear.** Find a robust state model that
   users can understand: what is running, waiting, blocked, or complete, and
   whose next move it is.
+- **Stream the agent's reply into its thread, through one general interface.**
+  This is a big, fairly complicated piece of work, and important to get right.
+  Codex's App Server already feeds the thread a draft through `set_stream_reply`;
+  Claude Code has no source for one, and a fork answering a thread would need one
+  too. Design one interface that any harness, fork or package can feed, so the
+  thread shows the answering agent's draft as it writes, rather than a route per
+  harness. One candidate source in Claude Code is a reply tool the hooks module
+  registers, whose arguments it streams to the page server.
 - **Keep authored pages flexible.** Find the useful middle ground between
   unrestricted HTML and brittle templates, especially for workspaces.
 - **Make page-level Threads easy to create and use.** Give users a clear way

@@ -279,6 +279,27 @@ def queue_page(serve):
     return Built(live_url(url), serve.page_dir, QUEUE_PAGE)
 
 
+DECISIONS_PAGE = leaf_page(
+    "Decisions",
+    '<section id="ask-0"><h2>Part 0</h2>'
+    + paragraphs(0, 3)
+    + "</section>"
+    + "".join(
+        f'<section id="ask-{n}"><h2>Part {n}</h2>{paragraphs(n * 3, 2)}'
+        f'<lf-ask id="decide-{n}"><h3>Ask {n}: which way should part {n} go?</h3>'
+        f'<lf-options id="ways-{n}" choose><lf-option id="north-{n}">North</lf-option>'
+        f'<lf-option id="south-{n}">South</lf-option></lf-options></lf-ask></section>'
+        for n in range(1, ASKS + 1)
+    ),
+)
+
+
+def decisions_page(serve):
+    """Fourteen decisions the page itself asks, one on each part but the first, so On
+    Me's cards hold widgets' questions and no message for Leaf's reader to draw."""
+    return Built(live_url(serve(DECISIONS_PAGE)), serve.page_dir, DECISIONS_PAGE)
+
+
 PAGES = {
     "thread": thread_page,
     "map": map_page,
@@ -287,6 +308,7 @@ PAGES = {
     "tall-dial": tall_dial_page,
     "pane": pane_page,
     "queue": queue_page,
+    "decisions": decisions_page,
 }
 
 # ---------------------------------------------------------------------------------
@@ -299,8 +321,10 @@ class Place:
     that marks it, as a page function that finds it afresh at each reading (`box`), and
     what stands around it that a change can grow (`around`, a role to its target).
 
-    `during` is the user's own act, a scroll, made as the change arrives, and `travel`
-    how far it moves the box. A scroll that glides is `midway`: the change draws while
+    `during` is the user's own act, a scroll, made as the change arrives: a driver
+    call, or a page statement the page runs in the task that starts watching the
+    scroll, so a glide can't end in the round trip between them. `travel` is how far
+    it moves the box. A scroll that glides is `midway`: the change draws while
     it is still under way, where the engine lets the case hand it over then (`midway`
     in `arriving`)."""
 
@@ -310,7 +334,7 @@ class Place:
     box: "Found | str"
     around: dict
     travel: float = 0
-    during: Callable | None = None
+    during: Callable | str | None = None
     midway: bool = False
 
 
@@ -532,9 +556,8 @@ def wheel(page):
     page.mouse.wheel(0, SCROLL)
 
 
-def smooth(page):
-    """A scroll that glides, as a key's or a landing's does."""
-    page.evaluate("by => scrollBy({top: by, behavior: 'smooth'})", SCROLL)
+# A scroll that glides, as a key's or a landing's does.
+SMOOTH = f"scrollBy({{top: {SCROLL}, behavior: 'smooth'}})"
 
 
 def map_row(page, label):
@@ -704,7 +727,7 @@ def put_pane(page, built):
 
 
 def put_on_me_row(page, built):
-    """On me open in the panel, its list scrolled past its first rows, the user on a
+    """On Me open in the panel, its list scrolled past its first rows, the user on a
     row in sight."""
     page.locator(".lf-fp-on-user").click()
     rows = page.locator(".lf-fp-on-item")
@@ -717,13 +740,37 @@ def put_on_me_row(page, built):
               n.scrollTop = 3 * row.getBoundingClientRect().height;
               return;
             }
-          throw new Error('On me does not scroll');
+          throw new Error('On Me does not scroll');
         }"""
     )
     row = rows.filter(has_text="Ask 6:")
     row.focus()
     expect(row).to_be_in_viewport()
     page.mouse.move(*ASIDE)
+
+
+def put_on_me_turned_back(page, built):
+    """On Me turned to On <agent> and back by its tabs, which fits the list afresh, then
+    scrolled with the wheel past its first cards, the pointer resting on one in sight.
+    Nothing the user does after the tab press repaints the panel, and no card holds a
+    message for Leaf's reader to draw, so the list's next paint is the news's."""
+    page.locator(".lf-fp-on-user").click()
+    cards = page.locator(".lf-fp-on-item")
+    expect(cards).to_have_count(ASKS)
+    tabs = page.locator(".lf-fp-controls .lf-fp-filters button")
+    tabs.filter(has_text=re.compile(r"^\s*On (?!Me)")).click()
+    expect(cards).to_have_count(0)
+    tabs.filter(has_text="On Me").click()
+    expect(cards).to_have_count(ASKS)
+    view = page.locator(".lf-floating-panel .lf-fp-view:not([data-lf-leaving])")
+    box = view.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, 3 * cards.first.bounding_box()["height"])
+    expect(view).not_to_have_js_property("scrollTop", 0)
+    scroll_settled(page, ".lf-floating-panel .lf-fp-view:not([data-lf-leaving])")
+    card = cards.filter(has_text="Ask 6:")
+    expect(card).to_be_in_viewport()
+    card.hover()
 
 
 PLACES = [
@@ -853,7 +900,7 @@ PLACES = [
         Found(reply_box("jobs")),
         {"thread above": "jobs", "page above": None},
         travel=-SCROLL,
-        during=smooth,
+        during=SMOOTH,
         midway=True,
     ),
     Place(
@@ -902,6 +949,13 @@ PLACES = [
         "on-me-row",
         "queue",
         put_on_me_row,
+        Found(".lf-fp-on-item", "Ask 6:"),
+        {"ask above": "ask-0"},
+    ),
+    Place(
+        "on-me-turned-back",
+        "decisions",
+        put_on_me_turned_back,
         Found(".lf-fp-on-item", "Ask 6:"),
         {"ask above": "ask-0"},
     ),
@@ -977,8 +1031,12 @@ def arriving(page, place, write, drawn):
         page.route("**/api/state*", hold)
         write()
         holding(page, held, 1, "the page's read of the change")
-        place.during(page)
-        page.evaluate(RELEASE, [SCROLL / 10, SCROLL, midway(page, place), QUIET_MS])
+        if callable(place.during):
+            place.during(page)
+            release = RELEASE
+        else:
+            release = f"async (args) => {{ {place.during}; return ({RELEASE})(args); }}"
+        page.evaluate(release, [SCROLL / 10, SCROLL, midway(page, place), QUIET_MS])
         # The read goes before the route is taken down, which can take a while.
         released = list(held)
         for route in released:
@@ -1139,7 +1197,7 @@ def new_thread(page, built, target, place):
 
 
 def ask(page, built, target, place):
-    """The agent asks on the page's opening part, whose row joins On me's head, above
+    """The agent asks on the page's opening part, whose row joins On Me's head, above
     the rows in sight."""
     asked = ["--section", target, "--obligation", "--text", "One more ask?"]
     arriving(
@@ -1464,7 +1522,7 @@ READ = """() => {
   return {start: record.start, end: record.at(), frames: record.frames,
           marks: record.marks, scrolled: page.scrollTop - record.scroll,
           grew: page.scrollHeight - record.height, release: record.release ?? null,
-          atGrowth: record.atGrowth};
+          atGrowth: record.atGrowth, scrolls: record.scrolls};
 }"""
 
 
@@ -1489,7 +1547,6 @@ def held(still, message):
 
 ENGINES = {"browser": "chromium", "firefox_browser": "firefox"}
 
-REPLY_BELOW = "the message clicked scrolls 195px up as the answer joins below it"
 REVISION_LANDING = "the revision's landing moves the message clicked 96px up"
 ON_SCREEN = "the paragraph read moves 67.4px down under the paragraph the revision adds"
 REMOVES = "the paragraph read moves 67.4px up into the paragraph the revision takes out"
@@ -1508,8 +1565,6 @@ GROWN_AFTER_GLIDE = (
 MOVES_ON_MAIN = {
     "diff-reading-deletions-chromium": DIFF_READING,
     "diff-reading-deletions-firefox": DIFF_READING,
-    "message-reply-below-chromium": REPLY_BELOW,
-    "message-reply-below-firefox": REPLY_BELOW,
     "message-revision-above-chromium": REVISION_LANDING,
     "message-revision-above-firefox": REVISION_LANDING,
     "reading-page-revision-on-screen-chromium": ON_SCREEN,
@@ -1619,7 +1674,8 @@ def test_the_page_holds_still_under_the_user(
     # measured something else.
     if midway(page, place):
         assert reading["release"] == "under way", (
-            "the scroll had ended before the page's read of the change could go"
+            "the scroll had ended before the page's read of the change could go; "
+            f"it stood at {[round(at) for at in reading['scrolls']]}px at its scroll events"
         )
         progress = reading["atGrowth"]
         assert progress is not None and abs(progress) < SCROLL - TOLERANCE, (

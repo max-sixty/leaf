@@ -56,8 +56,8 @@ for comparison.
 
 Choose the playground's space by what the user needs to see and operate together
 (`references/page-authoring.md`, "Composing a page"). For more room in a reading
-column, put `data-width="available"` on the enclosing `lf-ask`, or on the playground
-when it stands alone (`references/page-layout.md`, "Bounds and widths"). A workspace
+column, put `data-width="available"` on the playground, in an `lf-ask` or alone
+(`references/page-layout.md`, "Bounds and widths"). A workspace
 gives it the window. Candidates the user
 compares fit the window together, each picture sized as
 `references/authoring-on-me.md` says.
@@ -142,9 +142,13 @@ When the user comments on one of them, the comment records its id, which tells y
 which one they mean.
 
 ```html
-<lf-ask id="notification-ask" data-width="available">
+<lf-ask id="notification-ask">
   <h2>Which deployment notification should we build?</h2>
-  <lf-playground id="notification-playground" submit-label="Create notification">
+  <lf-playground
+    id="notification-playground"
+    submit-label="Create notification"
+    data-width="available"
+  >
     <lf-playground-control
       id="radius"
       name="radius"
@@ -258,6 +262,16 @@ arrives with the `tune` the user was looking at as its `unsent`
 (`references/event-batches.md`), or without one where the controls showed their
 authored values. A value the controls of the message's `revision` can't hold, such as
 a radius past a lowered `max`, showed as that control's authored value.
+
+## After applying a configuration
+
+A playground whose submitted configuration you have applied becomes a record too.
+Author each control at the chosen value, so the preview, Reset and the page's account
+of the choice agree, and keep it and its evidence open beside what came of the choice,
+since the user reads the record against that evidence. The user can still explore from
+it. Keep the recorded configuration identifiable when working values change; a
+changing preview shows the working configuration and is labeled accordingly.
+Reset brings the preview back to the record.
 
 ## Stateful previews
 

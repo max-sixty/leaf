@@ -596,7 +596,7 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
     "<div id='riding' style='width: 900px'>Where the content of a scrolled box "
     "starts.</div></div>\n</main>",
 )
-# One obligation, so a page has something On me.
+# One obligation, so a page has something On Me.
 ONE_OBLIGATION = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
@@ -615,7 +615,7 @@ def with_one_obligation(html):
 
 
 def toggle_queue(page, open=True):
-    """Open the panel's On me view from its mark, or close it from the same seat, where
+    """Open the panel's On Me view from its mark, or close it from the same seat, where
     its ✕ stands while the view does, and wait for it to stand or go."""
     page.locator(".lf-fp-on-user" if open else ".lf-fp-close").click()
     panel_settled(page, open=open, view="queue" if open else None)
@@ -905,9 +905,20 @@ def assert_drawn_in(part, ink, width):
 DRAFT_MARK = """() =>
   document.querySelector(".lf-mark-el.lf-pending")?.closest("[id]")?.id ?? null"""
 # What the arm says about the next press, in the one property that is on screen before
-# the box is read. Asked of body, where the aim declares it and from where it is
-# inherited by everything on the page that doesn't state a cursor of its own.
-AIM_CURSOR = """() => getComputedStyle(document.body).cursor"""
+# the box is read: the cursor of the deepest element at the point, where the aim stands
+# its hand, and whether that element is in a control, which keeps a cursor of its own
+# (page-geometry.js).
+AIM_CURSOR = """async ([x, y]) => {
+  const {WORKS} = await window.__lfCheckApi();
+  let el = document.elementFromPoint(x, y);
+  for (let inner = el?.shadowRoot?.elementFromPoint(x, y); inner && inner !== el;
+       inner = el.shadowRoot?.elementFromPoint(x, y))
+    el = inner;
+  let control = false;
+  for (let at = el; at && !control; at = at.parentElement ?? at.getRootNode().host)
+    control = at.matches(WORKS);
+  return {cursor: el ? getComputedStyle(el).cursor : null, control};
+}"""
 # Where focus ended up, which is the effect a press has that leaves no mark in the markup:
 # `offer` gives every press it builds a tabindex, so a press the page received lands on
 # the control, where the aim's own leaves focus to the composer it opened.
@@ -945,10 +956,13 @@ PAGE_MARKUP = r"""() => [...document.body.children]
                 "lf-binding-seat",
             );
             for (const paint of ["data-lf-mark", "data-lf-aimed", "data-lf-traced",
-                "data-lf-proxied", "data-lf-projected-location"])
+                "data-lf-proxied", "data-lf-projected-location", "data-lf-over-mark",
+                "data-lf-over-item"])
                 el.removeAttribute?.(paint);
-            // Anchor naming is presentation state. The layout may copy a name
+            // Anchor naming is presentation state. A heading borrows a name by
+            // attribute while its link shows, and the layout may copy a name
             // from a stylesheet into inline style while positioning a comment.
+            el.removeAttribute?.("data-lf-heading-link");
             el.style?.removeProperty("anchor-name");
             if (!el.getAttribute("style")) el.removeAttribute("style");
         }

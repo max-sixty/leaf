@@ -109,9 +109,7 @@ def test_sort_film_comment_restores_its_input_and_step(browser, serve):
     expect(moment).to_have_attribute("data-part", "moment:nearly:7:0")
     comment = next(event for event in events if event["kind"] == "comment")
     view = open_panel_thread(page, comment["id"])
-    expect(view.locator(".lf-thread-quote")).to_contain_text(
-        "Random, shuffle 7, step 1"
-    )
+    expect(view.locator(".lf-quote-label")).to_contain_text("Random, shuffle 7, step 1")
     page.locator(".lf-fp-close").click()
     page.get_by_role("button", name="1 comment").press("Enter")
     expect(moment).to_have_attribute("data-part", "moment:random:7:0")
@@ -810,7 +808,8 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
         '<lf-toc id="contents"></lf-toc>',
     )
     on_main, in_child = measured(mapped, "column", 1440)
-    assert on_main["contents"][2] == "fixed", on_main
+    route, contents = on_main["route"][0], on_main["contents"][0]
+    assert route[0] <= contents[0] and contents[1] <= route[1], on_main
     assert without_main(in_child) == without_main(on_main)
     on_main, in_child = measured(workspace_body, "workspace", 1280)
     assert {

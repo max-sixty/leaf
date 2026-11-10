@@ -55,6 +55,7 @@ UNCLAIMED = {
     "status": {"state": "waiting"},
     "listening": False,
     "cursor": 0,
+    "forked": [],
     "pending": 0,
     "agent": "Agent",
     "session_alive": None,
@@ -66,6 +67,7 @@ UNCLAIMED = {
     "turn_opened": None,
     "turn_takes_input": False,
     "input_wakes": False,
+    "fork_lane": None,
     "session_cwd": None,
 }
 
@@ -132,7 +134,8 @@ def served_reading(
     would refuse raises `EventRefused` here rather than folding: the fixture cannot
     state a premise the product would not have accepted. The work the agent has in hand is
     such a command too: a `start` naming a move or task, as `leaf task start`
-    writes it.
+    writes it. An `activation` is the publisher's own record, which no command may
+    write, so it is stamped as the publisher appends one.
     """
     state = read_served_page(
         _fold(documents, events, registry=registry, presence=presence, data=data),
@@ -162,6 +165,24 @@ def served_answer(
     )
     sent = answer(state, None, "model")
     assert (error := served_state_error(sent, "answer")) is None, error
+    return sent
+
+
+def served_view(
+    documents: dict[int, str],
+    events: tuple[dict, ...] | list[dict],
+    base: int,
+    shown: int | None = None,
+    *,
+    registry: dict | None = None,
+) -> dict:
+    """The `/api/view` answer (`PageStateService.page_comparison`) for revision
+    `base` at the end of the log `served_reading` would fold, compared with `shown`."""
+    folded = _fold(documents, events, registry=registry)
+    sent = PageStateService(Path(), source=_FoldedPage(folded)).page_comparison(
+        base, len(folded.events), shown
+    )
+    assert (error := served_state_error(sent, "ViewAnswer")) is None, error
     return sent
 
 
@@ -211,6 +232,10 @@ def _fold(
         stamped = {"id": f"e{seq}", "seq": seq, "ts": NOW, "author": "user"}
         if "revision" in carries.get("properties", {}):
             stamped["revision"] = 1
+        if command.get("kind") == "activation":
+            # `event_contracts._publication_error` refuses it from any other writer.
+            log.append({**stamped, "attention": False, **command})
+            continue
         log.append(admitted_event(door, log, {**stamped, **command}))
     active_revision = max(parsed)
     active = document_descriptor(

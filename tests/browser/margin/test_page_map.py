@@ -8,7 +8,13 @@ from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, REPORT_PAGE, live_url
+from render_cases_interaction import (
+    LOCATION_RING,
+    OBLIGATION_PAGE,
+    PANEL_PAGE,
+    REPORT_PAGE,
+    live_url,
+)
 from render_cases_navigation import CHIPS, _publish, address_code, go_to_address
 from render_harness import (
     PANEL,
@@ -24,6 +30,7 @@ from render_harness import (
     panel_settled,
     panel_view,
     press_visible,
+    preview_parts,
     regions_side_by_side,
     resized,
     scroll_settled,
@@ -160,9 +167,12 @@ def test_the_current_obligation_marks_its_selected_margin_reading(browser, serve
     )
     expect(first).to_have_attribute("data-lf-obligation", "1")
     expect(first_marker).to_have_attribute("data-lf-target-selected", "")
-    assert first_marker.evaluate(
-        "marker => getComputedStyle(marker).borderTopColor"
-    ) == first.evaluate("ask => getComputedStyle(ask, '::after').outlineColor")
+    ring_style, _, ring_color = first.evaluate(LOCATION_RING)
+    assert ring_style == "solid"
+    assert (
+        first_marker.evaluate("marker => getComputedStyle(marker).borderTopColor")
+        == ring_color
+    )
     page.keyboard.press("m")
     expect(page.locator("#bracket-decision")).to_be_focused()
     expect(first_marker).not_to_have_attribute(
@@ -486,7 +496,7 @@ def test_page_map_keyed_reconciliation_preserves_user_current_location(browser, 
     page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     search = dialog.get_by_role(
-        "searchbox", name="Find an action, status, or location in Page Map"
+        "searchbox", name="Find an action, status or location in Page Map"
     )
     search.fill("Action")
     retained = dialog.get_by_role("button", name="Action 12", exact=True)
@@ -577,7 +587,7 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
     expect(dialog.locator(".lf-page-map-group")).to_have_count(12)
     expect(dialog).to_contain_text("Map note 12")
     search = dialog.get_by_role(
-        "searchbox", name="Find an action, status, or location in Page Map"
+        "searchbox", name="Find an action, status or location in Page Map"
     )
     expect(search).to_be_focused()
     search.fill("Map note 12")
@@ -601,7 +611,7 @@ def test_the_page_map_search_filters_in_place_and_walks_its_rows(
     page = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     search = dialog.get_by_role(
-        "searchbox", name="Find an action, status, or location in Page Map"
+        "searchbox", name="Find an action, status or location in Page Map"
     )
     close = dialog.get_by_role("button", name="Close Page Map", exact=True)
     groups = dialog.locator(".lf-page-map-group:visible")
@@ -708,7 +718,7 @@ def test_the_page_map_search_filters_in_place_and_walks_its_rows(
 
 def test_the_chrome_names_an_obligation_by_its_question(browser, serve):
     """An obligation is named by its heading, not its heading run into its options and their
-    chips: the card in the panel's On me view, and the Page Map group for it, whose one
+    chips: the card in the panel's On Me view, and the Page Map group for it, whose one
     row says why the obligation is there rather than naming it a second time."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
     page.keyboard.press("g")
@@ -866,7 +876,7 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
         ).to_be_visible()
 
     search = dialog.get_by_role(
-        "searchbox", name="Find an action, status, or location in Page Map"
+        "searchbox", name="Find an action, status or location in Page Map"
     )
     search.fill("Pack")
     expect(dialog.locator(".lf-page-map-group:visible")).to_have_count(3)
@@ -889,7 +899,7 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
     expect(search).to_be_focused()
     expect(dialog.locator(".lf-page-map-group:visible")).to_have_count(0)
     expect(
-        dialog.get_by_text("No matching actions, statuses, or locations")
+        dialog.get_by_text("No matching actions, statuses or locations")
     ).to_be_visible()
     page.evaluate(
         """() => {
@@ -971,12 +981,18 @@ def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, ser
         browser, serve(source, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION])
     )
     resized(page, 1440, 900)
-    buttons = page.evaluate(
-        """() => [...document.querySelectorAll('.lf-margin-entry')].map(control => ({
-          name: control.getAttribute('aria-label'),
-          word: control.querySelector(':scope > .lf-margin-entry-label').textContent,
-        }))"""
-    )
+    entries = page.locator(".lf-margin-entry")
+    # What each entry the margin shows says when pointed at; one folded into another's
+    # overflow shows nothing to point at.
+    buttons = [
+        {
+            "name": entries.nth(index).get_attribute("aria-label"),
+            "word": " ".join(preview_parts(entries.nth(index)))
+            if entries.nth(index).is_visible()
+            else "",
+        }
+        for index in range(entries.count())
+    ]
     placed = [button for button in buttons if re.search(r"\d+ of \d+", button["name"])]
     assert placed, "no margin entry announced where it stands in the walk"
     for button in placed:
@@ -1104,7 +1120,7 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
         dialog.locator("button.lf-page-map-action").first
         if opener == "finger"
         else dialog.get_by_role(
-            "searchbox", name="Find an action, status, or location in Page Map"
+            "searchbox", name="Find an action, status or location in Page Map"
         )
     ).to_be_focused()
     expect(dialog.locator(".lf-page-map-action").first).to_have_css(
@@ -1326,7 +1342,7 @@ def test_page_map_disclosure_arrival_yields_to_newer_search(
     door = dialog.get_by_role("button", name="Expand choices", exact=True)
     child = dialog.get_by_role("button", name="Revealed choice", exact=True)
     search = dialog.get_by_role(
-        "searchbox", name="Find an action, status, or location in Page Map"
+        "searchbox", name="Find an action, status or location in Page Map"
     )
     expect(door).to_be_visible()
     with held_frames(page):

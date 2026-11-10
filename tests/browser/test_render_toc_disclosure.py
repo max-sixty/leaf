@@ -176,9 +176,9 @@ def test_a_sidebar_page_track_beside_the_body_stands_its_outline_open(browser, s
     expect(disclosure).not_to_have_attribute("open", "")
 
 
-def test_a_margin_track_draws_its_map_only_beside_the_body(browser, serve):
-    """Stacked above the body, the contents is the in-flow disclosure, since the map
-    fixed in the margin would draw over the body's first words. Stacked, the aside and
+def test_a_spine_sidebar_draws_its_map_only_beside_the_body(browser, serve):
+    """Stacked above the body, the contents is the in-flow disclosure, since the map,
+    a window tall, would push the body's first words a screen down. Stacked, the aside and
     `.layout-sidebar` are one width, but Chromium computed them a float rounding error
     apart at some widths (a 960px window among them), so the test reads every width in
     a band either side of the wrap."""
@@ -198,11 +198,11 @@ def test_a_margin_track_draws_its_map_only_beside_the_body(browser, serve):
       const rail = document.getElementById('rail'), body = document.getElementById('body');
       const toc = document.getElementById('contents');
       const readings = [];
-      for (let width = 860; width <= 1100; width++) {
+      for (let width = 760; width <= 960; width++) {
         main.style.inlineSize = `${width}px`;
         readings.push({width,
           stacked: rail.getBoundingClientRect().bottom <= body.getBoundingClientRect().top,
-          map: getComputedStyle(toc).position === 'fixed'});
+          map: getComputedStyle(toc.querySelector('.lf-toc-rows')).display === 'flex'});
       }
       main.style.inlineSize = '';
       return readings;
@@ -211,13 +211,145 @@ def test_a_margin_track_draws_its_map_only_beside_the_body(browser, serve):
     assert [r["width"] for r in readings if r["map"] == r["stacked"]] == []
 
 
-def test_the_revealed_margin_map_covers_every_box_the_body_paints(browser, serve):
+SECTIONS = "".join(
+    f'<section><h2 id="s{n}">Section {n}</h2><p>{"Words. " * 60}</p></section>'
+    for n in range(1, 4)
+)
+MAP_TRACK = '<div class="layout-track"><lf-toc id="contents"></lf-toc></div>'
+
+
+@pytest.mark.parametrize(
+    ("body", "head", "folded"),
+    [
+        pytest.param(
+            '<aside id="route"><div class="layout-track"><lf-toc id="contents"></lf-toc>'
+            '<p id="status">Two branches wait on review before the window opens.</p>'
+            f'</div></aside><div class="layout-column" id="body">{SECTIONS}</div>',
+            "",
+            False,
+            id="status-beside-the-map",
+        ),
+        pytest.param(
+            f'<div class="layout-column" id="body">{SECTIONS}</div>'
+            f'<aside id="route">{MAP_TRACK}</aside>',
+            "",
+            False,
+            id="aside-after-the-body",
+        ),
+        pytest.param(
+            f'<aside id="route">{MAP_TRACK}</aside><div id="body">{SECTIONS}</div>',
+            "<style>main { --aside: 56px; }</style>",
+            True,
+            id="narrow-sidebar-of-the-page",
+        ),
+    ],
+)
+def test_a_sidebar_the_layout_does_not_narrow_keeps_the_map_s_words_shown(
+    browser, serve, body, head, folded
+):
+    """Only a sidebar the Layout narrows to the map's spine lets the map rest as that
+    spine and lay its labels over the body. A document's sidebar keeps a column's room
+    for a status beside the map, where the narrowed sidebar would have crushed the
+    status to a word a line, and for an aside after the body, where the labels would
+    have spread past the window's edge; the outline stands open in that column. A
+    narrow sidebar the page asks for keeps its width, too narrow for the outline's
+    words, so the map folds into the disclosure there rather than hiding labels its
+    track would clip."""
+    source = leaf_page("sidebar of a column", body, head=head, layout="sidebar")
+    page = open_page(browser, live_url(serve(source)))
+    resized(page, 1440, 900)
+    toc = page.locator("#contents")
+    expect(toc.locator(".lf-toc-rows")).not_to_have_css("display", "flex")
+    if folded:
+        expect(toc.locator("summary")).to_be_visible()
+        return
+    assert page.locator("#route").evaluate("node => node.offsetWidth") >= 200
+    expect(toc.locator(".lf-toc-heading")).to_be_visible()
+    expect(toc.get_by_role("link", name="Section 1", exact=True)).to_have_css(
+        "opacity", "1"
+    )
+
+
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_a_contents_spine_rests_beside_the_prose_and_reveals_its_labels_over_it(
+    browser, serve, direction
+):
+    """The narrowed sidebar stands at the body's inline start in either direction. At
+    rest the map lays nothing over the prose, and pointing at its spine shows its labels
+    over the body, inside the window. On paper, where nothing points at it, the sidebar takes a
+    column's room and the outline reads whole."""
+    source = leaf_page(
+        "contents spine",
+        f'<aside id="route">{MAP_TRACK}</aside><div class="layout-column" id="body">'
+        f"<h1>Review</h1>{SECTIONS}</div>",
+        layout="sidebar",
+    ).replace('<html lang="en">', f'<html lang="en" dir="{direction}">')
+    page = open_page(browser, live_url(serve(source)))
+    resized(page, 1440, 900)
+    geometry = page.evaluate("""() => {
+      const box = selector => document.querySelector(selector).getBoundingClientRect();
+      const aside = box('#route'), prose = box('#body p'), rows = box('#contents .lf-toc-rows');
+      const rtl = getComputedStyle(document.body).direction === 'rtl';
+      return {
+        forward: rtl ? -1 : 1,
+        asideWidth: aside.width,
+        asideBeforeProse: rtl ? aside.left >= prose.right : aside.right <= prose.left,
+        proseStart: rtl ? prose.right : prose.left,
+        proseY: prose.top + prose.height / 2,
+        spine: rtl ? rows.right : rows.left,
+        rowsY: rows.top + rows.height / 2,
+      };
+    }""")
+    forward = geometry["forward"]
+    assert forward == (-1 if direction == "rtl" else 1)
+    assert geometry["asideWidth"] <= 64, geometry
+    assert geometry["asideBeforeProse"], geometry
+    covered = page.evaluate(
+        """([forward, proseStart, y]) => {
+          const toc = document.getElementById('contents');
+          return Array.from({length: 9}, (_, step) => proseStart + forward * (4 + step * 40))
+            .filter(x => toc.contains(document.elementFromPoint(x, y)));
+        }""",
+        [forward, geometry["proseStart"], geometry["proseY"]],
+    )
+    assert covered == []
+    spine_x = geometry["spine"] + forward * 3
+    assert page.evaluate(
+        "([x, y]) => document.getElementById('contents')"
+        ".contains(document.elementFromPoint(x, y))",
+        [spine_x, geometry["rowsY"]],
+    )
+
+    page.mouse.move(spine_x, geometry["rowsY"])
+    label = page.locator("#contents").get_by_role("link", name="Section 2", exact=True)
+    expect(label).to_have_css("opacity", "1")
+    revealed = label.evaluate(
+        """(link, proseStart) => {
+          const box = link.getBoundingClientRect();
+          const rtl = getComputedStyle(link).direction === 'rtl';
+          return {
+            inWindow: box.left >= 0 && box.right <= innerWidth,
+            overBody: rtl ? box.left < proseStart - 20 : box.right > proseStart + 20,
+            scrollsSideways: document.documentElement.scrollWidth > innerWidth,
+          };
+        }""",
+        geometry["proseStart"],
+    )
+    assert revealed == {"inWindow": True, "overBody": True, "scrollsSideways": False}
+
+    page.emulate_media(media="print")
+    assert page.locator("#route").evaluate("node => node.offsetWidth") >= 200
+    expect(page.locator("#contents .lf-toc-start")).to_be_visible()
+
+
+def test_the_revealed_contents_spine_covers_every_box_the_body_paints(browser, serve):
     """The revealed map lies over the body's start edge and covers every box the body
     paints there: a table, which the theme makes a positioned scroll box, bullets the
-    page draws in positioned boxes, and a box the page lifts with its own z-index."""
+    page draws in positioned boxes, and a box the page lifts with its own z-index. The
+    narrowed sidebar's Layout paints its aside over the body for this (layouts.css)."""
     source = leaf_page(
-        "margin contents over positioned boxes",
-        '<aside id="rail"><div class="layout-track"><lf-toc id="contents"></lf-toc>'
+        "contents spine over positioned boxes",
+        '<aside id="route"><div class="layout-track"><lf-toc id="contents"></lf-toc>'
         '</div></aside><div class="layout-column" id="body"><h1>Review</h1>'
         '<section id="s1"><h2>Steps</h2><ul class="steps" id="steps">'
         "<li>Drain the queue</li><li>Rotate the key</li></ul></section>"

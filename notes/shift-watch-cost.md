@@ -37,6 +37,22 @@ nodes or fewer frames rather than doing one read faster. `read` also enumerates
 the composed tree's animations twice per frame, once through `readMotion`, and
 `tick` again for each open rendering.
 
+## The feature gallery's load
+
+A complete reading costs about 14 µs a node, timed around `read()` in a scratch
+copy of the watch while the gallery loads (November 2026); about 3,700 of the
+gallery's 5,913 nodes stand in its shut tabs and other skipped content.
+
+Most of the gallery's own time to ready is its 16 live samples arriving after it
+presents: the probe below reports the page presented at about 2.1 s and settled,
+every sample in, at about 8.2 s on an M-series Mac. Each sample frame loads a
+Leaf runtime of its own, and the page's readiness waits for the last.
+
+```sh
+uv run leaf-dev probe feature-gallery --motion reduce --viewport 1200x900 \
+  --js "() => ({settled: Math.round(performance.now()), samples: document.querySelectorAll('lf-sample iframe').length})"
+```
+
 ## Gesture scroll judgement
 
 Judging the scrolls a gesture makes ("Scrolls a gesture makes") adds one fresh
@@ -74,6 +90,19 @@ cost about 11 ms per second either way. Tests rarely leave a page still for long
 above is the larger share of what the watch costs the suite.
 
 ## Open findings
+
+- **A complete reading still grows with the drawn page.** Readings that skip
+  unchanged frames (#1951), unpresented frames (#3281) and skipped content each
+  cut the same cost, a full record of every node per changed frame. A page that
+  skips nothing, such as `leaf-dev bench`'s 512-section prose page, still pays
+  it in full: there the sensors added about 290 ms to a click (#5523). The
+  runtime's input work follows what the window shows (root `AGENTS.md`,
+  "Responsiveness"), and the watch could too: read each drawn node's rect and
+  scroll offsets, about 1 µs a node on a clean layout, and the full record only
+  for nodes within a band around the window in this reading or the last, with
+  their rendered ancestors and scrollers. A box that jumps into the window from
+  beyond the band without input would then have a rect but no record from before,
+  so the user would decide what the watch owes that case.
 
 - **Coverage exemptions need review.** Whether each `shifts_unsurveyed` module
   still needs its exemption hasn't been reviewed. Measure the cost of watching

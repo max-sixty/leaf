@@ -87,7 +87,7 @@
 
    A held surface grows no taller than the room from its held edge, or than the tallest
    it has stood since its line last moved (`fit`'s `stood`), whichever is more
-   (`size-room`). One that `rises` (`size-rises`, decided in thread/card-anchor.js)
+   (`size-room`). One that `rises` (`size-rises`, decided in thread-preview.js)
    holds its top but has the boundary's whole height, so the boundary
    lifts it as it outgrows the room below; its held top is the spot before that lift,
    so shrinking brings it back down to where it stood. Against
@@ -119,7 +119,7 @@
    side, the left included, and its attachment limit stretches to take in the spot it
    was dropped at, so it stands there and still leaves with what it is about.
 
-   The card's interaction owner (`thread/card-anchor.js`) chooses the edge to preserve.
+   The card's preview (`thread-preview.js`) chooses the edge to preserve.
    This solver knows only its physical attachment and landed rectangle. Focus and
    transcript landing at Send belong to `thread/reply-landing.js`; width retention
    belongs to the preview's lifetime (`thread-preview.js`).
@@ -417,6 +417,11 @@ const rootLength = (name) =>
 export const cardMinimum = () => rootLength("--thread-card-min");
 export const cardMeasure = () => rootLength("--thread-card");
 
+// The block edge a surface on `side` is attached by, which it holds as it grows unless
+// asked to hold another (`edge`): its foot above what it is about, its top elsewhere.
+/** @param {Side} side @returns {"top" | "foot"} */
+export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
+
 /* One surface's placement: the side it holds and its inline attachment.
 
    `choose` holds a side, choosing one where none is held or the boundary or `extent`'s
@@ -501,7 +506,7 @@ export function commentPlacement() {
       margin = null,
       boundary,
       fit,
-      edge = side === "top" ? "foot" : "top",
+      edge = attachedEdge(side),
       rises = false,
     },
   ) {

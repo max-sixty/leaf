@@ -90,10 +90,11 @@ const PRESS_SELECTORS = [
 // Reach lends a mechanical tab stop to overflowing prose. That stop does not
 // turn its content into an authored interactive region.
 export const LENT_REACH_STOP = "data-lf-lent-reach-stop";
+// A tab panel's stop lets the reader reach and scroll its contents; the panel itself
+// has no press to protect from a thread mark inside those contents.
+const TAB_STOP_REGION = `[tabindex]:not([tabindex='-1']):not([${LENT_REACH_STOP}]):not([role='tabpanel'])`;
 const REGION_SELECTORS = [
-  // A tab panel's stop lets the reader reach and scroll its contents; the panel
-  // itself has no press to protect from a thread mark inside those contents.
-  `[tabindex]:not([tabindex='-1']):not([${LENT_REACH_STOP}]):not([role='tabpanel'])`,
+  TAB_STOP_REGION,
   "[contenteditable]:not([contenteditable='false'])",
   "[draggable='true']",
   "[role='application']",
@@ -109,3 +110,10 @@ const REGION_SELECTORS = [
 ];
 export const PRESSES = PRESS_SELECTORS.join(",");
 export const WORKS = [...PRESS_SELECTORS, ...REGION_SELECTORS].join(",");
+// The controls, native or ARIA, that work a gesture of their own: what `WORKS` names,
+// less a plain tab stop, which only lets the reader reach and scroll what it holds
+// (widget-elements.js, `aimableAt`).
+export const CONTROLS = [
+  ...PRESS_SELECTORS,
+  ...REGION_SELECTORS.filter((selector) => selector !== TAB_STOP_REGION),
+].join(",");

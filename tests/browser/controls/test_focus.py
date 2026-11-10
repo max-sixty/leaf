@@ -28,6 +28,7 @@ from render_harness import (
     open_page,
     panel_settled,
     panel_view,
+    put_preview_away,
     resized,
     round_trip,
     scroll_settled,
@@ -59,12 +60,23 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
     )
     stops = reference.locator("input, button, [tabindex]:not([tabindex='-1'])")
     assert stops.count() >= 2, "the reference had no meaningful native Tab loop"
-    for _ in range(stops.count() + 2):
+    close = reference.locator(".lf-command-reference-close")
+    # Walk until Tab has come round to Close twice, so the walk wraps and ends at a
+    # known stop whatever the number of command rows.
+    arrivals = 0
+    for _ in range(2 * (stops.count() + 2)):
         page.keyboard.press("Tab")
         assert reference.evaluate(
             "el => el.contains(document.activeElement)"
             "   || document.activeElement === document.body"
         ), "Tab escaped the command reference onto the suspended page"
+        arrivals += close.evaluate("el => el === document.activeElement")
+        if arrivals == 2:
+            break
+    assert arrivals == 2, "Tab never came back round to the reference's first stop"
+    # Tab reads Close's preview, which the first Escape puts away (keyboard/AGENTS.md,
+    # "Escape"); the next closes the reference.
+    put_preview_away(page)
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
     expect(door).to_be_focused()
@@ -133,9 +145,9 @@ def test_an_empty_threads_opened_by_key_wears_its_ring_on_the_stage(browser, ser
 
 
 def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
-    """On me's Show on a question asked in a thread's words opens the thread's card on
-    the page with the user in it. The arrival stood them on the message On me drew,
-    and On me closing then dropped them on the page."""
+    """On Me's Show on a question asked in a thread's words opens the thread's card on
+    the page with the user in it. The arrival stood them on the message On Me drew,
+    and On Me closing then dropped them on the page."""
     page = open_page(browser, serve(named_source("ship-review")))
     page.locator(".lf-fp-on-user").click()
     card = page.locator(f"{panel_view('queue')} .lf-fp-on-item").filter(
@@ -231,7 +243,7 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
 
 
 def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, serve):
-    """Putting On me away hands the user back the page, however they opened it.
+    """Putting On Me away hands the user back the page, however they opened it.
 
     Opened with the pointer, the view takes focus; opened from the keyboard, its first
     row does. Either way Escape lands on the page rather than on the mark that opened

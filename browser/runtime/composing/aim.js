@@ -10,14 +10,16 @@ import {
 } from "../pointer.js";
 import { elementFromPointAcross, inChrome } from "../passages.js";
 import { aimTargetAt } from "../anchor-resolution.js";
-import { setRuntimeRootStyle } from "../root-state.js";
+import { setRuntimeRootAttribute, setRuntimeRootStyle } from "../root-state.js";
+import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { pointInto } from "../pointed-place.js";
 
 // While ⌥ is held the page shows what a click would take — the item under
 // the pointer wears the aim's box (refreshAim), so the sequence
 // answers "which" before the click rather than asking the user to press and find out.
-// `aiming` is the modifier's state and the class is a rendering of the page being armed;
-// nothing reads the class back.
+// `aiming` is the modifier's state and `data-lf-aiming` on body is a rendering of the
+// page being armed, an attribute the margin's observer of classes does not hear
+// (page-paint.js); nothing reads it back.
 //
 // The target picker (`s`) arms the page the same way for as long as it stands: its hints
 // name targets for the keyboard, and the pointer takes any of them, or one between them,
@@ -109,7 +111,11 @@ export function createAim({
   }
   // The armed page's one writer, called when either source of the arm changes.
   function armChanged() {
-    document.body.classList.toggle("lf-aiming", aiming || targetPicker.active());
+    setRuntimeRootAttribute(
+      document.body,
+      RUNTIME_PAINT_ATTRIBUTE.aiming,
+      aiming || targetPicker.active() ? "" : null,
+    );
     // Picker keys name the Design legend's corners while the picker owns the choice.
     // Inherit through the paint stages, whose boxes may live in shadow roots, and into
     // the chrome after body, which holds the legend.
@@ -260,14 +266,6 @@ export function createAim({
     document.addEventListener("pointermove", pointerMove);
     for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);
   }
-  function destroy() {
-    globalThis.removeEventListener("keydown", keyDown, true);
-    globalThis.removeEventListener("keyup", keyUp, true);
-    globalThis.removeEventListener("blur", blur);
-    document.removeEventListener("pointermove", pointerMove);
-    for (const type of PRESS_EVENTS)
-      document.removeEventListener(type, claimPress, true);
-  }
   pageCommand(AIM);
-  return { aimIsOn, aimedTarget, armChanged, mount, destroy };
+  return { aimIsOn, aimedTarget, armChanged, mount };
 }

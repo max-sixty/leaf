@@ -1,7 +1,13 @@
 /* This module owns the shared readings of visible boxes and clipping, how much of the
  * window the page shows, and the one conversion from viewport boxes to
  * document-positioned chrome. */
-import { excludedByInert, renderedParent, uiInside, under } from "./shadow-tree.js";
+import {
+  excludedByInert,
+  renderedParent,
+  skipped,
+  uiInside,
+  under,
+} from "./shadow-tree.js";
 import { nativeModalAdmits, watchLayerChanges } from "./keyboard/layer-stack.js";
 import { isNativeLayer, nativeLayerHolding } from "./shadow-tree.js";
 import { clippingAxes, hasArea, intersect, overlapsAcross, union } from "./rect.js";
@@ -59,7 +65,7 @@ export const visualViewport = nativeViewport;
      and what this page shows of a sample it holds, and `watchRoom` for when any of
      those readings may have changed.
 
-   `skipped` (shown-box.js) is asked first by a reading that can leave out a box the
+   `skipped` (shadow-tree.js) is asked first by a reading that can leave out a box the
    browser is not drawing, since reading one in skipped content forces that content's
    style and layout.
 
@@ -147,11 +153,9 @@ export function shownWindow({
   const right = Math.min(offsetLeft + width, within?.right ?? Infinity) - gap;
   let top = Math.max(offsetTop, within?.top ?? -Infinity);
   let bottom = Math.min(offsetTop + height, within?.bottom ?? Infinity);
-  const middle = offsetTop + height / 2;
   for (const box of coverBoxes(item)) {
     if (!overlapsAcross(box, across ?? { left, right })) continue;
-    if (box.top + box.bottom < 2 * middle) top = Math.max(top, box.bottom);
-    else bottom = Math.min(bottom, box.top);
+    ({ top, bottom } = coverCut(box, top, bottom, { offsetTop, height }));
   }
   top += gap;
   bottom -= gap;
@@ -213,9 +217,9 @@ export function shownBand(el) {
 //
 // `landingBand` is where a landing may put something: the shown band less the
 // `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours.
-// The root states its band apart, in `--lf-landing-top` and `--lf-landing-bottom`
-// (base.css), which its padding copies but for while a floating editor holds focus,
-// when the browser's own caret reveal is given none.
+// The root states its band apart (`landingInsets`), which its padding copies but for
+// while a floating editor holds focus, when the browser's own caret reveal is given
+// none.
 // It clears what stands over the whole scroller (a page tab strip); a header
 // over part of it, a diff's file header, is cleared by the `scroll-margin` of the rows
 // it stands over. Scroll anchoring looks for the box it keeps still in the band the
@@ -545,20 +549,34 @@ function insetBand(scroller, inset) {
     bottom: band.bottom - inset.bottom,
   };
 }
+// The root's band at the window's foot, in pixels, which the floating panel states as
+// it writes the root's `scroll-padding-bottom` (floating-panel.js, `followBox`), or
+// null where no panel stands, as on an export. Returns whether the band changed.
+/** @type {number | null} */
+let footBand = null;
+/** @param {number} band */
+export function stateFootBand(band) {
+  if (band === footBand) return false;
+  footBand = band;
+  return true;
+}
 // How far each edge of `landingBand` stands in from the scroller's shown band: the
-// band the scroller states, else the `scroll-padding` it declares. Callers that
-// measure from the scroller's own box take the clearance here rather than reading the
-// style themselves.
+// band the scroller states, else the `scroll-padding` it declares. The root states its
+// top in `--lf-landing-top` (base.css), and the floating panel its foot
+// (`stateFootBand`), both of which a floating editor's override hides from the browser
+// alone. Callers that measure from the scroller's own box take the clearance here
+// rather than reading the style themselves.
 /** @param {Element} scroller */
 export function landingInsets(scroller) {
   const style = getComputedStyle(scroller);
   const padding = scrollPadding(style);
-  /** @param {"top" | "bottom"} edge */
-  const stated = (edge) => {
-    const value = Number.parseFloat(style.getPropertyValue(`--lf-landing-${edge}`));
-    return Number.isNaN(value) ? padding[edge] : value;
+  const top = Number.parseFloat(style.getPropertyValue("--lf-landing-top"));
+  const root = scroller === document.documentElement;
+  return {
+    ...padding,
+    top: Number.isNaN(top) ? padding.top : top,
+    bottom: root && footBand !== null ? footBand : padding.bottom,
   };
-  return { ...padding, top: stated("top"), bottom: stated("bottom") };
 }
 /** @param {CSSStyleDeclaration} style */
 function scrollPadding(style) {
@@ -643,9 +661,9 @@ export function shownRect(item, clips) {
 }
 // What of an item the user sees: what every box over it lets through, within the visible
 // viewport's height, less the boxes the chrome covers (`coverBoxes`), or null when none
-// of it shows. A cover reaching into the item's columns takes the band it stands in, and
-// the item keeps the larger of its parts above and below that band, so what is left is
-// one box the user sees whole; a cover beside the item takes nothing. The viewport cuts
+// of it shows. A cover reaching into the item's columns takes the item from the cover to
+// the window's edge it stands nearer (`coverCut`), so what is left is one box the user
+// sees whole; a cover beside the item takes nothing. The viewport cuts
 // only the item's top and foot; its sides stay the clip walk's, the layout viewport's,
 // since a pinch zoom's visual viewport is a pan across the page and not a clip, and read
 // with its sides a message wider than the zoomed view was never seen whole across, and
@@ -675,29 +693,50 @@ export function inFront(box, item) {
     item,
   );
 }
+// The span `top` to `bottom` less what a cover in its columns takes: everything from the
+// cover to the edge of `viewport` it stands nearer, the visible viewport unless the
+// caller reads another, as the floating panel at the window's foot leaves no room under
+// it. The page the gap between it and that edge shows is no room to read in, and
+// counting a box seen there would leave a landing short of a message the panel hides.
+// A span wholly past that edge keeps all of itself, as a seat scrolled below the window
+// is under no cover there. `shownWindow` cuts by it in the viewport it reads, `uncovered`
+// in the visible one.
+/** @param {Box} over @param {number} top @param {number} bottom
+ * @param {{offsetTop: number, height: number}} [viewport] */
+function coverCut(over, top, bottom, { offsetTop, height } = visualViewport) {
+  if (over.top + over.bottom < 2 * offsetTop + height)
+    return bottom <= offsetTop
+      ? { top, bottom }
+      : { top: Math.max(top, over.bottom), bottom };
+  return top >= offsetTop + height
+    ? { top, bottom }
+    : { top, bottom: Math.min(bottom, over.top) };
+}
 // What of `box` the boxes the chrome covers leave (`coverBoxes`), but for one holding
 // `item`, or null where they leave none of it: a cover reaching into the box's columns
-// takes the band it stands in, and the box keeps the larger of its parts above and below
-// that band. `seenRect` and paint stacked above the chrome (`paintClips`) cut by it.
+// takes it from the cover to the window's edge it stands nearer (`coverCut`). `seenRect`
+// and paint stacked above the chrome (`paintClips`) cut by it.
 /** @param {Box} box @param {Node} item @param {boolean} [rest] */
 function uncovered({ left, top, right, bottom }, item, rest = false) {
   for (const over of coverBoxes(item, { rest })) {
-    if (over.left >= right || over.right <= left) continue;
-    if (over.top >= bottom || over.bottom <= top) continue;
-    if (over.top - top >= bottom - over.bottom) bottom = over.top;
-    else top = over.bottom;
+    if (!overlapsAcross(over, { left, right })) continue;
+    ({ top, bottom } = coverCut(over, top, bottom));
   }
   return bottom > top ? { left, top, right, bottom } : null;
 }
 // Whether the boxes the chrome covers will stand over any of `box` for `item`, by the
 // rule `seenRect` cuts with, read where each comes to rest: a surface asks it before
 // giving way to a place a landing is about to show (floating-panel.js, `clearFor`), and
-// a view still opening will cover what its drawn box doesn't reach yet.
+// a view still opening will cover what its drawn box doesn't reach yet. A cover's cut
+// answers, not whether anything is left, so an empty box, such as a seat with nothing
+// in it yet, is covered only where a cover stands over it.
 /** @param {Box} box @param {Node} item */
-export function covered(box, item) {
-  const left = uncovered(box, item, true);
-  return !left || left.top > box.top || left.bottom < box.bottom;
-}
+export const covered = (box, item) =>
+  coverBoxes(item, { rest: true }).some((over) => {
+    if (!overlapsAcross(over, box)) return false;
+    const left = coverCut(over, box.top, box.bottom);
+    return left.top > box.top || left.bottom < box.bottom;
+  });
 // Whether the page draws `node` with what it holds: rendered (`checkVisibility`, with its
 // `options`) and not hidden until found. An element `hidden="until-found"` keeps a box
 // of its own while the browser skips its contents, until find-in-page or `reveal`
@@ -999,6 +1038,21 @@ export function nearWindow(target, clips = new Map()) {
     box.left <= 2 * width
   );
 }
+// Whether the browser draws the text `parent` holds. Ask the text's own parent rather than
+// a block around it: display: contents still draws text, and a child can restore
+// visibility inside a concealed block. Skipped subtrees are left alone before asking for
+// any boxes. Text in display: contents has no parent box to ask, so its first boxed
+// ancestor supplies the browser's opacity and display reading; visibility belongs to the
+// text's parent, since its children may override that ancestor.
+/** @param {Element | null} parent */
+export const drawsText = (parent) => {
+  if (!parent || skipped(parent) || getComputedStyle(parent).visibility !== "visible")
+    return false;
+  /** @type {Element | null} */
+  let box = parent;
+  while (box && getComputedStyle(box).display === "contents") box = renderedParent(box);
+  return Boolean(box?.checkVisibility({ opacityProperty: true }));
+};
 // The same walk for a box measured from what an element holds: a Range inside it. The
 // holder's own band stands over its contents, where it says nothing about the holder's
 // own box, so text scrolled out of the `pre` it sits in directly is text nobody sees.

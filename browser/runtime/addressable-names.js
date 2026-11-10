@@ -6,7 +6,7 @@
  * reader, so generated chrome never names anything. */
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
-import { authoredScope, elementReading, HEADING } from "./passages.js";
+import { authoredScope, elementReading, HEADING, keptAnswer } from "./passages.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { uiInside, upFrom } from "./shadow.js";
 import { excerptWords } from "./words.js";
@@ -87,9 +87,15 @@ export function addressableSays(addressable) {
 // element by the same rule off the document (`gesture_words.element_name`), and
 // `tests/name_cases.json` holds both to the same cases.
 const TITLES = `summary, ${HEADING}, strong`;
-/** The element whose words name `container` by that rule, or null. */
+/** The element whose words name `container` by that rule, or null. Finding it reads the
+ * container's children, so the answer is kept as long as the page reading stands
+ * (`keptAnswer`), as an element's words are: a label asked again on every pass, or a
+ * preview climbing past a long run of paragraphs, reads them once.
+ * @param {Element} container @returns {Element | null} */
+export const leadingTitle = (container) =>
+  keptAnswer(container, "leading title", () => readLeadingTitle(container));
 /** @param {Element} container @returns {Element | null} */
-export function leadingTitle(container) {
+function readLeadingTitle(container) {
   for (const node of container.childNodes) {
     if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) return null;
     if (!(node instanceof Element) || uiInside(node, container)) continue;
@@ -101,20 +107,37 @@ export function leadingTitle(container) {
 // The title an element's attribute holds, as its declaration names (`x-name`), such
 // as a tab's label.
 /** @param {Element} element */
-export function declaredName(element) {
+function declaredName(element) {
   const attribute = registry[element.localName]?.["x-name"];
   return (attribute && element.getAttribute(attribute)?.trim()) || "";
 }
-/** @param {Element | null | undefined} element */
-export function addressableName(element) {
-  if (!element) return "";
+// Where a name comes from: an attribute's words, or an element whose words are the name,
+// read by the reading the rule names. A reader that reads names as something else draws
+// them, as a preview reads them as the page draws them, reads the same source.
+/** @typedef {{words: string} | {by: Element, reading: "wrote" | "says"}} Naming */
+/** @param {Naming | null} naming @returns {string} */
+const namingWords = (naming) =>
+  !naming
+    ? ""
+    : "words" in naming
+      ? naming.words
+      : elementReading(naming.by, naming.reading);
+// What `addressableName` reads, by the rule above: its declared attribute, else its
+// leading title.
+/** @param {Element} element @returns {Naming | null} */
+function addressableNaming(element) {
   const declared = declaredName(element);
-  if (declared) return declared;
+  if (declared) return { words: declared };
   const title = leadingTitle(element);
-  return title ? elementReading(title, "wrote") : "";
+  return title && elementReading(title, "wrote")
+    ? { by: title, reading: "wrote" }
+    : null;
 }
+/** @param {Element | null | undefined} element */
+export const addressableName = (element) =>
+  element ? namingWords(addressableNaming(element)) : "";
 
-// What the chrome calls an element away from it: an On me row, a Page Map heading,
+// What the chrome calls an element away from it: an On Me row, a Page Map heading,
 // a thread's anchor, a feed row. The element's name comes first: `addressableName`,
 // else its own caption, the `aria-label` its author gave it, or a control's <label>.
 // An element whose words are its own (a block of prose, anything holding text of its
@@ -127,24 +150,35 @@ export function addressableName(element) {
 // nothing: empty, and the caller says the element's word (`addressableWord`), which it
 // usually shows beside this anyway.
 const LABEL_WORDS = 60;
-/** @param {Element} element */
-const captionOf = (element) => {
-  const caption = [...element.children].find(
-    (child) => child.matches("figcaption, caption") && !uiInside(child, element),
+/** @param {Element} element @returns {Naming | null} */
+const captionNaming = (element) => {
+  const caption = keptAnswer(element, "caption", () =>
+    [...element.children].find(
+      (child) => child.matches("figcaption, caption") && !uiInside(child, element),
+    ),
   );
-  return caption ? elementReading(caption) : "";
+  return caption && elementReading(caption) ? { by: caption, reading: "says" } : null;
 };
 // A form control's caption is its <label>.
-/** @param {Element & Partial<Pick<HTMLInputElement, "labels" | "alt">>} element */
-export const accessibleName = (element) =>
-  element.getAttribute("aria-label")?.trim() ||
-  (element.labels?.[0] ? elementReading(element.labels[0]) : "") ||
-  element.alt?.trim() ||
-  "";
-// The name an element has itself, before any holder lends it one.
+/** @param {Element & Partial<Pick<HTMLInputElement, "labels" | "alt">>} element
+ * @returns {Naming | null} */
+function accessibleNaming(element) {
+  const label = element.getAttribute("aria-label")?.trim();
+  if (label) return { words: label };
+  const labelled = element.labels?.[0];
+  if (labelled && elementReading(labelled)) return { by: labelled, reading: "says" };
+  const alt = element.alt?.trim();
+  return alt ? { words: alt } : null;
+}
 /** @param {Element} element */
-export const ownName = (element) =>
-  addressableName(element) || captionOf(element) || accessibleName(element);
+export const accessibleName = (element) => namingWords(accessibleNaming(element));
+// The name an element has itself, before any holder lends it one, and where it comes
+// from.
+/** @param {Element} element @returns {Naming | null} */
+export const ownNaming = (element) =>
+  addressableNaming(element) ?? captionNaming(element) ?? accessibleNaming(element);
+/** @param {Element} element */
+export const ownName = (element) => namingWords(ownNaming(element));
 /** @param {Element} element */
 const saysItself = (element) =>
   element.matches(TEXT_BLOCK) ||
@@ -158,15 +192,8 @@ export function addressableLabel(element) {
   const own = ownName(element);
   if (own) return own;
   if (saysItself(element)) return excerptWords(addressableSays(element), LABEL_WORDS);
-  const scope = authoredScope(element);
-  // The page's column is `main`, beside the body's other content; its leading heading
-  // titles the page, not each unnamed element in it.
-  const column = (/** @type {Element} */ at) =>
-    at.localName === "main" && at.parentElement === scope;
-  for (let at = upFrom(element); at && at !== scope && !column(at); at = upFrom(at)) {
-    const name = ownName(at);
-    if (name) return name;
-  }
+  const held = namingWords(holderNaming(element));
+  if (held) return held;
   // A registered widget has a word of its own, which says more than its members' words
   // run together. Plain markup has none worth saying (a `div`), so its words, or the
   // name of the picture it holds, are the last resort.
@@ -176,6 +203,25 @@ export function addressableLabel(element) {
       element.querySelector("[aria-label]")?.getAttribute("aria-label"),
     LABEL_WORDS,
   );
+}
+
+// The name of the nearest element holding `element` that has one, short of the document
+// it stands in (the page's column, or a message's body), or "": a question's options are
+// named by the question, a chart by its section. The chrome's label for an element
+// reads it (`addressableLabel`); a place's name, which follows headings inside the
+// holder too, is thread/placement.js's `partOver`. The page's column is `main`, beside the
+// body's other content; its leading heading titles the page, not each unnamed element in
+// it.
+/** @param {Element} element @returns {Naming | null} */
+function holderNaming(element) {
+  const scope = authoredScope(element);
+  const column = (/** @type {Element} */ at) =>
+    at.localName === "main" && at.parentElement === scope;
+  for (let at = upFrom(element); at && at !== scope && !column(at); at = upFrom(at)) {
+    const naming = ownNaming(at);
+    if (naming) return naming;
+  }
+  return null;
 }
 
 // A thread's § coordinate and the visual-action picker both show it.

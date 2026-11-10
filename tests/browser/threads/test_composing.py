@@ -356,7 +356,14 @@ def test_contextual_messages_share_text_spacing_through_send_and_reopen(
                 body.evaluate("(node, key) => getComputedStyle(node)[key]", property),
             )
     rendered(page)
-    preview.locator(".lf-thread-transcript").evaluate("node => { node.scrollTop = 0; }")
+    # The user scrolls back to the first message, which ends the send's hold on the
+    # transcript's end (thread/reply-landing.js, `keepThreadLanding`).
+    transcript = preview.locator(".lf-thread-transcript")
+    transcript.hover()
+    page.mouse.wheel(0, -2000)
+    page.wait_for_function(
+        "node => node.scrollTop === 0", arg=transcript.element_handle()
+    )
     scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
     measure_gaps = """messages => messages.map(message => {
       const name = message.querySelector('.lf-msg-head b').getBoundingClientRect();
@@ -434,12 +441,15 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
             one_frame(page)
             pixels = Image.open(io.BytesIO(message.screenshot())).convert("RGB")
             # The scrollport can clip the message's top edge. Sample inside the
-            # sticky header's visible paint, clear of its words and controls.
+            # sticky header's visible paint, clear of its words and controls: a card
+            # beside its passage rises as one piece on a send, which leaves the
+            # pointer on the new message's Copy, lit in its own hover face.
             head_point = message.evaluate(
                 """node => {
                   const box = node.getBoundingClientRect();
                   const head = node.querySelector('.lf-msg-head').getBoundingClientRect();
-                  return [Math.round(head.right - box.left) - 2,
+                  const controls = node.querySelector('.lf-msg-controls').getBoundingClientRect();
+                  return [Math.round(controls.left - box.left) - 12,
                     Math.round(head.top + head.height / 2 - box.top)];
                 }"""
             )

@@ -5,6 +5,14 @@
    passage reader and a package's widgets share one truncation rule. */
 import { COLLAPSE } from "./kernel-facts.js";
 
+// What an empty comment box says, in every box, at rest and with the caret in, in
+// Leaf's voice (voice.js). The user chose these on 5 November 2026, with the ellipsis a
+// box that prompts for words may carry and the italic of words the agent didn't write,
+// over Reply and Comment in the interface's own face.
+export const COMMENT_HINT = "Comment…";
+export const REPLY_HINT = "Reply…";
+export const REOPEN_HINT = "Reply to reopen…";
+
 /** @param {unknown} value */
 export const labelWords = (value) =>
   String(value ?? "")

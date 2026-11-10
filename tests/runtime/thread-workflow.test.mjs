@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   isPageWidgetWorkflow,
+  progressFace,
   strongestWorkflow,
   threadAttention,
   workflowWord,
@@ -13,6 +14,7 @@ import {
   readThreadRecords,
 } from "../../browser/runtime/thread/model.js";
 import { isTurnEvent, turnMessage } from "../../browser/runtime/pending/model.js";
+import { threadReading } from "../../browser/runtime/thread/thread-card.js";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
 // No thread has a to-do attached.
@@ -123,6 +125,76 @@ test("Leaf says what it observes of an update, and the agent only what it did", 
     { text: "Answered", voice: "agent" },
   );
   assert.deepEqual(said(late), ["Still queued for Claude", "leaf"]);
+});
+
+// On leaf.page a send to a page whose agent isn't running waits while its container
+// starts, and says so until the server has the update.
+test("a send that launches the agent says so until the server has it", () => {
+  assert.deepEqual(said({ ...workflow("first", "sending"), launching: true }), [
+    "Launching agent container",
+    "leaf",
+  ]);
+  assert.deepEqual(said({ ...workflow("next", "sending"), launching: false }), [
+    "Queued for Claude",
+    "leaf",
+  ]);
+});
+
+// A fork of the agent's conversation taking an update on is the agent's act, so the
+// update reads On it on its way to the session, with the working face; the session's
+// own stages and every condition still say what they say.
+test("an update a fork has taken on reads On it until the session's own stage", () => {
+  const forked = (stage, changes = {}) =>
+    workflow(stage, stage, { at_work: true, ...changes });
+  for (const stage of ["sent", "queued", "picked_up"]) {
+    assert.deepEqual(said(forked(stage)), ["On it", "agent"], stage);
+    assert.equal(progressFace(forked(stage)), "working", stage);
+  }
+  assert.deepEqual(said(forked("replying")), ["Replying", "agent"]);
+  assert.deepEqual(
+    said(forked("sent", { condition: { kind: "stale", operation: "delivery" } })),
+    ["Still queued for Claude", "leaf"],
+  );
+  assert.equal(
+    progressFace(
+      forked("sent", { condition: { kind: "stale", operation: "delivery" } }),
+    ),
+    null,
+  );
+});
+
+// The fork's line is the agent's step under that word, live as the session's own
+// working line is.
+test("a fork's working line is the thread's live step while its update reads On it", () => {
+  const root = {
+    id: "root",
+    kind: "comment",
+    author: "user",
+    text: "Fix the build",
+    ts: "2026-11-05T10:00:00Z",
+  };
+  const line = {
+    id: "line",
+    kind: "reply",
+    parent: "root",
+    author: "agent",
+    text: "Looking at the build",
+    ts: "2026-11-05T10:00:03Z",
+    ephemeral: true,
+  };
+  const [record] = readThreadRecords(
+    [
+      servedThread([root, line], {
+        attention: { kind: "waiting", reason: "workflow", workflow: "root" },
+      }),
+    ],
+    FROZEN_BOARD,
+    new Map(),
+    [workflow("root", "sent", { at_work: true })],
+  );
+  const { working } = threadReading(record, "margin", {});
+  assert.equal(working?.words, "Looking at the build");
+  assert.equal(working?.live, true);
 });
 
 test("thread attention gives an open user obligation precedence over agent work", () => {

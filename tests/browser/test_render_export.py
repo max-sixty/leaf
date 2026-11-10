@@ -102,12 +102,12 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     form = page.locator("#jobs > .lf-another")
     field = form.locator("leaf-text")
     add = form.locator(".lf-compose-submit")
-    expect(field).to_have_attribute("placeholder", "Add another option")
+    expect(field).to_have_attribute("placeholder", "Add another option…")
     expect(add).to_have_attribute("aria-disabled", "true")
     expect(add).to_have_attribute("data-lf-empty", "")
     expect(add).to_be_hidden()
     field.click()
-    expect(field).to_have_attribute("placeholder", "Add another option ⏎")
+    expect(field).to_have_attribute("placeholder", "Add another option… ⏎")
     write(field, "Portrait sketch")
     expect(add).not_to_have_attribute("data-lf-empty", "")
 
@@ -163,12 +163,16 @@ def test_exported_workspace_tabs_open_new_evidence_below_the_pinned_strip(
 def test_interactive_export_runs_captured_local_behavior_without_a_host(
     browser, serve, tmp_path
 ):
-    """One file boots the captured runtime, but never resurrects its host boundary."""
+    """One file boots the captured runtime, but never resurrects its host boundary.
+
+    The file keeps the choice recorded on the page's widget and leaves out the thread on
+    another, whose seat offers no box to start one in."""
     source = leaf_page(
         "offline interactive",
         """
 <h1>Offline interactive</h1>
 <lf-offline-test id="offline-widget" choice="idle"></lf-offline-test>
+<lf-test-plan id="hub"><lf-test-task id="seated" status="active" talk>Discuss this.</lf-test-task></lf-test-plan>
 <a id="jump" href="#destination">Jump locally</a>
 <h2 id="destination">Destination</h2>
 """,
@@ -187,6 +191,20 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
         ).click()
     round_trip(live)
     expect(live.locator("#offline-widget #choice")).to_have_text("chosen")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "A remark the export leaves behind",
+            "anchor": {"section": "seated"},
+        },
+    )
+    expect(live.locator("#seated .lf-msg")).to_contain_text(
+        "A remark the export leaves behind"
+    )
+    expect(live.locator("#seated > .lf-thread-seat")).to_have_count(1)
     live.close()
 
     # Export resolves the stamped artifact, never the page's mutable source.
@@ -227,6 +245,9 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
     expect(page.locator(".lf-chrome > #lf-media-viewer:not([open])")).to_have_count(1)
     expect(page.locator(".lf-floating-panel")).to_have_count(0)
+    expect(page.locator("#seated")).to_contain_text("Discuss this.")
+    expect(page.locator("#seated .lf-msg")).to_have_count(0)
+    expect(page.locator("#seated > .lf-thread-seat")).to_have_count(0)
     assert (
         page.locator("#offline-widget #local").evaluate(
             "control => getComputedStyle(control).color"
@@ -508,9 +529,9 @@ def test_an_export_draws_the_widgets_its_markup_names_and_brings_no_others(
     lived only in the chrome's sheet, which an export never adopts, so quiet words in an
     exported file appeared on screen as well as their tint.
 
-    A widget the page and its messages never name brings none of its modules. The page
-    draws code and a chart and a reply carries a diagram; nothing names a diff, so
-    Pierre's renderer stays out of the file.
+    A widget the page never names brings none of its modules. The page draws code and a
+    chart, and only a reply, which the file leaves out, carries a diagram. Nothing names
+    a diff, so Pierre's renderer is out of the file too.
     """
     serve(
         leaf_page(
@@ -552,8 +573,9 @@ def test_an_export_draws_the_widgets_its_markup_names_and_brings_no_others(
     )
     assert match_2 is not None
     imports = json.loads(match_2[1])["imports"]
-    assert {"leaf:/widgets/lf-code.js", "leaf:/widgets/lf-diagram.js"} <= set(imports)
+    assert "leaf:/widgets/lf-code.js" in imports
     assert not {
+        "leaf:/widgets/lf-diagram.js",
         "leaf:/widgets/lf-diff.js",
         "leaf:/vendor/pierre-diffs.esm.js",
     } & set(imports)
@@ -833,3 +855,45 @@ def test_an_interactive_export_reseats_authored_margin_notes(browser, serve, tmp
     assert narrow["y"] >= prose["y"] + prose["height"]
     page.set_viewport_size({"width": 1600, "height": 900})
     assert page.locator("#note").bounding_box() == pytest.approx(wide)
+
+
+def test_an_export_s_preview_takes_escape_before_the_dialog_around_it(
+    browser, serve, tmp_path
+):
+    """Offline the register admits no page scope, so the preview takes Escape itself.
+    A pointer's preview over a control in a modal dialog goes on the first Escape and
+    the dialog stays open, as on a live page; the next Escape closes the dialog.
+    Before, one Escape closed both."""
+    serve(leaf_page("Dialog", "<h1>Dialog</h1><p>Words beside it.</p>"))
+    exported = tmp_path / "dialog.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "export", str(serve.page_dir), "--out", str(exported)],
+        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
+    )
+    assert result.exit_code == 0, result.output
+    page = browser.new_page()
+    page.goto(exported.as_uri(), wait_until="load")
+    expect(page.locator("body")).to_have_attribute(
+        "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
+    )
+    page.evaluate(
+        """() => {
+          const dialog = document.createElement('dialog');
+          dialog.id = 'dialog';
+          dialog.innerHTML = '<button id="open" aria-label="Read report">?</button>';
+          document.querySelector('main').append(dialog);
+          dialog.querySelector('button').lfPreview = () => ({name: 'Read report',
+            detail: ['Offline reading.']});
+          dialog.showModal();
+        }"""
+    )
+    dialog = page.locator("#dialog")
+    tip = page.locator("#lf-preview")
+    page.locator("#open").hover()
+    expect(tip.locator(".lf-preview-word")).to_have_text("Read report")
+    page.keyboard.press("Escape")
+    expect(tip).to_be_hidden()
+    expect(dialog).to_have_attribute("open", "")
+    page.keyboard.press("Escape")
+    expect(dialog).not_to_have_attribute("open", "")

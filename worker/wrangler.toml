@@ -35,10 +35,12 @@ image = "../Dockerfile.website"
 # and leave ten slots free for rollout bookkeeping.
 max_instances = 5900
 instance_type = "basic"
-# A visible tab's freshness requests keep an active session alive. During a release,
-# Cloudflare may replace it after this bounded drain window; the session Durable
-# Object retains the canonical page record across container replacement.
-rollout_active_grace_period = 600
+# During a rollout, Cloudflare replaces a container only once it has been connected to
+# its Durable Object for this many seconds. The Worker refuses every answer from a
+# container still on the previous release (`rollingOut` in `src/index.ts`), so sparing
+# one that started recently only keeps its visitor waiting. The session Durable Object
+# retains the canonical page record across container replacement.
+rollout_active_grace_period = 0
 
 [[durable_objects.bindings]]
 name = "PAGES"
@@ -98,7 +100,7 @@ routes = []
   image = "../Dockerfile.website"
   max_instances = 90
   instance_type = "basic"
-  rollout_active_grace_period = 600
+  rollout_active_grace_period = 0
 
   [[env.dev.durable_objects.bindings]]
   name = "PAGES"

@@ -6,9 +6,11 @@
    thread's attention from the records open in it. It also serves which thread each
    workflow stands in (`thread`) and the workflows strongest first (`served_workflows`).
    The application publisher adds the unresolved local send after the served ones; only
-   a thread the user opened takes its attention from it. Every message, compact thread row and margin entry reads
-   these values; none reclassifies receipts, streams, turn ownership, whose turn a
-   thread is, or which workflow is stronger. `strongestWorkflow` only places this tab's
+   a thread the user opened takes its attention from it. Every message, compact thread
+   row and margin entry reads these values; none reclassifies receipts, streams, turn
+   ownership, whose turn a thread is, or which workflow is stronger. Whether the agent
+   is at work on one is its `at_work`, which a fork's taking it on sets before its
+   stage moves. `strongestWorkflow` only places this tab's
    own sends against the served order. A workflow's word is `workflowWord`, its last
    step's line `workflowStep`, and its face on a control `progressFace`, on every
    surface; a thread's word is `threadAttention`'s, which Threads states as its status
@@ -39,19 +41,25 @@ export const hasWorkflowLine = (workflow) => workflow.detail !== null;
 
 // Each stage's word, said by whoever says it (glossary.md, "Reader-facing words";
 // voice.js). Leaf speaks in the agent's voice where what the agent would say is
-// reliable: it started the update (On it), its reply is streaming in (Replying), or it
-// answered. Everything else is what Leaf observed of the update's way to the agent,
-// through the harness or the clock, so Leaf says it in its own voice: the update
-// waiting for the agent whether or not the server has logged it yet, the harness
-// queuing or delivering it, and every condition. The user chose this on 30 October
-// 2026, over stage words in the agent's voice such as "Got it", which put Leaf's
-// inference in the agent's mouth, and the same day gave the agent the reply it is
-// streaming; on 27 October they chose Leaf's "Queued for Claude" over the agent's "Not
-// seen yet".
+// reliable: it started the update, or a fork of its conversation took the update on
+// (On it), its reply is streaming in (Replying), or it answered. Everything else is
+// what Leaf observed of the update's way to the agent, through the harness or the
+// clock, so Leaf says it in its own voice: the update waiting for the agent whether or
+// not the server has logged it yet, the harness queuing or delivering it, and every
+// condition. The user chose this on 30 October 2026, over stage words in the agent's
+// voice such as "Got it", which put Leaf's inference in the agent's mouth, and the same
+// day gave the agent the reply it is streaming; on 27 October they chose Leaf's
+// "Queued for Claude" over the agent's "Not seen yet". On 5 November they gave a
+// fork's taking an update on the agent's On it, from the moment the fork starts.
+// On leaf.page a write to a page whose agent isn't running waits seconds while its
+// container starts, a wait only that first write pays, so a send that launches it says
+// so until the server has it. The user asked for these words on 9 November 2026.
 /** @param {string} agent */
 const queuedFor = (agent) => leafSays(`Queued for ${agent}`);
+/** @type {Record<Workflow["stage"], (agent: string, workflow: Workflow) => import("../voice.js").Said>} */
 const STAGES = Object.freeze({
-  sending: queuedFor,
+  sending: (agent, workflow) =>
+    workflow.launching ? leafSays("Launching agent container") : queuedFor(agent),
   sent: queuedFor,
   queued: () => leafSays("Up next"),
   picked_up: () => leafSays("Delivered"),
@@ -86,8 +94,14 @@ export const workflowWord = (workflow, agent, { answered = false } = {}) => {
         ? NOT_ANSWERED
         : leafSays(CONDITION_WORDS[condition.kind] ?? "Failed");
   if (workflow.stage === "answered" && !answered) return null;
-  return STAGES[workflow.stage]?.(agent) ?? null;
+  return STAGES[shownStage(workflow)]?.(agent, workflow) ?? null;
 };
+
+// The stage a workflow's word shows: `working` where the agent is at work on an update
+// its session has yet to start, which a fork of its conversation took on (`at_work`).
+/** @param {Workflow} workflow */
+const shownStage = (workflow) =>
+  workflow.at_work && workflow.stage !== "replying" ? "working" : workflow.stage;
 
 /** @param {Workflow | null | undefined} workflow @param {string} agent */
 export const workflowTitle = (workflow, agent) =>
@@ -102,10 +116,10 @@ export const workflowTitle = (workflow, agent) =>
 export const progressFace = (workflow) =>
   !workflow || workflow.condition
     ? null
-    : workflow.stage === "picked_up"
-      ? "picked_up"
-      : ["working", "replying"].includes(workflow.stage)
-        ? "working"
+    : workflow.at_work
+      ? "working"
+      : workflow.stage === "picked_up"
+        ? "picked_up"
         : null;
 
 /** @param {Workflow | null | undefined} workflow */

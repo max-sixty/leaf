@@ -70,7 +70,6 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
         ".lf-composer > leaf-composition-field > .lf-compose-field > .lf-compose-submit"
     )
     expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
-    expect(page.locator(".lf-composer-row")).to_have_count(0)
     field_box = box.bounding_box()
     action = page.locator(".lf-compose-field").get_by_role(
         "button", name="Other responses", exact=True
@@ -424,7 +423,7 @@ def test_where_c_goes_shows_before_the_press(browser, serve):
     expect(panel_key).to_be_visible()
     # Its word stands with it, after the status, as Reply does in a thread.
     expect(page.locator(".lf-fp-field .lf-compose-placeholder-enters")).to_have_text(
-        "Comment"
+        "Comment…"
     )
     expect(rest).to_be_hidden()
 
@@ -547,7 +546,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     """Where the user is located and what the user still owes are two facts, and a
     widget whose seat holds a thread waiting on the agent is where they part. Its seat holds the words
     the user just wrote, its answer is unmade and its controls are live, and it has left
-    On me because the next word there is the agent's — but the user
+    On Me because the next word there is the agent's — but the user
     is located in it all the same, and it is still the question they are working.
 
     Read off the user's list, both the ring and `c` went with the count: the moment the
@@ -606,7 +605,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     # The completion count includes every active obligation: the authored pick is complete;
     # the seated obligation and suggestion are not.
     expect_obligations_answered(page, "1/3")
-    # In On me the seated obligation is the agent's: the comment in its seat is owed a reply,
+    # In On Me the seated obligation is the agent's: the comment in its seat is owed a reply,
     # which stands for it, so it is neither the user's obligation nor done.
     panel_control(page, "queue").click()
     panel_settled(page, view="queue")

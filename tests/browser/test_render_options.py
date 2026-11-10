@@ -1045,24 +1045,24 @@ WIDE_OBLIGATION_PAGE = leaf_page(
 <h1>Where sessions live</h1>
 <div id="layout">
 <section id="body">
-<lf-ask id="cell-decision" data-width="available"><h2>Where should a session live?</h2>
+<lf-ask id="cell-decision"><h2>Where should a session live?</h2>
 <p>{WIDE_PROSE}</p>
-<lf-options id="cell-cards" choose>
+<lf-options id="cell-cards" choose data-width="available">
   <lf-option id="cc-redis"><strong>Redis</strong> A store we already run.</lf-option>
   <lf-option id="cc-pg"><strong>Postgres</strong> One fewer moving part.</lf-option>
 </lf-options></lf-ask>
-<lf-ask id="rows-decision" data-width="available"><h2>Which jobs are worth starting?</h2>
+<lf-ask id="rows-decision"><h2>Which jobs are worth starting?</h2>
 <p>{WIDE_PROSE}</p>
-<lf-options id="cell-rows" choose multiple>
+<lf-options id="cell-rows" choose multiple data-width="available">
   <lf-option id="cr-drill">A revocation drill</lf-option>
   <lf-option id="cr-rotate">Key rotation for the fallback cookie</lf-option>
 </lf-options></lf-ask>
 </section>
 <section id="aside"><p>Beside the argument.</p></section>
 </div>
-<lf-ask id="page-decision" data-width="available"><h2>Who owns the migration?</h2>
+<lf-ask id="page-decision"><h2>Who owns the migration?</h2>
 <p>{WIDE_PROSE}</p>
-<lf-options id="page-cards" choose>
+<lf-options id="page-cards" choose data-width="available">
   <lf-option id="pc-platform"><strong>Platform</strong> They run the store.</lf-option>
   <lf-option id="pc-accounts"><strong>Accounts</strong> They own the table.</lf-option>
 </lf-options></lf-ask></div>
@@ -1224,9 +1224,12 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # stays unwired. The live pair is the control — without it a theme that had stopped
     # drawing the offer at all would read exactly like one that withholds it.
     offer = """el => { const cs = getComputedStyle(el);
-        const stateRoom = getComputedStyle(el, '::before');
+        const pick = el.querySelector(':scope > .lf-pick');
+        const ps = pick && getComputedStyle(pick);
         return { cursor: cs.cursor, box: cs.borderTopWidth,
-                 stateRoom: stateRoom.content === 'none' ? 0 : parseFloat(stateRoom.width) }; }"""
+                 stateRoom: !ps || ps.float === 'none' ? 0
+                   : pick.getBoundingClientRect().width
+                     + parseFloat(ps.marginInlineStart) + parseFloat(ps.marginInlineEnd) }; }"""
     quoted_card, live_card = (
         page.locator(sel).evaluate(offer) for sel in ("#q-shim", "#l-shim")
     )
@@ -1244,8 +1247,9 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     assert quoted_box == "0px", (
         f"the exhibit is drawn as a control to answer: {quoted_box} border"
     )
-    # The live card reserves one header slot for either its chosen state or keyboard
-    # binding badge. An exhibit can grow neither, so its title keeps that room.
+    # The live card's mark is the float that reserves one header slot for either its
+    # chosen state or keyboard binding badge. An exhibit can grow neither, so its title
+    # keeps that room.
     assert quoted_card["stateRoom"] == 0 and live_card["stateRoom"] > 0, (
         "the exhibit reserves the live card's header state slot: "
         f"{quoted_card['stateRoom']} vs {live_card['stateRoom']}"
@@ -1413,11 +1417,19 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     )
 
     # The block a row is about, reachable as a link and named by the block's own words
-    # rather than its id; after § the kind word ("section") would say nothing.
+    # rather than its id; after § the kind word ("section") would say nothing. Pointing
+    # at it previews the block, so it carries no tooltip of the platform's beside that.
     ref = page.locator("#job-mounts .lf-ref")
     expect(ref).to_have_text("§ The mounts")
-    expect(ref).to_have_attribute("title", "Jump to § The mounts")
     assert ref.get_attribute("href") == "#sec-mounts"
+    assert ref.get_attribute("title") is None
+    ref.hover()
+    preview = page.locator("#lf-preview")
+    expect(preview.locator(".lf-preview-name")).to_have_text("The mounts")
+    expect(preview.locator(".lf-place-text")).to_have_text(
+        "Plastic, and one came down in January."
+    )
+    page.mouse.move(0, 0)
     assert page.locator("#job-camera .lf-ref").count() == 0
 
     # No open mark says its word in either form. The compact row draws its target; the

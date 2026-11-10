@@ -1,12 +1,11 @@
 /* Keyboard reachability, containment, the sticky-header slot, and continuation paint for
    scrollable page and shadow content. */
 
-import { isElement } from "./shadow-tree.js";
+import { isElement, skipped } from "./shadow-tree.js";
 import { watchArrivals, watchScrolls } from "./arrivals.js";
 import { tabStops, wearsLentStop } from "./focus.js";
 import { LENT_REACH_STOP, TEXT_BOX } from "./control-selectors.js";
 import { scrollsBy, userScrollport } from "./geometry.js";
-import { skipped } from "./shown-box.js";
 import { afterScript, nextRender, sizeObserver } from "./rendering.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { SCROLL_SLACK, atScrollEnd } from "./scrolling.js";

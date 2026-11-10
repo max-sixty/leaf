@@ -52,13 +52,12 @@ records the receipt of what its transcript shows entered the model's context
 (`delivery.confirm_entered`). Its hooks name the turn by `prompt_id`
 (`ClaudeCodeHarness.hook_payload`).
 
-Session-start and prompt hooks also inspect retained claims for disconnected pages
-(`reconnect`), including inactive ownership. That notice does not reclaim a
-page or reopen a turn at SessionStart, and it persists across session generations.
-A SessionStart after a compaction also has an agent holding a page read the leaf
-skill again (`reload_skill`). Claude Code runs Leaf's start hook only after a
-compaction (`hooks.json`): a resumed session's first reply waits for its start
-hooks, and the prompt hook hands that same turn the reconnect notice.
+Before it opens its turn, the prompt hook serves again each page the session still
+means to serve whose ownership or server is down, as a resumed session's are, and the
+turn hears only of a page that did not start (`reconnect`). A SessionStart opens no
+turn and claims nothing; after a compaction it has an agent holding a page read the
+leaf skill again (`reload_skill`). Claude Code runs Leaf's start hook only then
+(`hooks.json`), since a resumed session's first reply waits for its start hooks.
 
 Each harness's registrations name it (`--harness`) and its payload names the
 session; `harness.hook_harness` says why neither comes from the environment. A
@@ -66,11 +65,12 @@ developer-selected session runtime (`session_runtime`) owns the entire hook;
 `main` execs it before this module publishes lifecycle or reads pages."""
 
 import json
+import os
 import time
 
 from .leases import first_hook_for_tool, mark_hooks
 from .refusals import Refused
-from .service import claim_records, owned_pages
+from .service import owned_pages
 from .state import (
     advance_turn,
     close_session_turn,
@@ -121,7 +121,15 @@ def cmd_hook(harness: str, payload: dict) -> None:
 
             confirm_entered(hooked, payload)
         return
+    # What kept a page the session still means to serve from serving again.
+    unserved = []
     if event in {"UserPromptSubmit", "TurnStart"}:
+        if event == "UserPromptSubmit":
+            # Before the turn opens, which then joins the generation a claim
+            # starts where the session's last one ended or names another process.
+            from .reconnect import serve_again
+
+            unserved = serve_again(hooked)
         expected = prompt_turn(sid, turn_id)
         if expected is None or event == "TurnStart":
             return
@@ -129,16 +137,8 @@ def cmd_hook(harness: str, payload: dict) -> None:
         expected = session_record(sid)
     expected = hooked.reconcile_turn(payload, expected)
     if event == "SessionStart":
-        from .reconnect import notices
-
-        context = notices(harness, sid, expected)
-        if context is not None and payload.get("source") == "compact":
-            context += reload_skill(sid)
-        if context:
-            print(
-                json.dumps(hooked.hook_context(event, "\n\n".join(context))),
-                flush=True,
-            )
+        if payload.get("source") == "compact" and (context := reload_skill(sid)):
+            print(json.dumps(hooked.hook_context(event, context)), flush=True)
         return
     if turn_id and event != "UserPromptSubmit":
         # A first trusted step can identify an unknown session-scoped turn.
@@ -175,11 +175,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
         return
     if event == "PostToolUse":
         return
-    # Retained claims may need reconnecting after active ownership expired.
-    retained = event == "UserPromptSubmit" and any(
-        claim["harness"] == harness for claim in claim_records(sid)
-    )
-    if not retained and not owned_pages(sid):
+    if not unserved and not owned_pages(sid):
         if event == "Stop":
             close_session_turn(sid, turn_id, expected=expected)
         return
@@ -187,24 +183,18 @@ def cmd_hook(harness: str, payload: dict) -> None:
     from .hook_transport import carry_turn
 
     ended = carry_turn(
-        hooked,
-        event,
-        sid,
-        payload,
-        expected,
-        started=started,
-        reconnect_harness=harness if event == "UserPromptSubmit" else None,
+        hooked, event, sid, payload, expected, started=started, unserved=unserved
     )
     if ended:
         close_session_turn(sid, turn_id, expected=expected)
 
 
-def reload_skill(session_id: str) -> list[str]:
+def reload_skill(session_id: str) -> str | None:
     """What a compaction tells an agent holding pages: to read the leaf skill again,
     which the compaction may have dropped from its context.
 
     On 2026-10-25 five sessions left questions for the user only in their replies,
-    so On me read empty and told the user nothing waited on them. Each had read the
+    so On Me read empty and told the user nothing waited on them. Each had read the
     skill hours or days before, four of them before compacting, while their
     harness's own instructions for asking the user stayed in context. Restating one
     rule on every prompt weighed on every turn and covered only that rule; the
@@ -213,14 +203,12 @@ def reload_skill(session_id: str) -> list[str]:
 
     pages = owned_pages(session_id)
     if not pages:
-        return []
-    return [
-        (
-            f"This session holds the Leaf page {', '.join(map(str, pages))}. A "
-            f"compaction may have dropped the leaf skill; read {SKILL_FILE} again "
-            "before you next reply or run a leaf command."
-        )
-    ]
+        return None
+    return (
+        f"This session holds the Leaf page {', '.join(map(str, pages))}. A "
+        f"compaction may have dropped the leaf skill; read {SKILL_FILE} again "
+        "before you next reply or run a leaf command."
+    )
 
 
 def cmd_watch(harness: str, payload: dict) -> str | None:
@@ -275,7 +263,17 @@ def cmd_pages(payload: dict) -> None:
     looks again as a message is admitted, as a later follower takes the lane, or as
     the earliest hold runs out. It reads a page again only once its reading has
     moved or a hold has run out, since a thread's hold starts as its message is
-    admitted."""
+    admitted.
+
+    It exits with `EX_TEMPFAIL`, without a last list, once the session's delivery
+    runs another Leaf than its own (`_moved_on`), and the module starts it again,
+    under that Leaf. A follower runs as long as its session, while the session's
+    hooks hand themselves at each call to the Leaf delivering for it: a newer copy
+    Claude Code installed, a checkout the session selected, or the same checkout
+    moved past a protocol bump. That newer Leaf reads an older follower's lane as no
+    one's. On 8 November one follower, four days old, kept holding messages that the
+    fork's step, under the newer Leaf, refused as not held, so each waited out its
+    hold with no line."""
     sid = payload.get("session_id") or ""
     if not owned_pages(sid):
         print("[]", flush=True)
@@ -298,6 +296,9 @@ def cmd_pages(payload: dict) -> None:
     shown = None
     try:
         while True:
+            if _moved_on(sid):
+                # EX_TEMPFAIL: the module starts it again, under that Leaf.
+                raise SystemExit(os.EX_TEMPFAIL)
             held = {page.resolve() for page in owned_pages(sid)}
             leaves = live_leaves(held) if held else []
             # Each page's subscription lives in its memory, which the process
@@ -355,6 +356,28 @@ def cmd_pages(payload: dict) -> None:
             release_lease(lane)
             renamed.close()
             _let_go(sid, looked)
+
+
+def _moved_on(sid: str) -> bool:
+    """Whether the session's delivery now runs another Leaf than this process: one
+    selected or installed since it started, which its hooks hand themselves to as
+    `main` does (`session_runtime.delivering_launcher`), or its own install moved
+    under it to another page protocol (`registry.kernel.installed_protocol`), or
+    removed, as a selected checkout's is when its worktree goes: the module starts
+    the follower again from its own launcher, which hands it to the Leaf delivering
+    now. A registry read mid-write reads as unmoved until it settles."""
+    from .registry.kernel import installed_protocol, kernel_protocol
+    from .session_runtime import delivering_launcher, own_launcher
+
+    own = own_launcher()
+    if not os.access(own, os.X_OK):
+        return True
+    try:
+        return (
+            delivering_launcher(sid) != own or installed_protocol() != kernel_protocol()
+        )
+    except (OSError, ValueError, KeyError):
+        return False
 
 
 def _let_go(sid: str, looked: dict) -> None:

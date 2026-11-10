@@ -446,7 +446,7 @@ describe("product-site delivery", () => {
         status: 204,
         headers: {
           "Access-Control-Allow-Origin": "*",
-          "Cache-Control": "no-store",
+          "Cache-Control": "no-cache",
           "Set-Cookie": "private-parent-cookie=1",
         },
       });
@@ -1218,37 +1218,49 @@ describe("product-site delivery", () => {
     );
   });
 
-  it("holds a gesture back from a container the rollout has not reached", async () => {
-    const sessionId = "0d".repeat(16);
-    const containerFetch = vi.fn(async (_request: Request) =>
-      Response.json(
-        { id: "e1" },
-        { headers: { "Leaf-Layer": "older-layer", "Leaf-Release": "b".repeat(64) } },
-      ),
-    );
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
-    const env = environment();
+  // The browser waits out this answer and asks again (`requestJson` and `delivery.js`).
+  // A fresh visitor's first sample allocates in a container too, so it meets the
+  // rollout as an active page's gesture does.
+  it.each([
+    ["an active page's gesture", "api/event", { kind: "comment", text: "hello" }, true],
+    ["a fresh visitor's sample", "api/samples", { template: "practice" }, false],
+  ])(
+    "holds %s back from a container the rollout has not reached",
+    async (_, inside, body, active) => {
+      const sessionId = "0d".repeat(16);
+      const containerFetch = vi.fn(async (_request: Request) =>
+        Response.json(
+          { id: "e1" },
+          { headers: { "Leaf-Layer": "older-layer", "Leaf-Release": "b".repeat(64) } },
+        ),
+      );
+      vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+      const env = environment();
 
-    const response = await worker.fetch(
-      new Request("https://leaf.page/examples/triage-board/api/event", {
-        method: "POST",
-        headers: {
-          Cookie: `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
-          "Content-Type": "application/json",
-          "Leaf-Layer": LAYER,
-          "Leaf-Release": RELEASE,
-        },
-        body: JSON.stringify({ kind: "comment", text: "hello" }),
-      }),
-      env,
-      executionContext(),
-    );
+      const response = await worker.fetch(
+        new Request(`https://leaf.page/examples/triage-board/${inside}`, {
+          method: "POST",
+          headers: {
+            ...(active && {
+              Cookie: `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
+            }),
+            "Content-Type": "application/json",
+            "Leaf-Layer": LAYER,
+            "Leaf-Release": RELEASE,
+          },
+          body: JSON.stringify(body),
+        }),
+        env,
+        executionContext(),
+      );
 
-    expect(response.status).toBe(503);
-    expect(response.headers.get("Retry-After")).toBe("5");
-    expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
-    expect(env.WEBSITE_EVENTS.writeDataPoint).not.toHaveBeenCalled();
-  });
+      expect(containerFetch).toHaveBeenCalledOnce();
+      expect(response.status).toBe(503);
+      expect(response.headers.get("Retry-After")).toBe("5");
+      expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
+      expect(env.WEBSITE_EVENTS.writeDataPoint).not.toHaveBeenCalled();
+    },
+  );
 
   it("serves a page's immutable runtime without allocating its session", async () => {
     const asset = new Response("export {};", {
@@ -1571,6 +1583,11 @@ describe("product-site delivery", () => {
       expect(getContainer).not.toHaveBeenCalled();
       expect(response.headers.get("Set-Cookie")).toBeNull();
       expect(response.headers.get("Leaf-Session")).toBe("passive");
+      // A stored answer serves only a request naming the same data version.
+      expect(response.headers.get("Cache-Control")).toBe("no-cache");
+      expect(response.headers.get("Vary")).toBe(
+        "Leaf-Data-Version, Leaf-View-Revision",
+      );
       expect(response.headers.get("Leaf-Session-Reference")).toMatch(/^\d{12}$/);
       expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
       const state = await response.json<Pick<ServedState, "taken" | "now" | "data">>();
@@ -2432,6 +2449,68 @@ describe("website page agent", () => {
         status: 200,
       });
       expect(JSON.stringify(records)).not.toContain("private");
+    } finally {
+      logged.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("logs a model body Codex cancels with its bytes and idle time", async () => {
+    const keepalive = new TextEncoder().encode('data: {"type":"keepalive"}\r\n\r\n');
+    let upstreamCancelled = false;
+    const upstream = vi.fn(
+      async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(keepalive);
+            },
+            cancel() {
+              upstreamCancelled = true;
+            },
+          }),
+          { headers: { "x-request-id": "upstream-request" } },
+        ),
+    );
+    vi.stubGlobal("fetch", upstream);
+    const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const handler = LeafWebsiteSession.outboundByHost!["api.openai.com"];
+
+    try {
+      const response = await handler(
+        new Request("https://api.openai.com/v1/responses", {
+          method: "POST",
+          body: "{}",
+        }),
+        environment(),
+        { containerId: "user-container", className: "LeafWebsiteSession" },
+      );
+      const reader = response.body!.getReader();
+      expect((await reader.read()).value).toEqual(keepalive);
+      // Codex waits on a silent stream with a read pending when it cancels.
+      const pending = reader.read();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await reader.cancel();
+      expect((await pending).done).toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const records = logged.mock.calls.map(
+        ([record]) => record as Record<string, unknown>,
+      );
+      expect(records.map((record) => record.event)).toEqual([
+        "model_request_started",
+        "model_response_headers",
+        "model_response_first_byte",
+        "model_response_first_output",
+        "model_response_cancelled",
+      ]);
+      expect(records[4]).toMatchObject({
+        bytes: keepalive.byteLength,
+        idleMs: expect.any(Number),
+        status: 200,
+        upstreamRequestId: "upstream-request",
+      });
+      expect(upstreamCancelled).toBe(true);
     } finally {
       logged.mockRestore();
       vi.unstubAllGlobals();

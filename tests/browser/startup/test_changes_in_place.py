@@ -9,15 +9,26 @@ the tests of what the user saw set both through the platform's own readings
 (`visibility`, `attention`)."""
 
 import re
+import shutil
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from interact_support import append_command, wait_for
+from click.testing import CliRunner
+from interact_support import append_command, response_reference, wait_for
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import compare_with, open_page, stamp_page, wait_for_revision
+from render_harness import (
+    compare_with,
+    example_media,
+    open_page,
+    preview_parts,
+    stamp_page,
+    told,
+    wait_for_revision,
+)
 
+from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import revisioning as revisioning_model
 from leaf.render_checks import rendered
@@ -543,14 +554,197 @@ def test_a_change_s_card_reads_it_in_order(browser, serve):
     ), "the long redline doesn't scroll inside a card that fits the window"
 
 
-def _comment_on(d, section, words, revision=1):
+def test_a_version_says_which_comments_it_was_saved_after(browser, serve):
+    """Comparing a version with the one before it, each change's ⇄ entry says under
+    what it did which of the user's comments waited while that version was saved,
+    with the words each then had: not one the agent had answered before, wherever on
+    the page it stands, and the change walk says the same to a listener. A comparison
+    across several versions says nothing of it, since nothing knows which version made
+    which change (change-provenance.js)."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    # The answered comment stands on the last paragraph. On `c` its entry would stand
+    # 65 px under the title's ⇄ and the waiting comment's entry just above it, so no
+    # place would hold the preview's lines clear of both, and it would cut the quote
+    # (preview.js, `stand`).
+    asked = _comment_on(
+        d, "d", "Delta reads one way.", text="Beta first?\nIt reads one way."
+    )
+    stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            "--done",
+            response_reference(d, asked),
+            "--text",
+            "Beta reads another way now.",
+        ],
+    )
+    assert replied.exit_code == 0, replied.output
+    _comment_on(d, "t", "Plan", revision=2, text="Is the title right?")
+    revise(d, ('<h1 id="t">Plan</h1>', '<h1 id="t">Plan for spring</h1>'))
+    page = open_page(browser, url)
+    wait_for_revision(page, 3)
+    entries = page.locator('[data-lf-kinds~="change"]')
+    page.keyboard.press("v")
+    expect(entries).to_have_count(1)
+    parts = preview_parts(entries.first)
+    assert parts[-2:] == [
+        "Draft saved while your comment waited:",
+        "“Is the title right?”",
+    ], parts
+    page.keyboard.press("h")
+    expect(page.locator(".lf-live")).to_contain_text(
+        "Draft saved while your comment waited: “Is the title right?”"
+    )
+    page.keyboard.press("v")
+    compare_with(page, 1)
+    page.keyboard.press("Escape")
+    expect(entries).to_have_count(2)
+    for at in range(2):
+        assert not any("saved" in part for part in preview_parts(entries.nth(at)))
+
+
+def test_a_change_with_no_card_still_says_what_its_version_was_saved_after(
+    browser, serve
+):
+    """A version that restates the option the user chose changes its state and none of
+    its words, so its change opens no card, but its ⇄ entry still says what the
+    version was saved after: that is the comparison's reading, not the card's."""
+    options = PAGE.replace(
+        '<p id="d">',
+        '<lf-options id="g" choose><lf-option id="g-a">Ship now</lf-option>'
+        '<lf-option id="g-b">Ship later</lf-option></lf-options>\n<p id="d">',
+    )
+    url = live_url(serve(options))
+    d = serve.page_dir
+    append_command(
+        d,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "g",
+            "action": "choose",
+            "detail": {"value": ["g-a"]},
+        },
+    )
+    _comment_on(d, "t", "Plan", text="Should we wait?")
+    stamp_page(
+        d,
+        options.replace('<lf-option id="g-a">', '<lf-option id="g-a" restated>'),
+        "Asked again",
+    )
+    page = open_page(browser, url)
+    wait_for_revision(page, 2)
+    compare_with(page, 1)
+    page.keyboard.press("Escape")
+    entries = page.locator('[data-lf-kinds~="change"]')
+    expect(entries).to_have_count(1)
+    expect(entries).not_to_have_attribute("aria-controls", "lf-change-card")
+    assert preview_parts(entries.first)[-2:] == [
+        "v2 saved while your comment waited:",
+        "“Should we wait?”",
+    ]
+
+
+def test_a_version_quotes_each_waiting_message_as_its_thread_shows_it(browser, serve):
+    """The line quotes a message as its thread reads it: a code block opening with
+    words shows both its lines, a suggestion its words literally, and a picture with
+    no words the name its thread gives it."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    _comment_on(d, "t", "Plan", text="```first words\nsecond words\n```")
+    append_command(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "**literal stars**",
+            "suggestion": True,
+            "anchor": {"section": "a", "quote": "Alpha stays as it was."},
+        },
+    )
+    # A picture the user pasted alone, as an upload leaves it.
+    (d / "media").mkdir(exist_ok=True)
+    shutil.copy(example_media() / "051bee487bfb5d13.png", d / "media")
+    _comment_on(
+        d,
+        "c",
+        "Gamma stays as it was.",
+        text="![Attached image](/media/051bee487bfb5d13.png)",
+    )
+    revise(d, ('<h1 id="t">Plan</h1>', '<h1 id="t">Plan for spring</h1>'))
+    page = open_page(browser, url)
+    wait_for_revision(page, 2)
+    entries = page.locator('[data-lf-kinds~="change"]')
+    page.keyboard.press("v")
+    expect(entries).to_have_count(1)
+    assert preview_parts(entries.first)[-4:] == [
+        "Draft saved while your 3 comments waited:",
+        "“first words second words”",
+        "“**literal stars**”",
+        "“Attached image”",
+    ]
+
+
+def test_a_version_quotes_a_comment_taken_back_since_in_the_words_it_had(
+    browser, serve
+):
+    """A comment the user took back after a version went live waited while it was
+    saved all the same, and the line quotes the words it had then, which no thread
+    shows any longer."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    asked = _comment_on(d, "b", "Beta reads one way.", text="Is Beta right?")
+    revise(d, BETA)
+    append_command(d, {"kind": "undo", "author": "user", "undoes": asked["id"]})
+    page = open_page(browser, url)
+    wait_for_revision(page, 2)
+    entries = page.locator('[data-lf-kinds~="change"]')
+    page.keyboard.press("v")
+    expect(entries).to_have_count(1)
+    assert preview_parts(entries.first)[-2:] == [
+        "Draft saved while your comment waited:",
+        "“Is Beta right?”",
+    ]
+
+
+def test_a_version_saved_while_a_deletion_waited_says_the_message_was_deleted(
+    browser, serve
+):
+    """A comment the user deleted by rewriting it to nothing waits in its deletion,
+    and a version saved meanwhile says the message as its thread then read it:
+    deleted."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    asked = _comment_on(d, "b", "Beta reads one way.", text="Is Beta right?")
+    append_command(
+        d, {"kind": "edit", "author": "user", "message": asked["id"], "text": ""}
+    )
+    revise(d, BETA)
+    page = open_page(browser, url)
+    wait_for_revision(page, 2)
+    entries = page.locator('[data-lf-kinds~="change"]')
+    page.keyboard.press("v")
+    expect(entries).to_have_count(1)
+    assert preview_parts(entries.first)[-2:] == [
+        "Draft saved while your comment waited:",
+        "“Deleted message”",
+    ]
+
+
+def _comment_on(d, section, words, revision=1, text="Say which way?"):
     return append_command(
         d,
         {
             "kind": "comment",
             "author": "user",
             "revision": revision,
-            "text": "Say which way?",
+            "text": text,
             "anchor": {"section": section, "quote": words},
         },
     )
@@ -627,8 +821,8 @@ def test_a_to_do_running_on_an_element_marks_it(browser, serve):
         },
     )
     bars = page.locator(".lf-at-work-bar")
-    page.wait_for_timeout(300)
-    # Open, but nothing running on it yet.
+    # The page has taken in the to-do, which is open with nothing running on it yet.
+    told(page)
     expect(bars).to_have_count(0)
     _start(d, todo["id"], "Rewriting Gamma")
     expect(bars).to_have_count(1)

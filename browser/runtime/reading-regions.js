@@ -56,7 +56,7 @@ import { scrollersOf, installScrollerLookup } from "./scroll-containers.js";
 export { scrollersOf } from "./scroll-containers.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { landingBand, shownRect, userScrollport } from "./geometry.js";
-import { skipped } from "./shown-box.js";
+import { skipped } from "./shadow-tree.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, renderedUnder, renderedParent } from "./shadow.js";
@@ -279,8 +279,13 @@ export const onReadingInput = (read) => readingInputReaders.add(read);
 const readingInput = (node) => {
   for (const read of readingInputReaders) read(node);
 };
+// The region the reading keys chose, until the user next acts anywhere
+// (`chooseReadingRegion`).
+/** @type {string | null} */
+let chosenRegionId = null;
 /** @param {Node} at @param {boolean} arriving */
 const actedAt = (at, arriving) => {
+  chosenRegionId = null;
   const region = readingRegionFor(at);
   if (region) {
     recentRegionId = region.id;
@@ -312,6 +317,16 @@ export const recentReadingRegion = () => readingRegion(recentRegionId);
 // where the user reads. One scrolled out of the window still is.
 /** @param {ReadingRegion | undefined} region */
 const shown = (region) => (region?.host.checkVisibility() ? region : undefined);
+// A region the reading keys chose for the user (navigation.js, `regionForStep`) is the
+// one they acted in, as a wheel there makes it, so a walk goes on from it. It stays the
+// keys' choice rather than the user's until the user next acts, which the keys read to
+// keep the page ahead of it.
+/** @param {ReadingRegion} region */
+export const chooseReadingRegion = (region) => {
+  actedAt(region.host, false);
+  chosenRegionId = region.id;
+};
+export const chosenReadingRegion = () => shown(readingRegion(chosenRegionId));
 export const pageReadingRegion = () => {
   const at = deepFocus();
   if (focusInPage(at)) return readingRegionFor(at);
@@ -386,7 +401,7 @@ export function effectiveScroller(regionOrNode) {
 // panel's own list for a widget an agent put in a reply, which is scrolled by that and
 // by nothing else. A drag naming the wrong one sits at the edge waiting for a scroll
 // that never comes. The list answers here as any region does: the panel registers it as
-// its bounded reading region (`mountPanelReadingRegion`).
+// its bounded reading region (`registerReadingRegion`).
 /** @param {Node | null | undefined} el */
 export const scrollerFor = (el) => {
   const region = containingReadingRegionFor(el);

@@ -91,7 +91,7 @@ cases:
           you to record the underlying reading problem in TODO rather than pursue that solution.
           Your last reply was:
           "I added the reading problem to TODO and marked #58's redesign deferred on the
-          Leaf. Page checks pass; nothing remains on your On me list."
+          Leaf. Page checks pass; nothing remains on your On Me list."
 
           My latest message is: "ok, so what's left?"
 
@@ -101,9 +101,9 @@ cases:
           The three earlier review pages are settled. Keep my item handles.
 
           You have opened one agent thread on remaining-next asking whether #59 should be
-          our next extraction scope. Its lf-options choice is the sole obligation on On me;
+          our next extraction scope. Its lf-options choice is the sole obligation on On Me;
           no work is queued on the agent. Your drafted final reply ends:
-          "One obligation is on your On me list: whether #59 should be the next extraction
+          "One obligation is on your On Me list: whether #59 should be the next extraction
           scope. Nothing else currently needs your input."
 
           Finish the existing page and handoff. The branch history and evidence on the page
@@ -124,7 +124,7 @@ cases:
           waiting for these choices. Existing #59 may be kept;
           register the others with independent choice widgets, on the page or in
           agent threads, so each scope can be accepted or left out.
-          The final canonical On me list contains those independent scope choices
+          The final canonical On Me list contains those independent scope choices
           before handoff.
           Recommending #59 first does not settle or defer the other proposals. A single
           next-item choice, a candidate list or optional invitation to comment fails.
@@ -341,14 +341,14 @@ cases:
             initial: evidence.fixture['index.html'],
             pages: evidence.pages.map(({path, document, data}) => ({path, document, data}))
           });
-  # Follow-up to the On me investigation: question placement without an existing
+  # Follow-up to the On Me investigation: question placement without an existing
   # widget or user comment. Thread creation is task setup; obligation registration
   # remains an agent choice. Score placement separately so a usable plain-text
-  # thread cannot conceal a missing On me obligation.
+  # thread cannot conceal a missing On Me obligation.
   # Before explicit thread setup, Codex opened 0/2 threads; both asked in chat.
   # With thread setup, Codex passed both metrics in 2/2 runs on unchanged guidance.
   # Against 2872ba319, the message-API metric separates lf-ask from --obligation;
-  # both arms still pass placement and On me outcome (one matched Codex run each).
+  # both arms still pass placement and On Me outcome (one matched Codex run each).
   page-question:
     inputs:
       prompts:
@@ -457,9 +457,9 @@ cases:
           an unexecuted thread command, or an empty queue without the requested
           thread fails. Equivalent wording and valid commands are allowed.
         transform: context.metadata.texts?.['evidence'] ?? ''
-  # Added for the October 2026 On me investigation: earlier assessment cases
+  # Added for the October 2026 On Me investigation: earlier assessment cases
   # graded proposed commands, not executed conversational requests and settlement.
-  # No prompt names On me, obligations, lf-ask or the expected commands.
+  # No prompt names On Me, obligations, lf-ask or the expected commands.
   # The earlier case accepted document Asks and passed 2/2. This version requires
   # an agent-initiated thread; new Codex runs passed 2/2 on unchanged guidance.
   clarification:
@@ -510,7 +510,7 @@ cases:
           it ends the thread's question as done (not dropped), then reads canonical
           page state. Removing an authored page question does not settle this
           thread obligation. The final queues.on_user is empty; no new permission,
-          confirmation, or sign-off is requested. Empty On me is not itself evidence
+          confirmation, or sign-off is requested. Empty On Me is not itself evidence
           that the first question was registered. A statement that something was
           done does not substitute for successful tool execution.
         transform: context.metadata.texts?.['evidence'] ?? ''

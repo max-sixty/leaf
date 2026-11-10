@@ -298,7 +298,11 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
     )
 
     assert refusal is None
-    assert events_model.read_events(page_dir)[-1]["kind"] == "report"
+    # The re-vendor's revision went live after the report it waited for.
+    assert [event["kind"] for event in events_model.read_events(page_dir)][-2:] == [
+        "report",
+        "activation",
+    ]
     assert "x-state" not in registry_storage.load_registry(page_dir)["lf-test-task"]
 
 

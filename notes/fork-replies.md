@@ -313,7 +313,7 @@ main thread while the fork works.
    message, remind it nor take it in again (`activity.agent_holds`); and its
    deliveries leave out what the fork holds (`forks.held_inputs`). The fork's
    pickups, replies and starts are each checked as they are written against which
-   turn holds the thread (`forks.refuse_unheld`), so a fork that lost its thread to
+   turn holds the thread (`holding.refuse_unheld`), so a fork that lost its thread to
    the main thread can neither take it back with a late acknowledgement, nor answer
    it, nor start on it. The turn is believed only while renewed within the working
    grace, as a main turn's stamp is.
@@ -399,7 +399,7 @@ main thread while the fork works.
    module's report of the run's end, and both times read the clerk's queue before
    that report added its line, so the line saying the fork answered reached the main
    thread at its first tool boundary, 5 s later. Whichever runs first, a pickup by the main thread leaves out
-   what a running fork turn holds (`forks.pickable`), so it can't take a message
+   what a running fork turn holds (`holding.pickable`), so it can't take a message
    while the fork's turn is still open.
 
 5. **Measuring it**: an outcome eval comparing a fork's answers with the session's on

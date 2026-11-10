@@ -1051,8 +1051,8 @@ def record_pickup(
     transition that carries no envelope, such as the prompt re-presenting debt an
     earlier receipt recorded, passes none.
 
-    An opened pickup says which turn holds a thread (`forks.holding_turns`), so this
-    records one only where that turn may take the message (`forks.pickable`): an
+    An opened pickup says which turn holds a thread (`holding.holding_turns`), so this
+    records one only where that turn may take the message (`holding.pickable`): an
     agent's turn, only what it holds or nobody does, refusing the rest; another
     turn, nothing an agent's running turn holds.
     """
@@ -1094,7 +1094,7 @@ def record_pickup(
         )
     )
     if phase == "opened" and session is not None:
-        from .forks import pickable
+        from .holding import pickable
 
         fresh = pickable(page, fresh, session, turn)
     if not fresh:
@@ -1243,7 +1243,7 @@ def confirm_entered(harness, payload: dict) -> None:
     hook of a harness whose hooks don't commit their context runs this before it
     reads the page, so the prompt a nudge wakes after an interrupt confirms what the
     interrupted turn read before it hands anything over."""
-    from .forks import agent_inputs
+    from .holding import taken_by_agent_turns
     from .service import owned_pages
 
     entered = harness.entered_context(payload)
@@ -1264,7 +1264,7 @@ def confirm_entered(harness, payload: dict) -> None:
                     for event_id in pickup["events"]
                     if event_id in entered
                 }
-                receive_passed(page, shown | agent_inputs(page))
+                receive_passed(page, shown | taken_by_agent_turns(page))
         except FileNotFoundError:
             continue
 
@@ -1276,7 +1276,7 @@ def receive_passed(page: PageTransaction, passed: set[str]) -> None:
     position it moves to, so it stops at the first input nobody has taken.
 
     Whoever takes input passes what an agent of the session took or holds
-    (`forks.agent_inputs`): an agent's turn receives what it picked up as it picks it
+    (`holding.taken_by_agent_turns`): an agent's turn receives what it picked up as it picks it
     up, and the further messages of a thread it took go to it at its tool boundary,
     whatever the cursor says, so neither is input the main thread awaits."""
     through = page.cursor
@@ -1483,7 +1483,7 @@ def receive_one(
         ) as events,
     ):
         if agent_turn is not None:
-            from .forks import agent_inputs
+            from .holding import taken_by_agent_turns
 
             assert session_id is not None
             if agent_turn not in open_agent_turns(session_id):
@@ -1495,7 +1495,7 @@ def receive_one(
                 turn=agent_turn,
                 refs=batch_refs(batch),
             )
-            receive_passed(page, agent_inputs(page))
+            receive_passed(page, taken_by_agent_turns(page))
             return page_dir
         turn = None
         if session_id:

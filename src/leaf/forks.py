@@ -21,8 +21,9 @@ fork spawned from the conversation, which does the work and answers the user its
 
 A fork that takes a thread runs a turn of its own (`state.AGENT_TURNS`), and Leaf
 records the take as that turn's pickup of the thread's waiting messages, with the
-receipt, under the hold's fence: the page log then says who has the message, so every
-reader of received input agrees on it. While the fork's turn runs, the activity fold
+receipt, under the hold's fence: the page log then says which turn holds the message
+(`holding.py`, which owns that rule for every turn of a session, the main thread's
+included), so every reader of received input agrees on it. While the fork's turn runs, the activity fold
 reads the pickup and the fork's starts as work in hand (`activity.agent_holds`), the
 main thread is neither handed the thread's messages nor reminded of them
 (`held_inputs`, `delivery.deliverable`), and the user's further messages in the thread
@@ -139,13 +140,21 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal, NamedTuple
 
+from .holding import (
+    agent_held,
+    holding_turns,
+    newest_pickups,
+    picked_in,
+    rounds,
+    taken_by_agent_turns,
+    turn_threads,
+)
 from .leases import lease_speaks_here, release_lease, take_wait_lease
 from .registry.kernel import kinds_declaring
 from .service import PageTransaction, owned_pages, unacknowledged
 from .state import (
     STRING,
     Record,
-    agent_turn_stamps,
     close_agent_turns,
     described,
     flocked,
@@ -305,7 +314,7 @@ def forked(
     fork speaks for the page."""
     if claim is None:
         return set()
-    threads = _threads(events)
+    threads = rounds(events)
     return {
         event["id"]
         for said in threads.waiting.values()
@@ -316,48 +325,6 @@ def forked(
         for thread in _held(page_dir, events, cursor, claim)
         for input_id in thread.inputs
     }
-
-
-class _Threads(NamedTuple):
-    """What a fork's states read of the page's threads (`_threads`)."""
-
-    # Each thread's waiting messages in log order, the user's since the agent's last
-    # answer in it.
-    waiting: dict[str, list[dict]]
-    # The ids of the user's messages an agent's working line came after.
-    lined: set[str]
-    # Each thread's last answer from the agent: its last message that responds to
-    # one of the user's, which leaves out a message the agent wrote unasked.
-    answers: dict[str, dict]
-
-
-def _threads(events: list[dict]) -> _Threads:
-    """The page's threads as a fork's states read them, from the log."""
-    from .events import taken_back
-    from .thread_context import thread_names
-
-    messages = kinds_declaring("message")
-    names = thread_names(events)
-    withdrawn = taken_back(events)
-    waiting: dict[str, list[dict]] = {}
-    lined: set[str] = set()
-    answers: dict[str, dict] = {}
-    for event in events:
-        if event["kind"] not in messages or event["id"] in withdrawn:
-            continue
-        thread = names.get(event["id"])
-        if thread is None:
-            continue
-        if event["author"] == "user":
-            waiting.setdefault(thread, []).append(event)
-        elif event.get("ephemeral"):
-            # The agent's working line answers nothing, and speaks for what waits.
-            lined.update(said["id"] for said in waiting.get(thread, []))
-        else:
-            waiting.pop(thread, None)
-            if "responds" in event:
-                answers[thread] = event
-    return _Threads(waiting, lined, answers)
 
 
 def _held(
@@ -389,7 +356,7 @@ def _held(
         for input_id in event["events"]
     }
     handed = handed_inputs(claim["id"], page_dir)
-    waiting = _threads(events).waiting
+    waiting = rounds(events).waiting
     found = [
         Held(
             thread,
@@ -418,201 +385,6 @@ def held_inputs(page: PageTransaction) -> set:
     return {
         input_id for thread in held(page) for input_id in thread.inputs
     } | agent_held(page)
-
-
-def holding_turns(events: list[dict], session: str) -> dict[str, str]:
-    """The turn of `session` that holds each of the user's waiting thread messages:
-    the turn of the newest opened pickup, by `session`, of any waiting message in its
-    thread, whether the main thread's or an agent's (`state.AGENT_TURNS`). A turn
-    that picks up a thread's messages, as a fork's take, a fork's tool boundary or
-    the main thread's prompt does, takes the whole thread from whichever turn had it.
-
-    This is the one reading of who holds a message: delivery (`held_inputs`), an
-    agent's tool boundary (`agent_turn_inputs`), the activity fold and every hook
-    that reads it (`activity.agent_holds`), the end of an agent's run (`ended`) and an
-    agent turn's right to act on a message (`refuse_unheld`) all ask it rather than
-    filtering the pickups themselves."""
-    newest = _newest_pickups(events, session)
-    if not newest:
-        return {}
-    waiting = _threads(events).waiting
-    holders = {}
-    for said in waiting.values():
-        picked = [newest[event["id"]] for event in said if event["id"] in newest]
-        if picked:
-            turn = max(picked)[1]
-            holders.update((event["id"], turn) for event in said)
-    return holders
-
-
-def _newest_pickups(events: list[dict], session: str) -> dict[str, tuple[int, str]]:
-    """The seq and turn of the newest opened pickup, by `session`, of each message
-    one names."""
-    newest: dict[str, tuple[int, str]] = {}
-    for event in events:
-        if (
-            event["kind"] == "pickup"
-            and event["phase"] == "opened"
-            and event["session"] == session
-            and event["turn"]
-        ):
-            for input_id in event["events"]:
-                newest[input_id] = (event["seq"], event["turn"])
-    return newest
-
-
-def taken_over(input_ids) -> str:
-    """What an agent's turn is told as it acts on messages another turn of its
-    session now holds (`holding_turns`)."""
-    return (
-        f"this agent's turn no longer holds {', '.join(input_ids)}: another turn of "
-        "the session took its thread over and answers it, so leave it and end your "
-        "turn"
-    )
-
-
-def refuse_unheld(
-    events: list[dict], session: str, turn: str, input_ids: list[str]
-) -> None:
-    """The one rule for an agent's turn acting on messages: it may act only on the
-    messages it holds or that no turn holds, and is refused the rest (`taken_over`).
-    A waiting message is held by the turn `holding_turns` names, and an answered one
-    by the turn whose opened pickup of it is newest, so a fork may repeat its own
-    answer but not answer again a message another turn took over and answered. Its
-    pickups (`pickable`), replies and starts (`authorize`) all ask this, so a fork
-    that lost its thread to the main thread can neither take it back nor answer it
-    nor show itself at work on it.
-
-    The answered messages are this rule's alone: every reader of `holding_turns`
-    asks who holds work still owed, which an answered message isn't."""
-    from .delivery import ReceiptRefused
-
-    holders = holding_turns(events, session)
-    last = {
-        input_id: by
-        for input_id, (_seq, by) in _newest_pickups(events, session).items()
-    }
-    if taken := [
-        i for i in input_ids if holders.get(i, last.get(i)) not in (None, turn)
-    ]:
-        raise ReceiptRefused(taken_over(taken))
-
-
-def authorize(page: PageTransaction, session: str | None, input_ids: list[str]) -> None:
-    """Refuse a write a command of `session` makes about the messages `input_ids` on
-    `page`, a reply to one or a start on one, where its actor may not make it: an
-    agent whose turn has ended (`state.acting_agent_turn`), or an agent's turn acting
-    on a message another turn holds (`refuse_unheld`). The main thread acts on
-    whatever its session owes, and a session that doesn't hold the page is no
-    agent's."""
-    from .state import acting_agent_turn
-
-    claim = page.claim
-    if session is None or claim is None or claim["id"] != session:
-        return
-    if (turn := acting_agent_turn(session)) is not None:
-        refuse_unheld(page.events, session, turn, input_ids)
-
-
-def pickable(
-    page: PageTransaction, input_ids: list[str], session: str, turn: str | None
-) -> list[str]:
-    """Which of `input_ids` the turn `turn` of `session` may record an opened pickup
-    of, under the page's transaction (`delivery.record_pickup`, which every pickup
-    goes through), so no pickup moves a thread against this rule. An agent's turn
-    picks up only what `refuse_unheld` lets it act on: its take, its tool boundary
-    and its acknowledgement of a pointer; a late acknowledgement of a thread another
-    turn has since taken over is refused, and records nothing. Any other turn's
-    pickup of a message an agent's running turn holds would take the thread over,
-    which waits until that turn has closed or lapsed, so it leaves those messages
-    out."""
-    claim = page.active_claim
-    if claim is None or claim["id"] != session:
-        return input_ids
-    stamps = agent_turn_stamps(claim)
-    if not stamps:
-        return input_ids
-    if turn in stamps:
-        refuse_unheld(page.events, session, turn, input_ids)
-        return input_ids
-    holders = holding_turns(page.events, session)
-    running = running_turns(claim)
-    return [i for i in input_ids if holders.get(i) not in running]
-
-
-def agent_held(page: PageTransaction) -> set[str]:
-    """The waiting messages an agent's running turn holds (`holding_turns`), which
-    go to that agent at its tool boundary rather than to the main thread. With no
-    active claim, no agent speaks for the page."""
-    claim = page.active_claim
-    if claim is None:
-        return set()
-    running = running_turns(claim)
-    if not running:
-        return set()
-    return {
-        input_id
-        for input_id, turn in holding_turns(page.events, claim["id"]).items()
-        if turn in running
-    }
-
-
-def agent_inputs(page: PageTransaction) -> set[str]:
-    """What whoever records a receipt passes for the page's agents
-    (`delivery.receive_passed`): what an agent's running turn holds (`agent_held`),
-    and each input a turn of an agent picked up, open or closed, which that turn
-    received as it picked it up."""
-    claim = page.active_claim
-    if claim is None:
-        return set()
-    stamps = agent_turn_stamps(claim)
-    if not stamps:
-        return set()
-    return set(_picked_in(page.events, claim["id"], set(stamps))) | agent_held(page)
-
-
-def running_turns(claim: dict) -> set[str]:
-    """The turns of the agents running beside the main thread of the session that
-    holds a page by `claim`, an active claim, believed running now
-    (`activity.running_agent_turns`). What an agent holds moves with this set as a
-    turn closes or lapses, which no file records, so a cache of what the session owes
-    keys on it (`session.watch_between_turns`)."""
-    from .activity import running_agent_turns
-
-    stamps = agent_turn_stamps(claim)
-    if not stamps:
-        return set()
-    return running_agent_turns(stamps, True, datetime.now().astimezone())
-
-
-def _picked_in(events: list[dict], session: str, turns: set[str]) -> dict[str, str]:
-    """Each input an opened pickup of `session` names in one of `turns`, with the
-    newest such turn."""
-    return {
-        input_id: event["turn"]
-        for event in events
-        if event["kind"] == "pickup"
-        and event["phase"] == "opened"
-        and event["session"] == session
-        and event["turn"] in turns
-        for input_id in event["events"]
-    }
-
-
-def agent_turn_inputs(page: PageTransaction, turn: str) -> list[dict]:
-    """The waiting messages the running agent turn `turn` holds that it hasn't yet
-    picked up, in log order: the user's further messages in the threads it holds,
-    which its tool boundary hands it (`hook_transport.carry_agent_turn`)."""
-    claim = page.active_claim
-    if claim is None or turn not in running_turns(claim):
-        return []
-    holders = holding_turns(page.events, claim["id"])
-    taken = set(_picked_in(page.events, claim["id"], {turn}))
-    return [
-        event
-        for event in page.events
-        if holders.get(event["id"]) == turn and event["id"] not in taken
-    ]
 
 
 def held_at_admission(page: PageTransaction, event: dict) -> bool:
@@ -981,10 +753,10 @@ def _resumable(
     from .state import agent_turn_of, agent_turns
 
     claim = page.active_claim
-    answer = _threads(page.events).answers.get(thread)
+    answer = rounds(page.events).answers.get(thread)
     if claim is None or answer is None:
         return None
-    picked = _newest_pickups(page.events, session_id).get(answer["responds"])
+    picked = newest_pickups(page.events, session_id).get(answer["responds"])
     if picked is None:
         return None
     turn = picked[1]
@@ -1024,7 +796,7 @@ def _since(
         datetime.fromisoformat(entry["opened"]),
         datetime.fromisoformat(entry["closed"]),
     )
-    picked = set(_picked_in(events, session_id, {turn}))
+    picked = set(picked_in(events, session_id, {turn}))
     own = {
         event["id"]
         for event in events
@@ -1150,7 +922,7 @@ def _give(session_id: str, basis: dict, line: str) -> dict:
                 turn=turn,
                 refs=batch_refs(delivery["batches"][0]),
             )
-            receive_passed(page, agent_inputs(page))
+            receive_passed(page, taken_by_agent_turns(page))
     except FileNotFoundError:
         return {"outcome": "dropped", **posted}
     queue(
@@ -1249,8 +1021,8 @@ def ended(
                 claim = page.active_claim
                 if claim is None or claim["id"] != session_id:
                     continue
-                threads = _turn_threads(page.events, session_id, closed)
-                waiting = _threads(page.events).waiting
+                threads = turn_threads(page.events, session_id, closed)
+                waiting = rounds(page.events).waiting
                 holders = holding_turns(page.events, session_id)
                 seqs = {event["id"]: event["seq"] for event in page.events}
                 owed = TodoReading(page.events).owed
@@ -1331,21 +1103,6 @@ def ended(
     if told:
         queue(session_id, told)
     return outcomes
-
-
-def _turn_threads(
-    events: list[dict], session: str, turns: set[str]
-) -> dict[str, list[str]]:
-    """The threads whose messages an opened pickup of `session` in one of `turns`
-    names, each with those messages."""
-    from .thread_context import thread_names
-
-    names = thread_names(events)
-    threads: dict[str, list[str]] = {}
-    for input_id in _picked_in(events, session, turns):
-        if (thread := names.get(input_id)) is not None:
-            threads.setdefault(thread, []).append(input_id)
-    return threads
 
 
 def _hand_over(session_id: str, basis: dict, why: str | None) -> dict:

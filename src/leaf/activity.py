@@ -373,7 +373,7 @@ def running_agent_turns(
 
 def agent_holds(obligation: dict, state: dict) -> bool:
     """Whether an agent's running turn holds this owed update: the turn that holds
-    it (`holder`, `forks.holding_turns`) is a running turn of an agent the claimant's
+    it (`holder`, `holding.holding_turns`) is a running turn of an agent the claimant's
     session runs beside its main thread (`state.AGENT_TURNS`), such as a fork that
     took a thread's work. The main thread neither holds its turn over it, is
     reminded of it, nor takes it in again (`hook_transport.pick_up_acknowledged`)
@@ -653,7 +653,7 @@ def canonical_activity(
     its authored words supply the status's detail. Harness observations and general
     status declarations have no exact input source. Consumers never recover one
     by matching the displayed words."""
-    from .forks import holding_turns
+    from .holding import holding_turns
     from .todos import TodoReading
 
     log = todo_reading or TodoReading(events)
@@ -907,7 +907,7 @@ def canonical_activity(
                 **item,
                 "obligation": owing[item["input"]]["id"],
                 "answer": owed_answer(item),
-                # The claimant's turn that holds it (`forks.holding_turns`).
+                # The claimant's turn that holds it (`holding.holding_turns`).
                 "holder": holders.get(item["input"]),
             }
             for item in obligations

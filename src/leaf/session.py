@@ -745,11 +745,11 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
     # What `left_owed` found on each page, by the log, the turn and the agent turns
     # running it read, so a pass that finds nothing changed folds no page. An agent's
     # turn closing or lapsing gives what it held to the main thread without a log
-    # write (`forks.running_turns`).
+    # write (`holding.running_turns`).
     owed: dict[Path, tuple[tuple, list[dict]]] = {}
 
     def reminders(page: PageTransaction) -> list[dict]:
-        from .forks import running_turns
+        from .holding import running_turns
 
         claim = page.active_claim
         key = (

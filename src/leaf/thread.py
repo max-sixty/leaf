@@ -498,7 +498,7 @@ def post_reply(
                 for event in page.events
             ):
                 raise ReceiptRefused("response no longer matches its page log")
-        from .forks import authorize
+        from .holding import authorize
 
         # A fork may answer only what its turn holds, and an ended one nothing; it
         # asks first, so a refused fork is never handed another turn's answer as the

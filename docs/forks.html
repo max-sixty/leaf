@@ -342,12 +342,12 @@ sequenceDiagram
             thread's waiting messages, the one with the newest pickup holds all of them,
             whether it is the main thread's turn or a fork's. Every reader of received
             input asks one function which turn that is
-            (<code>forks.holding_turns</code>): delivery, the hooks, the page's activity
-            reading and the end of a fork's run. A fork's turn keeps the main thread off
-            the messages it holds only while it runs, that is while it is open and
-            renewed. Once it closes or lapses, those messages are the main thread's to
-            answer, though the closed turn still holds them until another turn picks
-            them up.
+            (<code>holding.holding_turns</code>): delivery, the hooks, the page's
+            activity reading and the end of a fork's run. A fork's turn keeps the main
+            thread off the messages it holds only while it runs, that is while it is
+            open and renewed. Once it closes or lapses, those messages are the main
+            thread's to answer, though the closed turn still holds them until another
+            turn picks them up.
           </p>
           <figure id="holding-figure" class="diagram-figure">
             <lf-diagram id="holding-diagram" data-height="453" parts="all">
@@ -387,7 +387,7 @@ flowchart TD
             <p id="holding-rule-text">
               A fork's turn may act only on the messages it holds or that no turn holds.
               One function checks each of its writes as the write is made
-              (<code>forks.refuse_unheld</code>): its pickups, which are its take, its
+              (<code>holding.refuse_unheld</code>): its pickups, which are its take, its
               tool boundaries and its acknowledgement of a delivery handed to it by
               pointer; its replies; and its starts. For this rule an answered message is
               held by the turn whose pickup of it is newest, so a fork may repeat its
@@ -404,7 +404,7 @@ flowchart TD
               (<code>forks.held_inputs</code>), its Stop hook and watch neither keep its
               turn from ending over them nor remind it of them
               (<code>activity.agent_holds</code>), and its own pickups leave them out
-              (<code>forks.pickable</code>). Until the fork answers, the thread's
+              (<code>holding.pickable</code>). Until the fork answers, the thread's
               further messages go to the fork.
             </p>
             <p id="takeover-after">
@@ -930,13 +930,20 @@ flowchart TD
               >: the main thread's turns and generations, the agent turns beside them,
               and who holds a message.
             </li>
+            <li id="source-holding">
+              <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/holding.py"
+                ><code>src/leaf/holding.py</code></a
+              >: which turn of a session holds each thread message, the main thread's or
+              an agent's, and what a turn may do about one another turn holds;
+              <code>holding_turns</code>, <code>refuse_unheld</code>,
+              <code>authorize</code> and <code>pickable</code> hold the rules.
+            </li>
             <li id="source-forks">
               <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/forks.py"
                 ><code>src/leaf/forks.py</code></a
               >: its header holds the states a thread moves through and why the line
-              fork runs as it does; <code>holding_turns</code>,
-              <code>refuse_unheld</code>, <code>authorize</code>, <code>pickable</code>,
-              <code>_give</code> and <code>ended</code> hold the rules this page names.
+              fork runs as it does; <code>_give</code> and <code>ended</code> hold the
+              rules this page names for a working fork's take and end.
             </li>
             <li id="source-state">
               <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/state.py"

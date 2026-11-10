@@ -34,6 +34,7 @@ from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import file_changes as file_changes_model
 from leaf import forks as forks_model
+from leaf import holding as holding_model
 from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
@@ -888,7 +889,7 @@ def test_a_late_acknowledgement_does_not_take_a_thread_back(claimed, lane, capsy
     claim = service_model.page_claim(claimed)
     assert claim is not None
     with PageTransaction(claimed) as page:
-        held = forks_model.holding_turns(page.events, "s1")
+        held = holding_model.holding_turns(page.events, "s1")
     assert held[more["id"]] == claim["turn"]
 
     late = CliRunner().invoke(
@@ -897,7 +898,7 @@ def test_a_late_acknowledgement_does_not_take_a_thread_back(claimed, lane, capsy
     assert late.exit_code != 0
     assert "no longer holds" in late.output
     with PageTransaction(claimed) as page:
-        assert forks_model.holding_turns(page.events, "s1") == held
+        assert holding_model.holding_turns(page.events, "s1") == held
 
 
 def test_a_command_marked_with_an_ended_fork_acts_as_nobody(claimed, lane, capsys):

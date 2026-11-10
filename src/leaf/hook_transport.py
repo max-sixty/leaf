@@ -448,7 +448,7 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
     likewise checks generation and turn after reacquiring the page transaction.
     A page this Leaf may not write records none; `remedies` tells the turn why.
     Debt an agent's running turn holds is that turn's, so the pickup leaves it out
-    (`forks.pickable`).
+    (`holding.pickable`).
     """
     from .activity import acknowledged_obligations
     from .served_state.context import read_page
@@ -732,7 +732,7 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
     """At a tool boundary of an agent the session runs beside its main thread, which
     the hook's payload names `agent` (Claude Code's PostToolBatch in a subagent):
     renew the agent's turn (`state.renew_agent_turn`), and hand it the user's
-    further messages in the threads it took (`forks.agent_turn_inputs`), as a
+    further messages in the threads it took (`holding.to_carry`), as a
     tool boundary of the main thread hands it new input. The delivery goes inline
     and is recorded as opened in the agent's turn with its receipt
     (`delivery.receive_one`). One too large for the hook's context, or not recorded
@@ -742,7 +742,7 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
     Nothing else of the main thread's, its input, debt, reminders or the clerk's
     lines, reaches an agent."""
     from .delivery import current_responses
-    from .forks import agent_turn_inputs
+    from .holding import to_carry
     from .state import agent_turns, note_agent_pointer, renew_agent_turn
 
     turn = renew_agent_turn(sid, agent)
@@ -758,7 +758,7 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
                     continue
                 if inputs := [
                     event
-                    for event in agent_turn_inputs(page, turn)
+                    for event in to_carry(page, turn)
                     if event["seq"] > pointed.get(str(page_dir), 0)
                 ]:
                     batches.append(

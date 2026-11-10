@@ -2395,7 +2395,6 @@ export class Trace extends LeafElement {
                 <select
                   ${offered("")}
                   name=${`${this.id}-pace`}
-                  aria-label="Playback pace"
                   aria-description="Review pace slows near recorded input and marked results, and speeds quiet intervals."
                   ?disabled=${q}
                   .value=${live(this.#pace)}

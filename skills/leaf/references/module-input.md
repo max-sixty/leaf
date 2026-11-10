@@ -194,10 +194,11 @@ declare.
 Move focus with `focusDestination(element, cause)`. The cause tells Leaf why focus
 moved:
 
-- `"move"`: a route taking the user somewhere, such as to the next row;
+- `"move"`: a route taking the user somewhere, such as to the next row, whose landing
+  previews nothing ("Previews");
 - `"return"`: putting them back, as a widget's Escape does, or a redraw handing them to
   the control that replaced theirs;
-- `"step"`: the widget's own Tab loop;
+- `"step"`: the widget's own Tab loop, whose landing previews as Tab's does;
 - `"press"`: landing on a control to press it for them.
 
 A return marked as a move looks like the user arriving, and can release held news or
@@ -287,9 +288,10 @@ itself (`module-annotations.md`, "Reading and opening Threads from a widget").
 ### Previews
 
 Pointing reads; pressing acts (`interface-goals.md`). Leaf previews an element when a
-pointer rests on it, when the keyboard focuses it or something inside it, and when a
-finger holds it, beside the element over the page, in one face: a name with key chips,
-then lines of detail. The preview holds no control, so a control the user presses stays
+pointer rests on it, when Tab brings the keyboard to it or something inside it, and when
+a finger holds it, beside the element over the page, in one face: a name with key chips,
+then lines of detail. A command's landing, such as a walk's, previews nothing, since
+what the user asked the command for is in front of them ("Focus and layers"). The preview holds no control, so a control the user presses stays
 on the widget; a pointer may cross onto it to read it, and a finger's long press reads
 it and presses nothing, so a widget's click answers a tap alone.
 
@@ -329,8 +331,9 @@ come back the same leave the preview as it is. It returns:
   room holds, through every resize, and under them `more(count)`'s words for the rest,
   such as "and 26 more threads", so the items need no measuring of their own; the rest
   are hidden from sight and from a screen reader alike.
-- `null` where the element adds nothing now: a control keeps its own preview, and the
-  search goes on to what holds the element.
+- `null` where the element adds nothing now, including where the words it would say
+  already show on it or beside it: a control keeps its own preview, and the search goes
+  on to what holds the element.
 - `false` where nothing should preview here or around it, as a pinned card already
   shows what its phrase would.
 

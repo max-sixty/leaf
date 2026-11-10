@@ -269,21 +269,38 @@ export class RequestError extends Error {
   /** @param {string} message
    * @param {{status: number; body: string; cause?: unknown;
    *   current?: import("../types/contract.js").ServedFileSnapshot | undefined;
-   *   said?: string | undefined}} details */
-  constructor(message, { status, body, cause, current, said }) {
+   *   said?: string | undefined; retryAfter?: number | undefined}} details */
+  constructor(message, { status, body, cause, current, said, retryAfter }) {
     super(message, { cause });
     this.status = status;
     this.body = body;
     this.current = current;
     this.said = said;
+    this.retryAfter = retryAfter;
   }
+}
+
+// A server that can't take a request yet answers 503 and names in `Retry-After` the
+// seconds to wait before sending it again, as the website's edge does for the minutes
+// a deploy takes to roll a visitor's container onto the new release
+// (`worker/src/index.ts`, `rollingOut`). That wait in milliseconds, or undefined for
+// any other answer.
+/** @param {Response} response */
+function retryWait(response) {
+  const seconds = Number(response.headers.get("Retry-After") ?? NaN);
+  return response.status === 503 && Number.isFinite(seconds)
+    ? seconds * 1000
+    : undefined;
 }
 
 // The page's JSON requests beside the event door and the state reads: the layer's
 // headers out, the answer admitted, and the JSON read off the text so an error page a
 // proxy wrote fails as its status rather than as a parse. A failure throws the server's
-// `error`, or `<what>: HTTP <status>`, carrying the status, the raw body and, for a
-// file the server holds newer than the draft, its `current`.
+// `error`, or `<what>: HTTP <status>`, carrying the status, the raw body, the wait a
+// server that can't take the request yet names (`retryAfter`) and, for a file the
+// server holds newer than the draft, its `current`. Whether to send it again is the
+// caller's: the server may already have run the request, since the website's edge
+// refuses a container's answer only after the container has handled it.
 /** The server owns the response contract named by each endpoint caller.
  * @template T @param {string} url @param {RequestInit} init @param {string} what
  * @returns {Promise<T>} */
@@ -299,6 +316,7 @@ export async function requestJson(url, init, what) {
       status: response.status,
       body: text,
       cause,
+      retryAfter: retryWait(response),
       ...details,
     });
   let answer = null;
@@ -386,6 +404,14 @@ sessionChannel?.addEventListener("message", (event) => {
   if (event.data?.active === true) activateSession(false);
 });
 
+// Whether the page's next write has to launch its agent's container first, by the last
+// answer: leaf.page answers a page with no private copy yet at the edge
+// (`Leaf-Session: passive`), and one whose container has stopped from its saved record
+// (`Leaf-State-Source: durable`), and a write to either waits while the container
+// starts (`worker/src/index.ts`). A server that names no session runs its agent beside
+// it.
+let agentStopped = false;
+
 /** @param {Response} response */
 function observeSession(response) {
   const reference = response.headers.get("Leaf-Session-Reference");
@@ -394,9 +420,13 @@ function observeSession(response) {
   const mode = response.headers.get("Leaf-Session");
   if (mode === "active") activateSession(true);
   else if (mode === "passive" && sessionMode !== "active") sessionMode = "passive";
+  if (mode !== null)
+    agentStopped =
+      mode === "passive" || response.headers.get("Leaf-State-Source") === "durable";
 }
 
 export const sessionIsActive = () => sessionMode === "active";
+export const writeLaunchesAgent = () => agentStopped;
 
 // The server answers a request without this page's key with 401 and nothing else does,
 // whichever route was asked (`http.py`, `_answer`). Any other answer passed the key

@@ -808,7 +808,8 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
         '<lf-toc id="contents"></lf-toc>',
     )
     on_main, in_child = measured(mapped, "column", 1440)
-    assert on_main["contents"][2] == "fixed", on_main
+    route, contents = on_main["route"][0], on_main["contents"][0]
+    assert route[0] <= contents[0] and contents[1] <= route[1], on_main
     assert without_main(in_child) == without_main(on_main)
     on_main, in_child = measured(workspace_body, "workspace", 1280)
     assert {

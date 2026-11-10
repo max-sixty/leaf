@@ -726,6 +726,20 @@ test("a refused local message publishes one failed workflow before retirement", 
   assert.equal(app.read().effective.workflows.length, 0);
 });
 
+test("a send keeps whether it had to launch the agent while it waits", () => {
+  const app = setup();
+  const comment = (attempt) => ({ kind: "comment", attempt, text: "Hi", revision: 1 });
+  app.enqueue(comment("first"), "now", "Hi", true);
+  app.enqueue(comment("later"), "now");
+  assert.deepEqual(
+    app.read().effective.workflows.map((item) => [item.stage, item.launching]),
+    [
+      ["sending", true],
+      ["sending", false],
+    ],
+  );
+});
+
 test("a local send's workflow takes the served workflow's shape", () => {
   const app = setup();
   app.enqueue(action("move"), "now");
@@ -742,9 +756,13 @@ test("a local send's workflow takes the served workflow's shape", () => {
     assert.deepEqual(app.read().effective.workflows, []);
     app.release(new Set(["other"]));
   }
-  // Every field the server sends but the undelivered-only ones it has no reading of.
+  // Every field the server sends but the undelivered-only ones it has no reading of,
+  // and whether the send had to launch the agent, which only the tab knows.
   const { quiet: _quiet, dropped: _dropped, ...served } = servedWorkflow();
-  assert.deepEqual(Object.keys(move).sort(), Object.keys(served).sort());
+  assert.deepEqual(
+    Object.keys(move).sort(),
+    [...Object.keys(served), "launching"].sort(),
+  );
 });
 
 test("a version being marked read reads read, outside the gesture ledger", () => {

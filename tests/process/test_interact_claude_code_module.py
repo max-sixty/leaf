@@ -622,6 +622,57 @@ def test_a_fork_given_a_threads_work_runs_in_a_turn_leaf_keeps_for_it(
     driven.quit()
 
 
+def test_a_fork_whose_run_ends_before_its_spawn_returns_still_ends_its_turn(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """A fork can end its run before Claude Code answers the module's spawn with its
+    agent id, as one that fails at once does. The module keeps that run's end until
+    it learns the id, then tells Leaf, so the fork's turn closes and the main thread
+    is given the thread back, rather than the turn holding the thread until it
+    lapses."""
+    driven = ClaudeCode(
+        spawn,
+        "cc-early",
+        {
+            "forkAnswer": json.dumps({"line": "Checking the version", "work": "take"}),
+            "agentId": "agent-1",
+            "env": {"LEAF_FORK_WORK": "on"},
+            "spawnWaits": True,
+        },
+    )
+    holding_page(driven, page_dir, monkeypatch)
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    wait_for(
+        lambda: band_lines(
+            driven.bands.get(timeout=STATED_TIMEOUT)["terminal"], "terminal"
+        ),
+        bool,
+        failure="the band never showed the page",
+    )
+    main_thread_request(driven)
+    asked = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Which Python?"}
+    )
+    driven.spawned.get(timeout=STATED_TIMEOUT)
+    ended = {"durationMs": 1, "isAborted": True, "turnId": "t9"}
+    driven.emit("turn.complete", {**ended, "reason": "error", "agentId": "agent-1"})
+    driven.send({"spawnReturns": True})
+    wait_for(
+        lambda: state_model.open_agent_turns("cc-early"),
+        lambda turns: turns == {},
+        failure="the fork's turn never closed",
+    )
+    wait_for(
+        lambda: clerk_model.queued("cc-early"),
+        lambda lines: any(f"gave thread {asked['id']}" in line for line in lines),
+        failure=lambda: (
+            f"the main thread never heard: {clerk_model.queued('cc-early')}"
+        ),
+    )
+    driven.quit()
+
+
 @pytest.mark.parametrize("resumes", [True, False])
 def test_a_later_message_in_a_forks_thread_resumes_that_fork(
     page_dir, monkeypatch, spawn, sessionless, resumes

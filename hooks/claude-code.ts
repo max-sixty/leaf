@@ -61,7 +61,7 @@
  * --if-claimed --pages`) prints that list whenever it changes and exits once the
  * session holds no page; the launcher answers it without starting uv in a session
  * holding none. It is also the session's forks lane (`src/leaf/forks.py`): each
- * page it lists carries the threads Leaf holds for a fork's line. The session
+ * page it lists carries the threads Leaf keeps back for a line fork. The session
  * takes a page only through a `leaf` command, so the
  * module starts the follower as the session starts, after each Bash call that
  * runs `leaf`, and as a turn starts or a main-loop turn ends, once none is
@@ -482,6 +482,13 @@ function lineFork($: EngineInterface, session: string, kept: KeptBack) {
 const FORKS = { plugin: "leaf", key: "forks" } as const;
 type Fork = { started: number; turn: string };
 
+// How each run ended, by agent id, of the agents that ended while a spawn was in
+// flight and the module hadn't registered: a fork whose run ends before
+// `$.agent.spawn` returns its id (`workFork`). It holds anything only while a spawn
+// is in flight (`spawning`), so the session's other subagents leave nothing here.
+const endedEarly = new Map<string, { answer: string } | { failed: string }>();
+let spawning = 0;
+
 /** Change the forks kept in `$.state` by `change`, against concurrent changes. */
 async function changeForks(
   $: EngineInterface,
@@ -516,6 +523,8 @@ async function workFork(
 ) {
   let agentId = given.resume && (await resumeFork($, given.resume, given.turn));
   if (agentId === undefined) {
+    let early: { answer: string } | { failed: string } | undefined;
+    spawning += 1;
     try {
       const spawned = await $.agent.spawn({
         prompt: given.prompt,
@@ -525,17 +534,31 @@ async function workFork(
       });
       agentId = spawned.agentId;
       if (agentId === undefined) throw new Error("no agent started");
+      const id = agentId;
+      const started = await $.clock.now();
+      await changeForks($, (forks) => ({
+        ...forks,
+        [id]: { started, turn: given.turn },
+      }));
+      // A run that ended before the fork was registered ends its turn now.
+      early = endedEarly.get(id);
+      if (early !== undefined)
+        await changeForks($, ({ [id]: _ended, ...forks }) => forks);
     } catch (error) {
       await forkStep($, session, {
         ended: { turn: given.turn, failed: `the fork did not start: ${error}` },
       });
       return;
+    } finally {
+      spawning -= 1;
+      if (spawning === 0) endedEarly.clear();
     }
-    const started = await $.clock.now();
-    await changeForks($, (forks) => ({
-      ...forks,
-      [agentId as string]: { started, turn: given.turn },
-    }));
+    if (early !== undefined) {
+      await forkStep($, session, {
+        ended: { agent: agentId, turn: given.turn, ...early },
+      });
+      return;
+    }
   }
   await forkStep($, session, {
     thread: kept,
@@ -640,17 +663,17 @@ export const register: Register = (on) => {
     const completed = await next(e);
     if (e.agentId !== undefined) {
       const agentId = e.agentId;
+      const run = e.reason === "answer" ? { answer: e.answer } : { failed: e.reason };
       const fork = (await $.state.get(FORKS)).value?.[agentId];
-      if (fork === undefined) return completed;
+      if (fork === undefined) {
+        if (spawning > 0) endedEarly.set(agentId, run);
+        return completed;
+      }
       await changeForks($, ({ [agentId]: _ended, ...forks }) => forks);
       const session = await sessionOf($);
       const now = await $.clock.now();
       void forkStep($, session, {
-        ended: {
-          agent: agentId,
-          turn: fork.turn,
-          ...(e.reason === "answer" ? { answer: e.answer } : { failed: e.reason }),
-        },
+        ended: { agent: agentId, turn: fork.turn, ...run },
         elapsed_ms: now - fork.started,
       }).catch((error) =>
         $.ui.log(`Leaf: agent ${agentId}'s turn could not end: ${error}`, {

@@ -8,6 +8,8 @@
 // `forkRejects`, which makes every fork reject; `agentId`, the id each
 // `$.agent.spawn` answers with, or a list of them answered in turn, the last for
 // every spawn after, each printing what it was asked as `{"spawned"}`;
+// `spawnWaits`, which holds each spawn's answer until a stdin line
+// `{"spawnReturns": true}`, as a fork's run can end before Claude Code answers;
 // `sendRefuses`, the reason every `$.session.send` gives for delivering nothing,
 // which otherwise delivers, each send printing what it was asked as `{"sent"}`;
 // `state`, the values `$.state` holds as the module loads, by key, as a reload
@@ -35,8 +37,10 @@ const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const [session, options] = [process.argv[2], JSON.parse(process.argv[3])];
 const print = (line) => process.stdout.write(`${JSON.stringify(line)}\n`);
 // `$.state`'s values by key, each with its version.
-// How many forks `$.agent.spawn` has started.
+// How many forks `$.agent.spawn` has started, and what answers the one held for
+// `spawnWaits`.
 let spawns = 0;
+let spawnReturns = () => {};
 const held = new Map(
   Object.entries(options.state ?? {}).map(([key, value]) => [
     key,
@@ -148,6 +152,10 @@ const $ = {
   agent: {
     spawn: async (args) => {
       print({ spawned: args });
+      if (options.spawnWaits)
+        await new Promise((resolve) => {
+          spawnReturns = resolve;
+        });
       const ids = [options.agentId ?? "agent-1"].flat();
       return { agentId: ids[Math.min(spawns++, ids.length - 1)] };
     },
@@ -252,7 +260,11 @@ await register((event, ...rest) => {
 print({ pid: process.pid });
 
 for await (const line of readline.createInterface({ input: process.stdin })) {
-  const { emit, e, flush, press } = JSON.parse(line);
+  const { emit, e, flush, press, spawnReturns: returns } = JSON.parse(line);
+  if (returns) {
+    spawnReturns();
+    continue;
+  }
   if (press !== undefined) {
     drawn(press).props.onPress({ element: press, surface: "terminal" });
     continue;

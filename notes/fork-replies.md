@@ -322,11 +322,13 @@ since it changes the work the obligation would queue behind.
   SendMessage to `main`, which wakes an idle session at once and can say what the
   fork did beyond those outcomes, so the session neither redoes nor contradicts it.
 - **Follow-ups.** A later message in a thread a fork answered goes to the same fork,
-  resumed by name, rather than to a new fork, so a flurry of messages in one thread
-  makes one worker. Leaf's message to it lists what the main thread did on the page
-  since the fork's run, which the fork's transcript lacks, and the fork can
-  SendMessage the main thread to ask about it. (Proposed; the user's choice is
-  open.)
+  resumed by name in a new turn, rather than to a new fork, so a flurry of messages
+  in one thread makes one worker. Leaf's message to it lists what the main thread did
+  on the page since the fork's run, which the fork's transcript lacks, and the fork
+  can SendMessage the main thread to ask about it. Messages in different threads
+  start a fork each; if that proves wasteful, one standing fork per session would
+  take every small message in turn, cheaper but slower when threads arrive
+  together. (The user chose this on 2026-11-10.)
 - **The main thread as coordinator.** Told by name as each fork takes a thread, the
   main thread can steer it or stop it with SendMessage, or take the thread over. It
   takes obligations in the order it judges and runs those bigger than a message in

@@ -399,13 +399,17 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(
     assert comments[-1]["anchor"]["datum"] == '["src/summary.rs","new",259]'
 
 
-def test_a_margin_table_of_contents_maps_the_document_in_its_track(browser, serve):
-    """The roomy margin is a stable reading map rather than a compressed outline.
+def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, serve):
+    """A document's contents spine is a stable reading map rather than a compressed
+    outline.
 
-    Section rows divide the available height according to the content they lead, a
-    moving lens shows the visible band, and late content growth redraws both. The map
-    is a block in its sidebar's track with every label shown, laying nothing over the
-    body. Outside the margin posture, the same links open through a native disclosure.
+    Under a mouse a sidebar before a `layout-column` holding only the map narrows to its
+    spine, so the prose starts beside the spine rather than a column's width away
+    (#5619). Section rows divide the available height according to the content they
+    lead, a moving lens shows the visible band, and late content growth redraws both.
+    Labels reveal over the body without moving the map or changing the item under the
+    pointer. Outside the narrowed sidebar, the same links open through a native
+    disclosure.
 
     The track sticks, so once the reader scrolls the map stands still above the room
     the floating panel keeps at the window's foot, through the document's end."""
@@ -444,7 +448,7 @@ def test_a_margin_table_of_contents_maps_the_document_in_its_track(browser, serv
     verify = nav.get_by_role("link", name="Verify both readings", exact=False)
     page.mouse.move(1200, 700)
     # Every row says its own word as text, the start row included. Its word used to be an
-    # attribute the rail form drew with `content: attr()`, which left the link that names
+    # attribute the map drew with `content: attr()`, which left the link that names
     # the whole document saying nothing at all to any reading that asks a link what it
     # says — the accessible name it falls back to, a text dump, the widget's own outline.
     said = nav.locator("a").evaluate_all(
@@ -455,14 +459,17 @@ def test_a_margin_table_of_contents_maps_the_document_in_its_track(browser, serv
     expect(start).to_have_attribute("href", re.compile(r"^#lf-contents-section-0"))
     expect(start).to_have_attribute("aria-current", "location")
     expect(nav.locator(".lf-toc-rows")).to_have_css("display", "flex")
-    expect(prepare).to_have_css("opacity", "1")
-    expect(prepare).to_have_css("pointer-events", "auto")
+    expect(prepare).to_have_css("opacity", "0")
     motion = prepare.evaluate(
         "node => { const s = getComputedStyle(node); "
         "return {property: s.transitionProperty, duration: s.transitionDuration, "
         "timing: s.transitionTimingFunction}; }"
     )
-    assert motion == {"property": "color", "duration": "0.12s", "timing": "ease-out"}
+    assert motion == {
+        "property": "color, opacity",
+        "duration": "0.12s, 0.24s",
+        "timing": "ease-out, ease-out",
+    }
     nav_box = nav.bounding_box()
     rows_box = nav.locator(".lf-toc-rows").bounding_box()
     toc_box = toc.bounding_box()
@@ -480,18 +487,37 @@ def test_a_margin_table_of_contents_maps_the_document_in_its_track(browser, serv
     padding = nav.evaluate(
         "node => parseFloat(getComputedStyle(node).paddingBlockStart)"
     )
-    # The map stands in the track, its words clear of the body's.
+    # The map stands in the narrowed sidebar, and the prose starts just past it: the
+    # track's padding and the Layout's gap, where a column's width had stood blank
+    # (#5619).
     body_start = page.locator("#route + .layout-column h1").evaluate(
         "node => node.getBoundingClientRect().left"
     )
-    assert toc_box["x"] + toc_box["width"] <= body_start, (toc_box, body_start)
+    assert 0 <= body_start - (toc_box["x"] + toc_box["width"]) <= 32, (
+        toc_box,
+        body_start,
+    )
     assert nav_box["y"] == pytest.approx(toc_box["y"], abs=1)
     assert nav_box["y"] + nav_box["height"] == pytest.approx(
         toc_box["y"] + toc_box["height"], abs=1
     )
     assert rows_box["y"] == pytest.approx(nav_box["y"] + padding, abs=1)
 
-    # The map lays nothing over the body, whatever the window's width.
+    # At rest the map takes the pointer on its own box in the track alone, so the words
+    # beside it stay the page's; once entered, the whole map keeps the pointer across
+    # its labels and the padding over its first row.
+    page.mouse.move(rows_box["x"] + 100, rows_box["y"] + 20)
+    assert not toc.evaluate("node => node.matches(':hover')")
+    page.mouse.move(rows_box["x"] + 2, rows_box["y"] + 20, steps=4)
+    assert toc.evaluate("node => node.matches(':hover')")
+    expect(prepare).to_have_css("opacity", "1")
+    page.mouse.move(nav_box["x"] + 100, rows_box["y"] - 8, steps=8)
+    assert toc.evaluate("node => node.matches(':hover')")
+    # Leaving the map returns it to its spine.
+    page.mouse.move(1200, 700)
+    expect(prepare).to_have_css("opacity", "0")
+
+    # At rest the map lays nothing over the body, whatever the window's width.
     resized(page, 1188, 900)
     underlying = page.locator("#underlying")
     underlying.evaluate(
@@ -555,8 +581,8 @@ def test_a_margin_table_of_contents_maps_the_document_in_its_track(browser, serv
         marker["y"] == pytest.approx(marker["labelCenter"], abs=1) for marker in markers
     )
     assert markers[-1]["y"] > nav_box["y"] + nav_box["height"] * 0.68
-    # Labels at the track's width wrap, so the close rows sit one label apart; the long
-    # stretch before the last section still reads at the document's scale.
+    # The close rows sit at least one label apart; the long stretch before the last
+    # section still reads at the document's scale.
     assert markers[5]["y"] - markers[4]["y"] > markers[3]["y"] - markers[2]["y"]
 
     # The flex rows preserve the raw document scale from which the visible map is fitted.
@@ -624,7 +650,7 @@ def test_a_margin_table_of_contents_maps_the_document_in_its_track(browser, serv
 
     # A diagram render, image load, disclosure, or other late block can change the
     # document after upgrade. Growing one such block must move the later sections in
-    # the map without changing the rail's own box.
+    # the map without changing the map's own box.
     move_before = markers[4]["y"]
     page.locator("#late-content").evaluate("node => { node.style.height = '580px'; }")
     page.wait_for_function(
@@ -640,12 +666,15 @@ def test_a_margin_table_of_contents_maps_the_document_in_its_track(browser, serv
         "return [r.x, r.y, r.height]; })"
     )
 
-    # The go-to menu addresses every label without moving it or focus into the rail.
+    # The go-to menu reveals and addresses every label without moving it or focus into
+    # the map.
     page.keyboard.press("g")
     link_hints = page.locator(
         '.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-kind="Link"]'
     )
     expect(link_hints).to_have_count(nav.locator("a").count())
+    for link in nav.locator("a").all():
+        expect(link).to_have_css("opacity", "1")
     assert (
         nav.locator(".lf-toc-start, li").evaluate_all(
             "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
@@ -655,6 +684,7 @@ def test_a_margin_table_of_contents_maps_the_document_in_its_track(browser, serv
     )
     assert nav.evaluate("node => !node.contains(document.activeElement)")
     page.keyboard.press("Escape")
+    expect(prepare).to_have_css("opacity", "0")
 
     prepare.evaluate(
         "node => node.addEventListener('pointerdown', "
@@ -663,7 +693,10 @@ def test_a_margin_table_of_contents_maps_the_document_in_its_track(browser, serv
     prepare_box = prepare.bounding_box()
     assert prepare_box is not None
     label_point = {"x": prepare_box["x"] + 100, "y": prepare_box["y"] + 4}
-    # A label is an ordinary link: a press on its words follows it.
+    # Entering at the spine reveals the labels, and the map keeps the pointer as it
+    # moves on to one, an ordinary link: a press on its words follows it. There is no
+    # discovery click or dwell time to learn.
+    page.mouse.move(rows_box["x"] + 2, label_point["y"])
     page.mouse.move(label_point["x"], label_point["y"], steps=8)
     assert prepare.evaluate(
         "node => document.elementFromPoint("
@@ -759,9 +792,9 @@ def test_a_margin_table_of_contents_maps_the_document_in_its_track(browser, serv
         stuck.append([box[key] for key in ("x", "y", "height")])
     assert stuck[0] == stuck[1], stuck
 
-    # A wheel over the rail stays in the document's native scroll chain.
+    # A wheel over the map stays in the document's native scroll chain.
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
-    page.mouse.move(nav_box["x"] + nav_box["width"] / 2, nav_box["y"] + 300)
+    page.mouse.move(toc_box["x"] + toc_box["width"] / 2, nav_box["y"] + 300)
     page.mouse.wheel(0, 260)
     page.wait_for_function("() => document.scrollingElement.scrollTop >= 250")
     page.mouse.wheel(0, 260)
@@ -787,8 +820,8 @@ def test_a_margin_table_of_contents_maps_the_document_in_its_track(browser, serv
     verify_box = verify.bounding_box()
     assert verify_box is not None
     page.mouse.move(verify_box["x"] + 4, verify_box["y"] + 4)
-    expect(verify).to_have_css("pointer-events", "auto")
-    verify.click()
+    expect(verify).to_have_css("opacity", "1")
+    page.mouse.click(verify_box["x"] + 60, verify_box["y"] + verify_box["height"] / 2)
     expect(page).to_have_url(re.compile(r"#verify$"))
     page.wait_for_function("() => document.scrollingElement.scrollTop > 0")
     scroll_settled(page)
@@ -799,11 +832,13 @@ def test_a_margin_table_of_contents_maps_the_document_in_its_track(browser, serv
 
     start_href = start.get_attribute("href")
     assert start_href is not None
+    # At the document's end the sidebar has ended, and the map has scrolled up with it.
+    start.scroll_into_view_if_needed()
     start_box = start.bounding_box()
     assert start_box is not None
     page.mouse.move(start_box["x"] + 4, start_box["y"] + 4)
-    expect(start).to_have_css("pointer-events", "auto")
-    start.click()
+    expect(start).to_have_css("opacity", "1")
+    page.mouse.click(start_box["x"] + 60, start_box["y"] + start_box["height"] / 2)
     expect(page).to_have_url(re.compile(rf"{re.escape(start_href)}$"))
     scroll_settled(page)
     assert (
@@ -815,15 +850,17 @@ def test_a_margin_table_of_contents_maps_the_document_in_its_track(browser, serv
     prepare_box = prepare.bounding_box()
     assert prepare_box is not None
     page.mouse.move(prepare_box["x"] + 4, prepare_box["y"] + 4)
-    expect(prepare).to_have_css("pointer-events", "auto")
-    prepare.click()
+    expect(prepare).to_have_css("opacity", "1")
+    page.mouse.click(
+        prepare_box["x"] + 60, prepare_box["y"] + prepare_box["height"] / 2
+    )
     expect(page).to_have_url(re.compile(r"#prepare$"))
     expect(prepare).to_have_attribute("aria-current", "location")
     scroll_settled(page)
     after_navigation = nav.bounding_box()
     assert after_navigation is not None
     assert [after_navigation[key] for key in ("x", "y", "height")] == stuck[0], (
-        "following a link moved the contents rail"
+        "following a link moved the contents spine"
     )
     landing = page.locator("#prepare").evaluate(
         """target => ({
@@ -888,7 +925,6 @@ def test_a_margin_table_of_contents_maps_the_document_in_its_track(browser, serv
     resized(page, 700, 900)
     toc.locator("summary").click()
     expect(prepare).to_have_css("opacity", "1")
-    expect(prepare).to_have_css("pointer-events", "auto")
     expect(start).to_be_hidden()
 
     resized(page, 1400, 900)
@@ -932,12 +968,12 @@ def test_a_margin_table_of_contents_maps_the_document_in_its_track(browser, serv
     assert prepare_box is not None
     page.mouse.move(prepare_box["x"] + 4, prepare_box["y"] + 4)
     expect(prepare).to_have_css("opacity", "1")
-    expect(prepare).to_have_css("pointer-events", "auto")
     expect(prepare).to_have_css("transition-duration", "0s")
+    start.scroll_into_view_if_needed()
     start_box = start.bounding_box()
     assert start_box is not None
     page.mouse.move(start_box["x"] + 4, start_box["y"] + 4)
-    start.click()
+    page.mouse.click(start_box["x"] + 60, start_box["y"] + start_box["height"] / 2)
     expect(page).to_have_url(re.compile(rf"{re.escape(start_href)}$"))
     assert (
         page.locator(start_href).evaluate("node => node.getBoundingClientRect().top")
@@ -945,15 +981,17 @@ def test_a_margin_table_of_contents_maps_the_document_in_its_track(browser, serv
     )
     page.close()
 
-    # A wide touch screen still gets the ordinary sticky sidebar. The ToC draws its map
-    # only in the fine-pointer posture.
+    # A wide touch screen, where nothing reaches into a spine by pointing, keeps a
+    # column's room for the sidebar, so the contents stand open there as an outline.
     context = browser.new_context(
         viewport={"width": 1400, "height": 900}, has_touch=True
     )
     coarse = open_page(browser, url, context=context)
     expect(coarse.locator("#route > .layout-track")).to_have_css("position", "sticky")
-    expect(coarse.locator("#contents")).to_have_css("position", "static")
-    coarse.locator("#contents summary").click()
+    expect(coarse.locator("#contents summary")).to_be_hidden()
+    expect(
+        coarse.get_by_role("navigation", name="On this page").locator(".lf-toc-heading")
+    ).to_be_visible()
     expect(
         coarse.get_by_role("navigation", name="On this page").get_by_role(
             "link", name="Prepare the copy", exact=False

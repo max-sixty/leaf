@@ -333,12 +333,12 @@ since it changes the work the obligation would queue behind.
   rather than to a new one, so a flurry of messages in one thread makes one worker:
   while the fork's turn runs, at its next tool boundary, and once its run has ended,
   resumed under its agent id in a new turn, where the line's fork judges the message
-  a fork's. Leaf's message resuming it lists what the session did on the page since
-  the fork's last turn ended, which the fork's transcript lacks, and the fork can
-  SendMessage the main thread to ask about it. Messages in different threads start a
-  fork each; if that proves wasteful, one standing fork per session would take every
-  small message in turn, cheaper but slower when threads arrive together. (The user
-  chose this on 2026-11-10.)
+  a fork's. Leaf's message resuming it lists what the rest of the session did on the
+  page since the fork's last turn began, which the fork's transcript lacks, and the
+  fork can SendMessage the main thread to ask about it. Messages in different threads
+  start a fork each; if that proves wasteful, one standing fork per session would take
+  every small message in turn, cheaper but slower when threads arrive together. (The
+  user chose this on 2026-11-10.)
 - **The main thread as coordinator.** Told by name as each fork takes a thread, the
   main thread can steer it or stop it with SendMessage, or take the thread over. It
   takes obligations in the order it judges and runs those bigger than a message in
@@ -443,21 +443,24 @@ main thread while the fork works.
    and the shipped instructions say what forks and the main thread each do, scored
    with `evals/` before and after.
 
-   Follow-ups are built, behind the same flag. Where a thread's last answer came from
-   a fork's turn that has closed in the session's present generation
+   Follow-ups are built, behind the same flag. Where a thread's last answer came from a
+   fork's turn that has closed in the session's present generation
    (`forks._resumable`), the take opens the new turn under that fork's agent id and
    records its pickup under the hold's fence, as a first take does. The module then
    resumes the fork with Leaf's message (`forks.resume_prompt`): the thread's
-   delivery, and what the session did on the page since the fork's turn ended, read
-   from the log (`forks._since`), which names the threads it wrote in, the revisions
-   it published and the to-dos it opened or ended. A correction the main thread posts
-   in the thread unasked leaves the thread with the fork. A thread the main thread
-   answered last, or whose fork's turn still runs or ran in an earlier generation,
-   gets a new fork, and so does one whose fork the module fails to resume; that new
-   fork takes over the turn Leaf opened (`forks.started`). Each resumed run's end
-   wakes an idle main thread with Claude Code's notification of it, which the first
-   run's end doesn't (above, "What Claude Code gives the module"); Leaf leaves that
-   notification as it is while how a fork tells the main thread what it did is open.
+   delivery, and what the rest of the session did on the page since the fork's last
+   turn began, read from the log (`forks._since`), which names the threads it wrote
+   in, the revisions it published and the to-dos it opened or ended. The fork's
+   transcript holds what the session had done when that turn began, and nothing it did
+   while the fork ran. A correction the main thread posts in the thread unasked leaves
+   the thread with the fork. A thread the main thread answered last, which includes an
+   answer posted after the fork's turn closed, or whose fork's turn still runs or ran
+   in an earlier generation, gets a new fork, and so does one whose fork the module
+   fails to resume; that new fork takes over the turn Leaf opened (`forks.started`).
+   Each resumed run's end wakes an idle main thread with Claude Code's notification of
+   it, which the first run's end doesn't (above, "What Claude Code gives the module");
+   Leaf leaves that notification as it is while how a fork tells the main thread what
+   it did is open.
 
    On 2026-11-10 the journey's `fork-resume` step, on a host at load 6 to 7, sent a
    further question to a thread whose fork had answered it and ended. The line came

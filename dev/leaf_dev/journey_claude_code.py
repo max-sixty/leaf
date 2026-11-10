@@ -865,13 +865,20 @@ def steps(
                 f"fork-resume: the message did not go back to {agent}: "
                 f"{fork_summary(taken)}",
             )
-            cc.until(
-                lambda: bool(answers(page, again)),
-                "fork-resume: nobody answered the message",
-                150,
-            )
+            # The session's turns seen before the answer: each poll reads the
+            # answer first, since the resumed run's end starts a turn of its own.
+            woke: set[str] = set()
+
+            def answered_first() -> bool:
+                if answers(page, again):
+                    return True
+                if (turn := claimed(page)["turn"]) != before:
+                    woke.add(turn)
+                return False
+
+            cc.until(answered_first, "fork-resume: nobody answered the message", 150)
             require(
-                claimed(page)["turn"] == before,
+                not woke,
                 "fork-resume: the session started a turn before the fork answered",
             )
             cc.settle(

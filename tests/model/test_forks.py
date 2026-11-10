@@ -694,7 +694,7 @@ def test_a_follow_up_after_the_forks_run_goes_to_that_fork_again(
     resume = taken["resume"]["prompt"]
     assert resume.startswith(forks_model.WORK_OPENING)
     assert "And which uv?" in resume and answer_ref(claimed, more["id"]) in resume
-    assert "the session has done nothing on the page" in resume
+    assert "the rest of the session has done nothing on the page" in resume
     assert len(resume) < len(taken["prompt"])
 
     assert forks_model.started(
@@ -713,14 +713,15 @@ def test_a_follow_up_after_the_forks_run_goes_to_that_fork_again(
 
 
 def test_a_fork_that_cannot_be_resumed_gives_way_to_a_new_one(
-    claimed, lane, monkeypatch, capsys
+    claimed, lane, monkeypatch
 ):
-    """A thread whose last answer the main thread gave goes to a new fork, and so
-    does one whose fork ran in an earlier generation of the session, which ended
-    with it, or still runs, which a resume would reach only at a tool boundary it
-    may not have. Where the module can't resume the fork, the fork it spawns
-    instead takes over the turn Leaf opened, and the old fork's commands act in no
-    turn."""
+    """A thread whose last answer the main thread gave goes to a new fork, even
+    where the main thread answered a message the fork gave back with the fork's own
+    answer reference, before any pickup of its own; and so does one whose fork ran
+    in an earlier generation of the session, which ended with it, or still runs,
+    which a resume would reach only at a tool boundary it may not have. Where the
+    module can't resume the fork, the fork it spawns instead takes over the turn
+    Leaf opened, and the old fork's commands act in no turn."""
     asked, given = taken_by_a_fork(claimed, "Does the suggest service cache?")
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), given["turn"], "agent-1"
@@ -732,7 +733,6 @@ def test_a_fork_that_cannot_be_resumed_gives_way_to_a_new_one(
         answer=f"{forks_model.HAND_BACK} the session is changing it.",
         failed=None,
     )
-    context(capsys, "UserPromptSubmit")
     assert thread_model.post_response(
         answer_ref(claimed, asked["id"]), "Yes, for an hour.", asks_back=False
     )
@@ -772,19 +772,30 @@ def test_a_fork_that_cannot_be_resumed_gives_way_to_a_new_one(
     assert "resume" not in taken_again(claimed, zone["id"], soon)
 
 
-def test_the_resume_names_what_the_session_did_on_the_page_since_the_forks_run(
+def test_the_resume_names_what_the_session_did_on_the_page_while_the_fork_ran(
     claimed, lane, monkeypatch
 ):
-    """Leaf's message resuming a fork names what the session did on the page after
-    the fork's last turn ended, which the fork's transcript lacks: the threads it
-    wrote in, the fork's own among them, the revisions it published, and the to-dos
-    it opened or ended. What came before that turn ended, the fork saw."""
+    """Leaf's message resuming a fork names what the rest of the session did on the
+    page from when the fork's last turn began, which the fork's transcript lacks:
+    the threads it wrote in, the fork's own among them, the revisions it published,
+    and the to-dos it opened or ended, while the fork ran and after. What came
+    before that turn began, the fork saw, and its own answer and the to-do it opened
+    with it are its own."""
     elsewhere = said(claimed, "Is the lease renewed?")
-    seen = thread_model.post_reply(claimed, {"responds": elsewhere["id"]}, "Yes.")
-    assert seen is not None
-    asked = answered_by_a_fork(claimed, monkeypatch, "Which Python?", "agent-1")
-    later = said(claimed, "What does the follower print?")
-    thread_model.post_reply(claimed, {"responds": later["id"]}, "Each page's line.")
+    assert thread_model.post_reply(claimed, {"responds": elsewhere["id"]}, "Yes.")
+    asked, taken = taken_by_a_fork(claimed, "Which Python?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    meanwhile = said(claimed, "What does the follower print?")
+    thread_model.post_reply(claimed, {"responds": meanwhile["id"]}, "Each page's line.")
+    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-1")
+    own = thread_model.post_response(
+        answer_ref(claimed, asked["id"]), "3.12 or later.", todo="Check uv's floor"
+    )
+    assert own is not None
+    monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
+    forks_model.ended("s1", agent="agent-1", turn=None, answer="Done.", failed=None)
     thread_model.post_reply(
         claimed, {"parent": asked["id"]}, "To correct the fork: 3.13 or later."
     )
@@ -805,17 +816,19 @@ def test_the_resume_names_what_the_session_did_on_the_page_since_the_forks_run(
     [stamped_note] = [
         e for e in events_model.read_events(claimed) if e["kind"] == "note"
     ]
-    revision = stamped_note["revision"]
 
     more = said(claimed, "And which uv?", parent=asked["id"])
     resume = taken_again(claimed, asked["id"], more)["resume"]["prompt"]
+    # The whole sentence, so nothing else is listed: not the thread the session
+    # answered before the fork began, nor the to-do the fork's own answer opened.
     assert (
-        f"the session wrote in thread {later['id']}, this thread; "
-        f"published revision {revision}; "
+        "Since your last turn began, the rest of the session wrote in thread "
+        f"{meanwhile['id']}, this thread; "
+        f"published revision {stamped_note['revision']}; "
         f"opened the to-do “Profile the cold start” ({opened['id']}); "
-        f"ended the to-do “Profile the cold start” ({opened['id']}) as done."
+        f"ended the to-do “Profile the cold start” ({opened['id']}) as done. "
+        "To ask the main session"
     ) in resume
-    assert elsewhere["id"] not in resume
 
 
 def lapse(turn: str) -> None:

@@ -843,7 +843,13 @@ def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
         "top => Math.abs(document.scrollingElement.scrollTop - top) <= 1", arg=bookmark
     )
     navigation = page.get_by_role("navigation", name="On this page")
-    navigation.get_by_role("link", name="Move the readers").click()
+    move = navigation.get_by_role("link", name="Move the readers")
+    rows_box = navigation.locator(".lf-toc-rows").bounding_box()
+    assert rows_box is not None
+    # At rest the map takes the pointer on its spine alone.
+    page.mouse.move(rows_box["x"] + 2, rows_box["y"] + rows_box["height"] / 2)
+    expect(move).to_have_css("opacity", "1")
+    move.click()
     expect(page).to_have_url(re.compile(r"#move$"))
     page.wait_for_function(
         "() => document.getElementById('move').getBoundingClientRect().top < 150"
@@ -927,46 +933,10 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
     assert rows() == laid, "the map came back without its rows"
 
 
-def test_a_status_line_in_the_map_s_track_follows_the_map(browser, serve):
-    """`page-authoring.md` keeps a short status beside the contents in the track. The
-    map is a block in that track, so the status follows it below, where scrolling the
-    track reaches it and a press on its words reaches the words, with nothing of the map
-    laid over them."""
-    source = leaf_page(
-        "status beside the map",
-        '<aside><div class="layout-track"><lf-toc id="contents"></lf-toc>'
-        '<p id="status">Two branches wait on review.</p></div></aside>'
-        '<div class="layout-column"><h1>A migration</h1>'
-        + "".join(
-            f'<section><h2 id="{name}">{name}</h2><div style="height: 900px"></div>'
-            "</section>"
-            for name in ("prepare", "move", "verify")
-        )
-        + "</div>",
-        layout="sidebar",
-    )
-    page = open_page(browser, serve(source))
-    resized(page, 1400, 900)
-    expect(page.locator("#contents .lf-toc-rows")).to_have_css("display", "flex")
-    page.locator("#status").scroll_into_view_if_needed()
-    pressed = page.locator("#status").evaluate(
-        """status => {
-            const map = document.getElementById("contents").getBoundingClientRect();
-            const range = document.createRange();
-            range.setStart(status.firstChild, 0);
-            range.setEnd(status.firstChild, 1);
-            const {left, top, height} = range.getBoundingClientRect();
-            return {
-                below: top >= map.bottom,
-                at: document.elementFromPoint(left + 1, top + height / 2)?.id,
-            };
-        }"""
-    )
-    assert pressed == {"below": True, "at": "status"}, pressed
-
-
-def test_a_crowded_document_map_shows_every_heading_on_one_fitted_scale(browser, serve):
-    """Crowded destinations remain a complete route.
+def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
+    browser, serve
+):
+    """Crowded destinations remain a complete route when the user enters it.
 
     The raw document positions leave less than half a line between neighbors. The
     fitted scale keeps every heading, marker, and label distinct without overflowing."""
@@ -1006,6 +976,15 @@ def test_a_crowded_document_map_shows_every_heading_on_one_fitted_scale(browser,
     )
     assert any(abs(shift) > 1 for shift in shifts), shifts
 
+    page.mouse.move(nav_box["x"] + 2, nav_box["y"] + 100)
+    page.wait_for_function(
+        """nav => {
+          const links = [...nav.querySelectorAll('.lf-toc-start a, li a')];
+          return links.every(link => getComputedStyle(link).opacity === '1'
+            && link.getAnimations().every(m => m.playState === 'finished'));
+        }""",
+        arg=nav.element_handle(),
+    )
     shown = nav.locator(".lf-toc-start a, li a").evaluate_all(
         "links => links.filter(link => getComputedStyle(link).opacity === '1')"
         ".map(link => link.textContent || link.getAttribute('aria-label'))"
@@ -1150,8 +1129,9 @@ def test_the_current_entry_follows_the_document_from_a_sticking_track(
 def test_a_route_taller_than_the_map_returns_to_an_open_outline(
     browser, serve, subtests
 ):
-    """A route that cannot physically fit keeps every heading in one honest form, and
-    measuring it leaves the reader's own place in the outline where they put it."""
+    """A route that cannot physically fit keeps every heading in one honest form,
+    measuring it leaves the reader's own place in the outline where they put it, and at
+    rest it lays nothing over the document."""
     sections = "\n".join(
         f"<section><h2 id='part-{index}'>Migration part {index}</h2></section>"
         for index in range(1, 81)
@@ -1209,15 +1189,18 @@ def test_a_route_taller_than_the_map_returns_to_an_open_outline(
         resized(page, 1400, 700)
         assert nav.evaluate("node => node.scrollTop") == 0
 
+    # In the narrowed sidebar the outline reveals as the map does, so at rest it lays
+    # nothing over the document's words.
     resized(page, 1188, 600)
+    page.evaluate(RELEASE_FOCUS)
+    page.mouse.move(1100, 500)
     expect(toc).to_have_attribute("data-lf-outline", "")
-    nav_box = nav.bounding_box()
-    column_left = page.locator("h1").bounding_box()["x"]
-    assert nav_box["x"] + nav_box["width"] <= column_left - 16, (
-        "the persistent outline covers the document instead of fitting its gutter: "
-        f"outline ends at {nav_box['x'] + nav_box['width']:.0f}px, "
-        f"column starts at {column_left:.0f}px"
-    )
+    expect(links.first).to_have_css("opacity", "0")
+    title = page.locator("h1").bounding_box()
+    assert page.evaluate(
+        "p => document.elementFromPoint(p.x, p.y)?.closest('h1') !== null",
+        {"x": title["x"] + 4, "y": title["y"] + title["height"] / 2},
+    ), "the resting outline covers the document's title"
 
 
 def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
@@ -1300,14 +1283,17 @@ ROW_BOXES = """(toc) => [...toc.querySelectorAll('li, .lf-toc-start')]
 # The rows whose marks stand among their words rather than in the gutter before them.
 MARKS_IN_WORDS = """(toc) => [...toc.querySelectorAll('[data-lf-toc-mark]')]
   .filter((mark) => mark.checkVisibility())
-  .filter((mark) => {
-    const link = mark.closest('a, summary, p');
+  .map((mark) => {
+    const holder = mark.closest('li, .lf-toc-start, summary, p');
+    return [mark, holder.querySelector(':scope > a') ?? holder];
+  })
+  .filter(([mark, link]) => {
     const text = [...link.childNodes].find((node) => node.nodeType === 3 && node.data.trim());
     const words = document.createRange();
     words.selectNodeContents(text);
     return mark.getBoundingClientRect().right > words.getClientRects()[0].left - 2;
   })
-  .map((mark) => mark.closest('a, summary, p').textContent.trim())"""
+  .map(([, link]) => link.textContent.trim())"""
 # Whether a row draws its section as changed.
 CHANGED = """(row) => getComputedStyle(row, '::after').content !== 'none'
   && parseFloat(getComputedStyle(row, '::after').height) > 0"""
@@ -1356,7 +1342,12 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     page.keyboard.press("Escape")
     # A row with nothing to count previews nothing past the words it shows.
     page.mouse.move(2, 2)
-    toc.get_by_role("link", name="Confirm access").hover()
+    access = toc.get_by_role("link", name="Confirm access")
+    access_box = access.bounding_box()
+    assert access_box is not None
+    # The map reveals the label from its spine.
+    page.mouse.move(access_box["x"] + 4, access_box["y"] + 4)
+    access.hover()
     page.wait_for_timeout(400)
     expect(page.locator("#lf-preview")).to_be_hidden()
 

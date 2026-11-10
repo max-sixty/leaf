@@ -35,7 +35,10 @@ from leaf import presence as presence_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import session_runtime as session_runtime_model
 from leaf import thread as thread_model
+from leaf.interaction_log import read_interactions
+from leaf.registry import kernel as kernel_model
 from leaf.served_state.reading import outside_inputs
 from leaf.service import PageTransaction
 from leaf.state import session_file
@@ -419,6 +422,53 @@ def test_the_pages_follower_holds_the_lane_and_lists_held_threads(
     assert nudged == ["s1"]
 
 
+@pytest.mark.parametrize("moved", ["selected", "protocol", "removed"])
+def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
+    claimed, monkeypatch, capsys, moved
+):
+    """A follower runs as long as its session, while the session's hooks hand
+    themselves to whichever Leaf delivers for it now: another copy or checkout, its
+    own checkout moved past a protocol bump, or another Leaf once its own is removed. The newer Leaf takes the old
+    follower's lane for no one's, so the follower then ends, giving up the lane, with
+    EX_TEMPFAIL for the module to start it again under that Leaf."""
+    serving(claimed, 1)
+    server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
+    monkeypatch.setattr(presence_model, "PRESENCE_CACHE_S", 0.0)
+    waited = []
+
+    def wait(_marks, _timeout):
+        waited.append(True)
+        return True
+
+    monkeypatch.setattr(file_changes_model, "wait", wait)
+    if moved == "selected":
+        own = session_runtime_model.own_launcher()
+        monkeypatch.setattr(
+            session_runtime_model,
+            "delivering_launcher",
+            lambda _sid: own.with_name("other") if waited else own,
+        )
+    elif moved == "protocol":
+        monkeypatch.setattr(
+            kernel_model,
+            "installed_protocol",
+            lambda: kernel_model.kernel_protocol() + len(waited),
+        )
+    else:
+        own = session_runtime_model.own_launcher()
+        monkeypatch.setattr(
+            session_runtime_model,
+            "own_launcher",
+            lambda: own.with_name("removed") if waited else own,
+        )
+    with pytest.raises(SystemExit) as ended:
+        hooks_model.cmd_pages({"session_id": "s1", "forks": True})
+    assert ended.value.code == os.EX_TEMPFAIL
+    assert forks_model.lane_since("s1") is None
+    [listed] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert listed[0]["forks"] == []
+
+
 def test_the_follower_keeps_open_the_subscription_of_every_page_it_holds(
     claimed, initialized_page, tmp_path, monkeypatch
 ):
@@ -616,3 +666,51 @@ def test_admission_waits_for_the_lane_cutoff_to_be_published(claimed, monkeypatc
             assert deliverable(claimed) == [before["id"]]
         finally:
             leases_model.release_lease(lane)
+
+
+def test_admission_and_each_fork_say_in_the_diagnostics_why_a_message_was_held(
+    claimed, monkeypatch
+):
+    """Whether admission held each thread message for a fork, and where it didn't,
+    whether the session's lane was up, goes in the page's diagnostics, as does each
+    fork Leaf asks for, so a message no fork took up, or whose fork never answered,
+    says why."""
+    assert stamp(claimed).exit_code == 0
+    monkeypatch.setattr(
+        endpoint_model,
+        "claim_harness",
+        lambda _claim: SimpleNamespace(title_generator=lambda: None),
+    )
+
+    def admit(text: str, parent: str | None = None) -> str:
+        status, answer = endpoint_model.accept_event(
+            claimed,
+            {"kind": "reply", "parent": parent, "revision": 1, "text": text}
+            if parent
+            else {"kind": "comment", "revision": 1, "text": text},
+        )
+        assert status == 200, answer
+        return answer["event"]["id"]
+
+    early = admit("Before the lane")
+    lane = take_lane()
+    try:
+        later = admit("After the lane, in a thread the session has", parent=early)
+        asked = admit("A thread of its own")
+        assert forks_model.ask(
+            "s1", basis(claimed, asked, asked), [{"tool": "Bash", "input": {}}]
+        )
+    finally:
+        leases_model.release_lease(lane)
+    notes = [
+        (row["type"], row.get("event"), row.get("held"), row.get("lane") is not None)
+        if row["type"] == "fork_hold"
+        else (row["type"], row["inputs"], row["running"])
+        for row in read_interactions(claimed, types=("fork_hold", "fork_asked"))
+    ]
+    assert notes == [
+        ("fork_hold", early, False, False),
+        ("fork_hold", later, False, True),
+        ("fork_hold", asked, True, True),
+        ("fork_asked", [asked], ["Bash"]),
+    ]

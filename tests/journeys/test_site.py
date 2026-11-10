@@ -339,7 +339,7 @@ def test_the_data_structures_tables_read_on_a_phone(hosted, browser, subtests):
     """The data-structures reference's tables, generated from the schemas, read at a
     phone's width: on a narrow column each field's description takes the row's whole
     width under its name, type and flag, so no table scrolls sideways or squeezes a
-    cell to a word a line (`squeezedTables`), as 31 of them did with four columns side
+    cell to a word a line (`squeezedBoxes`), as 31 of them did with four columns side
     by side. At 640px the column is just wide enough for the four-column table, which
     has to fit there too."""
     page = browser.new_page(viewport={"width": 640, "height": PHONE["height"]})
@@ -353,7 +353,7 @@ def test_the_data_structures_tables_read_on_a_phone(hosted, browser, subtests):
                 ".filter((table) => table.scrollWidth - table.clientWidth > 1)"
                 ".map((table) => table.closest('section').id)"
             )
-            squeezed = render_checks_model.evaluate_probe(page, "squeezedTables")
+            squeezed = render_checks_model.evaluate_probe(page, "squeezedBoxes")
             assert (scrolling, squeezed) == ([], [])
 
 

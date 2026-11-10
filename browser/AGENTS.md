@@ -633,6 +633,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a box scrolls, for a script or for the user                                                   | `geometry.js` `scrollContainer`, `userScrollport`                                  |
 | Which axes a box clips                                                                                | `rect.js` `clippingAxes`                                                           |
 | Whether a box is at its scroll end, and whether it follows that end                                   | `scrolling.js` `atScrollEnd`, `SCROLL_SLACK`, `followsEnd`                         |
+| The positions a box's scroll takes on each axis, on whichever side of zero                            | `arrivals.js` `scrollRange`                                                        |
 | When a box's scroll ends, a glide's counted once, and whether the browser or a script moves it        | `arrivals.js` `watchScrollEnds`, `holdScroll`, `browserScrolls` (_lint_)           |
 | Whether the reader or layout chose a box's scroll position                                            | `scrolling.js` `chosenSince`, `placeKept`                                          |
 | The authored body, excluding Leaf's runtime surfaces                                                  | `passages.js` `pageDocument`, `inPage`                                             |

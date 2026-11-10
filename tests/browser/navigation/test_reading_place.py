@@ -1997,3 +1997,51 @@ def test_closing_a_surface_leaves_the_next_tab_where_the_user_is_reading(
             )
         # What a failed case left up goes before the next case opens its surface.
         page.keyboard.press("Escape")
+
+
+def test_a_landing_that_moves_nothing_stops_a_scroll_still_under_way(browser, serve):
+    """A navigation takes the reader's place from a scroll the browser is still driving,
+    even where its destination already stands where it lands: the log the reader set
+    moving stops where the landing found it, rather than running on past what they
+    chose."""
+    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(3))
+    rows = "".join(
+        f"<p>Line {n} of the incident, long enough to read as its own passage.</p>"
+        for n in range(200)
+    )
+    source = leaf_page(
+        "Landing during a scroll",
+        f'{filler}<h2 id="section"><span id="named">The section</span> the reader '
+        f'landed on</h2><div id="log" data-bound="start" style="height: 400px">{rows}'
+        f"</div>{filler * 20}",
+    )
+    page = open_page(browser, serve(source))
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1280, 800)
+    page.evaluate("location.hash = 'section'")
+    scroll_settled(page)
+    rendered(page)
+    page_top = page.evaluate("document.scrollingElement.scrollTop")
+    # The log's smooth scroll is the browser's to drive; the landing on a name inside the
+    # heading already in place asks nothing to move.
+    started = page.evaluate(
+        """async () => {
+          const log = document.getElementById('log');
+          log.scrollTo({top: log.scrollHeight, behavior: 'smooth'});
+          const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+          while (log.scrollTop < 20) await frame();
+          location.hash = 'named';
+          return log.scrollTop;
+        }"""
+    )
+    scroll_settled(page)
+    rendered(page)
+    after = page.evaluate(
+        """() => {
+          const log = document.getElementById('log');
+          return {log: log.scrollTop, limit: log.scrollHeight - log.clientHeight,
+                  page: document.scrollingElement.scrollTop};
+        }"""
+    )
+    assert after["page"] == pytest.approx(page_top, abs=2), after
+    assert after["log"] < started + 200 < after["limit"], (started, after)

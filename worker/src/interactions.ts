@@ -98,6 +98,7 @@ const entryFields = {
   nodes: kept(validItems(nodeId, 8)),
   control: kept(locator),
   controlNode: kept(nodeId),
+  textBox: kept(z.literal(true)),
   id: kept(z.string().check(z.regex(/^[A-Za-z][A-Za-z0-9_.:-]{0,127}$/))),
   binding: kept(
     z
@@ -249,9 +250,20 @@ const projection = z.object({
   ),
 });
 
+export type InteractionProjection = {
+  session: string;
+  entries: Record<string, unknown>[];
+};
+
 // The batch as the edge logs it, or null when the batch is refused.
-export function projectInteractionBatch(
-  value: unknown,
-): { session: string; entries: Record<string, unknown>[] } | null {
+export function projectInteractionBatch(value: unknown): InteractionProjection | null {
   return interactionBatch.safeParse(value).success ? projection.parse(value) : null;
+}
+
+// Whether the visitor focused a text box, which the runtime's interaction log marks
+// with `textBox`. Whatever they type there is about to be a write.
+export function startsTyping(batch: InteractionProjection): boolean {
+  return batch.entries.some(
+    (entry) => entry.type === "focusin" && entry.textBox === true,
+  );
 }

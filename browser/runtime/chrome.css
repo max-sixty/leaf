@@ -1207,7 +1207,7 @@ html[data-lf-region-capture]
     inset: auto;
     margin: 0;
     position-anchor: auto;
-    position-visibility: anchors-visible;
+    position-visibility: var(--lf-anchor-visible);
     box-sizing: border-box;
     width: max-content;
     max-width: min(320px, var(--lf-preview-span));

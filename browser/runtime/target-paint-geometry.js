@@ -183,7 +183,7 @@ export function standAt(stand, placed) {
 // a chip hung off its target's corner wherever the room around it seats it, or ink
 // still being drawn past its target's edge, is cut by no scroller's edge where it is
 // anchored, and hides once its target is scrolled out of sight (`position-visibility:
-// anchors-visible`); it still passes under the sticky headers declared over its target
+// var(--lf-anchor-visible)`, tokens.css); it still passes under the sticky headers declared over its target
 // (geometry.js, `headerCuts`), as every box following scrolled content does. A box
 // with no target stands where the window holds it.
 //
@@ -401,7 +401,7 @@ export function paintSet(root, { onNear = () => {} } = {}) {
       const how = standIn(stand, placed, Boolean(anchor));
       stood.set(key, {
         stand,
-        how: { ...how, visibility: framed ? "always" : "anchors-visible" },
+        how: { ...how, visibility: framed ? "always" : "var(--lf-anchor-visible)" },
       });
       previous = stand;
     }

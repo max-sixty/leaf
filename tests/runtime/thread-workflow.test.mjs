@@ -127,6 +127,19 @@ test("Leaf says what it observes of an update, and the agent only what it did", 
   assert.deepEqual(said(late), ["Still queued for Claude", "leaf"]);
 });
 
+// On leaf.page a send to a page whose agent isn't running waits while its container
+// starts, and says so until the server has the update.
+test("a send that launches the agent says so until the server has it", () => {
+  assert.deepEqual(said({ ...workflow("first", "sending"), launching: true }), [
+    "Launching agent container",
+    "leaf",
+  ]);
+  assert.deepEqual(said({ ...workflow("next", "sending"), launching: false }), [
+    "Queued for Claude",
+    "leaf",
+  ]);
+});
+
 // A fork of the agent's conversation taking an update on is the agent's act, so the
 // update reads On it on its way to the session, with the working face; the session's
 // own stages and every condition still say what they say.

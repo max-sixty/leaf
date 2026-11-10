@@ -136,6 +136,9 @@ const UNPRESENTED = new Set([
  * @property {string} [namedParent]
  * @property {GestureState} state
  * @property {Event | null} admitted
+ * @property {boolean} launching
+ *   Whether the server had to launch the page's agent before it could take the
+ *   gesture, as the tab read the server when it sent it.
  */
 
 // The log's id for a gesture this tab sent: its ledger entry's while it stands, its
@@ -199,12 +202,13 @@ function advance(entry, signal, admitted = null) {
  */
 /** Published workflows include local sends, before the server can classify them: a
  * send has no stage the server knows yet, and a widget move no coordinate the server
- * has read.
+ * has read. A send `launching` waits for the server to launch the page's agent first.
  *
  * @template T
  * @typedef {T extends unknown ? Omit<T, "stage" | "coordinate"> & {
  *   stage: ServedWorkflow["stage"] | "sending";
  *   coordinate: readonly (string | null)[] | null;
+ *   launching?: boolean;
  * } : never} PublishedWorkflow
  */
 /** @typedef {PublishedWorkflow<ServedWorkflow>} Workflow
@@ -1101,6 +1105,7 @@ export function createSemanticApplication({ presentation } = {}) {
         activity: [],
         condition: rejected ? { kind: "failed", operation: "delivery" } : null,
         started_by: [],
+        launching: entry.launching,
       };
       if (entry.event.kind === "action")
         return {
@@ -1510,8 +1515,14 @@ export function createSemanticApplication({ presentation } = {}) {
       });
       return true;
     },
-    /** @param {Command} event @param {string} timestamp @param {string} [plainText] */
-    enqueue(event, timestamp, plainText = event.text ?? event.token ?? "") {
+    /** @param {Command} event @param {string} timestamp @param {string} [plainText]
+     * @param {boolean} [launching] */
+    enqueue(
+      event,
+      timestamp,
+      plainText = event.text ?? event.token ?? "",
+      launching = false,
+    ) {
       if (entry(event.attempt)) return null;
       const before = publisher.peek();
       const localId = PENDING + event.attempt;
@@ -1592,6 +1603,7 @@ export function createSemanticApplication({ presentation } = {}) {
             undoTarget: undoTarget?.event.attempt ?? null,
             state: "sending",
             admitted: null,
+            launching,
           },
         ],
       });

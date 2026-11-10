@@ -17,12 +17,14 @@ import os
 import shutil
 import ssl
 import tarfile
+import threading
 import time
 import urllib.request
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
+from functools import partial
 from http.client import HTTPResponse
 from pathlib import Path
 from tempfile import TemporaryFile
@@ -50,6 +52,8 @@ from leaf.service import PageTransaction
 from leaf.state import STRING, Record, described, object_schema, page_key, state_home
 
 CHUNK_BYTES = 1024 * 1024
+# Chunk uploads in flight at once.
+UPLOADS = 8
 
 
 @contextmanager
@@ -82,6 +86,9 @@ class _BlobSet:
 
     buffer: BinaryIO
     offsets: dict[str, tuple[int, int]] = field(default_factory=dict)
+    # The uploads read their bodies from several threads, and a read is a seek then
+    # a read of the one shared buffer.
+    reading: threading.Lock = field(default_factory=threading.Lock)
 
     def add(self, digest: str, chunk: bytes) -> None:
         self.buffer.seek(0, os.SEEK_END)
@@ -100,8 +107,9 @@ class _BlobSet:
 
     def body(self, digest: str) -> bytes:
         offset, length = self.offsets[digest]
-        self.buffer.seek(offset)
-        return self.buffer.read(length)
+        with self.reading:
+            self.buffer.seek(offset)
+            return self.buffer.read(length)
 
 
 def restore(site_root: Path) -> None:
@@ -172,6 +180,11 @@ def restore(site_root: Path) -> None:
             bytes=sum(length for _, length in blobs.offsets.values()),
         )
     os.environ["LEAF_PAGE_COMMIT"] = "leaf_website.storage:publish"
+
+
+def _upload(blobs: _BlobSet, digest: str) -> None:
+    with _request(f"/blobs/{digest}", blobs.body(digest)):
+        pass
 
 
 def _record_files(page_dir: Path, published: set[int]) -> list[Path]:
@@ -390,8 +403,10 @@ def publish(page: PageTransaction) -> None:
         }
         with _request("/prepare", publication) as response:
             prepared = json.load(response)
-        for digest in prepared["missing"]:
-            with _request(f"/blobs/{digest}", blobs.body(digest)):
+        # Each upload is a round trip to the Durable Object, and a session's first
+        # write uploads its whole record, so they overlap rather than queue.
+        with ThreadPoolExecutor(max_workers=UPLOADS) as uploads:
+            for _ in uploads.map(partial(_upload, blobs), prepared["missing"]):
                 pass
         with _request("/publication", {"root": root, "identity": prepared["identity"]}):
             pass

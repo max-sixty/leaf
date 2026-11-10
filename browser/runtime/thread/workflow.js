@@ -51,10 +51,15 @@ export const hasWorkflowLine = (workflow) => workflow.detail !== null;
 // day gave the agent the reply it is streaming; on 27 October they chose Leaf's
 // "Queued for Claude" over the agent's "Not seen yet". On 5 November they gave a
 // fork's taking an update on the agent's On it, from the moment the fork starts.
+// On leaf.page a write to a page whose agent isn't running waits seconds while its
+// container starts, a wait only that first write pays, so a send that launches it says
+// so until the server has it. The user asked for these words on 9 November 2026.
 /** @param {string} agent */
 const queuedFor = (agent) => leafSays(`Queued for ${agent}`);
+/** @type {Record<Workflow["stage"], (agent: string, workflow: Workflow) => import("../voice.js").Said>} */
 const STAGES = Object.freeze({
-  sending: queuedFor,
+  sending: (agent, workflow) =>
+    workflow.launching ? leafSays("Launching agent container") : queuedFor(agent),
   sent: queuedFor,
   queued: () => leafSays("Up next"),
   picked_up: () => leafSays("Delivered"),
@@ -89,7 +94,7 @@ export const workflowWord = (workflow, agent, { answered = false } = {}) => {
         ? NOT_ANSWERED
         : leafSays(CONDITION_WORDS[condition.kind] ?? "Failed");
   if (workflow.stage === "answered" && !answered) return null;
-  return STAGES[shownStage(workflow)]?.(agent) ?? null;
+  return STAGES[shownStage(workflow)]?.(agent, workflow) ?? null;
 };
 
 // The stage a workflow's word shows: `working` where the agent is at work on an update

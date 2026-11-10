@@ -351,6 +351,15 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
    follow-up while a fork works, so the PostToolBatch hand-over is proved only by
    the model tests (`tests/model/test_forks.py`).
 
+   Landing steps 1–3 on main needs a protocol bump. A pickup naming a fork's turn
+   means the fork holds the thread only to a Leaf that reads the agent-turn record;
+   a Leaf at protocol 43 reads it as an earlier turn of the main thread's, so it
+   reminds the main thread of a message the fork holds and records its own pickup,
+   which takes the thread over (Codex ran the merge base's `read_plans` and
+   `pick_up_acknowledged` against such a pickup). The bump belongs in the change
+   that lands these steps, not on this branch, where main's protocol baseline would
+   keep conflicting with it.
+
 4. **Measuring it**: an outcome eval comparing a fork's answers with the session's on
    replayed hand-overs, and the decision and coherence evals below, before forks that
    act become the default.

@@ -39,7 +39,7 @@ import {
   openLayer,
   openerOf,
 } from "./focus.js";
-import { html, nothing, render, repeat } from "/runtime/framework.js";
+import { guard, html, nothing, render, repeat } from "/runtime/framework.js";
 import { iconTemplate } from "./icons.js";
 import { keys, paintKeys, paintKeysWithin } from "./keyboard/scopes.js";
 import { coarsePointer, pressIsKeyboardActivation } from "./pointer.js";
@@ -307,30 +307,40 @@ export function createPageMapDialog({
 
   // A group's band cuts its location's name where the band ends (controls.css,
   // `.lf-rows-group`), in a part with no space around it, so the heading reads as the
-  // name alone.
-  /** @param {Group} group */
-  const sheetGroupTemplate = (group) => {
-    const name = html`<span class="lf-row-main">${group.entry.title}</span>`;
-    return html`
-      <section class="lf-page-map-group lf-rows-group" data-lf-map-group=${group.key}>
-        <h3 class="lf-rows-head">${name}</h3>
-        <div class="lf-page-map-actions lf-rows">
-          ${repeat(
-            group.actions,
-            ({ key }) => key,
-            (action) =>
-              action.kind === "item"
-                ? sheetItemTemplate(action)
-                : sheetControlTemplate(action, group.actions),
-          )}
-        </div>
-      </section>
-    `;
-  };
+  // name alone. A group's content is guarded by the group itself, which `deriveSheet`
+  // replaces only when the entries change, so a search keystroke updates each
+  // section's `hidden` and leaves its rows alone.
+  /** @param {Group} group @param {string} query */
+  const sheetGroupTemplate = (group, query) => html`
+    <section
+      class="lf-page-map-group lf-rows-group"
+      data-lf-map-group=${group.key}
+      ?hidden=${Boolean(query) && !group.search.includes(query)}
+    >
+      ${guard(
+        [group],
+        () => html`
+          <h3 class="lf-rows-head">
+            <span class="lf-row-main">${group.entry.title}</span>
+          </h3>
+          <div class="lf-page-map-actions lf-rows">
+            ${repeat(
+              group.actions,
+              ({ key }) => key,
+              (action) =>
+                action.kind === "item"
+                  ? sheetItemTemplate(action)
+                  : sheetControlTemplate(action, group.actions),
+            )}
+          </div>
+        `,
+      )}
+    </section>
+  `;
 
   // A keystroke in the search changes only which groups show: the groups and their
   // search text depend on the entries alone, so they are derived when the entries
-  // change (`presentSheet`), and the query only filters them (`filterSheet`).
+  // change or the map opens (`deriveSheet`), and a keystroke only redraws (`drawSheet`).
   /** @param {() => void} change */
   function updateSheet(change) {
     const restoreFocus = holdFocus(dialog);
@@ -340,14 +350,10 @@ export function createPageMapDialog({
     // Search bindings read the rendered rows, including those the query hid.
     paintKeysWithin(dialog);
   }
-  const renderSheet = () =>
-    updateSheet(() => {
-      presentSheet();
-      filterSheet();
-    });
-  const searchSheet = () => updateSheet(filterSheet);
+  const renderSheet = () => updateSheet(deriveSheet);
+  const searchSheet = () => updateSheet(drawSheet);
 
-  function presentSheet() {
+  function deriveSheet() {
     const searchTextByKey = new Map(
       entries.map((entry) => {
         const passage = blockAt(targetFor(entry));
@@ -355,7 +361,7 @@ export function createPageMapDialog({
       }),
     );
     groups = marginMapGroups(entries, (item) => KINDS[item.kind], searchTextByKey);
-    render(html`${repeat(groups, ({ key }) => key, sheetGroupTemplate)}`, dialogList);
+    drawSheet();
     const liveOffers = new Set(
       groups.flatMap(({ entry }) => entry.offers.map((offer) => offer.source())),
     );
@@ -377,15 +383,19 @@ export function createPageMapDialog({
     trackedOffers = liveOffers;
   }
 
-  // The keyed render keeps one section per group in the groups' order.
-  function filterSheet() {
+  function drawSheet() {
     const query = (dialogSearch.value ?? "").trim().toLocaleLowerCase();
-    let shown = 0;
-    groups.forEach((group, index) => {
-      const matches = !query || group.search.includes(query);
-      if (matches) shown += 1;
-      keepsHidden(/** @type {HTMLElement} */ (dialogList.children[index]), !matches);
-    });
+    render(
+      html`${repeat(
+        groups,
+        ({ key }) => key,
+        (group) => sheetGroupTemplate(group, query),
+      )}`,
+      dialogList,
+    );
+    const shown = groups.filter(
+      (group) => !query || group.search.includes(query),
+    ).length;
     keepsText(
       dialogEmpty,
       query

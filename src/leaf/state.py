@@ -966,17 +966,30 @@ def _update_agent_turns(session_id: str, matches, **fields) -> bool:
 
 
 def acting_agent_turn(session: str) -> str | None:
-    """The open turn of the agent of `session` the command names
-    (`AGENT_ID_VARIABLE`), which a command it runs acts in; None for a command of the
-    main thread, or of an agent running no turn of the session's."""
+    """The turn a command of `session` acts in as one of its agents: the open turn
+    of the agent the command names (`AGENT_ID_VARIABLE`); None for a command of the
+    main thread, which names none. A command that names an agent running no open
+    turn of the session's, as one marked while its turn was open may run after it
+    closed, is refused (`refusals.Refused`): it acts neither in a closed turn nor
+    with the main thread's authority."""
     agent = os.environ.get(AGENT_ID_VARIABLE)
-    return agent_turn_of(session, agent) if agent else None
+    if not agent:
+        return None
+    turn = agent_turn_of(session, agent)
+    if turn is None:
+        from .refusals import Refused
+
+        raise Refused(
+            f"agent {agent}'s turn has ended, so it no longer acts on this "
+            "session's pages; end your turn"
+        )
+    return turn
 
 
 def acting_turn(claim: dict | None, session: str | None) -> str | None:
     """The turn a command of `session` acts in on a page held by `claim`: its agent's
-    (`acting_agent_turn`), and otherwise the claim's turn; None for a command of a
-    session that doesn't hold the page."""
+    (`acting_agent_turn`, which refuses an agent whose turn has ended), and otherwise
+    the claim's turn; None for a command of a session that doesn't hold the page."""
     if claim is None or session is None or claim["id"] != session:
         return None
     return acting_agent_turn(session) or claim["turn"]

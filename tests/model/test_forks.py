@@ -422,6 +422,10 @@ def test_the_forks_leaf_commands_are_marked_to_act_in_its_turn(claimed, lane, ca
     assert started.exit_code == 0, started.output
     [start] = [e for e in events_model.read_events(claimed) if e["kind"] == "start"]
     assert start["turn"] == taken["turn"]
+    # The command names the agent for itself alone, and its diagnostics name it.
+    assert state_model.AGENT_ID_VARIABLE not in os.environ
+    [command] = read_interactions(claimed, types=("leaf_command",))
+    assert (command["command"], command["agent"]) == ("task start", "agent-1")
 
 
 def taken_over(claimed, capsys) -> tuple[dict, dict]:
@@ -621,6 +625,36 @@ def test_a_late_acknowledgement_does_not_take_a_thread_back(claimed, lane, capsy
     assert "no longer holds" in late.output
     with PageTransaction(claimed) as page:
         assert forks_model.holding_turns(page.events, "s1") == held
+
+
+def test_a_command_marked_with_an_ended_fork_acts_as_nobody(claimed, lane, capsys):
+    """A command marked with a fork whose turn has ended, as one marked while it ran
+    can arrive late, is refused: its reply, its start and its acknowledgement say the
+    fork's turn has ended, rather than acting with the main thread's authority on a
+    message the main thread now holds."""
+    asked, taken = taken_by_a_fork(claimed, "Does the autocomplete service cache?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    forks_model.ended(
+        "s1",
+        agent="agent-1",
+        turn=None,
+        answer=f"{forks_model.HAND_BACK} the session is changing it.",
+        failed=None,
+    )
+    context(capsys, "UserPromptSubmit")
+    ref = answer_ref(claimed, asked["id"])
+    events = events_model.read_events(claimed)
+    for command in (
+        ["thread", "reply", ref, "--done", "--text", "Yes, for a minute."],
+        ["task", "start", str(claimed), asked["id"], "--text", "checking the cache"],
+        ["delivery", "ack", ref.partition(":")[0]],
+    ):
+        ran = CliRunner().invoke(cli_model.cli, ["--agent-id", "agent-1", *command])
+        assert ran.exit_code != 0, command
+        assert "agent-1's turn has ended" in ran.output, ran.output
+    assert events_model.read_events(claimed) == events
 
 
 def test_a_fork_turn_that_ends_unanswered_gives_its_thread_to_the_main_thread(

@@ -860,6 +860,14 @@ def agent_turn_of(session_id: str, agent: str) -> str | None:
     )
 
 
+def agent_known(session_id: str, agent: str) -> bool:
+    """Whether the session has run a turn for the agent its harness names `agent`,
+    open or closed: the agents whose `leaf` commands are marked as theirs
+    (`hooks.agent_command`), so an ended one's are refused (`acting_agent_turn`)
+    rather than run as the main thread's."""
+    return any(entry["agent"] == agent for entry in agent_turns(session_id).values())
+
+
 def _write_agent_turns(session_id: str, turns: dict[str, dict]) -> None:
     AGENT_TURNS.write(session_file(session_id, AGENT_TURNS.kind), {"turns": turns})
 

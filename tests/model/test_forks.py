@@ -6,6 +6,7 @@ thread over."""
 import json
 import os
 import re
+import shlex
 import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -699,6 +700,58 @@ def test_a_fork_that_answered_is_reported_however_its_thread_moves_on(
         if row.get("step") == "join"
     ]
     assert joins == ["answer", "taken_over"]
+
+
+def marked_by_hook(capsys, command: str, agent: str, tool_use: str) -> str | None:
+    """The command Claude Code's PreToolUse hook hands back for `agent`'s Bash call,
+    or None where it leaves the call as it came."""
+    hooks_model.cmd_hook(
+        "claude-code",
+        {
+            "hook_event_name": "PreToolUse",
+            "session_id": "s1",
+            "prompt_id": "p1",
+            "tool_name": "Bash",
+            "tool_use_id": tool_use,
+            "tool_input": {"command": command},
+            "agent_id": agent,
+        },
+    )
+    out = capsys.readouterr().out
+    return (
+        json.loads(out)["hookSpecificOutput"]["updatedInput"]["command"]
+        if out
+        else None
+    )
+
+
+def test_an_ended_forks_later_command_stays_its_own_and_is_refused(
+    claimed, lane, capsys
+):
+    """The mark follows the agent, not its turn: once a fork's turn has ended and the
+    main thread holds its message, the fork's next `leaf` command, as a resumed or
+    late one, is still marked as the fork's, and so refused, rather than settling the
+    main thread's message with the main thread's authority. A subagent the session
+    ran no turn for, such as one of the main thread's own workers, acts as it did."""
+    asked, taken = taken_by_a_fork(claimed, "Does the autocomplete service cache?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    forks_model.ended(
+        "s1",
+        agent="agent-1",
+        turn=None,
+        answer=f"{forks_model.HAND_BACK} the session is changing it.",
+        failed=None,
+    )
+    context(capsys, "UserPromptSubmit")
+    reply = f"leaf thread reply {answer_ref(claimed, asked['id'])} --done --text Yes"
+    marked = marked_by_hook(capsys, reply, "agent-1", "u1")
+    assert marked == reply.replace("leaf ", "leaf --agent-id agent-1 ", 1)
+    ran = CliRunner().invoke(cli_model.cli, shlex.split(marked)[1:])
+    assert ran.exit_code != 0
+    assert "agent-1's turn has ended" in ran.output
+    assert marked_by_hook(capsys, reply, "agent-9", "u2") is None
 
 
 def test_a_fork_turn_that_ends_unanswered_gives_its_thread_to_the_main_thread(

@@ -77,7 +77,7 @@ from .refusals import Refused
 from .service import owned_pages
 from .state import (
     advance_turn,
-    agent_turn_of,
+    agent_known,
     close_session_turn,
     flocked,
     held_claims,
@@ -211,12 +211,16 @@ LEADING_LEAF = re.compile(r"\s*(?:\S*/)?leaf(?=\s|$)")
 
 def agent_command(sid: str, payload: dict) -> dict | None:
     """What Claude Code's PreToolUse hook answers for a command that begins with
-    `leaf` from an agent running a turn of the session's own, such as a fork that
-    took a thread's work (`state.AGENT_TURNS`): the command with `--agent-id` and
-    the agent's id after its leading `leaf`, so it acts in that turn
-    (`state.acting_turn`); None for any other command, which runs as it came. A
-    subagent's command runs in the session's environment with nothing naming the
-    agent, and only the hook's payload names it (`agent_id`).
+    `leaf` from an agent the session has run a turn of its own for, such as a fork
+    that took a thread's work (`state.agent_known`): the command with `--agent-id`
+    and the agent's id after its leading `leaf`, so it acts in that agent's open
+    turn, or is refused once that turn has ended (`state.acting_agent_turn`). The
+    mark follows the agent, not its turn, so a fork resumed or running late after
+    its turn ended can't act with the main thread's authority. Any other command,
+    such as one of the main thread's own workers, which the record doesn't name,
+    runs as it came, as the session's. A subagent's command runs in the session's
+    environment with nothing naming the agent, and only the hook's payload names it
+    (`agent_id`).
 
     The command still begins with `leaf`, so a permission rule allowing `leaf`
     commands still matches it; a marker of any other form, such as an `export`
@@ -229,7 +233,7 @@ def agent_command(sid: str, payload: dict) -> dict | None:
     if not agent or not isinstance(given, dict) or "command" not in given:
         return None
     leading = LEADING_LEAF.match(given["command"])
-    if leading is None or agent_turn_of(sid, agent) is None:
+    if leading is None or not agent_known(sid, agent):
         return None
     command = (
         given["command"][: leading.end()]

@@ -348,9 +348,9 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
             </li>
             <li id="gap-view">
               <strong>No cross-page list.</strong> All pages lists each live page's
-              agent status: Working, Awaits, No session. Each page's row publishes the
-              agent's counts only, nothing from On Me, and a page with no running server
-              drops out of the list.
+              agent status: Working, Awaits, No session. Each page's row publishes
+              counts, On Me's among them, but none of On Me's items, and a page with no
+              running server drops out of the list.
             </li>
           </ul>
         </section>
@@ -526,8 +526,10 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
             </li>
             <li id="ev-rows">
               <code>server_rows.py</code>: a row is
-              <code>{title, session_cwd, activity}</code>, and
-              <code>activity.counts</code> counts updates the agent owes.
+              <code>{title, session_cwd, activity, on_user, threads}</code>:
+              <code>activity.counts</code> counts updates the agent owes,
+              <code>on_user</code> the rows On Me holds and <code>threads</code> the
+              open and unread threads, with no item from On Me.
               <code>presence.other_leaves</code> keeps only rows whose server is live
               and whose page isn't closed.
             </li>

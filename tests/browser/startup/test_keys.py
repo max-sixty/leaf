@@ -258,6 +258,10 @@ def test_a_failed_first_read_stays_unpresented_across_the_retry_clock(browser, s
     expect(panel_field(page)).to_have_attribute(
         "placeholder", re.compile("^Couldn't show the latest — reload")
     )
+    # The error takes the field's words, and the held keys stand in its mode chip.
+    expect(page.locator(".lf-fp-field .lf-fp-mode .lf-held-key")).to_have_text(
+        ["e", "1"]
+    )
     assert (
         page.evaluate(
             "async () => (await window.__lfCheckApi()).readApplication().phase"
@@ -282,7 +286,7 @@ def test_a_failed_first_read_stays_unpresented_across_the_retry_clock(browser, s
 
 
 def test_held_keys_outlast_any_wait_for_the_runtime(browser, serve):
-    """The notice says held keys run when the page is ready, so no clock lets them go:
+    """The words say held keys run when the page is ready, so no clock lets them go:
     a `t` held while the runtime takes half a minute to arrive still walks to the
     thread once the page presents."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -304,7 +308,7 @@ def test_held_keys_outlast_any_wait_for_the_runtime(browser, serve):
 
 def test_a_page_that_cannot_start_lets_its_held_keys_go(browser, serve):
     """A runtime that will never arrive takes nothing: once the page reports it could
-    not start, what was held is dropped, its notice goes, and later presses reach the
+    not start, what was held is dropped, its words go, and later presses reach the
     page as they come."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
@@ -419,6 +423,11 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
         expect(field.locator("leaf-text")).to_have_attribute("data-lf-says", "held")
         moved = field.bounding_box()
         assert moved and abs(moved["y"] - bounds["y"]) < 1, (bounds, moved)
+        # The stand-in adopted the runtime's own chrome sheet, and leaves it adopted once.
+        assert page.evaluate(
+            "() => new Set(document.adoptedStyleSheets).size"
+            " === document.adoptedStyleSheets.length"
+        )
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
 
     release_state()

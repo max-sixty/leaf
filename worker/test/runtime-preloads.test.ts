@@ -79,6 +79,7 @@ it("bundles each document's static graph without fetching optional modules or ch
         "runtime/optional.js": "window.optionalLoaded = true;",
         "runtime/media.js": "export const media = 1;",
         "runtime/layer-client.js": "export const client = 1;",
+        "runtime/panel-stand-in.js": "export const standIn = 1;",
         "runtime/widget-api.js": "export const api = 1;",
         "runtime/portable-api.js": "export const portable = 1;",
         "runtime/check-api.js": "export const checks = 1;",

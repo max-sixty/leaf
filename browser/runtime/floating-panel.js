@@ -94,11 +94,12 @@
  *   which still reach the live region. A selected passage is named by the field's
  *   mode chip when a draft hides its placeholder. No transient message adds a row.
  *   Keys pressed while the page loads, which wait for it, the field says in place of
- *   all of these, with no press at its end, where a key would only join them, and the
- *   mode chip says them where a draft hides the placeholder; before the panel stands,
- *   a stand-in for this row that the bootstrap draws says them (`heldWords`;
- *   bootstrap.js, `holdEarlyKeys`). The user asked for this on 10 November 2026, in
- *   place of a notice of their own beside the panel.
+ *   all of these but an error, which says why the page may not get ready; the mode
+ *   chip says them where an error or a draft takes the field's words, and the field's
+ *   end offers no press while they wait, where a key would only join them; before the
+ *   panel stands, a stand-in for this row says them (`heldWords`; panel-stand-in.js).
+ *   The user asked for this on 10 November 2026, in place of a notice of their own
+ *   beside the panel.
  *   The keys that send are Send's hover name, where Return sends with
  *   Shift+Return's new line beside it (composing/input.js).
  * - **Opened**: a view above the same row (On, whose tabs are the menu, On Me,
@@ -659,9 +660,12 @@ export function createFloatingPanel({
     const reading = initial ? null : fieldReading(top?.thread ?? null, input);
     const selection =
       !search && reading?.says === "selection" && Boolean(draftOf(input));
-    // Held keys whose words a draft hides stand in the mode chip, as selected words do.
+    // Held keys the field's words don't say, under an error or a draft, stand in the
+    // mode chip, as selected words do.
     const held =
-      !search && reading?.says === "held" && draftOf(input) ? heldWords.value : null;
+      reading && !search && (reading.says !== "held" || draftOf(input))
+        ? heldWords.value
+        : null;
     const folded = !initial && prefs().rest === "mark" && !top && !search;
     const statusModel = initial ? { summary: "Connecting…", tone: "" } : status();
     const onUser = initial ? 0 : onUserCount();
@@ -1132,11 +1136,12 @@ export function createFloatingPanel({
   // What the keys the bootstrap holds while the page loads say, until the runtime takes
   // them (bootstrap.js, `holdEarlyKeys`), or null while none are shown. They are the
   // user's latest keys and say what became of them, so the field says them in place of
-  // whatever else it would, the status included, and offers no press at its end, where
-  // a key would only join them. The mode chip says them where a draft hides the field's
-  // words, and the folded leaf's peek as it says a notice.
-  // Before the panel stands the bootstrap shows them in a stand-in for its row, which
-  // goes as the panel offers its field (`mount`).
+  // whatever else it would but an error, which says why the page may not get ready, and
+  // offers no press at its end while they wait, where a key would only join them. The
+  // mode chip says them where an error or a draft takes the field's words, and the
+  // folded leaf's peek as it says a notice.
+  // Before the panel stands a stand-in for its row shows them (panel-stand-in.js),
+  // which goes as the panel offers its field (`mount`).
   /** @type {import("@preact/signals-core").Signal<HeldWords | null>} */
   const heldWords = signal(null);
   /** @param {HeldWords} words */
@@ -1194,12 +1199,12 @@ export function createFloatingPanel({
   /** @param {string | null} key @param {Element | null} input
    * @param {import("./thread/thread-card.js").DrawnThread | null} [drawn] */
   function fieldReading(key, input, drawn = null) {
-    const held = heldWords.value;
-    if (held) return { says: "held", words: leafSays(heldText(held)) };
     const notice = passing();
     const [error] = sayable();
     if (error && !noticePressing(input))
       return { says: "error", words: leafSays(error.message) };
+    const held = heldWords.value;
+    if (held) return { says: "held", words: leafSays(heldText(held)) };
     const thread = key ? threadByKey(key) : null;
     // A retained field can repaint between a thread leaving the reading and its
     // route being retired. Its native row survives that interval, not its turn.
@@ -1362,8 +1367,8 @@ export function createFloatingPanel({
       // next On Me item after an answer, or a stance's Close (`fieldReading`). Held
       // keys leave it nothing, since its key would only join them (`heldWords`).
       enters: () => {
+        if (heldWords.value) return null;
         const { says, words, offer } = fieldReading(null, input);
-        if (says === "held") return null;
         return offer ?? (SAYS_ELSE.has(says) && wordsText(words) ? COMMENT_HINT : "");
       },
       // Named for what a press there does, as the field's reading says it, once the
@@ -5428,8 +5433,8 @@ export function createFloatingPanel({
     document.addEventListener(UPGRADE, () => paint(), { once: true });
     document.addEventListener("lf-chrome-preference", () => paint());
     paint();
-    // The field takes over the held keys' words from the bootstrap's stand-in for this
-    // row, in the frame the panel first draws (`heldWords`).
+    // The field takes over the held keys' words from the stand-in for this row, in the
+    // frame the panel first draws (`heldWords`).
     document.dispatchEvent(
       new CustomEvent("lf-held-keys-seat", {
         detail: {

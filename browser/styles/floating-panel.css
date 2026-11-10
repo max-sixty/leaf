@@ -116,9 +116,9 @@
     font: var(--font-compact);
     color: var(--ink);
   }
-  /* The panel's stand-in, which the bootstrap draws from these rules while it holds
-     keys pressed before the runtime has loaded, with their words in the field
-     (runtime/bootstrap.js, `holdEarlyKeys`; `.lf-fp-held`). It casts the ring and lift
+  /* The panel's stand-in, drawn from these rules while the bootstrap holds keys
+     pressed before the panel has mounted, with their words in the field
+     (runtime/panel-stand-in.js; `.lf-fp-held`). It casts the ring and lift
      the panel's surface would, which box-motion.js draws for the panel, and takes no
      press. */
   .lf-floating-panel[data-lf-stand-in] {

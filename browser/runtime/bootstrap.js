@@ -193,13 +193,12 @@
   // which says them in place of the status once the panel offers it as their seat
   // (`lf-held-keys-seat`, floating-panel.js). The boot module's graph can take half a
   // second to load on a loaded machine, and the panel stands only once it has, so until
-  // then the keys are shown in a stand-in for the panel's row drawn here: the panel's
-  // own sheet, whose text the document already carries for the runtime
-  // (stylesheets.js), on the panel's own classes, so its box, leaf and words stand
-  // where the panel's will, and the panel takes the words over in place. It takes no
-  // press, and goes as the panel offers its seat. The user asked on 10 November 2026
-  // for the panel's look and field in place of the notice the keys had stood in, a
-  // second interface beside the panel, often standing beside it.
+  // then the keys are shown in a stand-in for the panel's row (panel-stand-in.js),
+  // whose module evaluates without waiting for that graph. The panel takes the words
+  // over in place, and the stand-in goes as it does. A stand-in that cannot load leaves
+  // the words to the panel. The user asked on 10 November 2026 for the panel's look and
+  // field in place of the notice the keys had stood in, a second interface beside the
+  // panel, often standing beside it.
   //
   // The hold ends when the runtime takes it, when the document reports it cannot start
   // (`recover`, and the runtime's own `letHeldKeysGo` where it gives the document up),
@@ -233,7 +232,9 @@
     let shown = "";
     /** @type {((words: HeldWords | null) => void) | null} */
     let seat = null;
-    /** @type {{root: HTMLElement, sheet: CSSStyleSheet} | null} */
+    /** @type {Promise<typeof import("./panel-stand-in.js")> | null} */
+    let standInModule = null;
+    /** @type {ReturnType<typeof import("./panel-stand-in.js").standInRow> | null} */
     let standIn = null;
     // What the held keys say, wherever they show: each key as its badge, then Leaf's
     // words. The keys lead, so a narrow field that cuts the line short keeps them.
@@ -248,58 +249,29 @@
         : " run when the page is ready",
     ];
     const dropStandIn = () => {
-      if (!standIn) return;
-      const { root, sheet } = standIn;
+      standIn?.remove();
       standIn = null;
-      root.remove();
-      document.adoptedStyleSheets = document.adoptedStyleSheets.filter(
-        (adopted) => adopted !== sheet,
-      );
     };
-    // The words in the stand-in's field, drawn as the panel's field draws its own
-    // (composing/input.js), once the body and the sheets the runtime reads are parsed.
-    /** @param {HeldWords} said */
-    const drawStandIn = (said) => {
-      const sheets = document.querySelector(
-        'script[type="application/json"][data-lf-runtime][data-lf-sheets]',
-      );
-      if (!document.body || !sheets?.textContent) return;
-      if (!standIn) {
-        const sheet = new CSSStyleSheet();
-        sheet.replaceSync(JSON.parse(sheets.textContent).chrome);
-        document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
-        const root = document.createElement("div");
-        root.className = "lf-chrome";
-        root.setAttribute("data-lf-runtime", "");
-        root.innerHTML =
-          '<div class="lf-ui lf-floating-panel" part="panel" data-lf-stand-in>' +
-          '<div class="lf-fp-card"><div class="lf-fp-inner"><div class="lf-fp-row">' +
-          '<span class="lf-icon-action lf-fp-leaf lf-ui lf-ui-face">' +
-          '<svg viewBox="0 0 16 16" aria-hidden="true" class="lf-action-icon" ' +
-          'data-lf-icon="leaf"><rect width="16" height="16" fill="currentColor" ' +
-          'stroke="none"></rect></svg></span><div class="lf-fp-field">' +
-          '<div class="lf-compose-field"><span class="lf-fp-held" role="status">' +
-          '<span class="lf-compose-placeholder"><span ' +
-          'class="lf-compose-placeholder-words"></span></span></span></div></div>' +
-          "</div></div></div></div>";
-        // After body, where the runtime's chrome root will stand (base.css).
-        document.body.after(root);
-        standIn = { root, sheet };
+    // The stand-in's module evaluates the runtime's stylesheets, which read the sheets
+    // the document carries (stylesheets.js); one evaluated before the parser reached
+    // them would throw, and fail the boot module that imports it too. So it loads once
+    // the document is parsed, which is still before the boot module can run.
+    const drawStandIn = () => {
+      if (standIn || seat || !shown) return;
+      if (document.readyState === "loading") {
+        document.addEventListener("readystatechange", drawStandIn, { once: true });
+        return;
       }
-      standIn.root.querySelector(".lf-compose-placeholder-words")?.replaceChildren(
-        ...said.map((part) => {
-          const node = document.createElement(
-            typeof part === "string" ? "span" : "kbd",
-          );
-          if (typeof part === "string") {
-            node.setAttribute("data-lf-voice", "leaf");
-            node.textContent = part;
-          } else {
-            node.className = "lf-key-badge lf-held-key";
-            node.textContent = part.key;
-          }
-          return node;
-        }),
+      // The document's import map sends a rooted runtime path to this revision's own.
+      standInModule ??= import("/runtime/panel-stand-in.js");
+      standInModule.then(
+        ({ standInRow }) => {
+          // The words went, or the panel took them, while the module loaded.
+          if (standIn || seat || !shown) return;
+          standIn = standInRow();
+          standIn.say(words());
+        },
+        () => {},
       );
     };
     // Words already shown are not shown again: the panel's field repaints for each, and
@@ -312,7 +284,8 @@
       if (text === shown) return;
       shown = text;
       if (seat) seat(said);
-      else drawStandIn(said);
+      else if (standIn) standIn.say(said);
+      else drawStandIn();
     };
     const hide = () => {
       clearTimeout(beat);

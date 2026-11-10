@@ -586,9 +586,10 @@ recovers a start that outlasts that window.
 ### Saved state and capacity
 
 Read-only visits do not prewarm a container. Focusing a text box does: the tab's
-interaction log reports the focus within a quarter second, and the Worker starts the
-session's container (`prewarmContainer` in `worker/src/agent.ts`), so its boot overlaps
-the visitor's typing. The existing session Durable Object
+interaction log reports the focus within a quarter second, and the Worker posts
+`/_leaf/agent/prewarm` to the session's container (`prewarmContainer` in
+`worker/src/agent.ts`). That starts the container and has it compose the page's layer,
+so both overlap the visitor's typing. The existing session Durable Object
 serves saved documents, comments, choices and private resources while compute is
 stopped. A write or a missing saved response starts Python, which restores the
 canonical page record before accepting requests. `leaf_website.storage` publishes

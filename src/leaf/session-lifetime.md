@@ -139,7 +139,9 @@ the agent's turn ends or lapses, a message still owed is the main thread's like 
 received, with the reference the agent's delivery gave it, and the main thread's
 pickup of it takes the thread over. An agent's turn may pick up, answer or start on
 only the messages it holds or no turn holds, so it is then refused all three
-(`forks.refuse_unheld`).
+(`forks.refuse_unheld`). For that rule an answered message is held by the turn whose
+pickup of it is newest, so a fork can repeat its own answer but not answer again one
+the main thread took over and answered.
 
 Where nothing answers for the declaration, activity reports the page `unheld`. A page
 with a persistent service spends most of its life unheld, and picks up again when a

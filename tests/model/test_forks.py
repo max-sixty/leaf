@@ -502,6 +502,48 @@ def test_a_fork_whose_thread_was_taken_over_can_neither_answer_nor_start_it(
     assert events_model.read_events(claimed) == events
 
 
+def test_a_fork_repeats_its_own_answer_but_not_one_another_turn_gave(
+    claimed, lane, capsys
+):
+    """An answered message is held by the turn whose pickup of it is newest. A fork
+    whose thread the main thread took over and answered is refused, though its
+    delivery's answer reference is the one the main thread used, rather than handed
+    the main thread's answer as the repeat of its own, which its end would then
+    report as the fork's. A fork that repeats its own reply gets its own record
+    back."""
+    asked, _taken = taken_over(claimed, capsys)
+    ref = answer_ref(claimed, asked["id"])
+    assert thread_model.post_response(ref, "Yes, for an hour.", asks_back=False)
+    events = events_model.read_events(claimed)
+    stale = CliRunner().invoke(
+        cli_model.cli,
+        ["--agent-id", "agent-1", "thread", "reply", ref, "--done"]
+        + ["--text", "No, it never caches."],
+    )
+    assert stale.exit_code != 0
+    assert "no longer holds" in stale.output, stale.output
+    assert events_model.read_events(claimed) == events
+
+    other, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
+    forks_model.started(
+        "s1", basis(claimed, other["id"], other["id"]), taken["turn"], "agent-2"
+    )
+    reply = ["thread", "reply", answer_ref(claimed, other["id"]), "--done"]
+    for text in ("Python 3.12 or later.", "3.12 or later."):
+        ran = CliRunner().invoke(
+            cli_model.cli, ["--agent-id", "agent-2", *reply, "--text", text]
+        )
+        assert ran.exit_code == 0, ran.output
+    answers = [
+        event["text"]
+        for event in events_model.read_events(claimed)
+        if event["kind"] == "reply"
+        and event.get("responds") == other["id"]
+        and not event.get("ephemeral")
+    ]
+    assert answers == ["Python 3.12 or later."]
+
+
 def test_the_watch_wakes_the_idle_session_for_a_thread_its_fork_gave_back(
     claimed, lane, interactive, capsys, monkeypatch
 ):

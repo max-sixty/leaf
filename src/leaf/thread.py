@@ -498,6 +498,16 @@ def post_reply(
                 for event in page.events
             ):
                 raise ReceiptRefused("response no longer matches its page log")
+        from .forks import authorize
+
+        # A fork may answer only what its turn holds, and an ended one nothing; it
+        # asks first, so a refused fork is never handed another turn's answer as the
+        # repeat of its own.
+        authorize(
+            page,
+            posting_identity.get("session"),
+            [address["responds"]] if address.get("responds") else [],
+        )
         if attempt is not None and (
             repeated := _repeated_reply(
                 page.events,
@@ -520,14 +530,6 @@ def post_reply(
         )
         if addressed is None:
             return None
-        from .forks import authorize
-
-        # A fork may answer only what its turn holds, and an ended one nothing.
-        authorize(
-            page,
-            posting_identity.get("session"),
-            [address["responds"]] if address.get("responds") else [],
-        )
         record, published = _compose_and_append(
             page,
             addressed,

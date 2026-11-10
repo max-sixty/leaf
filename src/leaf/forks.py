@@ -401,19 +401,10 @@ def holding_turns(events: list[dict], session: str) -> dict[str, str]:
 
     This is the one reading of who holds a message: delivery (`held_inputs`), an
     agent's tool boundary (`agent_turn_inputs`), the activity fold and every hook
-    that reads it (`activity.agent_holds`), the end of an agent's run (`ended`) and a
-    reply's authority (`thread.post_reply`) all ask it rather than filtering the
-    pickups themselves."""
-    newest: dict[str, tuple[int, str]] = {}
-    for event in events:
-        if (
-            event["kind"] == "pickup"
-            and event["phase"] == "opened"
-            and event["session"] == session
-            and event["turn"]
-        ):
-            for input_id in event["events"]:
-                newest[input_id] = (event["seq"], event["turn"])
+    that reads it (`activity.agent_holds`), the end of an agent's run (`ended`) and an
+    agent turn's right to act on a message (`refuse_unheld`) all ask it rather than
+    filtering the pickups themselves."""
+    newest = _newest_pickups(events, session)
     if not newest:
         return {}
     waiting, _lined = _waiting(events)
@@ -424,6 +415,22 @@ def holding_turns(events: list[dict], session: str) -> dict[str, str]:
             turn = max(picked)[1]
             holders.update((event["id"], turn) for event in said)
     return holders
+
+
+def _newest_pickups(events: list[dict], session: str) -> dict[str, tuple[int, str]]:
+    """The seq and turn of the newest opened pickup, by `session`, of each message
+    one names."""
+    newest: dict[str, tuple[int, str]] = {}
+    for event in events:
+        if (
+            event["kind"] == "pickup"
+            and event["phase"] == "opened"
+            and event["session"] == session
+            and event["turn"]
+        ):
+            for input_id in event["events"]:
+                newest[input_id] = (event["seq"], event["turn"])
+    return newest
 
 
 def taken_over(input_ids) -> str:
@@ -440,14 +447,26 @@ def refuse_unheld(
     events: list[dict], session: str, turn: str, input_ids: list[str]
 ) -> None:
     """The one rule for an agent's turn acting on messages: it may act only on the
-    messages it holds or that no turn holds (`holding_turns`), and is refused the
-    rest (`taken_over`). Its pickups (`pickable`), replies and starts (`authorize`)
-    all ask this, so a fork that lost its thread to the main thread can neither take
-    it back nor answer it nor show itself at work on it."""
+    messages it holds or that no turn holds, and is refused the rest (`taken_over`).
+    A waiting message is held by the turn `holding_turns` names, and an answered one
+    by the turn whose opened pickup of it is newest, so a fork may repeat its own
+    answer but not answer again a message another turn took over and answered. Its
+    pickups (`pickable`), replies and starts (`authorize`) all ask this, so a fork
+    that lost its thread to the main thread can neither take it back nor answer it
+    nor show itself at work on it.
+
+    The answered messages are this rule's alone: every reader of `holding_turns`
+    asks who holds work still owed, which an answered message isn't."""
     from .delivery import ReceiptRefused
 
     holders = holding_turns(events, session)
-    if taken := [i for i in input_ids if holders.get(i) not in (None, turn)]:
+    last = {
+        input_id: by
+        for input_id, (_seq, by) in _newest_pickups(events, session).items()
+    }
+    if taken := [
+        i for i in input_ids if holders.get(i, last.get(i)) not in (None, turn)
+    ]:
         raise ReceiptRefused(taken_over(taken))
 
 

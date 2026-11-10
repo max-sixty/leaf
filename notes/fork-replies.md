@@ -278,7 +278,10 @@ since it changes the work the obligation would queue behind.
   asks one function which turn that is (`forks.holding_turns`). A fork's turn may
   act only on the messages it holds or no turn holds, and one rule checks each of
   its writes as it is made (`forks.refuse_unheld`): its pickups (its take, its tool
-  boundary and its acknowledgement of a pointer), its replies and its starts. The
+  boundary and its acknowledgement of a pointer), its replies and its starts. For
+  that rule an answered message is held by the turn whose pickup of it is newest, so
+  a fork may repeat its own answer but not answer again a message the main thread
+  took over and answered. The
   turn closes as the fork's run ends, and lapses when unrenewed for the working
   grace, as a main turn's stamp does. The main thread picks up a message a fork's
   turn holds only once that turn has closed or lapsed, and that pickup takes the
@@ -312,9 +315,9 @@ since it changes the work the obligation would queue behind.
   and schedules; or it gave the thread back or failed, and the main thread owes the
   answer, with the fork's answer reference. The line says the thread owes nothing
   only where nothing waits in it and no to-do on it is open, and it waits for the
-  main thread's next tool boundary or prompt. The proposal is the fork's own SendMessage to `main`, which
-  wakes an idle session at once and can say what the fork did beyond those
-  outcomes, so the session neither redoes nor contradicts it.
+  main thread's next tool boundary or prompt. The proposal is the fork's own
+  SendMessage to `main`, which wakes an idle session at once and can say what the
+  fork did beyond those outcomes, so the session neither redoes nor contradicts it.
 - **Follow-ups.** A later message in a thread a fork answered goes to the same fork,
   resumed by name, rather than to a new fork, so a flurry of messages in one thread
   makes one worker. Leaf's message to it lists what the main thread did on the page

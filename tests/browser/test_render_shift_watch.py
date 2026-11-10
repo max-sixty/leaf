@@ -1,12 +1,15 @@
 """The browser fixture fails the layout shifts "The page holds still under the user's aim" forbids
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
+import http.server
 import re
+import threading
 from datetime import UTC, datetime, timedelta
 from html import escape
 from urllib.parse import quote
 
 import pytest
+from interact_support import STATED_TIMEOUT, running_http_server
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE
 from render_harness import (
@@ -496,6 +499,49 @@ def test_a_shift_without_input_fails(browser):
     page.evaluate("document.getElementById('above').style.height = '6px'")
     judge_watches()
     consume_browser_errors(page, moved_within("textarea#field", by=[0, 6]))
+
+
+def test_the_document_moves_what_it_painted_half_parsed_without_a_finding(browser):
+    """Chrome may paint a document the parser has only partly added, as a slow
+    runner's parser yields mid-page: a select before its option and the taller box
+    beside it, which then widen it and push it down. That is the page's first
+    presentation, not a shift; a move once the parser has finished still fails."""
+    head = b'<!doctype html><body><div id="above"></div><p><select id="pick">'
+    tail = b'<option>One longer option</option></select><svg width="20" height="40">'
+    released = threading.Event()
+
+    class Halves(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(head) + len(tail)))
+            self.end_headers()
+            self.wfile.write(head)
+            self.wfile.flush()
+            released.wait(STATED_TIMEOUT)
+            self.wfile.write(tail)
+
+        def log_message(self, format, *_):
+            pass
+
+    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Halves)
+    with running_http_server(httpd):
+        page = browser.new_page()
+        page.goto(f"http://127.0.0.1:{httpd.server_port}/", wait_until="commit")
+        expect(page.locator("#pick")).to_be_attached()
+        paint(page)
+        narrow = page.locator("#pick").bounding_box()
+        released.set()
+        page.wait_for_function("document.readyState === 'complete'")
+        paint(page)
+    wide = page.locator("#pick").bounding_box()
+    assert wide["width"] > narrow["width"] and wide["y"] > narrow["y"], (narrow, wide)
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert errors == [], errors
+    page.evaluate("document.getElementById('above').style.height = '6px'")
+    judge_watches()
+    consume_browser_errors(page, moved_within("select#pick"), moved_within("svg"))
 
 
 @pytest.mark.parametrize(
@@ -3154,6 +3200,44 @@ def test_a_press_may_bring_its_control_whole_into_its_scroller(browser, by, foun
     strip = page.locator("#strip").bounding_box()
     page.mouse.click(strip["x"] + 190, strip["y"] + strip["height"] / 2)
     page.wait_for_function("strip.scrollLeft > 0")
+    paint(page)
+    judge_watches()
+    if found:
+        consume_browser_errors(
+            page,
+            {"code": "gesture-scrolled", "node": ["button#tab"], "by": [-by, 0]},
+        )
+
+
+# The strip's first tab, scrolled 14px under the strip's 30px start padding, as a strip
+# stands just short of its start with its edge press over the tab: its press scrolls
+# the strip by what `data-by` says, back to the start where the padding can't be
+# cleared.
+CLAMPED = """<!doctype html><body style="margin:0">
+<div id="strip" style="width:200px;overflow-x:auto;white-space:nowrap;
+  scroll-padding:0 30px;margin:20px"><button id="tab"
+  style="width:60px;box-sizing:border-box">Tab</button><span
+  style="display:inline-block;width:400px"></span></div>
+<script>
+  strip.scrollLeft = 14;
+  tab.addEventListener("click", () => strip.scrollBy(+document.body.dataset.by, 0));
+</script>"""
+
+
+@pytest.mark.parametrize(("by", "found"), [(-14, False), (20, True)])
+def test_a_press_may_bring_its_control_to_its_scrollers_start(browser, by, found):
+    """A scroller's padding bounds no reveal on a side it has reached the end of: a
+    press bringing a tab back to the strip's start shows it as far as any scroll can,
+    though the start padding still covers it, while a scroll carrying it further under
+    the padding is still the gesture's (`shift_watch.js`, "Scrolls a gesture makes")."""
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(CLAMPED))
+    paint(page)
+    page.evaluate("by => { document.body.dataset.by = by; }", str(by))
+    # Press the part the strip shows; a locator's click would scroll the tab in first.
+    strip = page.locator("#strip").bounding_box()
+    page.mouse.click(strip["x"] + 40, strip["y"] + strip["height"] / 2)
+    page.wait_for_function(f"strip.scrollLeft === {14 + by}")
     paint(page)
     judge_watches()
     if found:

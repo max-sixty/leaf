@@ -266,14 +266,6 @@ export function createAim({
     document.addEventListener("pointermove", pointerMove);
     for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);
   }
-  function destroy() {
-    globalThis.removeEventListener("keydown", keyDown, true);
-    globalThis.removeEventListener("keyup", keyUp, true);
-    globalThis.removeEventListener("blur", blur);
-    document.removeEventListener("pointermove", pointerMove);
-    for (const type of PRESS_EVENTS)
-      document.removeEventListener(type, claimPress, true);
-  }
   pageCommand(AIM);
-  return { aimIsOn, aimedTarget, armChanged, mount, destroy };
+  return { aimIsOn, aimedTarget, armChanged, mount };
 }

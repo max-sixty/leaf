@@ -1,7 +1,13 @@
 /* This module owns the shared readings of visible boxes and clipping, how much of the
  * window the page shows, and the one conversion from viewport boxes to
  * document-positioned chrome. */
-import { excludedByInert, renderedParent, uiInside, under } from "./shadow-tree.js";
+import {
+  excludedByInert,
+  renderedParent,
+  skipped,
+  uiInside,
+  under,
+} from "./shadow-tree.js";
 import { nativeModalAdmits, watchLayerChanges } from "./keyboard/layer-stack.js";
 import { isNativeLayer, nativeLayerHolding } from "./shadow-tree.js";
 import { clippingAxes, hasArea, intersect, overlapsAcross, union } from "./rect.js";
@@ -1032,6 +1038,21 @@ export function nearWindow(target, clips = new Map()) {
     box.left <= 2 * width
   );
 }
+// Whether the browser draws the text `parent` holds. Ask the text's own parent rather than
+// a block around it: display: contents still draws text, and a child can restore
+// visibility inside a concealed block. Skipped subtrees are left alone before asking for
+// any boxes. Text in display: contents has no parent box to ask, so its first boxed
+// ancestor supplies the browser's opacity and display reading; visibility belongs to the
+// text's parent, since its children may override that ancestor.
+/** @param {Element | null} parent */
+export const drawsText = (parent) => {
+  if (!parent || skipped(parent) || getComputedStyle(parent).visibility !== "visible")
+    return false;
+  /** @type {Element | null} */
+  let box = parent;
+  while (box && getComputedStyle(box).display === "contents") box = renderedParent(box);
+  return Boolean(box?.checkVisibility({ opacityProperty: true }));
+};
 // The same walk for a box measured from what an element holds: a Range inside it. The
 // holder's own band stands over its contents, where it says nothing about the holder's
 // own box, so text scrolled out of the `pre` it sits in directly is text nobody sees.

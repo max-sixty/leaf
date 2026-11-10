@@ -14,9 +14,6 @@ patchedDependencies:
   '@awesome.me/webawesome@3.14.0':
     hash: fceb7eeb7836acd3f8a507a353484cce187114be8655cde1daacdb904714b653
     path: build/@awesome.me__webawesome@3.14.0.patch
-  '@blazediff/core@1.10.0':
-    hash: 1bb8a055b7a9e33b9cc1c6cbf919d9ec7b2e5d6e4c481cf08c81341560f50965
-    path: build/@blazediff__core@1.10.0.patch
   '@floating-ui/dom':
     hash: a4068154e932aa84d9335be05a60e3f9d922fa91a428bb3e166796abb14317d3
     path: build/@floating-ui__dom.patch
@@ -47,9 +44,6 @@ importers:
       '@awesome.me/webawesome':
         specifier: 3.14.0
         version: 3.14.0(patch_hash=fceb7eeb7836acd3f8a507a353484cce187114be8655cde1daacdb904714b653)(@floating-ui/utils@0.2.12)(@types/node@26.6.5)(@types/react@19.3.0)
-      '@blazediff/core':
-        specifier: 1.10.0
-        version: 1.10.0(patch_hash=1bb8a055b7a9e33b9cc1c6cbf919d9ec7b2e5d6e4c481cf08c81341560f50965)
       '@cloudflare/containers':
         specifier: 0.3.7
         version: 0.3.7
@@ -556,9 +550,6 @@ packages:
   '@babel/runtime@7.29.10':
     resolution: {integrity: sha512-NpugTzbKgGrNe45Ui32cN8vCFFMxVtP/9rtfwv0nP5FRDAjvYBxJcLVpYA9mr1jxP6cnIT7x9LUzuDTbWYYNRA==}
     engines: {node: '>=6.9.0'}
-
-  '@blazediff/core@1.10.0':
-    resolution: {integrity: sha512-AOQff0zgR7cGsZL+4E7hVkmujoPUpm0J9xzWGWZj5wCjd3gmxESXAPfKyuzs93VdpQNFhHlBhfOjrcZ+XTERtQ==}
 
   '@bramus/specificity@2.4.3':
     resolution: {integrity: sha512-0GEz8qJWokkUVYQYRukmkSHIFNoBH8QTreeHrAFbvz1XFYc3Y+puhMs8PQ5x8GNugiC2l5jvDBXKLbBIByeSBw==}
@@ -5650,8 +5641,6 @@ snapshots:
     optional: true
 
   '@babel/runtime@7.29.10': {}
-
-  '@blazediff/core@1.10.0(patch_hash=1bb8a055b7a9e33b9cc1c6cbf919d9ec7b2e5d6e4c481cf08c81341560f50965)': {}
 
   '@bramus/specificity@2.4.3':
     dependencies:

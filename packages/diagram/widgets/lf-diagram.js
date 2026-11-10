@@ -54,6 +54,20 @@ function namedParts(model, drawn) {
     });
 }
 
+// `accTitle` names the drawing for a reader who can't see it. Pele writes it as the
+// drawing's `<title>`, which the browser also shows as a tooltip over every part of the
+// drawing that has none of its own, saying a name the caption or heading beside it
+// usually says already. The same words as `aria-label` name it with no tooltip.
+/** @param {SVGSVGElement | null} drawing */
+function nameWithoutTooltip(drawing) {
+  const id = drawing?.getAttribute("aria-labelledby");
+  const title = id ? drawing?.querySelector(`:scope > title#${CSS.escape(id)}`) : null;
+  if (!drawing || !title) return;
+  drawing.setAttribute("aria-label", title.textContent ?? "");
+  drawing.removeAttribute("aria-labelledby");
+  title.remove();
+}
+
 let seq = 0;
 customElements.define(
   "lf-diagram",
@@ -90,6 +104,7 @@ customElements.define(
           images: false,
         });
         this.innerHTML = svg;
+        nameWithoutTooltip(this.querySelector(":scope > svg"));
         this.style.setProperty("--lf-diagram-height", `${height}px`);
         this.style.setProperty("--lf-diagram-padding", `${drawingPadding}px`);
         const drawn = this;

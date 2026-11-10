@@ -30,7 +30,7 @@ const breaksOut = (el) =>
 // gate takes only as these samples, across its sweep and at each render's own size
 // (render_gate/version.py), each field read by its own consumer in readings.py. These readers are synchronous: taking them in one browser turn
 // preserves their findings while removing the protocol round trips between fields. All
-// but `squeezedTables` are read-only; it adds and removes a wrapping rule, so it reads
+// but `squeezedBoxes` are read-only; it adds and removes a wrapping rule, so it reads
 // last and the others read the page as laid out. Resize and rendering completion belong
 // to the caller, so a sample neither advances the page nor waits for a different layout.
 /** @param {string[]} open */
@@ -44,7 +44,7 @@ export function geometryReading(open) {
     labels: shrunkLabelReading(),
     clipped: clippedControls(),
     covered: coveredWords(),
-    squeezed: squeezedTables(),
+    squeezed: squeezedBoxes(),
   };
 }
 
@@ -706,6 +706,10 @@ export function misplacedBoxes() {
   });
 }
 
+// A box the theme scrolls sideways that costs the reader its words: a table with a cell
+// in it wrapped, or a code block too narrow to read. Each is read only where it scrolls
+// with visible words past its inner box.
+//
 // A table scrolling sideways with a cell in it wrapped. The theme's three cases for a
 // table — take the measure only when asked, wrap the cells past that, scroll when even
 // wrapping can't fit — are in order, and the third is reached through the second: a
@@ -771,12 +775,12 @@ export function misplacedBoxes() {
 // A cell in a hidden or collapsed row has no height. Read from the page, where
 // geometry is real.
 //
-// `squeezedTables` reports a table whose visible words stand outside its inner box with
-// a cell in it wrapped. `scrollWidth` is the first reading, then the words decide it:
-// Chromium can count a broken inline box a few pixels past the table even while every
-// glyph fits, and that rounding artifact moves with the viewport and font metrics. In a
-// genuinely scrolling table the columns are all at their longest unbreakable run, so a
-// cell wrapping there wraps at a word a line — beside a name that could not break (an
+// `squeezedBoxes` reads a table or a code block whose visible words stand outside its
+// inner box. `scrollWidth` is the first reading, then the words decide it: Chromium can
+// count a broken inline box a few pixels past a table even while every glyph fits, and
+// that rounding artifact moves with the viewport and font metrics. In a genuinely
+// scrolling table the columns are all at their longest unbreakable run, so a cell
+// wrapping there wraps at a word a line — beside a name that could not break (an
 // identifier written outside `<code>`, a bare URL), or because the table has more
 // columns than the measure holds. A column wraps when it stands wider with wrapping
 // turned off — its content asked for more than its longest run — which hidden content,
@@ -784,12 +788,35 @@ export function misplacedBoxes() {
 // column's name and width and whether it wraps, and leaves the diagnosis to the author.
 // A table that scrolls with nothing left to wrap is the theme's honest third case.
 //
-// Whether a table scrolls depends on the window, so the gate reads this at every width
-// of its sweep, and reports it as advice: the table still scrolls with every word in
+// A code block is contained (reading.css, `pre`), so it asks what holds it for no
+// width, and a box that takes its width from its content (a flex item at its default
+// `flex`, a grid `auto` track beside an `fr` track, a table cell, a box sized to fit)
+// sizes without it: two short commands in a flex row stood 30px wide each, with no
+// room inside for a character of their lines. A block is squeezed when it scrolls with
+// less than four times the size of its words inside, about six characters of a
+// monospace face, whatever narrowed it. The floor reads the result, not the cause: a
+// holder with nothing else in it leaves the block no room, but one sized by a heading
+// or a cell's column leaves whatever that text's length and font give it, a few
+// characters or many. On the pages it was measured on, every block such a holder left
+// measured 0–34px inside at 360–1920px, under 2.6 times its 13.5px font, and every
+// block that read well measured 77px or more, from a `flex-grow` column beside a nav
+// at 360px to the column. Tracks too many for the window narrow a block below the
+// floor too, such as
+// four `minmax(0, 1fr)` tracks at 390px (44px inside), which giving the block a width
+// would not fix and stacking the tracks at that width does, so the words offer both. A
+// sheet that lifted the containment, to read the width the block's holder would give
+// it, also reported a `flex: auto` item beside another, whose basis grew with its lines
+// and took room from its sibling, and it reset every scrolling block to its start. The
+// finding carries the width inside the block and whether a table cell holds it, since
+// the remedy there is the table's: move a long command out, or write a short one as
+// inline <code>.
+//
+// Whether a box scrolls depends on the window, so the gate reads this at every width
+// of its sweep, and reports it as advice: the box still scrolls with every word in
 // reach, and the remedy is the author's choice of composition. Each finding carries its
-// table's place (locate.js) beside its code, so the sweep tells one table's run of
-// widths from another's. A page with no scrolling table never adds the wrapping rule.
-export function squeezedTables() {
+// box's place (locate.js) beside its code, so the sweep tells one box's run of widths
+// from another's. A page with no scrolling table never adds the wrapping rule.
+export function squeezedBoxes() {
   const page = pageDocument();
   if (!page) return [];
   // What a heading says, for the column's name.
@@ -801,36 +828,68 @@ export function squeezedTables() {
       if (!uiInside(node.parentElement, cell)) text += node.textContent;
     return text.trim().replace(/\s+/g, " ");
   };
-  /** @param {HTMLTableElement} table */
-  const wordsOutside = (table) => {
-    const box = table.getBoundingClientRect();
-    const left = box.left + table.clientLeft;
-    const right = left + table.clientWidth;
+  // The element whose visible words stand outside the scroller's inner box, or null. In
+  // a code block a line's words run from its first character to its last that isn't a
+  // space, since a <pre> keeps the spaces that end a line and scrolls them as far as any
+  // word. A table measures every character: spaces a cell keeps hold its column open
+  // and wrap the prose beside it, which is the squeeze its reading reports.
+  /** @param {Element} scroller */
+  const wordsOutside = (scroller) => {
+    const box = scroller.getBoundingClientRect();
+    const left = box.left + scroller.clientLeft;
+    const right = left + scroller.clientWidth;
+    const lines = scroller.localName === "pre";
     const range = document.createRange();
-    for (const root of openRoots(table)) {
+    for (const root of openRoots(scroller)) {
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
       for (let node; (node = walker.nextNode());) {
         const parent = node.parentNode;
         const el =
           node.parentElement ?? (parent instanceof ShadowRoot ? parent.host : null);
-        if (!el || !node.textContent?.trim() || uiInside(el, table)) continue;
+        if (!el || !node.textContent?.trim() || uiInside(el, scroller)) continue;
         if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
           continue;
-        range.selectNodeContents(node);
-        for (const drawn of range.getClientRects())
-          if (drawn.width > 1 && (drawn.left < left - 1 || drawn.right > right + 1))
-            return true;
+        const text = node.textContent;
+        const runs = lines ? text.matchAll(/\S(?:.*\S)?/g) : [{ index: 0, 0: text }];
+        for (const words of runs) {
+          range.setStart(node, words.index);
+          range.setEnd(node, words.index + words[0].length);
+          for (const drawn of range.getClientRects())
+            if (drawn.width > 1 && (drawn.left < left - 1 || drawn.right > right + 1))
+              return el;
+        }
       }
     }
-    return false;
+    return null;
   };
-  const tables = [...page.querySelectorAll("table")]
-    .filter(inPage)
-    .filter(
-      (t) =>
-        t.checkVisibility() && t.scrollWidth - t.clientWidth > 1 && wordsOutside(t),
-    );
-  if (!tables.length) return [];
+  /** @param {Element} box */
+  const scrolls = (box) =>
+    inPage(box) && box.checkVisibility() && box.scrollWidth - box.clientWidth > 1
+      ? wordsOutside(box)
+      : null;
+  const found = [];
+  for (const block of page.querySelectorAll("pre")) {
+    // The floor is in the size of the words that run out, which an author's rule on
+    // the <code> inside can set apart from the block's own.
+    const words = scrolls(block);
+    if (!words) continue;
+    const style = getComputedStyle(block);
+    const inside =
+      block.clientWidth -
+      parseFloat(style.paddingLeft) -
+      parseFloat(style.paddingRight);
+    if (inside >= 4 * parseFloat(getComputedStyle(words).fontSize)) continue;
+    found.push({
+      code: "squeezed-code",
+      at: at(block),
+      place: place(block),
+      scrolls: block.scrollWidth - block.clientWidth,
+      inside: Math.round(inside),
+      cell: block.closest("td, th") !== null,
+    });
+  }
+  const tables = [...page.querySelectorAll("table")].filter(scrolls);
+  if (!tables.length) return found;
   // Each table's columns by left edge, each with its cells, before the probe.
   /** @typedef {{heading: string | null, head: boolean, width: number, first: Element, wraps: boolean}} TableColumn */
   /** @type {Map<HTMLTableElement, TableColumn[]>} */
@@ -879,7 +938,6 @@ export function squeezedTables() {
     for (const column of columns)
       column.wraps = column.first.getBoundingClientRect().width > column.width + 1;
   probe.remove();
-  const found = [];
   for (const [table, columns] of read) {
     if (!columns.some((c) => c.wraps)) continue;
     found.push({

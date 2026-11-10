@@ -5,14 +5,15 @@ import { generatedElement, keeps, viewDocument } from "/runtime/widget-api.js";
  * items, and, while the changes view is on, `data-lf-toc-changed` on its row, which
  * toc.css draws in the gutter the outline's rule or the contents spine stands in; the
  * start row's go on the outline's head too, its toggle or its label, which stands where
- * that row would where the row is left out. The
+ * that row would where the row is left out. A row's marks stand beside its link rather
+ * than in it, so they still show while the map rests with its labels faded out. The
  * marks are aria-hidden and take no room; what they count, the row's link previews
  * (`lfPreview`) in place of its name, which its face already says, and that preview
  * describes the link to a screen reader where focus lands on it. */
 import { html, nothing, ref, repeat } from "/vendor/lit.js";
 import { marksWords } from "./toc-marks.js";
 
-/** @typedef {{label: (heading: Element) => string, chrome: (element: Element) => boolean, lends: boolean}} HeadingReading */
+/** @typedef {{label: (heading: Element) => string, chrome: (element: Element) => boolean}} HeadingReading */
 /** @typedef {{key: string | Element, heading: Element, label: string, destination: Element, depth: number}} OutlineItem */
 /** @typedef {{start: {label: string, destination: Element, heading: Element | null} | null, items: OutlineItem[]}} Outline */
 /** @typedef {import("./toc-marks.js").SectionMarks} SectionMarks */
@@ -36,8 +37,8 @@ const markView = (marks) =>
 const outlineDocument = (host) =>
   viewDocument(host) ?? host.closest("body")?.querySelector(":scope > main") ?? null;
 
-// Delivery and live behavior call this same template, retaining its native disclosure
-// and keyed links. Geometry readers collect the nodes only after its shared render.
+// The template keeps its native disclosure and keyed links. Geometry readers collect
+// the nodes only after it renders.
 /** @param {HTMLElement} host @param {HeadingReading} [headingReading] */
 export function drawToc(host, headingReading) {
   const open = host.hasAttribute("open");
@@ -163,8 +164,8 @@ export function drawToc(host, headingReading) {
                 <a
                   href=${href(start?.destination)}
                   .lfPreview=${previewOf(start?.heading ?? null)}
-                  >${start?.label ?? "Top"}${markView(first)}</a
-                >
+                  >${start?.label ?? "Top"}</a
+                >${markView(first)}
               </div>
               <ol>
                 ${repeat(
@@ -178,8 +179,8 @@ export function drawToc(host, headingReading) {
                       <a
                         href=${href(item.destination)}
                         .lfPreview=${previewOf(item.heading)}
-                        >${item.label}${markView(marks.get(item.heading))}</a
-                      >
+                        >${item.label}</a
+                      >${markView(marks.get(item.heading))}
                     </li>
                   `,
                 )}
@@ -220,17 +221,17 @@ export function drawToc(host, headingReading) {
 // wrote (`ADDRESSABLE`). The id goes on the destination rather than on an element
 // inserted beside it, because an inserted element changes which child a page rule
 // finds first or last and what an `h2 + p` rule finds next to the heading.
-/** @param {HTMLElement} host @param {Element} heading @param {number} position @param {boolean} lends */
-function destinationFor(host, heading, position, lends) {
+/** @param {HTMLElement} host @param {Element} heading @param {number} position */
+function destinationFor(host, heading, position) {
   const section = heading.closest("section[id]");
   if (section?.querySelector(HEADING_SELECTOR) === heading) return section;
   const destination = heading.closest("hgroup") ?? heading;
-  return lend(host, destination, position, lends);
+  return lend(host, destination, position);
 }
 
-/** @param {HTMLElement} host @param {Element} destination @param {number} position @param {boolean} lends */
-function lend(host, destination, position, lends) {
-  if (destination.id || !lends) return destination;
+/** @param {HTMLElement} host @param {Element} destination @param {number} position */
+function lend(host, destination, position) {
+  if (destination.id) return destination;
   const doc = host.ownerDocument;
   const stem = `lf-${host.id}-section-${position}`;
   let id = stem;
@@ -245,7 +246,7 @@ const level = (heading) => Number(heading.localName.slice(1));
 
 // Read the complete outline before rendering; max-level bounds it before any id is lent.
 /** @param {HTMLElement} host @param {HeadingReading} reading @returns {Outline} */
-function readOutline(host, { label, chrome, lends }) {
+function readOutline(host, { label, chrome }) {
   const main = outlineDocument(host);
   if (!main) return { start: null, items: [] };
   const maxLevel = Number(host.getAttribute("max-level") ?? 6);
@@ -265,13 +266,11 @@ function readOutline(host, { label, chrome, lends }) {
   const start = {
     heading: pageTitle ?? null,
     label: (pageTitle ? label(pageTitle) : "") || "Top",
-    destination: pageTitle
-      ? destinationFor(host, pageTitle, 0, lends)
-      : lend(host, main, 0, lends),
+    destination: pageTitle ? destinationFor(host, pageTitle, 0) : lend(host, main, 0),
   };
   const floor = Math.min(...headings.map(({ heading }) => level(heading)));
   const items = headings.map(({ heading, label }, index) => {
-    const destination = destinationFor(host, heading, index + 1, lends);
+    const destination = destinationFor(host, heading, index + 1);
     // A lent id is no key: row identity follows the authored heading.
     const key = heading.id && !heading.id.startsWith("lf-") ? heading.id : heading;
     const depth = Math.min(level(heading) - floor, 4);

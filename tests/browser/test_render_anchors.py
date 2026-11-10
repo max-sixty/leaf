@@ -75,7 +75,6 @@ from render_harness import (
     panel_settled,
     post_event,
     preview_parts,
-    put_preview_away,
     reported_browser_errors,
     resized,
     restyle_counts,
@@ -923,8 +922,6 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
 
     # Target picker uses letters rather than digits, but it names the same physical
     # keys. Closing the Go-to sequence and opening selection must not reveal a fourth face.
-    # The arrow onto the option showed its preview, which the first Escape puts away.
-    put_preview_away(page)
     page.keyboard.press("Escape")
     expect(page.locator(".lf-go-to-hints .lf-go-to-hint")).to_have_count(0)
     page.keyboard.press("s")

@@ -48,7 +48,6 @@ from render_harness import (
     page_comment,
     panel_settled,
     preview_parts,
-    put_preview_away,
     resized,
     round_trip,
     scroll_settled,
@@ -721,8 +720,6 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     option = item.locator(".lf-margin-options .lf-margin-entry:visible").first
     option.focus()
     expect(option).to_be_focused()
-    # Focus on the option shows its preview, which the first Escape puts away.
-    put_preview_away(page)
     page.keyboard.press("Escape")
     expect(more).to_be_visible()
     focus_item(page, "#sug-refill")
@@ -755,8 +752,6 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_users_focus(browser, s
     # back to the cluster whose temporary responses are being removed.
     raise_choices_on_refill()
     thistle_accept.focus()
-    # Focus on Accept shows its preview, which the first Escape puts away.
-    put_preview_away(page)
     page.keyboard.press("Escape")
     expect(page.locator(MARGIN_RESPONSES)).to_have_count(0)
     expect(refill.locator(".lf-margin-more")).to_be_visible()
@@ -2609,8 +2604,6 @@ def test_a_reply_s_reactions_keep_their_keys_in_a_covering_thread_view(browser, 
     expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(1)
     page.keyboard.press("ArrowLeft")
     expect(choices.nth(0)).to_be_focused()
-    # The arrow showed the choice's word, which the first Escape puts away.
-    put_preview_away(page)
     page.keyboard.press("Escape")
     expect(strip.locator(".lf-react-palette:popover-open")).to_have_count(0)
     expect(trigger).to_be_focused()

@@ -25,6 +25,20 @@ a turn reads the message's delivery. A start would read as the session's turn,
 renewing it after an interrupt and holding the message at Working before the
 session had it, which hid it from the nudge and the overdue count.
 
+The fork thinks at `EFFORT` whatever the session's own effort, since every second it
+takes keeps the thread's messages from the session. The turn-end check's fork has an
+effort of its own (`clerk.EFFORT`), measured on its own work. On 2026-11-09 low wrote
+lines as good as xhigh's. On 40 recorded thread messages, each replayed from its
+session's transcript (`notes/fork-replies.md`, "How well the fork judges"), a judge
+blind to the effort passed 35 lines at each effort and preferred low's on 19, xhigh's
+on 16 and neither on 5; `leaf-dev eval 'fork-reply*'` passed 35 of 35 at each over
+five repeats. Neither effort thought on the recorded messages, so their output and
+time matched there (low wrote 1.03 times the tokens, 95% interval 0.97–1.10). On the
+eval's short conversations xhigh thought over 5 of its 35 lines, taking up to 3.5 s
+where a line took a median 1 s, and low over none, for 0.85 times xhigh's time
+(0.75–0.95). So low removes the occasional line xhigh spends seconds thinking over,
+and the line's time no longer depends on the session's effort.
+
 A thread's waiting messages are the user's messages since the agent's last answer in
 it, the newest of which owes the thread's answer. Each thread with waiting messages
 is in one of two states, and `held` is the one function that computes which, from
@@ -66,12 +80,17 @@ no watch, its messages wait for the page's next change.
 
 The line goes in as the agent's own (`thread.post_reply` with the claim's identity),
 fenced to the hold: it writes nothing once the thread is no longer held as the fork
-was asked it, checked under the lock the append takes. Every outcome goes to the
-page's diagnostics (`interaction_log`, type `fork_reply`), with the fork's tokens
-and time, why Leaf refused its line where it did, and the request it resent
-(`request` in `hooks/claude-code.ts`, which says where a replay cuts the
-conversation: to `sent` while `running` lists a call, else to `row`), as the clerk's
-`turn_end_check` notes have it, which is what a later replay or audit scores.
+was asked it, checked under the lock the append takes. The page's diagnostics
+(`interaction_log`) note whether admission held each thread message to a Claude Code
+session, and where not, whether its lane was up (`fork_hold`); each question as Leaf
+gives it to the module (`fork_asked`), so a fork that never answers shows; and every
+outcome (`fork_reply`), with the fork's tokens and time, the effort Claude Code
+reports it sent (`effort`), why Leaf refused its line where it did, and the request
+it resent (`request` in `hooks/claude-code.ts`, which says where a replay cuts the
+conversation: to `sent` while `running` lists a call, else to `row`; its own
+`effort` is the session's), as the clerk's `turn_end_check` notes have it, which is
+what a later replay or audit scores. `leaf-dev timeline` reads them beside the
+session's transcript.
 `leaf-dev eval 'fork-reply*' --harness claude-code --base` scores a change to the
 prompt on a short constructed conversation for each kind of message
 (`dev/leaf_dev/fork_eval.py`).
@@ -133,6 +152,8 @@ LANE_START = Record(
 
 # The words that open the fork's question, which the transcript carries.
 OPENING = "<leaf-fork-reply>"
+# How hard the fork thinks, whatever the session's effort (the header says why).
+EFFORT = "low"
 
 
 class Held(NamedTuple):
@@ -319,6 +340,31 @@ def held_inputs(page: PageTransaction) -> set:
     return {input_id for thread in held(page) for input_id in thread.inputs}
 
 
+def held_at_admission(page: PageTransaction, event: dict) -> bool:
+    """Whether the input `event`, just admitted, is held for a fork. For a thread
+    message to a Claude Code session, the page's diagnostics note the answer, and
+    where it is no, whether the session's lane was up (`fork_hold`), which is what
+    says why no fork took a message up."""
+    held = event["id"] in held_inputs(page)
+    claim = page.active_claim
+    if (
+        claim is not None
+        and claim["harness"] == "claude-code"
+        and event["kind"] in kinds_declaring("message")
+    ):
+        _note(
+            page.page_dir,
+            {
+                "type": "fork_hold",
+                "session": claim["id"],
+                "event": event["id"],
+                "held": held,
+                "lane": lane_since(claim["id"]),
+            },
+        )
+    return held
+
+
 def _held_for(page: PageTransaction, session_id: str) -> list[Held]:
     """The page's held threads while it is `session_id`'s, since `held` reads the
     claimant's and a session the page has left must write nothing on it."""
@@ -365,6 +411,7 @@ def cmd_reply(session_id: str, payload: dict) -> dict | None:
             failed=payload.get("failed"),
             usage=payload.get("usage"),
             elapsed_ms=payload.get("elapsed_ms"),
+            effort=payload.get("effort"),
             running=payload.get("running") or [],
             request=payload.get("request"),
         )
@@ -373,8 +420,8 @@ def cmd_reply(session_id: str, payload: dict) -> dict | None:
 
 def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
     """What to fork the conversation with for the thread `basis` names, as
-    `{"prompt", "thread"}`, or None once the thread is no longer held as `basis`
-    has it, or the page no longer the session's."""
+    `{"prompt", "thread", "effort"}`, or None once the thread is no longer held as
+    `basis` has it, or the page no longer the session's."""
     from .delivery import batch_data, current_responses
 
     page_dir = Path(basis["page"])
@@ -398,7 +445,17 @@ def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
         # Only the session can settle what owes no reply in the thread.
         _hand_over(session_id, basis, "the message owes no reply")
         return None
-    return {"prompt": reply_prompt(data, running), "thread": basis}
+    _note(
+        page_dir,
+        {
+            "type": "fork_asked",
+            "session": session_id,
+            "thread": basis["thread"],
+            "inputs": basis["inputs"],
+            "running": [call["tool"] for call in running],
+        },
+    )
+    return {"prompt": reply_prompt(data, running), "thread": basis, "effort": EFFORT}
 
 
 def _running_line(running: list[dict]) -> str:
@@ -449,12 +506,14 @@ def take(
     failed: str | None,
     usage: dict | None = None,
     elapsed_ms: float | None = None,
+    effort: str | None = None,
     running: list[dict] | None = None,
     request: dict | None = None,
 ) -> dict:
     """Post the fork's answer as the agent's working line and hand the thread to the
     session, or hand it over bare where the fork failed (`failed`, its reason); what
-    came of it, recorded in the page's diagnostics."""
+    came of it, recorded in the page's diagnostics with the effort Claude Code reports
+    it sent the fork at (`effort`)."""
     line = (answer or "").strip()
     # TODO: where the message is self-contained, a fork that can act could do the
     # work itself rather than hand it over ("A fork that takes the work" in
@@ -472,6 +531,7 @@ def take(
             "running": running or [],
             **({"usage": usage} if usage else {}),
             **({"elapsedMs": elapsed_ms} if elapsed_ms is not None else {}),
+            **({"effort": effort} if effort is not None else {}),
             **({"request": request} if request else {}),
         },
     )
@@ -480,18 +540,25 @@ def take(
 
 def _record(session_id: str, basis: dict, outcome: dict) -> None:
     """Note what came of a held thread in its page's diagnostics."""
+    _note(
+        Path(basis["page"]),
+        {
+            "type": "fork_reply",
+            "session": session_id,
+            "thread": basis["thread"],
+            "inputs": basis["inputs"],
+            **outcome,
+        },
+    )
+
+
+def _note(page_dir: Path, record: dict) -> None:
+    """Append `record` to the page's diagnostics, dropped where the page can't be
+    written, as every diagnostic is (`interaction_log`)."""
     from .interaction_log import append_interactions
 
-    record = {
-        "source": "cli",
-        "type": "fork_reply",
-        "session": session_id,
-        "thread": basis["thread"],
-        "inputs": basis["inputs"],
-        **outcome,
-    }
     try:
-        append_interactions(Path(basis["page"]), [record])
+        append_interactions(page_dir, [{"source": "cli", **record}])
     except OSError:
         pass
 

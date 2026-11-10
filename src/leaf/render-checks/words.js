@@ -131,48 +131,65 @@ export function coveredWords({
   holdHidden = true,
   holdLabelLines = true,
 } = {}) {
-  const runs = paintedRuns(document.body, { holdFloating, holdHidden });
+  const runs = paintedRuns(document.body, { holdFloating, holdHidden }).map(
+    (run, order) => ({ ...run, order }),
+  );
+  // Two runs can cover each other only if their boxes overlap by more than the 2px of
+  // slack in height. So the runs are taken from the top of the page down, and each is
+  // compared only with the earlier ones whose boxes reach more than 2px below its top:
+  // on a page of text, the other runs on its line. Comparing every pair cost the square
+  // of the page's words, at every width of the gate's sweep.
+  /** @type {typeof runs} */
+  let open = [];
+  /** @type {[typeof runs[number], typeof runs[number]][]} */
+  const pairs = [];
+  for (const run of [...runs].sort((a, b) => a.box.top - b.box.top)) {
+    open = open.filter((other) => other.box.bottom - run.box.top > 2);
+    for (const other of open)
+      pairs.push(other.order < run.order ? [other, run] : [run, other]);
+    open.push(run);
+  }
+  // Each pair in the page's order, so a finding names first what the page says first.
+  pairs.sort(([a, b], [c, d]) => a.order - c.order || b.order - d.order);
   const found = [];
-  for (const [index, a] of runs.entries())
-    for (const b of runs.slice(index + 1)) {
-      if (a.el === b.el || a.el.contains(b.el) || b.el.contains(a.el)) continue;
-      if (holdLabelLines && a.label && a.label === b.label) continue;
-      // A faint numeral the page declares decorative, set behind a label, is drawn
-      // there on purpose and leaves the label legible; an opaque one still covers it.
-      if (decoration(a.el) || decoration(b.el)) continue;
-      // SVG renderers can draw a stroked copy directly behind a filled label
-      // to make its letters legible. They are one painted word, not two words
-      // covering each other; keep comparing either copy with every other run.
-      if (
-        a.label &&
-        b.label &&
-        a.label !== b.label &&
-        a.label.parentElement === b.label.parentElement &&
-        a.label.textContent === b.label.textContent &&
-        (getComputedStyle(a.label).fill === "none" ||
-          getComputedStyle(b.label).fill === "none") &&
-        Math.abs(a.box.left - b.box.left) < 1 &&
-        Math.abs(a.box.top - b.box.top) < 1 &&
-        Math.abs(a.box.width - b.box.width) < 1 &&
-        Math.abs(a.box.height - b.box.height) < 1
-      )
-        continue;
-      const across =
-        Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left);
-      const down =
-        Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top);
-      if (across <= 2 || down <= 2) continue;
-      found.push({
-        code: "covered-words",
-        at: at(a.el),
-        // Both elements' places (locate.js), so the gate's sweep meets the same pair
-        // again at another width and tells it from another pair sharing a name.
-        place: [place(a.el), place(b.el)],
-        words: a.text,
-        under: at(b.el),
-        covered: b.text,
-      });
-    }
+  for (const [a, b] of pairs) {
+    if (a.el === b.el || a.el.contains(b.el) || b.el.contains(a.el)) continue;
+    if (holdLabelLines && a.label && a.label === b.label) continue;
+    // A faint numeral the page declares decorative, set behind a label, is drawn
+    // there on purpose and leaves the label legible; an opaque one still covers it.
+    if (decoration(a.el) || decoration(b.el)) continue;
+    // SVG renderers can draw a stroked copy directly behind a filled label
+    // to make its letters legible. They are one painted word, not two words
+    // covering each other; keep comparing either copy with every other run.
+    if (
+      a.label &&
+      b.label &&
+      a.label !== b.label &&
+      a.label.parentElement === b.label.parentElement &&
+      a.label.textContent === b.label.textContent &&
+      (getComputedStyle(a.label).fill === "none" ||
+        getComputedStyle(b.label).fill === "none") &&
+      Math.abs(a.box.left - b.box.left) < 1 &&
+      Math.abs(a.box.top - b.box.top) < 1 &&
+      Math.abs(a.box.width - b.box.width) < 1 &&
+      Math.abs(a.box.height - b.box.height) < 1
+    )
+      continue;
+    const across =
+      Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left);
+    const down = Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top);
+    if (across <= 2 || down <= 2) continue;
+    found.push({
+      code: "covered-words",
+      at: at(a.el),
+      // Both elements' places (locate.js), so the gate's sweep meets the same pair
+      // again at another width and tells it from another pair sharing a name.
+      place: [place(a.el), place(b.el)],
+      words: a.text,
+      under: at(b.el),
+      covered: b.text,
+    });
+  }
   return unique(found);
 }
 

@@ -344,7 +344,7 @@ export class ShotView {
             aria-label=${`Open ${state} image — ${alt}`}
             href=${pair ? this.images[index]?.src || nothing : nothing}
             tabindex=${pair ? nothing : "-1"}
-            .lfPreview=${() => (pair ? { detail: [`Open ${state} image`] } : null)}
+            .lfPreview=${() => (pair ? { name: `Open ${state} image` } : null)}
             ${box()}
             ><div class="lf-shotplane" ${box()}>
               <img

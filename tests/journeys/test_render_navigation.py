@@ -1471,9 +1471,13 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     )
     round_trip(page)
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="on-me"]')).to_have_count(0)
-    page.locator("#opts-decision").evaluate(
-        "node => document.scrollingElement.scrollTo(0, node.offsetTop)"
+    # The reader scrolls there: a resize restores the reader's last chosen place, and a
+    # script's scroll chooses none, so the resize would return to the click on #opt-a.
+    page.mouse.move(640, 400)
+    page.mouse.wheel(
+        0, page.locator("#opts-decision").evaluate("node => node.offsetTop")
     )
+    page.wait_for_function("() => document.scrollingElement.scrollTop > 0")
     scroll_settled(page)
     for target in ("lk1", "lk2", "revealed-link"):
         expect(page.locator(f"#{target}")).not_to_be_in_viewport()

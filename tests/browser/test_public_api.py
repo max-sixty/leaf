@@ -249,7 +249,7 @@ def test_closing_an_output_observer_during_its_body_read_keeps_the_browser_usabl
     import asyncio
     import time
 
-    from playwright._impl._fetch import APIRequestContext, APIResponse
+    from playwright._impl.fetch import APIRequestContext, APIResponse
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
     from leaf.render_gate import scheme, widget_quality

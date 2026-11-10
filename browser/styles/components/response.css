@@ -739,7 +739,7 @@ leaf-text.lf-fab-input {
 .lf-response-options {
   position: fixed;
   position-anchor: --lf-response-options;
-  position-visibility: anchors-visible;
+  position-visibility: var(--lf-anchor-visible);
   position-area: block-start span-all;
   position-try-fallbacks: flip-block;
   justify-self: anchor-center;

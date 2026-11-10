@@ -144,8 +144,9 @@ take it in again (`activity.agent_holds`), and its deliveries leave it out
 the main thread's like any it received, with the reference the agent's delivery gave
 it, and the main thread's pickup of it takes the thread over; the main thread's answer
 takes the thread over at once, even while the agent's turn runs. An agent's turn may
-pick up, answer or start on only the messages it holds or no turn holds, so a fork can
-repeat its own answer but is refused all three on a thread another turn took
+pick up, answer or start on only the messages it holds or no turn holds, and post in a
+thread only where it holds the thread's latest messages or no turn does, so a fork can
+repeat its own answer but is refused each of these on a thread another turn took
 (`holding.refuse_unheld`).
 
 Where nothing answers for the declaration, activity reports the page `unheld`. A page

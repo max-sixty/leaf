@@ -500,13 +500,17 @@ def post_reply(
                 raise ReceiptRefused("response no longer matches its page log")
         from .holding import authorize
 
-        # A fork may answer only what its turn holds, and an ended one nothing; it
-        # asks first, so a refused fork is never handed another turn's answer as the
-        # repeat of its own.
+        # A fork may answer only what its turn holds, and write in no thread
+        # another turn took, and an ended one nothing; it asks first, so a refused
+        # fork is never handed another turn's answer as the repeat of its own.
+        responds = address.get("responds")
         authorize(
             page,
             posting_identity.get("session"),
-            [address["responds"]] if address.get("responds") else [],
+            [responds] if responds else [],
+            thread=None
+            if responds or not address.get("parent")
+            else thread_names(page.events).get(address["parent"]),
         )
         if attempt is not None and (
             repeated := _repeated_reply(

@@ -25,8 +25,9 @@ own (`AGENT_TURNS`), opened as the agent is given its work, before its harness
 starts or resumes it, named with the agent's harness id once the harness has started
 it, and closed as its harness says the run ended; it ends with its session's
 generation or instance too (`agent_turn_open`). A command the agent runs acts in that
-turn (`acting_turn`), so a pickup, start or reply it writes names the agent's turn,
-and lapses with the agent's run rather than the main thread's.
+turn (`acting_turn`), so a pickup, start or reply it writes names the agent's turn: a
+pickup or start lapses with the agent's run rather than the main thread's, and a
+reply keeps saying which turn answered (`holding.py`).
 
 The session lock also serializes Codex transport reservation, making its
 revision a compare-and-swap token for observations. Lock order is page then

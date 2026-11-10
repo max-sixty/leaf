@@ -136,6 +136,7 @@ from .holding import (
     agent_held,
     holding_turns,
     rounds,
+    running_threads,
     running_turns,
     taken_by_agent_turns,
     turn_threads,
@@ -329,9 +330,10 @@ def _kept_back(
     the agent's last answer in its thread owes the thread's answer, and `ask` hands
     over one the fold says owes none.
 
-    A thread a running agent turn took is never kept back for another fork, so one
-    fork works a thread at a time: its further messages go to that turn, which holds
-    them, or to the main thread where it took the thread over (`holding.py`)."""
+    A thread a running agent turn took, by a pickup or an answer, is never kept back
+    for another fork (`holding.running_threads`), so one fork works a thread at a
+    time: its further messages go to that turn, which holds them, or to the main
+    thread where it took the thread over (`holding.py`)."""
     if claim is None:
         return []
     since = lane_since(claim["id"])
@@ -354,7 +356,7 @@ def _kept_back(
     handed = handed_inputs(claim["id"], page_dir)
     waiting = rounds(events).waiting
     running = running_turns(claim)
-    worked = set(turn_threads(events, claim["id"], running)) if running else set()
+    worked = running_threads(events, claim["id"], running)
     found = [
         KeptBack(
             thread,

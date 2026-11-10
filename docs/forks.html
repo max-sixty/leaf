@@ -455,10 +455,12 @@ flowchart TD
               One function checks each of its writes as the write is made
               (<code>holding.refuse_unheld</code>): its pickups, which are its take, its
               tool boundaries and its acknowledgement of a delivery handed to it by
-              pointer; its replies; and its starts. An answered message is held by the
-              turn that answered it, so a fork may repeat its own answer, but may not
-              answer again a message the main thread answered, even with the reply
-              reference the fork's delivery gave it.
+              pointer; its replies, including a message in the thread that answers
+              nothing, which counts against the thread's latest messages; and its
+              starts. An answered message is held by the turn that answered it, so a
+              fork may repeat its own answer, but may not answer again a message the
+              main thread answered, even with the reply reference the fork's delivery
+              gave it.
             </p>
           </section>
 
@@ -476,9 +478,9 @@ flowchart TD
             <p id="takeover-answer">
               The main thread is sovereign all the same: it can answer a message the
               fork holds. Its answer takes the thread over at once, as a pickup would
-              once the fork's turn ended, and the fork's later reply or start on that
-              thread is refused. The thread's next message then goes to the main thread
-              while the fork still runs.
+              once the fork's turn ended, and the fork's later reply, start or message
+              in that thread is refused. The thread's next message then goes to the main
+              thread while the fork still runs.
             </p>
             <p id="takeover-after">
               Once the fork's turn closes or lapses, a message it left waiting is the
@@ -819,10 +821,13 @@ flowchart TD
               large for the hook, which the fork's own
               <code>leaf delivery ack</code> records into its turn. That holds after the
               fork has answered too: its turn holds the thread until another turn takes
-              it, and Leaf keeps nothing back for a second fork meanwhile
-              (<code>forks.kept_back</code>). A message that arrives as the fork's run
-              ends, after its last tool boundary, is kept back once the turn has closed,
-              and goes to the same fork, resumed.
+              it, and Leaf keeps nothing back for a second fork in a thread a running
+              fork took, by a pickup or an answer
+              (<code>holding.running_threads</code>). A message that arrives as the
+              fork's run ends, after its last tool boundary, is kept back once the turn
+              has closed, and goes to the same fork, resumed: no receipt passes a
+              message no turn has taken in, so it is still waiting for its first
+              delivery when the turn closes.
             </li>
             <li id="follow-up-same-fork">
               A message the line fork judges <code>take</code>, in a thread whose last

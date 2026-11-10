@@ -207,20 +207,40 @@ def refuse_unheld(
         raise ReceiptRefused(taken_over(taken))
 
 
-def authorize(page: PageTransaction, session: str | None, input_ids: list[str]) -> None:
+def authorize(
+    page: PageTransaction,
+    session: str | None,
+    input_ids: list[str],
+    thread: str | None = None,
+) -> None:
     """Refuse a write a command of `session` makes about the messages `input_ids` on
-    `page`, a reply to one or a start on one, where its actor may not make it: an
-    agent whose turn has ended (`state.acting_agent_turn`), or an agent's turn acting
-    on a message another turn holds (`refuse_unheld`). The main thread acts on
-    whatever its session owes, and its answer takes the thread from any turn that held
-    it; a session that doesn't hold the page is no agent's."""
+    `page`, a reply to one or a start on one, or a message in `thread` that answers
+    none, where its actor may not make it: an agent whose turn has ended
+    (`state.acting_agent_turn`), or an agent's turn acting on a message another turn
+    holds (`refuse_unheld`). A message that answers none is held to the thread's round
+    (`round_of`), so a fork can't write in a thread another turn took from it. The main
+    thread acts on whatever its session owes, and its answer takes the thread from any
+    turn that held it; a session that doesn't hold the page is no agent's."""
     from .state import acting_agent_turn
 
     claim = page.claim
     if session is None or claim is None or claim["id"] != session:
         return
     if (turn := acting_agent_turn(session)) is not None:
+        if thread is not None and not input_ids:
+            input_ids = round_of(page.events, thread)
         refuse_unheld(page.events, session, turn, input_ids, running_turns(claim))
+
+
+def round_of(events: list[dict], thread: str) -> list[str]:
+    """The user's messages in `thread`'s round: those waiting, or where none waits,
+    those the thread's last answer ended the round of (`rounds`)."""
+    found = rounds(events)
+    if said := found.waiting.get(thread):
+        return [event["id"] for event in said]
+    if (answer := found.answers.get(thread)) is None:
+        return []
+    return [i for i, ender in found.answered.items() if ender["id"] == answer["id"]]
 
 
 def pickable(
@@ -268,16 +288,25 @@ def agent_held(page: PageTransaction) -> set[str]:
 
 def taken_by_agent_turns(page: PageTransaction) -> set[str]:
     """What whoever records a receipt passes for the page's agent turns
-    (`delivery.receive_passed`): what an agent's running turn holds (`agent_held`),
-    and each input a turn of an agent picked up, open or closed, which that turn
-    received as it picked it up."""
+    (`delivery.receive_passed`): each input a turn of an agent picked up, open or
+    closed, which that turn received as it picked it up, and each waiting message a
+    running agent turn holds through its pickup of the thread's round, which goes to
+    it at its tool boundary. A message a running turn holds only as the last to take
+    its thread stays pending, since no turn has taken it in: should that turn end
+    without picking it up, Leaf keeps it back for a line fork as it does any new
+    message (`forks.kept_back`), and a receipt that passed it would have handed it to
+    the main thread instead."""
     claim = page.active_claim
     if claim is None:
         return set()
     stamps = agent_turn_stamps(claim)
     if not stamps:
         return set()
-    return set(picked_in(page.events, claim["id"], set(stamps))) | agent_held(page)
+    running = running_turns(claim)
+    by_pickup = holding_turns(page.events, claim["id"], set())
+    return set(picked_in(page.events, claim["id"], set(stamps))) | {
+        input_id for input_id, turn in by_pickup.items() if turn in running
+    }
 
 
 def running_turns(claim: dict) -> set[str]:
@@ -325,6 +354,22 @@ def to_carry(page: PageTransaction, turn: str) -> list[dict]:
         for event in page.events
         if holders.get(event["id"]) == turn and event["id"] not in taken
     ]
+
+
+def running_threads(events: list[dict], session: str, running: set[str]) -> set[str]:
+    """The threads a running agent turn of `session` took, by a pickup of any of
+    their messages or an answer, which Leaf keeps back for no other fork
+    (`forks.kept_back`); `running` is as `holding_turns` takes it."""
+    if not running:
+        return set()
+    from .thread_context import thread_names
+
+    names = thread_names(events)
+    return set(turn_threads(events, session, running)) | {
+        names[event["id"]]
+        for event in events
+        if "responds" in event and event.get("turn") in running and event["id"] in names
+    }
 
 
 def turn_threads(

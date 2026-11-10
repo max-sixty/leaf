@@ -559,7 +559,8 @@ def test_the_main_thread_answering_over_a_running_fork_takes_its_thread(
     takes the thread over at once, with whatever answer reference it uses, since
     the answer names the turn that posted it. The fork's later reply with that
     reference is refused rather than handed the main thread's answer as the repeat
-    of its own, and so is its start on the message. Its end reports the thread
+    of its own, and so are its start on the message and a message of its own in
+    the thread that answers nothing. Its end reports the thread
     taken over, which the main thread isn't told of, and the thread's next message
     goes to a new fork rather than to that one, resumed."""
     asked, taken = taken_by_a_fork(claimed, "Does the suggest service cache?")
@@ -580,6 +581,12 @@ def test_the_main_thread_answering_over_a_running_fork_takes_its_thread(
         ran = CliRunner().invoke(cli_model.cli, ["--agent-id", "agent-1", *command])
         assert ran.exit_code != 0, command
         assert "no longer holds" in ran.output, ran.output
+    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-1")
+    with pytest.raises(delivery_model.ReceiptRefused, match="no longer holds"):
+        thread_model.post_reply(
+            claimed, {"parent": asked["id"]}, "No, it never caches.", todo="Check it"
+        )
+    monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
     assert events_model.read_events(claimed) == events
 
     assert forks_model.ended(
@@ -843,9 +850,11 @@ def test_one_fork_works_a_thread_while_its_turn_runs(
     user's message after the fork answered, while its turn still runs, is that
     fork's: the main thread isn't given it, and the fork's next tool boundary
     carries it. One that arrives as the fork's run ends goes to the same fork,
-    resumed. A resumed fork whose message the user took back still holds the
-    thread's next one; and a thread the main thread took over by answering, while
-    the fork still runs, gives its next message to the main thread."""
+    resumed, even where a receipt passed the log meanwhile. A resumed fork whose
+    message the user took back still holds the thread's next one; a thread the main
+    thread took over by answering, while the fork still runs, gives its next message
+    to the main thread; and a thread a running fork took by answering a message in it
+    gives its next message to that fork."""
     zone, running = taken_by_a_fork(claimed, "Which zone?")
     forks_model.started(
         "s1", basis(claimed, zone["id"], zone["id"]), running["turn"], "agent-5"
@@ -883,6 +892,8 @@ def test_one_fork_works_a_thread_while_its_turn_runs(
     monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
     late = said(claimed, "And the third?", parent=zone["id"])
     assert kept_back(claimed) == []
+    # Another fork's take records a receipt, which passes nothing no turn took in.
+    taken_by_a_fork(claimed, "Which shard is hot?")
     forks_model.ended("s1", agent="agent-5", turn=None, answer="Done.", failed=None)
     assert taken_again(claimed, zone["id"], late)["resume"]["agentId"] == "agent-5"
 
@@ -912,6 +923,14 @@ def test_one_fork_works_a_thread_while_its_turn_runs(
     assert kept_back(claimed) == []
     assert next_one["id"] in deliverable(claimed)
     assert agent_context(capsys, "agent-7") == ""
+
+    elsewhere = said(claimed, "Which region is that shard in?")
+    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-7")
+    assert thread_model.post_reply(claimed, {"responds": elsewhere["id"]}, "eu-west.")
+    monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
+    after = said(claimed, "And its replica's?", parent=elsewhere["id"])
+    assert kept_back(claimed) == []
+    assert after["id"] in agent_context(capsys, "agent-7")
 
 
 def test_the_resume_names_what_the_session_did_on_the_page_while_the_fork_ran(
@@ -1229,6 +1248,21 @@ def test_a_forks_leaf_command_waits_until_leaf_knows_its_agent(
     )
     resumed = hook_answer(capsys, later, "agent-1", "resumed")
     assert resumed is not None and "updatedInput" in resumed
+    # A turn's agent never changes once named.
+    assert forks_model.started(
+        "s1", basis(claimed, asked["id"], more["id"]), again["turn"], "agent-2"
+    )["outcome"] == ("dropped")
+    assert state_model.agent_turn_of("s1", "agent-1") == again["turn"]
+
+    # While another fork starts, a fork that runs its turn goes on as it did, and a
+    # turn left unnamed stops holding workers back once it lapses.
+    _other, pending = taken_by_a_fork(claimed, "Which region is staging in?")
+    running = hook_answer(capsys, later, "agent-1", "running")
+    assert running is not None and "updatedInput" in running
+    worker = hook_answer(capsys, "leaf page state p", "agent-9", "worker-waits")
+    assert worker is not None and worker["permissionDecision"] == "deny"
+    lapse(pending["turn"])
+    assert hook_answer(capsys, "leaf page state p", "agent-9", "worker-runs") is None
 
 
 def test_a_fork_turn_that_ends_unanswered_gives_its_thread_to_the_main_thread(

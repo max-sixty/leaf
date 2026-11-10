@@ -711,7 +711,7 @@ def steps(
             )
             joined = next(r for r in records() if r.get("step") == "join")
             require(
-                joined["outcome"] == "answer",
+                joined["outcome"] in ("answer", "todo"),
                 f"fork-idle: the fork gave the thread back: {fork_summary(joined)}",
             )
             require(

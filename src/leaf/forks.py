@@ -30,10 +30,11 @@ go to the fork at its tool boundaries (`hook_transport.carry_agent_turn`). Leaf'
 PreToolUse hook marks the fork's `leaf` commands with its agent id
 (`hooks.agent_command`), so the fork answers with `leaf thread reply` from the delivery
 Leaf gave it, writing as the agent, in its own turn (`state.acting_turn`). As its run
-ends the module says so (`ended`), which closes the turn: an answered thread is done,
-and a thread still owed, which the fork gave back (`HAND_BACK`) or left, is the main
-thread's like any update it received, whose hooks and watch then remind it with the
-fork's answer reference.
+ends the module says so (`ended`), which closes the turn. An answered thread is done,
+though a to-do the fork opened with its answer stays open for the main thread to
+schedule. A thread still owed, which the fork gave back (`HAND_BACK`) or left, is the
+main thread's like any update it received, whose hooks and watch then remind it with
+the fork's answer reference.
 
 The line is the agent's progress message in the thread (`thread.post_reply`), which
 the thread shows until the session's own words replace it. From the moment the hold
@@ -987,17 +988,21 @@ def ended(
     """Close the turn of an agent of the session whose run ended, the one its
     harness names `agent`, or `turn` where it never started, and say what came of
     each thread it took, judged by the messages the turn picked up itself: none of
-    them still waiting, it answered (`answer`), whatever the user has written since;
-    still waiting and held by the closed turn (`holding_turns`), it gave the thread
-    back (`hand_over`), as its last words did (`HAND_BACK`), it failed (`failed`)
-    or it ended without answering, and the main thread owes it now
-    (`activity.agent_holds`); still waiting and held by another turn, that turn took
-    it over (`taken_over`). The main session hears of an answer or a hand-over
-    (`clerk.queue`), a session no watch follows is nudged for a thread it now owes,
-    and the page's diagnostics note each outcome; the outcomes, one for each
-    thread. An agent with no open turn, as most of a session's are, ends nothing."""
+    them still waiting, it answered (`answer`), whatever the user has written since,
+    or answered and opened a to-do on the thread that is still open (`todo`), which
+    the main thread now owes and schedules (`todos`); still waiting and held by the
+    closed turn (`holding_turns`), it gave the thread back (`hand_over`), as its last
+    words did (`HAND_BACK`), it failed (`failed`) or it ended without answering, and
+    the main thread owes it now (`activity.agent_holds`); still waiting and held by
+    another turn, that turn took it over (`taken_over`). The main session hears of
+    an answer, a to-do or a hand-over (`clerk.queue`), and that the thread owes
+    nothing only where nothing waits in it and no to-do on it is open. A session no
+    watch follows is nudged for a thread it now owes, and the page's diagnostics
+    note each outcome; the outcomes, one for each thread. An agent with no open
+    turn, as most of a session's are, ends nothing."""
     from .clerk import queue
     from .presence import nudge_unwatched
+    from .todos import TodoReading
 
     closed = set(close_agent_turns(session_id, turn=turn, agent=agent))
     if not closed:
@@ -1020,14 +1025,21 @@ def ended(
                 threads = _turn_threads(page.events, session_id, closed)
                 waiting, _lined = _waiting(page.events)
                 holders = holding_turns(page.events, session_id)
-                judged = {}
+                seqs = {event["id"]: event["seq"] for event in page.events}
+                owed = TodoReading(page.events).owed
+                judged, owing, opened = {}, {}, {}
                 # The threads where the user wrote again after the fork's answer.
                 since = {thread for thread in threads if waiting.get(thread)}
                 for thread, inputs in threads.items():
+                    subject = {"kind": "thread", "id": thread}
+                    owing[thread] = [t for t in owed if t["subject"] == subject]
+                    # The open to-dos opened after the messages the fork took.
+                    taken = min(seqs[input_id] for input_id in inputs)
+                    opened[thread] = [t for t in owing[thread] if t["seq"] > taken]
                     waits = {event["id"] for event in waiting.get(thread, [])}
                     still = [input_id for input_id in inputs if input_id in waits]
                     judged[thread] = (
-                        "answer"
+                        ("todo" if opened[thread] else "answer")
                         if not still
                         else "hand_over"
                         if holders.get(still[0]) in closed
@@ -1048,16 +1060,33 @@ def ended(
                     f"you, which now owes the user its answer: {why}"
                 )
             else:
-                outcome = {"outcome": "answer"}
+                todos = opened[thread]
+                outcome = {
+                    "outcome": judged[thread],
+                    **({"todos": [t["id"] for t in todos]} if todos else {}),
+                }
+                listed = " and ".join(
+                    f"the to-do “{t['title']}” ({t['id']})" for t in todos
+                )
                 told.append(
                     f"Your fork {name} answered the user's message in thread "
-                    f"{thread} on {page_dir}. Read its answer there: where what you "
-                    "know shows it wrong, correct it there; "
+                    f"{thread} on {page_dir}"
                     + (
-                        "the user's message there since reaches you as any new "
+                        f" and opened {listed}, which you now owe: schedule "
+                        f"{'it' if len(todos) == 1 else 'each'} with your other "
+                        "work, and end it with `leaf task end` once it is done"
+                        if todos
+                        else ""
+                    )
+                    + ". Read its answer there: where what you know shows it wrong, "
+                    "correct it there"
+                    + (
+                        "; the user's message there since reaches you as any new "
                         "one does."
                         if thread in since
-                        else "otherwise the thread owes nothing."
+                        else "; otherwise the thread owes nothing."
+                        if not owing[thread]
+                        else "."
                     )
                 )
             _record(

@@ -329,7 +329,8 @@ def test_a_to_do_the_fork_opens_stays_the_sessions_after_its_turn_ends(
     (`leaf thread reply --todo`), from the delivery Leaf gave it. The reply answers
     the message, and the to-do is the session's: it stays open, on the session's
     page, after the fork's run ends, while the fork's start on it lapses with the
-    fork's turn."""
+    fork's turn. The main thread hears that the fork answered and opened the to-do,
+    by its text, which it now owes, rather than that the thread owes nothing."""
     asked, taken = taken_by_a_fork(claimed, "Why is the cold start slow?")
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
@@ -350,10 +351,20 @@ def test_a_to_do_the_fork_opens_stays_the_sessions_after_its_turn_ends(
         "profiling the cold start",
     )
 
-    [ended] = forks_model.ended(
+    clerk_model.heard("s1", clerk_model.queued("s1"))
+    assert forks_model.ended(
         "s1", agent="agent-1", turn=None, answer="Opened a to-do.", failed=None
-    )
-    assert ended["outcome"] == "answer"
+    ) == [
+        {
+            "page": str(claimed),
+            "thread": asked["id"],
+            "outcome": "todo",
+            "todos": [reply["id"]],
+        }
+    ]
+    [told] = clerk_model.queued("s1")
+    assert "answered" in told and "“Profile the cold start”" in told
+    assert "which you now owe" in told and "owes nothing" not in told
     [todo] = reading(claimed)["activity"]["todos"]
     assert (todo["id"], todo["title"], todo["session"], todo["running"]) == (
         reply["id"],

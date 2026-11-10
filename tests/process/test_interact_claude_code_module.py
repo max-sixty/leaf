@@ -541,15 +541,13 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     driven.quit()
 
 
-def test_a_fork_given_a_threads_work_runs_leaf_in_its_own_turn(
+def test_a_fork_given_a_threads_work_runs_in_a_turn_leaf_keeps_for_it(
     page_dir, monkeypatch, spawn, sessionless
 ):
     """With forks that do the work, a thread the line's fork judges `take` goes to a
     fork the module spawns with Leaf's task, and Leaf hears which agent runs the turn
-    it opened for it. That fork's `leaf` commands come out marked with its agent id,
-    so they act in its turn, while its other commands, and another agent's, pass as
-    they came. As its run ends its turn closes, and the main thread hears what came
-    of the thread."""
+    it opened for it. As that agent's run ends its turn closes, and the main thread
+    hears what came of the thread."""
     driven = ClaudeCode(
         spawn,
         "cc-work",
@@ -581,15 +579,6 @@ def test_a_fork_given_a_threads_work_runs_leaf_in_its_own_turn(
         bool,
         failure="Leaf never heard which agent runs the fork's turn",
     )
-
-    def ran(command: str, agent: str) -> str:
-        call = {"tool": "Bash", "tool_use_id": f"u-{agent}", "command": command}
-        return driven.emit("tool.call", {**call, "agentId": agent})["result"]["command"]
-
-    reply = "leaf thread reply abc:0:e1 --done --text 'Python 3.12'"
-    assert ran(reply, "agent-1") == f"export LEAF_AGENT_ID='agent-1'; {reply}"
-    assert ran("ls", "agent-1") == "ls"
-    assert ran(reply, "agent-2") == reply
 
     ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
     driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-1"})

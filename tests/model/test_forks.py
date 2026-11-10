@@ -317,6 +317,45 @@ def test_the_fork_answers_with_its_own_reply_in_its_own_turn(
     )
 
 
+def test_the_forks_leaf_commands_are_marked_to_act_in_its_turn(claimed, lane, capsys):
+    """Claude Code's PreToolUse hook names the agent whose command is about to run,
+    so before a `leaf` command of an agent running a turn of the session's own, the
+    hook hands back the command marked with the agent's id, which is what makes it
+    act in that turn; any other agent's command, and the main thread's, run as they
+    came."""
+    asked, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    command = "cd /tmp && leaf thread reply abc:0:e1 --done --text 'Python 3.12'"
+
+    def before(agent: str | None, tool_use: str) -> str:
+        hooks_model.cmd_hook(
+            "claude-code",
+            {
+                "hook_event_name": "PreToolUse",
+                "session_id": "s1",
+                "prompt_id": "p1",
+                "tool_name": "Bash",
+                "tool_use_id": tool_use,
+                "tool_input": {"command": command, "description": "Answer"},
+                **({"agent_id": agent} if agent else {}),
+            },
+        )
+        return capsys.readouterr().out
+
+    output = json.loads(before("agent-1", "u1"))["hookSpecificOutput"]
+    assert output == {
+        "hookEventName": "PreToolUse",
+        "updatedInput": {
+            "command": f"export {state_model.AGENT_VARIABLE}=agent-1; {command}",
+            "description": "Answer",
+        },
+    }
+    assert before("agent-2", "u2") == ""
+    assert before(None, "u3") == ""
+
+
 def test_a_follow_up_in_the_thread_reaches_the_fork_at_its_tool_boundary(
     claimed, lane, capsys
 ):

@@ -788,10 +788,11 @@ AGENT_TURNS = Record(
     ),
     since=43,
 )
-# The variable Leaf's Claude Code hooks module sets on the `leaf` commands of an agent
-# it made, naming it by its harness's agent id, so the command acts in that agent's
-# turn (`acting_turn`): a subagent's commands otherwise run in the session's own
-# environment, with nothing that names it (`harness.ClaudeCodeHarness`).
+# The variable Leaf's PreToolUse hook sets on the `leaf` commands of an agent running a
+# turn of the session's own, naming it by its harness's agent id, so the command acts in
+# that turn (`acting_turn`, `hooks.agent_command`): a subagent's commands otherwise run
+# in the session's own environment, with nothing that names it
+# (`harness.ClaudeCodeHarness`).
 AGENT_VARIABLE = "LEAF_AGENT_ID"
 
 

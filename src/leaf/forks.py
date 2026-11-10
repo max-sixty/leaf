@@ -26,10 +26,10 @@ reader of received input agrees on it. While the fork's turn runs, the activity 
 reads the pickup and the fork's starts as work in hand (`activity.agent_holds`), the
 main thread is neither handed the thread's messages nor reminded of them
 (`held_inputs`, `delivery.deliverable`), and the user's further messages in the thread
-go to the fork at its tool boundaries (`hook_transport.carry_agent_turn`). The module
-marks the fork's `leaf` commands with its agent id, so the fork answers with `leaf
-thread reply` from the delivery Leaf gave it, writing as the agent, in its own turn
-(`state.acting_turn`). As its run ends the module says so (`ended`), which closes the
+go to the fork at its tool boundaries (`hook_transport.carry_agent_turn`). Leaf's
+PreToolUse hook marks the fork's `leaf` commands with its agent id
+(`hooks.agent_command`), so the fork answers with `leaf thread reply` from the delivery
+Leaf gave it, writing as the agent, in its own turn (`state.acting_turn`). As its run ends the module says so (`ended`), which closes the
 turn: an answered thread is done, and a thread still owed, which the fork gave back
 (`HAND_BACK`) or left, is the main thread's like any update it received, whose hooks
 and watch then remind it with the fork's answer reference.

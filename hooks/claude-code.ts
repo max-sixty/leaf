@@ -4,10 +4,12 @@
  * of the conversation Leaf's clerk asks at each turn's end (`clerk`), the
  * fork that writes the agent's working line on a thread's waiting messages at
  * once (`forkReply`), and, with `LEAF_FORK_WORK=on`, a fork with the session's tools
- * that does a thread's work in a turn Leaf keeps for it (`workFork`): the module
- * marks that fork's `leaf` commands with its agent id, so they act in its turn
- * (`state.acting_turn`), and tells Leaf as any agent's run ends, which closes the
- * turn of a fork Leaf gave a thread (`forks.ended`). Claude
+ * that does a thread's work in a turn Leaf keeps for it (`workFork`), telling Leaf
+ * as any agent's run ends, which closes the turn of a fork Leaf gave a thread
+ * (`forks.ended`). Claude Code runs none of this module's hooks for that fork's
+ * tool calls, as a plugin's hooks never see the calls of an agent it spawned
+ * (measured at 2.1.322), so `hooks.json`'s PreToolUse marks its `leaf` commands
+ * (`hooks.agent_command`). Claude
  * Code loads it from the installed plugin (measured at 2.1.305). It neither
  * watches nor wakes the session: `hooks.json`'s background Stop registration
  * keeps the watch between turns. A watch here would wake with a prompt, which
@@ -469,7 +471,8 @@ function forkReply($: EngineInterface, session: string, held: Held) {
   })();
 }
 
-// The forks doing a thread's work, by agent id, with when each started.
+// The forks doing a thread's work, by agent id, with when each started, which the
+// end of each one's run reports.
 const working = new Map<string, number>();
 
 /** Spawn the fork Leaf gave a thread's work to (`forks.take`): a fork of the
@@ -505,12 +508,6 @@ async function workFork(
   });
 }
 
-/** A command that runs `leaf`, marked as the fork `agentId`'s, so Leaf runs it in
- * that fork's turn (`state.AGENT_VARIABLE`). */
-function marked(command: string, agentId: string) {
-  return `export LEAF_AGENT_ID='${agentId.replace(/'/g, "'\\''")}'; ${command}`;
-}
-
 export const register: Register = (on) => {
   on("session.start", async ($, e, next) => {
     const started = await next(e);
@@ -531,18 +528,9 @@ export const register: Register = (on) => {
     },
   );
 
-  // Every call the main thread runs, for the prompt of a fork made meanwhile; and a
-  // fork doing a thread's work running `leaf`, which acts in the fork's own turn.
+  // Every call the main thread runs, for the prompt of a fork made meanwhile.
   on("tool.call", async ($, e, next) => {
-    if (e.agentId !== undefined) {
-      if (
-        e.tool === "Bash" &&
-        working.has(e.agentId) &&
-        /(^|[\s;&|(/])leaf(\s|$)/.test(e.command)
-      )
-        return next({ ...e, command: marked(e.command, e.agentId) });
-      return next(e);
-    }
+    if (e.agentId !== undefined) return next(e);
     const input: Record<string, string> = {};
     for (const name of NAMED) {
       const value = (e as Record<string, unknown>)[name];

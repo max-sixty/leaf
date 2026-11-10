@@ -32,7 +32,9 @@ on, so they always run. Claude Code's PreToolUse runs before each `leaf`
 command, and in such a session opens the turn the skipped prompt hook would have,
 so a claim that command makes joins it; of its runs for one tool call, one per
 registration the command matches, only the first does its work
-(`leases.first_hook_for_tool`). Hooks
+(`leases.first_hook_for_tool`). For an agent running a turn of the session's own, such
+as a fork that took a thread's work, that work includes marking the command with the
+agent's id, so it acts in that turn (`agent_command`). Hooks
 that do run with no retained claim avoid page reading, and import the harness
 declarations only once the payload names a session. Page-owning prompt and Stop
 hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
@@ -66,13 +68,16 @@ developer-selected session runtime (`session_runtime`) owns the entire hook;
 
 import json
 import os
+import shlex
 import time
 
 from .leases import first_hook_for_tool, mark_hooks
 from .refusals import Refused
 from .service import owned_pages
 from .state import (
+    AGENT_VARIABLE,
     advance_turn,
+    agent_turn_of,
     close_session_turn,
     flocked,
     held_claims,
@@ -124,10 +129,13 @@ def cmd_hook(harness: str, payload: dict) -> None:
             # The launcher skipped this turn's prompt hook (`bin/leaf`),
             # so the turn a claim joins opens here, before the command.
             prompt_turn(sid, turn_id)
-        elif not hooked.commits_hook_context:
+            return
+        if not hooked.commits_hook_context:
             from .delivery import confirm_entered
 
             confirm_entered(hooked, payload)
+        if harness == "claude-code" and (marked := agent_command(sid, payload)):
+            print(json.dumps(marked), flush=True)
         return
     # What kept a page the session still means to serve from serving again.
     unserved = []
@@ -195,6 +203,31 @@ def cmd_hook(harness: str, payload: dict) -> None:
     )
     if ended:
         close_session_turn(sid, turn_id, expected=expected)
+
+
+def agent_command(sid: str, payload: dict) -> dict | None:
+    """What Claude Code's PreToolUse hook answers for a `leaf` command of an agent
+    running a turn of the session's own, such as a fork that took a thread's work
+    (`state.AGENT_TURNS`): the command, marked with the agent's id
+    (`state.AGENT_VARIABLE`), so it acts in that turn (`state.acting_turn`); None
+    for any other command. A subagent's command runs in the session's environment
+    with nothing naming the agent, and only the hook's payload names it
+    (`agent_id`). The answer names no decision, so the call goes on through the
+    permission flow, which reads the marked command. Leaf's hooks module can't mark
+    it: Claude Code runs none of a plugin's hooks for the calls of an agent that
+    plugin spawned (measured at 2.1.322), while `hooks.json`'s run for every agent."""
+    agent, given = payload.get("agent_id"), payload.get("tool_input")
+    if not agent or not isinstance(given, dict) or "command" not in given:
+        return None
+    if agent_turn_of(sid, agent) is None:
+        return None
+    command = f"export {AGENT_VARIABLE}={shlex.quote(agent)}; {given['command']}"
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "updatedInput": {**given, "command": command},
+        }
+    }
 
 
 def reload_skill(session_id: str) -> str | None:

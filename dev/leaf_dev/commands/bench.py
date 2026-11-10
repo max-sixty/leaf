@@ -923,6 +923,28 @@ def send(tab: Tab) -> None:
     tab.page.keyboard.press("ControlOrMeta+Enter")
 
 
+def aim_at_resolve(tab: Tab) -> Goals:
+    """Send a comment as `comment` does, wait for the page to take in the server's
+    reading of it, and rest the mouse over Resolve in its thread's card. Resolving
+    takes the thread's row out of the margin, so the row's leaving marks it painted."""
+    targets = "() => [...document.querySelectorAll('[data-lf-margin-for]')].map((row) => row.dataset.lfMarginFor)"
+    before = set(tab.page.evaluate(targets))
+    write_comment(tab)
+    send(tab)
+    resolve = tab.page.locator(".lf-margin-preview .lf-resolve")
+    resolve.wait_for(state="visible")
+    ended(tab.page)
+    [target] = set(tab.page.evaluate(targets)) - before
+    box = resolve.bounding_box()
+    assert box is not None
+    tab.page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    tab.quiet(400)
+    return {
+        "painted": ("rowLeft", target),
+        "shown": ("delivered", {"kind": "resolve"}),
+    }
+
+
 def lift_card(tab: Tab) -> Goals:
     """Lift the first card that can move left (`MOVABLE`) by its grip's keys, and aim
     it at the column left of it."""
@@ -1072,6 +1094,7 @@ INPUTS: dict[str, Input] = {
     ),
     "select": Input(triple_click, 4, aim_at_title, each=False, after=400, needs="h1"),
     "comment": Input(send, ready=write_comment, paints=True, after=400, needs="h1"),
+    "resolve": Input(press, ready=aim_at_resolve, paints=True, after=400, needs="h1"),
     "move": Input(drop_card, ready=lift_card, paints=True, after=400, needs="lf-card"),
     "reply": Input(agent_reply, ready=ask_agent, paints=True, after=300),
     "status": Input(agent_status, ready=name_status, paints=True, after=300),

@@ -585,7 +585,10 @@ recovers a start that outlasts that window.
 
 ### Saved state and capacity
 
-Read-only visits do not prewarm a container. The existing session Durable Object
+Read-only visits do not prewarm a container. Focusing a text box does: the tab's
+interaction log reports the focus within a quarter second, and the Worker starts the
+session's container (`prewarmContainer` in `worker/src/agent.ts`), so its boot overlaps
+the visitor's typing. The existing session Durable Object
 serves saved documents, comments, choices and private resources while compute is
 stopped. A write or a missing saved response starts Python, which restores the
 canonical page record before accepting requests. `leaf_website.storage` publishes
@@ -609,8 +612,9 @@ snapshot uses.
 An interrupted upload therefore retains at most one successor until that page
 retries; other pages' concurrent uploads and readers remain protected.
 
-`max_instances` caps concurrent `basic` containers: 5,900 for production and 90 for
-`dev`, under Cloudflare's account limit of 6,000. A container with no requests stops
+Each container is a custom instance of one vCPU and 3 GiB (`wrangler.toml` gives the
+reason). `max_instances` caps them at 1,400 for production and 90 for `dev`, under the
+account's default limit of 1,500 concurrent vCPU. A container with no requests stops
 after ten minutes (`sleepAfter` in `worker/src/index.ts`). A rollout replaces a
 container as soon as it reaches it, however recently the container started
 (`rollout_active_grace_period = 0`, whose reason `wrangler.toml` gives). The adapter

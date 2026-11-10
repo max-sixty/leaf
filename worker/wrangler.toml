@@ -28,13 +28,15 @@ required = ["OPENAI_API_KEY"]
 name = "leaf-website-leafexamplesession"
 class_name = "LeafWebsiteSession"
 image = "../Dockerfile.website"
-# Product routes give every browser a private Leaf session. The container runs Codex
-# App Server as well as Leaf, so the smallest interactive instance is `basic`; `lite`
-# provides only 1/16 vCPU and 256 MiB. Cloudflare's account limit fits 6,000
-# concurrent basic instances; reserve ninety slots for the persistent dev application
-# and leave ten slots free for rollout bookkeeping.
-max_instances = 5900
-instance_type = "basic"
+# Product routes give every browser a private Leaf session. A page's first write waits
+# while its container boots and composes the page's layer, CPU-bound work that takes
+# about 8.7 s on `basic`'s 1/4 vCPU and 1.9 s on one vCPU. Cloudflare bills CPU only as
+# it is used, so the smallest custom instance, one vCPU with the 3 GiB it requires,
+# costs less than `standard-1`'s 1/2 vCPU with 4 GiB. The account's default limit of
+# 1,500 concurrent vCPU sets the capacity: reserve ninety for the persistent dev
+# application and leave ten free for rollout bookkeeping.
+max_instances = 1400
+instance_type = { vcpu = 1, memory_mib = 3072, disk_mb = 4000 }
 # During a rollout, Cloudflare replaces a container only once it has been connected to
 # its Durable Object for this many seconds. The Worker refuses every answer from a
 # container still on the previous release (`rollingOut` in `src/index.ts`), so sparing
@@ -99,7 +101,7 @@ routes = []
   class_name = "LeafWebsiteSession"
   image = "../Dockerfile.website"
   max_instances = 90
-  instance_type = "basic"
+  instance_type = { vcpu = 1, memory_mib = 3072, disk_mb = 4000 }
   rollout_active_grace_period = 0
 
   [[env.dev.durable_objects.bindings]]

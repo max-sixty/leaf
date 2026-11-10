@@ -1038,6 +1038,52 @@ describe("product-site delivery", () => {
     }
   });
 
+  it("starts the session's container when the visitor focuses a text box", async () => {
+    const sessionId = "17".repeat(16);
+    const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const env = environment();
+    const start = vi.fn(async () => undefined);
+    vi.mocked(getContainer).mockClear().mockReturnValue({ start } as never);
+    const pending: Promise<unknown>[] = [];
+    const focused = (control: string) =>
+      worker.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/interaction", {
+          method: "POST",
+          headers: { Cookie: `__Host-leaf-page=${sessionId}` },
+          body: JSON.stringify({
+            session: "a".repeat(32),
+            entries: [
+              {
+                monotonic_ms: 1,
+                visibility: "visible",
+                observed_at: "2026-11-10T12:00:00.000Z",
+                sequence: 1,
+                type: "focusin",
+                target: [control],
+                control,
+              },
+            ],
+          }),
+        }),
+        env,
+        executionContext(vi.fn((promise: Promise<unknown>) => pending.push(promise))),
+      );
+    try {
+      expect((await focused("button")).status).toBe(204);
+      expect(pending).toHaveLength(0);
+      expect((await focused("leaf-text")).status).toBe(204);
+      await Promise.all(pending);
+      expect(getContainer).toHaveBeenCalledExactlyOnceWith(
+        env.PAGES,
+        containerId(sessionId),
+      );
+      expect(start).toHaveBeenCalledOnce();
+    } finally {
+      vi.mocked(getContainer).mockClear();
+      logged.mockRestore();
+    }
+  });
+
   it("keeps what a failed start says it could not load, and bounds it", async () => {
     const sessionId = "15".repeat(16);
     const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);

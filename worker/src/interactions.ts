@@ -249,9 +249,20 @@ const projection = z.object({
   ),
 });
 
+export type InteractionProjection = { session: string; entries: Record<string, unknown>[] };
+
 // The batch as the edge logs it, or null when the batch is refused.
-export function projectInteractionBatch(
-  value: unknown,
-): { session: string; entries: Record<string, unknown>[] } | null {
+export function projectInteractionBatch(value: unknown): InteractionProjection | null {
   return interactionBatch.safeParse(value).success ? projection.parse(value) : null;
+}
+
+// Whether the visitor focused a text box, the runtime's `TEXT_BOX`: Leaf's
+// `leaf-text` or a `textarea`. Whatever they type there is about to be a write.
+export function startsTyping(batch: InteractionProjection): boolean {
+  return batch.entries.some(
+    (entry) =>
+      entry.type === "focusin" &&
+      typeof entry.control === "string" &&
+      /^(?:leaf-text|textarea)(?::|$)/.test(entry.control),
+  );
 }

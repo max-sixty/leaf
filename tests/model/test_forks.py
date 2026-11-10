@@ -657,6 +657,50 @@ def test_a_command_marked_with_an_ended_fork_acts_as_nobody(claimed, lane, capsy
     assert events_model.read_events(claimed) == events
 
 
+def test_a_fork_that_answered_is_reported_however_its_thread_moves_on(
+    claimed, lane, capsys, monkeypatch
+):
+    """The end of a fork's run is judged by the messages its turn picked up itself.
+    A fork that answered is reported as answering though the user writes again
+    before its run ends; and one whose turn lapsed and lost its thread to the main
+    thread's pickup is reported as taken over, with no line telling the main thread
+    it was given a thread it took itself."""
+    asked, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-1")
+    thread_model.post_response(
+        answer_ref(claimed, asked["id"]), "Python 3.12 or later.", asks_back=False
+    )
+    monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
+    said(claimed, "And which uv?", parent=asked["id"])
+    clerk_model.heard("s1", clerk_model.queued("s1"))
+    assert forks_model.ended(
+        "s1", agent="agent-1", turn=None, answer="Answered.", failed=None
+    ) == [{"page": str(claimed), "thread": asked["id"], "outcome": "answer"}]
+    [told] = clerk_model.queued("s1")
+    assert "answered" in told and "since reaches you" in told
+
+    other, kept = taken_by_a_fork(claimed, "How many shards does staging have?")
+    forks_model.started(
+        "s1", basis(claimed, other["id"], other["id"]), kept["turn"], "agent-2"
+    )
+    lapse(kept["turn"])
+    context(capsys, "UserPromptSubmit")
+    clerk_model.heard("s1", clerk_model.queued("s1"))
+    assert forks_model.ended(
+        "s1", agent="agent-2", turn=None, answer="", failed=None
+    ) == [{"page": str(claimed), "thread": other["id"], "outcome": "taken_over"}]
+    assert clerk_model.queued("s1") == []
+    joins = [
+        row["outcome"]
+        for row in read_interactions(claimed, types=("fork_reply",))
+        if row.get("step") == "join"
+    ]
+    assert joins == ["answer", "taken_over"]
+
+
 def test_a_fork_turn_that_ends_unanswered_gives_its_thread_to_the_main_thread(
     claimed, lane
 ):

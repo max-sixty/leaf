@@ -958,14 +958,16 @@ def ended(
 ) -> list[dict]:
     """Close the turn of an agent of the session whose run ended, the one its
     harness names `agent`, or `turn` where it never started, and say what came of
-    each thread it took: answered, or still owed, which makes it the main thread's
-    (`activity.agent_holds`), as the fork's last words gave it back (`HAND_BACK`),
-    it failed (`failed`) or it ended without answering. A thread another turn took
-    over meanwhile (`holding_turns`) is that turn's, and goes unreported. The main session hears
-    either way (`clerk.queue`), a session no watch follows is nudged for a thread it
-    now owes, and the page's diagnostics note each outcome; the outcomes, one for
-    each thread. An agent with no open turn, as most of a session's are, ends
-    nothing."""
+    each thread it took, judged by the messages the turn picked up itself: none of
+    them still waiting, it answered (`answer`), whatever the user has written since;
+    still waiting and held by the closed turn (`holding_turns`), it gave the thread
+    back (`hand_over`), as its last words did (`HAND_BACK`), it failed (`failed`)
+    or it ended without answering, and the main thread owes it now
+    (`activity.agent_holds`); still waiting and held by another turn, that turn took
+    it over (`taken_over`). The main session hears of an answer or a hand-over
+    (`clerk.queue`), a session no watch follows is nudged for a thread it now owes,
+    and the page's diagnostics note each outcome; the outcomes, one for each
+    thread. An agent with no open turn, as most of a session's are, ends nothing."""
     from .clerk import queue
     from .presence import nudge_unwatched
 
@@ -990,21 +992,28 @@ def ended(
                 threads = _turn_threads(page.events, session_id, closed)
                 waiting, _lined = _waiting(page.events)
                 holders = holding_turns(page.events, session_id)
-                # Each thread still waiting, by whether the closed turn held it.
-                still = {
-                    thread: holders.get(said[0]["id"]) in closed
-                    for thread in threads
-                    if (said := waiting.get(thread))
-                }
-                if any(still.values()):
+                judged = {}
+                # The threads where the user wrote again after the fork's answer.
+                since = {thread for thread in threads if waiting.get(thread)}
+                for thread, inputs in threads.items():
+                    waits = {event["id"] for event in waiting.get(thread, [])}
+                    still = [input_id for input_id in inputs if input_id in waits]
+                    judged[thread] = (
+                        "answer"
+                        if not still
+                        else "hand_over"
+                        if holders.get(still[0]) in closed
+                        else "taken_over"
+                    )
+                if "hand_over" in judged.values():
                     nudge_unwatched(page)
         except FileNotFoundError:
             continue
         for thread, inputs in threads.items():
             name = _fork_name(thread)
-            if still.get(thread) is False:
-                continue
-            if still.get(thread):
+            if judged[thread] == "taken_over":
+                outcome = {"outcome": "taken_over"}
+            elif judged[thread] == "hand_over":
                 outcome = {"outcome": "hand_over", "why": why}
                 told.append(
                     f"Your fork {name} gave thread {thread} on {page_dir} back to "
@@ -1015,8 +1024,13 @@ def ended(
                 told.append(
                     f"Your fork {name} answered the user's message in thread "
                     f"{thread} on {page_dir}. Read its answer there: where what you "
-                    "know shows it wrong, correct it there; otherwise the thread "
-                    "owes nothing."
+                    "know shows it wrong, correct it there; "
+                    + (
+                        "the user's message there since reaches you as any new "
+                        "one does."
+                        if thread in since
+                        else "otherwise the thread owes nothing."
+                    )
                 )
             _record(
                 session_id,

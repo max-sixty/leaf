@@ -92,17 +92,17 @@ def test_health_judgement_releases_a_frame_removed_inside_its_evaluation(
         }""",
         call,
     )
-    evaluate = child.evaluate
+    wait = child.wait_for_function
     failed_evaluations = []
 
     def observe_evaluation(*args, **kwargs):
         try:
-            return evaluate(*args, **kwargs)
+            return wait(*args, **kwargs)
         except PlaywrightError as error:
             failed_evaluations.append((str(error), child.is_detached()))
             raise
 
-    monkeypatch.setattr(child, "evaluate", observe_evaluation)
+    monkeypatch.setattr(child, "wait_for_function", observe_evaluation)
     judge_watches()
     assert page.evaluate("removedDuringJudgement") == call
     assert child.is_detached()

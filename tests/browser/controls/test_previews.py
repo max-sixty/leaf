@@ -4144,6 +4144,47 @@ def test_a_focus_preview_out_of_view_stands_once_its_target_comes_into_view(
     expect(tip.locator(".lf-preview-word")).to_have_text("Late says")
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_focus_preview_goes_from_sight_with_its_target(engine, request, serve):
+    """A preview whose target scrolls out of view stops drawing with it, in the
+    spelling of `position-visibility` each engine reads (tokens.css,
+    `--lf-anchor-visible`)."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Out of sight",
+                '<div style="height: 300px"></div>'
+                '<p><button id="aim">Aim</button></p><div style="height: 2400px"></div>',
+            )
+        ),
+    )
+    page.evaluate(
+        """async () => {
+          window.lfApi = await window.__lfWidgetApi();
+          document.getElementById('aim').lfPreview = () => ({name: 'Aim says'});
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.keyboard.press("Shift")
+    page.evaluate(
+        "() => window.lfApi.focusDestination(document.getElementById('aim'), 'step')"
+    )
+    expect(tip).to_be_visible()
+    # A focus's preview takes no pointer; taking one here lets a hit test say whether
+    # the preview is drawn, which no style or box the page reads says.
+    page.add_style_tag(content="#lf-preview { pointer-events: auto !important }")
+    drawn = """() => {
+      const box = document.querySelector('#lf-preview').getBoundingClientRect();
+      const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+      return Boolean(hit?.closest('#lf-preview'));
+    }"""
+    assert page.evaluate(drawn)
+    page.evaluate("() => scrollTo(0, 1200)")
+    expect(page.locator("#aim")).not_to_be_in_viewport()
+    page.wait_for_function(f"() => !({drawn})()")
+
+
 # A region a preview's target stands just above, each of which the user must keep
 # reaching: code Leaf lends a tab stop to as it overflows, a tab panel that takes focus,
 # and a frame with a field in it.

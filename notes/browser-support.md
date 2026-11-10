@@ -962,3 +962,28 @@ held past 500 ms reads rather than presses whatever the user set in Touch
 Accommodations, which no page can read. To recheck, hold a finger on an element with a
 `contextmenu` listener in Safari on an iPhone or the simulator; once it logs, drop the
 timer and `holdsUntold` in `preview.js`.
+
+### Two spellings of position-visibility
+
+Firefox gap. The CSS working group renamed `position-visibility: anchors-visible` to
+`anchor-visible` ([Chrome Platform Status
+5136123851571200](https://chromestatus.com/feature/5136123851571200), which plans to
+remove the plural later). On 2026-11-10, `CSS.supports("position-visibility", …)`
+and the computed value read:
+
+| Engine                                                     | `anchors-visible`              | `anchor-visible` |
+| ---------------------------------------------------------- | ------------------------------ | ---------------- |
+| Chromium headless shell 158.0.8127.18 (Playwright 1.65.0)  | read, with a console warning   | read             |
+| Google Chrome 157.0.8103.50, installed                     | read                           | read             |
+| WebKit 27.2 (Playwright build 2388)                        | read                           | read             |
+| Firefox 159.0 (Playwright 1.65.0)                          | read                           | refused          |
+
+Chromium 158 warns on the plural wherever it parses it, a second declaration after it
+or a false `@supports` block included, and `page check --render` reports that warning
+as a finding against the page. So Leaf names the value once, as `--lf-anchor-visible`
+(`browser/styles/tokens.css`), set to the singular where `@supports` reads it, and every
+`position-visibility` that hides a box with its anchor reads the property. A custom
+property's value is parsed only where a declaration uses it, so Chromium never parses
+the plural and Firefox never the singular. To recheck, read
+`CSS.supports("position-visibility", "anchor-visible")` in Playwright's Firefox; once it
+is true, spell `anchor-visible` in each declaration and drop the property.

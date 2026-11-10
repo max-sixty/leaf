@@ -21,9 +21,9 @@ share: a turn id the record holds closed never reopens.
 
 A session can also run agents beside its main thread, such as a fork of its
 conversation that took a thread's work (`forks.py`). Each run of one is a turn of its
-own (`AGENT_TURNS`), opened as the session starts the agent and closed as its harness
-says the run ended, and it ends with its session's generation or instance too
-(`agent_turn_open`). A command the agent runs acts in that turn (`acting_turn`), so a
+own (`AGENT_TURNS`), opened as the session starts or resumes the agent and closed
+as its harness says the run ended, and it ends with its session's generation or
+instance too (`agent_turn_open`). A command the agent runs acts in that turn (`acting_turn`), so a
 pickup or start it writes lapses with the agent's run rather than the main thread's.
 
 The session lock also serializes Codex transport reservation, making its

@@ -373,21 +373,22 @@ build's protocol check (`pnpm run check:browser`) fails on this branch with
    and the shipped instructions say what forks and the main thread each do, scored
    with `evals/` before and after.
 
-   Follow-ups are built, behind the same flag. Where a thread's last answer came from a
+   Follow-ups are built, behind the same flag. Where a thread's last answer names a
    fork's turn that has closed in the session's present generation
-   (`forks._resumable`), the take opens the new turn under that fork's agent id and
-   records its pickup under the hold's fence, as a first take does. The module then
-   resumes the fork with Leaf's message (`forks.resume_prompt`): the thread's
+   (`forks._resumable`), the take opens a new turn and records its pickup while the
+   thread is still kept back, as a first take does. The module then resumes the fork
+   by its agent id, and names the turn with it (`forks.started`), with Leaf's message
+   (`forks.resume_prompt`): the thread's
    delivery, and what the rest of the session did on the page since the fork's last
    turn began, read from the log (`forks._since`), which names the threads it wrote
    in, the revisions it published and the to-dos it opened or ended, a few of each by
    name and the rest counted. The fork's transcript holds what the session had done
    when that turn began, and nothing it did while the fork ran. A correction the main
    thread posts in the thread unasked leaves the thread with the fork. A thread the
-   main thread answered last, which includes an answer posted after the fork's turn
-   closed, or whose fork still runs a turn or ran in an earlier generation, gets a new
-   fork, and so does one whose fork the module fails to resume; that new fork takes
-   over the turn Leaf opened (`forks.started`). Each resumed run's end wakes an idle
+   main thread answered last, or whose fork ran in an earlier generation, gets a new
+   fork, and so does one whose fork the module fails to resume; that new fork runs the
+   turn Leaf opened (`forks.started`). A thread whose fork's turn still runs keeps its
+   further messages with that fork, even after it has answered (`holding.py`). Each resumed run's end wakes an idle
    main thread with Claude Code's notification of it, which the first run's end
    doesn't (above, "What Claude Code gives the module"); Leaf leaves that notification
    as it is while how a fork tells the main thread what it did is open.

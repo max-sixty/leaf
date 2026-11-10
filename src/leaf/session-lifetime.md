@@ -126,8 +126,8 @@ A session can run agents beside its main thread, such as a fork of its conversat
 that took a thread's work (`forks.py`), and each run of one is a turn of its own, in
 the session's agent-turns record (`state.AGENT_TURNS`). Leaf opens it as a fork takes
 a thread, before the harness starts or resumes the agent, and names it with the
-agent's harness id once the harness has started it, or at once for an agent it
-resumes. The agent's tool boundary renews it, and it closes as the harness says the
+agent's harness id once the harness has started or resumed it. The agent's tool
+boundary renews it, and it closes as the harness says the
 run ended, or with the session's generation or instance. A pickup, a start or a reply
 names it as it names the main thread's turn: the page's served reading carries the
 claimant's agent turns (`agent_turns`), and the fold believes one running while it is

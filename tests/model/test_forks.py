@@ -751,15 +751,15 @@ def test_a_follow_up_after_the_forks_run_goes_to_that_fork_again(
     claimed, lane, monkeypatch
 ):
     """The user's further message in a thread a fork answered, once the fork's run
-    has ended, goes to the same fork in a new turn of its own, which Leaf opens under
-    the fork's agent id and records the pickup in, so the fork works the thread
-    however many messages it gets. Leaf's message resuming it carries the delivery.
+    has ended, goes to the same fork in a new turn of its own, which Leaf opens and
+    records the pickup in, and names with the fork's agent id once the module has
+    resumed it, so the fork works the thread however many messages it gets. Leaf's message resuming it carries the delivery.
     The fork's answer from that turn is its own, and the turn's end reports it."""
     asked = answered_by_a_fork(claimed, monkeypatch, "Which Python?", "agent-1")
     more = said(claimed, "And which uv?", parent=asked["id"])
     taken = taken_again(claimed, asked["id"], more)
     assert taken["resume"]["agentId"] == "agent-1"
-    assert state_model.agent_turn_of("s1", "agent-1") == taken["turn"]
+    assert state_model.agent_turn_of("s1", "agent-1") is None
     pickup = [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"][-1]
     assert (pickup["events"], pickup["turn"]) == ([more["id"]], taken["turn"])
     resume = taken["resume"]["prompt"]
@@ -771,6 +771,7 @@ def test_a_follow_up_after_the_forks_run_goes_to_that_fork_again(
     assert forks_model.started(
         "s1", basis(claimed, asked["id"], more["id"]), taken["turn"], "agent-1"
     )["outcome"] == ("start")
+    assert state_model.agent_turn_of("s1", "agent-1") == taken["turn"]
     monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-1")
     answer = thread_model.post_response(
         answer_ref(claimed, more["id"]), "uv 0.9 or later.", asks_back=False
@@ -791,8 +792,8 @@ def test_a_fork_that_cannot_be_resumed_gives_way_to_a_new_one(
     answer reference, before any pickup of its own, since the answer names the turn
     that posted it; and so does one whose fork ran in an earlier generation of the
     session, which ended with it. Where the module can't resume the fork, the fork
-    it spawns instead takes over the turn Leaf opened, and the old fork's commands
-    act in no turn."""
+    it spawns instead runs the turn Leaf opened, and the old fork's commands act in
+    no turn."""
     asked, given = taken_by_a_fork(claimed, "Does the suggest service cache?")
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), given["turn"], "agent-1"
@@ -1170,6 +1171,49 @@ def test_a_forks_leaf_command_must_lead_its_bash_call(claimed, lane, capsys):
         "leaf ", "leaf --agent-id agent-1 ", 1
     )
     assert hook_answer(capsys, f"cd /tmp && {reply}", "agent-9", "unknown") is None
+
+
+def test_a_forks_leaf_command_waits_until_leaf_knows_its_agent(
+    claimed, lane, capsys, monkeypatch
+):
+    """A fork runs before Leaf hears which agent runs the turn it opened for it,
+    which stays unnamed until then. Meanwhile the `leaf` command of an agent running
+    no turn of the session is denied with the instruction to run it again, rather
+    than acting as the main thread's, as a new fork's would, or being refused as an
+    ended fork's, as a resumed fork's would. Once Leaf knows the agent, its command
+    is marked as its own; with no turn awaiting its agent, a worker's command runs as
+    it came."""
+    asked, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
+    reply = f"leaf thread reply {answer_ref(claimed, asked['id'])} --done --text 3.12"
+    waiting = hook_answer(capsys, reply, "agent-1", "spawning")
+    assert waiting is not None and waiting["permissionDecision"] == "deny"
+    assert "run the same command again" in waiting["permissionDecisionReason"]
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    marked = hook_answer(capsys, reply, "agent-1", "spawned")
+    assert marked is not None
+    assert marked["updatedInput"]["command"] == reply.replace(
+        "leaf ", "leaf --agent-id agent-1 ", 1
+    )
+    assert hook_answer(capsys, reply, "agent-9", "worker") is None
+
+    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-1")
+    assert thread_model.post_response(
+        answer_ref(claimed, asked["id"]), "3.12 or later.", asks_back=False
+    )
+    monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
+    forks_model.ended("s1", agent="agent-1", turn=None, answer="Done.", failed=None)
+    more = said(claimed, "And which uv?", parent=asked["id"])
+    again = taken_again(claimed, asked["id"], more)
+    later = f"leaf thread reply {answer_ref(claimed, more['id'])} --done --text 0.9"
+    waiting = hook_answer(capsys, later, "agent-1", "resuming")
+    assert waiting is not None and waiting["permissionDecision"] == "deny"
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], more["id"]), again["turn"], "agent-1"
+    )
+    resumed = hook_answer(capsys, later, "agent-1", "resumed")
+    assert resumed is not None and "updatedInput" in resumed
 
 
 def test_a_fork_turn_that_ends_unanswered_gives_its_thread_to_the_main_thread(

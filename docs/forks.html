@@ -277,9 +277,12 @@ flowchart TD
               which neither has it. Leaf's hooks module then spawns the working fork
               with that delivery, or resumes the fork that answered the thread before
               (<a href="#follow-ups">Follow-ups and flurries</a>), and tells Leaf which
-              agent runs the turn (<code>forks.started</code>). The fork works with the
-              session's tools and answers with its own <code>leaf thread reply</code>,
-              using the reply reference its delivery names.
+              agent runs the turn (<code>forks.started</code>), which until then no
+              agent runs (<a href="#acting-starting"
+                >Who a <code>leaf</code> command acts as</a
+              >). The fork works with the session's tools and answers with its own
+              <code>leaf thread reply</code>, using the reply reference its delivery
+              names.
               <span class="tag ok">built</span>
               <span class="tag">only with the flag</span>
             </p>
@@ -476,8 +479,10 @@ config:
 ---
 flowchart TD
   accTitle: Who a leaf command acts as
-  accDescr: A Bash call that runs leaf from an agent the session ran no turn for acts as the main thread. From an agent the session ran a turn for, a call where leaf isn't the first word, or runs twice, is denied. Otherwise the hook marks it with the agent's id; it acts in the agent's turn while that turn is open, on what the turn holds, and is refused once the turn has ended.
+  accDescr: A Bash call that runs leaf, from an agent that runs no open turn while a turn Leaf opened awaits its agent, is denied with the instruction to run it again. Otherwise, from an agent the session ran no turn for, it acts as the main thread. From an agent the session ran a turn for, a call where leaf isn't the first word, or runs twice, is denied. Otherwise the hook marks it with the agent's id; it acts in the agent's turn while that turn is open, on what the turn holds, and is refused once the turn has ended.
   bash["A Bash call runs leaf"]
+  waits("Does the agent run no open turn, while a turn awaits its agent?")
+  again["Denied: run it again"]
   known("Did the session run a turn for this agent?")
   main["It acts as the main thread"]
   leads("Is leaf its first word, and its only leaf?")
@@ -485,7 +490,9 @@ flowchart TD
   open("Marked with --agent-id. Is the agent's turn open?")
   inturn["Its replies and starts act in that turn, on what it holds"]
   refused["Its replies and starts are refused: the turn has ended"]
-  bash --&gt; known
+  bash --&gt; waits
+  waits -- yes --&gt; again
+  waits -- no --&gt; known
   known -- yes --&gt; leads
   known -- no --&gt; main
   leads -- no --&gt; denied
@@ -541,6 +548,20 @@ flowchart TD
             agent rather than its turn, so the replies, starts and acknowledgements of a
             fork still running after its turn ended are refused rather than taken for
             the main thread's.
+          </p>
+          <p id="acting-starting">
+            A fork runs before Leaf knows its agent id. The turn Leaf opens at the take
+            stays unnamed until the hooks module, once Claude Code has spawned or
+            resumed the fork, tells Leaf which agent runs it, and the hook's payload
+            names neither the turn nor the name the fork was spawned with. So while a
+            turn of the session awaits its agent
+            (<code>state.unnamed_agent_turns</code>), the hook denies the
+            <code>leaf</code> command of any agent that runs no open turn, with the
+            instruction to run it again: unmarked, a new fork's command would act as the
+            main thread, and marked, a resumed fork's would be refused as an ended
+            fork's. A worker of the main thread that runs a <code>leaf</code> command in
+            that second or so is asked to run it again too. A turn left unnamed, as one
+            whose spawn the module never reported, stops counting once it lapses.
           </p>
           <p id="acting-compound">
             A marked agent's Bash call that runs <code>leaf</code> other than as its
@@ -765,12 +786,12 @@ flowchart TD
               A message the line fork judges <code>take</code>, in a thread whose last
               answer names a fork's turn that has since closed in the session's present
               generation, goes to that fork again (<code>forks._resumable</code>). Leaf
-              opens the new turn under the fork's agent id and records its pickup, as a
-              first take does, and the hooks module resumes the fork by its agent id.
-              Leaf's message resuming it (<code>forks.resume_prompt</code>) carries the
-              thread's delivery and names what the rest of the session did on the page
-              since the fork's last turn began: the threads it wrote in, the revisions
-              it published and the to-dos it opened or ended, which the fork's
+              opens the new turn and records its pickup, as a first take does, and the
+              hooks module resumes the fork by its agent id, then tells Leaf it runs the
+              turn. Leaf's message resuming it (<code>forks.resume_prompt</code>)
+              carries the thread's delivery and names what the rest of the session did
+              on the page since the fork's last turn began: the threads it wrote in, the
+              revisions it published and the to-dos it opened or ended, which the fork's
               transcript lacks. The fork can SendMessage the main thread to ask about
               them.
             </li>

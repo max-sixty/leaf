@@ -629,8 +629,8 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
     """The user's later message in a thread a fork answered, once that fork's run has
     ended, goes to the same fork: the module resumes it with Leaf's message, and Leaf
     hears that it runs the new turn, which its next end closes. A fork Claude Code
-    can't resume gives way to a new fork spawned with Leaf's whole task, which takes
-    the turn over."""
+    can't resume gives way to a new fork spawned with Leaf's whole task, which runs
+    the turn Leaf opened."""
     driven = ClaudeCode(
         spawn,
         "cc-resume",
@@ -713,15 +713,20 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
 def test_leaf_hears_of_the_end_of_a_fork_the_module_spawned_and_no_other(
     spawn, sessionless
 ):
-    """The module keeps the forks it spawned in `$.state`, which a reload of its code
-    leaves standing, so it tells Leaf as such a fork's run ends, even one spawned
-    before the module loaded, and runs nothing for any other agent's end."""
-    driven = ClaudeCode(spawn, "cc-ends", {"state": {"forks": {"agent-7": 1}}})
+    """The module keeps the forks it spawned in `$.state`, with the turn Leaf opened
+    for each run, which a reload of its code leaves standing, so it tells Leaf as such
+    a fork's run ends, naming that turn, even one spawned before the module loaded,
+    and runs nothing for any other agent's end."""
+    driven = ClaudeCode(
+        spawn,
+        "cc-ends",
+        {"state": {"forks": {"agent-7": {"started": 1, "turn": "t7"}}}},
+    )
     ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
     driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-9"})
     driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-7"})
     step = driven.steps.get(timeout=STATED_TIMEOUT)
-    assert step["ended"] == {"agent": "agent-7", "answer": "Done."}, step
+    assert step["ended"] == {"agent": "agent-7", "turn": "t7", "answer": "Done."}, step
     driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-7"})
     driven.settle()
     assert driven.steps.empty()

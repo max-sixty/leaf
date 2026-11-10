@@ -874,12 +874,12 @@ def _write_agent_turns(session_id: str, turns: dict[str, dict]) -> None:
     AGENT_TURNS.write(session_file(session_id, AGENT_TURNS.kind), {"turns": turns})
 
 
-def open_agent_turn(session_id: str, agent: str | None = None) -> str | None:
+def open_agent_turn(session_id: str) -> str | None:
     """Open a turn for an agent the session is about to start or resume, and return
-    its id; None for a session that has ended. A new agent's turn is named once its
-    harness starts it (`name_agent_turn`); a resumed agent's, whose harness id Leaf
-    knows, is named `agent` from the start, so none of its commands meets the turn
-    unnamed. Each opening mints a new id, so a closed turn never reopens."""
+    its id; None for a session that has ended. The turn is named once the harness
+    has started the agent (`name_agent_turn`), and until then no agent's `leaf`
+    command can act in it or as the main thread (`hooks.agent_command`). Each
+    opening mints a new id, so a closed turn never reopens."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if not session_live(record):
@@ -891,7 +891,7 @@ def open_agent_turn(session_id: str, agent: str | None = None) -> str | None:
             {
                 **agent_turns(session_id),
                 turn: {
-                    "agent": agent,
+                    "agent": None,
                     "generation": record["generation"],
                     "opened": now,
                     "renewed": now,
@@ -903,9 +903,25 @@ def open_agent_turn(session_id: str, agent: str | None = None) -> str | None:
 
 
 def name_agent_turn(session_id: str, turn: str, agent: str) -> bool:
-    """Record that the agent its harness names `agent` runs the open turn `turn`;
-    whether the turn was still open to name."""
-    return _update_agent_turns(session_id, lambda id, entry: id == turn, agent=agent)
+    """Record that the agent its harness names `agent` runs the open turn `turn`,
+    which no agent runs yet; whether the turn was still open to name. A turn's agent
+    never changes once named."""
+    return _update_agent_turns(
+        session_id,
+        lambda id, entry: id == turn and entry["agent"] in (None, agent),
+        agent=agent,
+    )
+
+
+def unnamed_agent_turns(session_id: str) -> dict[str, dict]:
+    """The session's open agent turns that no agent runs yet, by id: each opened for
+    an agent its harness is starting or resuming, until the harness says which agent
+    that is (`name_agent_turn`)."""
+    return {
+        turn: entry
+        for turn, entry in open_agent_turns(session_id).items()
+        if entry["agent"] is None
+    }
 
 
 def renew_agent_turn(session_id: str, agent: str) -> str | None:

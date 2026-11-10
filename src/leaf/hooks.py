@@ -78,6 +78,7 @@ from .service import owned_pages
 from .state import (
     advance_turn,
     agent_known,
+    agent_turn_of,
     close_session_turn,
     flocked,
     held_claims,
@@ -267,27 +268,38 @@ def agent_command(sid: str, payload: dict) -> dict | None:
     `cd x && leaf …` or a second `leaf` after `&&` does (`leaf_commands`), would act
     as the main thread's, and a mark spliced into it could land inside quoted text,
     so the answer denies it and tells the agent to run each `leaf` command on its
-    own, beginning with `leaf`."""
+    own, beginning with `leaf`.
+
+    A fork runs before Leaf learns its agent id: the turn Leaf opened for it stays
+    unnamed until the module, once `$.agent.spawn` or its resume returns, says which
+    agent runs it (`forks.started`), and the payload names neither the spawn's name
+    nor the turn. So while an agent turn of the session awaits its agent
+    (`state.unnamed_agent_turns`), the `leaf` command of any agent running no open
+    turn is denied with the instruction to run it again, as Leaf can't yet tell a
+    starting fork's command, which would act as the main thread's or be refused as
+    an ended fork's, from a worker's. A turn left unnamed stops counting once it
+    lapses, as every reader of agent turns believes it (`activity.running_agent_turns`)."""
     agent, given = payload.get("agent_id"), payload.get("tool_input")
     if not agent or not isinstance(given, dict) or "command" not in given:
         return None
     leading = LEADING_LEAF.match(given["command"])
     starts = leaf_commands(given["command"])
-    if (leading is None and not starts) or not agent_known(sid, agent):
+    if leading is None and not starts:
+        return None
+    if agent_turn_of(sid, agent) is None and _awaits_agent(sid):
+        return _denied(
+            "Leaf is starting a turn for an agent of this session and can't yet tell "
+            "whether this command is that agent's; run the same command again."
+        )
+    if not agent_known(sid, agent):
         return None
     if leading is None or starts not in ([], [0]):
-        return {
-            "hookSpecificOutput": {
-                "hookEventName": "PreToolUse",
-                "permissionDecision": "deny",
-                "permissionDecisionReason": (
-                    "Run each `leaf` command as a Bash call of its own, beginning "
-                    "with `leaf`, with no `cd` or other command before it or "
-                    "another `leaf` after it: Leaf marks only a leading `leaf` as "
-                    "this agent's, and any other would act as the main thread's."
-                ),
-            }
-        }
+        return _denied(
+            "Run each `leaf` command as a Bash call of its own, beginning with "
+            "`leaf`, with no `cd` or other command before it or another `leaf` "
+            "after it: Leaf marks only a leading `leaf` as this agent's, and any "
+            "other would act as the main thread's."
+        )
     command = (
         given["command"][: leading.end()]
         + f" --agent-id {shlex.quote(agent)}"
@@ -299,6 +311,32 @@ def agent_command(sid: str, payload: dict) -> dict | None:
             "updatedInput": {**given, "command": command},
         }
     }
+
+
+def _denied(reason: str) -> dict:
+    """Claude Code's PreToolUse answer that denies the call, with `reason`, which
+    the agent reads."""
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
+        }
+    }
+
+
+def _awaits_agent(sid: str) -> bool:
+    """Whether an agent turn of the session awaits the agent its harness is
+    starting for it, and still counts (`agent_command`)."""
+    from datetime import datetime
+
+    from .activity import running_agent_turns
+    from .state import unnamed_agent_turns
+
+    unnamed = unnamed_agent_turns(sid)
+    return bool(
+        unnamed and running_agent_turns(unnamed, True, datetime.now().astimezone())
+    )
 
 
 def reload_skill(session_id: str) -> str | None:

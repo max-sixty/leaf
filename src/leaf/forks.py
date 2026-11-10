@@ -864,20 +864,21 @@ def _counted(count: int, noun: str) -> str:
 
 
 def _take(session_id: str, basis: dict, line: str) -> dict:
-    """Post the fork's working line and give the thread to a fork that does its
-    work: fenced to the thread still being kept back, open a turn for it (`state.open_agent_turn`) and
-    record that turn's pickup of the thread's waiting messages, with their receipt,
-    from a delivery frozen for it. Returns `{"outcome": "take", "agent", "turn",
-    "prompt"}`, the fork's name, its turn and its task carrying that delivery, which
-    the module spawns it with; the main session hears which fork has the thread, so
-    it can steer or stop it (`clerk.queue`).
+    """Post the line fork's working line and give the thread to a working fork:
+    fenced to the thread still being kept back, open a turn for it
+    (`state.open_agent_turn`) and record that turn's pickup of the thread's waiting
+    messages, with their receipt, from a delivery frozen for it. Returns
+    `{"outcome": "take", "agent", "turn", "prompt"}`, the fork's name, its turn and
+    its task carrying that delivery, which the module spawns it with; the main
+    session hears which fork has the thread, so it can steer or stop it
+    (`clerk.queue`).
 
     Where a fork's turn gave the thread's last answer and has closed (`_resumable`),
-    the turn is that fork's, named with its agent id from the start, and the outcome
-    adds `resume`, `{"agentId", "prompt"}`, the message that resumes it
-    (`resume_prompt`), so one fork works the thread however many messages the user
-    sends it. The module resumes it, or, where the resume fails, spawns a fork with
-    `prompt`, and then says which agent runs the turn (`started`)."""
+    the outcome adds `resume`, `{"agentId", "prompt"}`, that fork's agent id and
+    the message that resumes it (`resume_prompt`), so one fork works the thread
+    however many messages the user sends it. The module resumes it, or, where the
+    resume fails, spawns a fork with `prompt`, and then says which agent runs the
+    turn (`started`), which until then no agent runs."""
     from .clerk import queue
     from .delivery import batch_refs, freeze_delivery, receive_passed, record_pickup
 
@@ -896,8 +897,7 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
                 _hand_over_kept_back(page, session_id, basis["inputs"])
                 return {"outcome": "hand_over", **posted}
             answered = _resumable(page, session_id, basis["thread"])
-            resumed = None if answered is None else answered[1]["agent"]
-            turn = open_agent_turn(session_id, resumed)
+            turn = open_agent_turn(session_id)
             if turn is None:
                 return {"outcome": "dropped", **posted}
             since = (
@@ -934,9 +934,12 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
         "prompt": work_prompt(delivery, agent),
         **(
             {}
-            if since is None
+            if answered is None or since is None
             else {
-                "resume": {"agentId": resumed, "prompt": resume_prompt(delivery, since)}
+                "resume": {
+                    "agentId": answered[1]["agent"],
+                    "prompt": resume_prompt(delivery, since),
+                }
             }
         ),
     }
@@ -946,10 +949,9 @@ def started(session_id: str, basis: dict, turn: str, agent: str) -> dict:
     """Record that the agent its harness names `agent` runs the fork turn `turn`
     Leaf opened for the thread `basis` names (`state.name_agent_turn`), so its
     commands act in that turn and its tool boundaries carry the thread's further
-    messages: the fork the module spawned, or the one it resumed, whose name the
-    turn already had. A fork spawned where a resume failed takes the turn over from
-    the agent it was opened for. A turn that ended first, as its session's may have,
-    is left closed, and the fork then acts as any subagent of the session does."""
+    messages: the fork the module spawned, the one it resumed, or the one it spawned
+    where a resume failed. A turn that ended first, as its session's may have, is
+    left closed, and the fork then acts as any subagent of the session does."""
     named = name_agent_turn(session_id, turn, agent)
     outcome = {
         "step": "start",

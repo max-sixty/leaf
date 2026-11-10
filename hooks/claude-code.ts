@@ -474,15 +474,18 @@ function lineFork($: EngineInterface, session: string, kept: KeptBack) {
 }
 
 // The forks doing a thread's work, by agent id, with when each one's present run
-// started, spawned or resumed, which the end of that run reports. `$.state` keeps
-// them, which a reload of this module's code leaves standing, so a fork made before
-// a reload still ends its turn (types/leaf-state.d.ts).
+// started, spawned or resumed, and the turn Leaf opened for that run, both of which
+// the end of the run reports: the turn by its id, since the run can end before Leaf
+// hears which agent runs it (`forks.started`). `$.state` keeps them, which a reload
+// of this module's code leaves standing, so a fork made before a reload still ends
+// its turn (types/leaf-state.d.ts).
 const FORKS = { plugin: "leaf", key: "forks" } as const;
+type Fork = { started: number; turn: string };
 
 /** Change the forks kept in `$.state` by `change`, against concurrent changes. */
 async function changeForks(
   $: EngineInterface,
-  change: (forks: Record<string, number>) => Record<string, number>,
+  change: (forks: Record<string, Fork>) => Record<string, Fork>,
 ) {
   for (;;) {
     const stored = await $.state.get(FORKS);
@@ -511,7 +514,7 @@ async function workFork(
     resume?: { agentId: string; prompt: string };
   },
 ) {
-  let agentId = given.resume && (await resumeFork($, given.resume));
+  let agentId = given.resume && (await resumeFork($, given.resume, given.turn));
   if (agentId === undefined) {
     try {
       const spawned = await $.agent.spawn({
@@ -529,7 +532,10 @@ async function workFork(
       return;
     }
     const started = await $.clock.now();
-    await changeForks($, (forks) => ({ ...forks, [agentId as string]: started }));
+    await changeForks($, (forks) => ({
+      ...forks,
+      [agentId as string]: { started, turn: given.turn },
+    }));
   }
   await forkStep($, session, {
     thread: kept,
@@ -545,9 +551,10 @@ async function workFork(
 async function resumeFork(
   $: EngineInterface,
   { agentId, prompt }: { agentId: string; prompt: string },
+  turn: string,
 ) {
   const started = await $.clock.now();
-  await changeForks($, (forks) => ({ ...forks, [agentId]: started }));
+  await changeForks($, (forks) => ({ ...forks, [agentId]: { started, turn } }));
   let reason: string;
   try {
     const sent = await $.session.send({ to: { agentId }, text: prompt });
@@ -633,17 +640,18 @@ export const register: Register = (on) => {
     const completed = await next(e);
     if (e.agentId !== undefined) {
       const agentId = e.agentId;
-      const started = (await $.state.get(FORKS)).value?.[agentId];
-      if (started === undefined) return completed;
+      const fork = (await $.state.get(FORKS)).value?.[agentId];
+      if (fork === undefined) return completed;
       await changeForks($, ({ [agentId]: _ended, ...forks }) => forks);
       const session = await sessionOf($);
       const now = await $.clock.now();
       void forkStep($, session, {
         ended: {
           agent: agentId,
+          turn: fork.turn,
           ...(e.reason === "answer" ? { answer: e.answer } : { failed: e.reason }),
         },
-        elapsed_ms: now - started,
+        elapsed_ms: now - fork.started,
       }).catch((error) =>
         $.ui.log(`Leaf: agent ${agentId}'s turn could not end: ${error}`, {
           to: "debug",

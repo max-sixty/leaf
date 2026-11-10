@@ -35,6 +35,7 @@ from render_harness import (
     panel_view,
     primed,
     resized,
+    restyle_counts,
     round_trip,
     select,
     selection_field,
@@ -207,6 +208,86 @@ def test_a_compact_comment_keeps_no_room_for_send_under_a_mouse(browser, serve):
         + (parseFloat(style.getPropertyValue('--lf-field-end-room')) || 0)];
     }""")
     assert insets[1] == pytest.approx(insets[0], abs=0.1), insets
+
+
+def test_entering_and_leaving_a_floating_comment_box_restyles_only_the_chrome(
+    browser, serve
+):
+    """The root drops its scroll padding while the user writes in a box standing in a
+    plane (annotation-overlay/floating.js, `readFloatingEditor`), by a zero base.css
+    writes so that entering and leaving the box restyle only the chrome; its comment
+    says what a plain zero cost. Counted in the browser's own restyled elements,
+    against a restyle of the whole page."""
+    paragraphs = "".join(
+        f"<p id='p{i}'>Paragraph {i} of the page.</p>" for i in range(600)
+    )
+    page = open_page(
+        browser, serve(leaf_page("Floating editor", "<h1>Page</h1>" + paragraphs))
+    )
+    root = page.locator("html")
+
+    def restyled(move):
+        """The most elements one style recalc restyled while `move` ran."""
+        counts = restyle_counts(page, lambda: (move(), rendered(page)))
+        assert sum(counts), "the move must restyle something, or this proves nothing"
+        return max(counts)
+
+    # The control: a custom property changing on the root restyles every element
+    # (root-state.js).
+    whole = restyled(
+        lambda: root.evaluate("html => html.style.setProperty('--lf-test-probe', '1')")
+    )
+    page.locator("#p1").click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(root).to_have_attribute("data-lf-floating-editor", "")
+    # Tab leaves the field for the bar's next control.
+    leaving = restyled(lambda: page.keyboard.press("Tab"))
+    expect(field).not_to_be_focused()
+    expect(root).not_to_have_attribute("data-lf-floating-editor", "")
+    entering = restyled(field.click)
+    expect(root).to_have_attribute("data-lf-floating-editor", "")
+    moves = {"leaving": leaving, "entering": entering, "whole page": whole}
+    assert max(leaving, entering) < whole / 4, moves
+
+
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
+    request, serve, engine
+):
+    """A comment box on words low in the window stands over the chrome at its foot, the
+    band the root's scroll padding keeps the page's own content clear of. Chromium and
+    WebKit reveal a caret in a box anchored to the page by scrolling the page, counting
+    that padding, so the padding goes while the user writes in such a box
+    (annotation-overlay/floating.js, `readFloatingEditor`; base.css), and typing there
+    leaves the words beneath the box where they stood."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    resized(page, 1512, 860)
+    words = page.locator("#p40")
+    words.evaluate("n => scrollBy(0, n.getBoundingClientRect().top - 740)")
+    rendered(page)
+    words.click(modifiers=["Alt"], position={"x": 40, "y": 8})
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    rendered(page)
+    scrolled = page.evaluate("scrollY")
+    page.keyboard.type("Fine")
+    rendered(page)
+    assert page.evaluate("scrollY") == scrolled
+    # The band the panel states on the root, which the rule hides from the browser.
+    caret, band_top = field.evaluate(f"""box => {{{CARET_AT}
+      const caret = document.createRange();
+      caret.setStart(at, offset);
+      const band = parseFloat(document.documentElement.style.scrollPaddingBottom);
+      return [caret.getBoundingClientRect().bottom, innerHeight - band];
+    }}""")
+    assert caret > band_top, (
+        "the caret stands above the foot's band, so this proves nothing",
+        caret,
+        band_top,
+    )
 
 
 # The field's shadow root is closed, so the reading keeps each root as it is attached.
@@ -855,7 +936,7 @@ def toggle_surface(page, surface, open=True):
 def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
     browser, serve, case, width
 ):
-    """Opening Threads or On me in the panel never moves the page: each view stands over
+    """Opening Threads or On Me in the panel never moves the page: each view stands over
     it, so the reading column keeps its place, its width and its wrapping, a wide page's
     side track stays where its Layout put it, and the document neither grows nor
     scrolls under it."""
@@ -1281,7 +1362,7 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
     # The panel's field quotes the selection, where the finger that made it finds it,
-    # and the On me mark keeps its seat; the leaf's menu stays shut.
+    # and the On Me mark keeps its seat; the leaf's menu stays shut.
     comment = selection_field(page)
     expect(comment).to_have_attribute("placeholder", "“Paragraph one”")
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
@@ -1935,6 +2016,103 @@ def test_shift_enter_and_tab_keep_a_draft_in_the_containers_the_message_will_hol
             page.keyboard.press(key)
             expect(field).not_to_be_focused()
             expect(field).to_have_js_property("value", typed)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_pasted_fence_is_left_by_the_keys_a_user_tried(engine, request, serve):
+    """The keys a user pressed to get out of a fence they had pasted into, which left
+    it open: Up and Down, then their marks typed at the end of the code. The paste lost
+    its first line to the opening marks, Down reached no line below the code, and the
+    marks closed nothing. Each key now does what it says, and the closing marks stand
+    in the code's box with the words after them outside it. field-editor.test.mjs holds
+    the rest of the ways in and out."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    page.keyboard.type("it says:")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("```")
+    # A key puts the text on the clipboard, as a copy elsewhere would, without taking
+    # focus from the field: a page may copy only during a user's gesture.
+    page.evaluate(
+        """text => {
+          addEventListener('copy', event => {
+            event.clipboardData.setData('text/plain', text);
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }, {capture: true, once: true});
+          addEventListener('keydown', event => {
+            event.preventDefault();
+            document.execCommand('copy');
+          }, {capture: true, once: true});
+        }""",
+        "Read access\nRead and write",
+    )
+    page.keyboard.press("F9")
+    page.keyboard.press("ControlOrMeta+v")
+    code = "it says:\n\n```\nRead access\nRead and write"
+    expect(field).to_have_js_property("value", code)
+    for key in ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowDown"]:
+        page.keyboard.press(key)
+    page.keyboard.type("is it admin?")
+    expect(field).to_have_js_property("value", f"{code}\n```\nis it admin?")
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Backspace")
+    write(field, "```\ncode")
+    page.keyboard.type("```after")
+    expect(field).to_have_js_property("value", "```\ncode\n```\nafter")
+    rendered(page)
+    assert field.evaluate(
+        """box => [...window.__lfRoots.get(box).querySelectorAll('.cm-line')].map(line =>
+          [line.textContent, line.classList.contains('lf-md-code-block')])"""
+    ) == [["```", True], ["code", True], ["```", True], ["after", False]]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_on_a_fences_opening_line_show_in_the_draft_and_the_message(
+    engine, request, serve
+):
+    """Words on a message fence's opening line are the code's first line, unless one word
+    names the language of the code below. They were the fence's info string, which the
+    draft hid once the caret left the line and the message dropped."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    field = page_comment(page)
+    typed = "```Read access to code\n    Read and write"
+    write(field, typed)
+    field.evaluate("box => box.setSelectionRange(box.value.length, box.value.length)")
+    rendered(page)
+    # What the preview draws in view on each line, read with the marks it hides left out.
+    shown = """box => [...window.__lfRoots.get(box).querySelectorAll('.cm-line')].map(line => {
+      const copy = line.cloneNode(true);
+      copy.querySelectorAll('.lf-md-unseen').forEach(node => node.remove());
+      return copy.textContent;
+    })"""
+    assert field.evaluate(shown) == ["Read access to code", "    Read and write"]
+    # The two lines of code stand in one box, aligned, the first holding the box's
+    # padding as the code's first line does in a message.
+    aligned = """box => {
+      const [one, two] = window.__lfRoots.get(box).querySelectorAll('.cm-line');
+      const left = line => {
+        const range = document.createRange();
+        const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+        const node = walker.nextNode();
+        range.setStart(node, 0);
+        range.setEnd(node, 1);
+        return range.getBoundingClientRect().left;
+      };
+      return [left(one), left(two), parseFloat(getComputedStyle(one).paddingBlockStart)];
+    }"""
+    one, two, padding = field.evaluate(aligned)
+    assert one == pytest.approx(two, abs=0.5)
+    assert padding > 0
+    with sending(page, "Read access to code"):
+        page.keyboard.press("Enter")
+    code = page.locator(".lf-msg-body pre code").last
+    expect(code).to_have_text("Read access to code\n    Read and write\n")
 
 
 # The last draft stays in the field for its preview to be read.

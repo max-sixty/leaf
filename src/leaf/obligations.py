@@ -13,7 +13,7 @@ older prompt.
 On the page, the user answers an obligation only through its source: a widget
 through the actions its `x-awaits` declares, an agent message through a reply or
 settling reaction in its thread. Leaf adds no control of its own, such as a generic
-Done, and nothing reaches On me unless a widget or a thread answers it (`todos` records
+Done, and nothing reaches On Me unless a widget or a thread answers it (`todos` records
 the decision). Any widget may ask by declaring `x-awaits`; content that doesn't is
 asked about in a thread anchored to it.
 
@@ -28,15 +28,15 @@ An agent message carrying `obligation` asks a question the user answers in words
 their next message in its thread, or a reaction there whose token settles it, is its
 answer. The message owns identity and prompt; its thread only locates it.
 
-That answer takes effect at once, whatever the words say, so the user can clear On me
+That answer takes effect at once, whatever the words say, so the user can clear On Me
 without waiting for the agent. Only the agent can read whether they answered, and
 where they asked back or the step is still to do, its reply's `obligation` names the
 question by id, as one reply can name each question the user's message answered. The
 question then stands open again under the id and the words of the message that first
 asked it, so a plan step naming it follows under the same title, and stands on that
-reply, which On me shows and the user's next message answers. The user chose this on
+reply, which On Me shows and the user's next message answers. The user chose this on
 4 November 2026 over handing the question to the agent until it replied, as a widget's
-does, which left On me full until the agent had read each reply, and over asking again
+does, which left On Me full until the agent had read each reply, and over asking again
 under a new id, which left the plan step reading done. Asking again is the declaration
 asking is, an `obligation` naming the questions, rather than a second one beside it.
 
@@ -397,7 +397,7 @@ def anchors_with_agent(threads: dict, owed: list[dict]) -> list[dict]:
     through a resolution too, so a decision the user put off until other work lands
     stays off their list. Neither is an answer, since the widget's state is untouched,
     and the obligation stays open, its controls live. The browser receives the lists this leaves rather than deciding
-    again, so On me's count and `page state` cannot disagree about whose turn it is.
+    again, so On Me's count and `page state` cannot disagree about whose turn it is.
 
     Which kind of thread does not enter into it: a seat's, a quote on the obligation's
     words, a design note, or one the agent opened that the user has answered. A to-do
@@ -521,7 +521,7 @@ def shown_in(rec: dict, registry: dict) -> bool:
     asked, so it puts nothing on the user's list, whether or not the declaration's
     condition holds there. The condition decides only whether it also takes no input
     (`quoted_in`): a widget in an interactive `lf-sample` records its actions in the
-    page's log and Undo as a demonstration, and a page's On me holds only what the page
+    page's log and Undo as a demonstration, and a page's On Me holds only what the page
     itself asks. Same holder-chain walk as `quoted_in`."""
     return any(
         bool(registry.get(node["tag"], {}).get("x-exhibit"))

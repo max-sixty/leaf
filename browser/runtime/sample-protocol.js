@@ -17,7 +17,7 @@
  * @typedef {SampleCommands[SampleMethod]["result"]} SampleResult
  * @typedef {<K extends SampleMethod>(method: K, detail: SampleCommands[K]["detail"]) => Promise<SampleCommands[K]["result"]>} SampleCall
  * @typedef {{[K in SampleMethod]?: (detail: SampleCommands[K]["detail"]) => SampleCommands[K]["result"] | PromiseLike<SampleCommands[K]["result"]>}} SampleHandlers
- * @typedef {{height: SampleSize, input: {type: string}, "current-location": {focused: boolean}, arrived: void, loading: void, departed: void}} SampleNotices
+ * @typedef {{height: SampleSize, input: {type: string}, "current-location": {focused: boolean}, arrived: void, loading: void, waiting: void, departed: void}} SampleNotices
  * @typedef {{[K in keyof SampleNotices]: Set<(detail: SampleNotices[K]) => unknown>}} SampleListeners
  * @typedef {{[K in keyof SampleNotices]: {type: K} & (SampleNotices[K] extends void ? {detail?: never} : {detail: SampleNotices[K]})}[keyof SampleNotices]} SampleNotice
  * @typedef {{name?: string, message: string, stack?: string | undefined}} SampleFailure

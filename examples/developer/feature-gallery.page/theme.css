@@ -72,17 +72,6 @@
       line-height: 1.3;
     }
 
-    /* The nearby words expose each fixed sample, so its transient hover label would say
-     * the same thing over the next cell. The two live discovery samples opt back into
-     * that label. Suppress only the rest without changing the canonical label and accessible
-     * name the margin entry factory gives each control. */
-    :scope:is(lf-margin-entry-gallery)
-      .margin-entry-gallery-item
-      .lf-margin-entry:not([data-margin-entry-label-live])
-      > .lf-margin-entry-label {
-      display: none;
-    }
-
     .margin-entry-gallery-disclosure {
       grid-column: 2;
       color: var(--muted);

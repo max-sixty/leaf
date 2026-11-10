@@ -15,7 +15,7 @@ from .event_contracts import (
 )
 from .event_log import AttemptConflict
 from .findings import Finding
-from .forks import held_inputs
+from .forks import held_at_admission
 from .harness import claim_harness
 from .presence import nudge_unwatched
 from .refusals import Refused
@@ -127,8 +127,8 @@ def _execute_event(
             # Input that asks for the agent reaches it even when no watcher will,
             # unless a fork of its conversation is deciding on it, whose hand-over
             # nudges in its place (`forks`).
-            if requires_agent_attention(admitted) and admitted["id"] not in held_inputs(
-                page
+            if requires_agent_attention(admitted) and not held_at_admission(
+                page, admitted
             ):
                 nudge_unwatched(page)
             if event["kind"] in kinds_declaring("message") and claim:

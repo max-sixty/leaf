@@ -139,6 +139,22 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
         event("reply", "outside", 40, parent="first", responds="third"),
     ]:
         append_event(tmp_path, row)
+    append_interactions(
+        tmp_path,
+        [
+            {
+                "ts": "2026-10-14T12:00:06+00:00",
+                "source": "cli",
+                "type": "fork_reply",
+                "session": "session",
+                "thread": "first",
+                "inputs": ["second"],
+                "outcome": "hand_over",
+                "why": "it asks for a measurement",
+                "elapsedMs": 2100.0,
+            }
+        ],
+    )
     args = [
         "response-times",
         str(tmp_path),
@@ -151,6 +167,17 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
     assert result.exit_code == 0, result.output
     report = json.loads(result.output)
     rows = {row["input_id"]: row for row in report["samples"]}
+    # The fork that handed the message over decided its edit too, and the update
+    # read Delivered from its opened pickup to the agent's first words.
+    assert rows["edited"]["fork"] == {
+        "outcome": "hand_over",
+        "elapsed_s": 2.1,
+        "why": "it asks for a measurement",
+    }
+    assert rows["first"]["fork"] is None
+    assert report["summary"]["fork_hand_over"]["inputs"] == 2
+    assert report["summary"]["fork_hand_over"]["p50_s"] == 5
+    assert report["summary"]["delivered"]["p50_s"] == 2
     assert set(rows) == {"first", "second", "edited", "third"}
     assert rows["first"]["superseded_by_edit"] == "quiet-edit"
     assert rows["second"]["superseded_by_edit"] == "edited"

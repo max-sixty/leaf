@@ -275,7 +275,7 @@ def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
 
     It never owns obligation identity or registration. Any number of sources can select
     it, and each source retains its independent answer and lifecycle. An enclosing
-    widget whose widgets none ask shows a question the On me list never counts and
+    widget whose widgets none ask shows a question the On Me list never counts and
     the user can't answer, so the error names what each enclosed widget lacks to
     ask (`unasked`), or that it holds none.
     """

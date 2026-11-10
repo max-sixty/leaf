@@ -121,7 +121,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
         (
             "thread/start",
             {
-                "model": "gpt-5.6-luna",
+                "model": "gpt-6-luna",
                 "cwd": str(page_dir),
                 "approvalPolicy": "never",
                 "sandbox": "danger-full-access",

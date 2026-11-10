@@ -27,6 +27,7 @@ from render_harness import (
     CutOff,
     Traffic,
     _until,
+    expect_preview_words,
     holding,
     leaf_page,
     open_page,
@@ -1009,8 +1010,8 @@ def test_all_pages_opens_a_neighbour_in_a_tab_of_its_own(
     panel_settled(page, view="leaves")
     pages = page.locator(LEAVES)
     self_row = pages.locator(".lf-fp-page:not([href])")
-    expect(self_row).to_have_attribute(
-        "title", re.compile(rf"^long\n{re.escape(str(tmp_path / 'self-work'))}\n")
+    expect_preview_words(
+        self_row, re.compile(rf"^long\n{re.escape(str(tmp_path / 'self-work'))}\n")
     )
     link = pages.locator("a.lf-fp-page", has_text="The other leaf")
     destination = link.get_attribute("href")

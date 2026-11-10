@@ -224,15 +224,17 @@
      (comment-placement.js). */
   --thread-card: 592px;
   --thread-card-min: 320px;
-  /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,
+  /* A compact left column for page-level wayfinding or reference. Unlike a sidenote,
      which annotates one block at its own height, a sidebar may remain beside the user
-     while the document moves, so the whole left edge is spoken for wherever it is in
-     margin form. Its 240px box plus the ordinary 24px gutter is enough for short link
-     labels without making a second prose column. The rule beside the sidebar track spends
-     it; native flex wrapping decides when both columns fit (layouts.css). */
+     while the document moves, so the whole left edge is spoken for. Its 240px box plus
+     the ordinary 24px gutter is enough for short link labels without making a second
+     prose column; native flex wrapping decides when both columns fit (layouts.css). */
   --sidebar: 264px;
-  /* The contents map's unfolded label width, including its gutter (default package). */
-  --sidebar-max: 344px;
+  /* A document's sidebar narrowed to an element that rests as a spine, such as the
+     contents map, where a fine pointer can reach into it, so the prose starts beside
+     it. Its track's 40px holds the map's spine, the marks beside it and a pointer's
+     aim, and the map lays its labels over the page from there (layouts.css). */
+  --sidebar-spine: 56px;
   /* The document Layouts' prose measure and outer gutter. */
   --col: 720px;
   --col-pad: 24px;
@@ -254,18 +256,18 @@
      (layouts.css, "Breakouts"): one number for the whole vocabulary, because a width per
      widget is how a page becomes a ransom note. It is the width at which 100 columns of
      code, the common limit of formatters such as rustfmt, read unwrapped in the widest
-     code gutter Leaf draws: a diff's, with four-digit line numbers and its sign column.
-     That row is 109 characters (the gutter's `digits + 5`, then the text) and 10px of
-     borders and padding (packages/diff/styles/geometry.css, which counts the same
-     anatomy). It is derived from --code-size rather than stated, so a code size the
-     root sets carries it. A character is taken as 0.61em: the --mono stack's widest
-     common faces advance 0.602em (Menlo, DejaVu Sans Mono; SF Mono is 0.6em), and
+     code gutter Leaf draws: a diff's, with old and new four-digit line numbers and its
+     sign column. That row is 114 characters (the gutter's `2 × digits + 6`, then the
+     text) and 10px of borders and padding (packages/diff: lf-diff.js sets the gutter,
+     widget-shadow.css its padding). It is derived from --code-size rather than stated,
+     so a code size the root sets carries it. A character is taken as 0.61em: the --mono
+     stack's widest common faces advance 0.602em (Menlo, DejaVu Sans Mono; SF Mono is 0.6em), and
      Firefox rounds that up far enough that at exactly 0.602em its diff scrolled the
      last column by a pixel. Registered (base.css) so it computes to a length where it is
      declared; unregistered, it would reach every reader as the formula. Sharing the
      prose's start edge lets a block this close to the column read as part of it.
      An `available` surface instead spans the room on both sides of the prose. */
-  --wide: calc(109 * 0.61 * var(--code-size) + 10px);
+  --wide: calc(114 * 0.61 * var(--code-size) + 10px);
   /* The widest a sidebar page (layouts.css) grows.
      Past it a board's columns and a dashboard's tiles stop gaining anything but the
      distance between them. */
@@ -385,6 +387,10 @@
      ladder, so it is declared with the other derived tokens (below). */
   --tip-bg: var(--ink);
   --tip-ink: var(--paper);
+  /* The user's turn on a tooltip, whose ground is the page's ink: the turn's green
+     drawn halfway to the tooltip's ink, which holds it clear of that ground in
+     either scheme, where the paper's green would sink into it. */
+  --tip-turn-ink: color-mix(in oklab, var(--turn-ink), var(--tip-ink));
   --tip-pad: 4px 7px;
   --tip-r: var(--r-s);
   /* Inline code's ground is measured against the paper it sits on, not the white code
@@ -582,7 +588,7 @@
   --series-5: light-dark(#8c2d2a, #b13d54);
 }
 /* What anyone wrote in a thread, wherever the thread stands (a card, the floating
-   panel, a widget's seat), the comment being typed, and an On me question: Leaf's own
+   panel, a widget's seat), the comment being typed, and an On Me question: Leaf's own
    sans, whatever the page sets its prose in, since these are the conversation about
    the page rather than the page. Declared on the root, it takes the root's rung, so a
    density the page gives its `main` leaves it alone, and on each of the chrome's parts,

@@ -52,5 +52,5 @@ endpoints. Keep a socket in a directory only you can reach, as `leaf codex launc
 does. The loopback WebSocket listener is experimental; don't expose it on a network.
 Keep the terminal client open: it is where you answer approvals and input requests.
 Codex still saves the task in its history, so you can resume it later from the CLI or
-the desktop app once the separate server has exited; the desktop app can't connect to
-that server while it runs.
+the desktop app once the separate server has exited; the desktop app doesn't connect
+to that server while it runs.

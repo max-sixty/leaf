@@ -166,6 +166,30 @@
   let written = new Set();
   let source = null;
   let deliveringSizes = false;
+  // The page's own ResizeObserver deliveries, which this watch can't otherwise tell
+  // apart: one that redraws, as a chart refitting its legend does, makes records that
+  // reach this watch during its callback, through a listener the input watch wraps,
+  // and in the microtasks the callback queued. An observation started then asks for a
+  // notification at a depth the browser may have delivered already, a loop error, so
+  // it waits for the next frame, as one started during this watch's own delivery does.
+  // A microtask those queue in turn runs after the count drops, so an observation it
+  // starts is still a loop error. Any other starts at once, so its first notification
+  // reports the size the frame paints.
+  let pageDeliveries = 0;
+  const NativeResizeObserver = window.ResizeObserver;
+  window.ResizeObserver = class extends NativeResizeObserver {
+    /** @param {ResizeObserverCallback} callback */
+    constructor(callback) {
+      super((entries, observer) => {
+        pageDeliveries++;
+        try {
+          return callback.call(observer, entries, observer);
+        } finally {
+          queueMicrotask(() => pageDeliveries--);
+        }
+      });
+    }
+  };
   const observed = new WeakSet();
   const pending = new WeakSet();
   const flexRows = new WeakSet();
@@ -176,7 +200,7 @@
   };
   const observeOnce = (element) => {
     if (!element || observed.has(element) || pending.has(element)) return;
-    if (deliveringSizes) {
+    if (deliveringSizes || pageDeliveries) {
       pending.add(element);
       frame(() => {
         pending.delete(element);
@@ -379,7 +403,7 @@
       source = null;
     }
   };
-  const resizes = new ResizeObserver((entries) => {
+  const resizes = new NativeResizeObserver((entries) => {
     deliveringSizes = true;
     try {
       take(changes.takeRecords(), window.lfInputWork.current());

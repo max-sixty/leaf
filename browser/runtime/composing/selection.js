@@ -23,6 +23,7 @@
    commands and boot's travel, delivery, and repaint capabilities. Importing this module exposes only passive nodes and live draft
    readings. mount binds the field and its controls after those owners exist. */
 import { el, offerAction, responseAction } from "../widget-elements.js";
+import { COMMENT_HINT } from "../words.js";
 import { anchorKey } from "../anchor-coordinate.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
@@ -98,9 +99,8 @@ fabBar.setAttribute("part", "composer");
 export const fabInput = textField();
 fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";
-// What the empty field says, and the box at rest beside a target (composing/surface.js).
-export const COMMENT_HINT = "Comment…";
 fabInput.placeholder = COMMENT_HINT;
+fabInput.setAttribute("data-lf-voice", "leaf");
 fabInput.setAttribute("aria-label", "Comment");
 const fab = responseAction(offerAction("response", "lf-fab"), {
   action: "comment",
@@ -108,7 +108,6 @@ const fab = responseAction(offerAction("response", "lf-fab"), {
   behavior: "disclosure",
 });
 fab.id = "lf-comment-button";
-fab.title = "Comment";
 // The field's face while the box rests (composing/surface.js, `restFab`). `c` is its
 // keyboard route, and the box goes with the focus Tab would take to it, so Tab skips it.
 export const fabRest = offerAction("response", "lf-fab-rest");
@@ -361,7 +360,6 @@ export function createSelectionComposer({
       collapse: true,
     });
     keeps(fabSuggest, "aria-label", suggest ? "Suggest" : "Comment");
-    keeps(fabSuggest, "title", suggest ? "Suggest" : "Comment");
     syncComposer();
     syncResponseOptions();
     repaint(); // the submit action says which of the two the box will do

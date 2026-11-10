@@ -20,6 +20,7 @@ from render_harness import (
     nudge,
     open_page,
     post_event,
+    put_preview_away,
     resized,
     rgb_pixels,
     round_trip,
@@ -549,20 +550,24 @@ def test_a_playground_records_an_edit_made_while_loading_or_as_the_page_leaves(
         },
     )
     assert response.ok
+    recorded = len(titles())
     radius = page.get_by_role("slider", name="Corner radius")
     expect(radius).to_have_value("12")
     for _ in range(2):
         page.reload()
         wait_until_ready(page)
         expect(radius).to_have_value("12")
-    # The old document's post on leaving arrives on its own schedule; a round trip from
-    # this one doesn't order it, so give it the time a leave post takes.
-    page.wait_for_timeout(1000)
-    assert [
-        event["detail"]["values"]["radius"]
-        for event in events_model.read_events(serve.page_dir)
-        if event.get("action") == "tune"
-    ][-1] == 40
+    # A leaving document posts as it hides, so an edit left for the next leave arrives
+    # after whatever the two reloads' leaving documents posted.
+    title.fill("Last note")
+    page.reload()
+    wait_until_ready(page)
+    wait_for(
+        titles,
+        lambda now: now[-1:] == ["Last note"],
+        failure="the edit left for the last leave was never recorded",
+    )
+    assert len(titles()) == recorded + 1, "leaving recorded more than its edit"
 
 
 def playground_values(page):
@@ -1205,6 +1210,18 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
     controls = playground.locator(".lf-playground-controls")
     assert controls.evaluate("el => el.scrollHeight > el.clientHeight + 1")
     expect(controls).to_have_attribute("data-lf-more-below", "")
+    # The cue fades whatever reaches the box's foot, and where a gap between two
+    # controls lands there depends on their leading, so the first control the box
+    # cuts off is scrolled up until its label sits under the cue.
+    controls.evaluate(
+        """el => {
+            const cut = [...el.children].find(
+                (c) => c.offsetTop + c.offsetHeight > el.scrollTop + el.clientHeight
+            );
+            el.scrollTop = Math.max(el.scrollTop, cut.offsetTop - el.clientHeight + 20);
+        }"""
+    )
+    expect(controls).to_have_attribute("data-lf-more-below", "")
     assert cue(page, controls) > 100
     # A control Tab reaches is not faded out under its own ring.
     slider = playground.get_by_role("slider", name="Concurrent release events")
@@ -1532,6 +1549,8 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
     expect(instruction).to_be_visible()
     page.keyboard.press("Tab")
     expect(playground.get_by_role("button", name="Copy instruction")).to_be_focused()
+    # The Tab showed Copy's preview, which the first Escape puts away.
+    put_preview_away(page)
     page.keyboard.press("Escape")
     expect(instruction).to_be_hidden()
     expect(reveal).to_be_focused()
@@ -1591,9 +1610,9 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     expect(page.locator("#target-reader-heading")).to_have_text(
         "Revised reader treatment"
     )
-    quote = open_panel_thread(page, event["id"]).locator(".lf-thread-quote")
-    expect(quote).to_contain_text("target-reader-heading")
-    expect(quote).not_to_have_attribute("data-lf-detached", "")
+    head = open_panel_thread(page, event["id"]).locator(".lf-thread-quote-head")
+    expect(head).to_contain_text("target-reader-heading")
+    expect(head).not_to_have_attribute("data-lf-detached", "")
 
 
 def test_a_press_in_flight_does_what_the_playground_button_says(browser, serve):

@@ -115,10 +115,9 @@ export function createAnchorControls({
     // The remove action draws on the next render; a newer input the user gave meanwhile
     // keeps them where it put them.
     const mayFocus = retainUserIntent();
+    const remove = `reaction:${eventId}:remove`;
     nextRender(() =>
-      mayFocus.handoff(() =>
-        record.margin?.focus(`reaction:${eventId}:remove`, "move", surface),
-      ),
+      mayFocus.handoff(() => record.margin?.focus(remove, "move", surface)),
     );
   }
 
@@ -401,15 +400,15 @@ export function createAnchorControls({
 
   function paintMessageReferences() {
     // Missing targets share the quote's detached meaning, but retain the message
-    // link's own contour: muted ink and a dashed underline, its press refused.
+    // link's own contour: muted ink and a dashed underline, its press refused. A live
+    // one previews the place it names (place-preview.js), so it carries no title.
     for (const anchor of messageReferenceRoot.querySelectorAll(MSG_REF)) {
       const href = anchor.getAttribute("href");
       if (href === null) throw new Error("A message fragment reference has no href");
-      const id = fragmentId(href);
       const alive = Boolean(fragmentTarget(href));
       anchor.toggleAttribute("data-lf-detached", !alive);
       keeps(anchor, "aria-disabled", alive ? null : "true");
-      keeps(anchor, "title", alive ? `Jump to § ${id}` : missingReference(id));
+      keeps(anchor, "title", alive ? null : missingReference(fragmentId(href)));
     }
   }
 

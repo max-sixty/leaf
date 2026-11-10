@@ -101,6 +101,23 @@ export function threadNames(threads) {
   return byName;
 }
 
+// Where in `threads` the open conversations about each element stand, by the id of the
+// element their anchor names (`section`): a resolved thread and a bare reaction stand
+// under none, and nor does a thread with no anchor, which is about the page as a whole.
+/** @param {readonly {anchor: {section?: string | null} | null, resolved?: unknown, bare_reaction: boolean}[]} threads */
+export function threadsBySection(threads) {
+  /** @type {Map<string, number[]>} */
+  const bySection = new Map();
+  threads.forEach((thread, at) => {
+    const section = thread.anchor?.section;
+    if (!section || thread.resolved || !discussed(thread)) return;
+    const about = bySection.get(section);
+    if (about) about.push(at);
+    else bySection.set(section, [at]);
+  });
+  return bySection;
+}
+
 // A message whose words the user may rewrite: one of their own that the log holds, with
 // words to revise. A reaction or a bare drawing has none (`event_contracts._edit_error`).
 /** @param {{author?: string, pending?: boolean, token?: string, text?: string | undefined}} message */
@@ -138,7 +155,7 @@ const hasUnread = (thread) => thread.unread.length > 0;
 export const isNews = (thread) => !thread.resolved && hasUnread(thread);
 /**
  * What the panel counts of the threads it lists: those still open, which Threads' tab
- * says, and those that are news (`isNews`), which the On me mark's dot says. A page's
+ * says, and those that are news (`isNews`), which the On Me mark's dot says. A page's
  * served row counts the same way
  * (`served_state.thread.thread_counts`); tests/thread_count_cases.json holds both.
  * @param {readonly (Pick<Thread, "bare_reaction" | "resolved"> & Unread)[]} threads

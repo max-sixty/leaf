@@ -401,8 +401,8 @@ def verify_page(
         f"{activation} did not activate a private container",
     )
     check(
-        isinstance(activation_response.json().get("browser"), dict),
-        f"{activation} returned no browser projection",
+        isinstance(activation_response.json().get("document"), dict),
+        f"{activation} returned no document",
     )
     if settle_after_activation is not None:
         settle_after_activation()
@@ -574,8 +574,8 @@ def verify_cross_tab_activation(
         )
     activated = answered(response.value, activation).json()
     check(
-        isinstance(activated.get("browser"), dict),
-        "activation returned no browser view",
+        isinstance(activated.get("document"), dict),
+        "activation returned no document",
     )
     follower.wait_for_function("window.__leafVerifier.crossTabActivated", timeout=5_000)
     context.close()

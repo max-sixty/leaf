@@ -344,7 +344,7 @@
     ) {
       const pending = pendingDetailsToggle(event.target);
       detailsToggles.delete(event.target);
-      // A held-word release already activated its synthetic click before the
+      // A held preview's release already activated its synthetic click before the
       // browser's following click is swallowed. A cancelled later activation
       // cannot erase that earlier default from the coalesced toggle.
       const source = pending?.source ?? null;

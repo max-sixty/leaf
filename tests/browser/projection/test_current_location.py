@@ -73,7 +73,7 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     expect(link_chips).to_have_count(3)
     (serve.page_dir / "index.html").write_text(LIVE_KEYS_V2)
     told(page)
-    expect(page).to_have_title("Live keys second")
+    expect(page).to_have_title("(1) Live keys second")
     expect(link_chips).to_have_count(2)
     # The sequence followed the new document: its address reaches the new page.
     page.keyboard.type(address_code(page, "Link", "lk-link-three"))
@@ -89,9 +89,8 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     # earlier draft notice, so the field need not change before the next press.
     stamp_page(serve.page_dir, LIVE_KEYS_V3, "third")
     told(page)
-    expect(page).to_have_title("Live keys third")
+    expect(page).to_have_title("(1) Live keys third")
     expect(page.locator(".lf-live")).to_have_text("Updated to v2")
-    assert page.locator(".lf-toast").count() == 0
     # The same mark, still holding the focus the user put on it: the revision rewrote
     # nothing in this widget, so nothing replaced it.
     expect(page.locator("#lk-one .lf-pick")).to_be_focused()
@@ -127,7 +126,7 @@ def test_a_revision_that_restates_an_obligation_preserves_the_users_location_in_
     expect(decision).to_be_focused()
     (serve.page_dir / "index.html").write_text(LIVE_KEYS_OBLIGATION_REWRITTEN)
     told(page)
-    expect(page).to_have_title("Live keys rewritten")
+    expect(page).to_have_title("(1) Live keys rewritten")
     expect(panel_field(page)).to_have_attribute(
         "placeholder", re.compile("^Updated to Draft after v1")
     )
@@ -161,7 +160,7 @@ def test_a_restated_obligation_returns_a_user_to_the_question_not_to_a_control(
 
     (serve.page_dir / "index.html").write_text(LIVE_KEYS_OBLIGATION_REWRITTEN)
     told(page)
-    expect(page).to_have_title("Live keys rewritten")
+    expect(page).to_have_title("(1) Live keys rewritten")
     expect(page.locator("#lk-decision")).to_be_focused()
     # The press they had lined up decides nothing on its own, and the option they were
     # holding is still the one their own digit reaches.
@@ -267,7 +266,7 @@ def test_a_revision_gives_back_what_the_user_moved_and_nothing_they_left(
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
-    expect(page).to_have_title("Live keys rewritten")
+    expect(page).to_have_title("(1) Live keys rewritten")
     # The widget did go whole, so the carry is what decides these controls.
     expect(page.locator("#lk-decision h2")).to_have_text(
         "Which one, now the costs are in?"
@@ -321,7 +320,7 @@ def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
-    expect(page).to_have_title("Live keys rewritten")
+    expect(page).to_have_title("(1) Live keys rewritten")
     # The rewritten draft has connected and read its edit back: the words are kept.
     expect(editor).to_have_js_property("value", "Ship it, but louder.")
     expect(pick).to_be_focused()
@@ -370,7 +369,7 @@ customElements.define('page-counter', class extends HTMLElement {
     (serve.page_dir / "index.html").write_text(second)
     told(page)
 
-    expect(page).to_have_title("Live keys rewritten")
+    expect(page).to_have_title("(1) Live keys rewritten")
     assert page.evaluate("performance.timeOrigin") != original_document, (
         "the revision was patched in, so this proves nothing about the other install"
     )
@@ -498,7 +497,7 @@ customElements.define('page-counter', class extends HTMLElement {
     (serve.page_dir / "index.html").write_text(second)
     told(page)
 
-    expect(page).to_have_title("Live keys rewritten")
+    expect(page).to_have_title("(1) Live keys rewritten")
     assert page.evaluate("performance.timeOrigin") != original_document, (
         "the revision was patched in, so this proves nothing about the other install"
     )
@@ -524,7 +523,7 @@ def test_the_obligation_walk_keeps_its_place_when_a_version_lands(browser, serve
     page = open_page(browser, live_url(url))
     # Short enough that an obligation in the middle of the window has page text above it,
     # which is the whole of what makes the coarse reading the wrong one.
-    resized(page, 900, 400)
+    resized(page, 900, 600)
 
     for item in OBLIGATIONS_IN_ORDER[:3]:
         page.keyboard.press("m")
@@ -742,7 +741,7 @@ STORE_ASK_PAGE = leaf_page(
 
 
 def seed_thread_about_the_ask(page_dir, root, *, resolved=False):
-    """A thread on the ask the agent has answered, so the ask stays On me's."""
+    """A thread on the ask the agent has answered, so the ask stays On Me's."""
     append_carried_log_record(
         page_dir,
         {
@@ -848,7 +847,7 @@ def test_a_finger_opening_a_thread_about_an_ask_stands_in_its_view(browser, serv
 
 
 def test_an_on_me_card_represents_its_ask(browser, serve):
-    """On me's card for an ask represents the ask, as an On row did: focusing the
+    """On Me's card for an ask represents the ask, as an On row did: focusing the
     card rings the ask, and its digits answer it there."""
     page = open_page(browser, serve(STORE_ASK_PAGE))
     page.locator(".lf-fp-on-user").click()

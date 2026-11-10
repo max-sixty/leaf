@@ -13,7 +13,8 @@
  * lf-sample-ready with its sample element after upgrade, on first mount, Reset and
  * reload; its loading saved state does not hold the parent.
  * Each child starts loading as its sample mounts, but the containing page presents
- * before it unless the frame's resize on arrival would move what the reader sees then.
+ * before it unless the frame's resize on arrival would move what the reader sees then,
+ * and stops waiting for it once the host says its load waits on the server (`waiting`).
  * The sample's arrival is its child's: the child's presentation and then whatever that
  * document deferred, its own samples included, so the page reads as still arriving
  * until every child has arrived. Each document the frame loads, on mount, Reset or a
@@ -28,7 +29,9 @@
  * types or presses a key inside the child, which makes every later resize of that
  * document theirs, though not a wheel or touch that scrolls past it; a resize
  * after Reset or Return to page, or one of a frame the reader saw as it mounted, is
- * theirs and applies at once. The status line keeps its room through loading, ready
+ * theirs and applies at once. A load that waited on its server arrives as news, held
+ * the same way, whoever asked for it: after minutes of waiting the reader may have
+ * moved on. The status line keeps its room through loading, ready
  * and failure, so the frame below it stays put; a failure's words that run past it
  * stand in a disclosure the reader opens over the frame.
  * Reset stays focusable
@@ -160,6 +163,8 @@ export class Sample extends HTMLElement {
       this.#embed();
     if (!this.#pageView || this.#host || this.#mounting) return;
     this.#mounting = true;
+    /** @type {PromiseWithResolvers<void>} */
+    const { promise: waiting, resolve: waited } = Promise.withResolvers();
     const ready = mountSample(this.#frame, {
       template: this.#template.id,
       window: this.hasAttribute("window") || isNativeLayer(this.#view),
@@ -184,6 +189,14 @@ export class Sample extends HTMLElement {
         host.on("loading", () => {
           this.#focusedContent = false;
           this.#track(host.ready);
+        });
+        // A child whose server can't take it yet, or that waits for a load slot behind
+        // one, may take minutes, as during a leaf.page deploy: the page presents
+        // without it, and it arrives as one below the window does, its growth held
+        // while seen.
+        host.on("waiting", () => {
+          this.#unclaimed = true;
+          waited();
         });
         host.on("current-location", ({ focused }) => {
           this.#focusedContent = focused;
@@ -225,7 +238,7 @@ export class Sample extends HTMLElement {
       growthIsSeen(this.#frame);
     this.#asked = presented;
     const shown = this.#track(ready).catch(() => {});
-    if (presented) widgetController(this).present(shown);
+    if (presented) widgetController(this).present(Promise.race([shown, waiting]));
   }
 
   // Removal closes a modal Full view at once, so the view returns to its embedded

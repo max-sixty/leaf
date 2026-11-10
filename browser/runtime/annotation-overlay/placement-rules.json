@@ -1,5 +1,5 @@
 {
-  "$comment": "Where a comment's surfaces stand, as a reader sees them: the comment box the user types in and the thread card Send turns it into, which stand by one rule so Send moves nothing. comment-placement.js and thread/card-anchor.js keep these rules and say how, and which designs they rejected. A rule's `swept` names the findings by which the placement sweep (tests/journeys/margin/test_card_placement.py) reports it broken, each finding under one rule; the sweep refuses a finding no rule names, and a rule naming one it never reports.",
+  "$comment": "Where a comment's surfaces stand, as a reader sees them: the comment box the user types in and the thread card Send turns it into, which stand by one rule so Send moves nothing. comment-placement.js and thread-preview.js keep these rules and say how, and which designs they rejected. A rule's `swept` names the findings by which the placement sweep (tests/journeys/margin/test_card_placement.py) reports it broken, each finding under one rule; the sweep refuses a finding no rule names, and a rule naming one it never reports.",
   "sections": [
     {
       "id": "room",
@@ -96,7 +96,7 @@
         },
         {
           "id": "size-rises",
-          "says": "Beside its text it rises instead, the window's foot lifting it, whether you're writing in it or an answer arrives. A press keeps the spot it pressed still, and a reply you've just sent keeps its place until more words arrive."
+          "says": "Beside its text it rises instead, the window's foot lifting it, as an answer arrives. While you write words in its reply box, it keeps its foot, so the line you're typing stays still as the conversation grows above it. A send empties the box, so the card grows down past it."
         },
         {
           "id": "size-page-still",

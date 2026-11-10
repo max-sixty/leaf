@@ -69,7 +69,7 @@ def kinds(items) -> list:
 
 def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
     """Discovery reads the user's actual queue, a widget's obligation and a message's
-    alike, and keeps agent work after On me reaches zero."""
+    alike, and keeps agent work after On Me reaches zero."""
     asking(page_dir)
     [item] = state_json(page_dir)["queues"]["on_user"]
     mine = written(
@@ -531,7 +531,7 @@ def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
 
 def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
     """A message whose reply failed is the user's to send again, an obligation of its
-    own on On me. A question the agent then leaves in its thread is a second
+    own on On Me. A question the agent then leaves in its thread is a second
     obligation there, listed ahead of it, and the thread reads as that question: `m`
     stops at a thread once (queue-walk.js)."""
     publish(page_dir)
@@ -1272,9 +1272,9 @@ def test_a_decision_ends_through_its_state_and_the_agent_ends_a_question(page_di
 
 
 def test_a_reply_clears_a_question_until_the_agent_reopens_it(page_dir):
-    """The user's reply takes a step off On me at once, whatever it says, and its
+    """The user's reply takes a step off On Me at once, whatever it says, and its
     delivery names the step in `settled`. Where the reply only asked back, the agent's
-    `--obligation <id>` returns the same item to On me, and a plan step naming it follows, until
+    `--obligation <id>` returns the same item to On Me, and a plan step naming it follows, until
     their next reply answers it."""
 
     def on_me():
@@ -1414,7 +1414,7 @@ def test_one_reply_reopens_each_question_the_users_message_answered(page_dir):
         ("open", "user"),
         ("open", "user"),
     ]
-    # One reply answers both, so they share the thread's row on On me.
+    # One reply answers both, so they share the thread's row on On Me.
     assert len(state["queues"]["on_user"]) == 1
 
 
@@ -1422,7 +1422,7 @@ def test_obligation_names_a_question_its_own_thread_asks(page_dir):
     """`--obligation <id>` takes the id a question keeps, from its own thread: a message
     that asked a question again has no id of its own to name, and neither has another
     thread's question, so the writer learns at once rather than putting nothing back on
-    On me. A message asks a new question or asks named ones again, so it can't do both."""
+    On Me. A message asks a new question or asks named ones again, so it can't do both."""
 
     def asked_in_a_thread(text):
         root = append_command(
@@ -1497,7 +1497,7 @@ def test_obligation_names_a_question_its_own_thread_asks(page_dir):
 def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
     """A choice sent in a reply stays the user's after they answer it in words, since
     no revision can write a frozen widget's state. The delivery of their words names
-    the choice in `waiting`, and the agent's `done` end takes it off On me."""
+    the choice in `waiting`, and the agent's `done` end takes it off On Me."""
     asking(page_dir)
     asked = append_command(
         page_dir,
@@ -2018,7 +2018,7 @@ def test_the_input_a_reply_answers_moves_to_its_lists_done():
 
 @pytest.mark.parametrize("route", ["open", "proactive", "addressed"])
 def test_explicit_message_obligations_need_no_markup(page_dir, route):
-    """Every author route atomically sends the question and registers On me."""
+    """Every author route atomically sends the question and registers On Me."""
     publish(page_dir)
     if route == "open":
         command = ["thread", "create", page_dir]

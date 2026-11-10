@@ -4,15 +4,20 @@
  * floating response placement and the contextual Thread preview; importing page chrome
  * needs none of it. */
 
-body.lf-over-mark {
+/* The hand over a mark stands on the element under the pointer (anchor-paint.js,
+   `paintHand`). Armed, the aim's cursor stands instead (chrome.css), and an element's
+   mark states its own (below), at a weight this rule doesn't pass. */
+:where(body:not([data-lf-aiming], [data-lf-design-mode])) [data-lf-over-mark] {
   cursor: pointer;
 }
 /* An element holding threads draws no contour at rest: its margin entry says so, and a
    box means "this, now". A contour appears for a moment — a draft on it, the pointer
    on its row in Threads, the thread the user is in — and is one hollow line, the
    element's own outline (surfaces.css). The element still takes a press that opens
-   its thread. */
-.lf-mark-el {
+   its thread. Armed, a press on it is the aim's, not the thread's, so the hand here
+   is the aim's answer (chrome.css) or a control's own cursor, and not the mark's own
+   "open this thread". */
+:where(body:not([data-lf-aiming], [data-lf-design-mode])) .lf-mark-el {
   cursor: pointer;
 }
 /* The annotation layer hidden (`o`): the element's threads are out of reach, so the
@@ -24,18 +29,10 @@ body.lf-over-mark {
 .lf-mark-el.lf-pending {
   cursor: auto;
 }
-/* Armed, a press on a thread-marked element is the aim's, not the thread's, so the
-   hand here is the aim's answer rather than the thread's: it stands where the aim has
-   an item and comes off where it hasn't, which is the same promise the body is making
-   and not the mark's own "open this thread". The body carries the stamps, and the
-   chrome stands after it, so a mark in the chrome reads them as a sibling's. */
-body:is(.lf-aiming, [data-lf-design-mode]) .lf-mark-el,
-body:is(.lf-aiming, [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
+/* The chrome stands after the body, which carries the arm, so a mark in the chrome
+   reads it as a sibling's and draws the armed arrow. */
+body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
   cursor: default;
-}
-body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el,
-body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el {
-  cursor: pointer;
 }
 
 @scope (.lf-chrome) {
@@ -193,9 +190,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
     font: var(--font-message);
     cursor: text;
   }
-  /* Its words in the empty field's ink. */
+  /* Its words in the empty field's ink and Leaf's italic. */
   .lf-fab-rest > .lf-compose-placeholder {
     color: var(--muted);
+    font-style: italic;
   }
   .lf-fab-bar[data-lf-rest] > .lf-surface-grip {
     display: none;
@@ -341,7 +339,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item ~ .lf-chrome .lf-mark-el
      card's own border, a frame in a frame with the reply field a third box inside
      that. The reply field keeps its box, since that is the thing typed into. The ring is
      still the thread's focus; the card's face only carries it, and its surface while the
-     card moves. A message holding focus, as Next on me leaves the reply it lands on,
+     card moves. A message holding focus, as Next On Me leaves the reply it lands on,
      rings the card too (below), since the keys it answers act on its thread. */
   .lf-margin-preview-card:has(
     .lf-page-thread[data-lf-focus-visible],

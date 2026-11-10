@@ -1,11 +1,12 @@
 /* lf-gloss: the prose stays prose, and its underline is the whole visible
  * affordance. The words keep the page's ink while the underline uses the accent —
- * this phrase goes nowhere — and the top-layer card uses the page's ordinary paper,
- * ink, and rule rather than inventing a tooltip palette. The explanation is words in
- * a card standing over the page, so it takes the face a thread card's words take
- * (`--font-message`, tokens.css), upright and regular even where the phrase is
- * emphasised. Paper puts the explanation after the phrase, where it can honour its
- * words. */
+ * this phrase goes nowhere — and the card a press pins uses the popover face, the
+ * page's paper, so it reads as the card a press opened rather than the preview pointing
+ * shows (runtime/preview.js).
+ * The explanation is words in a card standing over the page, so it takes the face a
+ * thread card's words take (`--font-message`, tokens.css), upright and regular even
+ * where the phrase is emphasised. Paper puts the explanation after the phrase, where it
+ * can honour its words. */
 lf-gloss {
   display: inline;
   /* The phrase wears its mark's ring, inside its edge, as every mark on it stands
@@ -60,16 +61,6 @@ lf-gloss:has(> .lf-gloss-mark[data-lf-focus-visible]) {
   white-space: normal;
   overflow-wrap: anywhere;
   overflow: visible;
-}
-/* Keep the space to the phrase inside the card's hover region, above and below
- * so CSS anchor flipping preserves the same pointer route. */
-@media screen {
-  .lf-gloss-popover::before {
-    content: "";
-    position: absolute;
-    inset: calc(-1 * var(--lf-gloss-gap)) 0;
-    z-index: -1;
-  }
 }
 @media print {
   lf-gloss > .lf-gloss-popover {

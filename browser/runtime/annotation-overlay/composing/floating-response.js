@@ -28,8 +28,9 @@
    stands where its editor will and is carried as its editor is, so opening it moves
    nothing. It has no editor yet, so it has no height to fit and no motion to follow.
    It stands only in the room beside what it is about, the margin its rail stands in
-   (margin-layout.js, `railStandsBeside`), whatever rows stand there already. Under or
-   over its target, slid across a target with no room beside it, or beside a target
+   (margin-layout.js, `railStandsBeside`, `railEdge`), whatever rows stand there
+   already. Under or over its target, on its left, beside a target that ends short of
+   the column's edge, slid across a target with no room beside it, or beside a target
    the rail doesn't stand by, as a workspace pane whose neighbour fills the window
    beside it, it would lie on the page's own words and controls, the one just pressed
    among them, and the next press there would open it (browser/AGENTS.md, "Controls
@@ -46,6 +47,7 @@ import {
   targetElement,
   targetParts,
   targetRange,
+  targetSegments,
 } from "../../resolved-target.js";
 import { blockAt, quoteFrom, segmentsIn } from "../../passages.js";
 import { pageSelection, selectionAnchor } from "../../composing/capture.js";
@@ -62,7 +64,7 @@ import {
   commentBoundary,
   commentPlacement,
 } from "../comment-placement.js";
-import { railStandsBeside } from "../margin-layout.js";
+import { railEdge, railStandsBeside } from "../margin-layout.js";
 import { pointBand } from "../../pointed-place.js";
 import { keeps, roomPx } from "../../keeps.js";
 import { pageScroller } from "../../scrolling.js";
@@ -72,6 +74,7 @@ import { pageScroller } from "../../scrolling.js";
  * response: import("../../composing/surface.js").ResponseState,
  * positioned: (ready: boolean) => void, dismiss: () => void,
  * scrollToElement: (element: Element, behavior: ScrollBehavior, block: ScrollLogicalPosition) => unknown,
+ * scrollToPassage: ReturnType<typeof import("../../anchor-travel.js").createAnchorTravel>["scrollToPassage"],
  * scrollToRange: (range: Range, behavior: ScrollBehavior) => unknown,
  * }} capabilities */
 export function createFloatingResponsePlacement({
@@ -81,6 +84,7 @@ export function createFloatingResponsePlacement({
   positioned,
   dismiss,
   scrollToElement,
+  scrollToPassage,
   scrollToRange,
 }) {
   /** @param {Element} [scroller] */
@@ -265,6 +269,70 @@ export function createFloatingResponsePlacement({
    * floating: HTMLElement, update: () => void) => () => void} EditingObserver */
   /** @type {{editing: EditingObserver, compact: typeof import("@floating-ui/dom").autoUpdate} | null} */
   let observationModes = null;
+  // Built outside `watchFabPosition`, whose scope holds the target it watches: the
+  // modes outlive every watch, and a closure made there would keep its first target
+  // alive for the session, after a revision removed it.
+  /** @param {typeof import("@floating-ui/dom").autoUpdate} autoUpdate
+   * @param {typeof import("@floating-ui/dom").getOverflowAncestors} getOverflowAncestors
+   * @returns {EditingObserver} */
+  function editingObserver(autoUpdate, getOverflowAncestors) {
+    return (reference, floating, update) => {
+      const invalidate = () => {
+        nativeAttachment = false;
+        update();
+      };
+      const stopSize = autoUpdate(reference, floating, invalidate, {
+        ancestorScroll: false,
+        layoutShift: false,
+      });
+      let x = reference.getBoundingClientRect().left;
+      // Each native scroll carrier owns its previous coordinates; there are no
+      // parallel arrays whose positions must keep naming the same ancestor.
+      const scrollers = getOverflowAncestors(reference.contextElement)
+        .filter(
+          /** @returns {node is Element | Window} */
+          (node) => "scrollX" in node || "scrollLeft" in node,
+        )
+        .map((node) => {
+          const position = () =>
+            "scrollX" in node
+              ? { x: node.scrollX, y: node.scrollY }
+              : { x: node.scrollLeft, y: node.scrollTop };
+          let previous = position();
+          return () => {
+            const current = position();
+            const changed = current.x !== previous.x || current.y !== previous.y;
+            previous = current;
+            return changed;
+          };
+        });
+      const stopMotion = autoUpdate(
+        reference,
+        floating,
+        () => {
+          const next = reference.getBoundingClientRect().left;
+          const scrolled = scrollers.map((read) => read()).some(Boolean);
+          if (scrolled) {
+            x = next;
+            return;
+          }
+          if (next === x) return;
+          x = next;
+          invalidate();
+        },
+        {
+          ancestorScroll: false,
+          ancestorResize: false,
+          elementResize: false,
+          layoutShift: true,
+        },
+      );
+      return () => {
+        stopMotion();
+        stopSize();
+      };
+    };
+  }
   /** @param {Element} target
    * @param {typeof import("@floating-ui/dom").autoUpdate} autoUpdate
    * @param {typeof import("@floating-ui/dom").getOverflowAncestors} getOverflowAncestors */
@@ -278,67 +346,10 @@ export function createFloatingResponsePlacement({
           : target.getBoundingClientRect();
       },
     };
-    if (!observationModes) {
-      observationModes = {
-        editing: (reference, floating, update) => {
-          const invalidate = () => {
-            nativeAttachment = false;
-            update();
-          };
-          const stopSize = autoUpdate(reference, floating, invalidate, {
-            ancestorScroll: false,
-            layoutShift: false,
-          });
-          let x = reference.getBoundingClientRect().left;
-          // Each native scroll carrier owns its previous coordinates; there are no
-          // parallel arrays whose positions must keep naming the same ancestor.
-          const scrollers = getOverflowAncestors(reference.contextElement)
-            .filter(
-              /** @returns {node is Element | Window} */
-              (node) => "scrollX" in node || "scrollLeft" in node,
-            )
-            .map((node) => {
-              const position = () =>
-                "scrollX" in node
-                  ? { x: node.scrollX, y: node.scrollY }
-                  : { x: node.scrollLeft, y: node.scrollTop };
-              let previous = position();
-              return () => {
-                const current = position();
-                const changed = current.x !== previous.x || current.y !== previous.y;
-                previous = current;
-                return changed;
-              };
-            });
-          const stopMotion = autoUpdate(
-            reference,
-            floating,
-            () => {
-              const next = reference.getBoundingClientRect().left;
-              const scrolled = scrollers.map((read) => read()).some(Boolean);
-              if (scrolled) {
-                x = next;
-                return;
-              }
-              if (next === x) return;
-              x = next;
-              invalidate();
-            },
-            {
-              ancestorScroll: false,
-              ancestorResize: false,
-              elementResize: false,
-              layoutShift: true,
-            },
-          );
-          return () => {
-            stopMotion();
-            stopSize();
-          };
-        },
-        compact: autoUpdate,
-      };
-    }
+    observationModes ??= {
+      editing: editingObserver(autoUpdate, getOverflowAncestors),
+      compact: autoUpdate,
+    };
     const observes = observationModes;
     fabPosition.watch(
       target,
@@ -505,8 +516,9 @@ export function createFloatingResponsePlacement({
     if (
       response.rests &&
       (!railStandsBeside(place.element) ||
-        seat.side === "top" ||
-        seat.side === "bottom")
+        seat.side !== "right" ||
+        !place.clear ||
+        place.clear.right < railEdge() - 1)
     ) {
       withholdFab();
       return false;
@@ -627,8 +639,10 @@ export function createFloatingResponsePlacement({
       bringBack: /** @param {ScrollBehavior} behavior */ (behavior) => {
         const found = response.resolved;
         const anchor = response.anchor;
-        const range = anchor?.quote && (targetRange(found) ?? selectedRange(anchor));
-        if (range) return scrollToRange(range, behavior);
+        if (anchor?.quote && targetRange(found))
+          return scrollToPassage(targetSegments(found), behavior);
+        const selected = anchor?.quote && selectedRange(anchor);
+        if (selected) return scrollToRange(selected, behavior);
         const target = response.target;
         const line = response.pointIn(target) ?? target;
         if (line) scrollToElement(line, behavior, "nearest");

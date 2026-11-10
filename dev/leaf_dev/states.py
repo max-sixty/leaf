@@ -590,6 +590,91 @@ def card_by_pointer(page: Page) -> None:
     open_card(page, page.locator(".lf-margin-marker").first)
 
 
+def control_preview(page: Page) -> None:
+    """The first margin card's Resolve under a resting pointer, whose preview names its
+    word and the key that presses it (preview.js). A runtime without previews shows
+    the card alone."""
+    card_by_pointer(page)
+    page.locator(".lf-margin-preview .lf-resolve").hover()
+    page.wait_for_function(
+        """() => {
+          const tip = document.getElementById('lf-preview');
+          return !tip || tip.matches(':popover-open');
+        }"""
+    )
+    settle(page)
+
+
+# Longer than a preview's dwell (preview.js, `DWELL`), so a runtime that previews what
+# the pointer rests on has shown it, and one that doesn't shows the page as it stands.
+PREVIEW_DWELL_MS = 400
+
+
+def thread_preview(page: Page) -> None:
+    """The open thread's passage mark under a resting pointer, which previews who wrote
+    its last message and when, that message's opening line and where the thread stands
+    (thread/messages.js, `threadPreview`)."""
+    line = page.evaluate(
+        """(words) => {
+          const walker = document.createTreeWalker(document.querySelector('main'),
+            NodeFilter.SHOW_TEXT);
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const at = node.data.indexOf(words);
+            if (at < 0) continue;
+            node.parentElement.scrollIntoView({block: 'center', behavior: 'instant'});
+            const range = document.createRange();
+            range.setStart(node, at);
+            range.setEnd(node, at + words.length);
+            return range.getClientRects()[0].toJSON();
+          }
+        }""",
+        "The trusted supervisor owns shutdown.",
+    )
+    page.mouse.move(line["left"] - 20, line["top"] - 20)
+    page.mouse.move(line["left"] + 10, line["top"] + line["height"] / 2, steps=3)
+    page.wait_for_timeout(PREVIEW_DWELL_MS)
+    settle(page)
+
+
+def age_preview(page: Page) -> None:
+    """The first margin card's first age under a resting pointer, which previews the clock
+    time behind it in the reader's zone (presence.js, `agePreview`)."""
+    card_by_pointer(page)
+    age = page.locator(".lf-margin-preview .lf-msg-head time").first
+    box = age.bounding_box()
+    assert box, "the card shows no age"
+    # The card may open with the age under the pointer, which reads nothing until the
+    # pointer moves.
+    page.mouse.move(box["x"] - 30, box["y"] + box["height"] + 30)
+    age.hover()
+    page.wait_for_timeout(PREVIEW_DWELL_MS)
+    settle(page)
+
+
+def link_preview(page: Page) -> None:
+    """The gallery's link to its session table under a resting pointer, whose preview
+    shows the table's caption, its first rows and the thread about it
+    (place-preview.js). A runtime without link previews shows the link alone, once a
+    second has passed without one."""
+    page.locator("#bg-link-previews").evaluate(
+        "el => el.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    page.locator("#bg-link-table").hover()
+    page.evaluate(
+        """() => new Promise((done) => {
+          const tip = document.getElementById('lf-preview');
+          const until = performance.now() + 1000;
+          const look = () =>
+            !tip || tip.matches(':popover-open') || performance.now() > until
+              ? done()
+              : requestAnimationFrame(look);
+          look();
+        })"""
+    )
+    settle(page)
+
+
 def open_card(page: Page, marker: Locator) -> None:
     """The margin card `marker` opens, by a click on it. The margin is fixed to the
     window and anchored to the page, so Playwright's scroll into view leaves a marker
@@ -1094,19 +1179,66 @@ def option_picked(page: Page) -> None:
     expect(page.locator(".lf-live")).to_contain_text("Chose “")
 
 
+def option_answered(page: Page) -> None:
+    """The panel's row once the server has read a pick that leaves more On Me, where the
+    field's end offers the next item On Me lists."""
+    page.locator("#off-release-hold").click()
+    expect(page.locator(".lf-fp-on-user .lf-fp-num")).to_have_text("2")
+
+
+def panel_resolved(page: Page) -> None:
+    """The panel's row just after Resolve in its view of a thread moves the user on to
+    the next one, the field saying which thread was resolved and, at its end, the press
+    the moment offers."""
+    floating_thread(page)
+    page.locator(panel_view("thread")).focus()
+    page.keyboard.press("r")
+    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "data-lf-says", "notice"
+    )
+
+
+def panel_draw_mode(page: Page) -> None:
+    """The panel's row in Draw mode, the field naming the mode, with its way out."""
+    page.keyboard.press("w")
+    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "data-lf-says", "stance"
+    )
+
+
+def panel_selection(page: Page) -> None:
+    """The panel's row quoting words a script selected on the page, which a press on the
+    field comments on."""
+    page.locator("main p").first.evaluate(
+        """p => {
+          const text = [...p.childNodes].find(
+            (node) => node.nodeType === Node.TEXT_NODE && node.length > 30,
+          );
+          const range = document.createRange();
+          range.setStart(text, 0);
+          range.setEnd(text, Math.min(40, text.length));
+          getSelection().removeAllRanges();
+          getSelection().addRange(range);
+        }"""
+    )
+    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "data-lf-says", "selection"
+    )
+
+
 def option_references(page: Page) -> None:
     """The patch decision, whose two options both name the stall block above them."""
     page.locator("#off-workaround-review").scroll_into_view_if_needed()
 
 
 def on_me(page: Page) -> None:
-    """On me, opened from the floating panel's On me mark."""
+    """On Me, opened from the floating panel's On Me mark."""
     page.locator(".lf-fp-on-user").click()
     expect(page.locator(panel_view("queue"))).to_be_visible()
 
 
 def on_me_question(page: Page) -> None:
-    """On me opened on the card of a question the agent asked in a thread with
+    """On Me opened on the card of a question the agent asked in a thread with
     `--obligation`, its whole words over the card's Reply."""
     question = (
         "Can you review the change or name a reviewer, then merge it after checking "
@@ -1128,7 +1260,7 @@ def on_me_question(page: Page) -> None:
 
 
 def on_me_choice(page: Page) -> None:
-    """A described choice card in On me, before answering."""
+    """A described choice card in On Me, before answering."""
     on_me(page)
     card = page.locator(
         '.lf-fp-on-item[data-lf-obligation-id="widget:decision-dedupe"]'
@@ -1611,8 +1743,8 @@ def options_in_pane(page: Page) -> None:
 
 
 def tally_after_an_answer(page: Page) -> None:
-    """A queue's tally after Next on me and one answer: the count down by one, the
-    answered row's check above the open marks, and Next on me's second obligation open."""
+    """A queue's tally after Next On Me and one answer: the count down by one, the
+    answered row's check above the open marks, and Next On Me's second obligation open."""
     next_on_me = page.locator("#ar-left .lf-tally-next")
     next_on_me.click()
     page.locator("#ar-canary-consecutive").click()
@@ -1723,6 +1855,32 @@ def gallery_metrics(page: Page) -> None:
     """Headline values and charts, reached through the gallery's page tab."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     page.locator("#bg-metrics-and-chart").scroll_into_view_if_needed()
+
+
+def chart_preview(page: Page) -> None:
+    """The gallery's line chart under a resting pointer by its second run: the ring on
+    the baseline's point, its rule to the axis, and the preview above them saying the
+    run, the series and the value (lf-chart.js). A runtime whose charts say no values
+    shows the chart alone."""
+    gallery_metrics(page)
+    chart = page.locator("#bg-chart")
+    chart.evaluate("el => el.scrollIntoView({block: 'center'})")
+    run = chart.locator('[data-lf-part="x-axis tick label"] text').get_by_text(
+        "2", exact=True
+    )
+    value = chart.locator('[data-lf-part="y-axis tick label"] text').get_by_text(
+        "6", exact=True
+    )
+    x, y = run.bounding_box(), value.bounding_box()
+    assert x is not None and y is not None
+    at = (x["x"] + x["width"] / 2, y["y"] + y["height"] / 2)
+    page.mouse.move(at[0] - 8, at[1])
+    page.mouse.move(*at)
+    page.wait_for_function(
+        """() => !document.querySelector('#bg-chart .lf-chart-at')
+          || document.getElementById('lf-preview').matches(':popover-open')"""
+    )
+    settle(page)
 
 
 def gallery_plans(page: Page) -> None:
@@ -2013,7 +2171,7 @@ def ship_tasks(page: Page) -> None:
 
 
 def ship_answered(page: Page) -> None:
-    """On me once the user has pressed Done in the reconnect thread and picked the
+    """On Me once the user has pressed Done in the reconnect thread and picked the
     release: what still waits on them."""
     card_by_pointer(page)
     page.locator(".lf-margin-preview:not([hidden]) .lf-done").click()
@@ -2024,7 +2182,7 @@ def ship_answered(page: Page) -> None:
 
 
 def card_message_by_keyboard(page: Page) -> None:
-    """The agent's question in a margin card, reached by Next on me (`m`), which
+    """The agent's question in a margin card, reached by Next On Me (`m`), which
     focuses the message, so its card wears the ring."""
     for _ in range(4):
         page.keyboard.press("m")
@@ -2033,7 +2191,7 @@ def card_message_by_keyboard(page: Page) -> None:
             "() => document.activeElement?.matches('.lf-margin-preview .lf-msg')"
         ):
             return
-    raise AssertionError("Next on me never reached a card's message")
+    raise AssertionError("Next On Me never reached a card's message")
 
 
 def element_thread_open(page: Page) -> None:
@@ -2197,9 +2355,28 @@ def go_to(page: Page) -> None:
 
 
 def contents_by_keyboard(page: Page) -> None:
-    """Reveal the contents map with focus on its first section link."""
+    """The contents map revealed by focus on its first section link."""
     page.keyboard.press("Tab")
     page.locator("lf-toc li a").first.focus()
+
+
+def contents_marks(page: Page) -> None:
+    """Where each section's threads and On me items stand along the contents: on the
+    map where the track stands beside the body, and in the outline the reader opened
+    where the track stacks over it."""
+    toggle = page.locator("lf-toc .lf-toc-toggle")
+    if toggle.is_visible():
+        toggle.click()
+        expect(page.locator("lf-toc details")).to_have_attribute("open", "")
+    settle(page)
+
+
+def contents_marks_changes(page: Page) -> None:
+    """The contents' marks with the changes view on, each changed section marked."""
+    contents_marks(page)
+    page.keyboard.press("v")
+    expect(page.locator(".lf-ins-block").first).to_be_attached()
+    settle(page)
 
 
 def topic_contents(page: Page) -> None:
@@ -2222,13 +2399,6 @@ def overflowing_tabs(page: Page) -> None:
     strip.scroll_into_view_if_needed()
     strip.locator('.lf-tabstrip-scroll[data-lf-to="end"] > span').click()
     scroll_settled(page)
-
-
-def contents_over_reading(page: Page) -> None:
-    """Reveal the margin map over a section, including its title's background."""
-    contents_by_keyboard(page)
-    page.locator("lf-toc li a").first.press("Enter")
-    page.locator("lf-toc .lf-toc-start a").focus()
 
 
 def widget_inline_hints(page: Page) -> None:
@@ -2550,6 +2720,10 @@ STATES = (
         window=Window((1440, 300)),
     ),
     State("plan-option-picked", "review-a-plan", option_picked, region=".lf-fp-row"),
+    State("ship-option-answered", "ship-review", option_answered, region=".lf-fp-row"),
+    State("panel-resolved", "ship-review", panel_resolved, region=".lf-fp-row"),
+    State("panel-draw-mode", "review-a-plan", panel_draw_mode, region=".lf-fp-row"),
+    State("panel-selection", "review-a-plan", panel_selection, region=".lf-fp-row"),
     State(
         "plan-option-card-picked",
         "review-a-plan",
@@ -2800,19 +2974,22 @@ STATES = (
         topic_contents,
         region="#bg-topic-contents",
     ),
-    # The contents map draws only in a sidebar's track beside a `.layout-column`. No
-    # example draws one, so these states read a fixture built that way.
+    # The contents map draws only in a document's sidebar narrowed to it, beside a
+    # `.layout-column` under a mouse. No example draws one, so these states read a
+    # fixture built that way.
     State(
-        "contents-spine-keyboard",
+        "contents-map-keyboard",
         "sidebar-contents",
         contents_by_keyboard,
     ),
     State(
-        "contents-over-reading",
+        "contents-marks", "sidebar-contents", contents_marks, region="#rotation-route"
+    ),
+    State(
+        "contents-marks-changes",
         "sidebar-contents",
-        contents_over_reading,
-        window=Window((1100, 900)),
-        region=".lf-toc-start a",
+        contents_marks_changes,
+        region="#rotation-route",
     ),
     State("playground-controls", "notification-playground", playground_controls),
     State("playground-instruction", "notification-playground", playground_instruction),
@@ -2848,6 +3025,7 @@ STATES = (
     State("side-tab-focus", "alert-review", tab_by_keyboard),
     State("frame-edges", "feature-gallery", frame_edges),
     State("gallery-metrics", "feature-gallery", gallery_metrics),
+    State("chart-preview", "feature-gallery", chart_preview, region="#bg-chart"),
     State("gallery-plans", "feature-gallery", gallery_plans),
     State(
         "gallery-drawing",
@@ -2890,6 +3068,10 @@ STATES = (
     # Its threads on the user's turn, tinted and saying so at their ends.
     State("page-map-turn", "ship-review", page_map, region=".lf-page-map-dialog"),
     State("plan-card", "review-a-plan", card_by_pointer),
+    State("control-preview", "review-a-plan", control_preview),
+    State("thread-preview", "review-a-plan", thread_preview),
+    State("age-preview", "review-a-plan", age_preview),
+    State("link-preview", "feature-gallery", link_preview),
     State("reaction-palette", "ship-review", reaction_palette),
     State("reaction-pressed", "ship-review", reaction_pressed),
     State(
@@ -2958,16 +3140,21 @@ STATES = (
         region=".lf-margin-preview",
     ),
     State("plan-card-aging", "review-a-plan", card_aging, region=".lf-margin-preview"),
+    # A window with no room beside the stop's words, so its card stands under them and
+    # holds what would move the reply the user drafts (thread-preview.js,
+    # `endNewsMoves`); beside them, it shows the news at once.
     State(
         "plan-card-held-news",
         "review-a-plan",
         card_held_news,
+        window=Window((1200, 900)),
         region=".lf-margin-preview",
     ),
     State(
         "plan-card-held-step",
         "review-a-plan",
         card_held_step,
+        window=Window((1200, 900)),
         region=".lf-margin-preview",
     ),
     State(

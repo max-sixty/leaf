@@ -29,6 +29,7 @@ from render_harness import (
     consume_browser_errors,
     expect_panel_offers,
     expect_panel_says,
+    expect_preview_words,
     leaf_page,
     open_page,
     panel_field,
@@ -61,7 +62,7 @@ from browser.test_render_anchors import open_selected_comment
 from browser.threads import open_panel_thread
 
 from journeys import (
-    first_thread_quote,
+    first_thread_head,
 )
 
 
@@ -846,7 +847,7 @@ diff --git a/README.md b/README.md
     details.evaluate("element => { element.open = true; }")
     expect(inline).to_have_count(1)
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
-    whole_line = first_thread_quote(page, serve.page_dir)
+    whole_line = first_thread_head(page, serve.page_dir)
     expect(whole_line).to_have_text("§ app.py · new line 2")
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
@@ -858,7 +859,7 @@ diff --git a/README.md b/README.md
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     expect(added).not_to_be_in_viewport()
     # The thread's view goes to the line it quotes with Show on page.
-    first_thread_quote(page, serve.page_dir)
+    first_thread_head(page, serve.page_dir)
     page.locator(".lf-fp-head").get_by_role("button", name="Show on page").click()
     expect(search).to_have_value("")
     expect(added).to_be_in_viewport()
@@ -940,9 +941,8 @@ diff --git a/README.md b/README.md
         },
     ]
     second = open_panel_thread(page, comments[1]["id"])
-    expect(second.locator(".lf-thread-quote")).to_have_text(
-        "app.py · new line 2 · request.token.id"
-    )
+    expect(second.locator(".lf-quote-label")).to_have_text("app.py · new line 2")
+    expect(second.locator(".lf-thread-quote")).to_have_text("request.token.id")
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
 
@@ -965,7 +965,8 @@ diff --git a/README.md b/README.md
         view = open_panel_thread(page, comment["id"])
         expect(view.locator(".lf-anchor-status")).to_have_text("Earlier data")
         assert (
-            view.locator(".lf-thread-quote").get_attribute("data-lf-detached") is None
+            view.locator(".lf-thread-quote-head").get_attribute("data-lf-detached")
+            is None
         )
 
 
@@ -1121,7 +1122,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     # The seat holds arrivals that would move the diff on screen behind its notice:
     # the user's own two messages. The agent's reply, already read, is not among them.
     notice = thread.get_by_role("button", name="2 new", exact=True)
-    expect(notice).to_have_accessible_description("2 new messages")
+    expect_preview_words(notice, "2 new messages")
     notice.click()
     line = ":scope > .lf-msg-head .lf-msg-sending"
     for view in (thread, panel_thread):

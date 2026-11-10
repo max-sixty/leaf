@@ -29,11 +29,7 @@ export const chromeSheet = constructSheet(sheets.chrome);
 // widget or page coins cannot meet a private rule. Writing a rule outside the block
 // widens the widget contract; this list is where that is decided, and the render suite
 // (test_a_coined_class_cannot_reach_the_chromes_rules) holds the sheet to it both ways.
-export const chromeSharedClasses = Object.freeze([
-  "lf-aiming",
-  "lf-over-item",
-  "lf-ui",
-]);
+export const chromeSharedClasses = Object.freeze(["lf-ui"]);
 export const marksSheet = constructSheet(sheets.marks);
 export const annotationMarkSheets = sheets.annotations
   ? [constructSheet(sheets.annotations.marks)]

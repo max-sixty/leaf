@@ -42,8 +42,8 @@ such as a table, a trace or a playground, can ask for one with `data-width` ("Bo
 widths"). The block breaks out of the column and the prose stays where it is.
 
 On a sidebar page, every block, the title included, starts at the same left edge and
-fills its region. Text, an `lf-ask`, a callout, and widgets read as text such as an
-option list keep the reading measure, on a column page too.
+fills its region. Text, a callout, and widgets read as text such as an option list keep
+the reading measure, on a column page too.
 
 A workspace fills the window. It has no reading measure, every block fills its region,
 and `data-width` has no effect. Where a region would hold prose too wide to read,
@@ -117,11 +117,8 @@ keeping another in view. The sidebar and body are authored siblings; the sidebar
 
 ```html
 <main class="layout-sidebar">
-  <aside id="status">
-    <div class="layout-track">
-      <lf-toc id="contents"></lf-toc>
-      <p>…</p>
-    </div>
+  <aside id="route">
+    <div class="layout-track"><lf-toc id="contents"></lf-toc></div>
   </aside>
   <article id="evidence" class="layout-column">
     <h1>…</h1>
@@ -131,24 +128,26 @@ keeping another in view. The sidebar and body are authored siblings; the sidebar
 </main>
 ```
 
-Use a `layout-column` body for a reading document with wider exhibits. Its prose
-starts beside the sidebar, and exhibits use the remaining body width. For a board or
-dashboard, the body can instead be an ordinary `div` with the page's own layout; a
-`header` and `footer` on the outer Layout span both regions.
+Use a `layout-column` body for a reading document with wider exhibits. Where its
+sidebar comes before the body and its track holds only the contents map, under a mouse
+the sidebar narrows to the map's spine: the map shows its labels over the page when
+the reader points at it, the prose starts just past the spine, and exhibits use the
+remaining body width. Under touch, after the body, or with anything else in the track, the sidebar
+keeps a column's room. So put a status the
+reader should see at once at the top of the body rather than beside the map. For a
+board or dashboard, the body can instead be an ordinary `div` with the page's own
+layout; a `header` and `footer` on the outer Layout span both regions.
 
 The browser wraps the regions in source order when they no longer fit. Put the
 `aside` before the body when its contents should be read first on a narrow screen,
 and after it when they should follow the body. Set `--aside` on the Layout to a
 length or share, such as `20rem` or `25%`, to choose its width; its contents fit that
 width. The default dashboard shares are two thirds body and one third sidebar.
-A document sidebar takes the shared sidebar measure, leaving prose its own measure.
 
 Beside the body, `layout-track` sticks within its sidebar and scrolls within the
 window when tall. Stacked, it flows whole with the page. The authored wrapper is the
 same node from the first paint through revisions: Leaf inserts no body around it.
-Style its blocks by their classes or ids, or as `.layout-track > p`. Put a contents
-map first in the track and follow it with one block, which stands clear of the
-map's spine; wrap several blocks in one element.
+Style its blocks by their classes or ids, or as `.layout-track > p`.
 
 Add `layout-notes` to the `layout-column` that should leave room beside its
 prose for notes, such as `<main class="layout-column layout-notes">`. This is an
@@ -257,9 +256,10 @@ column and sidebar pages:
   leave free, into both margins.
 
 A `table` with either value is only as wide as its columns need, up to that width.
-A block widens when it is a child of `layout-column` or `layout-flow`.
-A framed holder, such as an `lf-ask` or callout, needs its own `data-width` to widen;
-its children use the room inside it. A wide child alone does not widen its holder.
+A block widens when it is a child of `layout-column`, `layout-flow` or `lf-ask`, whose
+blocks stand in the flow around it, so its words stay on the column beside a wider one.
+A framed holder, such as a callout, needs its own `data-width` to widen; its children
+use the room inside it. A wide child alone does not widen its holder.
 Under the reading face a table scrolls sideways when needed; a page without the face
 gives a table that can outgrow its width a box of its own that scrolls sideways
 (`page-authoring.md`, "Markup"). Use `layout-flow` on unframed section
@@ -269,17 +269,19 @@ own contents.
 A widget whose entry declares `x-height`, such as `lf-chart`, reserves that height
 before it draws; `data-height` on the element overrides it. A widget whose drawing sets
 its own height, such as `lf-diagram`, reserves nothing, so content below it moves
-when it draws unless you set `data-height`. `lf-diff` sizes textual patches from
-inline content or available source data; its package author instructions own the
-limits. `page check --render` suggests the height wherever a drawing differs from
-what was reserved.
+when it draws unless you set `data-height`. `lf-diff` shows an inline patch as its
+source text until it draws, so its height changes as it draws; its package author
+instructions say when to set `data-height`. Wherever a drawing's height differs from
+the box it showed before drawing, `page check --render` gives that height as advice,
+whether `data-height` was missing, too small or too large.
 
 ## The rail and the margin
 
-A document's explicit sidebar keeps its route beside the body. A contents map there
-uses the quiet spine on a wide fine-pointer screen; stacked, it returns to its native
-outline. A dashboard sidebar keeps its outline open beside the body. These placements
-are CSS layout, present before widgets load. Page CSS does not read runtime placement
+A document's explicit sidebar keeps its route beside the body. Before the body and
+holding only a contents map, under a mouse it narrows to the map's spine, which draws
+the document's sections to scale and shows their labels over the page when the reader
+points at it; stacked, it returns to its native outline. A dashboard sidebar, or a document's
+under touch, keeps its outline open beside the body. These placements are CSS layout, present before widgets load. Page CSS does not read runtime placement
 attributes. To change where a route stands, compose its sidebar and body explicitly.
 
 `data-rail="right"` on `body` gives a sidebar page a rail, and `data-rail="none"` gives
@@ -290,7 +292,7 @@ comment there shows as a pin on its block.
 
 By default Leaf draws comment markers, passage highlights and threads over the page.
 `data-annotations="page"` on `body` turns these off for a page that shows comments in
-its own layout; comments, On me obligations, Undo and live revisions still work, and comments open
+its own layout; comments, On Me obligations, Undo and live revisions still work, and comments open
 in the Leaf panel. To show conversations in the page's own layout, register a
 presentation as `module-annotations.md`, "Page annotation presentation", describes,
 rather than rebuilding the event log in page code.

@@ -7,7 +7,7 @@ the input pending on the session's pages into a delivery and hands it over inlin
 or as a pointer. Codex offers its
 pointers through `codex.offer_hook_delivery` instead, but uses this module's Stop
 rule and reminders. `hooks` calls in here for pages the session owns and for a
-reconnect notice about a page it served before.
+prompt that could not serve one of its pages again (`reconnect`).
 
 Claude Code runs the prompt hook as every turn begins, including a turn opened by a
 background task's end, and adds its output to the turn's context; the Stop hook's
@@ -117,10 +117,9 @@ says how long the line has stood. This was the user's choice (28 October 2026) o
 Leaf reading the turn's liveness, or its current step, from the hooks itself.
 
 The prompt hook and a tool boundary also carry what Leaf's clerk wrote or found at
-the last turn's end, and each reply a fork of the conversation posted, one line each
-(`clerk.queued`), and take them off the queue once printed (`clerk.heard`). Stop
-carries none: the clerk forks only after the turn has ended, and a fork's reply
-reaches the session with the settled message, which wakes no idle session.
+the last turn's end, one line each (`clerk.queued`), and take them off the queue
+once printed (`clerk.heard`). Stop carries none: the clerk forks only after the
+turn has ended.
 
 A harness reads a hook's output only after the hook exits, and discards it if the
 hook times out. So the hook records its handover only before `CONFIRM_WITHIN`, well
@@ -146,7 +145,7 @@ from .delivery import (
     record_pickup,
 )
 from .findings import Finding
-from .harness import Harness, claim_harness
+from .harness import HOOK_TIMEOUT_S, Harness, claim_harness
 from .schema import (
     ANSWER_INSTRUCTION,
     PREVIEW_FILE,
@@ -483,11 +482,6 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
             continue
 
 
-# The time every harness gives the prompt and Stop hooks: each registration's
-# `timeout` (`hooks/hooks.json`, `hooks/codex.json`) and Pi extension's bound
-# (`hooks/pi.ts`), which `test_hook_registration` holds to this.
-HOOK_TIMEOUT_S = 20
-
 # How long after it starts a hook may still hand a delivery over inline and wait
 # for the locks that record it; the hook itself takes about 0.4 s. The other half
 # of its timeout covers what this clock does not see: uv's start and the
@@ -499,6 +493,21 @@ CONFIRM_WITHIN = HOOK_TIMEOUT_S / 2
 INLINE_OPENING = (
     "Leaf has new input for your turn. Read this complete delivery before answering."
 )
+
+
+def pointer_opening(delivery: dict) -> str:
+    """The line that opens a pointer delivery. It says what the inline opening says,
+    with how many updates the pointer holds and from which pages, since a pointer
+    shows none of its input and would otherwise read as one more line of context."""
+    count = sum(len(batch["events"]) for batch in delivery["batches"])
+    pages = ", ".join(batch["page"] for batch in delivery["batches"])
+    updates = "1 update" if count == 1 else f"{count} updates"
+    return (
+        f"Leaf has {updates} from the user on {pages} for your turn. Read them with "
+        f"`leaf delivery read {delivery['id']}` before answering."
+    )
+
+
 # The words that open what a turn owes, as a reminder of its own or after a delivery.
 ATTENTION_OPENING = "Leaf needs attention:"
 
@@ -572,14 +581,14 @@ def carry_turn(
     expected: dict | None,
     *,
     started: float,
-    reconnect_harness: str | None = None,
+    unserved: list[Finding],
 ) -> bool | None:
-    """Compose this lifecycle's page input, obligations, and reconnect context
-    into the one hook output its harness reads, recording a delivery it hands
-    over inline by `CONFIRM_WITHIN` after `started`, the hook's
-    `time.monotonic()` as it began."""
-    # What Leaf's clerk wrote or found and the replies forks posted since the agent
-    # last heard (`clerk.queued`), which the next prompt or tool boundary carries.
+    """Compose this lifecycle's page input, obligations, and the pages a prompt
+    could not serve again (`unserved`, `reconnect.serve_again`) into the one hook
+    output its harness reads, recording a delivery it hands over inline by
+    `CONFIRM_WITHIN` after `started`, the hook's `time.monotonic()` as it began."""
+    # What Leaf's clerk wrote or found since the agent last heard (`clerk.queued`),
+    # which the next prompt or tool boundary carries.
     told = queued(sid) if event in {"UserPromptSubmit", "PostToolBatch"} else []
     due = event == "PostToolBatch" and status_check_due(sid)
     if event == "PostToolBatch" and not told and not due and not new_input(sid):
@@ -626,7 +635,10 @@ def carry_turn(
     # response-debt and housekeeping reminders belong to prompt and Stop. It
     # neither reopens nor ends a turn.
     reminding = [] if event == "PostToolBatch" else plans
-    reasons = remedies(reminding, batches)
+    reasons = [
+        *((str(found), None) for found in unserved),
+        *remedies(reminding, batches),
+    ]
     # The message avoids "unattended": a page can be watched and still be owed
     # an answer, and the runtime spends that word on a different fact — a page
     # served to nobody at all.
@@ -659,12 +671,7 @@ def carry_turn(
         )
     delivery = freeze_delivery(batches) if batches else None
     deadline = started + CONFIRM_WITHIN
-    from .reconnect import notices
-
-    context = notices(reconnect_harness, sid, expected)
-    if context is None:
-        return
-    attention = [*context, *attention, *renewals, *told]
+    attention = [*attention, *renewals, *told]
     if delivery is None:
         message = "\n".join(attention)
     else:
@@ -698,7 +705,13 @@ def carry_turn(
         else:
             if expected:
                 note_pointer(sid, expected, delivery, deadline=deadline)
-            message = "\n".join([delivery_pointer_prompt(delivery["id"]), *attention])
+            message = "\n".join(
+                [
+                    pointer_opening(delivery),
+                    delivery_pointer_prompt(delivery["id"]),
+                    *attention,
+                ]
+            )
     if message:
         assert event is not None
         print(json.dumps(harness.hook_context(event, message)), flush=True)

@@ -42,7 +42,7 @@ assert:
 variants:
   missing-input:
     metadata:
-      purpose: "A required answer goes into an On me thread obligation, not a page availability declaration."
+      purpose: "A required answer goes into an On Me thread obligation, not a page availability declaration."
     vars:
       prompt: |
         You are a Claude Code session driving the Leaf report at

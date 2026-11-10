@@ -29,7 +29,7 @@
    null when none identifies a page location. A selected tab starts a walk inside its
    controlled panel without changing comment targets.
 
-   Every walk (`t`, `m`, a tally's Next on me) pages through its stops by one rule, read
+   Every walk (`t`, `m`, a tally's Next On Me) pages through its stops by one rule, read
    from one origin (`walkOrigin`): the node the user's place was read from, the place
    it stands for, and whether that is a current location. The user is on a stop while
    their current location is in the stop's destination, where the walk's own arrival
@@ -247,7 +247,7 @@ function* locations() {
 }
 
 // What the user let go of, until they go on from it. Chrome holding no page place,
-// such as On me's list or the comment field, is not somewhere else on the page.
+// such as On Me's list or the comment field, is not somewhere else on the page.
 /** @type {WeakRef<Element> | null} */
 let letGone = null;
 onLetGo((node) => {

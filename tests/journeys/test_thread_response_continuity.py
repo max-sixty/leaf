@@ -87,7 +87,12 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
     from render_harness import told
 
     if place == "seat":
-        source = SEATED_OBLIGATION_PAGE
+        # Room below the seat lets the page scroll up by an agent reply drawn above
+        # the box being written in, which holds the box still (browser/AGENTS.md,
+        # "News moves what the reader reads only in the thread they are in").
+        source = SEATED_OBLIGATION_PAGE.replace(
+            "</main>", "<p>" + "Further context. " * 600 + "</p></main>"
+        )
         anchor = {"section": "jobs"}
         selector = '[data-lf-thread-seat="jobs"] > .lf-page-thread'
     else:
@@ -306,12 +311,19 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
             # The other tab, still holding the tall draft, mirrors these words in turn.
             consume_moves_below_the_reply(other)
         return
+
+    # A margin card beside its passage holds its reply's foot while the user types in
+    # it, so the line being edited stays and the first line comes down to it; a seat
+    # holds the first line.
+    def held(box):
+        return box["y"] + box["height"] if place == "margin" else box["y"]
+
     before = editor.bounding_box()
     for _ in range(4):
         page.keyboard.press("Backspace")
         rendered(page)
         now = editor.bounding_box()
-        assert now["y"] == pytest.approx(before["y"], abs=0.5), (before, now)
+        assert held(now) == pytest.approx(held(before), abs=0.5), (before, now)
     assert now["height"] < before["height"] - 50, (before, now)
     expect(editor).to_have_js_property("value", "First line")
     expect(editor).to_be_focused()

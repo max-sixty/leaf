@@ -102,7 +102,7 @@ import { savedReadingSettled } from "./keyboard/bindings.js";
 import { commandSteps } from "./keyboard/control-keys.js";
 import { pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
-import { notice } from "./notifications.js";
+import { gesture, notice } from "./notifications.js";
 import { counted } from "./words.js";
 import { backgroundFlash, flashDuration } from "./motion.js";
 import {
@@ -2185,6 +2185,7 @@ export function createVersionController({
           for (const block of changedSince(outgoingSource).changed)
             backgroundFlash(block, flashDuration());
           notice(`Updated to ${target.label}`, { background: true });
+          gesture("version");
         }),
     };
   }

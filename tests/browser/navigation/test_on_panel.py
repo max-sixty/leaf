@@ -788,11 +788,23 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     ).to_have_text(re.compile(r"Nothing waiting on \S+\."))
 
 
-def test_the_leaf_nods_for_each_notice_of_the_users_own_key(browser, serve):
-    """The panel's leaf nods once for each notice the user's own key gives, so `m`
-    pressed again over an empty On Me shows it landed though its words already stand.
-    The news that On Me emptied, which no key asked for, gives no nod, and nor does the
-    field leaving a notice's words for a selection's and coming back to them."""
+# The motion the panel's leaf plays, named by the turn it reaches first
+# (floating-panel.js, `MOTIONS`).
+LEAF_MOTIONS = {
+    "rotate(-12deg) scale(1.15)": "nod",
+    "translateX(-3px) rotate(-5deg)": "shake",
+    "translateY(-3px) scale(1.14)": "perk",
+    "rotate(10deg)": "sway",
+    "rotate(180deg) scale(1.15)": "twirl",
+    "rotate(14deg) translateX(1px)": "beckon",
+}
+
+
+def test_the_leaf_answers_each_moment_with_its_gesture(browser, serve):
+    """The panel's leaf nods at each step of `m`, a second over the one item waiting
+    included, though nothing else moves, twirls when the user's answer empties On Me,
+    and nods at `m` over the empty list, once each, however often the field leaves a
+    notice's words and comes back to them."""
     source = leaf_page(
         "One decision",
         '<h1>One decision</h1><lf-ask id="only-decision"><h2>Pick one</h2>'
@@ -800,51 +812,49 @@ def test_the_leaf_nods_for_each_notice_of_the_users_own_key(browser, serve):
         '<lf-option id="first">First</lf-option>'
         '<lf-option id="second">Second</lf-option></lf-options></lf-ask>',
     )
-    url = serve(source)
-    page = open_page(browser, live_url(url))
-    # The sequence of motions the leaf's mark starts, each its keyframes' turns.
+    page = open_page(browser, serve(source))
+    # The sequence of motions the leaf's mark starts, each by the turn it reaches first.
     page.evaluate(
         """() => {
-          window.__lfNods = [];
+          window.__lfLeaf = [];
           const animate = Element.prototype.animate;
           Element.prototype.animate = function (keyframes, options) {
             if (this.matches('.lf-fp-leaf > svg'))
-              window.__lfNods.push(keyframes.map((k) => k.transform).join(' / '));
+              window.__lfLeaf.push(keyframes[1].transform);
             return animate.call(this, keyframes, options);
           };
         }"""
     )
-    nods = "() => window.__lfNods"
-    frames = (
-        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
-    )
 
-    stamp_page(
-        serve.page_dir,
-        leaf_page("No decisions", "<h1>No decisions remain</h1>"),
-        "remove the last obligation",
-    )
-    wait_for_revision(page, 2)
-    expect_panel_says(page, "Nothing waiting on me")
-    page.evaluate(frames)
-    assert page.evaluate(nods) == []
+    def gestures(count):
+        page.wait_for_function(f"() => window.__lfLeaf.length >= {count}")
+        return [LEAF_MOTIONS[turn] for turn in page.evaluate("() => window.__lfLeaf")]
 
     page.keyboard.press("m")
-    page.wait_for_function(f"({nods})().length === 1")
+    expect(page.locator("#only-decision")).to_be_focused()
+    assert gestures(1) == ["nod"]
     page.keyboard.press("m")
-    page.wait_for_function(f"({nods})().length === 2")
+    assert gestures(2) == ["nod", "nod"]
+
+    page.keyboard.press("Tab")
+    expect(page.locator("#only .lf-pick").first).to_be_focused()
+    page.keyboard.press("1")
+    round_trip(page)
     expect_panel_says(page, "Nothing waiting on me")
-    nod = page.evaluate(nods)[0]
-    assert "rotate(-12deg)" in nod, nod
-    assert page.evaluate(nods) == [nod, nod]
+    assert gestures(3) == ["nod", "nod", "twirl"]
+
+    page.keyboard.press("m")
+    assert gestures(4) == ["nod", "nod", "twirl", "nod"]
 
     # The field says the selected words, then the notice's again once they go.
     page.locator("h1").select_text()
-    expect_panel_says(page, "No decisions remain")
+    expect_panel_says(page, "One decision")
     page.evaluate("() => getSelection().removeAllRanges()")
-    expect_panel_says(page, "No decisions remain", says=False)
-    page.evaluate(frames)
-    assert page.evaluate(nods) == [nod, nod]
+    expect_panel_says(page, "One decision", says=False)
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    assert gestures(4) == ["nod", "nod", "twirl", "nod"]
 
 
 def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):

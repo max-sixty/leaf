@@ -50,9 +50,9 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   whose header lists what it credits.
 - **A box's controls stand on an edge the box holds as its content changes**, or the
   box holds its size while they act. A thread card holds the edge it is attached by,
-  and beside its subject its foot while the user types in it; the floating panel,
-  standing on the window's foot, holds a list's foot, and a thread's height while a
-  press on its head line acts. Each box's header says how (`floating-panel.js`,
+  and beside its subject its foot while the user writes words in its reply box; the
+  floating panel, standing on the window's foot, holds a list's foot, and a thread's
+  height while a press on its head line acts. Each box's header says how (`floating-panel.js`,
   **Opened**; `annotation-overlay/thread-preview.js`).
 - **News moves what the reader reads only in the thread they are in.** News from the
   server grows above the screen, where scroll anchoring absorbs it, or below it. In the
@@ -321,6 +321,14 @@ Motion helps the eye follow a change, and costs the user time whenever they wait
   is the sheen (`@keyframes lf-sheen` in `styles/components/surfaces.css`), which marks
   agent work in progress. It stops when the work ends and is static under reduced
   motion.
+- **The panel's leaf has a personality, and the user is still evolving it.** Leaf's
+  mark answers moments with a brief gesture (`runtime/floating-panel.js`, `MOTIONS`),
+  such as a nod at the user's own key or a twirl as On Me empties, and droops while the
+  agent is away. A change that adds a moment the user notices, such as a new kind of news,
+  asks whether the leaf should answer it (`runtime/notifications.js`, `gesture`). Each
+  gesture so far moves the whole mark; giving the mark parts that move on their own,
+  such as a blade that flexes on its stem, would give it more dexterity, and `MOTIONS`
+  says what that takes.
 
 ### A region that must scroll behaves like the document
 

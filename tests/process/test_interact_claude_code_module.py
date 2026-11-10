@@ -322,6 +322,42 @@ def test_a_follower_terminated_from_outside_stays_out_of_the_conversation(
     driven.quit()
 
 
+def test_a_follower_that_ends_to_be_renewed_starts_again(spawn, sessionless, tmp_path):
+    """A follower ends with EX_TEMPFAIL once the session's delivery runs another Leaf
+    (`hooks.cmd_pages`), and the module starts it again, under that Leaf, without a
+    word in the conversation."""
+    launcher = tmp_path / "bin" / "leaf"
+    launcher.parent.mkdir()
+    starts = tmp_path / "starts"
+    page = {
+        "page_key": "k",
+        "url": "http://127.0.0.1:1/?t=k",
+        "title": "Release",
+        "on_user": 0,
+        "threads": {"open": 0, "unread": 0},
+        "activity": {"kind": "waiting"},
+    }
+    # The first follower lists the page and ends to be renewed; the next stays.
+    launcher.write_text(
+        "#!/bin/sh\n"
+        f"echo started >> {starts}\n"
+        f"echo '{json.dumps([page])}'\n"
+        f'[ "$(wc -l < {starts})" -gt 1 ] && exec sleep 60\n'
+        "exit 75\n"
+    )
+    launcher.chmod(0o755)
+    driven = ClaudeCode(spawn, "cc-renewed", {"pluginRoot": str(tmp_path)})
+    driven.emit("session.start", {"cwd": str(tmp_path), "isInteractive": True})
+    wait_for(
+        lambda: starts.read_text() if starts.exists() else "",
+        lambda read: read.count("started") == 2,
+        failure="the module did not start the follower again",
+    )
+    driven.settle()
+    assert driven.diagnostics.empty()
+    driven.quit()
+
+
 # The main thread's last request as a fork's diagnostics name it: the newest row
 # stored as it went out, and the newest by the time of the fork, such as its reply.
 RESENT = {

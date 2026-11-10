@@ -229,6 +229,9 @@ function follow($: EngineInterface, session: string) {
   void (async () => {
     let line = "";
     let stderr = "";
+    // Whether it ended to be started again under the Leaf the session's delivery
+    // runs now, which it says by EX_TEMPFAIL, 75 in sysexits.h (`hooks.cmd_pages`).
+    let renewed = false;
     try {
       for await (const chunk of stream) {
         if (chunk.stream === "stderr") {
@@ -245,7 +248,8 @@ function follow($: EngineInterface, session: string) {
           for (const held of page.forks ?? []) forkReply($, session, held);
       }
       const result = await stream.result;
-      if (result.code !== 0 && following === current)
+      renewed = result.code === 75;
+      if (result.code !== 0 && !renewed && following === current)
         report(
           $,
           `Leaf: the pages follower exited with code ${result.code}${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
@@ -254,10 +258,11 @@ function follow($: EngineInterface, session: string) {
     } catch (error) {
       if (following === current) $.ui.log(`Leaf: the pages follower failed: ${error}`);
     } finally {
-      // It exits once the session holds no page, or never starts in one holding none.
+      // It exits once the session holds no page, or never starts in one holding none,
+      // and to be started again under a Leaf that moved on.
       if (following === current) {
         following = undefined;
-        if (followAgain) follow($, session);
+        if (followAgain || renewed) follow($, session);
         else show($, []);
       }
     }
@@ -439,11 +444,16 @@ function forkReply($: EngineInterface, session: string, held: Held) {
         to: "debug",
       });
     } catch (error) {
-      // Leaf's own step failed, so the hold runs out, and the thread goes to the
-      // session as any input does.
+      // Leaf's own step failed. Telling Leaf hands the thread to the session now and
+      // notes why in the page, which a session without a debug log keeps nowhere
+      // else; where Leaf can't be told either, the hold runs out.
       $.ui.log(`Leaf: the fork for thread ${held.thread} failed: ${error}`, {
         to: "debug",
       });
+      await forkStep($, session, {
+        thread: held,
+        failed: `Leaf's step failed: ${error}`,
+      }).catch(() => undefined);
     }
   })();
 }

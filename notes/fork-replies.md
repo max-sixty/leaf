@@ -302,7 +302,10 @@ since it changes the work the obligation would queue behind.
   refused rather than made as the main thread's. The mark follows the agent rather
   than its turn, so a fork resumed or running late after its turn ended is still
   refused. A subagent the session ran no turn for, such as one of the main thread's
-  own workers, goes unmarked and acts as the main thread.
+  own workers, goes unmarked and acts as the main thread. A known agent's Bash call
+  that runs `leaf` anywhere but as its first word, as `cd x && leaf …` does, is
+  denied with the instruction to run each `leaf` command on its own, since it would
+  act as the main thread's and a mark spliced into it could land in quoted text.
 - **Obligations.** A significant task becomes a to-do on its thread that the agent
   owes until it ends it, as a session's `leaf thread reply --todo` opens today. A
   working fork opens one with the same command when the work proves bigger, and the

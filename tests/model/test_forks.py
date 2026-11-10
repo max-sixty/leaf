@@ -380,7 +380,8 @@ def test_the_forks_leaf_commands_are_marked_to_act_in_its_turn(claimed, lane, ca
     session's own, the hook hands back the command with the agent's id after its
     leading `leaf`, which still begins with `leaf`, so a permission rule allowing
     `leaf` commands still matches it, and the command then acts in the agent's turn.
-    Any other command, another agent's, and the main thread's run as they came."""
+    A command that runs no `leaf`, another agent's, and the main thread's run as they
+    came."""
     asked, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
@@ -413,7 +414,6 @@ def test_the_forks_leaf_commands_are_marked_to_act_in_its_turn(claimed, lane, ca
         before(f"/plugin/bin/leaf {reply}")
         == f"/plugin/bin/leaf --agent-id agent-1 {reply}"
     )
-    assert before(f"cd /tmp && leaf {reply}") is None
     assert before("ls leaf") is None
     assert before(f"leaf {reply}", "agent-2") is None
     assert before(f"leaf {reply}", None) is None
@@ -767,9 +767,9 @@ def test_a_fork_that_answered_is_reported_however_its_thread_moves_on(
     assert joins == ["answer", "taken_over"]
 
 
-def marked_by_hook(capsys, command: str, agent: str, tool_use: str) -> str | None:
-    """The command Claude Code's PreToolUse hook hands back for `agent`'s Bash call,
-    or None where it leaves the call as it came."""
+def hook_answer(capsys, command: str, agent: str, tool_use: str) -> dict | None:
+    """What Claude Code's PreToolUse hook answers for `agent`'s Bash call, its
+    `hookSpecificOutput`, or None where it leaves the call as it came."""
     hooks_model.cmd_hook(
         "claude-code",
         {
@@ -783,11 +783,7 @@ def marked_by_hook(capsys, command: str, agent: str, tool_use: str) -> str | Non
         },
     )
     out = capsys.readouterr().out
-    return (
-        json.loads(out)["hookSpecificOutput"]["updatedInput"]["command"]
-        if out
-        else None
-    )
+    return json.loads(out)["hookSpecificOutput"] if out else None
 
 
 def test_an_ended_forks_later_command_stays_its_own_and_is_refused(
@@ -811,12 +807,48 @@ def test_an_ended_forks_later_command_stays_its_own_and_is_refused(
     )
     context(capsys, "UserPromptSubmit")
     reply = f"leaf thread reply {answer_ref(claimed, asked['id'])} --done --text Yes"
-    marked = marked_by_hook(capsys, reply, "agent-1", "u1")
+    answer = hook_answer(capsys, reply, "agent-1", "u1")
+    assert answer is not None
+    marked = answer["updatedInput"]["command"]
     assert marked == reply.replace("leaf ", "leaf --agent-id agent-1 ", 1)
     ran = CliRunner().invoke(cli_model.cli, shlex.split(marked)[1:])
     assert ran.exit_code != 0
     assert "agent-1's turn has ended" in ran.output
-    assert marked_by_hook(capsys, reply, "agent-9", "u2") is None
+    assert hook_answer(capsys, reply, "agent-9", "u2") is None
+
+
+def test_a_forks_leaf_command_must_lead_its_bash_call(claimed, lane, capsys):
+    """Leaf marks a fork's `leaf` command only where it leads the Bash call, since a
+    mark spliced in elsewhere could land in quoted text. A known fork's call that
+    runs `leaf` anywhere else would act as the main thread's, so the hook denies it,
+    saying to run each `leaf` command on its own. A call whose only `leaf` leads it
+    is marked, one that runs no `leaf` goes on as it came, and so does any call of a
+    subagent the session ran no turn for."""
+    asked, taken = taken_by_a_fork(claimed, "Does the autocomplete service cache?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    reply = f"leaf thread reply {answer_ref(claimed, asked['id'])} --done --text Yes"
+    for index, command in enumerate(
+        (f"cd /tmp && {reply}", f"cd x; {reply}", f"{reply} && leaf page state p")
+    ):
+        answer = hook_answer(capsys, command, "agent-1", f"denied-{index}")
+        assert answer is not None and answer["permissionDecision"] == "deny", command
+        assert "beginning with `leaf`" in answer["permissionDecisionReason"]
+    for index, command in enumerate(
+        (
+            "grep leaf notes.md",
+            'echo "a; leaf b"',
+            "cat > reply.md <<'EOF'\nleaf thread reply answers a message\nEOF",
+        )
+    ):
+        assert hook_answer(capsys, command, "agent-1", f"passed-{index}") is None
+    marked = hook_answer(capsys, reply, "agent-1", "marked")
+    assert marked is not None
+    assert marked["updatedInput"]["command"] == reply.replace(
+        "leaf ", "leaf --agent-id agent-1 ", 1
+    )
+    assert hook_answer(capsys, f"cd /tmp && {reply}", "agent-9", "unknown") is None
 
 
 def test_a_fork_turn_that_ends_unanswered_gives_its_thread_to_the_main_thread(

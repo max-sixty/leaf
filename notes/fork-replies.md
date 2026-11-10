@@ -232,11 +232,19 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
   PostToolBatch, whose payloads name the fork (`agent_id`) and whose PreToolUse can
   rewrite the call (`updatedInput`).
 - `$.session.send({ to: { agentId } })` reaches it as a coordinator's message at its
-  next tool boundary, and it acts on it.
+  next tool boundary, and it acts on it. Once its run has ended, the same call
+  resumes it from its transcript, in a new run under the same agent id, whose first
+  model output came 1.6–1.7 s after the send. The module's `turn.complete` hears each
+  resumed run's end, Leaf's `tool.call` hooks still skip its calls, and `hooks.json`'s
+  PreToolUse and PostToolBatch still name it. A send to an agent with no transcript
+  delivers nothing and says why (2.1.322 on 2026-11-10, a probe module on Sonnet).
 - The main thread learns nothing of it: its transcript gets no row for the spawn, and
   the fork's first completion sends it no notification and wakes no idle session. The
   main thread finds it by name with ListAgents, and a SendMessage to that name resumes
-  it; that resumed run's completion does notify the main thread and starts a turn.
+  it. A resumed run's completion, whether the main thread's SendMessage or the
+  module's send resumed it, does notify the main thread and starts a turn on an idle
+  session. A module's `prompt.submit` hook can drop that notification's prompt, and
+  Claude Code then shows the user "Prompt dropped by a hook".
 - The fork can message the main thread itself: its SendMessage to `main` arrived as
   an `<agent-message from="…">` and started a turn on the idle main session 60 ms
   later (2026-11-07). The module's `$.session.send` to its own session id fails as
@@ -348,9 +356,36 @@ main thread while the fork works.
 
 4. **Sorting, obligations and follow-ups**: the line fork sorts three ways; a
    significant message becomes a to-do on its thread; a fork tells the main thread
-   what it did; a thread's further messages go to the fork that answered it; and
-   the shipped instructions say what forks and the main thread each do, scored with
-   `evals/` before and after.
+   what it did; a thread's further messages go to the fork that answered it (built);
+   and the shipped instructions say what forks and the main thread each do, scored
+   with `evals/` before and after.
+
+   Follow-ups are built, behind the same flag. Where a thread's last answer came from a
+   fork's turn that has closed in the session's present generation
+   (`forks._resumable`), the take opens the new turn under that fork's agent id and
+   records its pickup under the hold's fence, as a first take does. The module then
+   resumes the fork with Leaf's message (`forks.resume_prompt`): the thread's
+   delivery, and what the rest of the session did on the page since the fork's last
+   turn began, read from the log (`forks._since`), which names the threads it wrote
+   in, the revisions it published and the to-dos it opened or ended. The fork's
+   transcript holds what the session had done when that turn began, and nothing it did
+   while the fork ran. A correction the main thread posts in the thread unasked leaves
+   the thread with the fork. A thread the main thread answered last, which includes an
+   answer posted after the fork's turn closed, or whose fork's turn still runs or ran
+   in an earlier generation, gets a new fork, and so does one whose fork the module
+   fails to resume; that new fork takes over the turn Leaf opened (`forks.started`).
+   Each resumed run's end wakes an idle main thread with Claude Code's notification of
+   it, which the first run's end doesn't (above, "What Claude Code gives the module");
+   Leaf leaves that notification as it is while how a fork tells the main thread what
+   it did is open.
+
+   On 2026-11-10 the journey's `fork-resume` step, on a host at load 6 to 7, sent a
+   further question to a thread whose fork had answered it and ended. The line came
+   2.9 s after sending, and the same fork, resumed under its agent id, answered from
+   a new turn that had picked the message up, at 15.0 s, while the session stayed
+   idle; the resumed run took 16.8 s. Claude Code's notification of that run's end
+   then started a turn on the main thread, whose prompt carried the clerk's queued
+   lines about every fork so far, and that turn didn't answer the message again.
 
 5. **Measuring it**: an outcome eval comparing a fork's answers with the session's on
    replayed hand-overs, and the decision and coherence evals below, before forks that

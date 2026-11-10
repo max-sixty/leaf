@@ -84,8 +84,12 @@ thread itself with `leaf thread reply` while the session stays idle. Then
 `fork-follow-up`: a question a fork takes and looks up in the page's source, and the
 user's further message in its thread sent as the fork starts, which the fork's next
 tool boundary hands it: the fork's turn picks it up and the fork answers it, while the
-session stays idle. `fork-work` then checks that the session's next turn didn't answer
-the forks' questions again.
+session stays idle. Then `fork-resume`: once that fork's run has ended, a further
+message in its thread goes to the same fork, which Claude Code resumes under the same
+agent id in a new turn of its own that picks the message up and answers it, while the
+session stays idle; the session then wakes for Claude Code's notice that the resumed
+fork finished, and doesn't answer the message again. `fork-work` then checks that the
+session's next turn didn't answer the forks' questions again.
 
 Then `quit`, by `/exit`.
 
@@ -167,6 +171,8 @@ from leaf_dev.review_scenario import (
 # The user's further message in the thread of `fork-lookup`'s question, sent as the
 # fork that took the question starts.
 FOLLOW_UP = "And how many of them mention the migration?"
+# The user's next message in that thread, sent once the fork's run has ended.
+RESUMED = "Which of those cards has the longest text?"
 
 # How a hook context that hands a delivery over by its pointer begins.
 POINTER_OPENING = delivery_pointer_prompt("00000000").partition(" id=")[0]
@@ -741,11 +747,11 @@ def steps(
                 ),
             )
 
-        def followed_up(started: float) -> None:
+        def followed_up(started: float) -> tuple[str, dict]:
             """`fork-follow-up`: the user's further message in the thread of a
             question a fork took, sent as the fork starts, reaches the fork at its
             next tool boundary, in the fork's own turn, and the fork answers it while
-            the session stays idle."""
+            the session stays idle. Returns the question's id and the fork's take."""
             # Posted apart from the user's timed comments, whose timing reads each one's
             # own answer: the fork's answers the further message, which settles both.
             url = require(running_server(page), "the page has no server")["url"]
@@ -798,6 +804,122 @@ def steps(
                     f"{after:.1f} s after it was sent: {reply['text'][:200]!r}"
                 ),
             )
+            return asked, taken
+
+        def resumed(started: float, asked: str, first: dict) -> None:
+            """`fork-resume`: once the run of the fork that answered `asked`'s thread
+            has ended, the user's next message there goes to the same fork, resumed
+            under its agent id in a new turn that picks the message up and answers
+            it while the session stays idle. The session's turn for Claude Code's
+            notice that the fork finished doesn't answer it again."""
+            url = require(running_server(page), "the page has no server")["url"]
+
+            def records(input_id: str) -> list[dict]:
+                return [
+                    record
+                    for record in (user.forks() if user.forks else [])
+                    if input_id in record["inputs"]
+                ]
+
+            def decided(input_id: str) -> dict | None:
+                return next(
+                    (
+                        record
+                        for record in records(input_id)
+                        if record["outcome"] in ("take", "hand_over", "dropped")
+                    ),
+                    None,
+                )
+
+            def agent_of(turn: str) -> str | None:
+                return next(
+                    (
+                        record["agentId"]
+                        for record in (user.forks() if user.forks else [])
+                        if record.get("step") == "start" and record["turn"] == turn
+                    ),
+                    None,
+                )
+
+            cc.settle(
+                lambda: any(r.get("step") == "join" for r in records(asked)),
+                "fork-resume: the fork that answered the thread never ended its run",
+            )
+            agent = require(
+                agent_of(first["turn"]), "fork-resume: the first fork never started"
+            )
+            before = claimed(page)["turn"]
+            again = PageClient(url).post(
+                {
+                    "kind": "reply",
+                    "parent": asked,
+                    "attempt": attempt("fork-resume"),
+                    "text": RESUMED,
+                }
+            )["id"]
+            cc.until(lambda: decided(again), "fork-resume: no fork decided on it", 60)
+            taken = require(decided(again), "fork-resume: no fork decided on it")
+            require(
+                taken["outcome"] == "take"
+                and taken.get("resume", {}).get("agentId") == agent,
+                f"fork-resume: the message did not go back to {agent}: "
+                f"{fork_summary(taken)}",
+            )
+            # The session's turns seen before the answer: each poll reads the
+            # answer first, since the resumed run's end starts a turn of its own.
+            woke: set[str] = set()
+
+            def answered_first() -> bool:
+                if answers(page, again):
+                    return True
+                if (turn := claimed(page)["turn"]) != before:
+                    woke.add(turn)
+                return False
+
+            cc.until(answered_first, "fork-resume: nobody answered the message", 150)
+            require(
+                not woke,
+                "fork-resume: the session started a turn before the fork answered",
+            )
+            cc.settle(
+                lambda: any(r.get("step") == "join" for r in records(again)),
+                "fork-resume: the resumed fork's turn never ended",
+            )
+            joined = next(r for r in records(again) if r.get("step") == "join")
+            require(
+                agent_of(taken["turn"]) == agent,
+                f"fork-resume: another agent ran the new turn: "
+                f"{agent_of(taken['turn'])}",
+            )
+            require(
+                picked_up(page, again) == [taken["turn"]],
+                "fork-resume: a turn other than the resumed fork's picked the message "
+                f"up: {picked_up(page, again)}",
+            )
+            replies = answers(page, again)
+            require(
+                len(replies) == 1,
+                f"fork-resume: the message has {len(replies)} answers",
+            )
+            events = {event["id"]: event for event in read_events(page)}
+
+            def after(event_id: str) -> float:
+                return (
+                    datetime.fromisoformat(events[event_id]["ts"])
+                    - datetime.fromisoformat(events[again]["ts"])
+                ).total_seconds()
+
+            step(
+                "fork-resume",
+                started,
+                detail=(
+                    f"`fork-resume`: {agent}'s working line came "
+                    f"{after(taken['line']):.1f} s after the message was sent, and its "
+                    f"answer from a new turn at {after(replies[0]['id']):.1f} s; the "
+                    f"resumed run took {joined['elapsedMs'] / 1000:.1f} s: "
+                    f"{replies[0]['text'][:200]!r}"
+                ),
+            )
 
         def lined(name: str) -> float:
             """Require the fork on step `name`'s comment to have posted the agent's
@@ -819,7 +941,8 @@ def steps(
         user.comment("fork-idle")
         if fork_work:
             forked_work(started)
-            followed_up(time.monotonic())
+            asked, taken = followed_up(time.monotonic())
+            resumed(time.monotonic(), asked, taken)
         else:
             cc.until(answered("fork-idle"), "fork-idle: the session did not answer it")
             first = lined("fork-idle")

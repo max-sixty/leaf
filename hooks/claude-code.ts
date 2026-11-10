@@ -4,12 +4,13 @@
  * of the conversation Leaf's clerk asks at each turn's end (`clerk`), the
  * fork that writes the agent's working line on a thread's waiting messages at
  * once (`forkReply`), and, with `LEAF_FORK_WORK=on`, a fork with the session's tools
- * that does a thread's work in a turn Leaf keeps for it (`workFork`), telling Leaf
- * as that fork's run ends, which closes its turn (`forks.ended`). Claude Code runs none of this module's hooks for that fork's
- * tool calls, as a plugin's hooks never see the calls of an agent it spawned
- * (measured at 2.1.322), so `hooks.json`'s PreToolUse marks its `leaf` commands
- * (`hooks.agent_command`). Claude
- * Code loads it from the installed plugin (measured at 2.1.305). It neither
+ * that does a thread's work in a turn Leaf keeps for it, resumed for the thread's
+ * later messages (`workFork`), telling Leaf as each run of that fork ends, which
+ * closes its turn (`forks.ended`). Claude Code runs none of this module's hooks for
+ * that fork's tool calls, as a plugin's hooks never see the calls of an agent it
+ * spawned (measured at 2.1.322), so `hooks.json`'s PreToolUse marks its `leaf`
+ * commands (`hooks.agent_command`). Claude Code loads the module from the
+ * installed plugin (measured at 2.1.305). It neither
  * watches nor wakes the session: `hooks.json`'s background Stop registration
  * keeps the watch between turns. A watch here would wake with a prompt, which
  * Claude Code drops from an Escape until the user next types, so every wake after
@@ -470,10 +471,10 @@ function forkReply($: EngineInterface, session: string, held: Held) {
   })();
 }
 
-// The forks doing a thread's work, by agent id, with when each started, which the
-// end of each one's run reports. `$.state` keeps them, which a reload of this module's
-// code leaves standing, so a fork made before a reload still ends its turn
-// (types/leaf-state.d.ts).
+// The forks doing a thread's work, by agent id, with when each one's present run
+// started, spawned or resumed, which the end of that run reports. `$.state` keeps
+// them, which a reload of this module's code leaves standing, so a fork made before
+// a reload still ends its turn (types/leaf-state.d.ts).
 const FORKS = { plugin: "leaf", key: "forks" } as const;
 
 /** Change the forks kept in `$.state` by `change`, against concurrent changes. */
@@ -490,38 +491,73 @@ async function changeForks(
   }
 }
 
-/** Spawn the fork Leaf gave a thread's work to (`forks.take`): a fork of the
- * conversation with Leaf's task, named so the main thread can reach it, then tell
- * Leaf which agent runs the turn it opened for it (`forks.started`). One that fails
- * to start ends that turn at once, which gives the thread back (`forks.ended`). */
+/** Give a thread's work to the fork Leaf chose (`forks.take`): resume the fork that
+ * answered the thread before, where Leaf names one (`resume`), or else spawn a fork
+ * of the conversation with Leaf's task, named so the main thread can reach it; then
+ * tell Leaf which agent runs the turn it opened for it (`forks.started`). A fork
+ * that can't be resumed gives way to a spawned one, and one that fails to start ends
+ * that turn at once, which gives the thread back (`forks.ended`). */
 async function workFork(
   $: EngineInterface,
   session: string,
   held: Held,
-  given: { agent: string; prompt: string; text: string; turn: string },
+  given: {
+    agent: string;
+    prompt: string;
+    text: string;
+    turn: string;
+    resume?: { agentId: string; prompt: string };
+  },
 ) {
-  let agentId: string | undefined;
-  try {
-    const spawned = await $.agent.spawn({
-      prompt: given.prompt,
-      subagentType: "fork",
-      name: given.agent,
-      description: `Leaf: ${given.text}`,
-    });
-    agentId = spawned.agentId;
-    if (agentId === undefined) throw new Error("no agent started");
-  } catch (error) {
-    await forkStep($, session, {
-      ended: { turn: given.turn, failed: `the fork did not start: ${error}` },
-    });
-    return;
+  let agentId = given.resume && (await resumeFork($, given.resume));
+  if (agentId === undefined) {
+    try {
+      const spawned = await $.agent.spawn({
+        prompt: given.prompt,
+        subagentType: "fork",
+        name: given.agent,
+        description: `Leaf: ${given.text}`,
+      });
+      agentId = spawned.agentId;
+      if (agentId === undefined) throw new Error("no agent started");
+    } catch (error) {
+      await forkStep($, session, {
+        ended: { turn: given.turn, failed: `the fork did not start: ${error}` },
+      });
+      return;
+    }
+    const started = await $.clock.now();
+    await changeForks($, (forks) => ({ ...forks, [agentId as string]: started }));
   }
-  const started = await $.clock.now();
-  await changeForks($, (forks) => ({ ...forks, [agentId as string]: started }));
   await forkStep($, session, {
     thread: held,
     started: { turn: given.turn, agent: agentId },
   });
+}
+
+/** Resume the fork `agentId` with Leaf's message, as `$.session.send` resumes a
+ * finished subagent from its transcript in a new run under the same id (measured at
+ * 2.1.322); its id, or undefined where the send failed, as it does for an agent
+ * whose transcript is gone. It goes into `$.state` before the send, so the end of
+ * its run, which may come before the send returns, closes its turn. */
+async function resumeFork(
+  $: EngineInterface,
+  { agentId, prompt }: { agentId: string; prompt: string },
+) {
+  const started = await $.clock.now();
+  await changeForks($, (forks) => ({ ...forks, [agentId]: started }));
+  let reason: string;
+  try {
+    const sent = await $.session.send({ to: { agentId }, text: prompt });
+    if (sent.isDelivered) return agentId;
+    reason = sent.reason;
+  } catch (error) {
+    reason = String(error);
+  }
+  await changeForks($, ({ [agentId]: _unresumed, ...forks }) => forks);
+  const why = `Leaf: fork ${agentId} could not be resumed, so a new one starts`;
+  $.ui.log(`${why}: ${reason}`, { to: "debug" });
+  return undefined;
 }
 
 export const register: Register = (on) => {

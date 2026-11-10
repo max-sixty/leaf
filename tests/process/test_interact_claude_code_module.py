@@ -31,6 +31,7 @@ from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as state_model
+from leaf import thread as thread_model
 from leaf.harness import NUDGE_WORDS
 from leaf.interaction_log import read_interactions
 
@@ -58,6 +59,7 @@ class ClaudeCode:
         self.pressed = queue.Queue()
         self.forks = queue.Queue()
         self.spawned = queue.Queue()
+        self.sent = queue.Queue()
         self.steps = queue.Queue()
         threading.Thread(target=self.route, daemon=True).start()
         self.pid = self.read()["pid"]
@@ -75,6 +77,8 @@ class ClaudeCode:
                 self.forks.put(record)
             elif "spawned" in record:
                 self.spawned.put(record["spawned"])
+            elif "sent" in record:
+                self.sent.put(record["sent"])
             elif "forkStep" in record:
                 self.steps.put(record["forkStep"])
             elif {"copied", "toast"} & record.keys():
@@ -615,6 +619,90 @@ def test_a_fork_given_a_threads_work_runs_in_a_turn_leaf_keeps_for_it(
         lambda lines: any(f"gave thread {asked['id']}" in line for line in lines),
         failure=lambda: f"the main thread never heard: {clerk_model.queued('cc-work')}",
     )
+    driven.quit()
+
+
+@pytest.mark.parametrize("resumes", [True, False])
+def test_a_later_message_in_a_forks_thread_resumes_that_fork(
+    page_dir, monkeypatch, spawn, sessionless, resumes
+):
+    """The user's later message in a thread a fork answered, once that fork's run has
+    ended, goes to the same fork: the module resumes it with Leaf's message, and Leaf
+    hears that it runs the new turn, which its next end closes. A fork Claude Code
+    can't resume gives way to a new fork spawned with Leaf's whole task."""
+    driven = ClaudeCode(
+        spawn,
+        "cc-resume",
+        {
+            "forkReply": json.dumps({"line": "Checking the version", "work": "take"}),
+            "agentId": "agent-1",
+            "env": {"LEAF_FORK_WORK": "on"},
+            **({} if resumes else {"sendRefuses": "No transcript found"}),
+        },
+    )
+    holding_page(driven, page_dir, monkeypatch)
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    wait_for(
+        lambda: band_lines(
+            driven.bands.get(timeout=STATED_TIMEOUT)["terminal"], "terminal"
+        ),
+        bool,
+        failure="the band never showed the page",
+    )
+    main_thread_request(driven)
+    asked = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Which Python?"}
+    )
+    assert driven.spawned.get(timeout=STATED_TIMEOUT)["name"] == f"leaf-{asked['id']}"
+    first = wait_for(
+        lambda: state_model.agent_turn_of("cc-resume", "agent-1"),
+        bool,
+        failure="Leaf never heard which agent runs the fork's turn",
+    )
+    ref = next(
+        event["refs"][asked["id"]]["ref"]
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "pickup"
+    )
+    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-1")
+    assert thread_model.post_response(ref, "Python 3.12 or later.", asks_back=False)
+    monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
+    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
+    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-1"})
+    wait_for(
+        lambda: state_model.open_agent_turns("cc-resume"),
+        lambda turns: turns == {},
+        failure="the fork's turn never closed",
+    )
+
+    more = append_carried_log_record(
+        page_dir,
+        {"kind": "reply", "parent": asked["id"], "author": "user", "text": "And uv?"},
+    )
+    sent = driven.sent.get(timeout=STATED_TIMEOUT)
+    assert sent["to"] == {"agentId": "agent-1"}
+    assert sent["text"].startswith("<leaf-fork-work>") and "And uv?" in sent["text"]
+    if not resumes:
+        spawned = driven.spawned.get(timeout=STATED_TIMEOUT)
+        assert "made to do what the message asks" in spawned["prompt"]
+    second = wait_for(
+        lambda: state_model.agent_turn_of("cc-resume", "agent-1"),
+        lambda turn: turn not in (None, first),
+        failure="Leaf never heard which agent runs the follow-up's turn",
+    )
+    pickup = [e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"][
+        -1
+    ]
+    assert (pickup["events"], pickup["turn"]) == ([more["id"]], second)
+    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-1"})
+    wait_for(
+        lambda: state_model.open_agent_turns("cc-resume"),
+        lambda turns: turns == {},
+        failure="the follow-up's turn never closed",
+    )
+    driven.settle()
+    assert driven.spawned.empty() and driven.sent.empty()
     driven.quit()
 
 

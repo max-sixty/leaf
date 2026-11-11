@@ -338,9 +338,11 @@ def test_sample_release_failure_records_the_retired_allocation(
     assert records[-1]["sample"] == next(
         row["sample"] for row in records if row["phase"] == "allocated"
     )
-    assert records[-1]["error"]["body"] == (
-        json.dumps(response["json"]) if response_type == "json" else response["body"]
-    )
+    body = records[-1]["error"]["body"]
+    if response_type == "json":
+        assert json.loads(body) == response["json"]
+    else:
+        assert body == response["body"]
     assert records[-1]["allocation"] == 1
     assert records[-1]["document"] == next(
         row["document"] for row in records if row["phase"] == "connected"

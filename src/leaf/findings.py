@@ -563,6 +563,9 @@ _TEXT = {
         if v["what"] == "children"
         else f"unchanged write: {v['what']} on {placed(v['node'])}"
     ),
+    "unmoved-scroll": lambda at, v: (
+        f"unmoved scroll: {v['how']} on {placed(v['node'])}, from {' < '.join(v['by'])}"
+    ),
     "words-left-screen": lambda at, v: (
         "typed words left the screen without a key or press:"
         f" {json.dumps(v['words'], ensure_ascii=False)} in {placed(v['place'])}"

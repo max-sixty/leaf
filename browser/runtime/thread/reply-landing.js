@@ -318,7 +318,7 @@ export function followBoxGrowth(input) {
   // pulled a long one's top into view on every key.
   if (!reply) return;
   // A separate transcript gives up height rather than being covered by the editor, and
-  // keeps the words beside the box itself (scrolling.js, `keepFoot`).
+  // keeps the words at its end beside the box itself (scrolling.js, `followEnd`).
   if (separateTranscript(held)) {
     if (!onScreen(reply)) revealWritingArea(held, input, reply);
     return;

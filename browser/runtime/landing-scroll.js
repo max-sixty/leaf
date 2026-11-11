@@ -483,7 +483,8 @@ function* innerMoves(where, targetScroller, within, sideways) {
   const start = holderOf(where);
   for (let box = start; box instanceof Element; box = renderedParent(box)) {
     if (box === targetScroller) inside = false;
-    const band = landingBand(box);
+    // A box that clips without scrolling, as `overflow: clip` does, moves for nothing.
+    const band = scrollContainer(box) && landingBand(box);
     if (band) {
       const { left, right } = band;
       const destination = destinationBox(where);

@@ -649,9 +649,12 @@ def test_a_decided_change_folds_away_rather_than_vanishing(engine, request, serv
     # The state lands in the frame of the press. Its fold then carries the pixels toward
     # that already-current reading while the outbox carries it toward the log.
     expect(page.locator("#sug[data-lf-state='accept']")).to_have_count(1)
+    # The panel's leaf answers the same press with its own gesture (On Me emptying), so
+    # the slot's motions are the held ones inside it.
+    folds = "window.__lfHeld.filter((m) => document.getElementById('sug').contains(m.effect.target))"
     held = page.evaluate(
-        """() => window.__lfHeld.map((m) => [m.effect.target.tagName.toLowerCase(),
-                                             m.effect.getTiming().duration])"""
+        f"""() => {folds}.map((m) => [m.effect.target.tagName.toLowerCase(),
+                                      m.effect.getTiming().duration])"""
     )
     assert [t for t, _ in held] == ["lf-old"], (
         f"the retired slot went without motion to follow: {held}"
@@ -661,7 +664,7 @@ def test_a_decided_change_folds_away_rather_than_vanishing(engine, request, serv
         "the fold begins somewhere other than where the paragraph was standing"
     )
     page.evaluate(
-        "() => { const m = window.__lfHeld[0];"
+        f"() => {{ const m = {folds}[0];"
         "        m.currentTime = m.effect.getTiming().duration / 2; }"
     )
     middle = page.evaluate(at)
@@ -672,15 +675,15 @@ def test_a_decided_change_folds_away_rather_than_vanishing(engine, request, serv
     # effect has already stopped applying here and the slot springs back to its
     # unanimated height before cleanup gets its turn.
     endpoint = page.evaluate(
-        """() => {
-          const m = window.__lfHeld[0];
+        f"""() => {{
+          const m = {folds}[0];
           m.currentTime = m.effect.getTiming().duration;
-          return {
+          return {{
             height: m.effect.target.getBoundingClientRect().height,
             opacity: Number(getComputedStyle(m.effect.target).opacity),
             fill: m.effect.getTiming().fill,
-          };
-        }"""
+          }};
+        }}"""
     )
     assert endpoint["height"] == pytest.approx(0, abs=0.1), (
         f"the fold exposed its unanimated box at the endpoint: {endpoint}"
@@ -689,7 +692,7 @@ def test_a_decided_change_folds_away_rather_than_vanishing(engine, request, serv
         f"the fold exposed its unanimated ink at the endpoint: {endpoint}"
     )
 
-    page.evaluate("() => window.__lfHeld[0].finish()")
+    page.evaluate(f"() => {folds}[0].finish()")
     expect(old).to_be_hidden()
     page.wait_for_function(
         "() => document.querySelector('#sug lf-old').getAnimations().length === 0"
@@ -706,7 +709,7 @@ def test_a_decided_change_folds_away_rather_than_vanishing(engine, request, serv
     page.locator("[data-lf-margin-for='sug'] [data-lf-margin-entry-key=accept]").click()
     round_trip(page)
     page.evaluate(
-        "() => { const m = window.__lfHeld.at(-1);"
+        f"() => {{ const m = {folds}.at(-1);"
         " m.currentTime = m.effect.getTiming().duration / 2; }"
     )
     assert 0 < page.evaluate(at) < tall

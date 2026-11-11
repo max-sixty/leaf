@@ -461,6 +461,19 @@ def comment(t: int) -> dict:
     }
 
 
+# The user's comment on the words of `ask_sections`' first paragraph, which the page
+# paints as a passage mark: a highlight range, where a comment on a whole section
+# outlines its element.
+PASSAGE_COMMENT = {
+    "kind": "comment",
+    "author": "user",
+    "revision": 1,
+    "id": "c-passage",
+    "text": "Why these words?",
+    "anchor": {"section": "s1", "quote": "Some words about section 1."},
+}
+
+
 def answer(t: int) -> dict:
     """The agent answering thread `t`."""
     return {
@@ -531,6 +544,8 @@ class Collection(NamedTuple):
 # Every page `leaf-dev bench` generates, by the collection that grows with `n`.
 COLLECTIONS: dict[str, Collection] = {
     "asks": Collection(ask_sections),
+    # The same with one passage mark, whose style every input may restyle page-wide.
+    "asks-marked": Collection(ask_sections, lambda _: [PASSAGE_COMMENT]),
     "document": Collection(document_lines),
     "prose": Collection(prose_sections),
     "rows": Collection(table_rows),

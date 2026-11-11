@@ -251,7 +251,8 @@ let pending = 0;
 // a pass for a change to the rows alone reads only the rows that change names, and ends
 // with every row where a pass that read them all would stand it. Each change's owner
 // says what it moves: a change that may move the page, which every page observer here
-// hears, clears every record (`scheduleMarginLayout`, `layoutMovedPage`), and one to a row
+// hears, clears every record (`scheduleMarginLayout`, `layoutMovedPage`), as a box
+// scrolled inside the page does (`hearTargetChanges`), and one to a row
 // alone, registered with another target, let go, or drawn at another size, drops that
 // row's. Only a row the document alone scrolls, one no carrier, header or pane holds,
 // and nothing holds or withholds, keeps a record.
@@ -679,7 +680,7 @@ function placeCarriedRows(box) {
 // change to that row alone, which drops its record (`seatings`). A face can be redrawn
 // and laid out in one task, as an immediate contribution update flushes the layout
 // (application.js), before these records are delivered, so a pass first hears the ones
-// still waiting (`hearFaces`). The pass's own writes to its rows are taken back at its
+// still waiting (`takeFaceRecords`). The pass's own writes to its rows are taken back at its
 // end, so they bring no pass of their own.
 /** @type {WeakMap<Element, {width: number, height: number}>} */
 const seatedFaces = new WeakMap();
@@ -725,7 +726,7 @@ function resizedFaces() {
   return resized;
 }
 // Takes in the face records a pass would otherwise drop with its own (`heardFaces`).
-function hearFaces() {
+function takeFaceRecords() {
   heardFaces(faces.takeRecords());
   resizedFaces();
 }
@@ -790,11 +791,15 @@ function hearTargetChanges(root) {
     attributes: true,
     attributeFilter: ["style", "class", "hidden", "open"],
   });
+  // A box scrolled inside the page moves what it shows past every pin beside it, whose
+  // cover counts the words that box shows (`coverIn`), so it drops every record; the
+  // document's scroll carries the records with it (`seatings`).
   root.addEventListener(
     "scroll",
     (event) => {
       const source = event.target === document ? pageScroller : event.target;
       if (!(source instanceof Element)) return;
+      if (source !== pageScroller && !inChrome(source)) seatings.clear();
       stirred.add(source);
       scheduleStirReading();
     },
@@ -805,10 +810,13 @@ function hearTargetChanges(root) {
   // no resize and no mutation after the one that started it, which was read at the old
   // value: a reveal.js fragment, whose `visibility` turns visible only after the
   // transition's first frame, or a slide moved out of the box that clips it. So the rows
-  // under a box whose transition or animation ends are read again as a scroll's are.
+  // under a box whose transition or animation ends are read again as a scroll's are, and,
+  // as the motion may have carried words or controls past a pin beside it whose record
+  // read them where they started, every record is dropped (`seatings`).
   /** @param {Event} event */
   const settled = ({ target }) => {
     if (!(target instanceof Element) || inChrome(target)) return;
+    seatings.clear();
     stirred.add(target);
     scheduleStirReading();
   };
@@ -1650,7 +1658,7 @@ function scheduleStirReading() {
 
 export function layoutMarginRows() {
   // Face changes this pass would otherwise take back with its own writes.
-  hearFaces();
+  takeFaceRecords();
   cancelRender(pending);
   pending = 0;
   const mounted = layer;

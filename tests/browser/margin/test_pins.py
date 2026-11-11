@@ -1002,18 +1002,42 @@ def test_a_pass_for_a_change_to_the_rows_seats_them_as_a_whole_pass_would(
     changes and seats the rest from what an earlier pass read (margin-layout.js,
     `seatings`). Through any run of such changes every row stands where a pass over the
     whole margin would stand it: after a hold that moved a row ends, after a face grows
-    in the task that draws it, after a row leaves, after a scroll and a sent comment,
-    and after a resolve."""
+    in the task that draws it, after a row leaves, after a pane beside a pin scrolls,
+    after a transition beside a pin ends, after a scroll and a sent comment, and after a
+    resolve."""
     lines = "".join(f'<p id="line-{n}" style="margin:0">Line {n}.</p>' for n in (1, 2))
     options = "".join(
         f'<lf-option id="o-{i}"><strong>Option {i}</strong> a short description.'
         "</lf-option>"
         for i in (1, 2, 3)
     )
+    # A pane whose words reach its right edge only once it is scrolled to its foot, and
+    # under it a paragraph whose pin stands above it, over the pane's empty edge.
+    long = (
+        '<p style="margin:0;text-align:right">Long words in the pane that reach across'
+        " to its right edge, and then some more words to be sure.</p>"
+    )
+    beside = (
+        'style="margin:0;text-align:right">A paragraph whose words run right across'
+        " its line to the far edge, so the seat in its corner covers words, and then on"
+        " for a second line of words.</p>"
+    )
+    pane = (
+        '<div id="pane" style="height:84px;overflow:auto">'
+        + '<p style="margin:0">x</p>' * 8
+        + long * 6
+        + f'</div><p id="t" {beside}'
+    )
+    # A block whose words slide in to its right edge as a transition ends, into the
+    # empty room the pins beside it stand in.
+    slide = (
+        '<div id="slide" class="away"><p style="margin:0">x</p>'
+        f'{long}</div><p id="v" {beside}<p id="tail">A last paragraph.</p>'
+    )
     body = (
         '<article id="document"><h1>Seats</h1>'
-        "<p>Words before the lines, long enough for a paragraph the margin reads"
-        " around as it seats its rows.</p>"
+        '<p id="intro">Words before the lines, long enough for a paragraph the margin'
+        " reads around as it seats its rows.</p>"
         f'{lines}<p id="after">Words after the lines, long enough for another'
         " paragraph.</p>"
         '<section><h2 id="heading">A question</h2><p id="words">Some words about it.</p>'
@@ -1024,11 +1048,17 @@ def test_a_pass_for_a_change_to_the_rows_seats_them_as_a_whole_pass_would(
             " enough for a line of reading.</p></section>"
             for n in range(1, 9)
         )
-        + "</article>"
+        + f"{pane}{slide}</article>"
+    )
+    motion = (
+        "<style>#slide { transition: transform 150ms linear }"
+        " #slide.away { transform: translateX(-110%) }</style>"
     )
     context = browser.new_context(viewport={"width": 1440, "height": 900})
     page = open_page(
-        browser, serve(leaf_page("Seats", body, layout=None)), context=context
+        browser,
+        serve(leaf_page("Seats", body, head=motion, layout=None)),
+        context=context,
     )
     differ = {}
 
@@ -1059,6 +1089,7 @@ def test_a_pass_for_a_change_to_the_rows_seats_them_as_a_whole_pass_would(
         page.evaluate(ROWS, {"keys": keys, "entries": entries, "immediate": immediate})
 
     rows(["line-1", "line-2", "heading", "words", "question"])
+    rows(["t", "v"], entries=2)
     settled()
     margins_laid_out(page)
 
@@ -1084,6 +1115,21 @@ def test_a_pass_for_a_change_to_the_rows_seats_them_as_a_whole_pass_would(
 
     page.evaluate("() => window.seatRows.get('line-1').registration.unregister()")
     compare("a row leaves")
+
+    # The pane scrolled to its foot puts words under the pin above the paragraph.
+    page.evaluate("() => { document.getElementById('pane').scrollTop = 10000; }")
+    settled()
+    rows(["intro"])
+    compare("a pane beside a pin scrolls")
+
+    page.evaluate("""() => new Promise((resolve) => {
+      const slide = document.getElementById('slide');
+      slide.addEventListener('transitionend', resolve, {once: true});
+      slide.classList.remove('away');
+    })""")
+    settled()
+    rows(["tail"])
+    compare("a transition beside a pin ends")
 
     page.evaluate("""() => {
       window.scrollBy({top: 240, behavior: 'instant'});

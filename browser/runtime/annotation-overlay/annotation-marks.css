@@ -8,10 +8,12 @@
    wash and keep the ink, so pointing at one comment while standing in another still
    says both. A draft sets its words in the accent. The words take the mark's ink rather
    than a line under them: Chromium rechecks a highlight's text decoration across the
-   whole page on every click and keystroke. */
+   whole page on every click and keystroke. Hiding the annotations (`o`) empties the
+   durable highlights, `lf-mark` and `lf-react` (anchor-paint.js, `paintDurable`), so no
+   rule here depends on it. */
 ::highlight(lf-mark) {
-  background-color: var(--lf-annotation-wash, var(--mark));
-  color: var(--lf-annotation-ink, var(--mark-ink-text));
+  background-color: var(--mark);
+  color: var(--mark-ink-text);
 }
 ::highlight(lf-mark-hover) {
   background-color: var(--mark-hover);
@@ -24,16 +26,6 @@
   color: var(--mark-pending-text);
 }
 ::highlight(lf-react) {
-  background-color: var(--lf-annotation-wash, var(--react));
-  color: var(--lf-annotation-ink, var(--mark-ink-text));
-}
-/* The durable marks are the annotation layer's, and hiding it (`o`) clears them while
-   the marks of a gesture — the thread the user opened, their draft, hover — stay. Stated
-   as properties on the root rather than as a selector on the highlights, because a
-   shadow stage adopting this sheet cannot see the root, while what the root sets is
-   inherited into it. `currentColor` in a highlight's `color` is the word's own colour,
-   so a hidden mark gives back a link's, a heading's and code's syntax colours. */
-:root[data-lf-annotations="hidden"] {
-  --lf-annotation-wash: transparent;
-  --lf-annotation-ink: currentColor;
+  background-color: var(--react);
+  color: var(--mark-ink-text);
 }

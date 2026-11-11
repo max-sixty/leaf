@@ -5,6 +5,7 @@ import io
 import itertools
 import math
 import re
+import struct
 from collections import Counter
 
 import pytest
@@ -162,8 +163,7 @@ def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
 
 
 # A passage for each state a mark on words takes, and one nobody has said anything about.
-# Each state's words lie in one text node, the comment's inside a link, so hiding the
-# annotations has a colour of the page's own to give back that is neither ink nor violet.
+# Each state's words lie in one text node, the comment's inside a link.
 MARKED_PAGE = leaf_page(
     "marked",
     """
@@ -184,10 +184,13 @@ PASSAGES = {
     "draft": ("drafted", "the user starts a comment on"),
     "unmarked": ("quiet", "nobody has said anything about"),
 }
+# A passage's words, the box they draw scrolled to the window's middle, clear of the
+# floating panel, and their element's colour.
 WORDS_BOX = """([id, words]) => {
   const walker = document.createTreeWalker(document.getElementById(id), NodeFilter.SHOW_TEXT);
   let node = walker.nextNode();
   while (!node.data.includes(words)) node = walker.nextNode();
+  node.parentElement.scrollIntoView({block: 'center', behavior: 'instant'});
   const range = new Range();
   range.setStart(node, node.data.indexOf(words));
   range.setEnd(node, node.data.indexOf(words) + words.length);
@@ -206,12 +209,12 @@ _TO_LAB = ImageCms.buildTransform(
 
 def _apart(one, other):
     """How far apart two sRGB colours look: their distance in CIELAB, whose 8-bit form
-    holds L in 0–255 and a and b offset by 128."""
+    holds L as an unsigned byte over 0–100 and a and b as signed bytes."""
     lab = ImageCms.applyTransform(
         Image.frombytes("RGB", (2, 1), bytes([*one, *other])), _TO_LAB
     )
     assert lab is not None
-    l1, a1, b1, l2, a2, b2 = lab.tobytes()
+    l1, a1, b1, l2, a2, b2 = struct.unpack("BbbBbb", lab.tobytes())
     return math.hypot((l1 - l2) * 100 / 255, a1 - a2, b1 - b2)
 
 
@@ -229,12 +232,12 @@ def _contrast(one, other):
     return (light + 0.05) / (dark + 0.05)
 
 
-def _drawn(page, state):
+def _drawn(page, passage):
     """The ground behind a passage's words and the ink of their glyphs, as drawn, and
     the colour the page gives those words: the commonest colour in the words' box, the
     commonest of the pixels farthest from it, which are the cores of the strokes, and
     their element's computed colour."""
-    words = page.evaluate(WORDS_BOX, list(PASSAGES[state]))
+    words = page.evaluate(WORDS_BOX, list(passage))
     box = words["box"]
     shot = Image.open(io.BytesIO(page.screenshot(clip=box))).convert("RGB")
     raw = shot.tobytes()
@@ -246,12 +249,24 @@ def _drawn(page, state):
     return ground, ink, tuple(words["own"])
 
 
-def _point_at(page, state):
-    box = page.evaluate(WORDS_BOX, list(PASSAGES[state]))["box"]
+def _point_at(page, passage):
+    box = page.evaluate(WORDS_BOX, list(passage))["box"]
     return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
 
 
-def test_marked_words_are_seen_told_apart_and_given_back_by_o(browser, serve):
+def _comment_on(passage, **fields):
+    """The user's comment on a passage's words, or with `token` their reaction to them."""
+    section, quote = passage
+    return {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "anchor": {"section": section, "quote": quote},
+        **fields,
+    }
+
+
+def test_marked_words_are_seen_and_told_apart(browser, serve):
     """A mark on words is the user's notice that somebody said something about them,
     and each state a gesture puts it in is the answer to that gesture: the words the
     pointer rests on, those of the thread the user opened, and those their draft is on.
@@ -259,9 +274,8 @@ def test_marked_words_are_seen_told_apart_and_given_back_by_o(browser, serve):
     The wash alone can't be that notice: --mark composites to 1.13:1 over the light
     paper, and no alpha of its hue reaches 1.5:1. So the words take the mark's ink, and
     each state's paint, read off the drawn page in both schemes, is seen against the
-    unmarked words, keeps its words legible on its ground, and differs from every other
-    state's in its ground or its ink. Hiding the annotations (`o`) takes the durable
-    marks down and gives each word back the page's own colour, a link's included.
+    words' own colour, keeps its words legible on its ground, and differs from every
+    other state's in its ground or its ink.
 
     Read from screenshots rather than computed styles, because what a highlight
     pseudo may carry is the browser's to decide, and a declaration that stopped
@@ -271,31 +285,10 @@ def test_marked_words_are_seen_told_apart_and_given_back_by_o(browser, serve):
         serve(
             MARKED_PAGE,
             events=[
-                {
-                    "kind": "comment",
-                    "author": "user",
-                    "revision": 1,
-                    "id": f"c-{section}",
-                    "text": "Why these words?",
-                    "anchor": {"section": section, "quote": words},
-                }
-                for section, words in (
-                    PASSAGES["mark"],
-                    PASSAGES["pointed at"],
-                    PASSAGES["open thread"],
-                )
+                _comment_on(PASSAGES[state], id=f"c-{n}", text="Why these words?")
+                for n, state in enumerate(("mark", "pointed at", "open thread"))
             ]
-            + [
-                {
-                    "kind": "comment",
-                    "author": "user",
-                    "revision": 1,
-                    "token": "keep",
-                    "anchor": dict(
-                        zip(("section", "quote"), PASSAGES["reaction"], strict=True)
-                    ),
-                }
-            ],
+            + [_comment_on(PASSAGES["reaction"], token="keep")],
         ),
     )
     page.wait_for_function(
@@ -305,18 +298,19 @@ def test_marked_words_are_seen_told_apart_and_given_back_by_o(browser, serve):
     for scheme in ("light", "dark"):
         page.emulate_media(color_scheme=scheme)
         drawn = {
-            state: _drawn(page, state) for state in ("mark", "reaction", "unmarked")
+            state: _drawn(page, PASSAGES[state])
+            for state in ("mark", "reaction", "unmarked")
         }
 
-        page.mouse.move(*_point_at(page, "pointed at"))
+        page.mouse.move(*_point_at(page, PASSAGES["pointed at"]))
         page.wait_for_function("() => (CSS.highlights.get('lf-mark-hover')?.size ?? 0)")
-        drawn["pointed at"] = _drawn(page, "pointed at")
+        drawn["pointed at"] = _drawn(page, PASSAGES["pointed at"])
 
-        page.mouse.click(*_point_at(page, "open thread"))
+        page.mouse.click(*_point_at(page, PASSAGES["open thread"]))
         wait_current_location(page, PASSAGES["open thread"][1])
         page.mouse.move(0, 0)
         page.wait_for_function("() => !CSS.highlights.get('lf-mark-hover')?.size")
-        drawn["open thread"] = _drawn(page, "open thread")
+        drawn["open thread"] = _drawn(page, PASSAGES["open thread"])
         # Out of the thread to its passage, then off the passage, so the card stands
         # over nothing the next gesture aims at.
         page.keyboard.press("Escape")
@@ -330,13 +324,13 @@ def test_marked_words_are_seen_told_apart_and_given_back_by_o(browser, serve):
         wait_for_pending_mark(page)
         assert pending_text(page) == PASSAGES["draft"][1]
         page.mouse.move(0, 0)
-        drawn["draft"] = _drawn(page, "draft")
+        drawn["draft"] = _drawn(page, PASSAGES["draft"])
         page.keyboard.press("Escape")
         page.wait_for_function("() => !CSS.highlights.get('lf-pending')?.size")
 
         # The control: words nobody marked come back in their own colour, so a reading
         # of marked words that does is reading words the mark left alone.
-        paper, ink, own = drawn.pop("unmarked")
+        _, ink, own = drawn.pop("unmarked")
         assert _apart(ink, own) < SEEN_APART, (scheme, ink, own)
         for state, (ground, words, own) in drawn.items():
             assert _apart(words, own) >= 10, (
@@ -356,19 +350,90 @@ def test_marked_words_are_seen_told_apart_and_given_back_by_o(browser, serve):
                 >= SEEN_APART
             ), f"the {scheme} page draws {one} and {other} alike: {drawn}"
 
+
+# A comment on a link, a reaction on prose, and a comment on a string in a text
+# document, whose syntax colours are highlights of their own. The document's first
+# string lies far below its first screen, so its colour is registered after the marks
+# are painted. An unmarked string of the same kind wears the colour the marked one owes.
+_STEPS = "\n".join(
+    [f"step_{n} = advance(step_{n - 1}, {n})" for n in range(1, 400)]
+    + ['message = "resend now"', 'fallback = "retry later"']
+)
+OWN_COLOURS_PAGE = leaf_page(
+    "own colours",
+    f"""
+<h1 id="t">Own colours</h1>
+<p id="said">A line of prose with <a href="#t">a link someone commented on</a> in it.</p>
+<p id="kept">A line of prose someone reacted to with a token.</p>
+<lf-text-document id="doc" language="python" label="steps.py"><pre>{_STEPS}</pre></lf-text-document>
+""",
+)
+OWN_COLOURS = {
+    "link": PASSAGES["mark"],
+    "reaction": PASSAGES["reaction"],
+    "string": ("doc", '"resend now"'),
+}
+UNMARKED_STRING = ("doc", '"retry later"')
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_o_gives_marked_words_their_own_colours_back(request, serve, engine):
+    """Hiding the annotations (`o`) takes the durable marks down, and the words they
+    covered wear the page's own colours again: a link's blue, prose's ink, and a text
+    document's syntax colour, which is a highlight under the mark's. While the marks
+    show, their ink is over the syntax colour however late the document colours the
+    words, and showing them again brings the ink back."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            OWN_COLOURS_PAGE,
+            events=[
+                _comment_on(PASSAGES["mark"], id="c-link", text="Why this link?"),
+                _comment_on(PASSAGES["reaction"], token="keep"),
+                _comment_on(
+                    ("doc", 'message = "resend now"'), id="c-doc", text="Why now?"
+                ),
+            ],
+        ),
+    )
+    page.wait_for_function(
+        "() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2"
+        " && (CSS.highlights.get('lf-react')?.size ?? 0) === 1"
+    )
+    assert not page.evaluate("CSS.highlights.has('lf-token-syn-string')"), (
+        "the document coloured a string before it was scrolled to, so this page no "
+        "longer registers a syntax colour after the marks"
+    )
+    page.evaluate(WORDS_BOX, list(UNMARKED_STRING))
+    page.wait_for_function(
+        "() => (CSS.highlights.get('lf-token-syn-string')?.size ?? 0) >= 2"
+    )
+    for scheme in ("light", "dark"):
+        page.emulate_media(color_scheme=scheme)
+        owed = {"string": _drawn(page, UNMARKED_STRING)[1]}
+        shown = {name: _drawn(page, passage) for name, passage in OWN_COLOURS.items()}
+        for name, (_, words, own) in shown.items():
+            assert _apart(words, owed.get(name, own)) >= 10, (
+                f"the {scheme} {name} wears {words} under its mark, its own colour "
+                f"{owed.get(name, own)}: {shown}"
+            )
         page.evaluate(RELEASE_FOCUS)
         page.keyboard.press("o")
         expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
-        for state in ("mark", "reaction"):
-            ground, words, own = _drawn(page, state)
-            assert _apart(ground, paper) < 1 and _apart(words, own) < SEEN_APART, (
-                f"with the annotations hidden, the {scheme} page's {state} words wear "
-                f"{words} on {ground}, where their own colour is {own} on {paper}"
+        hidden = {name: _drawn(page, passage) for name, passage in OWN_COLOURS.items()}
+        for name, (_, words, own) in hidden.items():
+            assert _apart(words, owed.get(name, own)) < SEEN_APART, (
+                f"with the annotations hidden, the {scheme} {name} wears {words}, "
+                f"where its own colour is {owed.get(name, own)}: {hidden}"
             )
         page.keyboard.press("o")
         expect(page.locator("html")).not_to_have_attribute(
             "data-lf-annotations", "hidden"
         )
+        again = {name: _drawn(page, passage) for name, passage in OWN_COLOURS.items()}
+        assert all(
+            _apart(again[name][1], shown[name][1]) < SEEN_APART for name in shown
+        ), (scheme, shown, again)
 
 
 def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):

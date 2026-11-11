@@ -23,7 +23,11 @@ after its page server stopped waiting finds no record and is dropped, under the
 session's completions lock. A record outlives its request only when its page server
 died while waiting, and goes with the session's other files once the session has
 ended and no claim names it (`state.end_session`). A session whose Claude Code
-process isn't running answers nothing, and its requests fail at their deadline.
+process isn't running answers nothing, and its requests fail at their deadline,
+though its claim can stay active (`ClaudeCodeHarness.lifetime`): the desktop app
+stops its sessions to install an update, and starts one again only when the user
+opens it, and a background job's worker retires an hour after the job goes idle,
+until the job's next wake.
 """
 
 import fnmatch

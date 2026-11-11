@@ -252,7 +252,8 @@ let pending = 0;
 // with every row where a pass that read them all would stand it. Each change's owner
 // says what it moves: a change that may move the page, which every page observer here
 // hears, clears every record (`scheduleMarginLayout`, `layoutMovedPage`), as a box
-// scrolled inside the page does (`hearTargetChanges`), and one to a row
+// scrolled inside the page and a transition or animation ending there do
+// (`hearTargetChanges`), and one to a row
 // alone, registered with another target, let go, or drawn at another size, drops that
 // row's. Only a row the document alone scrolls, one no carrier, header or pane holds,
 // and nothing holds or withholds, keeps a record.

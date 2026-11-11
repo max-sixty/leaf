@@ -20,7 +20,10 @@ Codex delivery adapter follows the selection alone (`selected_launcher`):
 Each hook runs the chosen launcher's Python as it stands, so an update reaches a
 session at its next hook without a reload; Claude Code still reads `hooks.json`
 and the hooks module only as it loads the plugin, so a change to either still
-waits for one. A selection whose checkout is gone falls back to the installed
+waits for one. So where the Python a hook runs and the module that reads it must
+agree, as the forks lane and the module asking its line forks must
+(`hooks.cmd_pages`), the Python first checks the module is its own copy's
+(`module_current`). A selection whose checkout is gone falls back to the installed
 copy, which refuses a page it can't read (`newer-layer`), so the agent learns why.
 A running adapter keeps the modules it loaded until it retires, which it does once
 its task owns no page. The selection lives in the session lifecycle record and
@@ -148,3 +151,23 @@ def select_checkout(session_id: str) -> bool:
 def own_launcher() -> Path:
     """The launcher beside the Python package currently running."""
     return (PLUGIN_ROOT / "bin" / "leaf").resolve()
+
+
+def module_current(root: object) -> bool:
+    """Whether the Claude Code hooks modules loaded from the plugin copy at `root`
+    are those this Leaf ships, file for file as its `hooks.json` lists them. A
+    session keeps the modules it loaded while its hooks hand themselves to another
+    Leaf (the header), so a contract between this Leaf's Python and a module holds
+    only where the two copies' modules are the same."""
+    if not isinstance(root, str):
+        return False
+    hooks = PLUGIN_ROOT / "hooks"
+    try:
+        modules = json.loads((hooks / "hooks.json").read_text())["modules"]
+        return all(
+            (Path(root) / "hooks" / module).read_bytes()
+            == (hooks / module).read_bytes()
+            for module in modules
+        )
+    except (OSError, ValueError, KeyError, TypeError):
+        return False

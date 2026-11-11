@@ -55,6 +55,10 @@ from leaf.served_state.reading import outside_inputs
 from leaf.service import PageTransaction
 from leaf.state import session_file
 
+# What Leaf's Claude Code hooks module gives the pages follower of session s1, asking
+# for forks from the module this Leaf ships (`hooks.cmd_pages`).
+FOLLOWER = {"session_id": "s1", "forks": True, "module": str(state_model.PLUGIN_ROOT)}
+
 
 def past_the_take() -> None:
     """Wait for the clock to leave the millisecond session s1's lane was taken in,
@@ -1736,7 +1740,7 @@ def test_the_pages_follower_holds_the_lane_and_lists_kept_back_threads(
 
     monkeypatch.setattr(file_changes_model, "wait", wait)
     with pytest.raises(Stopped):
-        hooks_model.cmd_pages({"session_id": "s1", "forks": True})
+        hooks_model.cmd_pages(FOLLOWER)
     assert forks_model.lane_since("s1") is None
     listed = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert listed[0][0]["kept_back"] == []
@@ -1748,6 +1752,38 @@ def test_the_pages_follower_holds_the_lane_and_lists_kept_back_threads(
         }
     ]
     assert nudged == ["s1"]
+
+
+def test_a_follower_for_another_copys_module_keeps_nothing_back(
+    claimed, tmp_path, monkeypatch, capsys
+):
+    """The session keeps the hooks module it loaded while its hooks run a newer
+    Leaf, and that module may read kept-back threads by an older contract, so a
+    follower whose module isn't this Leaf's takes no lane and keeps nothing back:
+    the session's messages reach it as they would without forks."""
+    other = tmp_path / "other-copy"
+    shutil.copytree(state_model.PLUGIN_ROOT / "hooks", other / "hooks")
+    module = other / "hooks" / "claude-code.ts"
+    module.write_text(module.read_text() + "\n// an older contract\n")
+    serving(claimed, 1)
+    server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
+
+    class Stopped(Exception):
+        pass
+
+    def sleep(_seconds):
+        assert forks_model.lane_since("s1") is None
+        raise Stopped
+
+    def wait(_marks, _timeout):
+        raise AssertionError("the follower took the lane and waits on its pages")
+
+    monkeypatch.setattr(hooks_model.time, "sleep", sleep)
+    monkeypatch.setattr(file_changes_model, "wait", wait)
+    with pytest.raises(Stopped):
+        hooks_model.cmd_pages({**FOLLOWER, "module": str(other)})
+    [listed] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert "kept_back" not in listed[0]
 
 
 @pytest.mark.parametrize("moved", ["selected", "protocol", "removed"])
@@ -1790,7 +1826,7 @@ def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
             lambda: own.with_name("removed") if waited else own,
         )
     with pytest.raises(SystemExit) as ended:
-        hooks_model.cmd_pages({"session_id": "s1", "forks": True})
+        hooks_model.cmd_pages(FOLLOWER)
     assert ended.value.code == os.EX_TEMPFAIL
     assert forks_model.lane_since("s1") is None
     [listed] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
@@ -1820,7 +1856,7 @@ def test_the_follower_keeps_open_the_subscription_of_every_page_it_holds(
 
     monkeypatch.setattr(file_changes_model, "wait", wait)
     with pytest.raises(Stopped):
-        hooks_model.cmd_pages({"session_id": "s1", "forks": True})
+        hooks_model.cmd_pages(FOLLOWER)
 
 
 def test_the_follower_forgets_the_bound_of_a_page_that_is_gone(claimed, monkeypatch):
@@ -1859,7 +1895,7 @@ def test_the_follower_forgets_the_bound_of_a_page_that_is_gone(claimed, monkeypa
 
     monkeypatch.setattr(file_changes_model, "wait", wait)
     with pytest.raises(Stopped):
-        hooks_model.cmd_pages({"session_id": "s1", "forks": True})
+        hooks_model.cmd_pages(FOLLOWER)
     assert timeouts[-1] > 0, "the follower kept a gone page's bound"
 
 
@@ -1887,7 +1923,7 @@ def test_the_follower_keeps_the_bound_of_a_page_it_does_not_list(
 
     monkeypatch.setattr(file_changes_model, "wait", wait)
     with pytest.raises(Stopped):
-        hooks_model.cmd_pages({"session_id": "s1", "forks": True})
+        hooks_model.cmd_pages(FOLLOWER)
     assert capsys.readouterr().out.splitlines() == ["[]"]
     assert forks_model.handed_inputs("s1", claimed) == {asked[0]["id"]}
     assert nudged == []

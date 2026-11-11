@@ -226,10 +226,13 @@ function follow($: EngineInterface, session: string) {
         "--pages",
       ],
       env: environment(session),
+      // `module` names this copy, so a follower under another Leaf, whose kept-back
+      // threads this module may not read, keeps none back (`hooks.cmd_pages`).
       input: JSON.stringify({
         hook_event_name: "Pages",
         session_id: session,
         forks: lineForks,
+        module: $.plugin.root,
       }),
     });
   } catch (error) {

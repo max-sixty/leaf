@@ -405,7 +405,8 @@ def cmd_pages(payload: dict) -> None:
     notifications cannot replace this timer, and the list subscribes to nothing of
     its own.
 
-    A payload asking for `forks` makes the follower the session's forks lane
+    A payload asking for `forks`, from a hooks module this Leaf ships (its `module`,
+    `session_runtime.module_current`), makes the follower the session's forks lane
     (`forks.take_lane`) while it runs, and gives each page the threads Leaf keeps back
     (`kept_back`), each as the `thread` and `inputs` the module asks a line fork about,
     handing to the session those whose bound has passed (`forks.look`). Between presence reads it waits on each
@@ -423,15 +424,24 @@ def cmd_pages(payload: dict) -> None:
     moved past a protocol bump. That newer Leaf reads an older follower's lane as no
     one's. On 8 November one follower, four days old, kept back messages that the
     line fork's step, under the newer Leaf, refused as not kept back, so each waited
-    out its bound with no line."""
+    out its bound with no line.
+
+    The module that reads the list stays the one the session loaded until
+    `/reload-plugins`, so a follower under a newer Leaf may print it to a module
+    that reads kept-back threads by an older contract. From 10 to 11 November a
+    session running a checkout's Leaf under the installed copy's module, which read
+    them under another name, kept back every thread message for the whole bound with
+    no line fork asked. So a follower whose module isn't this Leaf's keeps nothing
+    back, and the session's messages reach it as they would without forks."""
     sid = payload.get("session_id") or ""
     if not owned_pages(sid):
         print("[]", flush=True)
         return
 
     from .presence import PRESENCE_CACHE_S, live_leaves
+    from .session_runtime import module_current
 
-    forking = bool(payload.get("forks"))
+    forking = bool(payload.get("forks")) and module_current(payload.get("module"))
     if forking:
         from .file_changes import FileChanges, page_changes, wait
         from .forks import lane_path, take_lane

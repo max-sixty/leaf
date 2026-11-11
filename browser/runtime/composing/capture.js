@@ -10,9 +10,9 @@ import { pageRange, selectEnds, selectionBackward } from "../native-selection.js
 import { COLLAPSE } from "../kernel-facts.js";
 import {
   closestAcross,
-  pageText,
   pageWords,
   pointAt,
+  rangeReading,
   segmentBlock,
   segmentsIn,
   spanIn,
@@ -119,7 +119,7 @@ const sameRun = (left, right) =>
 const sentenceUnits = new Intl.Segmenter(undefined, { granularity: "sentence" });
 
 // An EDGE in the reading: a position inside it that holds no character.
-/** @param {ReturnType<typeof pageText>} reading @param {number} i */
+/** @param {import("../passages.js").PageReading} reading @param {number} i */
 const edgeAt = (reading, i) =>
   i >= 0 && i < reading.raw.length && pointAt(reading, i) === null;
 
@@ -132,7 +132,7 @@ function rawOffset(positions, at) {
   return offset;
 }
 
-/** @param {ReturnType<typeof pageText>} reading @param {number} at @param {boolean} back */
+/** @param {import("../passages.js").PageReading} reading @param {number} at @param {boolean} back */
 function snapOut(reading, at, back) {
   const { raw, fences } = reading;
   const behind = fences.filter((f) => f <= at).at(-1) ?? 0;
@@ -175,7 +175,7 @@ function snapOut(reading, at, back) {
 // wraps collapse to spaces, and edges between inline text nodes disappear. `from` keeps
 // the path back to the DOM reading. A declared generated label is a separate speaking run
 // even when it sits flush inside the same block.
-/** @param {ReturnType<typeof pageText>} reading @param {number} lo @param {number} hi @returns {[number, number]} */
+/** @param {import("../passages.js").PageReading} reading @param {number} lo @param {number} hi @returns {[number, number]} */
 function snapSentence(reading, lo, hi) {
   const { raw, fences } = reading;
   /** @param {number} i */
@@ -298,9 +298,9 @@ export function snapSelection() {
   const sel = pageSelection();
   if (!sel) return;
   const range = pageRange(sel);
-  const segments = segmentsIn(range);
+  const reading = rangeReading(range);
+  const segments = segmentsIn(range, reading);
   if (!segments.length) return;
-  const reading = pageText();
   const [start, stop] = spanIn(reading, segments);
   let lo = snapOut(reading, start, true);
   let hi = snapOut(reading, stop, false);

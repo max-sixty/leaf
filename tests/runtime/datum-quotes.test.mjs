@@ -63,12 +63,9 @@ test("a datum's quote is never found outside its datum", () => {
   assert.equal(resolved.segments[0]?.node, datum.querySelector("p").firstChild);
 });
 
-// Resolution reads the datum's words and none of the page's others: four thousand
-// paragraphs beside the datum leave their text unread.
-test("finding a datum's quote reads no words outside the datum", () => {
-  Object.assign(registry, { $layer: { generation: "datum-quote-reads" } });
-  const prose = Array.from({ length: 4096 }, (_, i) => `<p>Paragraph ${i}</p>`);
-  const datum = page("<p>Alpha</p><p>Beta</p>", prose.join(""));
+// How many times `read` asks a text node outside `datum` for its words.
+/** @param {Element} datum @param {() => void} read */
+const readsOutside = (datum, read) => {
   let owner = Text.prototype;
   while (!Object.getOwnPropertyDescriptor(owner, "data"))
     owner = Object.getPrototypeOf(owner);
@@ -82,10 +79,35 @@ test("finding a datum's quote reads no words outside the datum", () => {
     },
   });
   try {
-    const resolved = resolveAnchor({ section: "w", datum: "doc", quote: "Beta" });
-    assert.equal(resolved?.kind, "passage");
+    read();
   } finally {
     Object.defineProperty(owner, "data", data);
   }
+  return outside;
+};
+
+// Resolution reads the datum's words and none of the page's others: four thousand
+// paragraphs beside the datum leave their text unread.
+test("finding a datum's quote reads no words outside the datum", () => {
+  Object.assign(registry, { $layer: { generation: "datum-quote-reads" } });
+  const prose = Array.from({ length: 4096 }, (_, i) => `<p>Paragraph ${i}</p>`);
+  const datum = page("<p>Alpha</p><p>Beta</p>", prose.join(""));
+  const outside = readsOutside(datum, () => {
+    const resolved = resolveAnchor({ section: "w", datum: "doc", quote: "Beta" });
+    assert.equal(resolved?.kind, "passage");
+  });
+  assert.equal(outside, 0, `${outside} text nodes outside the datum read`);
+});
+
+// Capturing a selection inside the datum, as a triple click on one of its lines makes,
+// reads the datum's words alone too.
+test("capturing a selection inside a datum reads no words outside the datum", () => {
+  Object.assign(registry, { $layer: { generation: "datum-capture-reads" } });
+  const prose = Array.from({ length: 4096 }, (_, i) => `<p>Paragraph ${i}</p>`);
+  const datum = page("<p>Alpha</p><p>Beta</p>", prose.join(""));
+  const line = datum.querySelectorAll("p")[1].firstChild;
+  const outside = readsOutside(datum, () => {
+    assert.equal(anchorForRange(selecting(line))?.quote, "Beta");
+  });
   assert.equal(outside, 0, `${outside} text nodes outside the datum read`);
 });

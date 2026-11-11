@@ -26,7 +26,9 @@
      searching only where they differ, so placement places again only the threads whose
      quotes it says changed (`quotesChanged`): words moved, a copy gone, a second copy
      anywhere, or lost words put back. Registry vocabulary and settled slots change the
-     reading through the same door;
+     reading through the same door. A quote in a datum is found in the datum's words
+     alone, and changes, as the index says too, once those words do, so a page whose
+     threads all quote data never reads its words whole;
    - the text nodes a change wrote or took out, whose live ranges the DOM moved and
      which may have moved into or out of a section at the same place in the reading:
      the index counts them changed wherever they stand;
@@ -247,11 +249,14 @@ export function createAnchorPlacement() {
     byQuote = new Map();
     bySection = new Map();
     pendingAnchor = draft.open ? draft.anchor : null;
+    /** @type {Set<string>} */
+    const inWhole = new Set();
     for (const { id, anchor } of [...all, { id: DRAFT, anchor: pendingAnchor }]) {
       if (anchor?.quote) file(byQuote, anchor.quote, id);
+      if (anchor?.quote && !anchor.datum && !anchor.visual) inWhole.add(anchor.quote);
       if (anchor?.section) file(bySection, anchor.section, id);
     }
-    trackQuotes(byQuote.keys());
+    trackQuotes(inWhole);
     inNode.clear();
     const readings = [];
     const pointable = [];

@@ -761,8 +761,23 @@ flowchart TD
                 session at once, name the fork as its sender, and could say what the
                 fork did beyond the outcomes above, so the main thread neither redoes
                 nor contradicts it. Leaf writes the clerk's line from the log, so it
-                also covers a fork that failed or was stopped before it could write. Not
-                decided yet.
+                also covers a fork that failed or was stopped before it could write.
+              </p>
+              <p>
+                Claude Code offers no third way: a hooks module can start a fork only
+                with <code>$.agent.spawn</code>, whose first run never notifies the main
+                thread, since the module's call to the Agent tool is refused (2.1.322).
+                A resumed run's notification wakes an idle main thread whichever way is
+                chosen. In two live runs that woken turn took 23 s and 28 s over 4 and 5
+                model requests, and checked the forks' answers.
+              </p>
+              <p>
+                Recommended, and not yet decided: the clerk's line, with Leaf also
+                waking an idle session for a to-do a fork opened, since the main thread
+                then owes work. That wakes the main thread only when it owes something,
+                and works the same for a first run and a resumed one. A fork's
+                SendMessage would add a second report to a resumed run's notification,
+                and wake the main thread for every answer.
               </p>
             </div>
           </section>

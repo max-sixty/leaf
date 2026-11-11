@@ -6,7 +6,8 @@ each card stands and how it is shaped.
 A case is one configuration a reader meets: the subject the thread is on (words quoted
 in a block, or a whole block), the messages the thread holds, the route that opens its
 card (`m` from the page's top or with the subject in view, a press on its margin
-marker, a tap on its words, or a comment the reader sends), what follows the opening,
+marker or its words, by a finger in a touch window, or a comment the reader sends),
+what follows the opening,
 such as the agent's answer arriving or a scroll, and the windows it opens in, the
 1728×999 and 1000×700 ones unless it names others. Every case opens on one page,
 `fixture()`, whose blocks span the subjects pages hold: a one-line, a three-line and a
@@ -35,7 +36,10 @@ measured in the tab:
   its contents take unwrapped, the measure (`cardMeasure`), or its room, which runs
   from the card's inner edge to the far edge of the placement boundary
   (`commentBoundary`) beside its subject, and is the boundary's width above or below;
-- the part of its subject's block it covers, and whether it covers the quoted words;
+- how much wider the card stands than its contents take unwrapped;
+- the part of its subject's block it covers, and whether it covers the quoted words,
+  a fault where card and block would fit in the boundary together, side by side for a
+  card beside its subject and one above the other for any other;
 - how far the page scrolled from the input that opened the card, except where `m`
   travelled from the page's top.
 
@@ -44,7 +48,6 @@ measured in the tab:
 
 import html
 import json
-import time
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
@@ -126,7 +129,7 @@ ROUTE_WORDS = {
     "m": "opened by m from the page's top",
     "m-near": "opened by m with its words already in the window's middle",
     "marker": "opened from its margin marker",
-    "tap": "opened by a tap on its words",
+    "tap": "opened by a press on its words",
     "comment": "the reader comments, and Send opens the card",
 }
 
@@ -164,9 +167,9 @@ class Case:
         assert commented or not self.arrives, (
             f"{self.name}: what arrives answers the reader's comment"
         )
-        assert (self.route == "tap") == all(w.touch for w in self.windows), (
-            f"{self.name}: a tap needs a touch window, and a touch window a tap"
-        )
+        assert self.route in ("tap", "marker") or not any(
+            w.touch for w in self.windows
+        ), f"{self.name}: {self.route} takes keys, which a touch window lacks"
 
 
 CASES = (
@@ -407,10 +410,16 @@ def centre(page: Page, case: Case) -> None:
     settle(page)
 
 
-# Each route returns the page's scroll just before the input that opens the card.
+# Each route returns the page's scroll just before the input that opens the card,
+# which a finger presses in a touch window and a mouse in any other.
+
+# A card the route opened, or on a phone the floating panel's view of its thread.
+OPENED = (
+    "() => document.querySelector('.lf-margin-preview:not([hidden]), .lf-fp-opened')"
+)
 
 
-def by_walk(page: Page, case: Case) -> float:
+def by_walk(page: Page, case: Case, window: Window) -> float:
     page.locator("body").focus()
     before = page.evaluate("scrollY")
     page.keyboard.press("m")
@@ -418,26 +427,35 @@ def by_walk(page: Page, case: Case) -> float:
     return before
 
 
-def by_marker(page: Page, case: Case) -> float:
+def by_marker(page: Page, case: Case, window: Window) -> float:
     marker = page.locator(f'[data-lf-margin-for="{case.subject}"] .lf-margin-marker')
-    return open_card(page, marker)
+    if not window.touch:
+        return open_card(page, marker)
+    marker.scroll_into_view_if_needed()
+    settle(page)
+    before = page.evaluate("scrollY")
+    marker.tap()
+    page.wait_for_function(OPENED)
+    return before
 
 
-def by_tap(page: Page, case: Case) -> float:
+def by_tap(page: Page, case: Case, window: Window) -> float:
     before = page.evaluate("scrollY")
     first = page.evaluate(
         f"(args) => {{ const {{block, range}} = ({AIM})(args);"
         " return (range ?? block).getClientRects()[0].toJSON(); }",
         [case.subject, case.quote],
     )
-    page.touchscreen.tap(first["left"] + 4, first["top"] + first["height"] / 2)
-    page.wait_for_function(
-        "() => document.querySelector('.lf-margin-preview:not([hidden]), .lf-fp-opened')"
-    )
+    at = (first["left"] + 4, first["top"] + first["height"] / 2)
+    if window.touch:
+        page.touchscreen.tap(*at)
+    else:
+        page.mouse.click(*at)
+    page.wait_for_function(OPENED)
     return before
 
 
-def by_comment(page: Page, case: Case) -> float:
+def by_comment(page: Page, case: Case, window: Window) -> float:
     page.evaluate(
         f"""(args) => {{
           let {{block, range}} = ({AIM})(args);
@@ -531,7 +549,7 @@ def journey(case: Case, window: Window):
             caught_up(page)
         if case.route != "m":
             centre(page, case)
-        before = ROUTES[case.route](page, case)
+        before = ROUTES[case.route](page, case, window)
         settle(page)
         page.mouse.move(0, 0)
         opened = page.evaluate("scrollY")
@@ -540,14 +558,15 @@ def journey(case: Case, window: Window):
             caught_up(page)
             # A card holding the answer behind its notice or New reply shows it at
             # the reader's press (held-news.js, thread-card.js).
+            words = case.arrives[:40]
             news = page.locator(".lf-margin-preview [data-lf-news] >> visible=true")
-            deadline = time.monotonic() + 10
-            while not page.evaluate(ANSWER_SHOWN, case.arrives[:40]):
-                assert time.monotonic() < deadline, "the answer never showed"
-                if news.count():
-                    news.first.click()
-                    page.mouse.move(0, 0)
-                page.wait_for_timeout(100)
+            news.or_(
+                page.locator(".lf-margin-preview .lf-msg", has_text=words)
+            ).first.wait_for()
+            if not page.evaluate(ANSWER_SHOWN, words):
+                news.first.click()
+                page.wait_for_function(ANSWER_SHOWN, arg=words)
+                page.mouse.move(0, 0)
             settle(page)
         if case.scroll:
             page.mouse.move(2, window.size[1] / 2)
@@ -599,16 +618,23 @@ def findings(reading: dict) -> dict:
         "bottom": reading["window"][1],
     }
     covered = overlap(card, clipped(reading["block"], window))
-    block_height = reading["block"]["bottom"] - reading["block"]["top"]
+    block = reading["block"]
+    # Whether the card and its block fit in the boundary side by side, for a card
+    # beside its subject, or one above the other.
+    axis = ("left", "right") if side in ("left", "right") else ("top", "bottom")
+    span = {"left": width, "top": height}[axis[0]]
+    fits = block[axis[1]] - block[axis[0]] + reading["gap"] + span <= (
+        boundary[axis[1]] - boundary[axis[0]]
+    )
     return {
         "where": SIDES.get(side, f"at {side}"),
         "size": [width, height],
         "narrower": max(0, round(limits[limit] - width)),
         "limit": limit,
+        "wider": max(0, round(width - reading["natural"])),
         "covers": list(covered) if all(covered) else None,
         "covers_quote": any(all(overlap(card, words)) for words in reading["quote"]),
-        "fits": block_height + reading["gap"] + height
-        <= boundary["bottom"] - boundary["top"],
+        "fits": fits,
         "outside": overlap(card, window) != (width, height),
     }
 
@@ -684,6 +710,8 @@ def result(case: Case, found: dict, scrolled: int | None) -> tuple[str, list]:
     tags = []
     if found["narrower"] > 2:
         tags.append(("warn", f"{found['narrower']} px narrower than {found['limit']}"))
+    if found["wider"] > 2:
+        tags.append(("", f"{found['wider']} px wider than its words need"))
     # Covering what it's about is a fault where the card and its block would fit in the
     # window one above the other, and the only way to stand otherwise.
     tone, fitting = (
@@ -846,7 +874,12 @@ def placements(names, engine, base) -> None:
                     run=journey(case, window),
                 ) as each:
                     for arm, visit in each:
-                        record: dict = {"case": key, "arm": arm, "commit": visit.commit}
+                        record: dict = {
+                            "case": case.name,
+                            "window": list(window.size),
+                            "arm": arm,
+                            "commit": visit.commit,
+                        }
                         if visit.error:
                             failed = True
                             (out / f"{key}-{arm}-error.txt").write_text(

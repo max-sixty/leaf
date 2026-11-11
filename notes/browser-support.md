@@ -131,7 +131,7 @@ journey.
 
 ### A recomputed length less a percentage counts as a change in Chromium
 
-Playwright Chromium 158.0.8127.18 counted an inheriting registered
+Playwright Chromium 158.0.8127.18 (build 1254) counted an inheriting registered
 `<length-percentage>` whose value mixes a length with a percentage, such as
 `calc(10px - 50%)` or `max(0px, 10px - 50%)`, as changed each time its element
 was restyled, the value unchanged, so every restyle of that element restyled its
@@ -139,10 +139,11 @@ children too, and children that set the property again a level further. A plain
 length, a plain percentage, or the same expression registered `*`, restyled the
 element alone. On 2026-11-10, a class on a column page's `main` that changed
 nothing restyled 246 elements at 10 sections, and 6 with the room set to a
-constant; focus marking `main` as the user landed on a passage did the same. So the column's room (`--lf-free-start` and its
-kin, `browser/layouts.css`) is registered `*`, with the shell's width reaching it
-as a length (`--lf-shell-width`). Firefox and WebKit were not checked. Recheck by
-registering the room `<length-percentage>` again:
+constant; focus marking `main` as the user landed on a passage did the same. So
+the column computes its room in properties that don't inherit (`--lf-room-start`,
+`--lf-room-end`, `browser/layouts.css`) and passes it to its children in
+`--lf-free-start` and its kin, registered `*`. Firefox and WebKit were not
+checked. Recheck by registering `--lf-free-*` `<length-percentage>` again:
 `test_resolving_a_thread_restyles_what_focus_marks` in
 `tests/browser/test_chrome_contracts.py` fails while the gap stands.
 

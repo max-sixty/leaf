@@ -2167,6 +2167,47 @@ def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
     assert root_overflow(page) == 0
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+@pytest.mark.parametrize("layout", ["column", "sidebar"])
+def test_a_column_stated_in_font_units_gives_every_breakout_the_same_room(
+    request, serve, layout, engine
+):
+    """A page may state its column in any unit, and the Layout resolves it on the column
+    (base.css, `--col`), so every block that breaks out of the column reaches the same
+    edges whatever its own font. Resolved in each block's font instead, `2em` of gutter
+    and `50ch` of column put a block in a small monospace font at other edges than its
+    neighbours, and on a sidebar page past the window's edge."""
+    browser = request.getfixturevalue(engine)
+    body = (
+        "<p>Reading measure.</p>"
+        '<div id="plain" data-width="available">Plain</div>'
+        '<div id="small" data-width="available" style="font: 10px monospace">Small</div>'
+        '<div id="large" data-width="available" style="font-size: 24px">Large</div>'
+    )
+    if layout == "sidebar":
+        body = (
+            "<aside><div class='layout-track'><p>Summary.</p></div></aside>"
+            f"<div class='layout-column'>{body}</div>"
+        )
+    source = leaf_page(
+        "Font units",
+        body,
+        head="<style>:root { --col: 50ch; --col-pad: 2em; }</style>",
+        layout=layout,
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1600, 900)
+    edges = page.evaluate(
+        """() => Object.fromEntries(['plain', 'small', 'large'].map((id) => {
+          const box = document.getElementById(id).getBoundingClientRect();
+          return [id, [box.left, box.right]];
+        }))"""
+    )
+    for block in ("small", "large"):
+        assert edges[block] == pytest.approx(edges["plain"], abs=1), edges
+    assert root_overflow(page) == 0
+
+
 def test_a_breakout_a_revision_inserts_deeper_lands_before_it_paints(browser, serve):
     """A revision's replacement can put a breakout in a list deeper than the one it
     replaced. The breakout keeps to its list item from the first paint that shows it,

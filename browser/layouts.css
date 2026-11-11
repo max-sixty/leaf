@@ -327,16 +327,28 @@
    * none. The lengths inherit, since WebKit left one passed down with `inherit` stale
    * after a resize (notes/browser-support.md).
    *
-   * The room is registered `*`, so each reader receives the expression and resolves
-   * it, percentage included. The shell's width enters the expression as a length
-   * (`--lf-shell-width`), since a container unit left in it would resolve against the
-   * reader's container. Registered `<length-percentage>`, Chromium 158 counted the
-   * room as changed on every restyle of the column though its value was the same, so
-   * each restyle of the column, as when focus marks it on the user's return to a
-   * passage, restyled every box under it (notes/browser-support.md). */
+   * The column computes its room in two properties that don't inherit
+   * (`--lf-room-start`, `--lf-room-end`), so every unit in it resolves on the column:
+   * the shell's `cqi`, and a page's `--col` or `--col-pad` stated in `ch` or `em`,
+   * in the column's font. It passes the result down in `--lf-free-*`, registered `*`,
+   * as an expression of lengths and a percentage that each reader resolves against
+   * its own containing block. Inherited and registered `<length-percentage>`, the room counted
+   * as changed on every restyle of the column in Chromium 158 though its value was the
+   * same, so each restyle of the column, as when focus marks it on the user's return
+   * to a passage, restyled every box under it (notes/browser-support.md). */
   @property --lf-shell-width {
     syntax: "<length>";
     inherits: true;
+    initial-value: 0px;
+  }
+  @property --lf-room-start {
+    syntax: "<length-percentage>";
+    inherits: false;
+    initial-value: 0px;
+  }
+  @property --lf-room-end {
+    syntax: "<length-percentage>";
+    inherits: false;
     initial-value: 0px;
   }
   @property --lf-free-start {
@@ -386,8 +398,10 @@
     main > [data-lf-views="parts"] > * > *
   ).layout-column {
     --lf-shell-width: 100cqi;
-    --lf-free-start: max(0px, (var(--lf-shell-width) - 100%) / 2 - var(--col-pad));
-    --lf-free-end: var(--lf-free-start);
+    --lf-room-start: max(0px, (var(--lf-shell-width) - 100%) / 2 - var(--col-pad));
+    --lf-room-end: var(--lf-room-start);
+    --lf-free-start: var(--lf-room-start);
+    --lf-free-end: var(--lf-room-end);
     /* An authored note column centers the prose and note together when both fit.
      * Narrower columns keep centered prose and wrap the note. The author chooses
      * this axis on its owner; notes inside another column never choose it. */
@@ -405,25 +419,21 @@
             2
         )
         auto;
-      --lf-free-start: max(
+      --lf-room-start: max(
         0px,
         (
             var(--lf-shell-width) - 2 * var(--col-pad) - 100% - var(--note) *
               clamp(
                 0,
-                sign(
-                    var(--lf-shell-width) - 2 * var(--col-pad) - var(--col) -
-                      var(--note)
-                  ) +
-                  1,
+                sign(100cqi - 2 * var(--col-pad) - var(--col) - var(--note)) + 1,
                 1
               )
           ) /
           2
       );
-      --lf-free-end: max(
+      --lf-room-end: max(
         0px,
-        var(--lf-shell-width) - 2 * var(--col-pad) - 100% - var(--lf-free-start)
+        var(--lf-shell-width) - 2 * var(--col-pad) - 100% - var(--lf-room-start)
       );
     }
   }
@@ -434,9 +444,8 @@
    * any other box has none to share. A widget that draws no box of its own around its
    * blocks declares itself one (`x-flow`), so its blocks need no class of the author's.
    * Only a block standing directly in a column or flow reads the room, so every other
-   * box sets it back to zero. Inherited, the room's percentage reaches every box under
-   * the column, and Chromium 156 restyled all 2,500 of them, for 20 to 30 ms, when one
-   * element was inserted into a box among them. */
+   * box sets it back to zero, and a flow inside a plain wrapper stays within the
+   * wrapper rather than breaking out as one standing in the column does. */
   :not(.layout-column, .layout-flow, [data-lf-flow]) > * {
     --lf-free-start: 0px;
     --lf-free-end: 0px;
@@ -773,17 +782,13 @@
     margin: 0;
     padding: 0;
     --lf-wide-page: 0;
-    --lf-shell-width: 100cqi;
-    --lf-free-end: max(
+    --lf-room-end: max(
       0px,
-      var(--lf-shell-width) - var(--col) - (var(--aside) + var(--sp-4)) *
-        clamp(
-          0,
-          sign(var(--lf-shell-width) - var(--col) - var(--aside) - var(--sp-4)) + 1,
-          1
-        )
+      100cqi - var(--col) - (var(--aside) + var(--sp-4)) *
+        clamp(0, sign(100cqi - var(--col) - var(--aside) - var(--sp-4)) + 1, 1)
     );
-    padding-inline-end: var(--lf-free-end);
+    --lf-free-end: var(--lf-room-end);
+    padding-inline-end: var(--lf-room-end);
   }
   @property --lf-track-parent-width {
     syntax: "<length>";

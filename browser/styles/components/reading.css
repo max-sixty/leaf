@@ -445,9 +445,9 @@ dl.lf-facts dd {
        A rule keyed on a mark the runtime moves, `data-lf-more-before` as the table
        scrolls or `data-lf-focus-within` as focus moves, names its cells' types, in a
        `:where()` that adds no weight. When such a rule's last compound names no type,
-       class or id, Chromium restyles every element under the one whose mark changed.
-       Focus marks every ancestor of the focused element, `main` included, so with
-       `:first-child::after` alone, resolving a thread from its card restyled every
+       class, id or attribute, Chromium restyles every element under the one whose mark
+       changed. Focus marks every ancestor of the focused element, `main` included, so
+       with `:first-child::after` alone, resolving a thread from its card restyled every
        element of the page as focus returned to the thread's passage
        (test_resolving_a_thread_restyles_what_focus_marks). */
     table:has(th[scope="row"]:first-child):has(> * > tr > th[scope="row"]:first-child) {

@@ -117,10 +117,9 @@ says how long the line has stood. This was the user's choice (28 October 2026) o
 Leaf reading the turn's liveness, or its current step, from the hooks itself.
 
 The prompt hook and a tool boundary also carry what Leaf's clerk wrote or found at
-the last turn's end, and each reply a fork of the conversation posted, one line each
-(`clerk.queued`), and take them off the queue once printed (`clerk.heard`). Stop
-carries none: the clerk forks only after the turn has ended, and a fork's reply
-reaches the session with the settled message, which wakes no idle session.
+the last turn's end, one line each (`clerk.queued`), and take them off the queue
+once printed (`clerk.heard`). Stop carries none: the clerk forks only after the
+turn has ended.
 
 A harness reads a hook's output only after the hook exits, and discards it if the
 hook times out. So the hook records its handover only before `CONFIRM_WITHIN`, well
@@ -494,6 +493,21 @@ CONFIRM_WITHIN = HOOK_TIMEOUT_S / 2
 INLINE_OPENING = (
     "Leaf has new input for your turn. Read this complete delivery before answering."
 )
+
+
+def pointer_opening(delivery: dict) -> str:
+    """The line that opens a pointer delivery. It says what the inline opening says,
+    with how many updates the pointer holds and from which pages, since a pointer
+    shows none of its input and would otherwise read as one more line of context."""
+    count = sum(len(batch["events"]) for batch in delivery["batches"])
+    pages = ", ".join(batch["page"] for batch in delivery["batches"])
+    updates = "1 update" if count == 1 else f"{count} updates"
+    return (
+        f"Leaf has {updates} from the user on {pages} for your turn. Read them with "
+        f"`leaf delivery read {delivery['id']}` before answering."
+    )
+
+
 # The words that open what a turn owes, as a reminder of its own or after a delivery.
 ATTENTION_OPENING = "Leaf needs attention:"
 
@@ -573,8 +587,8 @@ def carry_turn(
     could not serve again (`unserved`, `reconnect.serve_again`) into the one hook
     output its harness reads, recording a delivery it hands over inline by
     `CONFIRM_WITHIN` after `started`, the hook's `time.monotonic()` as it began."""
-    # What Leaf's clerk wrote or found and the replies forks posted since the agent
-    # last heard (`clerk.queued`), which the next prompt or tool boundary carries.
+    # What Leaf's clerk wrote or found since the agent last heard (`clerk.queued`),
+    # which the next prompt or tool boundary carries.
     told = queued(sid) if event in {"UserPromptSubmit", "PostToolBatch"} else []
     due = event == "PostToolBatch" and status_check_due(sid)
     if event == "PostToolBatch" and not told and not due and not new_input(sid):
@@ -691,7 +705,13 @@ def carry_turn(
         else:
             if expected:
                 note_pointer(sid, expected, delivery, deadline=deadline)
-            message = "\n".join([delivery_pointer_prompt(delivery["id"]), *attention])
+            message = "\n".join(
+                [
+                    pointer_opening(delivery),
+                    delivery_pointer_prompt(delivery["id"]),
+                    *attention,
+                ]
+            )
     if message:
         assert event is not None
         print(json.dumps(harness.hook_context(event, message)), flush=True)

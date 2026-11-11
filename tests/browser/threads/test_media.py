@@ -13,6 +13,7 @@ from render_cases_layout import solid_png
 from render_harness import (
     LONG_PAGE,
     example_media,
+    field_press,
     leaf_page,
     open_page,
     page_comment,
@@ -148,6 +149,36 @@ def test_a_capture_in_a_table_is_named_by_its_heads(browser, serve):
         ("landscape-3", "Dark · After · Phone · Landscape"),
     ):
         page.locator(f"#{link}").click()
+        expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(caption)
+        page.keyboard.press("Escape")
+        expect(viewer).to_be_hidden()
+
+
+def test_a_capture_in_a_reply_s_table_is_named_by_its_column_head(browser, serve):
+    """A table of captures an agent writes in Markdown names each capture by the head over
+    its column, as the page's own tables do: a message's words are its writer's."""
+    url = serve(
+        leaf_page(
+            "Captures",
+            '<h1>Captures</h1><img src="/media/051bee487bfb5d13.png" alt="Release output">',
+        )
+    )
+    image = (
+        "[![Release output](/media/051bee487bfb5d13.png)](/media/051bee487bfb5d13.png)"
+    )
+    panel_comment(
+        serve.page_dir,
+        f"| | Light | Dark |\n|---|---|---|\n| Before | {image} | {image} |",
+        author="agent",
+    )
+    page = open_page(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    thread = page.locator(PANEL_THREAD)
+    expect(thread).to_be_visible()
+    viewer = page.get_by_role("dialog", name="Image preview")
+    for index, caption in enumerate(("Light", "Dark")):
+        thread.locator('a[href="/media/051bee487bfb5d13.png"]').nth(index).click()
         expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(caption)
         page.keyboard.press("Escape")
         expect(viewer).to_be_hidden()
@@ -339,7 +370,7 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     """A finger's drag is the whole gesture: lifting it attaches the area, and the
     attachment's ✕ takes a bad one back. Capture opens with no area, and the field
     asks for a drag. A tap draws no area, so it leaves capture standing with none; the
-    ✕, Enter on it, or Escape leave with nothing attached."""
+    field's Close or Escape leaves with nothing attached."""
     page = capture_page(browser, serve, touch=True)
     touch = page.context.new_cdp_session(page)
     # Retain the native event so the assertion reads its final cancellation state.
@@ -376,7 +407,7 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     rendered(page)
     expect(surface).to_be_visible()
     expect(selection).to_be_hidden()
-    page.get_by_role("button", name="Cancel capture", exact=True).tap()
+    field_press(page).filter(has_text="Close").tap()
     expect(surface).to_be_hidden()
     assert page.evaluate("captureTouchStarts.at(-2).defaultPrevented"), (
         "a selection must consume its native touch gesture, including fling generation"
@@ -385,9 +416,6 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     expect(page.locator(".lf-composer-media-item")).to_have_count(0)
     assert events_model.read_events(serve.page_dir) == before
     assert sorted((serve.page_dir / "media").glob("*")) == before_media
-    surface = open_capture_area(page, touch=True)
-    page.get_by_role("button", name="Cancel capture", exact=True).press("Enter")
-    expect(surface).to_be_hidden()
     surface = open_capture_area(page, touch=True)
     page.keyboard.press("Escape")
     expect(surface).to_be_hidden()

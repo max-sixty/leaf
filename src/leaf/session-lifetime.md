@@ -172,8 +172,8 @@ transport"). What a watcher delivers is `delivery.deliverable`, which includes t
 updates a page's previous owner received and left unanswered. It leaves out the
 waiting messages of a thread a fork of a Claude Code session's conversation is
 deciding on, while that session's pages follower holds its forks lane
-(`sessions/<session>.fork-lane`), until the fork answers or the thread is handed
-over, by the fork or by the follower once the hold runs out, which
+(`sessions/<session>.fork-lane`), until the thread is handed over, by the fork
+once it has posted its line or by the follower once the hold runs out, which
 `sessions/<session>.forks` records (`forks.py`).
 
 ### The hook

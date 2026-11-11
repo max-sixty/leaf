@@ -5,7 +5,13 @@ import gzip
 import json
 
 from click.testing import CliRunner
-from interact_support import PAGE, publish
+from interact_support import (
+    PAGE,
+    append_carried_log_record,
+    append_command,
+    publish,
+    served_state_error,
+)
 from render_harness import (
     leaf_page,
 )
@@ -13,8 +19,13 @@ from render_harness import (
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import exporting as exporting_model
+from leaf import leases as leases_model
+from leaf import media as media_model
+from leaf import service as service_model
+from leaf import session as session_model
 from leaf.event_log import read_events
 from leaf.files import published_versions
+from leaf.served_state.service import PageStateService
 from leaf.structure import SourceDocument
 from leaf_dev.example_data import patch_manifest
 
@@ -144,3 +155,176 @@ def test_an_export_holds_each_data_value_once_outside_its_documents(serve, tmp_p
     for sentinel in ("NOTES_SENTINEL", "PATCH_SENTINEL_NEW"):
         # Counted, so a failure doesn't make pytest diff a file of megabytes.
         assert (exported.count(sentinel), bodies.count(sentinel)) == (0, 1)
+
+
+def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_path):
+    """Whoever opens the file reads the page and the decisions on it, and no word of what
+    the user and the agent said to each other, on screen or in its source.
+
+    The passage a comment quotes is gone from the version exported, so it is in the file
+    only if the conversation is. Everything planted stands in the page's live reading,
+    which is what makes each absence mean something, and the attachment's bytes or a
+    source only a message binds would be in an embedded body, so the search covers
+    those decoded. A choice recorded on the page's widget stays, one the user took back
+    stays taken back, and so does the data the page itself binds."""
+    decisions = (
+        '<lf-options id="picks"><lf-option id="first">First</lf-option>'
+        '<lf-option id="second">Second</lf-option></lf-options>'
+        '<lf-options id="taken-back"><lf-option id="keep">Keep</lf-option>'
+        '<lf-option id="drop">Drop</lf-option></lf-options>'
+    )
+    page_notes = (
+        '<lf-text-document id="notes" source="page-notes" label="notes.md">'
+        "</lf-text-document>"
+    )
+    source = claimed / "index.html"
+    source.write_text(
+        leaf_page(
+            "Decisions",
+            f'<h1>Decisions</h1><p id="passage">Words QUOTEDWORD here.</p>{decisions}'
+            f"{page_notes}",
+        )
+    )
+    publish(claimed, "FIRSTCHANGELOGWORD")
+
+    attachment = tmp_path / "evidence.svg"
+    attachment.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24">'
+        "<text>ATTACHMENTWORD</text></svg>"
+    )
+    attached = media_model.cmd_media(claimed, [attachment])[0]["path"]
+    choice = {"kind": "action", "author": "user", "revision": 1, "action": "choose"}
+    chosen = append_command(
+        claimed, {**choice, "widget": "picks", "detail": {"value": ["second"]}}
+    )
+    taken_back = append_command(
+        claimed, {**choice, "widget": "taken-back", "detail": {"value": ["drop"]}}
+    )
+    append_command(
+        claimed, {"kind": "undo", "author": "user", "undoes": taken_back["id"]}
+    )
+    comment = append_command(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": f"COMMENTWORD ![ALTWORD]({attached})",
+            "anchor": {"section": "passage", "quote": "QUOTEDWORD"},
+        },
+    )
+    said = {"author": "agent", "revision": 1, "parent": comment["id"]}
+    append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            **said,
+            "text": "REPLYWORD",
+            "markup": '<lf-options id="frozen"><lf-option id="yes">FROZENWORD'
+            '</lf-option><lf-option id="PICKWORD">No</lf-option></lf-options>'
+            '<lf-text-document id="in-thread" source="thread-notes" label="notes.md">'
+            "</lf-text-document>",
+        },
+    )
+    data_model.cmd_data_set(claimed, "thread-notes", "BOUNDINTHREADWORD\n")
+    data_model.cmd_data_set(claimed, "page-notes", "PAGEDATAWORD\n")
+    append_command(
+        claimed, {**choice, "widget": "frozen", "detail": {"value": ["PICKWORD"]}}
+    )
+    append_carried_log_record(
+        claimed,
+        {
+            "kind": "thread_title",
+            "author": "agent",
+            "thread": comment["id"],
+            "title": "TITLEWORD",
+        },
+    )
+    todo = append_carried_log_record(
+        claimed,
+        {
+            "kind": "todo",
+            "author": "agent",
+            "subject": {"kind": "page"},
+            "title": "TODOWORD",
+        },
+    )
+    append_carried_log_record(
+        claimed,
+        {"kind": "start", "author": "agent", "item": todo["id"], "text": "STATUSWORD"},
+    )
+    append_carried_log_record(
+        claimed,
+        {
+            "kind": "plan",
+            "author": "agent",
+            "steps": [{"depth": 0, "title": "PLANWORD", "state": "working"}],
+        },
+    )
+    source.write_text(
+        leaf_page("Decisions", f"<h1>Decisions</h1>{decisions}{page_notes}")
+    )
+    publish(claimed, "SECONDCHANGELOGWORD")
+    # What the agent is doing as the user exports reaches the live reading while its
+    # wait lease stands.
+    session_model.cmd_waiting(claimed)
+    claim = service_model.page_claim(claimed)
+    assert claim is not None
+    lease_path = leases_model.waiter_lease_path(claimed, claim["id"])
+    assert lease_path is not None
+    lease = leases_model.take_wait_lease(lease_path)
+    assert lease
+    with service_model.PageTransaction(claimed) as transaction:
+        transaction.set_stream_activity(
+            "s1", "turn-live", {"kind": "tool", "detail": "OBSERVEDWORD"}
+        )
+
+    words = [
+        "QUOTEDWORD",
+        "COMMENTWORD",
+        "ALTWORD",
+        "REPLYWORD",
+        "FROZENWORD",
+        "PICKWORD",
+        "BOUNDINTHREADWORD",
+        "TITLEWORD",
+        "TODOWORD",
+        "STATUSWORD",
+        "PLANWORD",
+        "OBSERVEDWORD",
+        "FIRSTCHANGELOGWORD",
+        "SECONDCHANGELOGWORD",
+        # Where the agent's session works.
+        str(tmp_path),
+        attached,
+    ]
+    served = json.dumps(PageStateService(claimed).page_state(2))
+    assert [word for word in words if word not in served] == []
+
+    out = tmp_path / "shared.html"
+    exporting_model.cmd_export(claimed, out, None)
+    leases_model.release_lease(lease)
+    exported = out.read_text(encoding="utf-8")
+    package_script = SourceDocument(exported).tree.select_one("script[data-lf-export]")
+    assert package_script is not None
+    package = json.loads(package_script.text)
+    bodies = [exported.encode()]
+    for resource in package["resources"].values():
+        body = base64.b64decode(resource["base64"])
+        bodies.append(
+            gzip.decompress(body) if resource["mime"] == "application/gzip" else body
+        )
+    held = b"\n".join(bodies)
+    # Listed, so a failure doesn't make pytest diff a file of megabytes.
+    assert [word for word in [*words, "ATTACHMENTWORD"] if word.encode() in held] == []
+    assert b"PAGEDATAWORD" in held
+
+    marker = SourceDocument(package["document"]).tree.select_one(
+        "script[data-lf-offline]"
+    )
+    assert marker is not None
+    state = json.loads(marker.text)["state"]
+    assert {served_state_error(event, "Event") for event in state["events"]} == {None}
+    projection = state["browser"]["views"]["2"]["document"]["projection"]
+    assert projection["desired"] == [chosen["id"]]
+    assert state["browser"]["views"]["2"]["thread"]["threads"] == []

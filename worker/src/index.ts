@@ -47,8 +47,13 @@ import {
   readPublicationCommit,
 } from "./storage";
 
-import { agentLog, dispatchAgentTask } from "./agent";
-import { projectInteractionBatch, sampleInteractionReference } from "./interactions";
+import { agentLog, dispatchAgentTask, prewarmContainer } from "./agent";
+import {
+  projectInteractionBatch,
+  sampleInteractionReference,
+  startsTyping,
+  type InteractionProjection,
+} from "./interactions";
 import { proxyModelRequest } from "./model-proxy";
 import {
   activeCookie,
@@ -180,27 +185,23 @@ export class LeafWebsiteSession extends Container<Env> {
 
   private async forward(request: Request): Promise<Response> {
     const response = await super.fetch(request);
-    if (response.status >= 500) {
-      // The Containers SDK converts connection loss into an ordinary 500 without
-      // logging an exception. Python stamps its own answers and logs page_fault;
-      // retain the missing proxy evidence, never the body or private request URL.
-      const adapter = response.headers.has("Leaf-Release");
-      const body = adapter
-        ? null
-        : await readBoundedText(response.clone(), 1024).catch(() => null);
-      console.error({
-        component: "leaf-container",
-        event: "http_error",
-        method: request.method,
-        status: response.status,
-        source: adapter
-          ? "adapter"
-          : body === "Container suddenly disconnected, try again"
-            ? "disconnected"
-            : "unclassified",
-      });
+    if (response.status < 500) return response;
+    const source = await errorSource(response);
+    // A connection lost while the container starts or restarts says nothing about
+    // the request, so a read gets one more attempt rather than showing the
+    // visitor a 500. A write may already have reached Python, so
+    // its loss reaches the caller instead.
+    const retry =
+      source === "disconnected" &&
+      (request.method === "GET" || request.method === "HEAD");
+    logHttpError(request, response, source, retry);
+    if (!retry) return response;
+    await response.body?.cancel();
+    const second = await super.fetch(request);
+    if (second.status >= 500) {
+      logHttpError(request, second, await errorSource(second), false);
     }
-    return response;
+    return second;
   }
 
   override async fetch(request: Request): Promise<Response> {
@@ -236,6 +237,34 @@ export class LeafWebsiteSession extends Container<Env> {
     }
     return this.forward(request);
   }
+}
+
+// The Containers SDK converts connection loss into an ordinary 500 without
+// logging an exception. Python stamps its own answers and logs page_fault;
+// retain the missing proxy evidence, never the body or private request URL.
+async function errorSource(response: Response): Promise<string> {
+  if (response.headers.has("Leaf-Release")) return "adapter";
+  const body = await readBoundedText(response.clone(), 1024).catch(() => null);
+  return body === "Container suddenly disconnected, try again" ||
+    body?.startsWith("Error proxying request to container:")
+    ? "disconnected"
+    : "unclassified";
+}
+
+function logHttpError(
+  request: Request,
+  response: Response,
+  source: string,
+  retried: boolean,
+): void {
+  console.error({
+    component: "leaf-container",
+    event: "http_error",
+    method: request.method,
+    status: response.status,
+    source,
+    retried,
+  });
 }
 
 // Assignment invokes Container's inherited setter, which registers the handler for
@@ -347,10 +376,7 @@ async function recordStartup(
     currentRelease: manifest.release,
     ...parsed.data,
   });
-  return new Response(null, {
-    status: 204,
-    headers: { "Cache-Control": "no-store" },
-  });
+  return new Response(null, { status: 204 });
 }
 
 // The events a passive session's runtime sends on its own, which the edge answers
@@ -395,9 +421,7 @@ function unrecordedRead(
     findings: [],
     ...(read.attempt !== undefined && { attempt: read.attempt }),
   };
-  const answer = Response.json(refusal, {
-    headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
-  });
+  const answer = Response.json(refusal, { headers: { "Leaf-Session": "passive" } });
   stampDelivery(answer.headers, route, manifest, reference);
   return answer;
 }
@@ -423,7 +447,7 @@ function recordPageFault(
   });
   const answer = new Response(null, {
     status: 204,
-    headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
+    headers: { "Leaf-Session": "passive" },
   });
   stampDelivery(answer.headers, route, manifest, reference);
   return answer;
@@ -438,6 +462,7 @@ async function recordInteractions(
   route: PageRoute,
   identity: InteractionIdentity,
   release: string,
+  admitted: (batch: InteractionProjection) => void = () => undefined,
 ): Promise<Response> {
   const raw = await readBoundedText(request, MAX_INTERACTION_BYTES);
   if (raw === null)
@@ -458,7 +483,8 @@ async function recordInteractions(
     release,
     ...batch,
   });
-  return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+  admitted(batch);
+  return new Response(null, { status: 204 });
 }
 
 // The event an accepted POST's answer names, and whether it owes the agent an
@@ -564,8 +590,15 @@ async function staticState(
   if (!response.ok) return new Response("state unavailable", { status: 503 });
   const state = (await response.json()) as ServedState;
   prepareStateDelivery(state, request);
+  // Stored and asked for again before each reuse, as every Leaf server's state answer
+  // is (`CACHE_CONTROL`, `src/leaf/http.py`), so it names the request headers its body
+  // turns on.
   const answer = Response.json(state, {
-    headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
+    headers: {
+      "Cache-Control": "no-cache",
+      Vary: "Leaf-Data-Version, Leaf-View-Revision",
+      "Leaf-Session": "passive",
+    },
   });
   stampDelivery(answer.headers, route, manifest, reference);
   return answer;
@@ -592,6 +625,8 @@ async function rollingOut(
   if (request.method === "GET" && route.inside === "api/state") {
     answer = await staticState(request, env, manifest, route, reference);
   } else {
+    // A history load reuses a stored answer without asking, so a stored refusal would
+    // stand in for the document or API answer after the rollout ends.
     answer = new Response("this release is still starting", {
       status: 503,
       headers: { "Retry-After": "5", "Cache-Control": "no-store" },
@@ -698,7 +733,19 @@ export default {
       if (existing === null) {
         return new Response("interaction batch has no page session", { status: 400 });
       }
-      return recordInteractions(request, route, { reference }, manifest.release);
+      const sourceId = request.headers.get("CF-Connecting-IP") ?? sessionId;
+      return recordInteractions(
+        request,
+        route,
+        { reference },
+        manifest.release,
+        (batch) => {
+          if (startsTyping(batch))
+            ctx.waitUntil(
+              prewarmContainer(env, privateContainer, reference, route.root, sourceId),
+            );
+        },
+      );
     }
     // Geometry is disposable observation, not a gesture that opens private state.
     if (!active && request.method === "POST" && route.inside === "api/user-view") {

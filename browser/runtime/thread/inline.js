@@ -441,6 +441,8 @@ export function renderMarginThread(host, thread, commands, outlets) {
       transcript: view.transcript,
       settled: () => view.settled(),
       answering: () => view.answering,
+      /** @param {import("../scrolling.js").BoxExtent} before */
+      placesEnd: (before) => view.placesEnd(before),
     }));
 }
 

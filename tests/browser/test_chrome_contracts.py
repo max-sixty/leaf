@@ -35,6 +35,7 @@ from render_harness import (
     panel_view,
     primed,
     resized,
+    restyle_counts,
     round_trip,
     select,
     selection_field,
@@ -207,6 +208,176 @@ def test_a_compact_comment_keeps_no_room_for_send_under_a_mouse(browser, serve):
         + (parseFloat(style.getPropertyValue('--lf-field-end-room')) || 0)];
     }""")
     assert insets[1] == pytest.approx(insets[0], abs=0.1), insets
+
+
+def test_entering_and_leaving_a_floating_comment_box_restyles_only_the_chrome(
+    browser, serve
+):
+    """The root drops its scroll padding while the user writes in a box standing in a
+    plane (annotation-overlay/floating.js, `readFloatingEditor`), by a zero base.css
+    writes so that entering and leaving the box restyle only the chrome; its comment
+    says what a plain zero cost. Counted in the browser's own restyled elements,
+    against a restyle of the whole page."""
+    paragraphs = "".join(
+        f"<p id='p{i}'>Paragraph {i} of the page.</p>" for i in range(600)
+    )
+    page = open_page(
+        browser, serve(leaf_page("Floating editor", "<h1>Page</h1>" + paragraphs))
+    )
+    root = page.locator("html")
+
+    def restyled(move):
+        """The most elements one style recalc restyled while `move` ran."""
+        counts = restyle_counts(page, lambda: (move(), rendered(page)))
+        assert sum(counts), "the move must restyle something, or this proves nothing"
+        return max(counts)
+
+    # The control: a custom property changing on the root restyles every element
+    # (root-state.js).
+    whole = restyled(
+        lambda: root.evaluate("html => html.style.setProperty('--lf-test-probe', '1')")
+    )
+    page.locator("#p1").click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(root).to_have_attribute("data-lf-floating-editor", "")
+    # Tab leaves the field for the bar's next control.
+    leaving = restyled(lambda: page.keyboard.press("Tab"))
+    expect(field).not_to_be_focused()
+    expect(root).not_to_have_attribute("data-lf-floating-editor", "")
+    entering = restyled(field.click)
+    expect(root).to_have_attribute("data-lf-floating-editor", "")
+    moves = {"leaving": leaving, "entering": entering, "whole page": whole}
+    assert max(leaving, entering) < whole / 4, moves
+
+
+def questions_page(sections: int) -> str:
+    """`sections` sections of a column page's article, each with words to comment on
+    and a question on the user, so its margin holds a row per section."""
+    return leaf_page(
+        "Questions",
+        "<article>"
+        + "".join(
+            f'<section id="s{g}"><h2>Section {g}</h2>'
+            f'<p id="p{g}">Some words about section {g}.</p>'
+            f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}" choose>'
+            f'<lf-option id="o{g}-1">One</lf-option>'
+            f'<lf-option id="o{g}-2">Two</lf-option></lf-options></lf-ask></section>'
+            for g in range(1, sections + 1)
+        )
+        + "</article>",
+    )
+
+
+def comment_ready(browser, serve, sections: int):
+    """`questions_page(sections)` with a comment written on the first section's words,
+    ready to send. Reduced motion keeps the card from easing in over as many frames as
+    the host's speed allows, so each count is the same on every run."""
+    page = open_page(browser, serve(questions_page(sections)))
+    page.emulate_media(reduced_motion="reduce")
+    page.evaluate("""() => {
+      const words = document.getElementById('p1').firstChild;
+      getSelection().setBaseAndExtent(words, 0, words, 10);
+    }""")
+    page.keyboard.press("c")
+    page.locator(".lf-composer leaf-text").focus()
+    page.keyboard.insert_text("Why this section?")
+    rendered(page)
+    return page
+
+
+def send_comment(page):
+    with sending(page, "the comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(page.locator(".lf-margin-preview .lf-resolve")).to_be_visible()
+    rendered(page)
+
+
+@pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
+def test_sending_a_comment_restyles_only_the_rows_it_changes(browser, serve):
+    """Send removes the comment's row from the margin and inserts its thread's row. The
+    rows are siblings, and once Chromium has evaluated an `:nth-child()` selector for a
+    parent's children, it restyles all of them whenever one is inserted or removed
+    (reading.css, the frame edges), so Send restyled every row on the page. Counted in
+    the browser's own restyled elements, a page of six times the sections restyles no
+    more."""
+
+    def restyled(sections):
+        page = comment_ready(browser, serve, sections)
+        counts = restyle_counts(page, lambda: send_comment(page))
+        page.close()
+        return sum(counts)
+
+    short, long = restyled(4), restyled(24)
+    assert long - short < 10, {"4 sections": short, "24 sections": long}
+
+
+@pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
+def test_resolving_a_thread_restyles_what_focus_marks(browser, serve):
+    """Resolve closes the thread's card and returns focus to the thread's words, and
+    focus marks every ancestor of them, the column's `main` and its article included.
+    Restyling one of those ancestors must not restyle everything under it. Two rules
+    once made it do so, each restyling the whole page on a resolve: a rule keyed on the
+    focus mark whose last compound names no type (reading.css, the sticky row names),
+    and the column's room, a length less a percentage, registered as a
+    `<length-percentage>` (layouts.css). Counted in the browser's own restyled elements,
+    a page of six times the sections restyles no more."""
+
+    def restyled(sections):
+        page = comment_ready(browser, serve, sections)
+        send_comment(page)
+
+        def resolve():
+            with sending(page, "the resolve"):
+                page.locator(".lf-margin-preview .lf-resolve").click()
+            rendered(page)
+
+        counts = restyle_counts(page, resolve)
+        expect(page.locator("#p1")).to_have_attribute("data-lf-focus-within", "")
+        page.close()
+        return sum(counts)
+
+    short, long = restyled(4), restyled(24)
+    assert long - short < 10, {"4 sections": short, "24 sections": long}
+
+
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
+    request, serve, engine
+):
+    """A comment box on words low in the window stands over the chrome at its foot, the
+    band the root's scroll padding keeps the page's own content clear of. Chromium and
+    WebKit reveal a caret in a box anchored to the page by scrolling the page, counting
+    that padding, so the padding goes while the user writes in such a box
+    (annotation-overlay/floating.js, `readFloatingEditor`; base.css), and typing there
+    leaves the words beneath the box where they stood."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+    )
+    resized(page, 1512, 860)
+    words = page.locator("#p40")
+    words.evaluate("n => scrollBy(0, n.getBoundingClientRect().top - 740)")
+    rendered(page)
+    words.click(modifiers=["Alt"], position={"x": 40, "y": 8})
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    rendered(page)
+    scrolled = page.evaluate("scrollY")
+    page.keyboard.type("Fine")
+    rendered(page)
+    assert page.evaluate("scrollY") == scrolled
+    # The band the panel states on the root, which the rule hides from the browser.
+    caret, band_top = field.evaluate(f"""box => {{{CARET_AT}
+      const caret = document.createRange();
+      caret.setStart(at, offset);
+      const band = parseFloat(document.documentElement.style.scrollPaddingBottom);
+      return [caret.getBoundingClientRect().bottom, innerHeight - band];
+    }}""")
+    assert caret > band_top, (
+        "the caret stands above the foot's band, so this proves nothing",
+        caret,
+        band_top,
+    )
 
 
 # The field's shadow root is closed, so the reading keeps each root as it is attached.
@@ -855,7 +1026,7 @@ def toggle_surface(page, surface, open=True):
 def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
     browser, serve, case, width
 ):
-    """Opening Threads or On me in the panel never moves the page: each view stands over
+    """Opening Threads or On Me in the panel never moves the page: each view stands over
     it, so the reading column keeps its place, its width and its wrapping, a wide page's
     side track stays where its Layout put it, and the document neither grows nor
     scrolls under it."""
@@ -1281,7 +1452,7 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
     # The panel's field quotes the selection, where the finger that made it finds it,
-    # and the On me mark keeps its seat; the leaf's menu stays shut.
+    # and the On Me mark keeps its seat; the leaf's menu stays shut.
     comment = selection_field(page)
     expect(comment).to_have_attribute("placeholder", "“Paragraph one”")
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))

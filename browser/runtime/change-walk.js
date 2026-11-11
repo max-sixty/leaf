@@ -10,7 +10,8 @@
    block it starts with, or, where it only took blocks out, on its gap's stand-in
    (margin-bars.js, `removalProxy`), which rings the gap, since the block beside the gap
    didn't change. It brings the change into view where it is not, and says the walk's
-   position as every walk says it (walk-position.js). A current location anywhere in a
+   position as every walk says it (walk-position.js), a listener hearing after it what
+   the version was saved after (change-provenance.js). A current location anywhere in a
    change's blocks, or on its gap's stand-in, is on that change, so the next step goes
    on to the following one, even from one of two gaps beside one block to the other;
    from any other origin a step compares only where each change stands, as an editor's
@@ -22,20 +23,25 @@
    on 31 October against a stop of their own, an Escape step and a menu row, which no
    other annotation has. A finger needs no row for the walk (keyboard/AGENTS.md, "Touch
    routes"): every change is marked where it stands, and its margin entry and Page Map
-   row reach it with a tap. */
-import { comparisonBase, comparisonChanges } from "./version.js";
+   row reach it with a tap.
+
+   With no comparison standing, or one that marks nothing, a press says "No changes
+   marked" in the panel (notifications.js, `notice`), as every page walk with nothing to
+   step through says so (keyboard/AGENTS.md, "Page grammar"), so the key is live on
+   every page. While a comparison `v` started is still loading, its marks aren't known
+   yet, so the key isn't taken rather than saying none are marked. */
+import { comparisonBase, comparisonChanges, selectedBase } from "./version.js";
+import { versionProvenance } from "./change-provenance.js";
+import { wordsText } from "./voice.js";
 import { removalProxy } from "./margin-bars.js";
-import { effect, untracked } from "/runtime/framework.js";
 import { pageCommand } from "./keyboard/register.js";
-import { paintKeys } from "./keyboard/scopes.js";
 import { cycledRow } from "./keyboard/bindings.js";
 import { currentLocationOrigin, stepFrom, walkOrigin } from "./current-target.js";
 import { focusDestination } from "./focus.js";
 import { alreadyShown, scrollIntoView } from "./landing-scroll.js";
 import { scrollBehavior } from "./motion.js";
 import { renderedUnder } from "./shadow-tree.js";
-import { announce } from "./notifications.js";
-import { repaint } from "./repaint.js";
+import { announce, notice } from "./notifications.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 
 /** @typedef {import("./version.js").Change} Change */
@@ -75,19 +81,20 @@ function step(dir) {
     : stepFrom(list, origin, dir, start);
   if (!change) return;
   // A gap's stand-in brings the gap into view as it takes focus (margin-bars.js).
-  if (change.blocks.length && !alreadyShown(change.at))
+  if (change.blocks.length && !alreadyShown(change.at, { block: "start" }))
     scrollIntoView(change.at, { behavior: scrollBehavior(), block: "start" });
   focusDestination(landing(change), "move");
   const said = beginWalk("change", "Change", position);
-  if (said) announce(said);
+  // A listener hears what the version was saved after, as the ⇄ entry's label says it
+  // under what the change did (change-provenance.js).
+  const savedAfter = (versionProvenance()?.lines ?? []).map(wordsText).join(" ");
+  if (said) announce(savedAfter ? `${said}. ${savedAfter}` : said);
 }
 
 export function createChangeWalk() {
-  const offered = () => comparisonChanges().length > 0;
-  let wasOffered = false;
-  let watching = null;
   pageCommand({
     id: "change.walk",
+    ready: () => selectedBase() === comparisonBase(),
     touch: false,
     keys: ["h", "Shift+h"],
     routes: [
@@ -95,23 +102,11 @@ export function createChangeWalk() {
       { id: "change.previous", binding: "Shift+h", title: "Previous change" },
     ],
     title: "changes",
-    when: offered,
     repeat: true,
     travels: true,
-    runKey: (binding) => step(binding === "h" ? 1 : -1),
+    runKey: (binding) =>
+      comparisonChanges().length
+        ? step(binding === "h" ? 1 : -1)
+        : notice("No changes marked"),
   });
-  // The row stands while a comparison marks anything, so the surfaces reading the keys
-  // are repainted where the marks come or go.
-  return {
-    mount() {
-      watching ??= effect(() => {
-        if (offered() === wasOffered) return;
-        wasOffered = offered();
-        untracked(() => {
-          paintKeys();
-          repaint();
-        });
-      });
-    },
-  };
 }

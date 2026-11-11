@@ -32,6 +32,7 @@ from leaf import state as cleanup_model
 from leaf.registry.schema import schema_error, with_leaf_resources
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
+from leaf.render_gate import handover_pass as handover_pass_model
 from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
 from leaf_dev.browser import shell_executable, use_linux_fonts
 from leaf_dev.page_fixtures import package_selection_args
@@ -552,6 +553,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     # A test's own browser reports its window to the pages it opens, so `page check
     # --render` reads the fixed window unless a test unsets this.
     monkeypatch.setenv(render_command_model.PIN_VARIABLE, "fixed")
+    monkeypatch.setenv(handover_pass_model.VARIABLE, "off")
     # A Claude Code session whose harness runs Leaf's hooks, as the plugin installs
     # them, supplying capability evidence to hook transport and turn activity.
     for session in HOOKED_SESSIONS:

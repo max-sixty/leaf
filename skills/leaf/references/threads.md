@@ -1,7 +1,7 @@
 # Threads
 
 Open a thread when the answer depends on the user. Add `--obligation` to put the
-message on their On me list until they answer. The message itself supplies the
+message on their On Me list until they answer. The message itself supplies the
 request; no widget or markup is needed, though a question whose answers you can list
 takes them as a choice instead ("Ask for a pick"). Anchor it with a quote for a passage, a section id
 for a diagram or image, a declared part for one box within a visual, or nothing for
@@ -67,10 +67,13 @@ Fix it and post again. Where Leaf has no browser, the failure reaches you instea
 `error` event when the user opens the thread; answer with a corrected reply.
 
 A thread shows in a narrow card or panel, so a paragraph that reads fine in chat is a
-wall there. Say what changed or where to look in a sentence or two, or one short item per
-point; the page carries the evidence. Record a decision, result, or deferred work on
-the page and link it from the reply with a fragment link such as
-`[the decision](#decision)`, which opens any tab or group hiding its target. To point
+wall there. The user should take in at a glance what a message tells them and what it
+asks of them. A message is generally a sentence or two; where it has several points,
+such as the options a question weighs, give each a short paragraph or item, and a
+question a line of its own. The page carries the evidence. Record a decision, result,
+or deferred work on the page and link it from the reply with a fragment link such as
+`[the decision](#decision)`, which previews its target while the user points at it and
+opens any tab or group hiding it. To point
 at lines of an `lf-code` block, put them after its id and a colon, in the grammar of
 its `hi` attribute: `[the retry](#client:12-18)`. Where
 the reasoning matters to someone using the result, keep the thread anchored to that
@@ -139,14 +142,14 @@ Every answer declares whose move it leaves:
 
 - `--obligation`: the user's. It leaves them a decision, or something to try or
   review before making one, or asks them for an answer or permission. It creates
-  `message:<its id>` on On me until their next reply or a settling reaction answers
+  `message:<its id>` on On Me until their next reply or a settling reaction answers
   it, or they resolve the thread, so the answer stays on their list even where the
   decision it informs is already there. Where you can list the answers, a choice in
   `--markup` asks instead ("Ask for a pick").
 
   Where their reply left a question standing, as when they asked something back or
   the step is still to do, give `--obligation` its id, repeating the flag for each
-  such question. Their reply took the question off On me whatever it said;
+  such question. Their reply took the question off On Me whatever it said;
   `--obligation <id>` returns the same item there, standing on this message, until
   their next reply, so a plan step naming it reads open again. Anything more you need
   from them, even on the same subject, is a new question and takes no id.
@@ -178,7 +181,7 @@ what choosing it does and mark the one you advise (`authoring-on-me.md`, "What a
 question holds"):
 
 ```bash
-leaf thread reply <answer.ref> --text "Which store should own sessions? I'd keep the account store, which already expires them." --markup '<lf-options id="session-store" choose><lf-option id="session-store-account"><small class="tag ok">recommended</small><strong>Keep the account store</strong></lf-option><lf-option id="session-store-own"><strong>Give sessions their own store</strong> One more service to run.</lf-option></lf-options>'
+leaf thread reply <answer.ref> --text "Which store should own sessions? I'd keep the account store, which already expires them." --markup '<lf-options id="session-store" choose><lf-option id="session-store-account"><small class="tag ok">recommended</small> <strong>Keep the account store</strong></lf-option><lf-option id="session-store-own"><strong>Give sessions their own store</strong> One more service to run.</lf-option></lf-options>'
 ```
 
 If the user answers in words instead, end the question with
@@ -221,6 +224,13 @@ leaf thread edit <page> <message> --text "Corrected wording."
 
 The page labels it `edited`, and the log keeps every wording. Only the text changes;
 markup stays as it was sent.
+
+While your reply is still the thread's latest message and the user hasn't answered
+it, a correction to it, or a later finding of yours that changes its answer, goes
+into that reply with `leaf thread edit` rather than a new reply, so the user returns
+to the current answer rather than to messages that correct one another. Keep new
+replies for news the user is waiting on, such as a result you promised, and for
+answering a delivered update, which an edit does not answer.
 
 An ordinary reply leaves the thread open, or reopens it, so the user can inspect the
 answer; the user usually resolves it. Resolve it yourself only when the user asks,

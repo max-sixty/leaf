@@ -255,9 +255,6 @@
         "state": "status",
         "done": ["done"],
         "stopped": ["blocked", "review", "stalled"],
-        "review": ["review"],
-        "stalled": ["stalled"],
-        "depends": "needs",
         "stoppedAt": "stopped-at"
       },
       "lf-test-worker": {

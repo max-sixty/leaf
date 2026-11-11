@@ -4,15 +4,15 @@
    the page reserves beside it. As a pin it stands over the page by its target, on the
    first seat touching the target that covers nothing (`seatRow`). Nothing here
    moves the page's content: a row's posture, seat and push are the row's own geometry.
-   The layout pass writes them as `--lf-margin-x` and `--lf-margin-y`, which
-   annotation-theme.css reads at .lf-margin-cluster; only the carrier a row stands in is
-   anchor-positioned.
+   The layout pass writes the seat as the row's `margin-left` and `margin-top`, which
+   stand it in its lane's grid cell (annotation-theme.css, at .lf-margin-cluster); only
+   the carrier a row stands in is anchor-positioned.
 
    The layout pass (`margin-layout.js`) reads every rectangle first, asks these folds, and
    then writes. Each fold answers from its arguments alone, so `tests/runtime/` runs them
    without a browser. */
 
-import { clamp, overlaps, overlapsAcross, union } from "../rect.js";
+import { clamp, overlaps, overlapsAcross, shifted, union } from "../rect.js";
 
 /** @typedef {import("../rect.js").Box} Box */
 /** @typedef {{before: readonly (Box | null)[], home: Box, after: readonly (Box | null)[]}} SeatSet */
@@ -289,6 +289,31 @@ export function seatRow(pin, { gap, occupied = [] }) {
       (inside(below, bounds) ? below : corner);
   }
   return { rect, folded };
+}
+
+// `pin` read `dx` across and `dy` down from where it was read: the layout's record of a
+// pin from an earlier pass, brought to where the page stands now (margin-layout.js,
+// `seatings`). Every positional field of `Pin` moves, so a field added to it moves here.
+/** @param {Pin} pin @param {number} dx @param {number} dy @returns {Pin} */
+export function shiftedPin(pin, dx, dy) {
+  /** @param {Box} box */
+  const at = (box) => shifted(box, dx, dy);
+  /** @param {SeatSet} seats */
+  const move = ({ before, home, after }) => ({
+    before: before.map((seat) => seat && at(seat)),
+    home: at(home),
+    after: after.map((seat) => seat && at(seat)),
+  });
+  return {
+    ...pin,
+    held: pin.held && at(pin.held),
+    seats: move(pin.seats),
+    floor: pin.floor + dy,
+    cover: pin.cover.map(at),
+    controls: pin.controls.map(at),
+    bounds: at(pin.bounds),
+    folds: pin.folds && { ...pin.folds, seats: move(pin.folds.seats) },
+  };
 }
 
 /** @param {Box} rect @param {Box} bounds */

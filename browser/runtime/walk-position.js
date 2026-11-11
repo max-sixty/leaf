@@ -5,7 +5,7 @@
 import { capitalized } from "./words.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { clampedRow } from "./keyboard/bindings.js";
-import { holdStatus } from "./notifications.js";
+import { gesture, holdStatus } from "./notifications.js";
 import { afterScript } from "./rendering.js";
 import { repaint } from "./repaint.js";
 import { focusDestination, focused } from "./focus.js";
@@ -18,10 +18,12 @@ export {
   walkPositionLabel,
 } from "./walk-declaration.js";
 
-// A gesture's new position holds the status line against arriving news. Reading the
-// same declaration on an ordinary repaint does not restart that hold.
+// A gesture's new position holds the status line against arriving news, and the
+// panel's leaf answers the step, one landing where the last did included. Reading the
+// same declaration on an ordinary repaint does neither again.
 window.addEventListener(WALK, () => {
   holdStatus(900);
+  gesture("walk");
   repaint();
 });
 

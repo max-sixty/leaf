@@ -384,12 +384,13 @@ def test_back_returns_the_passage_chosen_between_trips(
     """A passage the user chose after one trip, by click or Tab, is where the next trip
     departs from, even while the first landing still shows: Back returns to it, and
     another Back to the original reading. A click on words that take no focus is
-    returned as the selection it left."""
+    returned as the selection it left. The large landing's paragraph follows its
+    section, since a click on the commented section opens its thread instead."""
     stop = ' tabindex="0"' if focusable else ""
     elsewhere = f'<p id="elsewhere"{stop}>This independent paragraph has no thread.</p>'
     first = (
         '<section id="first"><p>The first discussion concerns the importer.</p>'
-        f'<div style="height:1800px"></div>{elsewhere}</section>'
+        f'<div style="height:1800px"></div></section>{elsewhere}'
         if large
         else f'<p id="first">The first discussion concerns the importer.</p>{elsewhere}'
     )
@@ -727,7 +728,7 @@ def test_reading_restore_leaves_a_concealed_landmark_alone(browser, serve, subte
 def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     """Each step of the obligation walk somewhere else adds a history entry where the user
     stood, as each trip to a thread does, so Back returns to the obligation the user was
-    on, though answering it took it out of On me, and then to where they were reading.
+    on, though answering it took it out of On Me, and then to where they were reading.
     `m` from a thread `t` reached comes back to the thread, its card open again beside
     its passage."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
@@ -811,7 +812,7 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     assert landed < reading - 1000
     assert entry() == start + 1
 
-    # Answering the obligation takes it out of On me, so no walk's Shift reaches it again.
+    # Answering the obligation takes it out of On Me, so no walk's Shift reaches it again.
     page.keyboard.press("1")
     expect(page.locator("#se-rota[chosen]")).to_have_count(1)
     page.keyboard.press("Shift+m")
@@ -1083,7 +1084,7 @@ def test_align_current_item_from_the_menu_on_touch_reserves_z(browser, serve):
       window.beforeAlign = [s.anchorNode,s.anchorOffset,s.focusNode,s.focusOffset];
       scrollBy(0,-80);
     }""")
-    panel_control(page, ALIGN_ROW, at="navigate").tap()
+    press_visible(page, panel_control(page, ALIGN_ROW, at="navigate"), touch=True)
     _expect_aligned(page, "#remembered")
     assert page.evaluate("""() => {
       const s = getSelection();
@@ -1996,3 +1997,51 @@ def test_closing_a_surface_leaves_the_next_tab_where_the_user_is_reading(
             )
         # What a failed case left up goes before the next case opens its surface.
         page.keyboard.press("Escape")
+
+
+def test_a_landing_that_moves_nothing_stops_a_scroll_still_under_way(browser, serve):
+    """A navigation takes the reader's place from a scroll the browser is still driving,
+    even where its destination already stands where it lands: the log the reader set
+    moving stops where the landing found it, rather than running on past what they
+    chose."""
+    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(3))
+    rows = "".join(
+        f"<p>Line {n} of the incident, long enough to read as its own passage.</p>"
+        for n in range(200)
+    )
+    source = leaf_page(
+        "Landing during a scroll",
+        f'{filler}<h2 id="section"><span id="named">The section</span> the reader '
+        f'landed on</h2><div id="log" data-bound="start" style="height: 400px">{rows}'
+        f"</div>{filler * 20}",
+    )
+    page = open_page(browser, serve(source))
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1280, 800)
+    page.evaluate("location.hash = 'section'")
+    scroll_settled(page)
+    rendered(page)
+    page_top = page.evaluate("document.scrollingElement.scrollTop")
+    # The log's smooth scroll is the browser's to drive; the landing on a name inside the
+    # heading already in place asks nothing to move.
+    started = page.evaluate(
+        """async () => {
+          const log = document.getElementById('log');
+          log.scrollTo({top: log.scrollHeight, behavior: 'smooth'});
+          const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+          while (log.scrollTop < 20) await frame();
+          location.hash = 'named';
+          return log.scrollTop;
+        }"""
+    )
+    scroll_settled(page)
+    rendered(page)
+    after = page.evaluate(
+        """() => {
+          const log = document.getElementById('log');
+          return {log: log.scrollTop, limit: log.scrollHeight - log.clientHeight,
+                  page: document.scrollingElement.scrollTop};
+        }"""
+    )
+    assert after["page"] == pytest.approx(page_top, abs=2), after
+    assert after["log"] < started + 200 < after["limit"], (started, after)

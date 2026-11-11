@@ -586,7 +586,7 @@ class Authoring:
         self.resource_refs = set()
         self.style_blocks = []  # {css, line, attrs} per independent <style> sheet
         self.inline_styles = []  # {tag, line, style} per style="" declaration list
-        # {tag, line, attr, value} per authored allocation: a data-width or data-bound.
+        # {tag, line, attr, value} per authored allocation (`AUTHORED_ALLOCATIONS`).
         self.authored_allocations = []
         self.title = ""  # what <title> says, for the transcript's heading
         # {tag, line, under} per id-less pointable block, where under is the nearest

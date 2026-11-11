@@ -87,7 +87,12 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
     from render_harness import told
 
     if place == "seat":
-        source = SEATED_OBLIGATION_PAGE
+        # Room below the seat lets the page scroll up by an agent reply drawn above
+        # the box being written in, which holds the box still (browser/AGENTS.md,
+        # "News moves what the reader reads only in the thread they are in").
+        source = SEATED_OBLIGATION_PAGE.replace(
+            "</main>", "<p>" + "Further context. " * 600 + "</p></main>"
+        )
         anchor = {"section": "jobs"}
         selector = '[data-lf-thread-seat="jobs"] > .lf-page-thread'
     else:
@@ -306,12 +311,19 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
             # The other tab, still holding the tall draft, mirrors these words in turn.
             consume_moves_below_the_reply(other)
         return
+
+    # A margin card beside its passage holds its reply's foot while the user types in
+    # it, so the line being edited stays and the first line comes down to it; a seat
+    # holds the first line.
+    def held(box):
+        return box["y"] + box["height"] if place == "margin" else box["y"]
+
     before = editor.bounding_box()
     for _ in range(4):
         page.keyboard.press("Backspace")
         rendered(page)
         now = editor.bounding_box()
-        assert now["y"] == pytest.approx(before["y"], abs=0.5), (before, now)
+        assert held(now) == pytest.approx(held(before), abs=0.5), (before, now)
     assert now["height"] < before["height"] - 50, (before, now)
     expect(editor).to_have_js_property("value", "First line")
     expect(editor).to_be_focused()
@@ -482,9 +494,10 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     holding(page, held, 1, "the reply that will be refused")
     rendered(page)
     if place == "nested-end":
-        scroller = page.locator("#continuity-scroll")
-        scroller.evaluate("node => {node.scrollTop = node.scrollHeight}")
-        scroll_settled(page, scroller)
+        page.locator("#continuity-scroll").evaluate(
+            "node => {node.scrollTop = node.scrollHeight}"
+        )
+        scroll_settled(page, "#continuity-scroll")
     attempt = held[0].request.post_data_json["attempt"]
     assert held[0].request.post_data_json["parent"] == parent
 
@@ -552,16 +565,14 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
                 )
     else:
         # A card gives the refused turn's room back too, and its field grows to show
-        # the words whole: the card's own controls, and the page after it, move.
+        # the words whole: the reply box, and the page after it, move. A margin card
+        # holds its top through a send (`heldEdge`, thread-preview.js), so its reply
+        # box rises into that room while its head row stands still.
         def carried_by_card(problem):
             return problem.code == "moved-without-input" and any(
                 path
                 and path[-1].startswith(
-                    (
-                        "div.lf-box-ground.lf-margin-preview-ground",
-                        "lf-diff#patch",
-                        "p#continuity-tail",
-                    )
+                    ("div.lf-thread-reply", "lf-diff#patch", "p#continuity-tail")
                 )
                 for path in [problem.values["node"], *problem.values["beside"]]
             )
@@ -570,7 +581,12 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         space = owner.locator(":scope > .lf-reply-space")
         assert space.evaluate("node => node.getBoundingClientRect().height") == 0
         assert shows_whole(draft)
-        pose()
+        restored = pose()
+        if "close" in pending:
+            assert abs(restored["close"]["top"] - pending["close"]["top"]) < 0.5, (
+                pending,
+                restored,
+            )
     assert draft.evaluate("node => node.value") == words
     assert stored_draft_text(page, f"reply:{parent}") == words
     assert not [

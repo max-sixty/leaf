@@ -514,7 +514,9 @@ def seat_surface(browser, serve, gesture):
 
 
 def reader_surface(browser, serve, gesture):
-    """A package's primary reader, which draws the thread as a seat does."""
+    """A package's primary reader, which draws the thread as a seat does. Its workspace
+    holds other open threads, so a Resolve there offers the next one, not its Undo, in
+    the notice (thread/folding.js, `nextStep`)."""
     url = package_workspace(serve, before_reader=FILLER)
     if gesture == "reopen":
         append_carried_log_record(
@@ -558,7 +560,7 @@ def reader_surface(browser, serve, gesture):
         away,
         shown,
         returned,
-        REOPENED_IN_THE_BOX if gesture == "reopen" else frozenset(),
+        REOPENED_IN_THE_BOX if gesture == "reopen" else frozenset({"notice"}),
     )
 
 
@@ -623,7 +625,7 @@ def test_every_way_back_from_a_settlement_returns_the_user_where_they_made_it(
                     s.shown()
                 if way == "notice":
                     with sending(page, "the notice's Undo"):
-                        page.locator(".lf-fp-row-notice-press").click()
+                        page.locator(".lf-fp-field .lf-compose-press").click()
                 else:
                     undo(page)
             round_trip(page)

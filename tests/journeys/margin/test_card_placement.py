@@ -481,6 +481,13 @@ def test_every_card_keeps_the_placement_rules(browser, serve, kind, width):
                 findings += [(*case, near, *f) for f in sweep_motion(before, after)]
                 before = after
         if page.evaluate(SWEEP_READ, target) is not None:
+            # A click on the marker lands in the reply (thread/focus.js,
+            # `openingPart`); Escape stands the user on the thread, from which the
+            # next takes the card down.
+            expect(
+                card.get_by_role("textbox", name="Reply", exact=True)
+            ).to_be_focused()
+            page.keyboard.press("Escape")
             page.keyboard.press("Escape")
             expect(card).to_be_hidden()
     assert not findings, sweep_report(findings)

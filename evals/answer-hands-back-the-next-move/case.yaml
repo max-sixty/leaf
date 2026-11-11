@@ -1,9 +1,9 @@
 # Added when an agent answered "these gotta have previews!" on an open prototype
 # decision with `--done`: the previews were for the user to try before deciding,
-# but nothing put the answer on On me, so the user could close the thread and lose
+# but nothing put the answer on On Me, so the user could close the thread and lose
 # it. The delivery's handling then showed `--done` as the answer's command and
 # offered `--obligation` as an addition for replies that "need" a response; agents
-# reasoned that the decision itself was already on On me. The handling now says the
+# reasoned that the decision itself was already on On Me. The handling now says the
 # declaration names whose move the answer leaves. The envelopes are the real
 # delivery's shape with the handling at the commit that adds this case; a handling
 # change is scored by regenerating them with each wording.
@@ -15,7 +15,7 @@ description: answer-hands-back-the-next-move
 metadata:
   purpose:
     An answer that leaves the user a decision, or something to try before making it, stays on their
-    On me list; one that leaves them nothing does not.
+    On Me list; one that leaves them nothing does not.
   tags:
     - threads
     - asks
@@ -27,7 +27,7 @@ vars:
     routes to at the start of the session and have answered a dozen of their comments since, so act on
     this without reloading them. The page puts four prototype decisions to the user, each an `lf-options`
     choice between landing the prototype and keeping it on its branch, inside a section such as `#proto-timeline-ask`.
-    All four are still unanswered on the user''s On me list.
+    All four are still unanswered on the user''s On Me list.
 
 
     Leaf''s prompt hook handed you this complete inline delivery:
@@ -45,7 +45,7 @@ vars:
     that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration
     says whose move your answer leaves, which delivering what was asked doesn''t settle. `--obligation`
     when it is the user''s: it leaves them a decision, or something to try or review before making one,
-    or asks them for an answer or permission. That puts your answer on their On me list until they reply
+    or asks them for an answer or permission. That puts your answer on their On Me list until they reply
     or resolve the thread, even where the decision itself is already there. `--todo \"<what you owe>\"`
     when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move. A widget
     in `--markup` can register the answer it captures instead of `--obligation` (`references/threads.md`).",
@@ -70,7 +70,7 @@ assert:
   - type: llm-rubric
     metric: hands-back
     value:
-      "Pass only if the reply that answers the user's comment puts the thread on the user's On me
+      "Pass only if the reply that answers the user's comment puts the thread on the user's On Me
       list: `leaf thread reply` with `--obligation`, or with `--markup` holding a widget that asks. The
       previews exist so the user can try each prototype before deciding whether to land it, a decision still
       open, so the next move is the user's. Fail if the answer is declared `--done` or `--todo`, or if
@@ -87,7 +87,7 @@ variants:
         it routes to at the start of the session and have answered a dozen of their comments since, so
         act on this without reloading them. The page puts four prototype decisions to the user, each an
         `lf-options` choice between landing the prototype and keeping it on its branch, inside a section
-        such as `#proto-timeline-ask`. All four are still unanswered on the user''s On me list.
+        such as `#proto-timeline-ask`. All four are still unanswered on the user''s On Me list.
 
 
         Leaf''s prompt hook handed you this complete inline delivery:
@@ -106,7 +106,7 @@ variants:
         before posting. The declaration says whose move your answer leaves, which delivering what was
         asked doesn''t settle. `--obligation` when it is the user''s: it leaves them a decision, or something
         to try or review before making one, or asks them for an answer or permission. That puts your answer
-        on their On me list until they reply or resolve the thread, even where the decision itself is
+        on their On Me list until they reply or resolve the thread, even where the decision itself is
         already there. `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn.
         `--done` when it leaves nobody a move. A widget in `--markup` can register the answer it captures
         instead of `--obligation` (`references/threads.md`).", "h2": "Your reply renders as Markdown in
@@ -145,7 +145,7 @@ variants:
         it routes to at the start of the session and have answered a dozen of their comments since, so
         act on this without reloading them. The page puts four prototype decisions to the user, each an
         `lf-options` choice between landing the prototype and keeping it on its branch, inside a section
-        such as `#proto-timeline-ask`. All four are still unanswered on the user''s On me list.
+        such as `#proto-timeline-ask`. All four are still unanswered on the user''s On Me list.
 
 
         Leaf''s app-server transport handed you this complete inline delivery:
@@ -161,7 +161,7 @@ variants:
         the answer, or what changed and where it shows. A final message leaves the user no move, so where
         your answer leaves them one, such as a decision or something to try or review before making one,
         answer with `leaf thread reply <answer.ref> --obligation` instead: it puts the answer on their
-        On me list even where the decision itself is already there. Reply explicitly too for widgets,
+        On Me list even where the decision itself is already there. Reply explicitly too for widgets,
         work promised beyond this turn (`--todo`), a title or moving the thread (`references/threads.md`);
         an explicit reply posts at once, and your final message is then not posted.", "h2": "Your reply
         renders as Markdown in a narrow column: give each point its own short paragraph or list item,
@@ -188,7 +188,7 @@ variants:
         value:
           Pass only if the agent answers the user's comment with an explicit `leaf thread reply` carrying
           `--obligation`, or `--markup` holding a widget that asks, so the answer goes on the user's On
-          me list. The previews exist so the user can try each prototype before deciding whether to land
+          Me list. The previews exist so the user can try each prototype before deciding whether to land
           it, a decision still open, so the next move is the user's. Fail if the agent leaves the answer
           to its final message, which Leaf posts without an obligation, or replies with `--done` or `--todo`.
           The reply's wording and any other commands don't matter.
@@ -202,7 +202,7 @@ variants:
         it routes to at the start of the session and have answered a dozen of their comments since, so
         act on this without reloading them. The page puts four prototype decisions to the user, each an
         `lf-options` choice between landing the prototype and keeping it on its branch, inside a section
-        such as `#proto-timeline-ask`. All four are still unanswered on the user''s On me list.
+        such as `#proto-timeline-ask`. All four are still unanswered on the user''s On Me list.
 
 
         Leaf''s app-server transport handed you this complete inline delivery:
@@ -218,7 +218,7 @@ variants:
         the answer, or what changed and where it shows. A final message leaves the user no move, so where
         your answer leaves them one, such as a decision or something to try or review before making one,
         answer with `leaf thread reply <answer.ref> --obligation` instead: it puts the answer on their
-        On me list even where the decision itself is already there. Reply explicitly too for widgets,
+        On Me list even where the decision itself is already there. Reply explicitly too for widgets,
         work promised beyond this turn (`--todo`), a title or moving the thread (`references/threads.md`);
         an explicit reply posts at once, and your final message is then not posted.", "h2": "Your reply
         renders as Markdown in a narrow column: give each point its own short paragraph or list item,
@@ -257,7 +257,7 @@ variants:
         it routes to at the start of the session and have answered a dozen of their comments since, so
         act on this without reloading them. The page puts four prototype decisions to the user, each an
         `lf-options` choice between landing the prototype and keeping it on its branch, inside a section
-        such as `#proto-timeline-ask`. All four are still unanswered on the user''s On me list.
+        such as `#proto-timeline-ask`. All four are still unanswered on the user''s On Me list.
 
 
         Leaf''s prompt hook handed you this complete inline delivery:
@@ -276,7 +276,7 @@ variants:
         The declaration says whose move your answer leaves, which delivering what was asked doesn''t settle.
         `--obligation` when it is the user''s: it leaves them a decision, or something to try or review
         before making one, or asks them for an answer or permission. That puts your answer on their On
-        me list until they reply or resolve the thread, even where the decision itself is already there.
+        Me list until they reply or resolve the thread, even where the decision itself is already there.
         `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it
         leaves nobody a move. A widget in `--markup` can register the answer it captures instead of `--obligation`
         (`references/threads.md`).", "h2": "Your reply renders as Markdown in a narrow column: give each

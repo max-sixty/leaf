@@ -94,7 +94,7 @@ above is the larger share of what the watch costs the suite.
 - **A complete reading still grows with the drawn page.** Readings that skip
   unchanged frames (#1951), unpresented frames (#3281) and skipped content each
   cut the same cost, a full record of every node per changed frame. A page that
-  skips nothing, such as `leaf-dev scaling`'s 512-section prose page, still pays
+  skips nothing, such as `leaf-dev bench`'s 512-section prose page, still pays
   it in full: there the sensors added about 290 ms to a click (#5523). The
   runtime's input work follows what the window shows (root `AGENTS.md`,
   "Responsiveness"), and the watch could too: read each drawn node's rect and

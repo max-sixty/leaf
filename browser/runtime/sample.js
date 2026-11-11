@@ -3,7 +3,9 @@
  * presentation commands and observations cross a private port as values.
  * Allocation captures the owning widget's immutable revision and builds either its
  * named template or a supplied full HTML source. Both become ordinary validated
- * child pages; supplied source starts with an empty history. Reset replaces the
+ * child pages; supplied source starts with an empty history. An allocation the
+ * server can't take yet goes again after the wait the server names, announced as
+ * `waiting`, for up to `ROLLOUT_MS` (`allocate`). Reset replaces the
  * allocation, admitting its initial document with a credentialless HEAD before
  * native navigation. A later authored navigation keeps the frame and disables its
  * private port; an ordinary reload reconnects.
@@ -84,24 +86,28 @@ import { aborted } from "./abort.js";
 // A page can carry many samples. Their child documents each import the runtime;
 // upgrading them together can exhaust the browser's request pool before any child
 // finishes loading its module graph. Bound simultaneous loads across this page. A
-// loaded child can keep reading slow state without holding up the next sample.
+// loaded child can keep reading slow state without holding up the next sample. A load
+// waiting for a slot hears `waiting` whenever an allocation ahead of it waits out its
+// server (`allocate`), since its slot can then take as long.
 const MAX_LOADING_SAMPLES = 3;
 let loadingSamples = 0;
-/** @type {(() => void)[]} */
+/** @type {{proceed: () => void, waiting: () => void}[]} */
 const loadWaiters = [];
 let nextHost = 0;
-/** @template T @param {(release: () => void) => T | PromiseLike<T>} work @param {AbortSignal} signal */
-async function loadWithinLimit(work, signal) {
+/** @template T @param {(release: () => void) => T | PromiseLike<T>} work
+ * @param {{signal: AbortSignal, waiting: () => void}} queueing */
+async function loadWithinLimit(work, { signal, waiting }) {
   signal.throwIfAborted();
   if (loadingSamples === MAX_LOADING_SAMPLES) {
     /** @type {PromiseWithResolvers<void>} */
     const { promise: turn, resolve: proceed } = Promise.withResolvers();
-    loadWaiters.push(proceed);
+    const queued = { proceed, waiting };
+    loadWaiters.push(queued);
     await Promise.race([turn, aborted(signal)]);
     // A slot handed over before the abort is this load's to run and release.
-    const waiting = loadWaiters.indexOf(proceed);
-    if (waiting !== -1) {
-      loadWaiters.splice(waiting, 1);
+    const place = loadWaiters.indexOf(queued);
+    if (place !== -1) {
+      loadWaiters.splice(place, 1);
       throw signal.reason;
     }
   } else loadingSamples++;
@@ -110,7 +116,7 @@ async function loadWithinLimit(work, signal) {
     if (released) return;
     released = true;
     const next = loadWaiters.shift();
-    if (next) next();
+    if (next) next.proceed();
     else loadingSamples--;
   };
   try {
@@ -135,6 +141,12 @@ export function sampleFrameImage(frame, crop) {
   if (!call) throw departure("Sample frame has departed");
   return call("image", crop);
 }
+
+// For the minutes after a leaf.page deploy that a visitor's container still runs the
+// previous release, the edge refuses an allocation and names a wait (`retryAfter`,
+// layer-client.js). Measured rollouts ended within 381 s; a release that still refuses
+// after ten minutes has failed, and the allocation fails with it.
+const ROLLOUT_MS = 10 * 60_000;
 
 /** @param {string | URL} url @param {object} body @param {Record<string, string>} [headers] */
 const request = (url, body, headers = {}) =>
@@ -239,6 +251,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
     "current-location": new Set(),
     arrived: new Set(),
     loading: new Set(),
+    waiting: new Set(),
     departed: new Set(),
   };
   /** @template {keyof SampleNotices} K @param {K} type @param {SampleNotices[K]} detail */
@@ -520,6 +533,36 @@ export function mountSample(frame, { template, source, window: asWindow = false 
       throw error;
     });
   }
+  // What cancels this host's load while it waits for a slot, and what it hears there.
+  const queueing = {
+    signal: lifetimeController.signal,
+    waiting: () => notify("waiting", undefined),
+  };
+  // An allocation the server can't take yet goes again after the wait it names, which
+  // the owner and the loads queued for a slot hear, until `ROLLOUT_MS` would pass or
+  // the host is destroyed. A request already sent finishes, so its capability can be
+  // released.
+  /** @returns {Promise<import("../types/contract.js").ServedSampleAnswer>} */
+  async function allocate() {
+    const giveUp = Date.now() + ROLLOUT_MS;
+    const { signal, waiting } = queueing;
+    for (;;) {
+      try {
+        return await request(
+          pageUrl("api/samples"),
+          { template, source, message },
+          revision ? { "Leaf-View-Revision": String(revision) } : {},
+        );
+      } catch (error) {
+        const wait = error instanceof RequestError ? error.retryAfter : undefined;
+        if (wait === undefined || Date.now() + wait >= giveUp) throw error;
+        waiting();
+        for (const queued of loadWaiters) queued.waiting();
+        await new Promise((resolve) => setTimeout(resolve, wait));
+        signal.throwIfAborted();
+      }
+    }
+  }
   async function replace() {
     await retire("reset");
     allocation++;
@@ -528,12 +571,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
       loadWithinLimit(async (release) => {
         if (destroyed) throw new DOMException("sample destroyed", "AbortError");
         record("allocating");
-        /** @type {import("../types/contract.js").ServedSampleAnswer} */
-        const { url, page } = await request(
-          pageUrl("api/samples"),
-          { template, source, message },
-          revision ? { "Leaf-View-Revision": String(revision) } : {},
-        );
+        const { url, page } = await allocate();
         current = new URL(url, location.href).href;
         samplePage = page;
         record("allocated");
@@ -570,7 +608,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
         } finally {
           frame.removeEventListener("load", release);
         }
-      }, lifetimeController.signal),
+      }, queueing),
     );
   }
   function reset() {

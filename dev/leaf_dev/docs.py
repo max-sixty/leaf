@@ -193,7 +193,12 @@ def schema_reference(ref: str) -> str:
     if not uri:
         name = pointer.removeprefix("/$defs/")
         target = name.split("/", 1)[0]
-        return f'<a href="#served-{target or "state"}">{name or "served state"}</a>'
+        # A definition's field reads as an event kind's field does, as `Activity's
+        # <code>kind</code>`. The pointer itself, `Activity/properties/kind`, is one
+        # word to the line breaker, so it held the type column at its whole length.
+        owner, _, field = name.partition("/properties/")
+        label = f"{owner}'s <code>{field}</code>" if field else name or "served state"
+        return f'<a href="#served-{target or "state"}">{label}</a>'
     if uri == "leaf:verb":
         return '<a href="/registry/#x-state">x-state verb</a>'
     if uri == "leaf:event":

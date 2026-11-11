@@ -52,7 +52,7 @@ function renderHolds(threads) {
 
 /** @typedef {ReturnType<typeof import("./primary-reader.js").createPrimaryReader>} PrimaryReader */
 /** @typedef {import("../semantic-state.js").Resume} Resume */
-/** @param {{available?: boolean, inlineView: import("./thread-card.js").ThreadCommands,
+/** @param {{inlineView: import("./thread-card.js").ThreadCommands,
  * surfaceView: import("./thread-card.js").ThreadCommands & {composition: import("./surfaces.js").CompositionSurface & {
  * finishPlacement: ReturnType<typeof import("../composing/surface.js").createResponseSurface>["finishPlacement"]}},
  * anchorPlacement: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>,
@@ -70,7 +70,6 @@ function renderHolds(threads) {
  * marginCommitted: () => unknown,
  * read: Pick<ReturnType<typeof import("./read.js").createReadTracking>, "begin" | "present" | "abort">}} dependencies */
 export function createThreadPresentation({
-  available = true,
   inlineView,
   surfaceView,
   anchorPlacement,
@@ -99,17 +98,12 @@ export function createThreadPresentation({
   // ahead of the first paint the user is waiting on, so all of them read as one
   // unchanging value. A thread the user starts in that window is drawn, and so is its
   // removal, the refusal of the last send included. A caller that asks for the reading
-  // directly, through `present`, gets it: every phase owes a reading when asked. A page that draws no thread surface (`available` false, as an
-  // offline export does) owes no reading at all.
+  // directly, through `present`, gets it: every phase owes a reading when asked.
   const presenter = applicationPresenter({
     region: "thread",
     after: PRESENTATION_DOM.projection,
     reading: () =>
-      !available
-        ? null
-        : runtime.statePhase === "waiting" && !threadState().all.length
-          ? "waiting"
-          : true,
+      runtime.statePhase === "waiting" && !threadState().all.length ? "waiting" : true,
     // A pass reads the latest root. The time it shows is followed with the rest of what
     // it reads, so a clock change claims another pass through the same presenter, whose
     // current predicate also retires in-flight preparation.

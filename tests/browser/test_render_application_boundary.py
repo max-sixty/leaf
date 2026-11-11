@@ -20,6 +20,7 @@ from render_harness import (
     consume_browser_errors,
     expect_obligations_answered,
     expect_open_threads,
+    expect_preview_words,
     holding,
     http_error_console,
     is_problem,
@@ -116,7 +117,8 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
         leaf_page(
             "Interaction trace",
             '<h1>Interaction trace</h1><input id="trace-input" aria-label="Entry">'
-            '<button id="trace-button">Continue</button>',
+            '<button id="trace-button">Continue</button>'
+            '<textarea id="trace-note" aria-label="Note"></textarea>',
         )
     )
     page = open_page(browser, url)
@@ -135,6 +137,8 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
         page.locator("#trace-input").fill("hello")
     with page.expect_response(lambda response: contains(response, "click")):
         page.locator("#trace-button").click()
+    with page.expect_response(lambda response: contains(response, "focusin")):
+        page.locator("#trace-note").focus()
     page.locator("h1").click()
     with page.expect_response(lambda response: contains(response, "command")):
         page.keyboard.press("?")
@@ -161,6 +165,14 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
     assert any(
         any("button#trace-button" in part for part in row["target"]) for row in clicks
     )
+    # leaf.page's Worker starts the visitor's container on a text box's focus.
+    focused = {
+        row["control"]: row.get("textBox")
+        for row in rows
+        if row.get("type") == "focusin" and "control" in row
+    }
+    assert focused["textarea#trace-note"] is True
+    assert focused["input#trace-input"] is None
     reference = next(row for row in commands if row["id"] == "command.reference.open")
     assert reference["title"]
     assert "description" in reference
@@ -274,6 +286,59 @@ def test_reply_timing_records_send_and_words_when_the_panel_opens(browser, serve
     assert shown["monotonic_ms"] >= submitted["monotonic_ms"]
     assert shown["visibility"] == submitted["visibility"] == "visible"
     assert "text" not in shown and "text" not in submitted
+
+
+def test_browser_trace_leaves_out_a_password_fields_characters(browser, serve):
+    """The trace records typing in a password field, and none of what was typed."""
+    url = serve(
+        leaf_page(
+            "Password trace",
+            "<h1>Password trace</h1>"
+            '<input id="trace-secret" type="password" aria-label="Secret">'
+            '<input id="trace-entry" aria-label="Entry">',
+        )
+    )
+    page = open_page(browser, url)
+    page.locator("#trace-secret").press_sequentially("hunter2")
+
+    def holds_entry(response):
+        return (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry.get("value") == "visible"
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+
+    # A show-password toggle makes the field a text field; it stays a secret.
+    page.evaluate("document.querySelector('#trace-secret').type = 'text'")
+    page.locator("#trace-secret").press_sequentially("x")
+    # Once it is a text field, Chromium fires selectionchange at the field itself.
+    page.locator("#trace-secret").select_text()
+    with page.expect_response(holds_entry):
+        page.locator("#trace-entry").press_sequentially("visible")
+
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / interaction_model.INTERACTIONS_FILE)
+        .read_text()
+        .splitlines()
+    ]
+    typed = [
+        row
+        for row in rows
+        if row.get("type") in ("keydown", "beforeinput", "input", "selectionchange")
+        and any("input#trace-secret" in part for part in row["target"])
+    ]
+    assert {row["type"] for row in typed} == {
+        "keydown",
+        "beforeinput",
+        "input",
+        "selectionchange",
+    }
+    for row in typed:
+        assert not {"key", "code", "data", "value", "selection"} & row.keys(), row
 
 
 def test_browser_trace_records_where_touch_events_are_not_exposed(browser, serve):
@@ -1527,7 +1592,7 @@ def test_failed_primary_reader_restores_the_same_native_obligation_in_core(
 def test_the_panels_routes_to_a_thread_reach_the_reader_that_holds_its_widget(
     browser, serve
 ):
-    """On me's route and Threads' row each take the user to the primary reader that
+    """On Me's route and Threads' row each take the user to the primary reader that
     owns the thread's widget. The panel opens no view of the thread, and the widget
     arrives as the same native node."""
     page = open_page(browser, package_workspace(serve))
@@ -2208,7 +2273,7 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
     expect(workspace.locator('[data-lf-event="later-answer"]')).to_have_count(0)
     assert editor.bounding_box() == before
     notice = workspace.get_by_role("button", name="2 new", exact=True)
-    expect(notice).to_have_accessible_description("1 new reply · 1 message edited")
+    expect_preview_words(notice, "1 new reply · 1 message edited")
     notice.click()
     if mode != "Reply only":
         expect(workspace.locator('[data-lf-event="later-answer"]')).to_contain_text(

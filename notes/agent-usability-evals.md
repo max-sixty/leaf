@@ -50,7 +50,7 @@ more than the presence of a particular widget.
 Both Leaf document authors retired the user's Wednesday capacity request to Mei
 Tanaka's team after recording Redis as the store choice. Whether that assessment
 still matters for the unselected alternative is ambiguous; retiring it is not itself
-proof of an error. The On me reference (`authoring-on-me.md`) now requires explicit accounting:
+proof of an error. The On Me reference (`authoring-on-me.md`) now requires explicit accounting:
 keep an unanswered request open or explain why changed circumstances make it
 unnecessary. An independent decision does not silently answer or retire it.
 
@@ -129,7 +129,7 @@ the checks:
 | Other author layout: a chart annotation cut off at the phone's edge (2), labels too faint, a chart tooltip reading "UTC 935", a phone table dropping a column, a note's table clipped, headline metrics three screens down (2), two footer spans run together | author                         | 9 (7)           | 0                 | 0                  | 1 reported and changed, not enough |
 | A playground followed by a note draws its instruction over the note at 900×700                                                                                                                                                                                | `lf-ask` (fixed, #3328)        | 2 (2)           | 0                 | 0                  | none reported                      |
 | A playground's stage gets 190–280px at 900×700, under its presets and instruction                                                                                                                                                                             | `lf-playground` in a workspace | 4 (4)           | 0                 | 0                  | none reported                      |
-| The tally says "1 of 8 to answer" while its Next on me is disabled                                                                                                                                                                                            | `lf-tally`                     | 2 (2)           | 0                 | 0                  | none reported                      |
+| The tally says "1 of 8 to answer" while its Next On Me is disabled                                                                                                                                                                                            | `lf-tally`                     | 2 (2)           | 0                 | 0                  | none reported                      |
 | An open thread card covers the text near its passage at 900px and on a phone                                                                                                                                                                                  | thread chrome                  | 14 (14)         | 0                 | 0                  | none reported                      |
 | A thread's pin covers words at a line's end on a phone                                                                                                                                                                                                        | thread chrome                  | 5 (5)           | 0                 | 0                  | none reported                      |
 | The inline thread header's pencil overlaps "Waiting for pickup" on a phone                                                                                                                                                                                    | thread chrome                  | 1 (1)           | 0                 | 0                  | none reported                      |
@@ -290,8 +290,9 @@ and the follow-on brief from Codex session `01a13358-0141-70f0-8bb4-a8defb75b07e
 (line 13). The original nine-pair Claude report survives at
 `~/.local/state/leaf/pages/eval-plain-html/`, with its raw runs at
 `~/.tmp/leaf.authoring-vs-plain-html/eval/`; those are distinct from the recovered
-twelve-author Codex comparison above. The continuing brief is
-[issue #4017](https://github.com/max-sixty/leaf/issues/4017).
+twelve-author Codex comparison above. The brief written then is
+[issue #4017](https://github.com/max-sixty/leaf/issues/4017), closed in favor of
+`TODO.md`'s first challenge.
 
 ## Widgets plain page check doesn't run, 2026-10-24
 
@@ -563,6 +564,75 @@ supports building the pass. Its delivery decides what agents do with advice: a c
 of its own that tells failures from advice kept the failure fixes and let Claude Code
 weigh the advice.
 
+## The render pass, 2026-11-05
+
+The pass is built in `src/leaf/render_gate/handover_pass.py`, whose header holds its
+contract and its cost. These runs scored it against the merge base, where the driver's
+`render` move posts the same findings as the page's `error`:
+
+```sh
+uv run leaf-dev eval document/render-hidden-failure --harness claude-code --base --repeat 6 -j 2
+uv run leaf-dev eval document/render-hidden-failure --harness codex --base --repeat 6 -j 2
+uv run leaf-dev eval document/render-advice-with-comment --harness claude-code --base --repeat 4 -j 2
+uv run leaf-dev eval document/render-after-handover-quick --harness claude-code --base --repeat 10 -j 3
+```
+
+| Case, harness                      | Arm  | Ran `--render` first | Failures delivered: fixed | Advice-only delivered: chart changed | Advice-only held, no further input | Final page fails | Median handover |
+| ---------------------------------- | ---- | -------------------- | ------------------------- | ------------------------------------ | ---------------------------------- | ---------------- | --------------- |
+| hidden failure, Claude Code        | base | 0 of 6               | 6 of 6                    | —                                    | —                                  | 0 of 6           | 34 s            |
+| hidden failure, Claude Code        | head | 0 of 6               | 4 of 4                    | —                                    | 2                                  | 0 of 6           | 26 s            |
+| hidden failure, Codex              | base | —                    | 6 of 6                    | —                                    | —                                  | 0 of 6           | 49 s            |
+| hidden failure, Codex              | head | —                    | 9 of 9                    | —                                    | —                                  | 1 of 10          | 50 s            |
+| urgent, Claude Code                | base | 0 of 6               | —                         | 6 of 6                               | —                                  | 0 of 6           | 35 s            |
+| urgent, Claude Code                | head | 0 of 6               | 1 of 1                    | —                                    | 5                                  | 0 of 6           | 41 s            |
+| advice with a comment, Claude Code | base | 0 of 4               | —                         | 4 of 4                               | —                                  | 0 of 4           | 61 s            |
+| advice with a comment, Claude Code | head | 1 of 4               | —                         | 0 of 2                               | —                                  | 0 of 4           | 58 s            |
+| advice with a comment, Codex       | base | —                    | —                         | 4 of 4                               | —                                  | 0 of 4           | 50 s            |
+| advice with a comment, Codex       | head | —                    | —                         | 1 of 2                               | —                                  | 0 of 4           | 65 s            |
+| quick, Claude Code                 | base | 10 of 10             | —                         | 1 of 1                               | —                                  | 0 of 10          | —               |
+| quick, Claude Code                 | head | 10 of 10             | —                         | —                                    | —                                  | 0 of 10          | —               |
+
+The urgent rows come from `render-after-handover-urgent`, dropped on 2026-11-10: its
+prompt was `render-hidden-failure`'s, and it mostly measured advice being held. Every
+run in the table passed its rubric (76 of 76), whose findings outcome holds where
+nothing was delivered. The base arm delivers the same findings as the page's `error`,
+under its clause. Codex's own `--render` runs aren't counted, since the
+script found its commands only in Claude Code's stream. The Codex head row combines 6
+samples run before the dropped-tell fix with 4 after it. In the first 6, one session's
+failures were lost and its final page failed.
+
+The handling clause holds failures and advice apart as the October measurement found.
+Every delivered failure was fixed on both arms. Base agents changed the chart for 15 of
+15 advice-only deliveries. Head agents changed it for 1 of 4, and Codex made that one
+change. The head arm also carried a `SKILL.md` line telling agents a quick page needs no
+browser review of their own, since Leaf checks it after the turn. It didn't measurably
+move when agents run the check: both arms ran it in all 10 quick sessions, and neither
+ran it when the user was waiting. So the change dropped it, which also keeps the skill
+from promising a reading on a host with no browser. With the user waiting, the pass
+finds what the agent skipped.
+
+On the October fixture agents no longer leave the failure for a reading to find. All 20
+Claude Code agents in the quick context ran `--render` before handing over. With the
+user waiting, none of 12 did, and all 12 fixed the card grid by reading its CSS. So
+`render-hidden-failure` keeps the card grid fixed and hides its one failure in a card
+label that `white-space: nowrap` keeps on one line. Plain `page check` passes it, and the
+render check fails it at 360–480px and 720–1560px wide.
+
+The runs found two problems with the pass, both fixed before the head arms in the
+table ran:
+
+- In 23 of 24 head samples the session's turn record closed only when the session
+  ended, if at all. Most real sessions on this Mac close theirs: 156 of 173 claimed
+  sessions not ended read closed. So the pass also counts the agent's `leaf page open`
+  after its last save as a handover, which 20 of 21 handovers made.
+- A reading whose version a save replaced while it ran dropped its tell, and the next
+  reading treated those findings as known. That cost 2 of 16 head samples their
+  failures. Such a reading now leaves the page's reading as it was, so the next one
+  tells them.
+
+Across 16 Claude Code head sessions (46 revisions) the servers ran 22 readings, a median
+8.0 s each.
+
 ## Authoring effort, 2026-10-24
 
 An overnight campaign read Claude Code (Opus 5.5) and Codex (Sol 6.1) authors' tool
@@ -780,9 +850,13 @@ revision. Every workspace dashboard then drew a judge defect at 900×600: one
 author's "Log and checks" pane was 224×173px and held 6.5 of its own heights,
 while at 1600×1000 the same page's rollout pane was 65% empty. The 900×600
 defects on dashboards that stayed sidebar pages were about the write-up's width or
-what the arrival view left out, not cramped panes. This is the likeliest next
-target ([#4098](https://github.com/max-sixty/leaf/issues/4098)), and it needs its
-own before/after.
+what the arrival view left out, not cramped panes. On 2026-11-05 this no longer
+reproduced: 0 of 10 `dashboard/write-up` authors on main, on both harnesses, made a
+workspace after the preference, and neither did 4 with the 24 October bullet restored
+nor 4 with `skills/leaf` as of f00911ed1, so a runtime change rather than the text
+likely removed it ([#4098](https://github.com/max-sixty/leaf/issues/4098)). Since
+#5268, `--viewport desktop` opens 1280×800, so the commands above need
+`--viewport large` to reach these windows again.
 
 ### The cold dashboard
 

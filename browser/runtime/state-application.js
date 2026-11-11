@@ -21,7 +21,7 @@ import { reportCarried, sameLayer } from "./layer-client.js";
 import { holdUserPlace } from "./user-place.js";
 import { observeServerNow, observeWorkingGrace } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
-import { announce, notice } from "./notifications.js";
+import { announce, gesture, notice } from "./notifications.js";
 import { markStateApplied, settlePageInterface } from "./presentation.js";
 import {
   loadMessageMarkdown,
@@ -32,6 +32,7 @@ import { commitWidgetDescriptors } from "./widget-descriptors.js";
 import {
   combineSemanticNews,
   currentSemanticNews,
+  newsMoment,
   observeSemanticNews,
   semanticNewsNotice,
   semanticNewsReading,
@@ -49,8 +50,18 @@ export function createStateApplication({
   notifyDataSubscribers,
   accountPending,
 }) {
-  /** @type {{reading: import("./semantic-news.js").NewsReading, observed: import("./semantic-news.js").ObservedNews} | null} */
+  /** @typedef {{reading: import("./semantic-news.js").NewsReading, observed: import("./semantic-news.js").ObservedNews}} PresentedNews */
+  /** @type {PresentedNews | null} */
   let presentedNews = null;
+  // What a queued news notice says when it shows, against the latest presented reading.
+  // Made here, not in `receiveState`, whose scope holds the activation and the document
+  // it replaced: a notice waiting its turn would keep both alive.
+  /** @param {PresentedNews} current */
+  const newsFormat =
+    (current) =>
+    /** @param {readonly import("./semantic-news.js").SemanticNews[]} value */
+    (value) =>
+      semanticNewsNotice(currentSemanticNews(value, current.reading, current.observed));
   let stateApplying = false;
   let admission = Promise.resolve();
   // Every answer handed in through any door, a state read or a gesture's POST, while
@@ -205,6 +216,10 @@ export function createStateApplication({
         // it cannot turn accepted truth into a refusal or strand proved receipts.
         if (installed) await installed.land();
         await notifyDataSubscribers();
+        // A widget's paint from its new data can claim other regions, as a diff that
+        // drops a commented line sends its thread to a margin card, and the place is
+        // kept only once those have drawn too.
+        await whenDocumentPresented();
         keepPlace?.();
         markStateApplied(state);
         accountPending(state.events);
@@ -220,19 +235,17 @@ export function createStateApplication({
           presentedNews.reading = newsReading;
           presentedNews.observed = reading.observed;
         } else presentedNews = { reading: newsReading, observed: reading.observed };
-        // The agent's new words are heard, not shown: the On me mark's dot and each
+        // The agent's new words are heard, not shown: the On Me mark's dot and each
         // margin marker's already show unread news, so the seat keeps the agent's status.
         // The user chose this on 25 October over a line counting the messages.
         if (reading.news.length) announce(semanticNewsNotice(reading.news));
+        // The leaf answers news as it arrives, with the badge and dots, rather than when
+        // a notice held behind the user's own command shows it.
+        const moment = newsMoment(reading.news);
+        if (moment) gesture(moment);
         const shown = reading.news.filter((item) => item.kind !== "agent_content");
         if (shown.length) {
-          const current = presentedNews;
-          /** @param {readonly import("./semantic-news.js").SemanticNews[]} value */
-          const format = (value) => {
-            return semanticNewsNotice(
-              currentSemanticNews(value, current.reading, current.observed),
-            );
-          };
+          const format = newsFormat(presentedNews);
           notice(format(shown), {
             background: true,
             announce: false,

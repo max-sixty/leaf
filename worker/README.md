@@ -531,12 +531,15 @@ The records to read first:
 | `page_fault`                                                             | The adapter answered `500`: route, method, page path, exception class, and `detail`                                                                                          |
 
 The session's `component=leaf-container`, `event=http_error` records identify
-forwarded HTTP 5xx responses by status, method and `source`: `adapter` means the
-response carried Python's `Leaf-Release` stamp; `disconnected` means it matched
-the Containers SDK's fixed connection-loss response; `unclassified` means neither
-was established. These records retain no URL or response body. Use their native
-trace ID to join the request's invocation records. A `disconnected` response
-identifies the proxy boundary, not why its container connection was lost.
+forwarded HTTP 5xx responses by status, method, `source` and `retried`:
+`adapter` means the response carried Python's `Leaf-Release` stamp;
+`disconnected` means it matched one of the Containers SDK's proxy-failure
+responses; `unclassified` means neither was established. A `disconnected`
+`GET` or `HEAD` is sent once more (`retried: true`), and the visitor sees the
+second answer; a write is never resent. These records retain no URL or response
+body. Use their native trace ID to join the request's invocation records. A
+`disconnected` response identifies the proxy boundary, not why its container
+connection was lost.
 
 The page's private `observations.jsonl` also records these hosted-turn boundaries.
 Only that private diagnostic stream retains the complete published reply updates,
@@ -555,8 +558,11 @@ containing user text.
 
 The outbound model handler adds `model_request_started`, `model_response_headers`,
 `model_response_first_byte`, `model_response_first_output`, and
-`model_response_completed` or `model_request_failed`, each with Codex's thread and turn
-ids, a per-request id, status, and byte count. The hosted Codex provider uses HTTP
+`model_response_completed`, `model_response_cancelled` or `model_request_failed`, each
+with Codex's thread and turn ids, a per-request id, status, and byte count. A body Codex
+cancels, as when the container ends a turn whose stream went silent, logs
+`model_response_cancelled` with `idleMs`, the time since its last chunk, which tells a
+stream still sending keepalives from one that stopped. The hosted Codex provider uses HTTP
 directly (`codex-config.toml`).
 
 When a hosted turn cannot answer, the user's update gets a failure receipt: a reply
@@ -582,14 +588,20 @@ recovers a start that outlasts that window.
 
 ### Saved state and capacity
 
-Read-only visits do not prewarm a container. The existing session Durable Object
+Read-only visits do not prewarm a container. Focusing a text box does: the tab's
+interaction log reports the focus within a quarter second, and the Worker starts the
+session's container (`prewarmContainer` in `worker/src/agent.ts`), so its boot overlaps
+the visitor's typing. The existing session Durable Object
 serves saved documents, comments, choices and private resources while compute is
 stopped. A write or a missing saved response starts Python, which restores the
 canonical page record before accepting requests. `leaf_website.storage` publishes
 canonical files and matching Python-produced responses atomically before a write
 is acknowledged; a failed publication fails the request and permits an idempotent
-retry. File modification dates survive restore, including the publication date of
-an unstamped revision. A release selects fresh demo records, while container
+retry. The Durable Object serves each saved response with the headers Python gave it,
+so the browser caches it as it would the live answer, and Back restores a page the
+visitor has acted on from the back/forward cache, as it does a locally served page
+([browser support](../notes/browser-support.md), "Page cache"). File modification
+dates survive restore, including the publication date of an unstamped revision. A release selects fresh demo records, while container
 replacement preserves the current release's records. `docs/website.html`, **Private sessions**, owns the
 storage and identity contract.
 
@@ -603,10 +615,13 @@ snapshot uses.
 An interrupted upload therefore retains at most one successor until that page
 retries; other pages' concurrent uploads and readers remain protected.
 
-`max_instances` caps concurrent `basic` containers: 5,900 for production and 90 for
-`dev`, under Cloudflare's account limit of 6,000. A container with no requests stops
-after ten minutes (`sleepAfter` in `worker/src/index.ts`). During a rollout, Cloudflare
-replaces an active container after at most `rollout_active_grace_period`, 600 seconds.
+Each container is a custom instance of one vCPU and 3 GiB (`wrangler.toml` gives the
+reason). `max_instances` caps them at 1,470 for production and 20 for `dev`, under the
+account's default limit of 1,500 concurrent vCPU. A container with no requests stops
+after ten minutes (`sleepAfter` in `worker/src/index.ts`). A rollout replaces a
+container as soon as it reaches it, however recently the container started
+(`rollout_active_grace_period = 0`, whose reason `wrangler.toml` gives). The adapter
+exits on the `SIGTERM` that replacement sends, ending any agent turn it was running.
 
 ### Sandbox and rate limits
 

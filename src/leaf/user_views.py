@@ -17,7 +17,7 @@ The record also keeps `viewed`, when a report last said a document was visible, 
 POSIX seconds, which outlives the pruning. A visible document reports at least
 every ten seconds (`runtime/user-view.js`), so it is that fresh while a tab shows
 the page; a hidden tab sends no heartbeat, so the stamp records attention rather
-than tab lifetime. The agent reads it in `page state` (`viewed_at`).
+than tab lifetime. The agent reads it in `page state` (`viewed`).
 """
 
 import copy

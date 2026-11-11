@@ -18,6 +18,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     PANEL,
+    field_press,
     leaf_page,
     open_page,
     open_threads,
@@ -861,7 +862,7 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     page = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.press("w")
 
-    exit_mode = page.get_by_role("button", name="Exit Draw mode")
+    exit_mode = field_press(page).filter(has_text="Close")
     expect(exit_mode).to_be_visible()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -1143,8 +1144,8 @@ def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, se
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "comment"
     ]
-    # Out of Draw mode, by its ✕ in the panel's row, to reach Threads.
-    page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]').click()
+    # Out of Draw mode, by the Close at the panel field's end, to reach Threads.
+    field_press(page).filter(has_text="Close").click()
     references = open_panel_thread(page, comment).locator(".lf-drawing-reference")
     expect(references.first).to_have_text("Drawing comment")
     assert set(references.all_text_contents()) == {"Drawing comment"}
@@ -1177,9 +1178,7 @@ def test_page_mode_keeps_visible_native_ink_and_exact_drawing_comment(browser, s
     expect(
         page.locator(f"{PANEL_THREAD} .lf-msg").filter(has_text="The bend I mean")
     ).to_be_visible()
-    expect(
-        page.locator(".lf-margin-layer, .lf-margin-cluster, .lf-margin-preview")
-    ).to_have_count(0)
+    expect(page.locator(".lf-margin-cluster, .lf-margin-preview")).to_have_count(0)
     expect(page.locator('[data-lf-command="annotations.toggle"]')).to_have_count(0)
 
 

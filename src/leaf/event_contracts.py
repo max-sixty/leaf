@@ -606,7 +606,7 @@ def _parent_error(event: dict, events: list) -> Finding | None:
 def _named_question_error(event: dict, events: list) -> Finding | None:
     """A message's `obligation` names questions its own thread asks in words, each by
     the id it keeps (`obligations.question_ids`). An event naming any other would put
-    nothing back on On me."""
+    nothing back on On Me."""
     if not isinstance(event.get("obligation"), list):
         return None
     threads = thread_names(events)
@@ -841,11 +841,13 @@ def settled_attention(event: dict, contract: dict) -> bool | None:
     """The attention an event's kind and author decide alone, or None for the
     user's input, which needs attention when it changes work or requests it.
 
-    A report or an error always wakes the agent; the agent's own events and the
-    user's bookkeeping never do.
+    A report or an error always wakes the agent, and a render reading does where it
+    holds a failure; the agent's own events and the user's bookkeeping never do.
     """
     if event["kind"] in {"report", "error"}:
         return True
+    if event["kind"] == "render":
+        return any(finding["severity"] == "error" for finding in event["findings"])
     if event["author"] != "user" or contract.get("bookkeeping"):
         return False
     return None

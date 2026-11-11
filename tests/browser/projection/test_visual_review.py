@@ -89,7 +89,7 @@ def test_visual_review_cases_are_independent_on_me_obligations(browser, serve):
     expect_on_me(page, 3)
     expect(case.get_by_role("checkbox", name="Looks right")).not_to_be_checked()
 
-    # The On me row uses the same destination, even while another case is shown.
+    # The On Me row uses the same destination, even while another case is shown.
     count.click()
     card = page.locator(".lf-fp-on-item").filter(
         has=page.get_by_text("Optional packages get focused destinations", exact=True)

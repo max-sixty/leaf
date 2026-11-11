@@ -1328,11 +1328,22 @@ def test_every_table_the_theme_sets_honestly_passes_the_gate(browser, serve):
         start = page.index(first)
         return page[start : page.rindex("</main>")]
 
+    def without(page, start, end):
+        cut = page.index(start)
+        return page[:cut] + page[page.index(end, cut) + len(end) :]
+
     option = INLINE_PAGE[INLINE_PAGE.index("<lf-ask") :]
     option = option[: option.index("</lf-ask>") + len("</lf-ask>")]
+    # The question the granted figure holds takes its words off the column, which the
+    # gate rightly advises against (`words-off-column`); the figure's table stays.
+    framed = without(
+        tables(FRAMED_TABLES_PAGE, '<table id="bare">'),
+        '<lf-ask id="figure-asked">',
+        "</lf-ask>",
+    )
     page = AUTHORED_LINES_PAGE.replace(
         "</main>",
-        tables(FRAMED_TABLES_PAGE, '<table id="bare">')
+        framed
         + tables(IDENTIFIERS_IN_CODE_PAGE, '<table id="held">')
         + option
         + "</main>",

@@ -112,6 +112,9 @@ function describe(event) {
   if (control) {
     entry.control = locator(control);
     entry.controlNode = nodeIdentity(control);
+    // leaf.page's Worker starts the visitor's container when a text box gets focus
+    // (`startsTyping`), since what they type there is about to be a write.
+    if (control.matches(TEXT_BOX)) entry.textBox = true;
   }
   const labelTarget = control ?? target;
   if (labelTarget instanceof Element) {
@@ -190,8 +193,19 @@ function describe(event) {
           node: nodeIdentity(document.fullscreenElement),
         }
       : null;
+  // A password field's characters stay out, whatever else the trace keeps, and stay
+  // out after a show-password toggle makes it a text field. Capture at the document
+  // sees a field in a closed shadow root only as its host, so its keys are recorded.
+  if (target instanceof window.HTMLInputElement && target.type === "password")
+    secretFields.add(target);
+  if (target instanceof window.HTMLInputElement && secretFields.has(target))
+    for (const field of ["key", "code", "data", "clipboard", "value", "selection"])
+      delete entry[field];
   return entry;
 }
+
+/** Fields seen as password fields, whatever their type now. */
+const secretFields = new WeakSet();
 
 /** @param {number} delay */
 function schedule(delay = 250) {
@@ -315,8 +329,8 @@ export function recordInteraction(type, detail = {}) {
 }
 
 if (url !== null) {
-  // TODO(privacy): Add retention and redaction controls before pages are shared with
-  // other users. Input values, selected text, and keyboard input are recorded now.
+  // Input values, selected text and keyboard input go in the page's trace, for
+  // debugging (`interaction_log.py` records the choice).
   for (const type of [
     "pointerdown",
     "pointerup",

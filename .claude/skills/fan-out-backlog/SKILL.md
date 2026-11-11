@@ -19,7 +19,7 @@ tokens to spend, and not on a schedule or from Tend.
 ## Choose the items
 
 `TODO.md`, "Backlog", gives the query for the issues an agent can take unattended:
-labelled `backlog`, not `waits-on-user`, and claimed by no pull request. Small
+labelled `backlog`, assigned to nobody, and claimed by no pull request. Small
 items batch well; a large item whose design is settled suits one agent for the
 whole run.
 
@@ -98,7 +98,7 @@ parallel once used up.
 Put the results on a Leaf page: what landed, grouped so the user can read by
 theme, the measurements that show it, the PRs still open and why, and what you
 learned about running the campaign. Register each decision a PR leaves
-to the user on their On me list, including calls an agent made that they may
+to the user on their On Me list, including calls an agent made that they may
 reverse. An agent's report names its calls for a reader who knows the PR, and the
 user hasn't opened it, so each decision says what the user sees today, what the PR
 changes, and what choosing each option leads to, with a picture of each result for a UI

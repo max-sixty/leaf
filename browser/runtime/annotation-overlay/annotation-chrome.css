@@ -339,7 +339,7 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
      card's own border, a frame in a frame with the reply field a third box inside
      that. The reply field keeps its box, since that is the thing typed into. The ring is
      still the thread's focus; the card's face only carries it, and its surface while the
-     card moves. A message holding focus, as Next on me leaves the reply it lands on,
+     card moves. A message holding focus, as Next On Me leaves the reply it lands on,
      rings the card too (below), since the keys it answers act on its thread. */
   .lf-margin-preview-card:has(
     .lf-page-thread[data-lf-focus-visible],
@@ -854,9 +854,9 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
      over the words. A focused one stays in the stuck row, where the user can see what
      they hold. The metadata stands the head's whole height and clips them at its
      edges, since the head leaves its own to its controls' reach. The rules wait
-     on view timelines: Firefox, which lacks them, would run the animation on the
-     document clock, whose filled end holds the annotations above their row at rest,
-     so it keeps them stuck with the name instead. */
+     on view timelines: an engine that lacks them, as Firefox 157 did, would run
+     the animation on the document clock, whose filled end holds the annotations above
+     their row at rest, so it keeps them stuck with the name instead. */
   @supports (animation-timeline: view()) {
     .lf-margin-thread .lf-thread-transcript .lf-msg {
       view-timeline: --lf-msg-exit block;

@@ -32,8 +32,15 @@ import {
   renderedWords,
 } from "../markdown.js";
 import { reportPageError } from "../layer-client.js";
-import { deleted, editable, isReaction, lastMovedAt, messageKey } from "./model.js";
-import { labelWords } from "../words.js";
+import {
+  deleted,
+  editable,
+  isReaction,
+  lastMovedAt,
+  messageKey,
+  turns,
+} from "./model.js";
+import { counted, excerptWords, labelWords } from "../words.js";
 import {
   MessageEditor,
   OPEN_MESSAGE_EDIT,
@@ -53,13 +60,14 @@ import { stageWidgetDescriptors } from "../widget-descriptors.js";
 import {
   NOT_ANSWERED,
   strongestWorkflow,
+  threadAttention,
   workflowTitle,
   workflowWord,
 } from "./workflow.js";
-import { leafSays, voiced } from "../voice.js";
+import { agentSays, leafSays, voiced, wordsText } from "../voice.js";
 import { markDeclared, renderQuiet, renderSaid } from "../declared-words.js";
 import { highlightBlocks } from "../syntax.js";
-import { ago } from "../presence.js";
+import { agePreview, ago, clockTime } from "../presence.js";
 import { elementById } from "../passages.js";
 import { designName } from "../design-readings.js";
 import { addressableWord, sectionLabel } from "../addressable-names.js";
@@ -135,7 +143,8 @@ function proseReading(message) {
       markdown,
       html,
       mediaHtml,
-      plainText: renderedWords(html + mediaHtml),
+      // An image counts as the thread names it, its alt text (`renderedWords`).
+      plainText: renderedWords(html + mediaHtml, true),
     });
     renderedProse.set(key, reading);
   }
@@ -157,17 +166,19 @@ export function messageText(message) {
   return message.suggestion ? (message.text ?? "") : proseReading(message).plainText;
 }
 
+// A whole message in words, on one line, as a thread holds it: what it renders, its
+// widgets' words and its images' alt text included (`messageText`), else Drawing for
+// one drawn without words, or Deleted message.
+/** @param {Parameters<typeof messageText>[0] & {readonly drawing?: unknown, readonly withdrawn?: unknown}} message */
+export const messageWords = (message) =>
+  labelWords(messageText(message)) ||
+  (message.drawing ? "Drawing" : deleted(message) ? "Deleted message" : "");
+
 // A thread's name in words, as search, accessible names and prose read it: its title,
-// else the words its opening message renders (an agent's authored opening, its captured
-// text), else Drawing for one drawn without words. A surface clips it to its own room,
-// and one that draws the name draws `threadHeading`.
-/** @param {{readonly title: string | null, readonly root: Parameters<typeof messageText>[0] & {readonly body: {readonly kind: string, readonly text?: string}, readonly drawing?: unknown}}} thread */
-export function threadName(thread) {
-  if (thread.title != null) return thread.title;
-  const { root } = thread;
-  const words = labelWords(messageText(root));
-  return words || (root.drawing ? "Drawing" : deleted(root) ? "Deleted message" : "");
-}
+// else its opening message's words (`messageWords`). A surface clips it to its own
+// room, and one that draws the name draws `threadHeading`.
+/** @param {{readonly title: string | null, readonly root: Parameters<typeof messageWords>[0]}} thread */
+export const threadName = (thread) => thread.title ?? messageWords(thread.root);
 
 // Whether a title is on its way to an untitled thread. Leaf asks the claimant's
 // harness for one as the user's words are admitted, and the agent for one with its
@@ -199,6 +210,96 @@ export const threadSummary = (thread) => ({
   topic: threadName(thread),
   latest: lastMovedAt(thread),
 });
+
+// A message's opening line, as a preview reads it: its first line of words, else
+// Drawing for one drawn without words.
+/** @param {Parameters<typeof messageText>[0] & {readonly drawing?: unknown}} message */
+const openingLine = (message) =>
+  messageText(message).split("\n").map(labelWords).find(Boolean) ??
+  (message.drawing ? "Drawing" : "");
+
+// Who a message's head names: the agent by its name, the user as Me.
+/** @param {{readonly author: string, readonly agent?: string | null}} message */
+const authorName = (message) => (message.author === "agent" ? message.agent : "Me");
+
+// The characters of a thread's name or a message's opening line a preview keeps,
+// which wrap within its width.
+const PREVIEWED_LINE = 120;
+// Where a thread stands, as its preview says it (`threadPreview`): its word
+// (`threadAttention`) and the agent's line on the work in hand, what it holds unread
+// and how many messages it holds, each said by whoever says it, less the part `said`,
+// which what it describes already says.
+/** @param {import("./workflow.js").ThreadRecord} thread @param {string | null} said */
+function threadStands(thread, said) {
+  const attention = threadAttention(thread, agentName());
+  const detail = attention?.kind === "waiting" ? attention.workflow?.detail : null;
+  const unread = thread.unread.length;
+  return {
+    turn: attention?.kind === "needs_user" ? "user" : null,
+    words: [
+      ...(attention ? [attention.word] : []),
+      ...(detail ? [agentSays(labelWords(detail))] : []),
+      ...(unread ? [leafSays(`${unread} unread`)] : []),
+      leafSays(counted(turns(thread).length, "message")),
+    ]
+      .filter((part) => wordsText(part) !== said)
+      .flatMap((part, at) => (at ? [" · ", part] : [part])),
+  };
+}
+
+/** What pointing at threads reads (preview.js), on a passage mark and on a margin entry
+ * alike, from the reading every surface paints a thread from, as a name and lines of
+ * detail. One thread is named as every surface names it (`threadName`), and its lines
+ * say who wrote its last message and when, that message's opening line, and where the
+ * thread stands: "Your turn · 1 unread · 5 messages". An untitled thread's name is its
+ * opening words, so a thread whose last message is its first says them once. A target
+ * holding several threads is named by their count, as the card a press opens lists
+ * them, and lists each, its name and where it stands, which the preview owner fits to
+ * the room its face stands in (preview.js, `fit`), saying how many more past those:
+ * a press still reaches them, as the card it opens steps through every thread, and on
+ * a window too narrow for the card, the thread it opens in the panel goes back to the
+ * panel's list of them, where each row previews its thread. A line in the user's turn
+ * wears the turn's mark (`data-lf-turn`). Where the preview describes something that already says one
+ * thread's word, as a margin entry's name does to the keyboard, `said` is that word,
+ * which its line leaves out, so a screen reader hears it once.
+ * @param {readonly import("./workflow.js").ThreadRecord[]} threads
+ * @param {string | null} [said]
+ * @returns {import("../preview.js").Preview | null} */
+export function threadPreview(threads, said = null) {
+  const [only] = threads;
+  if (!only) return null;
+  /** @param {ReturnType<typeof threadStands>} stands @param {string} [lead] */
+  const standing = ({ turn, words }, lead = "") =>
+    html`<span data-lf-turn=${turn ?? nothing}>${lead}${voiced(words)}</span>`;
+  if (threads.length === 1) {
+    const last = turns(only).at(-1) ?? only.root;
+    const opening = last.id === only.root.id && only.title == null;
+    return {
+      name: excerptWords(threadName(only), PREVIEWED_LINE),
+      detail: [
+        `${authorName(last)} · ${ago(last.ts)}`,
+        !opening &&
+          (deleted(last)
+            ? voiced(DELETED)
+            : excerptWords(openingLine(last), PREVIEWED_LINE)),
+        standing(threadStands(only, said)),
+      ],
+    };
+  }
+  return {
+    name: counted(threads.length, "thread"),
+    list: {
+      items: threads.map((thread) =>
+        standing(
+          threadStands(thread, null),
+          `${excerptWords(threadName(thread), 60)} · `,
+        ),
+      ),
+      more: (count) =>
+        voiced(leafSays(`and ${counted(count, "more thread", "more threads")}`)),
+    },
+  };
+}
 
 // A rollback can withdraw an authored island, but neither retry nor a prose edit
 // may instantiate it twice. Its native identity is independent of the prose cache.
@@ -380,7 +481,7 @@ export function messageReading(
     unread: message.unread,
     attempt: message.attempt ?? null,
     author: message.author,
-    by: message.author === "agent" ? message.agent : "Me",
+    by: authorName(message),
     timestamp: message.ts,
     age: ago(message.ts),
     // What the message said before its last rewrite is the edited mark's to tell, or a
@@ -487,6 +588,19 @@ export class MessageView {
       this.node.classList.add("lf-ui");
       generatedElement(this.node, { says: false });
       this.node.dataset.lfOffer = "";
+      // A message the keyboard stands on previews when it was said, the clock time its
+      // age says to a pointer or a finger (`agePreview`), beside the age in its head.
+      // Its words preview nothing to a pointer or a finger, since they are what the user
+      // reads.
+      this.node.lfPreview = (/** @type {import("../preview.js").Route} */ route) => {
+        const at = route === "focus" ? clockTime(this.#model?.timestamp) : "";
+        // Where the head draws no age, as the second of two messages with one, its
+        // place in the head stands for it.
+        const meta = this.node.querySelector(":scope > .lf-msg-head > .lf-msg-meta");
+        return at
+          ? { name: at, at: meta?.querySelector(":scope > time") ?? meta }
+          : null;
+      };
       // A double click on the user's own words opens them for rewriting, as the word
       // under it would otherwise only be selected. The word it selected goes first: the
       // editor then sets its own caret, which clearing the selection after would take. A
@@ -593,7 +707,10 @@ export class MessageView {
     const copy =
       model.markdown && !editor ? this.#copyControl(model.markdown) : nothing;
     const receipt = model.workflowWord
-      ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
+      ? html`<span
+          class="lf-msg-sending"
+          .lfPreview=${() =>
+            model.workflowTitle ? { name: model.workflowTitle } : null}
           >${voiced(model.workflowWord)}</span
         >`
       : nothing;
@@ -603,7 +720,9 @@ export class MessageView {
         ><span class="lf-msg-meta"
           >${
             dated
-              ? html`<time datetime=${model.timestamp}>${model.age}</time>`
+              ? html`<time datetime=${model.timestamp} .lfPreview=${agePreview}
+                  >${model.age}</time
+                >`
               : nothing
           }${
             model.unread
@@ -630,7 +749,11 @@ export class MessageView {
           }
           ${
             model.edited && model.body.kind !== "deleted"
-              ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
+              ? html`<span
+                  class="lf-edited"
+                  .lfPreview=${() => ({ name: model.edited, about: this.node })}
+                  >edited</span
+                >`
               : nothing
           }
           ${
@@ -745,7 +868,6 @@ export class MessageView {
         error: "Message not copied · select its words to copy",
       });
       this.#copy.tabIndex = -1;
-      this.#copy.title = "Copy as Markdown";
     }
     if (this.#copy.value !== markdown) this.#copy.value = markdown;
     return this.#copy;
@@ -754,7 +876,10 @@ export class MessageView {
   /** @param {ReturnType<typeof messageReading>["body"]} body @param {string | null} edited */
   #body(body, edited) {
     if (body.kind === "deleted")
-      return html`<div class="lf-msg-text lf-msg-deleted" title=${edited ?? ""}>
+      return html`<div
+        class="lf-msg-text lf-msg-deleted"
+        .lfPreview=${() => (edited ? { name: edited } : null)}
+      >
         ${voiced(DELETED)}
       </div>`;
     if (body.kind === "reaction")

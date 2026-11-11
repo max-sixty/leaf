@@ -13,7 +13,7 @@ interface DeploymentConfig {
     name: string;
     class_name: string;
     max_instances: number;
-    instance_type: string;
+    instance_type: { vcpu: number; memory_mib: number; disk_mb: number };
     rollout_active_grace_period: number;
   }>;
   durable_objects: {
@@ -68,7 +68,7 @@ describe("deployment configuration", () => {
     expect(dev.workers_dev).toBe(true);
     expect(dev.routes).toEqual([]);
     expect(devContainer.name).toBe("leaf-website-dev-leafexamplesession");
-    expect(devContainer.max_instances).toBe(90);
+    expect(devContainer.max_instances).toBe(20);
     expect({
       ...devContainer,
       name: container.name,
@@ -85,12 +85,13 @@ describe("deployment configuration", () => {
     ]);
   });
 
-  it("reserves enough basic container slots to verify development rollouts", () => {
+  it("fits production and development containers in the account's vCPU", () => {
     const [devContainer] = config.env.dev.containers;
+    const oneCpu = { vcpu: 1, memory_mib: 3072, disk_mb: 4000 };
 
-    expect(container.max_instances + devContainer.max_instances).toBe(5_990);
-    expect(container.instance_type).toBe("basic");
-    expect(devContainer.instance_type).toBe("basic");
+    expect(container.instance_type).toEqual(oneCpu);
+    expect(devContainer.instance_type).toEqual(oneCpu);
+    expect(container.max_instances + devContainer.max_instances).toBe(1_490);
   });
 
   it("bounds users’ task starts and model calls", () => {

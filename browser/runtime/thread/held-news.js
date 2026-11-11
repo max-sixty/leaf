@@ -458,8 +458,9 @@ const said = (news) => {
  *  announces news waiting (`data-lf-news`, controls.css), in the accent the unread dot
  *  wears. It says one count of all
  *  that waits, "2 new", in every placement, which is its accessible name too, so a
- *  voice user saying the words they see reaches it; its title, and so its accessible
- *  description, says each fact, "1 new reply · 1 new message". A name of the facts
+ *  voice user saying the words they see reaches it; its preview says each fact, "1 new
+ *  reply · 1 new message", and a screen reader hears that as its description while it
+ *  stands on focus (preview.js). A name of the facts
  *  alone matched nothing the user saw. The user chose this on 31 October over a line
  *  of facts that dropped those past its room and counted them at its end ("1 new reply
  *  +1"), and said "2 new" only where even the first fact didn't fit, so one piece of
@@ -476,10 +477,14 @@ export function newsNotice() {
   node.append(words);
   /** @type {() => Element | null} */
   let open = () => null;
+  // Its whole label, under the count it shows, is what the preview reads (preview.js).
+  let label = "";
+  node.lfPreview = () => (label ? { detail: [label] } : null);
   // A key on the notice, which stands the user on it, lands them on the thread, since
-  // the notice goes with what it held. A pointer's press takes no focus, so it shows the
-  // news and leaves the user where they stand: a reply being written keeps its caret,
-  // where the press once took it out of the box.
+  // the notice goes with what it held. A pointer's press takes no focus itself, and
+  // its owner's `open` decides where the press lands: a thread's leaves the user where
+  // they stand, so a reply being written keeps its caret, where the press once took it
+  // out of the box.
   node.addEventListener("mousedown", (event) => event.preventDefault());
   const show = () => {
     const currentLocation = focused() === node;
@@ -500,7 +505,7 @@ export function newsNotice() {
     /** @param {NewsNotice} news */
     set(news) {
       keepsText(words, news.text);
-      keeps(node, "title", news.label);
+      label = news.label;
       open = news.open;
     },
   };

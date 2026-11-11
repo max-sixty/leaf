@@ -83,7 +83,7 @@ module-name = "leaf"
 [dependency-groups]
 dev = [
   # Accessible snapshots with rendered boxes for corpus round-trip checks.
-  "playwright>=1.64",
+  "playwright>=1.65",
   "pytest>=9.1",
   "pytest-xdist>=3",
   "axe-playwright-python>=0.1.4",
@@ -177,8 +177,9 @@ markers = [
   "shifts_unsurveyed: its browser tests await a shift survey, so they do not reject unsolicited layout shifts",
   "watch_shifts: a surveyed test marked `shifts_unsurveyed` rejects unsolicited layout shifts and typing that carries its field",
 ]
-# A test still running after half an hour is hung, not slow: the slowest takes under
-# three minutes on CI, so even ten times slower it finishes. The worker prints every
+# A test still running after half an hour is taken as hung. The limit guards the run
+# against a hang, and isn't held to the ten-times margin tests/AGENTS.md ("Results do not
+# depend on execution speed") gives an operation's deadline. The worker prints every
 # thread's stack, which names the call that blocked, and exits. xdist reports the test
 # as crashed, and `--max-worker-restart=0` (addopts) then ends the run once the other
 # workers finish the tests already sent to them. Replacing the crashed worker instead

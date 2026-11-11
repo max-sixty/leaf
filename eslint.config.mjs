@@ -57,6 +57,7 @@ const browserGlobals = Object.fromEntries(
     "CustomEvent",
     "DOMException",
     "DOMParser",
+    "DOMPoint",
     "DOMRect",
     "Document",
     "Element",
@@ -1674,8 +1675,8 @@ export default [
           // The shared CodeMirror adapter places its own native editor.
           "browser/runtime/editor-view.js",
           // A held release stands in for the browser's own press, so it focuses the
-          // control as that press does, ringless; focus.js reads it as the press's.
-          "browser/runtime/held-word.js",
+          // target as that press does, ringless; focus.js reads it as the press's.
+          "browser/runtime/preview.js",
         ],
       ],
       "architecture/open-layers": [

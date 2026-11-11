@@ -15,7 +15,9 @@
  *   while one of them keeps it: the check knows names, not which reader needs one;
  * - each stylesheet selector on a page-wide allocation names a value `$authored`
  *   declares. The runtime's readers of those values are typed by the same table
- *   (`AuthoredAllocations`, build/browser/contract-types.mjs). */
+ *   (`AuthoredAllocations`, build/browser/contract-types.mjs);
+ * - the phrasing content a suggestion slot's block test spells out is
+ *   `$passages.phrasing`, which the runtime reads. */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
@@ -91,6 +93,22 @@ test("the browser spells each `data-lf-` attribute Python spells", async () => {
   );
   for (const name of PYTHON_ONLY)
     assert.ok(!browserNames.has(name), `the browser reads ${name}; drop it here`);
+});
+
+test("a suggestion slot's phrasing content is the kernel's", async () => {
+  const sheet = await readFile(`${root}browser/base.css`, "utf8");
+  const [, spelled] =
+    sheet.match(
+      /> :is\(lf-old, lf-new\)\s*> :not\(([^)]*?):where\(\[data-lf-inline\]\)/,
+    ) ?? [];
+  assert.ok(spelled, "base.css no longer asks whether a slot holds block content");
+  assert.deepEqual(
+    spelled
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean),
+    registry.$passages.phrasing,
+  );
 });
 
 test("stylesheets select only the allocation values `$authored` declares", async () => {

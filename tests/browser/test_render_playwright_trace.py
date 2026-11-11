@@ -9,9 +9,11 @@ from playwright.sync_api import expect
 from render_cases_layout import current_location_ring, ring_faults
 from render_cases_navigation import source_revision
 from render_harness import (
+    PREVIEW,
     holding,
     leaf_page,
     open_page,
+    preview_text,
     resized,
     told,
 )
@@ -145,18 +147,45 @@ def test_trace_parts_carry_the_recording_and_place_they_were_drawn_from(browser,
     assert [{**part, "revision": rerun} for part in first] == stamps()
 
 
+# The marks under `[data-test-tip]` the preview covers, each by where the timeline's
+# scroller shows it, since one scrolled out of the band stands under nothing: whether it
+# covers `pointed`, and which others. Two boxes at one edge can report a hair apart, so
+# an overlap thinner than half a layout unit is none.
+COVERED_MARKS = """([timeline, pointed]) => {
+  const tip = document.getElementById('lf-preview').getBoundingClientRect();
+  const over = (a, b) => b - a > 1 / 128;
+  const covered = [...timeline.querySelectorAll('[data-test-tip]')].filter((mark) => {
+    const box = mark.getBoundingClientRect();
+    const band = mark.closest('.lf-trace-scroller').getBoundingClientRect();
+    const left = Math.max(box.left, band.left), right = Math.min(box.right, band.right);
+    return box.width > 0 && over(left, right) && over(left, tip.right)
+      && over(tip.left, right) && over(box.top, tip.bottom) && over(tip.top, box.bottom);
+  });
+  return {own: covered.includes(pointed),
+    others: covered.filter((mark) => mark !== pointed).map((mark) => mark.className)};
+}"""
+
+
 @pytest.mark.parametrize(
     ("engine", "width"),
-    [("browser", 1400), ("browser", 320), ("firefox_browser", 320)],
+    [
+        ("browser", 1400),
+        ("firefox_browser", 1400),
+        ("browser", 320),
+        ("firefox_browser", 320),
+    ],
 )
-def test_timeline_tooltips_keep_their_words_above_marks_inside_the_timeline(
+def test_timeline_marks_say_their_words_beside_them_inside_the_window(
     request, serve, engine, width
 ):
-    """Narrow timelines keep a complete hovered label inside their inline room.
-
-    The first lane's tooltip may extend above the timeline. Its horizontal fit must
-    still work there, including after zoom changes which marks stand at its edges.
-    Firefox also wraps a narrow label without letting its lower lines cover the mark.
+    """A timeline's marks each say their whole words when pointed at, in a preview
+    whole inside the window that never covers its own mark, at a desktop width and a
+    phone's, and after zoom changes which marks stand at the timeline's edges. Each
+    mark's preview is about the lane it stands in (timeline.js), so it covers none of
+    the lane's other marks, which are thinner than the owner's hit tests are apart. It
+    covers another mark only where no side holds a line clear of them, as at the end of
+    a phone's input lane, and then says so and lets the pointer through to them
+    (preview.js, `data-lf-covers`).
     """
     browser = request.getfixturevalue(engine)
     record = json.loads(
@@ -180,11 +209,17 @@ def test_timeline_tooltips_keep_their_words_above_marks_inside_the_timeline(
     widget = page.locator("#journey")
     timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
     timeline.scroll_into_view_if_needed()
+    # Whether each preview read covers another mark.
+    covers = []
     for zoom in (False, True):
         if zoom:
             widget.get_by_role("button", name="Zoom in", exact=True).click()
             rendered(page)
-        marks = timeline.locator("[data-lf-tip]")
+        # Every mark that says something when pointed at (preview.js).
+        timeline.evaluate("""node => [...node.querySelectorAll('*')]
+            .forEach((el) => el.toggleAttribute('data-test-tip',
+              typeof el.lfPreview === 'function'))""")
+        marks = timeline.locator("[data-test-tip]")
         visible = marks.evaluate_all("""nodes => nodes.map((node, index) => {
             const box = node.getBoundingClientRect();
             const band = node.closest('.lf-trace-scroller').getBoundingClientRect();
@@ -196,20 +231,28 @@ def test_timeline_tooltips_keep_their_words_above_marks_inside_the_timeline(
         for index in (visible[0], visible[-1]):
             mark = marks.nth(index)
             mark.hover()
-            tooltip = timeline.get_by_role("tooltip")
+            tooltip = page.locator(PREVIEW)
             expect(tooltip).to_be_visible()
             rendered(page)
-            host, target, tip = (
-                locator.bounding_box() for locator in (timeline, mark, tooltip)
+            tip = tooltip.bounding_box()
+            assert tip["x"] >= 0
+            assert tip["x"] + tip["width"] <= page.viewport_size["width"]
+            covered = page.evaluate(
+                COVERED_MARKS, [timeline.element_handle(), mark.element_handle()]
             )
-            assert tip["y"] + tip["height"] <= target["y"]
-            assert tip["x"] >= host["x"] - 1
-            assert tip["x"] + tip["width"] <= host["x"] + host["width"] + 1
-            assert tooltip.inner_text().replace("\u00a0", " ") == mark.get_attribute(
-                "data-lf-tip"
-            )
+            assert not covered["own"], tip
+            if covered["others"]:
+                expect(tooltip).to_have_attribute("data-lf-covers", "")
+                expect(tooltip).to_have_css("pointer-events", "none")
+            covers.append(bool(covered["others"]))
+            assert tooltip.text_content().strip()
+            page.mouse.move(0, 0)
+            expect(tooltip).to_be_hidden()
         page.get_by_role("heading", name="Inspect recorded input").hover()
-        expect(timeline.get_by_role("tooltip")).to_be_hidden()
+        expect(page.locator(PREVIEW)).to_be_hidden()
+    # A desktop width gives every mark's preview a side clear of the other marks.
+    if width > 320:
+        assert not any(covers), covers
 
 
 def stop_time(record, checkpoint):
@@ -241,7 +284,9 @@ def navigate_to_phase(timeline, identity):
         if widget.locator(".lf-trace-phase").get_attribute("data-lf-datum") == identity:
             rendered(timeline.page)
             return
-        expect(widget.get_by_role("button", name="Next", exact=True)).to_be_enabled()
+        expect(
+            widget.get_by_role("button", name="Next capture", exact=True)
+        ).to_be_enabled()
         timeline.press("ArrowRight")
     raise AssertionError(f"Native phase not reached: {identity}")
 
@@ -272,7 +317,7 @@ def test_trace_arrows_step_the_way_the_time_scale_runs_in_right_to_left_text(
     widget = user.locator("#journey")
     call = widget.locator(f'.lf-trace-call-bar[data-lf-id="{setup["id"]}"]')
     expect(call.locator(".lf-trace-call-name")).to_have_text(setup["method"])
-    expect(call).to_have_attribute("data-lf-tip", re.compile(re.escape(setup["title"])))
+    assert setup["title"] in preview_text(call).replace("\u00a0", " ")
     timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
     position = widget.locator(".lf-trace-position")
     playhead = widget.locator(".lf-trace-playhead")
@@ -784,7 +829,8 @@ def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, se
           return r.top >= c.top && r.bottom <= c.bottom
             && r.left >= c.left && r.right <= c.right + 0.5
             && (hit === mark || mark.contains(hit)) ? [] : [{
-              label: mark.dataset.lfTip, bounds: r.toJSON(), coveredBy: hit?.className,
+              label: mark.textContent.trim() || mark.className,
+              bounds: r.toJSON(), coveredBy: hit?.className,
             }];
         })""")
         assert hidden == [], hidden

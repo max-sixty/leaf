@@ -440,14 +440,14 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
             )
             one_frame(page)
             pixels = Image.open(io.BytesIO(message.screenshot())).convert("RGB")
-            # Sample the middle of the sticky header's row and of the words' row,
-            # clear of the words and controls, since the message's edges can be
-            # covered. The scrollport can clip its top edge. The send's box tween
-            # carries the reply box down from where it stood, so for 300 ms the new
-            # message comes out from behind it and its foot stays covered
-            # (runtime/box-motion.js). A card beside its passage rises as one piece
-            # on a send, which leaves the pointer on the new message's Copy, lit in
-            # its own hover face.
+            # Something can cover either edge of the message. The scrollport can clip
+            # its top, and for the 300 ms that the send's box tween carries the reply
+            # box down from where it stood, the reply box covers its foot
+            # (runtime/box-motion.js). So sample the ground at the middle of the
+            # sticky header's row and of the words' row, at an x clear of the words
+            # and the controls: a card beside its passage rises as one piece on a
+            # send, which leaves the pointer on the new message's Copy, lit in its
+            # own hover face.
             head_point, body_point = message.evaluate(
                 """node => {
                   const box = node.getBoundingClientRect();

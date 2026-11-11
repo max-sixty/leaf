@@ -147,9 +147,11 @@
 // left the set, except a scroll-driven one, which moves only as the scroll and
 // layout announced here move it; input, focus, scroll, drag, resize, load, reset,
 // beforetoggle and contentvisibilityautostatechange events; the emulated media tests
-// change; this frame's own visibility; the press a pointer released on taking or
-// leaving `:active`, which a tap keeps on a timer after its last event and a button's
-// press feedback scales; and the calls that restyle without a DOM
+// change; this frame's own visibility; the press a pointer released, on its node or
+// on the element at its release point (such as the link a heading's tap shows),
+// taking or leaving `:active`, which a tap keeps on a timer after its last event and
+// a button's press feedback scales; and the
+// calls that restyle without a DOM
 // write (custom states, constructed and adopted sheets, form-control values and
 // ranges, animation mutators). A child cannot
 // observe every change in its embedding page, so child-frame readings remain
@@ -723,24 +725,33 @@
   ].map((query) => matchMedia(query));
   for (const query of presentationMedia) query.addEventListener("change", announce);
   // A tap's `:active` comes and goes on the browser's timer, after the pointer's last
-  // event, so the node a pointer released on is asked each frame whether it still is.
+  // event, on what stood under the finger when the browser took the tap: the node the
+  // press began on, which a touch pointer stays captured to, or a control the press
+  // showed there, as a heading's tap shows its link. So each frame asks whether the
+  // node and the element now at the release point are pressed. A cancelled pointer
+  // reports no place.
   let released = null;
+  const pressed = ({ node, at }) =>
+    [node, at && document.elementFromPoint(...at)]
+      .map((each) => each?.matches(":active") ?? false)
+      .join();
   for (const type of ["pointerup", "pointercancel"])
     listen(
       window,
       type,
       (event) => {
         const node = event.composedPath()[0];
-        released =
-          node instanceof Element ? { node, pressed: node.matches(":active") } : null;
+        const at = type === "pointerup" ? [event.clientX, event.clientY] : null;
+        released = node instanceof Element ? { node, at } : null;
+        if (released) released.state = pressed(released);
       },
       { capture: true, passive: true },
     );
   const pressChanged = () => {
     if (!released) return false;
-    const pressed = released.node.matches(":active");
-    if (pressed === released.pressed) return false;
-    released.pressed = pressed;
+    const state = pressed(released);
+    if (state === released.state) return false;
+    released.state = state;
     return true;
   };
   // Page state that matches selectors or applies style without a DOM write.

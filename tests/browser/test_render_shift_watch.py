@@ -5012,21 +5012,37 @@ def test_the_verdict_checks_a_change_the_test_ends_on(browser):
     )
 
 
-def test_a_tap_s_press_letting_go_is_heard(browser):
-    """A tap leaves its control `:active` on the browser's timer after its last event,
-    so the press feedback letting go restyles it with no event; the sensor still
-    reads it (`shift_watch.js`, "Unchanged frames")."""
+# What the tap lands on: the control itself, or a door whose press shows the control
+# over it, under the finger, before the tap lands, as a heading's tap shows its link.
+PRESSES = {
+    "control": "",
+    "shown under the finger": (
+        '<button id="door" style="position: absolute; inset: 0 auto auto 0; width: 9em"'
+        ' onpointerdown="control.hidden = false">Door</button>'
+    ),
+}
+
+
+@pytest.mark.parametrize("press", PRESSES)
+def test_a_tap_s_press_letting_go_is_heard(browser, press):
+    """A tap leaves `:active` on the browser's timer after its last event, on what stood
+    under the finger as the browser took the tap: the control tapped, or one the press
+    showed there first. The press feedback letting go restyles that control with no
+    event, and the sensor still reads it (`shift_watch.js`, "Unchanged frames")."""
     context = browser.new_context(has_touch=True)
     page = context.new_page()
     page.goto(
         "data:text/html,"
         + quote(
             "<!doctype html><style>button:active {transform: scale(.9875)}</style>"
-            '<button id="control">Control</button>'
+            + PRESSES[press]
+            + '<button id="control" style="position: absolute; inset: 0 auto auto 0;'
+            f' width: 9em"{" hidden" if PRESSES[press] else ""}>Control</button>'
         )
     )
     paint(page)
-    page.locator("#control").tap()
+    page.locator("#door" if PRESSES[press] else "#control").tap()
+    expect(page.locator("#control")).to_be_visible()
     page.wait_for_function("() => !document.querySelector(':active')")
     page.evaluate(FRAMES, 4)
     judge_watches()

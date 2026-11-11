@@ -67,6 +67,7 @@
    same (reading-place.js, `capturePlace`; version.js). */
 import {
   clippedPlace,
+  fixedInWindow,
   inFront,
   layoutWindow,
   seenRect,
@@ -76,7 +77,8 @@ import {
 } from "./geometry.js";
 import { pageScroller, placeKept, scrollChoices, scrollGoal } from "./scrolling.js";
 import { edgeAt, holderOf, returnTo, scrollersOf } from "./scroll-containers.js";
-import { inChrome, renderedParent, under } from "./shadow-tree.js";
+import { anchorNamed } from "./css-anchors.js";
+import { inChrome, isElement, renderedParent, under } from "./shadow-tree.js";
 import {
   declareFocusPlace,
   focused,
@@ -108,6 +110,31 @@ const boxStoodAt = (node) => {
   return null;
 };
 
+// The boxes whose scroll moves `node`, innermost first. The walk up through the boxes
+// scrolling it stops at a box fixed in the window (`scrollersOf`), but a fixed box
+// anchored by Leaf, as the thread card, the comment box and the margin's rows are
+// (css-anchors.js), rides every scroll that carries its anchor, so the walk goes on
+// from there. A scroller's own scroll carries the start of its content, but not the
+// scroller's own box, which a box in a reading region is anchored to.
+/** @param {Element} node @returns {Element[]} */
+const carriers = (node) => {
+  const boxes = [...scrollersOf(node)];
+  /** @type {Node | null} */
+  let fixed = boxes.at(-1) ?? node;
+  if (fixed === pageScroller) return boxes;
+  while (fixed instanceof Element && !fixedInWindow(fixed))
+    fixed = renderedParent(fixed);
+  const anchor =
+    fixed instanceof Element && anchorNamed(getComputedStyle(fixed).positionAnchor);
+  if (!anchor) return boxes;
+  return [
+    ...boxes,
+    ...(isElement(anchor)
+      ? carriers(anchor).filter((box) => box !== anchor)
+      : carriers(anchor.scroller)),
+  ];
+};
+
 // The focused node while it is where the user is: while any of it, or the box it stands
 // at (`standsAt`), is in front of them (geometry.js, `seenRect`), or while a motion under
 // way is still carrying them to it (`carried`), since a walk focuses its stop before
@@ -131,7 +158,7 @@ export function focusPlace() {
   if (!node || node === document.body) return null;
   const box = boxStoodAt(node);
   if (box && seenRect(box, new Map())) return node;
-  const boxes = [...scrollersOf(node)];
+  const boxes = carriers(node);
   const [list] = boxes;
   const shown = list && list !== pageScroller && inChrome(list) ? list : node;
   if (seenRect(shown, new Map()) || carried(node, boxes)) return node;
@@ -279,11 +306,12 @@ export function holdPlace(node, standIn = () => null) {
 //
 // The keep yields to any scroll since the reading: a scroll the user or a landing chose
 // and ended (scrolling.js, `scrollChoices`), one the browser is still running, as a
-// smooth scroll or a wheel's glide (arrivals.js, `browserScrolls`), so it never
-// overrides a scroll under way. It yields to the user's own act since too, a press or a
-// key anywhere but in the field held (focus.js, `onUserInput`), whose result is its own
-// to place: a disclosure the user opened while a diff waited on its syntax grammar
-// moved 140px when the keep put the line read back. Words typed into the field held
+// smooth scroll or a wheel's glide, or has yet to start for the reader's input
+// (arrivals.js, `browserScrolls`), so it never overrides a scroll under way. It yields
+// to the user's own act since too, a press or a key anywhere but in the field held
+// (focus.js, `onUserInput`), whose result is its own to place: a disclosure the user
+// opened while a diff waited on its syntax grammar moved 140px when the keep put the
+// line read back. Words typed into the field held
 // grow it where it stands, and leave it kept; focus leaving a place it named leaves
 // nothing of that place to keep. The user's own gesture draws its result in its own task and
 // places it there, so nothing here holds against it. Where the boxes scrolling the

@@ -148,10 +148,14 @@ that task gives it to the agent to pass on.
 
 ## Explore and extend
 
-- [How it works](https://leaf.page/how-it-works/): comments, decisions, live
-  revisions, and the widgets a page can use.
 - [Examples](https://leaf.page/examples/): proposals, editable drafts, release
   workspaces, and code reviews.
+- [Using a page](https://leaf.page/using/): comments and threads, what each status
+  means, and the keyboard and touch routes.
+- [Writing a page](https://leaf.page/pages/): the widgets a page can use, themes and
+  layouts.
+- [How it works](https://leaf.page/how-it-works/): the exchange between agent and
+  page, the event log, revisions and the browser runtime.
 - [Extending](https://leaf.page/extending/): choose between page-local changes,
   reusable packages, and Leaf's shared kernel. Your agent can build a widget a
   task needs and use it in later pages.

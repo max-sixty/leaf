@@ -12,6 +12,24 @@ from leaf_dev.commands import record_demo
 from leaf_dev.example_data import catalog_sources, document_metadata, named_source
 
 
+def test_catalog_cards_name_the_packages_their_example_uses(tmp_path, monkeypatch):
+    """A card names each bundled package whose element its example's markup uses."""
+    source = named_source("examples")
+    for example in catalog_sources():
+        (tmp_path / example.name).write_text(example.read_text())
+    (tmp_path / "review-a-plan.html").write_text(
+        "<!doctype html><title>Plan</title><meta name=description content=Plan>"
+        '<main><lf-diff id="d"></lf-diff><lf-timeline id="t"></lf-timeline></main>'
+    )
+    monkeypatch.setattr(docs, "EXAMPLES", tmp_path)
+    composed = SourceDocument(docs.compose(source, source.read_text())).tree
+    card = composed.select_one(
+        'a.example-link[href="/examples/review-a-plan/"] .example-packages'
+    )
+    assert card is not None
+    assert card.text == "diff · timeline"
+
+
 def test_catalog_descriptions_follow_example_metadata(tmp_path, monkeypatch):
     """A page edit changes its catalog caption without editing the catalog.
 

@@ -565,16 +565,14 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
                 )
     else:
         # A card gives the refused turn's room back too, and its field grows to show
-        # the words whole: the card's own controls, and the page after it, move.
+        # the words whole: the reply box, and the page after it, move. A margin card
+        # holds its top through a send (`heldEdge`, thread-preview.js), so its reply
+        # box rises into that room while its head row stands still.
         def carried_by_card(problem):
             return problem.code == "moved-without-input" and any(
                 path
                 and path[-1].startswith(
-                    (
-                        "div.lf-box-ground.lf-margin-preview-ground",
-                        "lf-diff#patch",
-                        "p#continuity-tail",
-                    )
+                    ("div.lf-thread-reply", "lf-diff#patch", "p#continuity-tail")
                 )
                 for path in [problem.values["node"], *problem.values["beside"]]
             )
@@ -583,7 +581,12 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         space = owner.locator(":scope > .lf-reply-space")
         assert space.evaluate("node => node.getBoundingClientRect().height") == 0
         assert shows_whole(draft)
-        pose()
+        restored = pose()
+        if "close" in pending:
+            assert abs(restored["close"]["top"] - pending["close"]["top"]) < 0.5, (
+                pending,
+                restored,
+            )
     assert draft.evaluate("node => node.value") == words
     assert stored_draft_text(page, f"reply:{parent}") == words
     assert not [

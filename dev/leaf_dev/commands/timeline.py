@@ -311,7 +311,9 @@ def fork_entries(row: dict) -> list[dict]:
                 at,
                 "fork",
                 f"{row.get('agent') or 'working fork'}'s turn ended{took}: "
-                f"{row['outcome']}" + (f" ({row['why']})" if row.get("why") else ""),
+                f"{row['outcome']}"
+                + (f" ({row['why']})" if row.get("why") else "")
+                + (f", opening {', '.join(row['todos'])}" if row.get("todos") else ""),
                 thread=thread,
             )
         ]
@@ -608,6 +610,13 @@ def message_line(row: dict, kept: dict) -> str:
         )
     elif note is None or note["kept_back"]:
         told += "no fork"
+    if (work := row["work"]) is not None:
+        took = (
+            f" after {work['elapsed_s']:.1f}s" if work["elapsed_s"] is not None else ""
+        )
+        told += f" · its fork's turn ended{took}: {work['outcome']}" + (
+            f", {work['todos']} to-do" if work["todos"] else ""
+        )
     pickup = row.get("pickup") or {}
     cause = (
         f" ({pickup['cause']}"

@@ -108,6 +108,25 @@ const boxStoodAt = (node) => {
   return null;
 };
 
+// What each surface fixed over the page stands by while it floats (off-flow.js): every
+// scroll that moves that moves the surface, as the browser carries a box anchored to it,
+// though the walk up from the surface stops at its fixed box (`scrollersOf`).
+/** @type {Map<Element, () => Element | null>} */
+const stands = new Map();
+/** @param {Element} surface @param {() => Element | null} by */
+export function surfaceStandsBy(surface, by) {
+  stands.set(surface, by);
+}
+// The boxes whose scroll moves `node`, those of what its surface stands by included.
+/** @param {Element} node */
+const carriers = (node) => {
+  for (const [surface, by] of stands) {
+    const stand = under(node, surface) && by();
+    if (stand) return [...scrollersOf(stand)];
+  }
+  return [...scrollersOf(node)];
+};
+
 // The focused node while it is where the user is: while any of it, or the box it stands
 // at (`standsAt`), is in front of them (geometry.js, `seenRect`), or while a motion under
 // way is still carrying them to it (`carried`), since a walk focuses its stop before
@@ -131,7 +150,7 @@ export function focusPlace() {
   if (!node || node === document.body) return null;
   const box = boxStoodAt(node);
   if (box && seenRect(box, new Map())) return node;
-  const boxes = [...scrollersOf(node)];
+  const boxes = carriers(node);
   const [list] = boxes;
   const shown = list && list !== pageScroller && inChrome(list) ? list : node;
   if (seenRect(shown, new Map()) || carried(node, boxes)) return node;

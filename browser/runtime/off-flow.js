@@ -3,8 +3,12 @@
    it stands by while the user may still be in it, and none of the browser's own
    reveals can bring it back: a focus, a caret, or `scrollIntoView` scrolls the control's
    ancestors, and the surface is fixed over all of them. So each surface declares while
-   it floats and how it is brought back, and the runtime brings it back where the browser
-   would have revealed an ordinary control:
+   it floats, what it stands by, and how it is brought back, and the runtime brings it
+   back where the browser would have revealed an ordinary control. The scrolls that move
+   what it stands by move the surface, so a glide in one carries what the user stands on
+   in it (user-place.js, `focusPlace`): a walk focuses a card below the window and then
+   glides the page to what the card stands by, and a key pressed on the way is meant for
+   the card. The surface is brought back by:
 
    - a landing in it (`bringBackSurfaceOf`), which `scrollThreadIntoView` makes for every
      thread and the comment box makes when `c` enters it;
@@ -36,6 +40,7 @@ import { scrollBehavior } from "./motion.js";
 import { under } from "./shadow.js";
 import { onCurrentLocation } from "./focus.js";
 import { isElement } from "./shadow-tree.js";
+import { surfaceStandsBy } from "./user-place.js";
 
 /** @typedef {{surface: Element, floats: () => boolean, away: () => boolean,
  * bringBack: (behavior: ScrollBehavior) => unknown}} OffFlowSurface */
@@ -61,13 +66,14 @@ function follow({ surface, floats, away, bringBack }, node, behavior) {
 }
 
 /** @param {Element} surface @param {Omit<OffFlowSurface, "surface" | "floats" | "away"> &
- * {floats?: () => boolean, away?: () => boolean}} reading */
+ * {floats?: () => boolean, away?: () => boolean, standsBy: () => Element | null}} reading */
 export function declareOffFlowSurface(
   surface,
-  { floats = () => true, away = () => false, bringBack },
+  { floats = () => true, away = () => false, standsBy, bringBack },
 ) {
   const reading = { surface, floats, away, bringBack };
   surfaces.set(surface, reading);
+  surfaceStandsBy(surface, () => (floats() ? standsBy() : null));
   surface.addEventListener(
     "lf-before-edit",
     (event) => {

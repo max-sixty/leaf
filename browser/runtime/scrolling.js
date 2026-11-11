@@ -570,36 +570,12 @@ export function glideTo(box, top) {
   });
 }
 
-// A box standing on its foot beside a field that writes into it, as a thread's view in
-// the panel stands on its field and a card's transcript on its reply box, keeps what
-// stands at its foot as the field takes room from it or gives it back: the box gives way
-// at its top, so the message the user is answering stays beside their words. A reading
-// in which what the box holds changed size too keeps nothing, leaving that change to the
-// code that places it, a reply drawn or a send. Where the foot stood is read at each of
-// the box's scrolls and readings, before the next change of its room. Read when that
-// change is answered, by a keystroke's handler or a card's fit, it was read too late
-// wherever the room had already changed, which Firefox showed for a draft from another
-// tab or a resized window. The exception is the clamp a growth makes at the box's end,
-// whose scroll can arrive before the reading that answers the growth. `atEnd` keeps the
-// foot only while it is the box's end: a card read back keeps its reader's offset
-// (thread-preview.js, `measureThreadCard`).
-/** @param {HTMLElement} box @param {{atEnd?: boolean}} [options]
+// Watch the size of a box and of each child it holds, as children come and go: what
+// changes a scroller's room, its end or what it holds.
+/** @param {HTMLElement} box @param {(entries: ResizeObserverEntry[]) => void} changed
  * @returns {() => void} */
-export function keepFoot(box, { atEnd = false } = {}) {
-  /** @type {{room: number, top: number, end: boolean} | null} */
-  let foot = null;
-  const observer = sizeObserver((entries) => {
-    const room = box.clientHeight;
-    if (
-      foot &&
-      room !== foot.room &&
-      (!atEnd || foot.end) &&
-      entries.every(({ target }) => target === box)
-    ) {
-      moveScrollerBy(box, foot.top + foot.room - room - box.scrollTop);
-    }
-    foot = { room, top: box.scrollTop, end: atScrollEnd(box) };
-  });
+function watchHeld(box, changed) {
+  const observer = sizeObserver(changed);
   observer.observe(box);
   for (const child of box.children) observer.observe(child);
   const children = new MutationObserver((records) => {
@@ -611,6 +587,33 @@ export function keepFoot(box, { atEnd = false } = {}) {
     }
   });
   children.observe(box, { childList: true });
+  return () => {
+    observer.disconnect();
+    children.disconnect();
+  };
+}
+
+// A box standing on its foot beside a field that writes into it, as a thread's view in
+// the panel stands on its field, keeps what stands at its foot as the field takes room
+// from it or gives it back: the box gives way at its top, so the message the user is
+// answering stays beside their words. A reading in which what the box holds changed size
+// too keeps nothing, leaving that change to the code that places it, a reply drawn or a
+// send. Where the foot stood is read at each of the box's scrolls and readings, before
+// the next change of its room. Read when that change is answered, by a keystroke's
+// handler, it was read too late wherever the room had already changed, which Firefox
+// showed for a draft from another tab or a resized window. The exception is the clamp a
+// growth makes at the box's end, whose scroll can arrive before the reading that answers
+// the growth.
+/** @param {HTMLElement} box @returns {() => void} */
+export function keepFoot(box) {
+  /** @type {{room: number, top: number} | null} */
+  let foot = null;
+  const stopWatching = watchHeld(box, (entries) => {
+    const room = box.clientHeight;
+    if (foot && room !== foot.room && entries.every(({ target }) => target === box))
+      moveScrollerBy(box, foot.top + foot.room - room - box.scrollTop);
+    foot = { room, top: box.scrollTop };
+  });
   const scrolled = () => {
     if (
       !foot ||
@@ -618,12 +621,71 @@ export function keepFoot(box, { atEnd = false } = {}) {
     )
       return;
     foot.top = box.scrollTop;
-    foot.end = atScrollEnd(box);
   };
   box.addEventListener("scroll", scrolled, { passive: true });
   return () => {
-    observer.disconnect();
-    children.disconnect();
+    stopWatching();
+    box.removeEventListener("scroll", scrolled);
+  };
+}
+
+// A box that follows its end, as a margin card's transcript does, keeps a reader who
+// stands at its end there through whatever changes its size or what it holds: its room,
+// as the reply box beside it takes height or gives it back, or the card refits; a turn
+// drawn at its end; a turn growing after it is drawn, as a picture in it loads. A reader
+// who scrolled back keeps their offset. Whether the reader stands at the end is read at
+// each scroll, against the end as the box stood after its last change, since by the
+// time a change is seen its end has already moved past them (bounds.js reads an `end`
+// log's reader so too), and a scroll whose event arrives between the change and its
+// size reading reached the end the reader saw. A box moved back from where that reading
+// stood it, or headed back by a glide that has yet to move it, as to an earlier turn,
+// stays where it was sent. Layout may carry it the other way in the change itself, as
+// Chromium's scroll anchoring did by 58px as a shorter window shrank a card's
+// transcript, and that reader still stands at the end. A change that leaves the end
+// where it stood asks nothing, and one that leaves the reader at the new end writes
+// nothing, since no scroll write that moves nothing is made (arrivals.js, `setScroll`):
+// in Firefox, a card that put its transcript back at an end it already stood at
+// flattened the rubber band of every flick into it. Whenever the end moves under a
+// reader who stood at it, the box first asks `yields`, with how it stood before the
+// change (its scroll height and end), whether another placer places this end, as the
+// thread places an answer to the user's turn (thread-card.js,
+// `placesEnd`). It asks even where layout has already carried the reader to the new
+// end, as Chromium's scroll anchoring does when the node it holds still stands below
+// the growth, such as the end of an answer whose picture loads.
+/** @typedef {{extent: number, limit: number}} BoxExtent */
+/** @param {HTMLElement} box @param {(before: BoxExtent) => boolean} yields
+ * @returns {() => void} */
+export function followEnd(box, yields) {
+  /** @type {BoxExtent & {top: number, end: boolean} | null} */
+  let stood = null;
+  /** @param {BoxExtent} seen */
+  const stand = ({ extent, limit }) => {
+    const top = box.scrollTop;
+    const goal = holding(box)?.goal ?? top;
+    stood = {
+      top,
+      extent,
+      limit,
+      end: limit - top <= SCROLL_SLACK && limit - goal <= SCROLL_SLACK,
+    };
+  };
+  const extentNow = () => ({ extent: box.scrollHeight, limit: scrollLimit(box) });
+  const stopWatching = watchHeld(box, () => {
+    const back = stood ? stood.top - SCROLL_SLACK : 0;
+    if (
+      stood?.end &&
+      scrollLimit(box) !== stood.limit &&
+      box.scrollTop >= back &&
+      (holding(box)?.goal ?? box.scrollTop) >= back &&
+      !yields(stood)
+    )
+      scrollToEnd(box);
+    stand(extentNow());
+  });
+  const scrolled = () => stand(stood ?? extentNow());
+  box.addEventListener("scroll", scrolled, { passive: true });
+  return () => {
+    stopWatching();
     box.removeEventListener("scroll", scrolled);
   };
 }

@@ -49,8 +49,8 @@ design nobody has tried; settle that before building it.
 
 An issue assigned to Max (`max-sixty`) needs his decision, review or go-ahead
 before more work, and its body says which. The agent that takes up his answer
-unassigns him. Every unassigned item is open to an agent working unattended, and an
-agent that finds one needs the user assigns Max.
+unassigns him. Every unassigned item is open to an agent working unattended. An
+agent that finds an unassigned item needing Max's decision assigns him.
 
 To list the items open to an agent that no pull request has claimed, start with
 `now`, then `next`:

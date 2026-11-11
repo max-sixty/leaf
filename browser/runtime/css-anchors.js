@@ -97,9 +97,19 @@ import { chromeRoot } from "./chrome.js";
 // watch gives it back in the same mutation checkpoint (`keepParts`).
 /** @type {WeakMap<Element, string>} */
 const anchorNames = new WeakMap();
-// Each name back to the box whose scrolls carry what is anchored by it (`anchorHolder`).
+// Each name back to the box whose scrolls carry what is anchored by it (`anchorHolder`),
+// forgotten once that box is collected, so the map holds only boxes still alive.
 /** @type {Map<string, WeakRef<Element>>} */
 const holders = new Map();
+const collected = new FinalizationRegistry((/** @type {string} */ name) => {
+  if (!holders.get(name)?.deref()) holders.delete(name);
+});
+/** @param {string} name @param {Element} holder */
+const holdName = (name, holder) => {
+  if (holders.get(name)?.deref() === holder) return;
+  holders.set(name, new WeakRef(holder));
+  collected.register(holder, name);
+};
 let anchorOrdinal = 0;
 const nextName = () => `--lf-a${++anchorOrdinal}`;
 /** @param {string} name */
@@ -156,7 +166,7 @@ export function anchorReading(el, name) {
   if (!isElement(el)) return { name: el.name };
   name ??= anchorNames.get(el) ?? nextName();
   anchorNames.set(el, name);
-  holders.set(name, new WeakRef(el));
+  holdName(name, el);
   if (el.getRootNode() !== document)
     return partNamed(el) ? { el, name } : { el, name, write: name, part: true };
   const written = inlineStyle(el).anchorName;
@@ -373,7 +383,7 @@ function contentStart(scroller) {
       },
     };
     starts.set(scroller, handle);
-    holders.set(handle.name, new WeakRef(scroller));
+    holdName(handle.name, scroller);
   }
   const { name } = handle;
   if (scroller.getRootNode() === document) keeps(scroller, START, name);

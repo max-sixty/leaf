@@ -17,7 +17,7 @@ changing anything Leaf draws, read that file's "Leaf's interface".
 
 ## Take a backlog item
 
-Pick an issue labelled `backlog`, not `waits-on-user`, that no pull request links
+Pick an issue labelled `backlog`, assigned to nobody, that no pull request links
 (`TODO.md` has the query), and open its pull request early, as a draft if need be,
 with `Closes #N` in the body, so the next session sees the item taken.
 

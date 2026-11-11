@@ -31,16 +31,16 @@
    Keep them as named readings. A boolean passed to one ambiguous reader makes callers
    choose semantics at each call site.
 
-   `pageText` is the page's whole reading, and every caller shares one of it until the
-   page changes underneath. It is put together from pieces kept apart, the frame and
-   each datum that is a part (`Piece`), so a change walks again only the piece it lands
-   in, and a reader that needs only some parts, as the reading place needs those in view,
-   reads only those. The document reports its own changes, so anything else the
-   reading is built out of has to say so here: `fencePassageParts` for the widget parts
-   the cell walk fences on, `watchPassageRoot` for a declared shadow stage the walk
-   crosses into, and the registry generation, which `pageText` reads each time. A new
-   input with no door is a reading that goes stale silently — the mark lands on the
-   words the page used to say. The reverse holds too: a change lands where the walk
+   The page's reading is kept in pieces, the frame and each datum that is a part
+   (`Piece`), and every caller shares each piece until it changes underneath, so a change
+   walks again only the piece it lands in, and a reader reads only the pieces it needs:
+   `pageText()` is the frame's, where prose stands, `pageText(part)` a part's, and the
+   reading place reads the parts in view. The document reports its own changes, so
+   anything else the reading is built out of has to say so here: `fencePassageParts` for
+   the widget parts the cell walk fences on, `watchPassageRoot` for a declared shadow
+   stage the walk crosses into, and the registry generation, which `pageText` reads each
+   time. A new input with no door is a reading that goes stale silently — the mark lands
+   on the words the page used to say. The reverse holds too: a change lands where the walk
    reads or it is no change to the reading, by the walk's own rules (`contextAt`), so
    the runtime repainting its chrome does not cost the page a walk. A message's body is a
    document of its own (`authoredScope`) with a reading of its own, and a change, a
@@ -1069,39 +1069,55 @@ const beforePoint = (node, container, offset) => {
 // segments in `readingOrder`, so a test of whether a segment falls after a point in that
 // order has this form, and a binary search answers it in about twenty comparisons on a
 // page of two million segments.
-/** @param {readonly IndexedSegment[]} segments
- * @param {(segment: IndexedSegment) => boolean} test @param {number} [from] */
+/** @template {Segment} S @param {readonly S[]} segments
+ * @param {(segment: S) => boolean} test @param {number} [from] */
 function firstPassing(segments, test, from = 0) {
   let lo = from;
   let hi = segments.length;
   while (lo < hi) {
     const mid = (lo + hi) >> 1;
-    if (test(/** @type {IndexedSegment} */ (segments[mid]))) hi = mid;
+    if (test(/** @type {S} */ (segments[mid]))) hi = mid;
     else lo = mid + 1;
   }
   return lo;
 }
 
-// The reading a range's words are read in: the part of the page's reading both its ends
-// stand in, read alone, as a passage in a datum is captured in its datum's words
-// (anchor-resolution.js), else the whole page's. So selecting a line of one document
-// reads that document, and a selection's snap (composing/capture.js) stops at its edges.
+// The reading of the one piece a range's words stand in: the part both its ends stand
+// in, read alone, as a passage in a datum is captured in its datum's words
+// (anchor-resolution.js), or the frame's where the range holds no part's words. Null
+// where it crosses a part's edge. So selecting a line of one document reads that
+// document.
 /** @param {AbstractRange} range */
-export function rangeReading(range) {
+function rangeReading(range) {
   catchUpReading();
-  const part = inPage(range.startContainer) ? partOf(range.startContainer) : null;
-  return part && part === partOf(range.endContainer) ? pageText(part) : pageText();
+  const { startContainer, endContainer } = range;
+  const part = inPage(startContainer) ? partOf(startContainer) : null;
+  if (part) return part === partOf(endContainer) ? pageText(part) : null;
+  if (inPage(endContainer) && partOf(endContainer)) return null;
+  return readingParts().some((root) => covers(range, root)) ? null : pageText();
 }
+// Whether a range starts before a node and ends after it begins.
+/** @param {AbstractRange} range @param {Node} node */
+const covers = (range, node) =>
+  !beforePoint(node, range.startContainer, range.startOffset) &&
+  beforePoint(node, range.endContainer, range.endOffset);
 // The page reading's segments a range covers, clipped to where it starts and ends. They
 // run from the first segment that is not before the range's start up to the first that
-// is not before its end, and include that one when it is the end's own text node.
-// Callers place a passage in that reading (`spanIn`), so the segments are the reading's
-// own. A walk from the range's own root reads whatever that root holds: select-all
-// beside an x-shadow widget composes a range over <html>, and the reading has no
-// position for its <title>.
-/** @param {AbstractRange} range @param {PageReading} [reading] */
-export function segmentsIn(range, reading = rangeReading(range)) {
-  const { segments } = reading;
+// is not before its end, and include that one when it is the end's own text node. They
+// are the segments of the one piece the range stands in (`rangeReading`), or, across a
+// part's edge, those of each piece it touches, in reading order. A walk from the range's
+// own root reads whatever that root holds: select-all beside an x-shadow widget composes
+// a range over <html>, and the reading has no position for its <title>.
+/** @param {AbstractRange} range */
+export function segmentsIn(range) {
+  const reading = rangeReading(range);
+  /** @param {Element} root */
+  const touched = (root) =>
+    readingUnder(range.startContainer, root) ||
+    readingUnder(range.endContainer, root) ||
+    covers(range, root);
+  const segments =
+    reading?.segments ?? pageRuns(touched).flatMap((run) => run.segments);
   const { startContainer, startOffset, endContainer, endOffset } = range;
   const first = firstPassing(
     segments,
@@ -1845,39 +1861,36 @@ const changesTheReading = (record, reads) => {
   return wasSaid || holdsSaid(target) || reads(target.parentNode);
 };
 // Each document's reading, kept until something it is built out of moves: the page's
-// whole reading (`pageText`) and its outline (`documentOutline`), or a message's outline.
+// outline (`documentOutline`) and the readings of elements in its frame (`pageText`), or
+// a message's outline.
 // A record is replaced, never changed, so the record a reader took is which reading it
 // read. A change forgets the reading of the document it lands in and that one alone
 // (`forget`); a change no one document owns, the vocabulary or a settlement, forgets them
 // all. What a reader keeps to know which reading it read is the record's `token`, an
 // empty object, so a key or a kept answer that outlives the reading holds none of it.
-/** @typedef {{token: object, page: PageReading | null, outline: OutlineReading | null, within: WeakMap<Element, PageReading>}} DocumentReading */
+/** @typedef {{token: object, outline: OutlineReading | null, within: WeakMap<Element, PageReading>}} DocumentReading */
 /** @type {WeakMap<Element, DocumentReading>} */
 let documents = new WeakMap();
 /** @param {Element} scope */
 function documentReading(scope) {
   let kept = documents.get(scope);
   if (!kept)
-    documents.set(
-      scope,
-      (kept = { token: {}, page: null, outline: null, within: new WeakMap() }),
-    );
+    documents.set(scope, (kept = { token: {}, outline: null, within: new WeakMap() }));
   return kept;
 }
 /** @param {Element | null} scope */
 const forget = (scope) => {
   if (scope) documents.delete(scope);
 };
-// Beneath the page's reading, the pieces it is put together from (`Piece`), each kept
-// until a change lands in it, so a change re-reads only the piece it lands in and a
-// reader of the whole page puts the rest together from what was kept (`wholeReading`).
-// A part is a datum, the outermost on the climb the walk comes down (`partOf`): a page
-// grows large through its widgets' data, and a datum's words are read alone where a
-// quote in it is found. On a page of 30 text documents of 4 MB, reading the whole page
-// took 2.3 to 2.6 s in Chromium and 3.6 to 4.2 s in Firefox, and one document 60 to
-// 130 ms. The frame is the rest of the page, read with each part left out where it
-// stands (`collect`). A heading, header or hgroup is never a part, since it heads what
-// stands outside it (`outlineFold`).
+// The page's reading is kept in pieces (`Piece`), each until a change lands in it, so a
+// change re-reads only the piece it lands in. A part is a datum, the outermost on the
+// climb the walk comes down (`partOf`): a page grows large through its widgets' data, and
+// a datum's words are read alone where a quote in it is found. On a page of 30 text
+// documents of 4 MB, reading the whole page took 2.3 to 2.6 s in Chromium and 3.6 to
+// 4.2 s in Firefox, and one document 60 to 130 ms. The frame is the rest of the page,
+// read with each part left out where it stands (`collect`), and nothing reads the two
+// together (`pageText`). A heading, header or hgroup is never a part, since it heads
+// what stands outside it (`outlineFold`).
 //
 // The owner of each change drops the pieces it touches, and nothing else does: the
 // watcher for the page's own changes (`touch`), and the doors for the rest
@@ -1885,9 +1898,9 @@ const forget = (scope) => {
 // (`elementReading`), so they stand while only other pieces change. The page's own
 // token moves with any piece, since the words an element in the frame holds can be any
 // part's.
-/** @typedef {{root: Element, at: number, breakBefore: boolean, heading: number}} PartMark
- * @typedef {{segments: Segment[], chains: (CellChain | null)[], trailing: boolean,
- * marks: PartMark[], outline: OutlineReading}} Collected
+/** @typedef {{root: Element, at: number, heading: number}} PartMark
+ * @typedef {{segments: Segment[], chains: (CellChain | null)[], marks: PartMark[],
+ * outline: OutlineReading}} Collected
  * @typedef {{block: Element | null, segments: Segment[]}} BlockRun
  * @typedef {{token: object, collected: Collected | null, reading: PageReading | null,
  * within: WeakMap<Element, PageReading>, runs: (BlockRun | PartMark)[] | null,
@@ -1916,7 +1929,7 @@ function partPiece(root) {
 // comes down (`readingParent`), so words a slot shows stand in the part the slot does.
 // Null for a node in the frame.
 /** @param {Node} node @returns {Element | null} */
-function partOf(node) {
+export function partOf(node) {
   /** @type {Element | null} */
   let part = null;
   for (let at = /** @type {Node | null} */ (node); at; at = readingParent(at))
@@ -1924,36 +1937,52 @@ function partOf(node) {
   return part;
 }
 // Forgets the piece `node` stands in. With `under`, as for a change to the markers the
-// walk reads at `node`, every kept part under it goes too, since each part's context
-// comes down through it, and so does the frame where `node` is a part's root, since the
-// frame reads where each part stands and whether it is one.
-/** @param {Node} node @param {boolean} under @returns {Element | null} the part */
-function forgetPiece(node, under) {
+// walk reads at `node`, the parts under it go as well, since each part's context comes
+// down through it and a part under a new part is one no longer: `node` joins `beneath`,
+// which a batch of changes reads once (`forgetPartsBeneath`). The frame goes too where
+// `node` is a part's root, since the frame reads where each part stands and whether it
+// is one.
+/** @param {Node} node @param {boolean} under @param {Set<Node>} beneath
+ * @returns {Element | null} the part */
+function forgetPiece(node, under, beneath) {
   const part = partOf(node);
   if (part) parts.delete(part);
   else frame = null;
+  if (under) beneath.add(node);
   if (under && part === node) frame = null;
-  if (under && !part) forgetPartsUnder(node);
   return part;
 }
-/** @param {Node} node */
-function forgetPartsUnder(node) {
-  for (const root of parts.keys()) if (readingUnder(root, node)) parts.delete(root);
+// Forgets each kept part that stands under any of `nodes`, climbing from each part as the
+// walk comes down, so a batch costs the kept parts' depth however many nodes it changed.
+/** @param {ReadonlySet<Node>} nodes */
+function forgetPartsBeneath(nodes) {
+  if (!nodes.size) return;
+  for (const root of parts.keys())
+    for (let at = /** @type {Node | null} */ (root); at; at = readingParent(at))
+      if (nodes.has(at)) {
+        parts.delete(root);
+        break;
+      }
 }
 // The pieces a record of the page's changes touches: the one its target stands in; for
-// nodes put in or taken out, the parts they hold, which may have moved; for a host's
-// children, every part in its tree, since its slots may show them differently now; for a
-// marker on an element, everything under it; and for a node's slot, everything under the
-// host that assigns it.
-/** @param {MutationRecord} record */
-function touch(record) {
+// nodes put in or taken out, the parts they hold, which may have moved; for a marker on
+// an element, everything under it; and for anything that changes which slot shows which
+// of a host's children, everything under that host: its children, a slot put into or
+// taken out of its tree, a node's `slot` and a slot's `name`.
+/** @param {MutationRecord} record @param {Set<Node>} beneath */
+function touch(record, beneath) {
   const { target } = record;
-  if (record.type === "characterData") return forgetPiece(target, false);
+  if (record.type === "characterData") return void forgetPiece(target, false, beneath);
   if (record.type === "childList") {
+    const nodes = [...record.addedNodes, ...record.removedNodes];
+    const root = target.getRootNode();
+    const host = shadowHost(root);
+    if (host && declaredRoot(host) === root && nodes.some(holdsSlot))
+      forgetPiece(host, true, beneath);
+    const assigns = isElement(target) && declaredRoot(target) !== null;
     // Only the frame holds parts: what a part gains or loses is its own.
-    if (forgetPiece(target, isElement(target) && declaredRoot(target) !== null)) return;
-    for (const node of [...record.addedNodes, ...record.removedNodes])
-      if (isElement(node)) forgetPartsUnder(node);
+    if (forgetPiece(target, assigns, beneath)) return;
+    for (const node of nodes) if (isElement(node)) beneath.add(node);
     return;
   }
   const assigns =
@@ -1962,8 +1991,11 @@ function touch(record) {
       : record.attributeName === "name"
         ? shadowHost(target.getRootNode())
         : null;
-  forgetPiece(assigns ?? target, true);
+  forgetPiece(assigns ?? target, true, beneath);
 }
+/** @param {Node} node */
+const holdsSlot = (node) =>
+  isElement(node) && (node.localName === "slot" || node.querySelector("slot") !== null);
 /** Which reading of the page stands: a new value each time the page's is forgotten, so a
  * reading derived from the page's own nodes, as the visual responses are, keeps what it
  * derived while this stands. It holds nothing of the reading itself.
@@ -1981,13 +2013,15 @@ function hear(records) {
   /** @type {Set<Element>} */
   const moved = new Set();
   const page = pageDocument();
-  const keeping = hearers.size > 0 || index.entries.size > 0;
+  const keeping = hearers.size > 0 || index.pieces.size > 0;
   /** @type {Set<Node>} */
   const written = new Set();
   /** @type {Set<string>} */
   const ids = new Set();
   /** @type {Set<Element>} */
   const renamed = new Set();
+  /** @type {Set<Node>} */
+  const beneath = new Set();
   // The ids an element and what it holds bear, where an id is looked for
   // (`elementById`).
   /** @param {Node} node */
@@ -2016,7 +2050,7 @@ function hear(records) {
     if (!changesTheReading(record, readsIn(scope))) continue;
     moved.add(scope);
     if (scope !== page) continue;
-    touch(record);
+    touch(record, beneath);
     if (!keeping) continue;
     if (record.type === "characterData") written.add(target);
     if (record.type !== "childList") continue;
@@ -2028,6 +2062,7 @@ function hear(records) {
       else if (isElement(node))
         walk(declaredRoot(node) ?? node, (text) => written.add(text));
   }
+  forgetPartsBeneath(beneath);
   for (const scope of moved) forget(scope);
   if (moved.has(page) || ids.size) tellHearers({ written, ids, renamed });
 }
@@ -2039,7 +2074,9 @@ function changedAt(node) {
   const scope = readingDocument(node);
   forget(scope);
   if (!scope || scope !== pageDocument()) return;
-  forgetPiece(node, true);
+  const beneath = new Set();
+  forgetPiece(node, true, beneath);
+  forgetPartsBeneath(beneath);
   tellHearers(NOTHING_CHANGED);
 }
 function watchReading() {
@@ -2074,7 +2111,8 @@ const NOTHING_CHANGED = Object.freeze({
 });
 /** @param {WordsChange} change */
 function tellHearers(change) {
-  for (const node of index.entries.size ? change.written : []) rewrittenText.add(node);
+  for (const piece of index.pieces.values())
+    for (const node of change.written) piece.rewritten.add(node);
   for (const hear of hearers) hear(change);
 }
 // The changes the watcher holds and hasn't yet delivered, heard now, so a reader in the
@@ -2139,46 +2177,60 @@ export function fencePassageParts(root, children = root.children) {
 // would be handed the reading from before its own edit. Draining the queue at the read asks
 // the observer what it has seen instead of waiting to be told.
 //
+// `pageText()` is the frame's reading: the page's words outside its parts, with a fence
+// where each part stands. A quote in prose never stands in a part, since every part is a
+// datum, which the projection stamps a passage cell of its own (projection/data.js), and
+// a selection whose words all lie in one datum is captured on that datum
+// (anchor-resolution.js, `anchorForPassage`). So prose is searched, captured and snapped
+// in the frame alone, and no reader puts the parts' words together with it.
+//
 // `within` asks for the words under one element, read alone with its edges as the
 // reading's ends, so a neighbourhood read inside it stops there. A quote anchored in a
-// datum is captured and found again in its datum's words alone (anchor-resolution.js),
-// so finding one costs what the datum holds. A part's own reading is kept as its piece
-// is, and another element's with the piece it stands in. `within` is an element the
-// page reading reaches, as a datum is: under a shadow root the page doesn't read, its
-// reading would hold words the whole skips, whose changes no watcher reports.
+// datum is captured and found again in its datum's words alone, so finding one costs
+// what the datum holds. A part's own reading is kept as its piece is, and another
+// element's with the piece it stands in. `within` is an element the page reading
+// reaches, as a datum is: under a shadow root the page doesn't read, its reading would
+// hold words the page skips, whose changes no watcher reports.
 /** @param {Element | null} [within] */
 export function pageText(within = null) {
   catchUpReading();
-  const page = documentReading(pageDocument());
-  if (!within) return (page.page ??= wholeReading());
+  if (!within) {
+    const piece = framePiece();
+    if (!piece.reading) {
+      const { segments, chains, marks } = frameCollected();
+      piece.reading = indexed(segments, chains, marks);
+      readingPieces.set(piece.reading, pageDocument());
+    }
+    return piece.reading;
+  }
   const part = inPage(within) ? partOf(within) : null;
   if (part && part === within) {
     const piece = partPiece(part);
     if (!piece.reading) {
       const { segments, chains } = partCollected(part);
-      readingRoots.set((piece.reading = indexed(segments, chains)), part);
+      readingPieces.set((piece.reading = indexed(segments, chains)), part);
     }
     return piece.reading;
   }
-  const kept = part ? partPiece(part).within : page.within;
+  const kept = part ? partPiece(part).within : documentReading(pageDocument()).within;
   let reading = kept.get(within);
   if (!reading) {
     const { segments, chains } = collect(within, false);
     kept.set(within, (reading = indexed(segments, chains)));
-    readingRoots.set(reading, within);
   }
   return reading;
 }
-// The element each reading `pageText` read alone was read under.
+// The piece each kept reading of a piece is the reading of: a part's root, or the page's
+// body for the frame (`index`).
 /** @type {WeakMap<PageReading, Element>} */
-const readingRoots = new WeakMap();
-// The reading `pageText(root)` would answer now where it kept one, without reading.
-/** @param {Element} root @returns {PageReading | null} */
-function keptWithin(root) {
-  const part = inPage(root) ? partOf(root) : null;
-  if (part && part === root) return parts.get(part)?.reading ?? null;
-  const kept = part ? parts.get(part)?.within : documents.get(pageDocument())?.within;
-  return kept?.get(root) ?? null;
+const readingPieces = new WeakMap();
+// The reading of the piece a node stands in: its part's, or the frame's.
+/** @param {Node} node */
+export const readingOf = (node) => pageText(inPage(node) ? partOf(node) : null);
+// The roots of the page's parts, in reading order.
+export function readingParts() {
+  catchUpReading();
+  return frameCollected().marks.map(({ root }) => root);
 }
 function catchUpReading() {
   hear(watchReading().takeRecords());
@@ -2196,7 +2248,7 @@ function catchUpReading() {
 // A reading of one element's words, kept exactly as long as the piece of its document's
 // reading it stands in (`readingDocument`, `partOf`): the watcher above is what says
 // either has moved. An element in the page's frame holds whatever parts stand under it,
-// so it keeps its words as long as the page's whole reading. Margin rows, the Page Map
+// so it keeps its words only while no piece of the page changes. Margin rows, the Page Map
 // and every label ask the same elements for their words on every pass, and each walk
 // asks every text node under the element where it stands, which on a long page costs
 // more than the pass it serves. An element no document reads — chrome, a node since
@@ -2265,8 +2317,7 @@ export function keptAnswer(element, question, answer) {
 // whether a break stood before it, and the outline the walk records. A root outside the
 // page, such as a widget in a message the panel shows, holds none of the page's words.
 // With `marksParts`, as the frame is read, each part is left out where it stands, marked
-// with how far through the words and the outline the walk had come and whether a break
-// stood before it; `trailing` is whether one stands after the last word.
+// with how far through the words and the outline the walk had come.
 /** @param {Element} root @param {boolean} marksParts @returns {Collected} */
 function collect(root, marksParts) {
   /** @type {Segment[]} */
@@ -2292,14 +2343,8 @@ function collect(root, marksParts) {
         if (!marksParts || !isPart(child)) return false;
         const inner = enter(ctx, child);
         outline.enter(child, inner, true);
-        marks.push({
-          root: child,
-          at: segments.length,
-          breakBefore,
-          heading: outline.count(),
-        });
+        marks.push({ root: child, at: segments.length, heading: outline.count() });
         outline.enter(child, inner, false);
-        breakBefore = false;
         return true;
       },
       (ctx) => {
@@ -2308,47 +2353,17 @@ function collect(root, marksParts) {
       outline.enter,
       null,
     );
-  return { segments, chains, trailing: breakBefore, marks, outline: outline.read() };
+  return { segments, chains, marks, outline: outline.read() };
 }
 /** @param {Element} root */
 const partCollected = (root) => (partPiece(root).collected ??= collect(root, false));
 const frameCollected = () => (framePiece().collected ??= collect(pageDocument(), true));
-// The page's whole reading, put together from its pieces: the frame's words with each
-// part's spliced in at its mark, and a break the walk met before a part, or after its
-// last word, carried to the next word, as one walk of the page carries it.
-function wholeReading() {
-  const framed = frameCollected();
-  /** @type {Segment[]} */
-  const segments = [];
-  /** @type {(CellChain | null)[]} */
-  const chains = [];
-  let pending = false;
-  /** @param {Segment} segment @param {CellChain | null | undefined} chain */
-  const add = (segment, chain) => {
-    segments.push(
-      pending && !segment.breakBefore ? { ...segment, breakBefore: true } : segment,
-    );
-    chains.push(chain ?? null);
-    pending = false;
-  };
-  let k = 0;
-  for (const mark of framed.marks) {
-    for (; k < mark.at; k++)
-      add(/** @type {Segment} */ (framed.segments[k]), framed.chains[k]);
-    pending ||= mark.breakBefore;
-    const part = partCollected(mark.root);
-    part.segments.forEach((segment, at) => add(segment, part.chains[at]));
-    pending ||= part.trailing;
-  }
-  for (; k < framed.segments.length; k++)
-    add(/** @type {Segment} */ (framed.segments[k]), framed.chains[k]);
-  return indexed(segments, chains);
-}
 // Words in reading order as one string with a way back to the nodes they came from: a
 // space or an edge between each two (`spacedFrom`), and a fence wherever the passage cell
-// they stand in changes.
-/** @param {readonly Segment[]} segments @param {readonly (CellChain | null)[]} chains @returns {PageReading} */
-function indexed(segments, chains) {
+// they stand in changes, and where a part the frame leaves out stands (`marks`).
+/** @param {readonly Segment[]} segments @param {readonly (CellChain | null)[]} chains
+ * @param {readonly PartMark[]} [marks] @returns {PageReading} */
+function indexed(segments, chains, marks = []) {
   // Generated page-words that the registry does not model are their own passage cells:
   // the generated element a word of the reading stands in, where it is unmodelled.
   const dynamicWords = new Set();
@@ -2376,12 +2391,14 @@ function indexed(segments, chains) {
   let length = 0;
   /** @type {Element | null} */
   let previousCell = null;
+  const parted = new Set(marks.map(({ at }) => at));
   segments.forEach((seg, k) => {
     const cell = cellOf(chains[k]);
     if (k === 0) {
-      if (cell) fences.add(0);
+      if (cell || parted.has(0)) fences.add(0);
     } else {
-      if (cell !== previousCell && (cell || previousCell)) fences.add(length);
+      if ((cell !== previousCell && (cell || previousCell)) || parted.has(k))
+        fences.add(length);
       // A space where the reading reads one (`readSegments`), else an edge.
       const previous = /** @type {Segment} */ (segments[k - 1]);
       const spaced = spacedFrom(seg, previous);
@@ -2394,7 +2411,7 @@ function indexed(segments, chains) {
     length += seg.end - seg.start;
     previousCell = cell;
   });
-  if (previousCell) fences.add(length);
+  if (previousCell || parted.has(segments.length)) fences.add(length);
   return {
     raw: texts.join(""),
     positions,
@@ -2487,8 +2504,8 @@ function outlineReading(root) {
   walk(root, () => {}, null, null, outline.enter);
   return outline.read();
 }
-// The page's outline, put together as its whole reading is: the frame's, with the
-// headings of each part holding one spliced in at its mark. What stood over an element in
+// The page's outline, put together from its pieces: the frame's, with the headings of
+// each part holding one spliced in at its mark. What stood over an element in
 // a part is the part's own record of it under what stood over the part in the frame
 // (`joined`), so a part is read for its outline only where it holds a heading or someone
 // asks what stands over an element in it. A part's headings head nothing outside it,
@@ -2549,20 +2566,28 @@ const joined = (state, root, top) =>
     ...state,
     up: state.container === root ? top : (joined(state.up, root, top) ?? null),
   };
-// Whether a part holds a heading of the page's outline: not where no heading stands in it
-// or in a declared shadow tree under it, as in most parts of data, which then need no
-// walk for the outline; otherwise as its walk recorded.
+// Whether a part holds a heading of the page's outline: not where no heading stands in it,
+// in a declared shadow tree under it, or among what a slot in either shows, as in most
+// parts of data, which then need no walk for the outline; otherwise as its walk recorded.
 /** @param {Element} root */
 function partHeaded(root) {
   const piece = partPiece(root);
+  /** @param {Element} element */
+  const heading = (element) =>
+    element.matches(HEADING) || element.querySelector(HEADING);
+  /** @param {Element | ShadowRoot} scope */
+  const holds = (scope) =>
+    scope.querySelector(HEADING) !== null ||
+    [...scope.querySelectorAll("slot")].some((slot) =>
+      slot.assignedElements({ flatten: true }).some(heading),
+    );
   piece.headed ??=
     [
       root,
       ...liveStages().filter(
         (stage) => declaredRoot(stage.host) === stage && readingUnder(stage.host, root),
       ),
-    ].some((scope) => scope.querySelector(HEADING) !== null) &&
-    partCollected(root).outline.outline.length > 0;
+    ].some(holds) && partCollected(root).outline.outline.length > 0;
   return piece.headed;
 }
 // The container a heading heads, from where it stands on: what holds it, or what holds
@@ -2586,8 +2611,8 @@ export const headed = (heading) => {
 // what the user sees reads no part they can't see. A datum splits its parent's words, so
 // a block can hold a run on each side of one. Kept on the piece each run came from, so
 // it moves exactly when its words do.
-/** @param {(part: Element) => boolean} [reads] @returns {BlockRun[]} */
-export function pageRuns(reads = () => true) {
+/** @param {(part: Element) => boolean} reads @returns {BlockRun[]} */
+export function pageRuns(reads) {
   catchUpReading();
   const framed = frameCollected();
   const own = (framePiece().runs ??= runsOf(framed.segments, framed.marks));
@@ -2621,7 +2646,7 @@ function runsOf(segments, marks) {
   return runs;
 }
 // The blocks of those runs, each once (`blockAt`).
-/** @param {(part: Element) => boolean} [reads] */
+/** @param {(part: Element) => boolean} reads */
 export function pageBlocks(reads) {
   /** @type {Set<Element>} */
   const blocks = new Set();
@@ -2918,41 +2943,69 @@ function lettersBefore(raw, at, count) {
   return i;
 }
 
-// The quotes anchor placement keeps (`trackQuotes`), each with every copy the page
-// reads of it, carried from one reading to the next through what changed between the
-// two (`carry`), counting each carry that changed a quote (`version`), and which carry
-// each quote's copies, or the words a resolution read beside one, last changed in
+// The quotes anchor placement keeps (`trackQuotes`), each with every copy each piece of
+// the page's reading holds of it: the frame's, where a quote in prose stands, and each
+// part's, where a quote in that datum stands (`pageText`). A piece's copies are found
+// by one pass over it for every quote it lacks, when a search first asks it for one, and
+// are carried from one reading of it to the next through what changed between the two
+// (`carry`), counting each carry that changed a quote (`version`), and which carry each
+// quote's copies, or the words a resolution read beside one, last changed in
 // (`changedAt`), so a reader asks for the quotes changed since it last asked
-// (`quotesChanged`).
+// (`quotesChanged`). A change to one piece carries that piece's copies alone.
+/** @typedef {{reading: PageReading, entries: Map<string, QuoteEntry>,
+ * automaton: Automaton<QuoteEntry> | null, rewritten: Set<Node>}} PieceIndex */
 const index = {
-  /** @type {PageReading | null} */
-  reading: null,
-  /** @type {Map<string, QuoteEntry>} */
-  entries: new Map(),
-  // Built for the quotes the index keeps when a search first needs it.
-  /** @type {Automaton<QuoteEntry> | null} */
-  automaton: null,
+  /** @type {Set<string>} */
+  quotes: new Set(),
+  // By the piece's key in `readingPieces`.
+  /** @type {Map<Element, PieceIndex>} */
+  pieces: new Map(),
   version: 0,
 };
-// The text nodes changes wrote or took out since the index's reading (`tellHearers`),
-// read again even where the page then reads the same: their copies' ranges moved, and
-// with the node, its place inside or outside a section.
-/** @type {Set<Node>} */
-const rewrittenText = new Set();
-// The index brought to `now` from the reading it was last brought to. A copy before the
-// change stands where it stood, one after it stands moved by what the change put in or
-// took out, and one the change touched is gone; the copies there are now are read from
+// Each of `quotes`' copies in a piece: those a pass of its own found in this reading
+// already (`askedOf`), and the rest by one pass over it for all of them.
+/** @param {PieceIndex} piece @param {Iterable<string>} quotes */
+function addQuotes(piece, quotes) {
+  const { reading, entries } = piece;
+  const asked = askedOf.get(reading);
+  /** @type {QuoteEntry[]} */
+  const fresh = [];
+  for (const quote of quotes) {
+    const known = asked?.has(quote);
+    const found = known ? asked?.get(quote) : quoteEntry(quote);
+    asked?.delete(quote); // the index carries it from here
+    if (found) entries.set(quote, found);
+    if (found && !known) fresh.push(found);
+  }
+  piece.automaton = null;
+  if (fresh.length)
+    scan(reading, quotesAutomaton(fresh), 0, reading.raw.length, (entry, copy) =>
+      entry.copies.push(copy),
+    );
+}
+// The reading the piece keyed `key` has now, read again where it changed; null where it
+// is no longer a piece: a part taken out, or one inside another now.
+/** @param {Element} key */
+function pieceReading(key) {
+  if (key === pageDocument()) return pageText();
+  return inPage(key) && partOf(key) === key ? pageText(key) : null;
+}
+// A piece's index brought to `now` from the reading it was last brought to. A copy before
+// the change stands where it stood, one after it stands moved by what the change put in
+// or took out, and one the change touched is gone; the copies there are now are read from
 // the change and as many letters before it as the widest quote holds, since a copy that
-// starts further back ends before the change. A text node a change rewrote counts as
-// changed wherever it stands in both. Each quote whose copies moved has changed, and so
-// has one with a change in the words a resolution read beside a copy of it.
-/** @param {PageReading} now */
-function carry(now) {
-  const was = index.reading;
-  const rewritten = [...rewrittenText];
-  index.reading = now;
-  rewrittenText.clear();
-  if (!was || was === now || !index.entries.size) return;
+// starts further back ends before the change. A text node a change rewrote (`rewritten`,
+// from `tellHearers`) counts as changed wherever it stands in both, since its copies'
+// ranges moved, and with the node, its place inside or outside a section. Each quote
+// whose copies moved has changed, and so has one with a change in the words a resolution
+// read beside a copy of it. A piece that is gone loses every copy.
+/** @param {PieceIndex} piece @param {PageReading} now */
+function carry(piece, now) {
+  const was = piece.reading;
+  const rewritten = [...piece.rewritten];
+  piece.reading = now;
+  piece.rewritten.clear();
+  if (was === now || !piece.entries.size) return;
   const parted = changedSpan(was, now);
   // Where the change starts, and how far from each reading's end it stops.
   let from = parted?.from ?? Infinity;
@@ -2968,7 +3021,7 @@ function carry(now) {
   const shift = span.now - span.was;
   /** @type {Set<QuoteEntry>} */
   const moved = new Set();
-  for (const entry of index.entries.values()) {
+  for (const entry of piece.entries.values()) {
     /** @type {Copy[]} */
     const copies = [];
     let changed = false;
@@ -2988,7 +3041,7 @@ function carry(now) {
     entry.copies = copies;
     if (changed) moved.add(entry);
   }
-  const automaton = (index.automaton ??= quotesAutomaton(index.entries.values()));
+  const automaton = (piece.automaton ??= quotesAutomaton(piece.entries.values()));
   const lo = lettersBefore(now.raw, from, automaton.widest);
   scan(now, automaton, lo, span.now, (entry, copy) => {
     if (copy.to <= from) return; // standing before the change, as it stood
@@ -3003,86 +3056,77 @@ function carry(now) {
     entry.changedAt = index.version;
   }
 }
-// Keep the index for these quotes, each quote anchor placement's threads name that is
-// found in the page's whole reading: a quote it names no longer is let go, and the new
-// ones are found by one pass over the page for all of them.
+// Keep the index for these quotes, each quote anchor placement's threads name: a quote it
+// names no longer is let go.
 /** @param {Iterable<string>} quotes */
 export function trackQuotes(quotes) {
-  const wanted = new Set(quotes);
-  const gone = [...index.entries.keys()].filter((quote) => !wanted.has(quote));
-  const fresh = [...wanted]
-    .filter((quote) => !index.entries.has(quote))
-    .map(quoteEntry)
-    .filter((entry) => entry !== null);
-  if (!gone.length && !fresh.length) return;
-  const now = pageText();
-  carry(now);
-  for (const quote of gone) index.entries.delete(quote);
-  for (const entry of fresh) index.entries.set(entry.quote, entry);
-  index.automaton = null;
-  if (fresh.length)
-    scan(now, quotesAutomaton(fresh), 0, now.raw.length, (entry, copy) =>
-      entry.copies.push(copy),
-    );
+  index.quotes = new Set(quotes);
+  for (const piece of index.pieces.values())
+    for (const quote of piece.entries.keys())
+      if (!index.quotes.has(quote)) piece.entries.delete(quote);
 }
-// A quote found in one element's words alone, as a datum's quote is (`pageText(within)`),
-// is kept with that reading (`askedOf`) rather than in the index, and the index notes the
-// element it was found under (`foundUnder`): once the reading kept for the element is
-// another, each quote found in it has changed (`changedUnder`, at the version it changed
-// in). So a change to one part costs a quote found in another nothing.
-/** @type {Map<Element, {reading: PageReading, quotes: Set<string>}>} */
-const foundUnder = new Map();
-/** @type {Map<string, number>} */
-const changedUnder = new Map();
-/** @param {Iterable<string>} quotes */
-function changedFound(quotes) {
-  index.version += 1;
-  for (const quote of quotes) changedUnder.set(quote, index.version);
+// Each indexed piece brought to the reading it has now; a piece that is gone is carried
+// to no copies and let go, and its quotes are returned.
+function bringPieces() {
+  /** @type {string[]} */
+  const lost = [];
+  for (const [key, piece] of index.pieces) {
+    const now = pieceReading(key);
+    if (now) carry(piece, now);
+    else {
+      index.pieces.delete(key);
+      const held = [...piece.entries.values()].filter(({ copies }) => copies.length);
+      if (held.length) index.version += 1;
+      lost.push(...held.map(({ quote }) => quote));
+    }
+  }
+  return lost;
 }
 // The quotes whose copies changed after the index's version `since`, the index brought
 // to the page as it reads now, and the version it stands at.
 /** @param {number} since */
 export function quotesChanged(since) {
   catchUpReading();
-  if (index.entries.size) carry(pageText());
-  for (const [root, found] of foundUnder)
-    if (keptWithin(root) !== found.reading) {
-      foundUnder.delete(root);
-      changedFound(found.quotes);
-    }
+  const lost = bringPieces();
   const { version } = index;
-  const quotes =
-    version === since
-      ? []
-      : [
-          ...[...index.entries.values()]
-            .filter((entry) => entry.changedAt > since)
-            .map((entry) => entry.quote),
-          ...[...changedUnder].filter(([, at]) => at > since).map(([quote]) => quote),
-        ];
-  for (const [quote, at] of changedUnder) if (at <= since) changedUnder.delete(quote);
-  return { version, quotes };
+  if (version === since) return { version, quotes: [] };
+  const quotes = new Set(lost);
+  for (const piece of index.pieces.values())
+    for (const entry of piece.entries.values())
+      if (entry.changedAt > since) quotes.add(entry.quote);
+  return { version, quotes: [...quotes] };
 }
-// A quote the index doesn't keep, as a draft's or a datum's, asked of one reading: found
-// by a pass of its own, kept with the reading, since a capture asks it at each width of
-// context.
+// A quote the index keeps, asked of a piece's reading, is found in that piece's index,
+// with every other quote it keeps that the piece lacks. Any other quote, as a draft's
+// before anchor placement keeps it, or one asked of a reading that is no piece's, is
+// found by a pass of its own, kept with the reading, since a capture asks it at each
+// width of context; the index takes it from there when it comes to keep the quote.
 /** @type {WeakMap<PageReading, Map<string, QuoteEntry | null>>} */
 const askedOf = new WeakMap();
 /** @param {PageReading} text @param {string} quote */
 function copiesOf(text, quote) {
-  const kept = index.entries.get(quote);
-  if (kept && text === documents.get(pageDocument())?.page) {
-    carry(text);
-    return kept;
-  }
-  const root = readingRoots.get(text);
-  if (root) {
-    let found = foundUnder.get(root);
-    if (found?.reading !== text) {
-      if (found) changedFound(found.quotes);
-      foundUnder.set(root, (found = { reading: text, quotes: new Set() }));
-    }
-    found.quotes.add(quote);
+  const key = readingPieces.get(text);
+  if (key && index.quotes.has(quote) && pieceReading(key) === text) {
+    let piece = index.pieces.get(key);
+    if (!piece)
+      index.pieces.set(
+        key,
+        (piece = {
+          reading: text,
+          entries: new Map(),
+          automaton: null,
+          rewritten: new Set(),
+        }),
+      );
+    carry(piece, text);
+    const { entries } = piece;
+    if (!entries.has(quote))
+      addQuotes(
+        piece,
+        [...index.quotes].filter((wanted) => !entries.has(wanted)),
+      );
+    const kept = entries.get(quote);
+    if (kept) return kept;
   }
   let asked = askedOf.get(text);
   if (!asked) askedOf.set(text, (asked = new Map()));
@@ -3182,7 +3226,7 @@ function searchableWords() {
 // no match crossing an opaque passage fence — so choosing a result produces exactly the
 // kind of segments capture and resolution use.
 /** @param {PageReading} text @param {string} query */
-export function findText(text, query) {
+function findText(text, query) {
   const words = query.split(COLLAPSE).filter(Boolean);
   if (!words.length) return [];
   const pattern = new RegExp(
@@ -3206,6 +3250,31 @@ export function findText(text, query) {
     }
   }
   return out;
+}
+
+// Every match of a search over the page's words, in reading order: the frame's and each
+// part's, each found in its own reading, since a match stands in one passage cell
+// (`findText`) and every part stands in one (`pageText`). The first search reads every
+// part.
+/** @param {string} query */
+export function pageFind(query) {
+  const framed = pageText();
+  const { marks } = frameCollected();
+  /** @param {PartMark} mark */
+  const startOf = (mark) => framed.segments[mark.at]?.rawStart ?? Infinity;
+  /** @param {PartMark} mark */
+  const inPart = (mark) => findText(pageText(mark.root), query);
+  const found = [];
+  let m = 0;
+  for (const match of findText(framed, query)) {
+    const [first] = match;
+    const at = first ? (framed.positions.get(first.node) ?? 0) + first.start : 0;
+    for (let mark = marks[m]; mark && startOf(mark) <= at; mark = marks[++m])
+      found.push(...inPart(mark));
+    found.push(match);
+  }
+  for (const mark of marks.slice(m)) found.push(...inPart(mark));
+  return found;
 }
 
 // Display context completes its outer language-aware word within the local window.

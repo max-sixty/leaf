@@ -36,7 +36,9 @@ import {
   contextAround,
   neighbourhood,
   pageText,
+  partOf,
   readingFrom,
+  readingOf,
   rangeOf,
   segmentsIn,
   textNodesUnder,
@@ -390,9 +392,16 @@ export function datumAimTarget(datum) {
 /** @param {Range} range */
 export const anchorForRange = (range) =>
   anchorForPassage(segmentsIn(range), range.commonAncestorContainer);
-/** @param {import("./passages.js").Segment[]} segments @param {Node} node @returns {CapturedAnchor | null} */
-export function anchorForPassage(segments, node) {
+/** @param {import("./passages.js").Segment[]} selected @param {Node} node @returns {CapturedAnchor | null} */
+export function anchorForPassage(selected, node) {
   const holder = node.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
+  // The passage is the selection's words: a drag from a paragraph's end into a
+  // document's first line holds the newline between them, which is neither's word.
+  /** @param {import("./passages.js").Segment} segment */
+  const says = ({ node: text, start, end }) => /\S/.test(text.data.slice(start, end));
+  const from = selected.findIndex(says);
+  const to = selected.findLastIndex(says);
+  const segments = from < 0 ? [] : selected.slice(from, to + 1);
   // The neighbours come from the same indexed reading the search uses and stop at
   // the same opaque-widget fences as the file-side capture. The browser knows words
   // a module generated and may quote them; it does not pretend the file can confirm
@@ -411,6 +420,10 @@ export function anchorForPassage(segments, node) {
   if (projected && !quote) return projected;
   const section = closestAcross(holder, ADDRESSABLE)?.id ?? null;
   if (!quote) return section === null ? null : { section };
+  // Words on both sides of a part's edge stand in no one reading, and no copy of them is
+  // found again, since every part is a passage cell of its own (passages.js, `pageText`).
+  if (!projected && segments.some((seg) => partOf(seg.node)))
+    return { section, quote, detached: true };
   // Identity is the context for projected data: the display values beside a datum may
   // reorder or repeat, so their words would make incidental layout a second,
   // conflicting answer to which datum the user selected. Its own words still tell
@@ -659,7 +672,8 @@ function designTargetAt(
           ) {
             // A repeated control’s announcement and its durable anchor share the same
             // distinguishing context, including neighbouring table cells.
-            const context = contextAround(pageText(), resolved.segments, {
+            const at = resolved.segments[0]?.node ?? face;
+            const context = contextAround(readingOf(at), resolved.segments, {
               before: [...(captured.prefix ?? "")].length,
               after: [...(captured.suffix ?? "")].length,
             });

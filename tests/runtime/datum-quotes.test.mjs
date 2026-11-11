@@ -111,3 +111,35 @@ test("capturing a selection inside a datum reads no words outside the datum", ()
   });
   assert.equal(outside, 0, `${outside} text nodes outside the datum read`);
 });
+
+// A drag from the end of the paragraph before a datum into its first line also holds the
+// newline between them, which is neither's word: the passage is the line, on the datum.
+test("a selection from the space before a datum into its line is captured on the datum", () => {
+  Object.assign(registry, { $layer: { generation: "datum-capture-space" } });
+  const datum = page(
+    "<p>Alpha line</p><p>Beta line</p>",
+    "<p>Words before the data</p>\n",
+  );
+  const space = datum.parentElement.previousSibling;
+  assert.equal(space.data, "\n");
+  const range = document.createRange();
+  range.setStart(space, 0);
+  range.setEnd(datum.querySelector("p").firstChild, 5);
+  const anchor = anchorForRange(range);
+  assert.equal(anchor?.datum, "doc");
+  assert.equal(anchor?.quote, "Alpha");
+  assert.equal(resolveAnchor(anchor)?.exact, true);
+});
+
+// Words on both sides of a datum's edge name no one passage anything finds again.
+test("a selection across a datum's edge is captured detached", () => {
+  Object.assign(registry, { $layer: { generation: "datum-capture-across" } });
+  const datum = page("<p>Alpha line</p>");
+  const range = document.createRange();
+  range.setStart(document.querySelector("main > p").firstChild, 6);
+  range.setEnd(datum.querySelector("p").firstChild, 5);
+  const anchor = anchorForRange(range);
+  assert.equal(anchor?.datum, undefined);
+  assert.equal(anchor?.detached, true);
+  assert.match(anchor?.quote ?? "", /before the data.*Alpha/);
+});

@@ -183,18 +183,30 @@ test("projected rows have separate passages inside one text block", () => {
   const pre = document.querySelector("pre");
   const first = document.querySelector("#first");
   const second = document.querySelector("#second");
-  assert.deepEqual(pageBlocks(), [pre]);
+  assert.deepEqual(
+    pageBlocks(() => true),
+    [pre],
+  );
   for (const row of [first, second]) {
     row.dataset.lfProjection = "source";
     row.dataset.lfDatum = row.id;
   }
-  assert.deepEqual(pageBlocks(), [first, second]);
+  assert.deepEqual(
+    pageBlocks(() => true),
+    [first, second],
+  );
   assert.equal(blockAt(first.querySelector("b").firstChild), first);
   assert.equal(says(pre), "First rowSecond row");
   first.removeAttribute("data-lf-datum");
-  assert.deepEqual(pageBlocks(), [pre, second]);
+  assert.deepEqual(
+    pageBlocks(() => true),
+    [pre, second],
+  );
   second.removeAttribute("data-lf-projection");
-  assert.deepEqual(pageBlocks(), [pre]);
+  assert.deepEqual(
+    pageBlocks(() => true),
+    [pre],
+  );
 });
 
 test("projecting an inline value preserves its typography and resolved quote", () => {
@@ -205,7 +217,10 @@ test("projecting an inline value preserves its typography and resolved quote", (
   value.dataset.lfGen = "1";
   value.dataset.lfProjection = "source";
   value.dataset.lfDatum = "rate";
-  assert.deepEqual(pageBlocks(), [paragraph, value]);
+  assert.deepEqual(
+    pageBlocks(() => true),
+    [paragraph, value],
+  );
   assert.equal(says(paragraph), "The rate is 42%.");
   assert.equal(quoteFrom(findQuote(pageText(), "42%", {}, value)), "42%");
 });

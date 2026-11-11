@@ -72,7 +72,7 @@ import {
   stuckBox,
   drawsText,
 } from "./geometry.js";
-import { skipped, skipper } from "./shadow-tree.js";
+import { drawn, skipped, skipper } from "./shadow-tree.js";
 import {
   blockAt,
   closestAcross,
@@ -84,6 +84,7 @@ import {
   quoteFrom,
   rangeOf,
   readingFrom,
+  readingParts,
   segmentsBox,
 } from "./passages.js";
 import {
@@ -198,15 +199,13 @@ const QUOTABLE = 24;
 export const textBlocks = (root = pageDocument()) =>
   pageBlocks(mayShow).filter((block) => under(block, root));
 // Whether a part of the page's reading (passages.js, `pageRuns`) may show words in the
-// window: drawn, or with a drawn child, as an element whose display is `contents` has no
-// box and shows through its children; and with a box that reaches the window, or none of
-// its own. A part the page skips, as in a closed tab, is asked nothing more: asking its
-// box or its style has the browser style everything it holds, 240 ms for the 29 closed
-// documents of #4781's page in Chromium.
+// window: drawn (`drawn`), or with a drawn child, as an element whose display is
+// `contents` has no box and shows through its children; and with a box that reaches the
+// window, or none of its own. A part the page skips, as in a closed tab, is asked
+// nothing more: asking its box or its style has the browser style everything it holds,
+// 240 ms for the 29 closed documents of #4781's page in Chromium.
 /** @param {Element} part */
-const mayShow = (part) => {
-  const drawn = (/** @type {Element} */ element) =>
-    element.checkVisibility({ contentVisibilityAuto: true });
+export const mayShow = (part) => {
   if (!drawn(part) && ![...part.children].some(drawn)) return false;
   const { top, right, bottom, left, width, height } = part.getBoundingClientRect();
   return (
@@ -562,11 +561,14 @@ function scrollsAlone(node, box) {
 // names it: the page's topmost element under that point, past anything Leaf draws over
 // the page. A drawing is widened to the largest box around it that holds no text
 // block, so a chart is its host rather than a mark it drew, and a picture whose caption
-// is a block of its own is the picture.
+// is a block of its own is the picture. A part of the page's reading holds words wherever
+// it stands, shown or not, so a box holding one holds text.
 /** @param {Element} body @param {Element} box @param {number} x @param {number} edge @param {Element[]} blocks */
 function drawnAt(body, box, x, edge, blocks) {
+  const parts = readingParts();
   const holdsText = (/** @type {Element} */ element) =>
-    blocks.some((block) => under(block, element));
+    blocks.some((block) => under(block, element)) ||
+    parts.some((part) => under(part, element));
   for (const hit of document.elementsFromPoint(x, edge + 1)) {
     if (inChrome(hit) || inUi(hit)) continue;
     if (hit === body || !under(hit, body) || effectiveScroller(hit) !== box)

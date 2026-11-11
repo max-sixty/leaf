@@ -308,10 +308,10 @@ export function excludedByInert(node) {
 //
 // `skipper` names the box that skips `el`, so a reading over many elements under it,
 // such as a long text document's lines in one run, asks once and passes over the rest.
+/** @param {Element} box */
+export const drawn = (box) => box.checkVisibility({ contentVisibilityAuto: true });
 /** @param {Element} element @returns {Element | null} */
 export const skipper = (element) => {
-  const drawn = (/** @type {Element} */ box) =>
-    box.checkVisibility({ contentVisibilityAuto: true });
   if (drawn(element)) return null;
   let child = element;
   let box = renderedParent(element);

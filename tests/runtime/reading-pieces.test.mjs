@@ -1,15 +1,26 @@
 import "/runtime/stage-integration.js";
-/* The page's reading put together from pieces kept apart: the frame, and each datum that
-   is a part (passages.js, `Piece`). Whatever kept pieces a reader puts together must say
-   what one fresh walk of the page says, so each kind of change drops every piece whose
-   words or context it moved, and only those. A change inside one part leaves every
-   other part unread. */
+/* The page's reading kept in pieces (passages.js, `Piece`): the frame, which is the
+   page's words outside its parts with a fence where each part stands, and each datum
+   that is a part, read alone. Each kept piece must say what a fresh walk of the page says
+   of its words, so each kind of change drops every piece whose words or context it moved,
+   and only those: a change inside one part leaves every other part unread. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import { registry } from "/runtime/registry.js";
-import { documentOutline, fencePassageParts, pageText } from "/runtime/passages.js";
+import {
+  documentOutline,
+  elementReading,
+  fencePassageParts,
+  findQuote,
+  pageReadingVersion,
+  pageText,
+  quotesChanged,
+  readingParts,
+  says,
+  trackQuotes,
+} from "/runtime/passages.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
 
 let generation = 0;
@@ -24,9 +35,8 @@ const datum = (id, inner) =>
   `<div id="${id}" data-lf-projection="w" data-lf-datum="${id}">${inner}</div>`;
 
 // Prose, three parts, a datum standing inside a line (which reads with the line), and a
-// declared tree holding two parts whose slots show the host's light children. Breaks
-// stand at a part's end and just before another, where one walk carries them past the
-// edge.
+// declared tree holding two parts whose slots show the host's light children, one of
+// them a heading.
 const page = () => {
   freshVocabulary();
   document.body.innerHTML =
@@ -45,31 +55,62 @@ const page = () => {
   const host = document.querySelector("#host");
   const staged = document.createElement("template");
   staged.innerHTML =
-    datum("s", '<p>Staged <slot name="x"></slot></p>') +
+    datum("s", '<p>Staged <slot name="x"></slot></p><slot name="h"></slot>') +
     datum("t", "<p><slot></slot></p>");
   shadowStage(host, [...staged.content.childNodes]);
   // The stage clears light children, so what its slots take arrives after it.
-  host.innerHTML = '<b id="slotted" slot="x">Slotted words</b><i id="other">Other</i>';
+  host.innerHTML =
+    '<b id="slotted" slot="x">Slotted words</b><h4 slot="h">Slotted heading</h4>' +
+    '<i id="other">Other</i>';
   return host;
 };
 
-const SEGMENT = ["start", "end", "rawStart", "block", "textBlock", "words", "gen"];
-// Each segment's node and the facts it carries, with whether a break stands before it.
-const segments = (reading) =>
-  reading.segments.map((segment) => [
-    segment.node,
-    ...SEGMENT.map((key) => segment[key]),
-    Boolean(segment.breakBefore),
-  ]);
-// The pieces put together must read as one fresh walk of the page does: the body is no
-// part, so its own reading is a walk of the whole page.
-const assertWhole = (what) => {
-  const kept = pageText();
-  const fresh = pageText(document.body);
-  assert.notEqual(kept, fresh);
-  assert.equal(kept.raw, fresh.raw, `${what}: the words`);
-  assert.deepEqual(kept.fences, fresh.fences, `${what}: the fences`);
-  assert.deepEqual(segments(kept), segments(fresh), `${what}: the segments`);
+const FACTS = ["node", "start", "end", "block", "textBlock", "words", "gen"];
+// Whether a node stands under a root as the page's words do: a node a slot shows stands
+// where the slot does.
+const standsUnder = (node, root) => {
+  for (let at = node; at; at = at.assignedSlot ?? at.parentNode ?? at.host ?? null)
+    if (at === root) return true;
+  return false;
+};
+/** @param {{segments: object[]}} reading */
+const facts = (segments) => segments.map((segment) => FACTS.map((key) => segment[key]));
+// The kept pieces must say what a fresh walk of the whole page says: the body is no
+// part, so its own reading is that walk. The frame holds its words outside the parts,
+// with a fence where each part stands, and each part its words under it.
+const assertPieces = (what) => {
+  const whole = pageText(document.body);
+  const parts = readingParts();
+  const inPart = ({ node }) => parts.some((root) => standsUnder(node, root));
+  const frame = pageText();
+  assert.deepEqual(
+    facts(frame.segments),
+    facts(whole.segments.filter((segment) => !inPart(segment))),
+    `${what}: the frame's words`,
+  );
+  for (const root of parts) {
+    const own = pageText(root);
+    assert.deepEqual(
+      facts(own.segments),
+      facts(whole.segments.filter(({ node }) => standsUnder(node, root))),
+      `${what}: the words of part ${root.id}`,
+    );
+    const before = frame.segments.findIndex(
+      ({ node }) => root.compareDocumentPosition(node) & 4,
+    );
+    const at = before < 0 ? frame.raw.length : frame.segments[before].rawStart - 1;
+    if (before !== 0)
+      assert.ok(
+        frame.fences.includes(at),
+        `${what}: a fence where part ${root.id} stands`,
+      );
+  }
+  for (const element of document.querySelectorAll("[id]"))
+    assert.equal(
+      elementReading(element),
+      says(element),
+      `${what}: #${element.id}'s words`,
+    );
 };
 
 // Every element the outline can be asked about, in the light tree and in declared ones.
@@ -98,9 +139,14 @@ const assertOutline = (what) => {
   freshVocabulary();
   assert.deepEqual(kept, outlineOf(), `${what}: the outline`);
 };
+// Every piece read and kept, so a change has something to drop.
+const readEverything = () => {
+  for (const root of readingParts()) pageText(root);
+  for (const element of document.querySelectorAll("[id]")) elementReading(element);
+  outlineOf();
+};
 
-// Each kind of change, in turn on one page, each after every piece has been read and
-// kept, so it has something to drop.
+// Each kind of change, in turn on one page.
 /** @param {HTMLElement} host */
 const changes = (host) => {
   const by = (id) => document.getElementById(id);
@@ -133,6 +179,21 @@ const changes = (host) => {
       () => (by("between").firstChild.data = "Edited"),
     ],
     [
+      "a part comes to stand inside a new part",
+      () => {
+        by("s1").setAttribute("data-lf-projection", "w");
+        by("s1").setAttribute("data-lf-datum", "s1");
+      },
+    ],
+    [
+      "words edited in the part that stands inside it",
+      () => (by("b").firstChild.firstChild.data = "Beta inside"),
+    ],
+    [
+      "the outer part's marker taken off",
+      () => by("s1").removeAttribute("data-lf-datum"),
+    ],
+    [
       "words a part's slot shows edited",
       () => (by("slotted").firstChild.data = "Slotted"),
     ],
@@ -163,14 +224,15 @@ const changes = (host) => {
   ];
 };
 
-test("the page's reading put together from its parts says what one walk says", () => {
+test("the frame holds the page's words outside its parts, and each part its own", () => {
   page();
-  assertWhole("as first read");
+  assertPieces("as first read");
   // The outline one walk of `main` records, past which the page's goes on to the body.
   const main = document.querySelector("main");
   const walked = documentOutline(main);
   const { outline, over } = documentOutline(document.body);
   assert.deepEqual([...outline], [...walked.outline]);
+  assert.ok(outline.some((heading) => heading.textContent === "Slotted heading"));
   const chain = (state) =>
     state && state.container !== main
       ? [state.container, state.heading, ...chain(state.up)]
@@ -191,25 +253,25 @@ test("a part's headings join the outline where no heading comes before them", ()
 
 test("each change drops the pieces whose words or context it moved", () => {
   for (const [what, change] of changes(page())) {
-    pageText();
-    outlineOf();
+    readEverything();
     change();
-    assertWhole(what);
+    assertPieces(what);
   }
 });
 
 test("each change drops the pieces whose outline it moved", () => {
   for (const [what, change] of changes(page())) {
-    pageText();
-    outlineOf();
+    readEverything();
     change();
     assertOutline(what);
   }
 });
+
+// Reading a part means asking each of its elements where it stands; a part kept from
+// before is asked nothing.
 test("a change inside one part leaves the other parts unread", () => {
   page();
-  pageText();
-  outlineOf();
+  readEverything();
   const other = document.getElementById("b");
   const { matches } = Element.prototype;
   let asked = 0;
@@ -219,10 +281,76 @@ test("a change inside one part leaves the other parts unread", () => {
   };
   try {
     document.getElementById("a2").firstChild.data = "Alpha edited";
-    assert.match(pageText().raw, /Alpha edited/);
+    assert.match(pageText(document.getElementById("a")).raw, /Alpha edited/);
+    pageText();
     documentOutline(document.body);
   } finally {
     Element.prototype.matches = matches;
   }
   assert.equal(asked, 0, `${asked} questions asked of the other part's elements`);
+});
+
+// Each piece keeps the copies of every quote the threads name, so a line rewritten in a
+// document changes the quotes on that line alone, and none in prose or in another part.
+test("a line rewritten in a part changes only the quotes standing on it", () => {
+  freshVocabulary();
+  const lines = Array.from({ length: 40 }, (_, i) => `<p>Line ${i} of the notes</p>`);
+  document.body.innerHTML =
+    "<main><p>The prose before the notes</p>" +
+    datum("n", lines.join("")) +
+    datum("m", "<p>Other notes here</p>") +
+    "</main>";
+  const notes = document.getElementById("n");
+  const quotes = [
+    ...lines.map((_, i) => `Line ${i} of`),
+    "Other notes",
+    "prose before",
+  ];
+  trackQuotes(quotes);
+  for (const quote of quotes.slice(0, 40))
+    assert.ok(findQuote(pageText(notes), quote, {}).length);
+  findQuote(pageText(document.getElementById("m")), "Other notes", {});
+  findQuote(pageText(), "prose before", {});
+  const { version } = quotesChanged(0);
+  notes.children[7].firstChild.data = "Line 7 rewritten";
+  assert.deepEqual(quotesChanged(version).quotes, ["Line 7 of"]);
+});
+
+// Hearing a change costs the kept parts it may have moved, however many nodes it put in
+// or took out: each kept part is climbed once a batch, not once for each node.
+test("hearing rows replaced at once costs the kept parts, not rows times parts", () => {
+  /** @param {number} n */
+  const climbs = (n) => {
+    freshVocabulary();
+    document.body.innerHTML = "<main><section></section></main>";
+    const box = document.querySelector("section");
+    const rows = (tag) =>
+      Array.from({ length: n }, (_, i) => {
+        const row = document.createElement("div");
+        row.setAttribute("data-lf-projection", "w");
+        row.setAttribute("data-lf-datum", `l${i}`);
+        row.textContent = `line ${i} ${tag}`;
+        return row;
+      });
+    box.append(...rows("first"));
+    for (const root of readingParts()) pageText(root);
+    let read = 0;
+    const slot = Object.getOwnPropertyDescriptor(Element.prototype, "assignedSlot");
+    Object.defineProperty(Element.prototype, "assignedSlot", {
+      ...slot,
+      get() {
+        read += 1;
+        return slot.get.call(this);
+      },
+    });
+    try {
+      box.replaceChildren(...rows("again"));
+      pageReadingVersion();
+    } finally {
+      Object.defineProperty(Element.prototype, "assignedSlot", slot);
+    }
+    return read;
+  };
+  const [small, large] = [climbs(100), climbs(200)];
+  assert.ok(large < small * 3, `${small} climbs for 100 rows, ${large} for 200`);
 });

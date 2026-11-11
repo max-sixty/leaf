@@ -1010,6 +1010,11 @@ def steps(
             cc.settle(
                 told, "fork-todo: no prompt hook handed the session the line naming it"
             )
+            require(
+                picked_up(page, comment) == [taken["turn"]],
+                "fork-todo: a turn other than the fork's picked the question up: "
+                f"{picked_up(page, comment)}",
+            )
             outcome = done()
             require(
                 outcome is None or outcome["state"] == "done",

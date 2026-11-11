@@ -170,15 +170,24 @@ async function digestOf($: EngineInterface) {
   }
 }
 
+// What the first hook after a load or reload reads once, which every later one awaits.
+let initialized: Promise<void> | undefined;
+
 /** The session's id, once Claude Code's process is known. A module loaded or reloaded
- * mid-session sees no session.start, so whichever hook comes first reads it. */
+ * mid-session sees no session.start, so whichever hook comes first reads it, and
+ * hooks that start meanwhile wait for that one read. */
 async function sessionOf($: EngineInterface) {
-  if (!claudePid) {
+  initialized ??= (async () => {
     loadedDigest = await digestOf($);
     claudePid = (await $.process.run(["/bin/sh", "-c", "echo $PPID"])).stdout.trim();
     lineForks = (await $.env.get("LEAF_FORK_REPLIES")) !== "off";
     workForks = (await $.env.get("LEAF_FORK_WORK")) === "on";
-  }
+  })().catch((error) => {
+    // A read that failed is read again by the next hook.
+    initialized = undefined;
+    throw error;
+  });
+  await initialized;
   return $.session.id();
 }
 

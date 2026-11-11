@@ -19,9 +19,9 @@
    Rows take their final places once, in one shared held-and-arrival order. Each posture's
    solver avoids the final rectangles and held labels already placed. A pin's chosen
    seat is its final place: no second packing pass can translate it into words or
-   controls. A pass does the work its change needs (`seatings`): one for a change to the
-   rows alone, such as a comment's new row, seats again only the rows that change can
-   push, and one for a change that may have moved the page reads and seats every row.
+   controls. Every pass seats every row, and reads only what its change can have moved
+   (`seatings`): a change to the rows alone, such as a comment's new row, reads only the
+   rows it changes, and one that may have moved the page reads every row.
    Scrolling moves a row with its target in the frame that scrolls it, whether the
    document scrolls or a pane does, with no pass at all.
    Mutation checkpoints and resize deliveries settle placement before native paint;
@@ -96,10 +96,8 @@ import { pageHeads } from "../root-headers.js";
 import {
   arrivals,
   inSeatingOrder,
-  packReach,
   packRow,
   rowPlacement,
-  seatReach,
   seatRow,
   seatsBy,
   shiftedPin,
@@ -151,11 +149,11 @@ import {
  * @typedef {import("../../types/contract.js").CompleteUnion<TargetRead | HiddenRead>} Read
  * @typedef {import("./margin-placement.js").Pin} Pin
  * @typedef {{frame: {x: number, y: number}, read: ShownRead, home: Box, pin: Pin | null,
- * fold: Fold | null, footprint: Box, reach: Box, keeps: boolean}} Seating
+ * fold: Fold | null}} Seating
  * @typedef {{key: HTMLElement, rect: Box, held: boolean, came: number | undefined,
  * pushed: number | undefined, read: ShownRead, holding?: Box, step?: number,
  * visualLeft?: number, fold?: Fold | null, pin?: Pin | null, push?: number,
- * kept?: Seating, dx?: number, dy?: number}} PlacedRow
+ * home?: Box, kept?: Seating, dx?: number, dy?: number}} PlacedRow
  */
 /** @param {Read} read @returns {read is ShownRead} */
 const shownRead = (read) => read.shown;
@@ -246,30 +244,19 @@ const heldRows = (layer) =>
   );
 let pending = 0;
 
-// A pass works only for what changed since the last one, as each change's owner records
-// it. A change that may move the page, which every page observer here hears, sets
-// `pageMoved`, and the pass after it reads and seats every row. A change to the rows
-// alone, a row registered, renamed or let go, or a face drawn at another size, leaves the
-// page where it stood, so that pass reads and seats only those rows (`unsettled`), and
-// rows whose seat it can no longer trust (`seatings`).
-let pageMoved = true;
-/** @type {Set<HTMLElement>} */
-const unsettled = new Set();
-// Where the last pass seated each row, with what it read to seat it: the row's read, its
-// home before any push, a pin's prepared seats and cover, and the footprint it took, all
-// as they stood at that pass's scroll (`frame`), and the room its seating read of the
-// footprints seated before it (`seatReach`, `packReach`). A row whose page stood still
-// keeps its seat while no footprint that changed reaches into that room, since its
-// seating would answer the same; one that changed is seated again from the same record,
-// and its old and new footprints reach the rows after it in turn. Only a row the document
-// alone scrolls, one no carrier, header or pane holds, and nothing holds or withholds,
-// `keeps` its record: any other is read afresh at every pass, as a moved page reads them
-// all. A row's record that no row of this pass takes frees the room it took.
+// What the last pass read to seat each row it can seat again without reading: the row's
+// read, its home before any push and a pin's prepared seats and cover, as they stood at
+// that pass's scroll (`frame`). Every pass seats every row in the one shared order, a row
+// with a record from it, carried by the scroll since, and any other from a fresh read, so
+// a pass for a change to the rows alone reads only the rows that change names, and ends
+// with every row where a pass that read them all would stand it. Each change's owner
+// says what it moves: a change that may move the page, which every page observer here
+// hears, clears every record (`scheduleMarginLayout`, `layoutMovedPage`), and one to a row
+// alone, registered with another target, let go, or drawn at another size, drops that
+// row's. Only a row the document alone scrolls, one no carrier, header or pane holds,
+// and nothing holds or withholds, keeps a record.
 /** @type {Map<HTMLElement, Seating>} */
 const seatings = new Map();
-/** @param {Box} a @param {Box} b */
-const sameBox = (a, b) =>
-  a.left === b.left && a.top === b.top && a.right === b.right && a.bottom === b.bottom;
 /** @type {Layer | null} */
 let layer = null;
 
@@ -660,7 +647,6 @@ export function syncMarginContentLayout(changed) {
 /** @param {HTMLElement} root @param {HTMLElement} projection */
 export function mountMarginLayer(root, projection) {
   layer = { root, projection, lanes: new Map(), sizes: sizeObserver(layoutMovedPage) };
-  pageMoved = true;
   seatings.clear();
   // Where the root does not scroll, the window bounds a pin's seat (`pinSeating`), and a
   // window resized around a page of fixed size resizes no box the margin watches.
@@ -690,14 +676,18 @@ function placeCarriedRows(box) {
 // seat reads a face only through its size and the controls it holds, so controls put in or
 // taken out bring a pass, and a changed attribute or text brings one only where the face
 // no longer measures the size the last pass seated it at (`seatedFaces`). Either is a
-// change to that row alone (`unsettled`). The pass's own writes to its rows are taken
-// back at its end, so they bring no pass of their own.
+// change to that row alone, which drops its record (`seatings`). A face can be redrawn
+// and laid out in one task, as an immediate contribution update flushes the layout
+// (application.js), before these records are delivered, so a pass first hears the ones
+// still waiting (`hearFaces`). The pass's own writes to its rows are taken back at its
+// end, so they bring no pass of their own.
 /** @type {WeakMap<Element, {width: number, height: number}>} */
 const seatedFaces = new WeakMap();
 /** @type {Set<HTMLElement>} */
 const restyled = new Set();
 let faceCheck = 0;
-const faces = new MutationObserver((records) => {
+/** @param {MutationRecord[]} records */
+function heardFaces(records) {
   for (const record of records) {
     let row = /** @type {Node | null} */ (record.target);
     while (row && !(row instanceof HTMLElement && rows.has(row))) row = row.parentNode;
@@ -706,24 +696,39 @@ const faces = new MutationObserver((records) => {
       (node) => node instanceof Element,
     );
     if (controls) {
-      unsettled.add(row);
+      seatings.delete(row);
       scheduleRowLayout();
     } else restyled.add(row);
   }
   if (!restyled.size || faceCheck) return;
   faceCheck = nextRender(() => {
     faceCheck = 0;
-    const changed = [...restyled].filter((row) => {
-      const face = seatedFaces.get(row);
-      if (!face) return rows.has(row);
-      const { width, height } = row.getBoundingClientRect();
-      return width !== face.width || height !== face.height;
-    });
-    restyled.clear();
-    for (const row of changed) unsettled.add(row);
-    if (changed.length) layoutMarginRows();
+    if (resizedFaces()) layoutMarginRows();
   });
-});
+}
+const faces = new MutationObserver(heardFaces);
+// Whether a restyled face measures another size than its row was seated at, dropping the
+// record of each that does.
+function resizedFaces() {
+  let resized = false;
+  for (const row of restyled) {
+    if (!rows.has(row)) continue;
+    const face = seatedFaces.get(row);
+    if (face) {
+      const { width, height } = row.getBoundingClientRect();
+      if (width === face.width && height === face.height) continue;
+    }
+    seatings.delete(row);
+    resized = true;
+  }
+  restyled.clear();
+  return resized;
+}
+// Takes in the face records a pass would otherwise drop with its own (`heardFaces`).
+function hearFaces() {
+  heardFaces(faces.takeRecords());
+  resizedFaces();
+}
 
 // What changed in the page, on the document or a shadow tree holding a target. A change on
 // Leaf's own surfaces moves no seat. The marks the runtime draws on page boxes stand in
@@ -1403,9 +1408,8 @@ function pinSeating(rows, { bands, shell, pinInset, documentScrolls }) {
 }
 
 // Seats `entry` among the footprints `occupied` holds, those of the rows seated before
-// it, and answers the footprint it takes and the room its seating read of them
-// (`packReach`, `seatReach`). A rail row is pushed down past them; a pin takes the first
-// seat that suits it (`entry.pin`), which becomes its rect.
+// it, and answers the footprint it takes. A rail row is pushed down past them; a pin
+// takes the first seat that suits it (`entry.pin`), which becomes its rect.
 /** @param {PlacedRow} entry @param {readonly Box[]} occupied @param {number} shell */
 function seatEntry(entry, occupied, shell) {
   const { pin } = entry;
@@ -1413,10 +1417,9 @@ function seatEntry(entry, occupied, shell) {
     // A widened rail steps back from the shell before collision solving, so the
     // occupied rectangle is exactly the one the stylesheet will paint.
     entry.step = Math.min(0, shell - entry.rect.right);
-    const row = { ...entry, rect: shifted(entry.rect, entry.step, 0) };
-    const push = packRow(row, GAP, occupied);
-    entry.push = push;
-    return { footprint: shifted(row.rect, 0, push), reach: packReach(row, push, GAP) };
+    const rect = shifted(entry.rect, entry.step, 0);
+    entry.push = packRow({ ...entry, rect }, GAP, occupied);
+    return shifted(rect, 0, entry.push);
   }
   const { rect, folded: on } = seatRow(pin, { gap: GAP, occupied });
   // An open folded row is wider than its one-control seat. Keep the toggle at that
@@ -1430,16 +1433,16 @@ function seatEntry(entry, occupied, shell) {
   entry.rect = rect;
   entry.push = 0;
   if (entry.fold) standFolded(entry.read.row, entry.fold, on);
-  return { footprint: rect, reach: seatReach(pin, rect, GAP) };
+  return rect;
 }
 
-// A pass for a change that may have moved the page: every row is read and seated again.
+// A pass for a change that may have moved the page, which reads every row again.
 function scheduleMarginLayout() {
-  pageMoved = true;
+  seatings.clear();
   scheduleRowLayout();
 }
-// A pass for a change to the rows alone, which reads and seats again only the rows
-// `seatings` says it must.
+// A pass for a change to the rows alone, which reads again only the rows whose records
+// that change dropped (`seatings`).
 function scheduleRowLayout() {
   if (pending) return;
   pending = nextRender(layoutMarginRows);
@@ -1481,7 +1484,7 @@ export function registerMarginRow(row, options) {
     if (was.order !== named.order) scheduleRowLayout();
     return;
   }
-  unsettled.add(row);
+  seatings.delete(row);
   scheduleRowLayout();
 }
 // What each row named when it was last registered (`registerMarginRow`).
@@ -1507,12 +1510,11 @@ export function unregisterMarginRow(row) {
   rows.delete(row);
   registered.delete(row);
   restyled.delete(row);
-  unsettled.delete(row);
+  seatings.delete(row);
   anchors.delete(row);
   withheldRows.delete(row);
   pushes.delete(row);
   folded.delete(row);
-  // Its seating stays until the pass, which frees the room it took (`seatings`).
   scheduleRowLayout();
 }
 
@@ -1647,6 +1649,8 @@ function scheduleStirReading() {
 }
 
 export function layoutMarginRows() {
+  // Face changes this pass would otherwise take back with its own writes.
+  hearFaces();
   cancelRender(pending);
   pending = 0;
   const mounted = layer;
@@ -1657,7 +1661,7 @@ export function layoutMarginRows() {
 }
 // The pass for a change the page's observers heard, which may have moved the page.
 function layoutMovedPage() {
-  pageMoved = true;
+  seatings.clear();
   layoutMarginRows();
 }
 
@@ -1666,19 +1670,10 @@ function layoutMountedRows(layer) {
   pass += 1;
   laidOutScrollX = scrollX;
   const { scrollX: windowX, scrollY: windowY } = window;
-  // The rows whose records this pass may keep (`seatings`): none where the page may have
-  // moved, and none a change to the rows unsettled or the user holds.
-  const still = !pageMoved;
-  pageMoved = false;
-  const restless = new Set(unsettled);
-  unsettled.clear();
+  // A row the user holds is read afresh, so it is seated from where it stands.
   const holding = heldRows(layer);
   /** @param {HTMLElement} row */
-  const keptSeating = (row) => {
-    const seating =
-      still && !restless.has(row) && !holding.has(row) && seatings.get(row);
-    return seating && seating.keeps ? seating : null;
-  };
+  const keptSeating = (row) => (holding.has(row) ? null : seatings.get(row));
   /** @type {Map<HTMLElement, Seating>} */
   const keeping = new Map();
   const documentScrolls = !/^(hidden|clip)$/.test(
@@ -1722,7 +1717,7 @@ function layoutMountedRows(layer) {
   // A row kept from its record stays watched as the pass that read it watched it, and a
   // row gone stays watched until a pass reads every row, at the cost of a pass should one
   // of its boxes resize meanwhile.
-  const geometry = new Set(still ? wantedGeometry : []);
+  const geometry = new Set(seatings.size ? wantedGeometry : []);
   const parents = new Set();
   /** @param {Element} target */
   function observeGeometry(target) {
@@ -1933,50 +1928,24 @@ function layoutMountedRows(layer) {
     };
   }
   pinSeating(placed, { bands, shell, pinInset, documentScrolls });
-  /** @param {Seating} seating */
-  const footprintNow = ({ footprint, frame }) =>
-    shifted(footprint, frame.x - windowX, frame.y - windowY);
-  // The footprints that changed since the rows after them were seated around them: what
-  // a record no row of this pass takes held, and the footprints each row seated afresh
-  // took and takes, or each kept row seated again where it moved.
-  /** @type {Box[]} */
-  const changed = [];
+  // A record no row of this pass seats is dropped with its row's seat.
   const taken = new Set(placed.map(({ key }) => key));
-  for (const [row, seating] of seatings)
-    if (!taken.has(row)) {
-      changed.push(footprintNow(seating));
-      seatings.delete(row);
-    }
+  for (const row of seatings.keys()) if (!taken.has(row)) seatings.delete(row);
   /** @type {Box[]} */
   const occupied = [];
-  /** @type {Map<HTMLElement, {home: Box, footprint: Box, reach: Box}>} */
-  const seatedNow = new Map();
   // One held-and-arrival order owns both postures. A posture solver produces its final
   // rectangle once; later rows avoid it rather than translating an earlier clear seat.
   for (const entry of inSeatingOrder(placed)) {
     const { kept: seating, dx = 0, dy = 0 } = entry;
-    const was = seating ?? seatings.get(entry.key);
-    const before = was && footprintNow(was);
     if (seating) {
-      const reach = shifted(seating.reach, dx, dy);
-      if (before && !changed.some((box) => overlaps(box, reach))) {
-        occupied.push(before);
-        continue;
-      }
-      // Seated again from its record, the scroll since carrying what it read.
-      entry.pin = seating.pin && {
-        ...shiftedPin(seating.pin, dx, dy),
-        folded: folded.has(entry.key),
-      };
+      // Seated from its record, the scroll since carrying what it read.
+      const pin =
+        seating.pin && (dx || dy ? shiftedPin(seating.pin, dx, dy) : seating.pin);
+      entry.pin = pin && { ...pin, folded: folded.has(entry.key) };
       entry.fold = seating.fold;
     }
-    const home = entry.rect;
-    const { footprint, reach } = seatEntry(entry, occupied, shell);
-    seatedNow.set(entry.key, { home, footprint, reach });
-    occupied.push(footprint);
-    if (seating && before && sameBox(before, footprint)) continue;
-    if (before) changed.push(before);
-    changed.push(footprint);
+    entry.home = entry.rect;
+    occupied.push(seatEntry(entry, occupied, shell));
   }
   for (const read of reads) {
     if (!read.target || keeping.has(read.row)) continue;
@@ -2253,13 +2222,11 @@ function layoutMountedRows(layer) {
 
   // A push says where a seated row stands, so a row that no longer stands has none.
   for (const row of pushes.keys()) if (!taken.has(row)) pushes.delete(row);
-  // What the next pass keeps of a row this one seated (`seatings`): a kept row's record
-  // as it was, with its new footprint and room brought back to its own scroll.
+  // What the next pass may seat this row from without reading it (`seatings`), where the
+  // row is one that keeps a record: a record read afresh this pass, or the one it kept.
   /** @param {PlacedRow} entry @param {boolean} withheld */
   const recordSeating = (entry, withheld) => {
-    const { key: row, read, kept: seating, dx = 0, dy = 0 } = entry;
-    const now = seatedNow.get(row);
-    if (!now) return;
+    const { key: row, read } = entry;
     const keeps =
       documentScrolls &&
       !entry.held &&
@@ -2267,62 +2234,49 @@ function layoutMountedRows(layer) {
       read.scroller === pageScroller &&
       !read.carrier &&
       !read.cuts.length;
-    seatings.set(
-      row,
-      seating
-        ? {
-            ...seating,
-            footprint: shifted(now.footprint, -dx, -dy),
-            reach: shifted(now.reach, -dx, -dy),
-            keeps,
-          }
-        : {
-            frame: { x: windowX, y: windowY },
-            read,
-            home: now.home,
-            pin: entry.pin ?? null,
-            fold: entry.fold ?? null,
-            footprint: now.footprint,
-            reach: now.reach,
-            keeps,
-          },
-    );
+    if (!keeps) seatings.delete(row);
+    else if (!entry.kept)
+      seatings.set(row, {
+        frame: { x: windowX, y: windowY },
+        read,
+        home: entry.home ?? entry.rect,
+        pin: entry.pin ?? null,
+        fold: entry.fold ?? null,
+      });
   };
   // A pin seated beside its target can stand outside what its pane shows though the
   // target is inside it, so a seated pin is withheld by where it stands. Every pin is
   // read before any row is written: a read after a write lays the page out again, once
-  // per row. A kept row keeps its seat and writes nothing; one seated again reads what
-  // its record read, where the scroll since has carried it.
-  const seated = placed
-    .filter(({ key }) => seatedNow.has(key))
-    .map((entry) => {
-      const { key: row, rect, read, visualLeft, step = 0, push = 0 } = entry;
-      const { dx = 0, dy = 0 } = entry;
-      /** @param {Box} box */
-      const now = (box) => (dx || dy ? shifted(box, dx, dy) : box);
-      const top = rect.top + push;
-      const level = read.place === "pin" && Boolean(read.preformatted && read.words);
-      const withheld =
-        read.place === "pin" &&
-        !shownWithin(read.view && now(read.view), now(read.extent), {
-          top,
-          bottom: rect.bottom + push,
-          right: rect.right,
-          level,
-        });
-      return {
-        entry,
-        row,
-        rect,
-        read,
-        push,
-        left: (visualLeft ?? rect.left) + step,
+  // per row. A row seated from its record reads what the record read, where the scroll
+  // since has carried it.
+  const seated = placed.map((entry) => {
+    const { key: row, rect, read, visualLeft, step = 0, push = 0 } = entry;
+    const { dx = 0, dy = 0 } = entry;
+    /** @param {Box} box */
+    const now = (box) => (dx || dy ? shifted(box, dx, dy) : box);
+    const top = rect.top + push;
+    const level = read.place === "pin" && Boolean(read.preformatted && read.words);
+    const withheld =
+      read.place === "pin" &&
+      !shownWithin(read.view && now(read.view), now(read.extent), {
         top,
+        bottom: rect.bottom + push,
+        right: rect.right,
         level,
-        withheld,
-        subject: now(read.subject),
-      };
-    });
+      });
+    return {
+      entry,
+      row,
+      rect,
+      read,
+      push,
+      left: (visualLeft ?? rect.left) + step,
+      top,
+      level,
+      withheld,
+      subject: now(read.subject),
+    };
+  });
   for (const {
     entry,
     row,

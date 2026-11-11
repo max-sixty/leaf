@@ -64,21 +64,6 @@ export function packRow({ rect, held, pushed = 0 }, gap, occupied = []) {
   return top - rect.top;
 }
 
-// The room `packRow` read of `occupied` to push `row` by `push`: a footprint that misses
-// it pushed nothing and would push nothing, so adding one there or taking one away
-// leaves the push as it was. That is what lets the layout keep a row's seat when only
-// rows elsewhere changed (margin-layout.js, `seatings`).
-/** @param {Pick<Row, "rect" | "held" | "pushed">} row @param {number} push @param {number} gap */
-export function packReach({ rect, held, pushed = 0 }, push, gap) {
-  const top = rect.top + (held ? pushed : 0);
-  return {
-    left: rect.left,
-    right: rect.right,
-    top: top - gap,
-    bottom: rect.bottom + push + gap,
-  };
-}
-
 // The pass each row came at, carried from the last pass's answer (`previous`) to this
 // one's. Each of this pass's rows is `{ row, at }`: the row's node and what it stands by,
 // its target or the row inside it a comment pointed at, or null where it has no target
@@ -242,7 +227,13 @@ export function seatRow(pin, { gap, occupied = [] }) {
   const fold = pin.folds;
   const closed = fold && {
     seats: fold.seats,
-    bounds: foldedBounds(pin.bounds, fold),
+    bounds: {
+      ...pin.bounds,
+      left: Math.min(
+        pin.bounds.left + fold.open - (fold.seats.home.right - fold.seats.home.left),
+        pin.bounds.right - (fold.seats.home.right - fold.seats.home.left),
+      ),
+    },
     folded: true,
   };
   let posture = pin.folded && closed ? closed : open;
@@ -300,57 +291,9 @@ export function seatRow(pin, { gap, occupied = [] }) {
   return { rect, folded };
 }
 
-// The bounds a folded pin's toggle is seated in, so that its opened actions land inside
-// `bounds` (`seatRow`).
-/** @param {Box} bounds @param {{seats: SeatSet, open: number}} fold */
-function foldedBounds(bounds, { seats, open }) {
-  const width = seats.home.right - seats.home.left;
-  return {
-    ...bounds,
-    left: Math.min(bounds.left + open - width, bounds.right - width),
-  };
-}
-
-// The room `seatRow` read of `occupied` to seat `pin` at `rect`: every seat it offers at
-// either size, each slid left as far as its bounds and down its target's edge to its
-// floor, and the corner pushed below as far as a seat there could still read as the
-// target's, or to the bounds' foot where they have one. A footprint that misses it
-// overlaps nothing the seating asked about, so adding one there or taking one away leaves
-// the seat as it was (`packReach` says the same of a rail row).
-/** @param {Pin} pin @param {Box} rect @param {number} gap */
-export function seatReach(pin, rect, gap) {
-  const postures = [{ seats: pin.seats, bounds: pin.bounds }];
-  if (pin.folds)
-    postures.push({
-      seats: pin.folds.seats,
-      bounds: foldedBounds(pin.bounds, pin.folds),
-    });
-  /** @type {[Box, ...Box[]]} */
-  const read = [rect, ...(pin.held ? [pin.held] : [])];
-  for (const { seats, bounds } of postures) {
-    const corner = boundedHome(seats.home, bounds);
-    const height = corner.bottom - corner.top;
-    const foot = Number.isFinite(bounds.bottom) ? bounds.bottom : -Infinity;
-    for (const seat of [...seats.before, seats.home, ...seats.after])
-      if (seat) read.push(seat);
-    read.push(
-      { ...corner, left: bounds.left },
-      { ...seats.home, bottom: Math.max(seats.home.bottom, pin.floor) },
-      { ...corner, bottom: Math.max(corner.bottom, pin.floor + gap + height, foot) },
-    );
-  }
-  const room = union(read);
-  return {
-    left: room.left - gap,
-    right: room.right + gap,
-    top: room.top - gap,
-    bottom: room.bottom + gap,
-  };
-}
-
 // `pin` read `dx` across and `dy` down from where it was read: the layout's record of a
 // pin from an earlier pass, brought to where the page stands now (margin-layout.js,
-// `seatings`).
+// `seatings`). Every positional field of `Pin` moves, so a field added to it moves here.
 /** @param {Pin} pin @param {number} dx @param {number} dy @returns {Pin} */
 export function shiftedPin(pin, dx, dy) {
   /** @param {Box} box */

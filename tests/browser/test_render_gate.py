@@ -1253,7 +1253,7 @@ def test_a_scroll_driven_animation_leaves_the_page_settled(firefox_browser, serv
         )
         == "running"
     )
-    render_checks_model.wait_for_probe(page, "pageSettled", timeout_ms=10_000)
+    render_checks_model.wait_for_probe(page, "pageSettled")
 
 
 def test_the_state_wait_follows_a_source_rewritten_under_it(browser, serve):

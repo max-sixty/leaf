@@ -15,6 +15,7 @@ from interact_support import (
     Prose,
     append_carried_log_record,
     append_command,
+    claude_code_module,
     record_claim,
     stamp,
     wait_for,
@@ -22,10 +23,10 @@ from interact_support import (
 )
 
 from leaf import codex as codex_model
+from leaf import completions, inference, thread_titles
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import harness as harness_model
-from leaf import inference, thread_titles
 from leaf import interaction_log as interaction_model
 from leaf import state as cleanup_model
 from leaf.thread import fit_title
@@ -380,63 +381,43 @@ def test_a_generated_title_is_fitted_to_a_thread_title(page_dir):
     assert title.startswith("Tightening the long introduction") and title.endswith("…")
 
 
-TITLING_CLAUDE = """\
-#!{python}
-import json, os, sys
-with open(os.environ["TITLING_RECORD"], "a") as record:
-    call = {{"argv": sys.argv[1:], "stdin": sys.stdin.read(), "env": dict(os.environ)}}
-    record.write(json.dumps(call) + "\\n")
-print(json.dumps({{
-    "structured_output": {{"title": " Export speed "}},
-    "duration_api_ms": 900,
-    "usage": {{"input_tokens": 1100, "output_tokens": 60}},
-}}))
-"""
-
-
-def test_a_comment_on_a_claude_code_page_is_named_as_it_arrives(
-    claimed, tmp_path, monkeypatch
-):
+def test_a_comment_on_a_claude_code_page_is_named_as_it_arrives(claimed):
     """Claude Code's agent names a thread only when it replies, which can be minutes
     on; its page server asks Haiku for a title as the comment opening the thread
-    arrives, in the claimant's voice, with none of the user's customizations, tools
-    or session identity."""
-    programs = tmp_path / "programs"
-    programs.mkdir()
-    claude = programs / "claude"
-    claude.write_text(TITLING_CLAUDE.format(python=sys.executable))
-    claude.chmod(0o755)
-    record = tmp_path / "claude-calls.jsonl"
-    monkeypatch.setenv("TITLING_RECORD", str(record))
-    monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
+    arrives, through the claimant session's own model client, which Leaf's hooks
+    module calls, and writes it in the claimant's voice."""
     assert stamp(claimed, "first").exit_code == 0
 
-    status, body = endpoint_model.accept_event(
-        claimed,
-        {
-            "kind": "comment",
-            "revision": 1,
-            "text": "Why does the export take a minute?",
-        },
-    )
-    assert status == 200, body
-    titles = wait_for(
-        lambda: [
-            e for e in events_model.read_events(claimed) if e["kind"] == "thread_title"
-        ],
-        bool,
-        failure="the thread was never named",
-    )
+    with claude_code_module("s1", '{"title": " Export speed "}') as asked:
+        status, body = endpoint_model.accept_event(
+            claimed,
+            {
+                "kind": "comment",
+                "revision": 1,
+                "text": "Why does the export take a minute?",
+            },
+        )
+        assert status == 200, body
+        titles = wait_for(
+            lambda: [
+                e
+                for e in events_model.read_events(claimed)
+                if e["kind"] == "thread_title"
+            ],
+            bool,
+            failure="the thread was never named",
+        )
     [comment] = [e for e in events_model.read_events(claimed) if e["kind"] == "comment"]
     [title] = titles
     assert (title["thread"], title["title"]) == (comment["id"], "Export speed")
     assert (title["agent"], title["session"]) == ("Claude", "s1")
 
-    [call] = [json.loads(line) for line in record.read_text().splitlines()]
-    assert "Why does the export take a minute?" in call["stdin"]
-    assert "CLAUDE_CODE_SESSION_ID" not in call["env"]
-    assert call["env"]["MAX_THINKING_TOKENS"] == "0"
-    assert call["env"]["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] == "1"
+    [request] = asked
+    assert request["request"]["model"] == "haiku"
+    assert "Why does the export take a minute?" in request["request"]["prompt"]
+    # The page server stops waiting a little after the model's own time limit.
+    assert request["request"]["timeoutMs"] < inference.TIMEOUT * 1000
+    assert completions.pending("s1") == []
 
     # The page server's output goes nowhere, so the page's diagnostics say what the
     # request did.
@@ -444,7 +425,30 @@ def test_a_comment_on_a_claude_code_page_is_named_as_it_arrives(
         lambda: title_records(claimed), bool, failure="the request was never logged"
     )
     assert logged["type"] == "thread_title_generated"
-    assert logged["apiDurationMs"] == 900
+    assert (logged["model"], logged["apiDurationMs"]) == ("haiku", 900)
+    assert (logged["inputTokens"], logged["outputTokens"]) == (300, 12)
+
+
+def test_a_claude_code_completion_that_gets_no_answer_says_why(page_dir, monkeypatch):
+    """A provider's 429 to the session's model reads as a rate limit, which a title
+    asks again; a session whose module answers nothing, as one whose Claude Code
+    process isn't running, fails the request at its deadline, and a reply after
+    that finds nothing to answer, so no request is left either way."""
+    import pytest
+
+    generate = inference.claude_code_generator("s1")
+    limited = {"failed": "api-error", "status": 429, "error": "rate_limit"}
+    with claude_code_module("s1", limited), pytest.raises(inference.RateLimited):
+        generate("Pick", page_dir, schema=thread_titles.OUTPUT_SCHEMA, instructions="")
+
+    requests = cleanup_model.session_file("s1", "completion.*")
+    monkeypatch.setattr(inference, "TIMEOUT", 0.2)
+    monkeypatch.setattr(completions, "GRACE_S", 0.1)
+    with pytest.raises(TimeoutError):
+        generate("Pick", page_dir, schema=thread_titles.OUTPUT_SCHEMA, instructions="")
+    assert list(requests.parent.glob(requests.name)) == []
+    completions.cmd_reply("s1", {"completion": "a" * 32, "text": "{}"})
+    assert list(requests.parent.glob(requests.name)) == []
 
 
 def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
@@ -676,10 +680,12 @@ def test_a_title_request_that_outlives_its_session_writes_no_title(claimed):
 
 
 def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
-    page_dir, app_server, tmp_path, monkeypatch, snapshot
+    page_dir, app_server, snapshot
 ):
-    """Claude Code's `claude -p` and a Codex App Server are sent the same system
-    prompt, request and answer schema; the snapshot is that request, verbatim."""
+    """A Claude Code session's completion and a Codex App Server are sent the same
+    instructions, request and answer schema, which the completion, taking no answer
+    schema, reads at the end of its system prompt; the snapshot is that request,
+    verbatim."""
     comment = append_carried_log_record(
         page_dir,
         {
@@ -693,39 +699,36 @@ def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
     assert title_request_result is not None
     _, request = title_request_result
 
-    programs = tmp_path / "programs"
-    programs.mkdir()
-    claude = programs / "claude"
-    claude.write_text(TITLING_CLAUDE.format(python=sys.executable))
-    claude.chmod(0o755)
-    record = tmp_path / "claude-calls.jsonl"
-    monkeypatch.setenv("TITLING_RECORD", str(record))
-    monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
-    thread_titles.title_generator(inference.claude_code_generate)(request, page_dir)
-    [call] = [json.loads(line) for line in record.read_text().splitlines()]
-    argv = call["argv"]
-    system_prompt = argv[argv.index("--system-prompt") + 1]
-    schema = json.loads(argv[argv.index("--json-schema") + 1])
+    with claude_code_module("s1", '{"title": "Export speed"}') as asked:
+        thread_titles.title_generator(inference.claude_code_generator("s1"))(
+            request, page_dir
+        )
+    [completion] = [each["request"] for each in asked]
 
     endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
     thread_titles.app_server_title(endpoint)(request, page_dir)
     [start] = [m for m in received if m.get("method") == "thread/start"]
     [turn] = [m for m in received if m.get("method") == "turn/start"]
-    assert start["params"]["baseInstructions"] == system_prompt
-    assert turn["params"]["input"] == [{"type": "text", "text": call["stdin"]}]
-    assert turn["params"]["outputSchema"] == schema
+    instructions = start["params"]["baseInstructions"]
+    schema = turn["params"]["outputSchema"]
+    assert completion["system"].startswith(instructions)
+    assert turn["params"]["input"] == [{"type": "text", "text": completion["prompt"]}]
 
-    placeholders = {system_prompt: "<system_prompt>", json.dumps(schema): "<schema>"}
     snapshot.check(
         yaml_document(
-            "What Claude Code's page server runs, what it and a Codex App Server "
-            "both send, and\nthe App Server's titling thread, for a thread opened "
-            "on a passage.",
+            "What a Claude Code session's module and a Codex App Server are asked "
+            "for a thread opened on\na passage, and the App Server's titling thread.",
             {
-                "command": ["claude", *(placeholders.get(a, a) for a in argv)],
-                "system_prompt": Prose(system_prompt),
-                "request": Prose(call["stdin"]),
+                "instructions": Prose(instructions),
+                "request": Prose(completion["prompt"]),
                 "schema": schema,
+                "claude_code_completion": {
+                    **{
+                        key: completion[key]
+                        for key in ("model", "maxTokens", "timeoutMs")
+                    },
+                    "system": Prose(completion["system"]),
+                },
                 "app_server_thread": {
                     key: start["params"][key]
                     for key in (
@@ -742,9 +745,7 @@ def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
     )
 
 
-def test_shared_inference_checks_structured_results(
-    page_dir, app_server, tmp_path, monkeypatch
-):
+def test_shared_inference_checks_structured_results(page_dir, app_server):
     """Widgets and titles use the same tool-free transports, with the host's model
     and caller's schema; an answer outside that schema must not reach the caller."""
     import pytest
@@ -756,43 +757,28 @@ def test_shared_inference_checks_structured_results(
         "required": ["choice"],
         "additionalProperties": False,
     }
-    programs = tmp_path / "programs"
-    programs.mkdir()
-    claude = programs / "claude"
-    claude.write_text(
-        TITLING_CLAUDE.replace('"title": " Export speed "', '"choice": 7').format(
-            python=sys.executable
-        )
-    )
-    claude.chmod(0o755)
-    record = tmp_path / "calls.jsonl"
-    monkeypatch.setenv("TITLING_RECORD", str(record))
-    monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
     endpoint, received = titling_app_server(app_server, '{"choice": 7}')
-    for generate in (
-        inference.claude_code_generate,
-        inference.app_server_generate(endpoint),
-    ):
-        result = generate(
-            "Pick an item",
-            page_dir,
-            schema=schema,
-            instructions="Choose one item",
-        )
-        assert result["value"] == {"choice": 7}
-        assert result["model"] in {"haiku", inference.CODEX_MODEL}
-        assert set(result["usage"]) == {"inputTokens", "outputTokens"}
-        with pytest.raises(ValidationError):
-            generate(
+    with claude_code_module("s1", '{"choice": 7}'):
+        for generate in (
+            inference.claude_code_generator("s1"),
+            inference.app_server_generate(endpoint),
+        ):
+            result = generate(
                 "Pick an item",
                 page_dir,
-                schema=thread_titles.OUTPUT_SCHEMA,
+                schema=schema,
                 instructions="Choose one item",
             )
-    call = json.loads(record.read_text().splitlines()[0])
-    assert "--model=haiku" in call["argv"]
-    assert "--tools=" in call["argv"]
-    assert "--safe-mode" in call["argv"]
+            assert result["value"] == {"choice": 7}
+            assert result["model"] in {"haiku", inference.CODEX_MODEL}
+            assert set(result["usage"]) == {"inputTokens", "outputTokens"}
+            with pytest.raises(ValidationError):
+                generate(
+                    "Pick an item",
+                    page_dir,
+                    schema=thread_titles.OUTPUT_SCHEMA,
+                    instructions="Choose one item",
+                )
     start = next(m for m in received if m.get("method") == "thread/start")
     assert start["params"]["model"] == inference.CODEX_MODEL
     assert start["params"]["baseInstructions"] == "Choose one item"

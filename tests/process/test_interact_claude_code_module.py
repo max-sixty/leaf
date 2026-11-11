@@ -19,17 +19,21 @@ from interact_support import (
     append_carried_log_record,
     read_record,
     serving,
+    stamp,
     wait_for,
 )
 
 from leaf import clerk as clerk_model
+from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import forks as forks_model
+from leaf import inference as inference_model
 from leaf import leases as leases_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import thread_titles as thread_titles_model
 from leaf.harness import NUDGE_WORDS
 from leaf.interaction_log import read_interactions
 
@@ -56,6 +60,7 @@ class ClaudeCode:
         self.bands = queue.Queue()
         self.pressed = queue.Queue()
         self.forks = queue.Queue()
+        self.completions = queue.Queue()
         threading.Thread(target=self.route, daemon=True).start()
         self.pid = self.read()["pid"]
 
@@ -70,6 +75,8 @@ class ClaudeCode:
                 self.bands.put(record["band"])
             elif "forked" in record:
                 self.forks.put(record)
+            elif "completed" in record:
+                self.completions.put(record["completed"])
             elif {"copied", "toast"} & record.keys():
                 self.pressed.put(record)
             else:
@@ -341,7 +348,7 @@ def test_a_follower_that_ends_to_be_renewed_starts_again(spawn, sessionless, tmp
     launcher.write_text(
         "#!/bin/sh\n"
         f"echo started >> {starts}\n"
-        f"echo '{json.dumps([page])}'\n"
+        f"echo '{json.dumps({'pages': [page], 'completions': []})}'\n"
         f'[ "$(wc -l < {starts})" -gt 1 ] && exec sleep 60\n'
         "exit 75\n"
     )
@@ -552,4 +559,68 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     assert note["effort"] == forks_model.EFFORT != RESENT["effort"], note
     assert note["usage"] == FORK_USAGE and note["elapsedMs"] >= 0, note
     assert driven.diagnostics.empty()
+    driven.quit()
+
+
+def test_a_comment_is_titled_by_a_completion_on_the_sessions_own_model(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """As a comment opens an untitled thread, its page server asks the claimant's
+    model for a title through the session's pages follower; the module makes the
+    completion on the session's own client and hands the reply back through the
+    launcher, and the title goes in in the claimant's voice. The provider's first
+    answer is a 429, which the module reports with its status, so the page server
+    asks again (`thread_titles.RETRY_INTERVAL`). Forks are off, so the follower
+    waits on the session's requests alone."""
+    monkeypatch.setattr(thread_titles_model, "RETRY_INTERVAL", 0.1)
+    driven = ClaudeCode(
+        spawn,
+        "cc-title",
+        {
+            "completeReply": '{"title": "Poll interval"}',
+            "completeRefusals": 1,
+            "env": {"LEAF_FORK_REPLIES": "off"},
+        },
+    )
+    holding_page(driven, page_dir, monkeypatch)
+    assert stamp(page_dir, "first").exit_code == 0
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    wait_for(
+        lambda: band_lines(
+            driven.bands.get(timeout=STATED_TIMEOUT)["terminal"], "terminal"
+        ),
+        bool,
+        failure="the band never showed the page",
+    )
+    status, body = endpoint_model.accept_event(
+        page_dir, {"kind": "comment", "revision": 1, "text": "Why does it poll 2 s?"}
+    )
+    assert status == 200, body
+    refused = driven.completions.get(timeout=STATED_TIMEOUT)
+    assert refused["model"] == inference_model.CLAUDE_CODE_MODEL
+    assert "Why does it poll 2 s?" in refused["prompt"]
+    assert driven.completions.get(timeout=STATED_TIMEOUT) == refused
+    [title] = wait_for(
+        lambda: [
+            event
+            for event in events_model.read_events(page_dir)
+            if event["kind"] == "thread_title"
+        ],
+        bool,
+        failure=lambda: f"no title: {read_interactions(page_dir)}",
+    )
+    assert (title["thread"], title["title"], title["session"]) == (
+        body["event"]["id"],
+        "Poll interval",
+        "cc-title",
+    )
+    [logged] = wait_for(
+        lambda: read_interactions(page_dir, types=("thread_title_generated",)),
+        bool,
+        failure="the title was never recorded",
+    )
+    assert (logged["refusals"], logged["inputTokens"]) == (1, 300)
+    assert logged["apiDurationMs"] >= 0
+    assert driven.forks.empty() and driven.diagnostics.empty()
     driven.quit()

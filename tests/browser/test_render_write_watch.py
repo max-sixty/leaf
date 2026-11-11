@@ -246,3 +246,31 @@ def test_shadow_observation_does_not_retain_discarded_components(browser):
         assert page.evaluate("discardedRoot.deref() === undefined")
     finally:
         session.detach()
+
+
+def test_a_scroll_write_that_moves_nothing_is_the_page_s_finding(browser):
+    """A page's scroll write that leaves its box where it stood is reported, with the
+    frames that made it; one that moves the box, a smooth one, which moves it later, and
+    the test's own write through evaluate are not."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<div id="box" style="height:100px;overflow:auto">'
+            '<div style="height:400px"></div></div>'
+            "<script>"
+            "const box = document.getElementById('box');"
+            "function restate() { box.scrollTop = box.scrollTop; }"
+            "function move() { box.scrollTo({top: 50}); }"
+            "function glide() {"
+            " box.scrollTo({top: box.scrollTop, behavior: 'smooth'}); }"
+            "</script>"
+        )
+    )
+    page.evaluate(
+        "() => { move(); glide(); box.scrollTop = box.scrollTop; restate(); }"
+    )
+    (failure,) = consume_browser_errors(page, {"code": "unmoved-scroll"})
+    assert failure.values["node"] == ["div#box"]
+    assert failure.values["how"] == "scrollTop"
+    assert failure.values["by"][0].startswith("restate")

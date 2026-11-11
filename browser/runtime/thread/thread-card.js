@@ -1019,7 +1019,7 @@ export class ThreadView {
       const foot = this.node.querySelector(".lf-awaited")?.getBoundingClientRect();
       const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
       const by = Math.min(Math.max(below, 0), from());
-      if (Math.abs(by) >= 0.5) moveScrollerBy(scroller, by);
+      moveScrollerBy(scroller, by);
     });
   }
 

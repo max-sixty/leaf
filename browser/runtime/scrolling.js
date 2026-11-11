@@ -36,6 +36,7 @@ import {
   browserScrolls,
   holdScroll,
   setScroll,
+  stopWhereItStands,
   watchOwner,
   watchScrollEnds,
 } from "./arrivals.js";
@@ -180,12 +181,7 @@ export function stopScroll(boxes) {
   const stopped = all.filter(browserScrolls);
   for (const box of all) stopGlide(box);
   if (!stopped.length) return null;
-  for (const box of stopped)
-    setScroll(box, {
-      left: box.scrollLeft,
-      top: box.scrollTop,
-      behavior: "instant",
-    });
+  for (const box of stopped) stopWhereItStands(box);
   return new Promise(
     /** @param {(value?: void) => void} resolve */ (resolve) =>
       nextFrame(() => nextFrame(() => resolve(undefined))),
@@ -396,7 +392,7 @@ const aims = new WeakMap();
 /** @param {Element} box @param {number} top */
 export const moveScrollerBy = (box, top) => {
   const aim = box.scrollTop + top;
-  if (Math.abs(top) >= 0.5) setScroll(box, { top: aim, behavior: "instant" });
+  setScroll(box, { top: aim, behavior: "instant" });
   if (Math.abs(aim - box.scrollTop) < 1) aims.set(box, { aim, at: box.scrollTop });
   else aims.delete(box);
 };
@@ -514,9 +510,9 @@ export function afterBrowserScroll(box, then) {
 // The goal is clamped here, so a step pressed on at the foot banks no debt for u to press
 // back through, and an edge may be asked for as the height it cannot exceed. Motion the
 // browser drives in the box at the press, or that the glide this replaces had yet to
-// take, is this glide's to take over. Otherwise the glide holds the box from the press,
-// and a hand that moves it before the glide's first frame wins. A glide with nothing to
-// move or take over is none.
+// take, is this glide's to take over, and stops where the box stands. Otherwise the
+// glide holds the box from the press, and a hand that moves it before the glide's first
+// frame wins. A glide with nothing to move or take over is none.
 /** @param {Element} box @param {number} top */
 export function glideTo(box, top) {
   const replaced = glideIn.get(box);
@@ -524,6 +520,7 @@ export function glideTo(box, top) {
   const goal = Math.max(0, Math.min(scrollLimit(box), top));
   if (!replaced && !takesOver && Math.abs(goal - box.scrollTop) < 0.5) return;
   startScroll(box);
+  if (takesOver) stopWhereItStands(box);
   if (reducedMotion()) {
     stopGlide(box);
     setScroll(box, { top: goal, behavior: "instant" });

@@ -1498,7 +1498,8 @@ def watched(page, *, java_script_enabled=True):
     Window errors without exceptions join them, installed through the same
     `install_window_errors` helper the render gate uses, and so do the health
     sensors' findings, which each sensor hands over as a record through the
-    `__leafWatchFinding` binding: DOM writes that change nothing (`write_watch.js`),
+    `__leafWatchFinding` binding: DOM writes that change nothing and scroll writes that
+    move nothing (`write_watch.js`),
     layout shifts without input or that carry a field being typed in
     (`shift_watch.js`), typed words leaving the screen without a key or press
     (`words_watch.js`), and a row sized by the occupant that took a seat in it

@@ -1,6 +1,6 @@
-// Watches every DOM write a page makes, in its document and in each shadow root, from
-// before the first byte parses. The browser fixture installs it on every page a test
-// opens (render_harness.watched).
+// Watches every DOM write a page makes, in its document and in each shadow root, and
+// every scroll write (at the end), from before the first byte parses. The browser
+// fixture installs it on every page a test opens (render_harness.watched).
 //
 // A write that changes nothing is reported as an `unchanged-write` record through the
 // fixture's `__leafWatchFinding` binding, a browser problem that fails the test like any
@@ -499,6 +499,81 @@
       driver = probing(installed);
     },
   });
+  // A scroll write that moves nothing is reported as an `unmoved-scroll` record, as a
+  // DOM write that changes nothing is: its writer didn't read where the box stood. It
+  // also stops the scroll the browser is driving, and in Firefox cancels the rubber band
+  // of a flick into an edge, as a margin card did that put its transcript back at its
+  // end at every scroll's end. A write is the page's when a frame of the page's own
+  // scripts made it; one the test makes through Playwright's evaluate is the test's
+  // setup. A smooth write moves the box later, so only an instant one is judged.
+  const pageFrames = () =>
+    new Error().stack
+      .split("\n")
+      .filter((line) => /\b(?:https?|file|blob):\/\/|\bdata:/.test(line))
+      .slice(0, 4)
+      .map((line) =>
+        line
+          .trim()
+          .replace(/^at /, "")
+          .replace(/https?:\/\/[^/]+\/(?:revisions\/[^/]+\/[^/]+\/)?/, ""),
+      );
+  // Scroll writes that move nothing on purpose, as `EXPECTED` lists DOM writes:
+  // CodeMirror's measure puts back the scroll its height map anchors, which the browser
+  // clamps at the editor's end, and a landing or a glide stops a scroll the browser
+  // drives, which this watch can't see (arrivals.js, `stopWhereItStands`).
+  const EXPECTED_SCROLLS = [
+    (by) => by[0].includes("vendor/codemirror."),
+    (by) => /^stopWhereItStands\b.*\bruntime\/arrivals\.js:/.test(by[0]),
+  ];
+  // Run one scroll write to `box`, `options` saying how it moves.
+  const scrollWrite = (box, how, options, write) => {
+    const by = box ? pageFrames() : [];
+    if (
+      !by.length ||
+      options.behavior === "smooth" ||
+      ((options.behavior ?? "auto") === "auto" &&
+        getComputedStyle(box).scrollBehavior === "smooth")
+    )
+      return write();
+    const { scrollLeft, scrollTop } = box;
+    const result = write();
+    if (
+      box.scrollLeft === scrollLeft &&
+      box.scrollTop === scrollTop &&
+      !EXPECTED_SCROLLS.some((expected) => expected(by))
+    ) {
+      const finding = { code: "unmoved-scroll", node: place(box), how, by };
+      const key = JSON.stringify(finding);
+      if (!reported.has(key)) {
+        reported.add(key);
+        window.__leafWatchFinding(finding);
+      }
+    }
+    return result;
+  };
+  const optionsOf = (args) =>
+    typeof args[0] === "object" && args[0] !== null ? args[0] : {};
+  for (const method of ["scrollTo", "scroll", "scrollBy"]) {
+    const native = Element.prototype[method];
+    Element.prototype[method] = function (...args) {
+      return scrollWrite(this, method, optionsOf(args), () => native.apply(this, args));
+    };
+    const own = window[method];
+    window[method] = function (...args) {
+      return scrollWrite(document.scrollingElement, method, optionsOf(args), () =>
+        own.apply(this, args),
+      );
+    };
+  }
+  for (const property of ["scrollTop", "scrollLeft"]) {
+    const native = Object.getOwnPropertyDescriptor(Element.prototype, property);
+    Object.defineProperty(Element.prototype, property, {
+      ...native,
+      set(value) {
+        scrollWrite(this, property, {}, () => native.set.call(this, value));
+      },
+    });
+  }
   const attachShadow = Element.prototype.attachShadow;
   Element.prototype.attachShadow = function (init) {
     const root = attachShadow.call(this, init);

@@ -191,15 +191,8 @@
             message owes no reply, or when the pages follower stops.
           </p>
           <figure id="path-figure" class="diagram-figure">
-            <lf-diagram id="path-diagram" data-height="662" parts="all">
+            <lf-diagram id="path-diagram" data-height="609" parts="all">
               <pre>
----
-config:
-  flowchart:
-    wrappingWidth: 84
-    nodeSpacing: 8
-    rankSpacing: 28
----
 flowchart TD
   accTitle: The path of one thread message
   accDescr: The user writes in a thread. Leaf keeps the message back from the main thread, and it reads On it. A line fork writes the working line and sorts the message. A small task goes to a working fork, which answers in the thread, and the main thread hears what it did. A significant task becomes a to-do, which is planned. Input the main thread needs now goes to the main thread.
@@ -334,16 +327,8 @@ flowchart TD
               <span class="tag">only with the flag</span>
             </p>
             <figure id="take-figure" class="diagram-figure">
-              <lf-diagram id="take-sequence" data-height="628" parts="all">
+              <lf-diagram id="take-sequence" data-height="520" parts="all">
                 <pre>
----
-config:
-  sequence:
-    width: 40
-    actorMargin: 0
-    messageMargin: 18
-    wrap: true
----
 sequenceDiagram
   accTitle: A working fork takes a message and answers it
   accDescr: The user writes. Leaf keeps the message back while a line fork writes the working line and judges take. Leaf posts the line, opens a turn for a working fork, records its pickup and spawns it, and tells the main thread a fork has the thread. A further message reaches the fork at its next tool boundary. The fork replies in the thread. When its run ends, Leaf tells the main thread what it did.
@@ -420,15 +405,8 @@ sequenceDiagram
             closed turn still holds what it picked up until another turn picks it up.
           </p>
           <figure id="holding-figure" class="diagram-figure">
-            <lf-diagram id="holding-diagram" data-height="453" parts="all">
+            <lf-diagram id="holding-diagram" data-height="450" parts="all">
               <pre>
----
-config:
-  flowchart:
-    wrappingWidth: 104
-    nodeSpacing: 14
-    rankSpacing: 34
----
 flowchart TD
   accTitle: Who has a thread's waiting messages
   accDescr: A new message is kept back for the line fork. A take gives it to a fork's turn, through the fork's pickup; a hand-over, a failed fork or the 30 s bound gives it to the main thread. If the fork's turn closes or lapses with a message still waiting, the main thread owes it. The fork's reply answers it, and so does the main thread's, whether the main thread owes it or answers over the running fork.
@@ -517,15 +495,8 @@ flowchart TD
             <span class="tag">only with the flag</span>
           </p>
           <figure id="acting-figure" class="diagram-figure">
-            <lf-diagram id="acting-flow" data-height="844" parts="all">
+            <lf-diagram id="acting-flow" data-height="705" parts="all">
               <pre>
----
-config:
-  flowchart:
-    wrappingWidth: 84
-    nodeSpacing: 8
-    rankSpacing: 26
----
 flowchart TD
   accTitle: Who a leaf command acts as
   accDescr: A Bash call that runs leaf, from an agent that runs no open turn while a turn Leaf opened awaits its agent, is denied with the instruction to run it again. Otherwise, from an agent the session ran no turn for, it acts as the main thread. From an agent the session ran a turn for, a call where leaf isn't the first word, or runs twice, is denied. Otherwise the hook marks it with the agent's id; it acts in the agent's turn while that turn is open, on what the turn holds, and is refused once the turn has ended.
@@ -647,15 +618,8 @@ flowchart TD
             <span class="tag">only with the flag</span>
           </p>
           <figure id="ending-figure" class="diagram-figure">
-            <lf-diagram id="ending-flow" data-height="721" parts="all">
+            <lf-diagram id="ending-flow" data-height="629" parts="all">
               <pre>
----
-config:
-  flowchart:
-    wrappingWidth: 84
-    nodeSpacing: 4
-    rankSpacing: 26
----
 flowchart TD
   accTitle: How Leaf judges a thread when a fork's run ends
   accDescr: When a fork's run ends, Leaf closes its turn. If a message it picked up still waits and its closed turn still holds the thread, the outcome is hand_back. If another turn holds one of them or answered it, taken_over. Otherwise the fork answered every one: todo where a reply of its own opened a to-do on the thread that is still open, else answer.
@@ -791,15 +755,8 @@ flowchart TD
             <span class="tag">only with the flag</span>
           </p>
           <figure id="follow-ups-figure" class="diagram-figure">
-            <lf-diagram id="follow-up-flow" data-height="894" parts="all">
+            <lf-diagram id="follow-up-flow" data-height="719" parts="all">
               <pre>
----
-config:
-  flowchart:
-    wrappingWidth: 88
-    nodeSpacing: 8
-    rankSpacing: 26
----
 flowchart TD
   accTitle: Where a further message in a thread goes
   accDescr: If a running fork turn holds the thread, by its pickup or its answer, that fork takes the message at its next tool boundary. Otherwise, if the main thread owes the thread, or its answer took the thread from a fork that still runs, it takes the message as any input. Otherwise the message is kept back for the line fork, which sorts it. On a take, if a fork gave the thread's last answer and its turn has closed, that fork is resumed in a new turn; otherwise a new working fork takes it.
@@ -893,15 +850,8 @@ flowchart TD
             thread is changing or about to change. Nothing else enforces it.
           </p>
           <figure id="coordinator-figure" class="diagram-figure">
-            <lf-diagram id="coordinator-diagram" data-height="453" parts="all">
+            <lf-diagram id="coordinator-diagram" data-height="450" parts="all">
               <pre>
----
-config:
-  flowchart:
-    wrappingWidth: 96
-    nodeSpacing: 14
-    rankSpacing: 34
----
 flowchart TD
   accTitle: The main thread coordinates forks, to-dos and subagents
   accDescr: Working forks tell the main thread what each did, and the main thread can steer them or ask them to stop. A fork can turn work that proved bigger than it looked into a to-do. The main thread schedules to-dos and runs work bigger than a message in subagents.

@@ -11,8 +11,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
+from .clerk import QUEUED, waking
 from .detached import StartRefused
 from .file_changes import FileChanges, target_paths
 from .files import file_stamp
@@ -184,6 +185,13 @@ class Watch:
         self.claims = (
             session_claims(self.session_id) if self.session_id else claims_home()
         )
+        # The lines Leaf queued for the session's next step, some of which wake it
+        # (`clerk.waking`); no page's reading stamps them.
+        self.told = (
+            session_file(self.session_id, QUEUED.kind).resolve()
+            if self.session_id
+            else None
+        )
         self.watched: list[Path] = []
         self.changes = None
         self.change_pages = None
@@ -234,6 +242,7 @@ class Watch:
             file_stamp(self.claims),
             tuple((target, file_stamp(target)) for target in sorted(discovery)),
             tuple(map(file_stamp, self.lease_paths)),
+            self.told and file_stamp(self.told),
             *map(_page_reading_or_none, self.watched),
         )
 
@@ -249,6 +258,8 @@ class Watch:
             }
             if self.session_id:
                 targets.add(session_file(self.session_id, SESSION_SUFFIX).resolve())
+            if self.told:
+                targets.add(self.told)
             targets.update(path.resolve() for path in self.lease_paths)
             roots = {self.claims} | {target.parent for target in targets}
             for page in pages:
@@ -562,18 +573,28 @@ def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
     return 2
 
 
-def wake_line(page_dir: Path, *, new_input: bool) -> str:
-    """What a watch says as it wakes the session, where the harness's prompt hook
-    carries what woke it into the turn: `new_input`, or an answer a closed turn left
-    owed (`left_owed`)."""
-    if new_input:
+# What a watch wakes the session for: new input on a page, an answer the closed turn
+# left owed on it (`left_owed`), or a line Leaf queued that tells the session of work
+# it now owes (`clerk.waking`).
+Wake = Literal["input", "owed", "told"]
+
+
+def wake_line(page_dir: Path, wake: Wake) -> str:
+    """What a watch says as it wakes the session for `wake` on `page_dir`, where the
+    harness's prompt hook carries what woke it into the turn."""
+    if wake == "input":
         return (
             f"{page_dir} has new input; Leaf's prompt hook puts it in your context "
             "with this notification"
         )
+    if wake == "owed":
+        return (
+            f"{page_dir} has an update still owed an answer; Leaf's prompt hook "
+            "names it in your context with this notification"
+        )
     return (
-        f"{page_dir} has an update still owed an answer; Leaf's prompt hook names it "
-        "in your context with this notification"
+        "Leaf has word of work you now owe; Leaf's prompt hook puts it in your "
+        "context with this notification"
     )
 
 
@@ -687,7 +708,11 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
     context, and input its hooks handed over that its transcript does not show
     (`delivery.deliverable`); input the turn confirmed waits for a prompt.
     Settled thread input alone never wakes; it remains in the next receipt batch.
-    The session lease and each page transaction retain ownership of delivery,
+    Once the turn has closed, the watch also wakes for an answer it left owed
+    (`left_owed`), and for a line Leaf queued that tells the session of work it now
+    owes, such as a to-do a fork opened (`clerk.waking`), until a hook has printed
+    it; the watch follows the queue's file itself (`Watch.told`), since no page's
+    reading stamps it. The session lease and each page transaction retain ownership of delivery,
     revival and competing-watch decisions. The newest watch takes the lease from
     any holder, and a watch superseded that way ends without a word: the newest
     runs the Leaf its harness runs now, while an older one may run a Leaf the
@@ -762,11 +787,25 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
             owed[page.page_dir] = kept = (key, left_owed(page))
         return kept[1]
 
+    def wakes_for(reading: PageTick) -> tuple[Wake, list[dict]] | None:
+        """What the session would wake for on this page, with the events behind
+        it: new input; or, unless Escape ended the turn, an answer the closed turn
+        left owed, or a queued line telling the session of work it now owes once
+        its turn has closed."""
+        page = reading.transaction
+        if inputs := wake_inputs(page, reading.batch):
+            return "input", inputs
+        if interrupted:
+            return None
+        if left := reminders(page):
+            return "owed", left
+        if turn_closed(page.active_claim) and waking(harness.session):
+            return "told", []
+        return None
+
     def ready(reading: PageTick) -> bool:
-        pending = wake_inputs(reading.transaction, reading.batch) or (
-            [] if interrupted else reminders(reading.transaction)
-        )
-        if not pending:
+        found = wakes_for(reading)
+        if found is None:
             return False
         if interrupted:
             return True
@@ -777,25 +816,22 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
             turn_closed(claim)
             or any(
                 datetime.fromisoformat(event["ts"]).timestamp() >= began
-                for event in pending
+                for event in found[1]
             )
             or time.monotonic() > settled
         )
+
+    def wake_text(tick: PageTick) -> str:
+        found = wakes_for(tick)
+        assert found is not None, "the watch wakes only for a page it is ready for"
+        return wake_line(tick.page_dir, found[0])
 
     # How the watch ended, which its record in each page it read keeps.
     ended = "stopped"
     try:
         while harness.process_runs():
             mark = watch.mark()
-            reading = read_watch_pass(
-                watch,
-                None,
-                lambda tick: wake_line(
-                    tick.page_dir,
-                    new_input=bool(wake_inputs(tick.transaction, tick.batch)),
-                ),
-                ready,
-            )
+            reading = read_watch_pass(watch, None, wake_text, ready)
             # Superseded during the pass, it leaves what it found to its successor.
             if not watch.holds():
                 ended = "superseded"

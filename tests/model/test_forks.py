@@ -12,7 +12,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from threading import Event, Thread
+from threading import Condition, Event, Thread
 from types import SimpleNamespace
 
 import pytest
@@ -34,6 +34,7 @@ from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import file_changes as file_changes_model
 from leaf import forks as forks_model
+from leaf import harness as harness_model
 from leaf import holding as holding_model
 from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
@@ -668,6 +669,181 @@ def test_the_watch_wakes_the_idle_session_for_a_thread_its_fork_gave_back(
     )
     watch.join(STATED_TIMEOUT)
     assert woke and woke[0].startswith(f"{claimed} has an update still owed an answer")
+
+
+def started_fork(page_dir, text: str, agent: str) -> dict:
+    """The user's message in a thread of its own, which a fork the module spawned as
+    `agent` took; the message."""
+    asked, taken = taken_by_a_fork(page_dir, text)
+    forks_model.started(
+        "s1", basis(page_dir, asked["id"], asked["id"]), taken["turn"], agent
+    )
+    return asked
+
+
+def fork_ends(page_dir, monkeypatch, asked: dict, agent: str, **reply) -> str:
+    """The fork `agent`'s reply to `asked` from its own turn, with `reply`'s options,
+    and then the end of its run; what `forks.ended` judged of the thread."""
+    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, agent)
+    assert thread_model.post_response(
+        answer_ref(page_dir, asked["id"]), f"An answer to: {asked['text']}", **reply
+    )
+    monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
+    [ended] = forks_model.ended(
+        "s1", agent=agent, turn=None, answer="Done.", failed=None
+    )
+    return ended["outcome"]
+
+
+def main_thread_opens_a_to_do(page_dir, thread: str) -> None:
+    """A to-do the main thread opens on `thread`, as its own `leaf task create`."""
+    created = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "create", str(page_dir), thread, "--title", "Profile it"],
+    )
+    assert created.exit_code == 0, created.output
+
+
+class Watching:
+    """The watch session s1's Stop hook starts, run in a thread, and its passes over
+    the pages. Each pass begins as the watch marks what it reads (`Watch.mark`),
+    when this notes the lines queued for the session and the agent turns still open,
+    which only grow and shrink until a hook hears the lines, and ends as the watch
+    waits for news. It waits as long as the test runs, so it wakes only for a write
+    it follows, never at its periodic recheck."""
+
+    def __init__(self, monkeypatch):
+        self.woke: list = []
+        # What each pass began from, and how many passes have ended.
+        self.began: list[tuple[list[str], dict]] = []
+        self.ended = 0
+        self.passed = Condition()
+        mark, await_news = session_model.Watch.mark, session_model.Watch.await_news
+
+        def marking(watch):
+            began = (clerk_model.queued("s1"), state_model.open_agent_turns("s1"))
+            marked = mark(watch)
+            with self.passed:
+                self.began.append(began)
+            return marked
+
+        def awaiting(watch, marked, timeout=None):
+            with self.passed:
+                self.ended = len(self.began)
+                self.passed.notify_all()
+            return await_news(watch, marked, 100 * STATED_TIMEOUT)
+
+        monkeypatch.setattr(session_model.Watch, "mark", marking)
+        monkeypatch.setattr(session_model.Watch, "await_news", awaiting)
+        stop = {"hook_event_name": "Stop", "session_id": "s1", "prompt_id": "p1"}
+        self.thread = Thread(
+            target=lambda: self.woke.append(hooks_model.cmd_watch("claude-code", stop)),
+            daemon=True,
+        )
+        self.thread.start()
+        self.read(lambda queued, turns: True)
+
+    def read(self, began) -> None:
+        """Wait until a pass that `began` accepts by what it began from, its queued
+        lines and open agent turns, has read the pages, or the watch has woken the
+        session."""
+        with self.passed:
+            assert self.passed.wait_for(
+                lambda: (
+                    any(began(*state) for state in self.began[: self.ended])
+                    or not self.thread.is_alive()
+                ),
+                STATED_TIMEOUT,
+            ), f"the watch never read the pages: {self.woke}"
+
+
+def test_the_watch_wakes_the_idle_session_for_a_to_do_its_fork_opened(
+    claimed, lane, interactive, capsys, monkeypatch
+):
+    """A fork's answer leaves the idle session owing nothing, so the watch that
+    follows its closed turn sleeps through it, even on a thread holding a to-do the
+    main thread opened. A to-do the fork opened is work the main thread now owes, so
+    the watch wakes the session as the fork's line about it is queued, though the
+    page hasn't moved since the fork's turn closed, and the woken turn's prompt
+    carries that line."""
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed)
+    asked = started_fork(claimed, "Why is the cold start slow?", "agent-1")
+    later = started_fork(claimed, "Why is the warm start slow?", "agent-2")
+    context(capsys, "UserPromptSubmit")
+    main_thread_opens_a_to_do(claimed, asked["id"])
+    hooks_model.cmd_hook(
+        "claude-code",
+        {"hook_event_name": "Stop", "session_id": "s1", "prompt_id": "p1"},
+    )
+    assert capsys.readouterr().out == ""
+    watching = Watching(monkeypatch)
+    assert watching.woke == []
+
+    answered = fork_ends(claimed, monkeypatch, asked, "agent-1", asks_back=False)
+    assert answered == "answer"
+    watching.read(lambda queued, turns: bool(queued))
+    assert watching.woke == []
+
+    # The watch reads the pages once the fork's turn has closed, before its line is
+    # queued, so only the line can wake it.
+    close = forks_model.close_agent_turns
+
+    def closed_and_read(*args, **kwargs):
+        closed = close(*args, **kwargs)
+        watching.read(lambda queued, turns: not turns)
+        return closed
+
+    monkeypatch.setattr(forks_model, "close_agent_turns", closed_and_read)
+    todo = "Profile the warm start"
+    assert fork_ends(claimed, monkeypatch, later, "agent-2", todo=todo) == "todo"
+    watching.thread.join(STATED_TIMEOUT)
+    assert watching.woke == [session_model.wake_line(claimed, "told")]
+    hooks_model.cmd_hook(
+        "claude-code",
+        {"hook_event_name": "UserPromptSubmit", "session_id": "s1", "prompt_id": "p2"},
+    )
+    told = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert "“Profile the warm start”" in told and "which you now owe" in told
+    assert clerk_model.waking("s1") == []
+
+
+def test_a_to_do_its_fork_opened_nudges_a_session_no_watch_follows_once(
+    claimed, lane, interactive, capsys, monkeypatch
+):
+    """With no watch following the session's closed turn, the end of a fork's run
+    nudges the session for a to-do the fork opened, once Leaf has queued the line
+    the woken turn's prompt carries, and once for that ending of the session's turn,
+    however many forks open to-dos before its next turn. A fork's answer nudges
+    nothing, even on a thread holding a to-do the main thread opened."""
+    nudged = []
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "nudge",
+        lambda harness, page: nudged.append((page, clerk_model.waking("s1"))) or True,
+    )
+    asked = started_fork(claimed, "Why is the cold start slow?", "agent-1")
+    later = started_fork(claimed, "Why is the warm start slow?", "agent-2")
+    last = started_fork(claimed, "Why is the build slow?", "agent-3")
+    context(capsys, "UserPromptSubmit")
+    main_thread_opens_a_to_do(claimed, asked["id"])
+    state_model.close_session_turn("s1")
+
+    assert fork_ends(claimed, monkeypatch, asked, "agent-1", asks_back=False) == (
+        "answer"
+    )
+    assert nudged == []
+
+    todo = "Profile the warm start"
+    assert fork_ends(claimed, monkeypatch, later, "agent-2", todo=todo) == "todo"
+    [(page, owed)] = nudged
+    assert page == claimed.resolve()
+    assert any("“Profile the warm start”" in line for line in owed)
+
+    fork_ends(claimed, monkeypatch, last, "agent-3", todo="Profile the build")
+    assert len(nudged) == 1
 
 
 def test_a_follow_up_in_the_thread_reaches_the_fork_at_its_tool_boundary(

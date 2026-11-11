@@ -999,10 +999,12 @@ def ended(
     that is still open (`todo`), which the main thread now owes and schedules
     (`todos`). A message the user took back counts for nothing. The main session
     hears of an answer, a to-do or a thread given back (`clerk.queue`), and that the
-    thread owes nothing only where nothing waits in it and no to-do on it is open. A
-    session no watch follows is nudged for a thread it now owes, and the page's
-    diagnostics note each outcome; the outcomes, one for each thread. An agent with
-    no open turn, as most of a session's are, ends nothing."""
+    thread owes nothing only where nothing waits in it and no to-do on it is open.
+    An idle session is woken for what it now owes: the watch wakes it for a thread
+    given back, which owes its answer again (`session.left_owed`), and for a to-do,
+    whose line wakes it (`clerk.waking`); a session no watch follows is nudged for
+    either. The page's diagnostics note each outcome; the outcomes, one for each
+    thread. An agent with no open turn, as most of a session's are, ends nothing."""
     from .clerk import queue
     from .presence import nudge_unwatched
     from .todos import TodoReading
@@ -1018,7 +1020,8 @@ def ended(
         if failed
         else "the fork ended without answering"
     )
-    outcomes, told = [], []
+    elapsed = {} if elapsed_ms is None else {"elapsedMs": elapsed_ms}
+    outcomes = []
     for page_dir in owned_pages(session_id):
         try:
             with PageTransaction(page_dir) as page:
@@ -1034,90 +1037,95 @@ def ended(
                 # The ids of the replies the closed turn wrote.
                 own = {e["id"] for e in page.events if e.get("turn") in closed}
                 owed = TodoReading(page.events).owed
-                threads: dict[str, list[str]] = {}
-                judged: dict[str, Ending] = {}
-                owing, opened = {}, {}
+                # What came of each thread on the page, what the main session hears
+                # of it, and the lines that tell it of a to-do it now owes, which
+                # wake it while it is idle.
+                here, told, wakes = [], [], []
                 for thread, picked in turn_threads(
                     page.events, session_id, closed
                 ).items():
                     inputs = [i for i in picked if i in holders or i in found.answered]
                     if not inputs:
                         continue
-                    threads[thread] = inputs
+                    name = _fork_name(thread)
                     subject = {"kind": "thread", "id": thread}
-                    owing[thread] = [t for t in owed if t["subject"] == subject]
-                    opened[thread] = [t for t in owing[thread] if t["id"] in own]
+                    owing = [t for t in owed if t["subject"] == subject]
+                    todos = [t for t in owing if t["id"] in own]
                     answered = [found.answered[i] for i in inputs if i not in holders]
-                    judged[thread] = (
+                    ending: Ending = (
                         "hand_back"
                         if any(holders.get(i) in closed for i in inputs)
                         else "taken_over"
                         if len(answered) < len(inputs)
                         or any(answer["id"] not in own for answer in answered)
                         else "todo"
-                        if opened[thread]
+                        if todos
                         else "answer"
                     )
-                # The threads where the user wrote again after the fork's answer.
-                since = {thread for thread in threads if found.waiting.get(thread)}
-                if "hand_back" in judged.values():
+                    outcome: dict = {"outcome": ending}
+                    if ending == "hand_back":
+                        outcome["why"] = why
+                        told.append(
+                            f"Your fork {name} gave thread {thread} on {page_dir} "
+                            f"back to you, which now owes the user its answer: {why}"
+                        )
+                    elif ending != "taken_over":
+                        if todos:
+                            outcome["todos"] = [t["id"] for t in todos]
+                        (wakes if todos else told).append(
+                            _answered(
+                                name,
+                                f"thread {thread} on {page_dir}",
+                                todos,
+                                owing=bool(owing),
+                                waiting=bool(found.waiting.get(thread)),
+                            )
+                        )
+                    _record(
+                        session_id,
+                        {"page": str(page_dir), "thread": thread, "inputs": inputs},
+                        {"step": "end", "agent": name, **outcome, **elapsed},
+                    )
+                    here.append({"page": str(page_dir), "thread": thread, **outcome})
+                queue(session_id, told)
+                queue(session_id, wakes, wake=True)
+                # After the lines are queued, so the turn a nudge starts hears them.
+                if {"hand_back", "todo"} & {item["outcome"] for item in here}:
                     nudge_unwatched(page)
+                outcomes.extend(here)
         except FileNotFoundError:
             continue
-        for thread, inputs in threads.items():
-            name = _fork_name(thread)
-            if judged[thread] == "taken_over":
-                outcome = {"outcome": "taken_over"}
-            elif judged[thread] == "hand_back":
-                outcome = {"outcome": "hand_back", "why": why}
-                told.append(
-                    f"Your fork {name} gave thread {thread} on {page_dir} back to "
-                    f"you, which now owes the user its answer: {why}"
-                )
-            else:
-                todos = opened[thread]
-                outcome = {
-                    "outcome": judged[thread],
-                    **({"todos": [t["id"] for t in todos]} if todos else {}),
-                }
-                listed = " and ".join(
-                    f"the to-do “{t['title']}” ({t['id']})" for t in todos
-                )
-                told.append(
-                    f"Your fork {name} answered the user's message in thread "
-                    f"{thread} on {page_dir}"
-                    + (
-                        f" and opened {listed}, which you now owe: schedule "
-                        f"{'it' if len(todos) == 1 else 'each'} with your other "
-                        "work, and end it with `leaf task end` once it is done"
-                        if todos
-                        else ""
-                    )
-                    + ". Read its answer there: where what you know shows it wrong, "
-                    "correct it there"
-                    + (
-                        "; the user has written there since, which Leaf passes on as "
-                        "any new message."
-                        if thread in since
-                        else "; otherwise the thread owes nothing."
-                        if not owing[thread]
-                        else "."
-                    )
-                )
-            _record(
-                session_id,
-                {"page": str(page_dir), "thread": thread, "inputs": inputs},
-                {
-                    "step": "end",
-                    "agent": name,
-                    **outcome,
-                    **({"elapsedMs": elapsed_ms} if elapsed_ms is not None else {}),
-                },
-            )
-            outcomes.append({"page": str(page_dir), "thread": thread, **outcome})
-    if told:
-        queue(session_id, told)
     return outcomes
+
+
+def _answered(
+    name: str, where: str, todos: list[dict], *, owing: bool, waiting: bool
+) -> str:
+    """The line telling the main session that its fork `name` answered the user's
+    message in the thread `where` names, and opened `todos` there, which the session
+    now owes; and that the thread owes nothing, unless the user has written there
+    since (`waiting`) or a to-do on it is open (`owing`)."""
+    listed = " and ".join(f"the to-do “{t['title']}” ({t['id']})" for t in todos)
+    return (
+        f"Your fork {name} answered the user's message in {where}"
+        + (
+            f" and opened {listed}, which you now owe: schedule "
+            f"{'it' if len(todos) == 1 else 'each'} with your other "
+            "work, and end it with `leaf task end` once it is done"
+            if todos
+            else ""
+        )
+        + ". Read its answer there: where what you know shows it wrong, "
+        "correct it there"
+        + (
+            "; the user has written there since, which Leaf passes on as any new "
+            "message."
+            if waiting
+            else "; otherwise the thread owes nothing."
+            if not owing
+            else "."
+        )
+    )
 
 
 def _hand_over(session_id: str, basis: dict, why: str | None) -> dict:

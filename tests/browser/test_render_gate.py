@@ -54,6 +54,7 @@ from render_cases_navigation import (
     call_node,
 )
 from render_cases_widgets import (
+    FAN_OUT,
     GENERIC_VISUAL_LAYER,
     prefixed_visual_layer,
     visual_widgets,
@@ -224,7 +225,8 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
     large, beside a stated height that matches and an authored body that already
     takes the drawing's height, as an inline diff's source text can.
     """
-    findings, _, completed = render_gate_scheme._render_scheme(
+    findings = []
+    _, _, completed = render_gate_scheme._render_scheme(
         browser,
         serve(
             leaf_page(
@@ -248,6 +250,9 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
         {"width": 1200, "height": 900},
         3_000,
         [],
+        then=lambda page, _: findings.extend(
+            render_gate_readings.drawn_height_advice(page, "1200x900")
+        ),
     )
     assert completed, findings
     drawn = {
@@ -3241,13 +3246,16 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     the overlay and classic track share the drawing's own blank bottom padding.
     """
     source = named_source("security-boundary").read_text()
-    # The example draws its five-step chain top-down so it fits a phone; drawn
-    # left-to-right it runs past a 678px viewport and scrolls, which this test needs.
-    source = source.replace("flowchart TD", "flowchart LR", 1).replace(
-        'id="security-before-flow" data-height="449"',
-        'id="security-before-flow" data-height="200"',
+    # The example's chain fits any column it is laid out for; a row of six calls
+    # still runs past a 678px viewport and scrolls, which this test needs.
+    source, drawn = re.subn(
+        r'(id="security-before-flow") data-height="449"( parts="all">\s*<pre>).*?</pre>',
+        lambda m: f'{m[1]} data-height="240"{m[2]}\n{FAN_OUT}</pre>',
+        source,
+        count=1,
+        flags=re.S,
     )
-    assert "flowchart LR" in source and 'data-height="200"' in source
+    assert drawn == 1, "the example's diagram moved, so this test draws nothing"
     if track:
         source = source.replace(
             "</head>",
@@ -3287,7 +3295,7 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     assert frames[-1]["drawn"], frames
     assert frames[-1]["track"] == track, frames
     assert frames[-1]["clear"] >= max(15, track + 1), frames
-    assert {frame["height"] for frame in frames} == {200}, frames
+    assert {frame["height"] for frame in frames} == {240}, frames
     assert len({frame["following"] for frame in frames}) == 1, frames
     # A missing or underestimated reservation must not sacrifice content to the bar;
     # extra reserved room must not stretch the drawing into it.
@@ -3304,7 +3312,7 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     }""")
     natural = reservations[0]["svg"]
     height = natural + max(0, track - 15)
-    assert 0 < height < 200, reservations
+    assert 0 < height < 240, reservations
     assert [reading["height"] for reading in reservations] == [
         height,
         height,

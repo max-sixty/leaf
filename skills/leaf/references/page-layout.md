@@ -269,7 +269,9 @@ own contents.
 A widget whose entry declares `x-height`, such as `lf-chart`, reserves that height
 before it draws; `data-height` on the element overrides it. A widget whose drawing sets
 its own height, such as `lf-diagram`, reserves nothing, so content below it moves
-when it draws unless you set `data-height`. `lf-diff` shows an inline patch as its
+when it draws unless you set `data-height`. A diagram lays itself out for its width,
+so the height to state is the one `page check --render` reports at the user's window;
+a phone may draw it taller. `lf-diff` shows an inline patch as its
 source text until it draws, so its height changes as it draws; its package author
 instructions say when to set `data-height`. Wherever a drawing's height differs from
 the box it showed before drawing, `page check --render` gives that height as advice,

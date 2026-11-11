@@ -854,9 +854,9 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
      over the words. A focused one stays in the stuck row, where the user can see what
      they hold. The metadata stands the head's whole height and clips them at its
      edges, since the head leaves its own to its controls' reach. The rules wait
-     on view timelines: Firefox, which lacks them, would run the animation on the
-     document clock, whose filled end holds the annotations above their row at rest,
-     so it keeps them stuck with the name instead. */
+     on view timelines: an engine that lacks them, as Firefox 157 did, would run
+     the animation on the document clock, whose filled end holds the annotations above
+     their row at rest, so it keeps them stuck with the name instead. */
   @supports (animation-timeline: view()) {
     .lf-margin-thread .lf-thread-transcript .lf-msg {
       view-timeline: --lf-msg-exit block;

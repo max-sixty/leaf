@@ -47,15 +47,16 @@ issues and git history, and rejected ideas in a closed issue or the relevant
 research note. An item marked **Unconfirmed** rests on a reading nobody has run or a
 design nobody has tried; settle that before building it.
 
-An issue labelled `waits-on-user` needs Max's decision, review or go-ahead before
-more work, and its body says which. Every other item is open to an agent working
-unattended. An agent that finds an unlabelled item needs the user adds the label.
+An issue assigned to Max (`max-sixty`) needs his decision, review or go-ahead
+before more work, and its body says which. The agent that takes up his answer
+unassigns him. Every unassigned item is open to an agent working unattended. An
+agent that finds an unassigned item needing Max's decision assigns him.
 
 To list the items open to an agent that no pull request has claimed, start with
 `now`, then `next`:
 
 ```bash
-gh issue list --search "label:backlog label:now -label:waits-on-user -linked:pr"
+gh issue list --search "label:backlog label:now no:assignee -linked:pr"
 ```
 
 A new item is an issue labelled `backlog` and its priority, with a theme where one

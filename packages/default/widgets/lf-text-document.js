@@ -300,6 +300,10 @@ function sizeRuns(code, text, { columns, tab }, drawn) {
 // highlight (null). The rules are declared rather than written as each colour first
 // appears: Firefox restyled the whole page for each rule a sheet gained, 0.85 s a rule
 // beside a long document, and End there showed its scroll 1.5 s after the press.
+// They rank under the comment marks (priority -1), whose ink the marked words wear
+// however late a colour first appears: at equal priority the highlight registered
+// last paints on top, and a string scrolled to after the marks were painted kept its
+// syntax colour inside a violet mark.
 /** @type {Map<string, Highlight>} */
 const tokenHighlights = new Map();
 /** @param {{color?: string}} style */
@@ -308,7 +312,7 @@ function tokenHighlight(style) {
   if (!colour) return null;
   let highlight = tokenHighlights.get(colour);
   if (!highlight) {
-    highlight = new Highlight();
+    highlight = Object.assign(new Highlight(), { priority: -1 });
     CSS.highlights.set(`lf-token-${colour}`, highlight);
     tokenHighlights.set(colour, highlight);
   }

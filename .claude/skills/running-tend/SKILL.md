@@ -189,10 +189,10 @@ development**, gives its non-deploying CI route.
 A cause waits on the maintainer when its next step is one only they can take: a
 decision, or reproducing a failure only `test-macos` shows once the failing run's
 diagnostics, pictures and the code leave its cause open, since no runner you can
-reach has macOS. Label it `waits-on-user` while it waits (`TODO.md` defines the
-label), say in it what you found and what their answer or reproduction should
-settle, and remove the label once they act. A cause that asks the maintainer
-something without the label is missing from the list of what waits on them.
+reach has macOS. Assign it to the maintainer while it waits (`TODO.md`, "Backlog",
+names them), say in it what you found and what their answer or reproduction should
+settle, and unassign them once they act. A cause that asks them something without
+assigning them is missing from their list of assigned issues.
 
 For each durable failure, look for the pull request that introduced it, first
 among those merged since the last run where the failing check passed and then

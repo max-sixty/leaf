@@ -642,12 +642,13 @@ export function keepFoot(box) {
 // stays where it was sent. Layout may carry it the other way in the change itself, as
 // Chromium's scroll anchoring did by 58px as a shorter window shrank a card's
 // transcript, and that reader still stands at the end. A change that leaves the end
-// where it stood, or the reader at it, writes nothing, since a script's write stops the
-// scroll the browser is driving: in Firefox, a card that put its transcript back at an
-// end it already stood at flattened the rubber band of every flick into it. Whenever
-// the end moves under a reader who stood at it, the box first asks `yields`, with how it
-// stood before the change (its scroll height and end), whether another placer places
-// this end, as the thread places an answer to the user's turn (thread-card.js,
+// where it stood asks nothing, and one that leaves the reader at the new end writes
+// nothing, since no scroll write that moves nothing is made (arrivals.js, `setScroll`):
+// in Firefox, a card that put its transcript back at an end it already stood at
+// flattened the rubber band of every flick into it. Whenever the end moves under a
+// reader who stood at it, the box first asks `yields`, with how it stood before the
+// change (its scroll height and end), whether another placer places this end, as the
+// thread places an answer to the user's turn (thread-card.js,
 // `placesEnd`). It asks even where layout has already carried the reader to the new
 // end, as Chromium's scroll anchoring does when the node it holds still stands below
 // the growth, such as the end of an answer whose picture loads.
@@ -676,8 +677,7 @@ export function followEnd(box, yields) {
       scrollLimit(box) !== stood.limit &&
       box.scrollTop >= back &&
       (holding(box)?.goal ?? box.scrollTop) >= back &&
-      !yields(stood) &&
-      !atScrollEnd(box)
+      !yields(stood)
     )
       scrollToEnd(box);
     stand(extentNow());

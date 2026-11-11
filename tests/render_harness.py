@@ -1879,9 +1879,11 @@ def panel_settled(page, open=True, view=None):
         """([open, view]) => {
           const host = document.querySelector('.lf-floating-panel');
           const ground = document.querySelector('.lf-fp-ground');
-          // A working indicator may keep animating while the panel has settled.
+          // A working indicator may keep animating while the panel has settled, and
+          // a scroll-driven animation follows the scroll rather than the clock.
           const finite = (n) => n.getAnimations({subtree: true}).filter((move) =>
-            Number.isFinite(move.effect?.getComputedTiming().endTime));
+            move.timeline === document.timeline
+            && Number.isFinite(move.effect?.getComputedTiming().endTime));
           const moving = [host, ground].flatMap(finite);
           for (const move of moving) move.finish();
           const shown = host.dataset.lfOpen ?? null;

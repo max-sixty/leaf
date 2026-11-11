@@ -2001,9 +2001,11 @@ def test_a_thread_card_reply_stays_in_the_visible_viewport(browser, serve, windo
     page.wait_for_function("Math.abs(visualViewport.scale - 1.6) < 0.01")
     before = stands_in_the_visible_viewport()
     # A wheel over the page moves the visible viewport inside the window, which scrolls
-    # nothing the document hears.
+    # nothing the document hears. Chromium pans it by the wheel's delta, unscaled; a
+    # longer pan than this one moves the card, whose placement then makes its room by
+    # scrolling the document (comment-placement.js, `makeRoom`).
     page.mouse.move(4, 150)
-    page.mouse.wheel(0, 120)
+    page.mouse.wheel(0, 75)
     page.wait_for_function("visualViewport.offsetTop > 0")
     after = stands_in_the_visible_viewport()
     assert after["scrolled"][0] == before["scrolled"][0], (before, after)

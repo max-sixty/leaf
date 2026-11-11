@@ -136,7 +136,7 @@ import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
 import { presentDocument, readPart } from "./semantic-state.js";
-import { COLLAPSE, PHRASING, TEXT_BLOCK } from "./kernel-facts.js";
+import { COLLAPSE, COLLAPSE_CHARS, PHRASING, TEXT_BLOCK } from "./kernel-facts.js";
 import { textUnits } from "./text-alignment.js";
 import { excerptWords } from "./words.js";
 import { union } from "./rect.js";
@@ -2808,10 +2808,14 @@ function searchableWords() {
 export function findText(text, query) {
   const words = query.split(COLLAPSE).filter(Boolean);
   if (!words.length) return [];
+  // A gap is whitespace and edges in any order, as one character class: a nested
+  // quantifier such as `(?:[ws]+|edge)+` tries every split of a whitespace run, so a
+  // word followed by a long run, and not by the next word, takes time exponential in
+  // the run's length.
   const pattern = new RegExp(
     words
       .map((w) => [...w].map(escape).join(`${EDGE}*`))
-      .join(`(?:${COLLAPSE.source}|${EDGE})+`),
+      .join(`[${COLLAPSE_CHARS}${EDGE}]+`),
     "giu",
   );
   const out = [];

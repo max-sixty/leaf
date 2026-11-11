@@ -1393,15 +1393,16 @@ class User:
         return deployment_answer(self.events(), self.ids[name]) is not None
 
     def fork(self, name: str) -> dict | None:
-        """The record of the last fork of the session's conversation that decided on
-        step `name`'s comment, if one has."""
+        """The record of the last line fork of the session's conversation that decided
+        on step `name`'s comment, if one has: a working fork's start and end are
+        records of their own (`step`), which this leaves out."""
         if self.forks is None:
             return None
         return next(
             (
                 record
                 for record in reversed(self.forks())
-                if self.ids[name] in record["inputs"]
+                if self.ids[name] in record["inputs"] and "step" not in record
             ),
             None,
         )

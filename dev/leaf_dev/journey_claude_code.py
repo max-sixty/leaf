@@ -1037,9 +1037,12 @@ def steps(
                 )
                 + " s after the fork's end"
             )
+            # Named, so what holds between steps requires the question answered once,
+            # by the fork, from this step on.
             step(
                 "fork-todo",
                 started,
+                "fork-todo",
                 detail=(
                     f"`fork-todo`: {taken['agent']}'s working line came "
                     f"{timings['first_reply']['elapsed_s']:.1f} s after the comment, "

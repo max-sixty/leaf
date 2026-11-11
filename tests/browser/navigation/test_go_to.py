@@ -200,8 +200,10 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
 
 
 def test_generated_hints_fit_the_visible_screen(browser, serve):
-    """Every opaque route fits at viewport edges, including one cut by the window's
-    top."""
+    """Every opaque route's chip fits at viewport edges, including one cut by the
+    window's top. A link showing one pixel at the foot, where the panel's band leaves
+    its chip no seat beside it, has its chip withheld rather than stood above the
+    panel, and its code still takes it (keyboard/hints.js, `seatHints`)."""
     page = open_page(
         browser,
         serve(
@@ -251,12 +253,19 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
             .map(chip => ({
             route: chip.textContent,
             code: chip.dataset.lfHintCode,
+            target: chip.dataset.lfGoToTarget,
+            shown: chip.checkVisibility({visibilityProperty: true}),
             ...chip.getBoundingClientRect().toJSON(),
           })),
         })"""
     )
     assert len(reading["chips"]) == 7, reading
+    assert [chip["target"] for chip in reading["chips"] if not chip["shown"]] == [
+        "bottom"
+    ], reading
     for chip in reading["chips"]:
+        if not chip["shown"]:
+            continue
         assert 0 <= chip["left"] < chip["right"] <= reading["width"], reading
         assert 0 <= chip["top"] < chip["bottom"] <= reading["height"], reading
         assert chip["route"] == chip["code"], chip
@@ -279,6 +288,14 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
     page.keyboard.type(code)
     expect(page.locator(CHIPS)).to_have_count(0)
     expect(page.locator("#top")).to_be_focused()
+
+    bottom = page.locator("#bottom")
+    bottom.evaluate(
+        "link => link.addEventListener('click', () => { link.dataset.activated = 'true'; })"
+    )
+    page.keyboard.press("g")
+    page.keyboard.type(address_code(page, "Link", "bottom"))
+    expect(bottom).to_have_attribute("data-activated", "true")
 
 
 def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve):
@@ -325,8 +342,9 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
     )
 
 
-def test_generated_hints_spread_without_hiding_a_crowded_target(browser, serve):
-    """Crowded opaque routes are separated; none can be inferred if its face is dropped."""
+def test_generated_hints_spread_around_crowded_targets(browser, serve):
+    """Adjacent footnote markers' chips are separated and all shown, stacked around the
+    markers, since an opaque route can't be inferred once its face is withheld."""
     page = open_page(browser, serve(CROWDED_PAGE))
     resized(page, 1280, 800)
     page.keyboard.press("g")
@@ -620,6 +638,43 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
         "keys => keys.map(key => [key.textContent, key.dataset.lfSequenceStepState])"
     ) == [[prefix, "pressed"], [branched[0][1], "neutral"]]
     expect(continued_hint).to_have_css("gap", "1px")
+
+
+def test_go_to_leaves_a_diffs_line_numbers_to_the_target_picker(browser, serve):
+    """A diff's line numbers get no chip: commenting on a line is the target picker's,
+    and a chip on every line buried the file's own routes. The file's fold and Comment
+    keep theirs (control-faces.js, `gutter`)."""
+    patch = (
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -1,2 +1,2 @@\n-old\n+new\n same\n"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Diff routes",
+                '<h1>Diff routes</h1><lf-diff id="patch"><pre>'
+                + patch
+                + "</pre></lf-diff>",
+            )
+        ),
+    )
+    expect(page.locator("lf-diff .lf-diff-line-comment")).to_have_count(3)
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS).first).to_be_visible()
+    live = page.locator(".lf-live")
+    heard = []
+    for _ in range(page.locator(CHIPS).count()):
+        page.keyboard.press("Tab")
+        expect(live).to_have_text(re.compile(r"^Hint \w+: "))
+        if heard:
+            expect(live).not_to_have_text(heard[-1])
+        heard.append(live.text_content())
+    assert [said.split(": ")[1].split(",")[0] for said in heard] == [
+        "Fold",
+        "Control",
+    ], heard
+    assert not [said for said in heard if " line " in said], heard
 
 
 def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser, serve):

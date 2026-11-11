@@ -65,6 +65,7 @@ import { html, nothing } from "/runtime/framework.js";
 import { isExternalPageLink } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { el, PRESSABLE } from "../widget-elements.js";
+import { actionClass } from "../control-faces.js";
 import { allButCommandReference, pageCommand, pageScope } from "./register.js";
 import { focusedThreadTarget } from "../thread/focus.js";
 import { letGo, focusDestination, focused } from "../focus.js";
@@ -149,9 +150,11 @@ export function createGoToSequence({
   // the values the theme's hand already reads. A widget joins by building its control rather
   // than by an entry here. The register stays about capabilities; a press is
   // a route to one, and this is how a route that spends no key of its own is reached. The
-  // reading stops where the hand stops, because it is the same reading.
+  // reading stops where the hand stops, because it is the same reading. A gutter's press
+  // is left out: it stands for its line, which the target picker addresses, and a chip
+  // on each of a diff's lines buried the map's other routes (control-faces.js).
   /** @returns {HTMLElement[]} */
-  const pageControls = () => pageParts(PRESSABLE);
+  const pageControls = () => pageParts(`${PRESSABLE}:not(.${actionClass("gutter")})`);
 
   // A link keeps the platform activation that its author wrote. Fragment travel owns
   // arrival for every activation route; the sequence only names an external new tab.

@@ -322,11 +322,11 @@ def test_product_pages_select_the_sources_packages(site):
         ], page.name
 
 
-@pytest.mark.parametrize("name", ["index", "event-log", "how-it-works"])
+@pytest.mark.parametrize("name", ["index", "using", "how-it-works"])
 def test_published_product_page_renders(site, browser, name):
     """The render gate passes the published product pages: the landing page, a
-    reference page of prose, tables, code and a sample, and the page that holds
-    every widget the docs use. The other routes share their sheet and parts, and
+    guide of prose, tables and a live sample, and the page that holds every widget
+    the docs use. The other routes share their sheet and parts, and
     `test_every_product_route_is_a_live_leaf_page` opens each of them."""
     product = site_build.product_page(site, f"{name}.html")
     with hosting_model.TemporaryPageServer(product) as server:

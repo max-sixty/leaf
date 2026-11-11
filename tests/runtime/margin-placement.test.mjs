@@ -16,6 +16,7 @@ import {
   rowPlacement,
   seatRow,
   seatsBy,
+  shiftedPin,
 } from "/runtime/annotation-overlay/margin-placement.js";
 
 const posture = (blockRight, over = {}) =>
@@ -440,4 +441,46 @@ test("rail packing preserves already held pin footprints", () => {
   const held = rect(1141, 162, 31, 26);
   const pushes = packRows([{ key: "rail", rect: rect(1126, 162) }], 4, [held]);
   assert.equal(pushes.get("rail"), 30);
+});
+
+test("a pin read before a scroll moves every field that stands on the page", () => {
+  // The layout seats a row from the pin an earlier pass prepared, carried by the scroll
+  // since (margin-layout.js, `seatings`): each field that stands somewhere on the page
+  // moves with it, and every other stays as it was.
+  const at = (left, top) => box(left, top, left + 44, top + 44);
+  const moved = (left, top) => at(left + 13, top - 250);
+  const read = {
+    came: 3,
+    held: at(10, 20),
+    seats: { before: [at(1, 2), null], home: at(3, 4), after: [null, at(5, 6)] },
+    level: false,
+    floor: 300,
+    cover: [at(7, 8)],
+    controls: [at(9, 10)],
+    folds: {
+      seats: { before: [at(11, 12)], home: at(13, 14), after: [at(15, 16)] },
+      open: 140,
+    },
+    folded: true,
+    bounds: box(4, -Infinity, 386, Infinity),
+  };
+  assert.deepEqual(shiftedPin(read, 13, -250), {
+    came: 3,
+    held: moved(10, 20),
+    seats: {
+      before: [moved(1, 2), null],
+      home: moved(3, 4),
+      after: [null, moved(5, 6)],
+    },
+    level: false,
+    floor: 50,
+    cover: [moved(7, 8)],
+    controls: [moved(9, 10)],
+    folds: {
+      seats: { before: [moved(11, 12)], home: moved(13, 14), after: [moved(15, 16)] },
+      open: 140,
+    },
+    folded: true,
+    bounds: box(17, -Infinity, 399, Infinity),
+  });
 });

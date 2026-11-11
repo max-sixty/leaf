@@ -400,8 +400,7 @@ cases:
           "user", "messages": [{"id": "q1", "author": "agent", "text": "Setting
           staging flags needs your ops login, which this session doesn't have. Run
           `./ops/flags set search.cache lru --env staging` from your terminal."}]}],
-          "handling": {"h1": "The user closed the thread. You owe no reply there; a
-          to-do you opened on it stays open until you end it."}, "events": [{"kind":
+          "handling": {"h1": "The user resolved the thread."}, "events": [{"kind":
           "resolve", "parent": "q1", "author": "user", "id": "r1", "handling":
           ["h1"]}]}]}
       - tool: Bash

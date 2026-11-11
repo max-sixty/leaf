@@ -2413,43 +2413,75 @@ def test_a_resize_owns_its_layout_before_its_event_dispatches(browser):
 # press's rendering is still open when the news lands. What moves the line is the
 # page's `data-motion`: the news growing a box above it (none), the news beginning a
 # bar's slide above it (`news`), or the press beginning that slide, which runs on past
-# news that moves nothing (`press`). The matched marginTop arm checks the same
-# ownership with translation instead of size-induced flow.
+# news that moves nothing (`press`). The translation arms slide the line itself
+# instead of flowing it: by its margin, or by a registered property its translate
+# reads, as box-motion.js carries a part. `data-retarget` has the news cancel the
+# slide and begin its replacement in the task that adopts the reading, as box-motion.js
+# carries a send's ride on through the server's answer: from where it is drawn to the
+# same end (`drawn`) or a farther one (`farther`), or from where it began
+# (`restart`). A translation paints no layout shift, which every passive
+# verdict starts from, so a box no reader reads slides in the window meanwhile, as a
+# panel's controls redrawn by the reading shift.
 NEWS = """<!doctype html><body style="margin:0">
+<style>@property --carry { syntax: '<length>+'; inherits: false; initial-value: 0px 0px; }</style>
 <script data-lf-entry>document.currentScript.lfRenderingState = () => ({updatesSettled: false, preparationsSettled: true});</script>
 <button id="press">Press</button>
 <div id="bar"></div><div id="above"></div><div id="below">Below.</div>
+<div id="beat" style="position:fixed;left:0;bottom:0;width:8px;height:8px;background:gray"></div>
 <script>
   const frames = (n, then) => requestAnimationFrame(() => n > 1 ? frames(n - 1, then) : then());
-  const motion = () => document.body.dataset.motion;
-  const slide = () => document.body.dataset.translation === 'true'
-    ? document.getElementById("below").animate(
-        [{ marginTop: "0px" }, { marginTop: "300px" }], { duration: 400, fill: "forwards" })
-    : document.getElementById("bar").animate(
-        [{ height: "0px" }, { height: "300px" }], { duration: 400, fill: "forwards" });
+  const arm = () => document.body.dataset;
+  const keyframes = (from, to = 300) => arm().translation === 'carry'
+    ? [{ '--carry': `0px ${from}px` }, { '--carry': `0px ${to}px` }]
+    : [{ marginTop: `${from}px` }, { marginTop: `${to}px` }];
+  const slide = () => {
+    if (arm().translation === 'carry') below.style.translate = 'var(--carry)';
+    window.sliding = arm().translation
+      ? below.animate(keyframes(0), { duration: 400, fill: 'forwards' })
+      : bar.animate([{ height: '0px' }, { height: '300px' }], { duration: 400, fill: 'forwards' });
+  };
+  const retarget = () => {
+    const style = getComputedStyle(below);
+    const drawn = arm().translation === 'carry'
+      ? style.getPropertyValue('--carry').split(' ')[1] : style.marginTop;
+    const left = 400 - sliding.currentTime;
+    sliding.cancel();
+    window.sliding = below.animate(
+      arm().retarget === 'restart' ? keyframes(0)
+        : keyframes(parseFloat(drawn), arm().retarget === 'farther' ? 400 : 300),
+      { duration: left, fill: 'forwards' });
+  };
   document.getElementById("press").addEventListener("pointerdown", (event) => {
-    if (motion() === "press") slide();
-    const until = performance.now() + Number(document.body.dataset.work);
+    if (arm().motion === "press") slide();
+    if (arm().retarget) beat.animate([{ left: '0px' }, { left: '400px' }], { duration: 1000 });
+    const until = performance.now() + Number(arm().work);
     while (performance.now() < until) {}
     frames(3, () => {
-      document.body.dataset.inputHeld = String(!document.querySelector('script[data-lf-entry]').lfRenderingState().updatesSettled);
+      arm().inputHeld = String(!document.querySelector('script[data-lf-entry]').lfRenderingState().updatesSettled);
       document.body.setAttribute("data-lf-reading", "news");
-      if (motion() === "news") slide();
-      if (!motion()) document.getElementById("above").style.height = "40px";
-      document.body.dataset.newsFromTrustedPress = String(event.isTrusted);
+      if (arm().motion === "news") slide();
+      if (!arm().motion) document.getElementById("above").style.height = "40px";
+      // Once the watch has heard the reading, as the runtime's renderers follow it.
+      if (arm().retarget) queueMicrotask(retarget);
+      arm().newsFromTrustedPress = String(event.isTrusted);
     });
   });
 </script>"""
 
 
-def news_page(browser, motion="", work_ms=65, *, translation=False):
+def news_page(browser, motion="", work_ms=65, *, translation="", retarget=""):
     page = browser.new_page()
     page.goto("data:text/html," + quote(NEWS))
     # The stand-in's page has presented, so its shifts are judged.
     page.evaluate("document.body.setAttribute('data-lf-presented', '')")
     page.evaluate(
-        "args => { document.body.dataset.motion = args.motion; document.body.dataset.work = args.work; document.body.dataset.translation = String(args.translation); }",
-        {"motion": motion, "work": work_ms, "translation": translation},
+        "arm => Object.assign(document.body.dataset, arm)",
+        {
+            "motion": motion,
+            "work": work_ms,
+            "translation": translation,
+            "retarget": retarget,
+        },
     )
     page.locator("#press").click()
     page.wait_for_function("document.body.dataset.newsFromTrustedPress !== undefined")
@@ -2809,13 +2841,27 @@ def test_width_animation_cannot_credit_a_script_height_change(browser):
     consume_browser_errors(page, moved_within("button#control"))
 
 
-@pytest.mark.parametrize("motion", ["press", "news"])
-def test_sampled_native_translation_distinguishes_press_from_news(browser, motion):
-    """Identical native motion survives news only when the trusted press began it."""
-    page = news_page(browser, motion, translation=True)
-    page.wait_for_function("parseFloat(getComputedStyle(below).marginTop) > 0")
+@pytest.mark.parametrize(
+    "motion,translation,retarget",
+    [
+        ("press", "margin", ""),
+        ("news", "margin", ""),
+        ("press", "carry", "drawn"),
+        ("press", "carry", "restart"),
+        ("press", "carry", "farther"),
+    ],
+)
+def test_sampled_native_translation_distinguishes_press_from_news(
+    browser, motion, translation, retarget
+):
+    """Identical native motion survives news only when the trusted press began it.
+    News may retarget the press's motion: a replacement begun from where the cancelled
+    slide is drawn, toward its end, carries it on; one begun from its start jumps, and
+    one sent farther moves the line by news."""
+    page = news_page(browser, motion, translation=translation, retarget=retarget)
+    page.evaluate("sliding.finished.then(() => {})")
     judge_watches()
-    if motion == "press":
+    if motion == "press" and retarget in ("", "drawn"):
         assert take_browser_errors(page) == []
     else:
         consume_browser_errors(page, moved_within("div#below"))
@@ -3162,6 +3208,12 @@ def test_a_scroll_during_a_gesture_may_not_carry_its_control(browser, how, gestu
     page.wait_for_function("scrollY > 0")
     paint(page)
     judge_watches()
+    if how == "passive":
+        # The gesture's own scroll moves nothing, which is this case's point and a
+        # scroll write the write watch reports.
+        consume_browser_errors(
+            page, {"code": "unmoved-scroll", "node": ["html"], "how": "scrollBy"}
+        )
     if how in ("scrolls", "renames its entry"):
         consume_browser_errors(
             page,

@@ -17,6 +17,7 @@ from render_cases_navigation import DISCLOSED_PAGE, NOTED_PAGE, TARGETS_PAGE, _p
 from render_cases_widgets import SQUEEZED_BOARD_PAGE, WHERE_I_STAND_PAGE
 from render_harness import (
     INLINE_PAGE,
+    LONG_PAGE,
     RELEASE_FOCUS,
     ROOT,
     draft_control,
@@ -728,6 +729,18 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     expect(panel_field(page)).to_have_attribute(
         "aria-label", "Reply to Settled already."
     )
+
+
+def test_c_pressed_as_a_walk_glides_to_a_card_replies_in_it(browser, serve):
+    """The thread walk focuses the card it reaches, then glides the page to the words
+    the card stands by. `c` pressed on the way is meant for that card, so it writes in
+    the card's reply rather than letting go of the card and commenting on the words at
+    the window's top."""
+    page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    page.keyboard.press("t")
+    page.keyboard.press("c")
+    expect(card.locator("leaf-text")).to_be_focused()
 
 
 def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):

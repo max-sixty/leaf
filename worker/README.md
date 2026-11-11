@@ -531,12 +531,15 @@ The records to read first:
 | `page_fault`                                                             | The adapter answered `500`: route, method, page path, exception class, and `detail`                                                                                          |
 
 The session's `component=leaf-container`, `event=http_error` records identify
-forwarded HTTP 5xx responses by status, method and `source`: `adapter` means the
-response carried Python's `Leaf-Release` stamp; `disconnected` means it matched
-the Containers SDK's fixed connection-loss response; `unclassified` means neither
-was established. These records retain no URL or response body. Use their native
-trace ID to join the request's invocation records. A `disconnected` response
-identifies the proxy boundary, not why its container connection was lost.
+forwarded HTTP 5xx responses by status, method, `source` and `retried`:
+`adapter` means the response carried Python's `Leaf-Release` stamp;
+`disconnected` means it matched one of the Containers SDK's proxy-failure
+responses; `unclassified` means neither was established. A `disconnected`
+`GET` or `HEAD` is sent once more (`retried: true`), and the visitor sees the
+second answer; a write is never resent. These records retain no URL or response
+body. Use their native trace ID to join the request's invocation records. A
+`disconnected` response identifies the proxy boundary, not why its container
+connection was lost.
 
 The page's private `observations.jsonl` also records these hosted-turn boundaries.
 Only that private diagnostic stream retains the complete published reply updates,

@@ -251,6 +251,96 @@ def test_entering_and_leaving_a_floating_comment_box_restyles_only_the_chrome(
     assert max(leaving, entering) < whole / 4, moves
 
 
+def questions_page(sections: int) -> str:
+    """`sections` sections of a column page's article, each with words to comment on
+    and a question on the user, so its margin holds a row per section."""
+    return leaf_page(
+        "Questions",
+        "<article>"
+        + "".join(
+            f'<section id="s{g}"><h2>Section {g}</h2>'
+            f'<p id="p{g}">Some words about section {g}.</p>'
+            f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}" choose>'
+            f'<lf-option id="o{g}-1">One</lf-option>'
+            f'<lf-option id="o{g}-2">Two</lf-option></lf-options></lf-ask></section>'
+            for g in range(1, sections + 1)
+        )
+        + "</article>",
+    )
+
+
+def comment_ready(browser, serve, sections: int):
+    """`questions_page(sections)` with a comment written on the first section's words,
+    ready to send. Reduced motion keeps the card from easing in over as many frames as
+    the host's speed allows, so each count is the same on every run."""
+    page = open_page(browser, serve(questions_page(sections)))
+    page.emulate_media(reduced_motion="reduce")
+    page.evaluate("""() => {
+      const words = document.getElementById('p1').firstChild;
+      getSelection().setBaseAndExtent(words, 0, words, 10);
+    }""")
+    page.keyboard.press("c")
+    page.locator(".lf-composer leaf-text").focus()
+    page.keyboard.insert_text("Why this section?")
+    rendered(page)
+    return page
+
+
+def send_comment(page):
+    with sending(page, "the comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(page.locator(".lf-margin-preview .lf-resolve")).to_be_visible()
+    rendered(page)
+
+
+@pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
+def test_sending_a_comment_restyles_only_the_rows_it_changes(browser, serve):
+    """Send removes the comment's row from the margin and inserts its thread's row. The
+    rows are siblings, and once Chromium has evaluated an `:nth-child()` selector for a
+    parent's children, it restyles all of them whenever one is inserted or removed
+    (reading.css, the frame edges), so Send restyled every row on the page. Counted in
+    the browser's own restyled elements, a page of six times the sections restyles no
+    more."""
+
+    def restyled(sections):
+        page = comment_ready(browser, serve, sections)
+        counts = restyle_counts(page, lambda: send_comment(page))
+        page.close()
+        return sum(counts)
+
+    short, long = restyled(4), restyled(24)
+    assert long - short < 10, {"4 sections": short, "24 sections": long}
+
+
+@pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
+def test_resolving_a_thread_restyles_what_focus_marks(browser, serve):
+    """Resolve closes the thread's card and returns focus to the thread's words, and
+    focus marks every ancestor of them, the column's `main` and its article included.
+    Restyling one of those ancestors must not restyle everything under it. Two rules
+    once made it do so, each restyling the whole page on a resolve: a rule keyed on the
+    focus mark whose last compound names no type (reading.css, the sticky row names),
+    and the column's room, a length less a percentage, registered as a
+    `<length-percentage>` (layouts.css). Counted in the browser's own restyled elements,
+    a page of six times the sections restyles no more."""
+
+    def restyled(sections):
+        page = comment_ready(browser, serve, sections)
+        send_comment(page)
+
+        def resolve():
+            with sending(page, "the resolve"):
+                page.locator(".lf-margin-preview .lf-resolve").click()
+            rendered(page)
+
+        counts = restyle_counts(page, resolve)
+        expect(page.locator("#p1")).to_have_attribute("data-lf-focus-within", "")
+        page.close()
+        return sum(counts)
+
+    short, long = restyled(4), restyled(24)
+    assert long - short < 10, {"4 sections": short, "24 sections": long}
+
+
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
 def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
     request, serve, engine

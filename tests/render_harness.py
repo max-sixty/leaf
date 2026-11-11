@@ -1498,7 +1498,8 @@ def watched(page, *, java_script_enabled=True):
     Window errors without exceptions join them, installed through the same
     `install_window_errors` helper the render gate uses, and so do the health
     sensors' findings, which each sensor hands over as a record through the
-    `__leafWatchFinding` binding: DOM writes that change nothing (`write_watch.js`),
+    `__leafWatchFinding` binding: DOM writes that change nothing and scroll writes that
+    move nothing (`write_watch.js`),
     layout shifts without input or that carry a field being typed in
     (`shift_watch.js`), typed words leaving the screen without a key or press
     (`words_watch.js`), and a row sized by the occupant that took a seat in it
@@ -1879,9 +1880,11 @@ def panel_settled(page, open=True, view=None):
         """([open, view]) => {
           const host = document.querySelector('.lf-floating-panel');
           const ground = document.querySelector('.lf-fp-ground');
-          // A working indicator may keep animating while the panel has settled.
+          // A working indicator may keep animating while the panel has settled, and
+          // a scroll-driven animation follows the scroll rather than the clock.
           const finite = (n) => n.getAnimations({subtree: true}).filter((move) =>
-            Number.isFinite(move.effect?.getComputedTiming().endTime));
+            move.timeline === document.timeline
+            && Number.isFinite(move.effect?.getComputedTiming().endTime));
           const moving = [host, ground].flatMap(finite);
           for (const move of moving) move.finish();
           const shown = host.dataset.lfOpen ?? null;

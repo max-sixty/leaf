@@ -23,6 +23,8 @@ const {
   holdScroll,
   scrolling,
   setScroll,
+  startReaderScroll,
+  stopWhereItStands,
   watchScrollEnds,
 } = await import("/runtime/arrivals.js");
 const { clockValue, tickClock } = await import("/runtime/presence.js");
@@ -387,6 +389,25 @@ test("a clock render reports its failure once and recovers on the next reading",
 test("a scroll a script holds ends once, after its release, and stays the script's until the box moves on", async () => {
   const box = document.createElement("div");
   document.body.append(box);
+  let at = 0;
+  Object.defineProperties(box, {
+    clientHeight: { value: 100 },
+    scrollHeight: { value: 400 },
+    clientWidth: { value: 100 },
+    scrollWidth: { value: 100 },
+    scrollLeft: { value: 0 },
+    scrollTop: {
+      get: () => at,
+      set: (/** @type {number} */ to) => {
+        at = to;
+      },
+    },
+    scrollTo: {
+      value: (/** @type {ScrollToOptions} */ { top = at }) => {
+        at = Math.min(Math.max(top, 0), 300);
+      },
+    },
+  });
   /** @type {Element[]} */
   const ended = [];
   const stop = watchScrollEnds((end) => ended.push(end));
@@ -426,4 +447,66 @@ test("a scroll a script holds ends once, after its release, and stays the script
     stop();
     box.remove();
   }
+});
+
+test("an instant write reaches a box only where it moves it, and a stop writes where it stands", () => {
+  /** @param {number} low @param {number} high @param {number} at */
+  const scroller = (low, high, at) => {
+    const box = document.createElement("div");
+    document.body.append(box);
+    /** @type {number[]} */
+    const writes = [];
+    let top = at;
+    Object.defineProperties(box, {
+      clientHeight: { value: 100 },
+      scrollHeight: { value: 100 + high - low },
+      clientWidth: { value: 100 },
+      scrollWidth: { value: 100 },
+      scrollLeft: { value: 0 },
+      scrollTop: { get: () => top },
+      scrollTo: {
+        value: (/** @type {ScrollToOptions} */ { top: to = top }) => {
+          writes.push(to);
+          top = Math.min(Math.max(to, low), high);
+        },
+      },
+    });
+    return { box, writes };
+  };
+  // At its end, a box takes no write that would leave it there, clamped or a pixel short.
+  const ended = scroller(0, 300, 300);
+  setScroll(ended.box, { top: 300.4 });
+  setScroll(ended.box, { top: 1000 });
+  assert.deepEqual(ended.writes, []);
+  setScroll(ended.box, { top: 250 });
+  assert.deepEqual(ended.writes, [250]);
+  ended.box.remove();
+  // Off zero, the side the box stands on is the side it scrolls on.
+  const reversed = scroller(-300, 0, -300);
+  setScroll(reversed.box, { top: -1000 });
+  setScroll(reversed.box, { top: 0 });
+  assert.deepEqual(reversed.writes, [0]);
+  reversed.box.remove();
+  // While the browser drives a scroll in the box, a restated position still writes
+  // nothing, and only a stop writes where the box stands, smoothly and then at once,
+  // which leaves it the script's.
+  const moving = scroller(0, 300, 120);
+  moving.box.dispatchEvent(new window.Event("scroll"));
+  assert.equal(browserScrolls(moving.box), true);
+  setScroll(moving.box, { top: moving.box.scrollTop });
+  assert.deepEqual(moving.writes, []);
+  stopWhereItStands(moving.box);
+  assert.deepEqual(moving.writes, [120, 120]);
+  assert.equal(browserScrolls(moving.box), false);
+  moving.box.dispatchEvent(new window.Event("scrollend"));
+  // The reader's input makes the box the browser's before it moves, and the end of a
+  // scroll heard while it still stands where the input found it ends nothing of theirs.
+  startReaderScroll(moving.box);
+  assert.equal(browserScrolls(moving.box), true);
+  moving.box.dispatchEvent(new window.Event("scrollend"));
+  assert.equal(browserScrolls(moving.box), true);
+  moving.box.scrollTo({ top: 60 });
+  moving.box.dispatchEvent(new window.Event("scrollend"));
+  assert.equal(browserScrolls(moving.box), false);
+  moving.box.remove();
 });

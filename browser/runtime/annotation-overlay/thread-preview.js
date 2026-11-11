@@ -77,7 +77,12 @@
    reader's message and scroll position; another thread opens at its first unread
    message, else its latest, and the thread a comment's Send opened where the box's
    words stood (`showArrival`).
-   A new/growing agent turn follows only at the tail. An answer to the user's own turn
+   A reader at the transcript's end follows it, whatever moves it: a turn drawn or
+   growing, as a picture in it loads, or the room the card gives it; a reader read back
+   stays where they are (scrolling.js, `followEnd`). The user asked for that one keeper
+   on 10 November 2026, replacing two partial ones: one kept the end through a change of
+   room, the fit followed the growth a reading of the thread drew, and growth after a
+   reading, such as a picture loading, reached neither. An answer to the user's own turn
    instead stays the thread's to place (`answering`), by the floating panel's rule: their
    turn stays in sight above it, and New reply stands at the transcript's foot where it
    runs past, or where they had read back. An opening that leaves a reply unread offers
@@ -106,8 +111,7 @@
    placement rule and a press hold of its own, and still moved ✓ on a card above its
    subject. */
 import {
-  followsEnd,
-  keepFoot,
+  followEnd,
   moveScrollerBy,
   pageScroller,
   scrollToEnd,
@@ -119,7 +123,7 @@ import { cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
 import { THREAD_CARD } from "./margin-layout.js";
-import { showsContents, slotTop } from "../geometry.js";
+import { slotTop } from "../geometry.js";
 import {
   focusDestination,
   holdFocus,
@@ -144,7 +148,7 @@ import { paintKeysWithin } from "../keyboard/scopes.js";
 import { closestAcross } from "../passages.js";
 import { drawnThreadsWithId } from "../thread/selectors.js";
 import { threadIdNamed } from "../thread/state.js";
-import { threadKey, turns } from "../thread/model.js";
+import { threadKey } from "../thread/model.js";
 import { anchorLabel, releaseAuthoredUnder } from "../thread/messages.js";
 import { coarsePointer } from "../pointer.js";
 import {
@@ -175,14 +179,15 @@ import { keepThreadLanding, showReturnTurn } from "../thread/reply-landing.js";
  * @typedef {NonNullable<ReturnType<ReturnType<typeof import("./composing/floating-response.js").createFloatingResponsePlacement>["frame"]>>} Origin
  * @typedef {{entry: Entry, choice: Choice, threadItem: string, control: Element | null,
  * accompanies: boolean, forced: boolean, disclosed: boolean}} Selection
- * @typedef {Selection & {item: Item, preparing: boolean, latest: {id: string, text: string | undefined} | null,
+ * @typedef {Selection & {item: Item, preparing: boolean,
  * arriving: boolean, sent: Pick<Origin, "fromEnd" | "field"> | null, away: boolean,
  * positionFrame: number, positionResult: PromiseWithResolvers<boolean> | null,
  * focusPending: {holding: Element | null} | null, withheldFocus: ReturnType<typeof holdFocus>,
  * transcript: HTMLElement | null, settled: (() => void) | null, answering: (() => boolean) | null,
- * stopRegion: (() => void) | null, stopFoot: (() => void) | null, side: ReturnType<typeof commentPlacement>,
- * reading: {input: number, scroll: number, limit: number, end: boolean} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
- * @typedef {{latest: boolean, end: boolean, scroll: number, limit: number, keepTop: boolean, transcript: HTMLElement}} Reading
+ * placesEnd: ((before: import("../scrolling.js").BoxExtent) => boolean) | null,
+ * stopRegion: (() => void) | null, end: import("../scrolling.js").EndKeeper | null, side: ReturnType<typeof commentPlacement>,
+ * reading: {input: number, scroll: number} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
+ * @typedef {{latest: boolean, scroll: number, keepTop: boolean, transcript: HTMLElement}} Reading
  */
 
 // A margin card's reply box.
@@ -419,10 +424,11 @@ export function createThreadPreview({
   /** @param {Session} session @param {ReturnType<typeof import("../thread/inline.js").renderMarginThread>[number]} reading */
   function syncPreviewTranscript(
     session,
-    { thread: card, transcript, settled, answering },
+    { thread: card, transcript, settled, answering, placesEnd },
   ) {
     session.settled = settled;
     session.answering = answering;
+    session.placesEnd = placesEnd;
     if (transcript === session.transcript) return;
     session.stopRegion?.();
     session.stopRegion = null;
@@ -430,12 +436,19 @@ export function createThreadPreview({
     // The card scrolls its transcript, which grows only at its end (browser/AGENTS.md,
     // `data-lf-reflow`).
     if (transcript) keeps(transcript, "data-lf-reflow", "append");
-    // The transcript stands on its foot beside the reply box: a reader at its end keeps
-    // the turn there beside the box as the box takes room from it or gives it back,
-    // whatever changed the box, and one read back keeps their offset, as the card hangs
-    // from its passage (scrolling.js, `keepFoot`).
-    session.stopFoot?.();
-    session.stopFoot = transcript ? keepFoot(transcript, { atEnd: true }) : null;
+    // A reader at the transcript's end stays there, whatever moves the end: the reply
+    // box taking room or giving it back, a fit, a turn drawn or growing. One read back
+    // keeps their offset, as the card hangs from its passage (scrolling.js,
+    // `followEnd`). The end is another's to place while the card arrives on its opening
+    // turn (`showArrival`), and where the thread places an answer to the user's turn
+    // (thread-card.js, `placesEnd`).
+    session.end?.stop();
+    session.end = transcript
+      ? followEnd(
+          transcript,
+          (before) => session.arriving || Boolean(session.placesEnd?.(before)),
+        )
+      : null;
     if (previewRegionMounted && transcript) {
       // The transcript's width and shown turns when its gutter was last decided.
       let decided = "";
@@ -550,7 +563,7 @@ export function createThreadPreview({
     cancelRender(session.positionFrame);
     placementDriver.supersede();
     session.stopRegion?.();
-    session.stopFoot?.();
+    session.end?.stop();
     preview.style.removeProperty("visibility");
     previewSession = null;
     tick(cardRevision);
@@ -631,19 +644,9 @@ export function createThreadPreview({
     ].some((box) => box && box.scrollHeight > box.clientHeight + 0.5);
     if (!(worn >= 0) || cap < height - 0.5 || (overflow && cap > height + 0.5))
       preview.style.setProperty("--lf-thread-max-height", layoutPx(cap));
-    // A reader at the end follows it only where it moved since the reading, as an answer
-    // growing the transcript or this fit rewrapping it moves it. A placement that moves
-    // nothing writes nothing: a script's write stops the scroll the browser is driving,
-    // and every scroll's end places the card again (user-place.js repaints), so in
-    // Firefox a flick into the end snapped its rubber band back every 90ms, where the
-    // write's whole-pixel end stood a fraction short of the browser's.
+    // A reader at the end stays there through this fit by the transcript's own keeper
+    // (`syncPreviewTranscript`).
     if (reading?.latest) showArrival(session, reading.transcript);
-    else if (
-      reading?.end &&
-      !session.answering?.() &&
-      scrollLimit(reading.transcript) !== reading.limit
-    )
-      scrollToEnd(reading.transcript);
     return preview.getBoundingClientRect().height;
   }
   // A card opens on its first unread turn, else its latest, at that turn's start
@@ -796,9 +799,7 @@ export function createThreadPreview({
             const priorReading =
               session.reading?.input === inputCount() ? session.reading : null;
             reading ??= session.transcript && {
-              end: !fresh && (priorReading?.end ?? followsEnd(session.transcript)),
               scroll: priorReading?.scroll ?? session.transcript.scrollTop,
-              limit: priorReading?.limit ?? scrollLimit(session.transcript),
               keepTop: stationary && !fresh && edge === "top" && !held.typing,
               latest: session.arriving,
               transcript: session.transcript,
@@ -963,7 +964,6 @@ export function createThreadPreview({
       forced,
       disclosed,
       preparing: false,
-      latest: null,
       arriving: true,
       // The box Send replaced, whose reading the card keeps (`showArrival`) and whose
       // field it grows out of (`placeThreadPreview`).
@@ -976,9 +976,10 @@ export function createThreadPreview({
       transcript: null,
       settled: null,
       answering: null,
+      placesEnd: null,
       reading: null,
       stopRegion: null,
-      stopFoot: null,
+      end: null,
       side: commentPlacement(),
       // The width the card stands at for this selection, in client pixels: the box's
       // Send replaced, so the two are one rectangle, else the one it first stood at, or
@@ -1023,38 +1024,9 @@ export function createThreadPreview({
         ? select({ ...current, entry, choice, item: selected })
         : current;
     Object.assign(session, { entry, choice, item: selected });
-    const latest = turns(selected.thread).at(-1);
-    const messageSelector =
-      ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
-      ".lf-page-thread > .lf-thread-transcript > .lf-msg";
-    const replySelector =
-      ":scope > .lf-margin-thread > .lf-margin-thread-body > " +
-      ".lf-page-thread > .lf-thread-reply";
-    const lastShown = [...previewList.querySelectorAll(messageSelector)].findLast(
-      (node) => showsContents(node),
-    );
-    const lastBox = lastShown?.getBoundingClientRect();
-    const followTranscript = session.transcript;
-    const listBox = followTranscript?.getBoundingClientRect();
-    const replyBox = previewList.querySelector(replySelector)?.getBoundingClientRect();
-    const follow =
-      !arriving &&
-      session.latest &&
-      latest?.author === "agent" &&
-      (latest.id !== session.latest.id || latest.text !== session.latest.text) &&
-      lastBox &&
-      listBox &&
-      lastBox.bottom >= listBox.top &&
-      lastBox.bottom <= (replyBox?.top ?? listBox.bottom) + 80 &&
-      followTranscript &&
-      followsEnd(followTranscript)
-        ? followTranscript
-        : null;
     session.reading = session.transcript && {
       input: inputCount(),
       scroll: session.transcript.scrollTop,
-      limit: scrollLimit(session.transcript),
-      end: Boolean(follow),
     };
     const present = () => {
       const targetHeading =
@@ -1096,7 +1068,6 @@ export function createThreadPreview({
       session.arriving = transcript !== null;
       if (transcript) showArrival(session, transcript);
     }
-    session.latest = latest ? { id: latest.id, text: latest.text } : null;
   }
 
   /** @param {number} step */
@@ -1153,6 +1124,9 @@ export function createThreadPreview({
       // The card caps its transcript, which scrolls the thread's messages.
       scroller: (transcript) => transcript,
       endNewsMoves: () => endNewsMoves(session),
+      // Whether the reader stands at the end the transcript's keeper follows
+      // (scrolling.js, `followEnd`).
+      standsAtEnd: () => Boolean(session.end?.standsAtEnd()),
       // The card stands for the thread on the page, where taking back a settlement made
       // in it opens the thread again.
       reader: "page",

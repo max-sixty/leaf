@@ -68,10 +68,12 @@
    and a user who stood at the end keeps their turn wholly in sight above the press, its
    head included. Until then the answer is this thread's to place (`answering`), and a
    box that follows its end, as a card's transcript does (thread-preview.js), leaves it
-   be. The user chose New reply for the panel on 14 October 2026, and the rest of the
-   floating panel's growth with it (floating-panel.js, which records it); the margin
-   card gained it on 4 November, so one mechanism serves both, and that mechanism's rule
-   at its end, under the user's request for one thread view (thread-preview.js). */
+   be. An answer the end followed into sight that grows afterwards, as a picture in it
+   loads, is placed again by the same rule (`placesEnd`). The user chose New reply for
+   the panel on 14 October 2026, and the rest of the floating panel's growth with it
+   (floating-panel.js, which records it); the margin card gained it on 4 November, so
+   one mechanism serves both, and that mechanism's rule at its end, under the user's
+   request for one thread view (thread-preview.js). */
 import { REOPEN_HINT, REPLY_HINT } from "../words.js";
 import { nextRender, sizeObserver } from "../rendering.js";
 import {
@@ -111,7 +113,6 @@ import {
   threadHoldsDraft,
 } from "./replies.js";
 import {
-  followsEnd,
   moveScrollerBy,
   SCROLL_SLACK,
   scrollLimit,
@@ -433,6 +434,12 @@ function wordsWidth(node) {
  * settlement: ThreadReading["settlement"] | null,
  * news?: import("./held-news.js").NewsNotice | null}} ThreadViewModel */
 
+// The user's last turn in a thread, by its key, as threadChange reads it (held-news.js).
+/** @param {ThreadViewModel} model */
+const lastTurn = (model) =>
+  model.messages.findLast((message) => message.author === "user" && !message.progress)
+    ?.key;
+
 /** @typedef {Omit<import("./messages.js").MessageCommands, "reply" | "reaction" | "edit"> & {
  * authoredRank?: number,
  * reply: import("./replies.js").ReplyCommands & import("./messages.js").MessageCommands["reply"],
@@ -468,10 +475,11 @@ function wordsWidth(node) {
      around the boxes the thread draws its notice and settlement in, and which the thread
      stands after its messages, where it shares their heads' track
      (annotation-chrome.css) and the notice takes only the room the heads leave
-     (`#fitLineNews`); and `endNewsMoves()`, whether news at the thread's end, which
+     (`#fitLineNews`); `endNewsMoves()`, whether news at the thread's end, which
      grows the floating card at the edge it does not hold, would move what the user is
      on (thread-preview.js, `heldEdge`), and since the card stands itself, a landing in
-     it scrolls nothing into view.
+     it scrolls nothing into view; and `standsAtEnd()`, whether the reader stands at the
+     end the card's transcript follows, as its keeper says (scrolling.js, `followEnd`).
    The thread draws each part apart in a box of its own (`apart`), which the container
    places in the place it names before the thread draws it, as it places the thread's
    box in its outlet. The reply's options are read as the box is made, once for the
@@ -496,6 +504,7 @@ function wordsWidth(node) {
 /** @typedef {{
  * line?: (apart: ThreadView["apart"]) => HTMLElement,
  * endNewsMoves?: () => boolean,
+ * standsAtEnd?: () => boolean,
  * }} CardOutlets */
 /** @typedef {ThreadOutlets & CardOutlets & {reader?: "page" | "primary"}} ViewOutlets */
 
@@ -561,6 +570,10 @@ export class ThreadView {
   // at its size, and how the box that scrolls it stood before (`#fitAnswer`).
   /** @type {{answer: NonNullable<import("./held-news.js").ThreadChange["answers"]>, before: {extent: number, limit: number}} | null} */
   #unfitted = null;
+  // The answer the box's end last followed into sight, while it answers the user's last
+  // turn (`placesEnd`).
+  /** @type {NonNullable<import("./held-news.js").ThreadChange["answers"]> | null} */
+  #followed = null;
   // The answer waiting past that box's foot behind New reply, by its first message or
   // the face of its progress run.
   /** @type {{message: string, label: string, scroller: HTMLElement} | null} */
@@ -705,15 +718,19 @@ export class ThreadView {
     // News shows at once only where it changes the thread's end and the card says growth
     // there moves nothing the user is on (`endNewsMoves`). A change to the last message
     // is such news where it is a reply still streaming, or where the transcript, at its
-    // cap and scrolled to its end, follows it there (thread-preview.js). Anything else
+    // cap, follows it there, as its keeper does for a reader it says stands at the end
+    // (`CardOutlets`, `standsAtEnd`). The transcript's offset doesn't say that: a turn
+    // that grew in this task, as its picture loaded, has carried the end past the
+    // reader before the keeper's next reading takes them there. Anything else
     // would move the messages being read, so it waits. A settlement keeps the editor it
     // interrupts, as every thread keeps its reply box.
-    const { endNewsMoves } = this.#outlets;
+    const { endNewsMoves, standsAtEnd } = this.#outlets;
     if (endNewsMoves) {
       if (news.settled) return false;
       const last = this.#model?.messages.at(-1);
       const list = this.#transcript.node;
-      const follows = list.scrollHeight > list.clientHeight + 0.5 && followsEnd(list);
+      const follows =
+        list.scrollHeight > list.clientHeight + 0.5 && Boolean(standsAtEnd?.());
       const atEnd =
         (!news.appended || appendedAtEnd) &&
         !news.summaries &&
@@ -804,6 +821,8 @@ export class ThreadView {
     this.#model = model;
     const change = prior && scroller ? threadChange(prior, model) : null;
     const box = scroller?.(this.#transcript.node) ?? null;
+    if (this.#followed && lastTurn(model) !== this.#followed.turn)
+      this.#followed = null;
     if (change?.answers && box)
       this.#unfitted = {
         answer: change.answers,
@@ -914,6 +933,25 @@ export class ThreadView {
     return Boolean(this.#unfitted || this.#waiting);
   }
 
+  // A box following its end asks this as the end moves, with how the box stood before
+  // the move: whether the thread places that end itself. It does while an answer to the
+  // user's turn is its to place (`answering`), and again once an answer the end followed
+  // into sight grows, as when a picture in it loads, since the same rule decides whether
+  // the end follows that growth or New reply stands for it (`#fitAnswer`). A move that
+  // only changes the box's room, as a reply being typed does, is the box's.
+  /** @param {{extent: number, limit: number}} before */
+  placesEnd(before) {
+    if (this.answering) return true;
+    const answer = this.#followed;
+    const scroller = this.#outlets.scroller?.(this.#transcript.node);
+    if (!answer || !scroller || scroller.scrollHeight <= before.extent + 0.5)
+      return false;
+    this.#followed = null;
+    this.#unfitted = { answer, before };
+    this.#fitAnswer();
+    return true;
+  }
+
   // The container has stood the thread where it draws it: its scroller at its size, and
   // a new opening landed where it shows first. What the thread reads of them waits for
   // this (the header).
@@ -985,8 +1023,12 @@ export class ThreadView {
     if (!message) return;
     const waiting = this.#waiting;
     // An answer folding the work before it into less room moves nothing either, though
-    // it takes over a New message the work left waiting.
-    if (!waiting && scroller.scrollHeight <= before.extent + 0.5) return;
+    // it takes over a New message the work left waiting. Its later growth is placed again
+    // too, as a followed answer's is (`placesEnd`).
+    if (!waiting && scroller.scrollHeight <= before.extent + 0.5) {
+      this.#followed = answer;
+      return;
+    }
     const atEnd = before.limit - scroller.scrollTop <= SCROLL_SLACK;
     const pad = Number.parseFloat(getComputedStyle(scroller).paddingTop);
     const from = () =>
@@ -997,6 +1039,7 @@ export class ThreadView {
       scroller.scrollHeight - scroller.scrollTop - from() <= scroller.clientHeight
     ) {
       scrollToEnd(scroller);
+      this.#followed = answer;
       return;
     }
     const next = {
@@ -1019,7 +1062,7 @@ export class ThreadView {
       const foot = this.node.querySelector(".lf-awaited")?.getBoundingClientRect();
       const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
       const by = Math.min(Math.max(below, 0), from());
-      if (Math.abs(by) >= 0.5) moveScrollerBy(scroller, by);
+      moveScrollerBy(scroller, by);
     });
   }
 

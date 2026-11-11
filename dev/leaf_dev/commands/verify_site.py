@@ -902,15 +902,6 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     check(
         worker.containers() == asleep, "reading saved content started a page container"
     )
-    # Opening the thread focuses its comment box, which starts the container for the
-    # reply the visitor is about to write (`prewarmContainer`), so it comes after the
-    # checks that reading left the container asleep.
-    go_to_threads(page)
-    page.locator(f'.lf-fp-thread[data-lf-key="{seeded["comment"]}"]').click()
-    page.locator(panel_view("thread")).get_by_text(
-        "Saved before the container stopped.", exact=True
-    ).wait_for(state="visible")
-    check(not failures, f"saved-state browser errors: {failures}")
     profile = startup_reading(page)
     # Media ingestion uses the same canonical write transaction but dispatches no
     # agent. It proves that reads did not replace the record the next writer uses.
@@ -942,6 +933,15 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
         "the next write lost the private document",
     )
     check(worker.containers() != asleep, "the mutation did not wake the container")
+    # Opening the thread focuses its reply box, and a text box's focus starts the
+    # session's container (`prewarmContainer`), so it comes after the reads and
+    # the write above, which must each find the container stopped.
+    go_to_threads(page)
+    page.locator(f'.lf-fp-thread[data-lf-key="{seeded["comment"]}"]').click()
+    page.locator(panel_view("thread")).get_by_text(
+        "Saved before the container stopped.", exact=True
+    ).wait_for(state="visible")
+    check(not failures, f"saved-state browser errors: {failures}")
     context.close()
     return {"running": warm_profile, "stopped": profile}
 
@@ -1054,8 +1054,34 @@ class LocalWorker:
         check(
             container in self.containers(), "refusing to stop another run's container"
         )
+        stopping = int(time.time())
         docker_command("stop", "--time", "1", container)
-        check(container not in self.containers(), "the page container did not stop")
+        if container in self.containers():
+            # `docker stop` returned after the container exited, so a listed
+            # container is either still exiting or was started again under the
+            # same id. Its state and lifecycle events since the stop tell which.
+            state = docker_command(
+                "inspect",
+                "--format",
+                "{{json .State}} restarts={{.RestartCount}}"
+                " policy={{json .HostConfig.RestartPolicy}}",
+                container,
+            )
+            events = docker_command(
+                "events",
+                "--since",
+                str(stopping),
+                "--until",
+                str(int(time.time()) + 1),
+                "--filter",
+                f"container={container}",
+                "--format",
+                "{{.TimeNano}} {{.Action}}",
+            )
+            raise RuntimeError(
+                f"the page container did not stop (stop requested at {stopping}):\n"
+                f"{state.strip()}\nevents since the stop:\n{events.strip() or 'none'}"
+            )
         wait_for_host_network()
 
 

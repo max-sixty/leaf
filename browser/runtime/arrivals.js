@@ -338,14 +338,121 @@ function announceScroll(box) {
 }
 // Complete a scroll write and publish the position that will paint. Native scroll
 // events arrive too late for writes in an animation frame or resize delivery.
+//
+// An instant write that would leave the box where it stands writes nothing, so a writer
+// may restate a position as often as it likes, as `keeps` lets one restate a DOM value.
+// The write's only effect would be one nobody asked for: it stops the scroll the browser
+// drives, and in Firefox it cancels the rubber band of a flick into an edge, which runs
+// after the box's scroll has ended (a margin card that put its transcript back at its
+// end at every scroll's end flattened each flick's band). Stopping a scroll is a write
+// of its own (`stopWhereItStands`). Where the box stands is read to the pixel: its
+// scroll size is a whole number of pixels, so an end read from it stands up to a pixel
+// short of the browser's own, as 314 did of Firefox's 314.25 at a 2x display.
 /** @param {Element} box @param {ScrollToOptions} options */
 export function setScroll(box, options) {
   const { scrollTop, scrollLeft } = box;
   const { behavior = "instant" } = options;
+  if (behavior === "instant" && !moves(box, options)) return;
   box.scrollTo({ ...options, behavior });
   if (behavior !== "instant") return;
   placed.set(box, { top: box.scrollTop, left: box.scrollLeft });
   if (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft) announceScroll(box);
+}
+// Stop the scroll the browser drives in a box, leaving the box where it stands, as a
+// landing does before it places its destination (scrolling.js, `stopScroll`) and a glide
+// before it takes over a wheel's motion (`glideTo`). It is the one scroll write meant to
+// move nothing, which the write watch knows by this name (tests/write_watch.js,
+// `EXPECTED_SCROLLS`). An instant write alone stops too little: no instant write, even
+// one that moves the box, stops the smooth scroll a key such as PageDown sets off, in
+// Chromium or Firefox, and Firefox doesn't stop any smooth scroll for a write of the
+// position the page last saw (Chromium 158 and Firefox 159). So a `m` pressed as
+// PageDown moved the page lost its landing to PageDown. A smooth write takes the box
+// from whatever moves it, in both, and the instant one after ends that write's own
+// motion where the box stands.
+/** @param {Element} box */
+export function stopWhereItStands(box) {
+  const at = { top: box.scrollTop, left: box.scrollLeft };
+  box.scrollTo({ ...at, behavior: "smooth" });
+  box.scrollTo({ ...at, behavior: "instant" });
+  placed.set(box, at);
+}
+// Whether a write to `top` and `left` takes the box a pixel or more from where it
+// stands, once the browser clamps it to the box's range.
+/** @param {Element} box @param {ScrollToOptions} options */
+const moves = (box, { top, left }) => {
+  const range = scrollRange(box);
+  /** @param {number | undefined} to @param {number} at @param {[number, number]} reach */
+  const along = (to, at, [low, high]) =>
+    to !== undefined && Math.abs(Math.min(Math.max(to, low), high) - at) >= 1;
+  return (
+    along(top, box.scrollTop, range.top) || along(left, box.scrollLeft, range.left)
+  );
+};
+// The positions a box's scroll takes on each axis, as the browser clamps a write: from
+// zero to the side where the box's content flows from, the negative one where that is
+// the bottom or right edge (`scrollsBack`). Off zero, where the box stands says which;
+// at zero on an axis whose side the style leaves open, both sides, so no move is lost.
+/** @param {Element} box @returns {{top: [number, number], left: [number, number]}} */
+export function scrollRange(box) {
+  const { scrollTop: top, scrollLeft: left } = box;
+  const down = Math.max(box.scrollHeight - box.clientHeight, 0);
+  const across = Math.max(box.scrollWidth - box.clientWidth, 0);
+  const back =
+    (top === 0 && down) || (left === 0 && across)
+      ? scrollsBack(box)
+      : { top: false, left: false };
+  /** @param {number} at @param {number} span @param {boolean | null} side @returns {[number, number]} */
+  const reach = (at, span, side) =>
+    at > 0 || (at === 0 && side === false)
+      ? [0, span]
+      : at < 0 || side
+        ? [-span, 0]
+        : [-span, span];
+  return { top: reach(top, down, back.top), left: reach(left, across, back.left) };
+}
+// Whether each axis of a box scrolls on the negative side of zero, or null where its
+// style leaves that open. A box scrolls from where its content's flow starts, so one
+// whose flow starts at the bottom or right edge scrolls back from zero. Writing mode and
+// direction place the inline and block starts, and a flex container's main and cross
+// starts follow its direction and wrap. No API reports a box's scroll range (Firefox's
+// own `scrollTopMin` aside), and a box standing at zero shows nothing of its side, so the
+// side is read from the style that decides it; Chromium and Firefox agree on every
+// combination of those (tests/browser/test_scroll_writes.py).
+//
+// The page scrolls from its principal flow, which no flex flow of the root's reverses:
+// the root's writing mode and direction, or the body's where the page takes them from
+// it. Which one applies turns on containment, content visibility, a hidden body or a
+// frameset, and the engines differ on some of those, so where the root and the body
+// agree that is the side, and where they don't it is open.
+/** @param {Element} box @returns {{top: boolean | null, left: boolean | null}} */
+function scrollsBack(box) {
+  const page = box.ownerDocument;
+  if (box !== page.scrollingElement) return flowsBack(getComputedStyle(box), true);
+  const root = flowsBack(getComputedStyle(box), false);
+  if (!page.body) return root;
+  const body = flowsBack(getComputedStyle(page.body), false);
+  return {
+    top: root.top === body.top ? root.top : null,
+    left: root.left === body.left ? root.left : null,
+  };
+}
+// Whether each axis of a box with `style` starts its flow at the bottom or right edge,
+// counting its flex flow where `flex` asks.
+/** @param {CSSStyleDeclaration} style @param {boolean} flex */
+function flowsBack(style, flex) {
+  const { writingMode, direction, display, flexDirection, flexWrap } = style;
+  const vertical = writingMode !== "horizontal-tb";
+  // Whether the inline axis starts at its bottom or right end, and the block axis.
+  let inline = (writingMode === "sideways-lr") !== (direction === "rtl");
+  let block = writingMode === "vertical-rl" || writingMode === "sideways-rl";
+  if (flex && display.endsWith("flex")) {
+    const reversed = flexDirection.endsWith("-reverse");
+    const wrapped = flexWrap === "wrap-reverse";
+    if (flexDirection.startsWith("column"))
+      [block, inline] = [block !== reversed, inline !== wrapped];
+    else [inline, block] = [inline !== reversed, block !== wrapped];
+  }
+  return vertical ? { top: inline, left: block } : { top: block, left: inline };
 }
 /** @type {WeakSet<Document | ShadowRoot>} */
 const hearing = new WeakSet();
@@ -365,7 +472,7 @@ export function hearScrollsIn(root) {
           : null;
     if (!box) return;
     if (type === "scroll") announceScroll(box);
-    else endSequence(box);
+    else if (!awaitsReader(box)) endSequence(box);
   };
   root.addEventListener("scroll", heard, SCROLL);
   root.addEventListener("scrollend", heard, SCROLL);
@@ -396,9 +503,10 @@ export function watchScrolls(listener) {
 const SETTLE_MS = 80;
 /** @type {Set<(box: Element) => void>} */
 const endListeners = new Set();
-// Each box whose sequence runs, with how many of its scrolls have been heard and when
-// the last one was.
-/** @typedef {{heard: number, at: number}} Sequence */
+// Each box whose sequence runs, with how many of its scrolls have been heard, when the
+// last one was, and where the box stood when the reader's input started it
+// (`startReaderScroll`).
+/** @typedef {{heard: number, at: number, reader?: {top: number, left: number, fromEnd: number}}} Sequence */
 /** @type {Map<Element, Sequence>} */
 const sequences = new Map();
 /** @type {Map<Element, number>} */
@@ -450,12 +558,42 @@ export function holdScroll(box) {
     inSequence(box);
   };
 }
+// Start `box`'s sequence at the reader's input asking the browser to scroll it
+// (scrolling.js, `aimScroll`), ahead of the scroll the browser applies later, so the box
+// is the browser's to move from the input. A `scrollend` that arrives while the box
+// still stands where the input found it, from its top or from its end, ends some other
+// scroll, so it ends nothing of the reader's (`awaitsReader`): Firefox ends a write it
+// applied before the input, and layout ends its own move, as a clamp when a log loses
+// its oldest entries carries the box up with them. Where the input moves nothing, as a
+// wheel at an edge doesn't, the sequence ends after the quiet spell.
+/** @param {Element} box */
+export function startReaderScroll(box) {
+  placed.delete(box);
+  sequenceIn(box).reader = {
+    top: box.scrollTop,
+    left: box.scrollLeft,
+    fromEnd: fromEnd(box),
+  };
+  inSequence(box);
+}
+/** @param {Element} box */
+const fromEnd = (box) => box.scrollHeight - box.clientHeight - box.scrollTop;
+/** @param {Element} box */
+const awaitsReader = (box) => {
+  const at = sequences.get(box)?.reader;
+  return Boolean(
+    at &&
+    at.left === box.scrollLeft &&
+    (at.top === box.scrollTop || Math.abs(at.fromEnd - fromEnd(box)) < 1),
+  );
+};
 // Whether a scroll sequence is under way anywhere in the page.
 export const scrolling = () => sequences.size > 0;
 // Whether the browser moves `box`, rather than a script: a sequence under way in it that
-// no hold keeps open, and that has taken the box from where a script last put it. A
-// script's last write keeps the sequence open while it settles (`inSequence`), and that
-// settling is still the script's.
+// no hold keeps open, and that has taken the box from where a script last put it, or
+// that the reader's input has just asked of it (`startReaderScroll`). A script's last
+// write keeps the sequence open while it settles (`inSequence`), and that settling is
+// still the script's.
 /** @param {Element} box */
 export const browserScrolls = (box) => {
   if (!sequences.has(box) || holds.has(box)) return false;

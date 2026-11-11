@@ -610,11 +610,10 @@ def control_preview(page: Page) -> None:
 PREVIEW_DWELL_MS = 400
 
 
-def thread_preview(page: Page) -> None:
-    """The open thread's passage mark under a resting pointer, which previews who wrote
-    its last message and when, that message's opening line and where the thread stands
-    (thread/messages.js, `threadPreview`)."""
-    line = page.evaluate(
+def word_lines(page: Page, words: str) -> list[dict]:
+    """The boxes of the first `words` the page's text holds within one text node, one
+    for each line they lie on, with their paragraph scrolled to the window's middle."""
+    return page.evaluate(
         """(words) => {
           const walker = document.createTreeWalker(document.querySelector('main'),
             NodeFilter.SHOW_TEXT);
@@ -625,14 +624,44 @@ def thread_preview(page: Page) -> None:
             const range = document.createRange();
             range.setStart(node, at);
             range.setEnd(node, at + words.length);
-            return range.getClientRects()[0].toJSON();
+            return [...range.getClientRects()].map((box) => box.toJSON());
           }
         }""",
-        "The trusted supervisor owns shutdown.",
+        words,
     )
+
+
+STOP_PASSAGE = "The trusted supervisor owns shutdown."
+
+
+def thread_preview(page: Page) -> None:
+    """The open thread's passage mark under a resting pointer, which previews who wrote
+    its last message and when, that message's opening line and where the thread stands
+    (thread/messages.js, `threadPreview`)."""
+    line = word_lines(page, STOP_PASSAGE)[0]
     page.mouse.move(line["left"] - 20, line["top"] - 20)
     page.mouse.move(line["left"] + 10, line["top"] + line["height"] / 2, steps=3)
     page.wait_for_timeout(PREVIEW_DWELL_MS)
+    settle(page)
+
+
+def passage_reaction(page: Page) -> None:
+    """A passage the user reacted to, selected by pointer and answered with `e` and
+    `1`, in the item below the stop thread's commented passage, so a reaction's mark
+    and a comment's stand at rest side by side."""
+    lines = word_lines(page, "reject symlink path components")
+    first, last = lines[0], lines[-1]
+    page.mouse.move(first["left"] + 1, first["top"] + first["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(last["right"] - 1, last["top"] + last["height"] / 2, steps=8)
+    page.mouse.up()
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("e")
+    page.keyboard.press("1")
+    page.wait_for_function("() => (CSS.highlights.get('lf-react')?.size ?? 0) > 0")
+    page.keyboard.press("Escape")
+    page.mouse.move(0, 0)
+    word_lines(page, STOP_PASSAGE)
     settle(page)
 
 
@@ -2194,6 +2223,14 @@ def card_message_by_keyboard(page: Page) -> None:
     raise AssertionError("Next On Me never reached a card's message")
 
 
+def card_ask_by_keyboard(page: Page) -> None:
+    """The agent's ask in a margin card, reached by Next On Me (`m`), which focuses the
+    ask, so the location ring stands round it inside the card's transcript."""
+    page.keyboard.press("m")
+    expect(page.locator(".lf-margin-preview lf-ask")).to_be_focused()
+    settle(page)
+
+
 def element_thread_open(page: Page) -> None:
     """The same element while the user is in its thread, opened from its margin card:
     the contour that says which element the thread is about, beside the heading's
@@ -3070,6 +3107,7 @@ STATES = (
     State("plan-card", "review-a-plan", card_by_pointer),
     State("control-preview", "review-a-plan", control_preview),
     State("thread-preview", "review-a-plan", thread_preview),
+    State("passage-reaction", "review-a-plan", passage_reaction),
     State("age-preview", "review-a-plan", age_preview),
     State("link-preview", "feature-gallery", link_preview),
     State("reaction-palette", "ship-review", reaction_palette),
@@ -3377,6 +3415,12 @@ STATES = (
         window=WINDOWS["phone"],
     ),
     State("ship-thread", "ship-review", element_thread),
+    State(
+        "ship-card-ask-keyboard",
+        "ship-review",
+        card_ask_by_keyboard,
+        region=".lf-margin-preview",
+    ),
     State(
         "ship-card-message-keyboard",
         "ship-review",

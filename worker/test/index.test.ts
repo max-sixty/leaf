@@ -112,27 +112,27 @@ const MANIFEST = {
       states: { "1": "/_leaf/state/extending.json" },
       title: "Extending Leaf",
     },
-    "/registry": {
-      assets: `/_leaf-release/${RELEASE}/registry`,
-      description: "The leaf registry keys page.",
-      directory: "_leaf/pages/registry",
+    "/using": {
+      assets: `/_leaf-release/${RELEASE}/using`,
+      description: "Working on a Leaf page.",
+      directory: "_leaf/pages/using",
       image: "/media/0000000000000006.png",
       kind: "product",
       layer: LAYER,
-      state: "/_leaf/state/registry.json",
-      states: { "1": "/_leaf/state/registry.json" },
-      title: "leaf registry keys",
+      state: "/_leaf/state/using.json",
+      states: { "1": "/_leaf/state/using.json" },
+      title: "Using a Leaf page",
     },
-    "/threads": {
-      assets: `/_leaf-release/${RELEASE}/threads`,
-      description: "Comments and replies in Leaf.",
-      directory: "_leaf/pages/threads",
+    "/pages": {
+      assets: `/_leaf-release/${RELEASE}/pages`,
+      description: "Writing a Leaf page.",
+      directory: "_leaf/pages/pages",
       image: "/media/0000000000000007.png",
       kind: "product",
       layer: LAYER,
-      state: "/_leaf/state/threads.json",
-      states: { "1": "/_leaf/state/threads.json" },
-      title: "Threads in Leaf",
+      state: "/_leaf/state/pages.json",
+      states: { "1": "/_leaf/state/pages.json" },
+      title: "Writing a Leaf page",
     },
   },
 };
@@ -357,8 +357,8 @@ describe("product-site delivery", () => {
   it.each([
     "/",
     "/how-it-works/",
-    "/registry/",
-    "/threads/",
+    "/using/",
+    "/pages/",
     "/examples/",
     "/examples/triage-board/",
     "/extending/",
@@ -2136,7 +2136,6 @@ describe("website page agent", () => {
         environment(),
       );
       for (const [body, headers, expected] of [
-        ["Container suddenly disconnected, try again", {}, "disconnected"],
         ["private-page-content-and-secret".repeat(100), {}, "unclassified"],
         ["private-adapter-error", { "Leaf-Release": RELEASE }, "adapter"],
       ] as const) {
@@ -2156,6 +2155,7 @@ describe("website page agent", () => {
           method: "GET",
           status: 500,
           source: expected,
+          retried: false,
         });
       }
       expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|secret/);
@@ -2165,6 +2165,74 @@ describe("website page agent", () => {
         await (await session.fetch(new Request("https://leaf.page/"))).text(),
       ).toBe("healthy");
       expect(log).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+      close();
+    }
+  });
+
+  it("reads again once when the container connection drops, but never resends a write", async () => {
+    const { storage, close } = sqliteStorage();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const session = new LeafWebsiteSession(
+        { storage, container: { running: true } } as never,
+        environment(),
+      );
+      const url = "https://leaf.page/examples/triage-board/api/news?private=secret";
+      for (const body of [
+        "Container suddenly disconnected, try again",
+        "Error proxying request to container: Error: Container port connection closed unexpectedly.",
+      ]) {
+        forwardedContainerFetch.mockClear();
+        log.mockClear();
+        forwardedContainerFetch
+          .mockResolvedValueOnce(new Response(body, { status: 500 }))
+          .mockResolvedValueOnce(new Response("news"));
+        const response = await session.fetch(new Request(url));
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe("news");
+        expect(forwardedContainerFetch).toHaveBeenCalledTimes(2);
+        expect(log).toHaveBeenCalledExactlyOnceWith({
+          component: "leaf-container",
+          event: "http_error",
+          method: "GET",
+          status: 500,
+          source: "disconnected",
+          retried: true,
+        });
+      }
+
+      // A second loss reaches the caller rather than retrying again.
+      forwardedContainerFetch.mockClear();
+      const lost = "Container suddenly disconnected, try again";
+      forwardedContainerFetch
+        .mockResolvedValueOnce(new Response(lost, { status: 500 }))
+        .mockResolvedValueOnce(new Response(lost, { status: 500 }));
+      expect((await session.fetch(new Request(url))).status).toBe(500);
+      expect(forwardedContainerFetch).toHaveBeenCalledTimes(2);
+
+      forwardedContainerFetch.mockClear();
+      forwardedContainerFetch.mockResolvedValueOnce(
+        new Response(lost, { status: 500 }),
+      );
+      const write = await session.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/media", {
+          method: "POST",
+          body: "bytes",
+        }),
+      );
+      expect(write.status).toBe(500);
+      expect(forwardedContainerFetch).toHaveBeenCalledOnce();
+      expect(log).toHaveBeenLastCalledWith({
+        component: "leaf-container",
+        event: "http_error",
+        method: "POST",
+        status: 500,
+        source: "disconnected",
+        retried: false,
+      });
+      expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|secret/);
     } finally {
       log.mockRestore();
       close();

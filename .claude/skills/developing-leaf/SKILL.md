@@ -17,7 +17,7 @@ changing anything Leaf draws, read that file's "Leaf's interface".
 
 ## Take a backlog item
 
-Pick an issue labelled `backlog`, not `waits-on-user`, that no pull request links
+Pick an issue labelled `backlog`, assigned to nobody, that no pull request links
 (`TODO.md` has the query), and open its pull request early, as a draft if need be,
 with `Closes #N` in the body, so the next session sees the item taken.
 
@@ -241,7 +241,10 @@ session the user talks to. Don't close a preview to quiet the loop; `page close`
 the agent's side of the page, which the panel shows as Page closed.
 
 For finite checks, prefer `leaf-dev probe` or `stills`, which close their servers when
-they finish, and serve the smallest fixture that keeps the journey and its
+they finish. Serve a scratch or repro page only with those or a plain `leaf-dev preview
+--source`, never `bin/leaf server start` or `page claim`, which bind the page to the
+session running them (a subagent's parent), whose turn-end checks and On me list then
+fill with its asks. Serve the smallest fixture that keeps the journey and its
 surroundings. Separate page directories keep reviewers' comments apart, and fresh
 browser contexts keep browser storage apart, without another browser or Python
 process. Close a browser session you opened when you finish with it; a custom runner

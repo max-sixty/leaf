@@ -6282,18 +6282,14 @@ def test_page_search_finds_a_shipped_options_chip_and_title_apart(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-@pytest.mark.parametrize(
-    ("source", "words"),
-    [("ui", "window The workspace"), ("threads", "there The quote")],
-)
 def test_page_search_reads_a_docs_captions_title_apart_from_its_text(
-    engine, source, words, request, serve
+    engine, request, serve
 ):
     """A figure caption in the product docs draws its title on a line of its own above
     its text, and page search finds the title's last word and the text's first apart."""
-    page = open_page(request.getfixturevalue(engine), serve(named_source(source)))
+    page = open_page(request.getfixturevalue(engine), serve(named_source("pages")))
     page.keyboard.press("/")
-    page.get_by_role("searchbox", name="Search page text").fill(words)
+    page.get_by_role("searchbox", name="Search page text").fill("window The workspace")
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
 
 

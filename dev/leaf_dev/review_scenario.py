@@ -60,6 +60,14 @@ COMMENTS = {
         "triage-lede",
         "How many cards does this page's source hold? Count them in the file.",
     ),
+    # A question a fork takes, whose rest the user leaves as work for later, which
+    # the fork answers with a to-do on the thread for the session to do.
+    "fork-todo": (
+        "triage-lede",
+        "Which cards on this page mention customers or partners? List them here. "
+        "Tagging those cards on the page is a bigger job: keep it as a to-do, and "
+        "get to it once you've finished what you're doing.",
+    ),
     # Real author intent exercises the rich interface without naming its commands.
     "rich-choice": (
         "triage-lede",

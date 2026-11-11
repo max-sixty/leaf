@@ -88,8 +88,13 @@ session stays idle. Then `fork-resume`: once that fork's run has ended, a furthe
 message in its thread goes to the same fork, which Claude Code resumes under the same
 agent id in a new turn of its own that picks the message up and answers it, while the
 session stays idle; the session then wakes for Claude Code's notice that the resumed
-fork finished, and doesn't answer the message again. `fork-work` then checks that the
-session's next turn didn't answer the forks' questions again.
+fork finished, and doesn't answer the message again. Then `fork-todo`: a question a
+fork takes, whose rest the user leaves as work for later, which the fork answers with
+a to-do on the thread (`--todo`), ending its turn as `todo`; Leaf's wake for that
+to-do starts a turn of the idle session, whose prompt hook hands it the line naming
+the to-do, and the session does the work and ends the to-do or leaves it open on its
+list, as it judges. `fork-work` then checks
+that the session's next turn didn't answer the forks' questions again.
 
 Then `quit`, by `/exit`.
 
@@ -137,6 +142,7 @@ from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING
 from leaf.server import running_server
 from leaf.service import page_claim
 from leaf.state import turn_open
+from leaf.todos import TodoReading
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS, PageClient, claude_environment, claude_home
 from leaf_dev.commands.journey import (
@@ -928,6 +934,124 @@ def steps(
                 ),
             )
 
+        def opened_todo(started: float) -> None:
+            """`fork-todo`: a question a fork takes, whose rest the user leaves for
+            later, gets the fork's answer with a to-do on the thread, from the fork's
+            own turn. The fork's end wakes the idle session for the to-do (no notice
+            of Claude Code's does, since a spawned fork's first run sends none), and
+            the woken turn's prompt hook hands it the line naming the to-do. When to
+            do the work is the session's call: it ends the to-do done, or leaves it
+            open on its list."""
+            comment = user.comment("fork-todo")
+
+            def records() -> list[dict]:
+                return [
+                    record
+                    for record in (user.forks() if user.forks else [])
+                    if comment in record["inputs"]
+                ]
+
+            cc.until(
+                lambda: any(
+                    r["outcome"] in ("take", "hand_over", "dropped") for r in records()
+                ),
+                "fork-todo: no fork decided on it",
+                60,
+            )
+            taken = require(
+                next((r for r in records() if r["outcome"] == "take"), None),
+                f"fork-todo: no fork took it: {[fork_summary(r) for r in records()]}",
+            )
+            cc.until(
+                lambda: any(r.get("step") == "end" for r in records()),
+                "fork-todo: the turn of the fork that took it never ended",
+                180,
+            )
+            run_end = next(r for r in records() if r.get("step") == "end")
+            require(
+                run_end["outcome"] == "todo",
+                f"fork-todo: the fork opened no to-do: {fork_summary(run_end)}",
+            )
+            [todo] = run_end["todos"]
+            replies = require(answers(page, comment), "fork-todo: nobody answered it")
+            require(
+                replies[0].get("turn") == taken["turn"] and replies[0].get("todo"),
+                "fork-todo: the first answer was not the fork's, with the to-do",
+            )
+            ended_at = instant(run_end["ts"])
+
+            def woken() -> list[dict]:
+                """The session's turns since the fork's run ended, as Claude Code
+                recorded each start."""
+                return [
+                    record
+                    for record in claude_code_records(native_records(cc.home, session))
+                    if record["type"] == "turn_start"
+                    and instant(record["received_at"]) > ended_at
+                ]
+
+            def done() -> dict | None:
+                return TodoReading(read_events(page)).ends.get(todo)
+
+            def told() -> bool:
+                return any(
+                    todo in context for context in hook_contexts("UserPromptSubmit")
+                )
+
+            cc.until(lambda: bool(woken()), "fork-todo: nothing woke the session", 60)
+            first = woken()[0]
+            require(
+                first.get("origin") == "leaf_wake",
+                f"fork-todo: the session's first turn after the fork's end began "
+                f"with {first.get('origin')}, not Leaf's wake",
+            )
+            # When the session does the work is its own call; Leaf owes it the
+            # line, and the to-do stays on the agent until the session ends it.
+            cc.settle(
+                told, "fork-todo: no prompt hook handed the session the line naming it"
+            )
+            outcome = done()
+            require(
+                outcome is None or outcome["state"] == "done",
+                f"fork-todo: the session ended the to-do {outcome and outcome['state']}",
+            )
+            if outcome is None:
+                require(
+                    any(t["id"] == todo for t in TodoReading(read_events(page)).owed),
+                    "fork-todo: the to-do is neither open nor done",
+                )
+            timings = user.end.timings()[comment]["milestones"]
+            scheduled = (
+                "left the to-do open for later"
+                if outcome is None
+                else "ended the to-do done "
+                + str(
+                    round(
+                        next(
+                            instant(e["ts"])
+                            for e in read_events(page)
+                            if e["kind"] == "todo_end" and e["todo"] == todo
+                        )
+                        - ended_at
+                    )
+                )
+                + " s after the fork's end"
+            )
+            step(
+                "fork-todo",
+                started,
+                detail=(
+                    f"`fork-todo`: {taken['agent']}'s working line came "
+                    f"{timings['first_reply']['elapsed_s']:.1f} s after the comment, "
+                    f"and its answer, opening the to-do “{replies[0]['todo']}”, from "
+                    f"its own turn, which ended after "
+                    f"{run_end['elapsedMs'] / 1000:.1f} s. Leaf woke the session "
+                    f"{instant(first['received_at']) - ended_at:.1f} s after that, "
+                    f"its prompt hook handed it the line, and it {scheduled}; the "
+                    f"thread has {len(replies)} answer(s)"
+                ),
+            )
+
         def lined(name: str) -> float:
             """Require the fork on step `name`'s comment to have posted the agent's
             working line, as the comment's first reply, and handed the comment over;
@@ -950,6 +1074,7 @@ def steps(
             forked_work(started)
             asked, taken = followed_up(time.monotonic())
             resumed(time.monotonic(), asked, taken)
+            opened_todo(time.monotonic())
         else:
             cc.until(answered("fork-idle"), "fork-idle: the session did not answer it")
             first = lined("fork-idle")
@@ -1020,9 +1145,12 @@ def leaf_rows(records: list[dict]) -> dict[str, int]:
     native `records`: a wake (`hooks.json`'s background Stop hook, a task
     notification whose summary the registration names), a nudge through session
     messaging, a notice the hooks module logged, and a hook's error. A wake or
-    nudge no hook delivery or reminder follows before the next one, or the user's
-    next prompt, also counts as `empty`: a turn opened for input another turn had
-    already taken. A row counts whether or not the hooks module draws it."""
+    nudge that no context of Leaf's prompt or tool-boundary hooks follows before the
+    next one, or the user's next prompt, also counts as `empty`: a turn opened with
+    nothing for it, such as input another turn had already taken. Leaf's are the
+    session's only hooks to put context there: a delivery, a reminder, or a line
+    telling the session of work it owes. A row counts whether or not the hooks
+    module draws it."""
     rows: dict[str, int] = {}
     opened = False
 
@@ -1069,10 +1197,10 @@ def leaf_rows(records: list[dict]) -> dict[str, int]:
             "hook_blocking_error",
         ):
             count("hook error")
-        elif attachment.get("type") == "hook_additional_context" and any(
-            str(part).startswith((INLINE_OPENING, POINTER_OPENING))
-            or ATTENTION_OPENING in str(part)
-            for part in attachment.get("content") or []
+        elif (
+            attachment.get("type") == "hook_additional_context"
+            and attachment.get("hookEvent") in ("UserPromptSubmit", "PostToolBatch")
+            and any(str(part).strip() for part in attachment.get("content") or [])
         ):
             opened = False
     close()

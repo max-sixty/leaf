@@ -96,7 +96,15 @@
 // Native effects it began retain their sampled displacement within their subtree.
 // A native size animation also credits a later box when its size change travels
 // through the layout path to that box and matches its movement. Its continued
-// lifetime never owns unrelated page movement.
+// lifetime never owns unrelated page movement. A script re-times motion by cancelling
+// an effect and beginning another in its place in the same task. The new effect
+// continues that motion where it has the cancelled effect's target and moving
+// properties, ends at the same values in its last keyframe, and starts within a pixel
+// of each translation the cancelled effect drew when cancelled. It keeps the cancelled
+// effect's beginning and owners, though news may have sealed their credit since. Its
+// sampled translation runs on from the cancelled effect's, never through the return
+// to underlying style that no frame drew between them. One that starts or ends
+// elsewhere is new motion.
 // Native scroll effects belong to their retained scroll source, regardless of the
 // gesture that created them. Stable timeline bindings and translation trajectories
 // credit only source-collinear travel bounded by that source's viewport scroll.
@@ -195,7 +203,7 @@
 // Every finding fails the ordinary browser fixture. It installs this sensor after
 // write_watch.js and binds the canonical control and clipping vocabulary.
 (() => {
-  const { listen } = window.lfWatchPlatform;
+  const { listen, microtask: endOfTask } = window.lfWatchPlatform;
   // A native paint/task checkpoint retires only evidence it has judged. Execution
   // time says nothing about whether Chrome has delivered an earlier painted shift.
   let retainedFrom = -Infinity;
@@ -1140,6 +1148,7 @@
       ),
       consumers,
     });
+    continueMotion(animation);
     return animation;
   };
   // Reusing a native effect is a new operation when play resumes or reverse changes
@@ -1160,6 +1169,7 @@
       if (beginning) {
         beganAt.set(this, { at });
         if (origin) origins.set(this, origin);
+        continueMotion(this);
       }
       return result;
     };
@@ -1255,20 +1265,125 @@
   };
   // A cancelled no-fill effect returns to its underlying style before the next
   // frame. Keep both sides of that native change while the effect still names its
-  // target; getAnimations() no longer includes it after cancel().
+  // target; getAnimations() no longer includes it after cancel(). The side before is
+  // what it drew at the cut, which an effect the same task begins in its place may
+  // continue from (`continueMotion`), so the effect and that reading are kept until
+  // the task ends.
+  let cuts = null;
   const cancel = Animation.prototype.cancel;
   Animation.prototype.cancel = function (...args) {
     const applied =
       this.effect?.target &&
       moves(this) &&
       this.effect.getComputedTiming().progress !== null;
-    if (applied) readMotion(nativePerformance.now());
+    const at = nativePerformance.now();
+    if (applied) readMotion(at);
+    const drawn = animated.get(this)?.at(-1);
     const result = cancel.apply(this, args);
     if (applied) {
       readMotion(nativePerformance.now(), this);
       announce();
+      if (drawn?.at === at) {
+        if (!cuts) {
+          cuts = [];
+          endOfTask(() => {
+            cuts = null;
+          });
+        }
+        cuts.push({ animation: this, drawn });
+      }
     }
     return result;
+  };
+  // Each translation a reading holds, by what it moves: the target's own properties
+  // and each bound consumer's translate.
+  const placements = (reading) =>
+    new Map([
+      ...Object.entries(reading.values).map(([property, value]) => [
+        property,
+        animationTranslation(property, value),
+      ]),
+      ...reading.consumers.flatMap((consumer) =>
+        consumer
+          ? [[consumer.node, animationTranslation("translate", consumer.value)]]
+          : [],
+      ),
+    ]);
+  // Whether a replacement starts where the cancelled effect was drawn, each translation
+  // within the pixel `moved` ignores.
+  const startsWhereDrawn = (drawn, start) => {
+    const was = placements(drawn),
+      now = placements(start);
+    return (
+      was.size > 0 &&
+      was.size === now.size &&
+      [...was].every(([key, at]) => {
+        const next = now.get(key);
+        return (
+          at &&
+          next &&
+          Math.abs(next.left - at.left) < 1 &&
+          Math.abs(next.top - at.top) < 1
+        );
+      })
+    );
+  };
+  // The last keyframe's value of each key that moves an effect's target, a geometric
+  // property or a custom property a translation reads.
+  const destination = (animation) => {
+    const read = new Set(
+      [
+        ...(translationBindings.get(animation) ?? "").matchAll(/var\(\s*(--[-\w]+)/g),
+      ].map((match) => match[1]),
+    );
+    for (const { key } of inheritedBindings(animation)) read.add(key);
+    return JSON.stringify(
+      Object.entries(animation.effect?.getKeyframes().at(-1) ?? {}).filter(
+        ([key]) => GEOMETRY.test(key) || read.has(key),
+      ),
+    );
+  };
+  // A replacement that continues a cancelled effect (the header's "Each trusted
+  // gesture") takes three things from it. It takes the cancelled effect's ledger up to
+  // the cut, so a comparison across the cut reads one trajectory. It takes its
+  // beginning, so `begun` gives it to the input that began the cancelled one. And it
+  // takes its owners, whose credit news may have sealed since.
+  const continuations = new WeakMap();
+  const continueMotion = (replacement) => {
+    if (!cuts) return;
+    const target = replacement.effect?.target;
+    const properties = animationProperties(replacement);
+    const end = destination(replacement);
+    const same = (other) =>
+      other.length === properties.length &&
+      other.every((property) => properties.includes(property));
+    const index = cuts.findIndex(
+      ({ animation }) =>
+        animation !== replacement &&
+        animation.effect?.target === target &&
+        same(animationProperties(animation)) &&
+        destination(animation) === end,
+    );
+    if (index === -1) return;
+    const { animation: cancelled, drawn } = cuts[index];
+    readMotion(nativePerformance.now());
+    const readings = animated.get(replacement);
+    if (!readings?.length || !startsWhereDrawn(drawn, readings[0])) return;
+    cuts.splice(index, 1);
+    const history = animated.get(cancelled);
+    animated.set(replacement, [
+      ...history.slice(0, history.indexOf(drawn) + 1),
+      ...readings,
+    ]);
+    beganAt.set(replacement, beganAt.get(cancelled));
+    continuations.set(cancelled, replacement);
+    for (const rendering of renderings)
+      if (rendering.own.has(cancelled)) rendering.own.add(replacement);
+  };
+  // The effect a motion runs on now: the last replacement that continued it.
+  const continued = (animation) => {
+    while (continuations.has(animation)) animation = continuations.get(animation);
+    return animation;
   };
   // Unchanged frames: the last complete reading's population, the ledger entries
   // appended so far, the unannounced frames in a row, and what the last read saw.
@@ -2996,7 +3111,6 @@
   // asks the same questions of the same animations and ancestors, and nothing the watch
   // does in one task restyles the page or edits an effect, so an answer read once holds
   // until the task ends.
-  const endOfTask = window.lfWatchPlatform.microtask;
   const forTask = (read) => {
     let kept = null;
     return (key) => {
@@ -3184,7 +3298,7 @@
         });
     }
     const seen = new Map();
-    for (const animation of new Set(animations)) {
+    for (const animation of new Set(animations.map(continued))) {
       const target = animation.effect.target;
       if (!target) continue;
       const samples = animated.get(animation);
@@ -3351,10 +3465,12 @@
       ...ancestryAt(node, to),
       node,
     ]);
-    const candidates = new Set([
-      ...selected,
-      ...renderings.flatMap((rendering) => [...rendering.own]),
-    ]);
+    selected = selected.map(continued);
+    const candidates = new Set(
+      [...selected, ...renderings.flatMap((rendering) => [...rendering.own])].map(
+        continued,
+      ),
+    );
     const endpoint = (sample) =>
       sample ? { at: sample.at, values: sample.values } : null;
     return [...candidates]

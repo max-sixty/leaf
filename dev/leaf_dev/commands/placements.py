@@ -33,7 +33,8 @@ beside each capture is measured in the tab:
   from the card's inner edge to the far edge of the placement boundary
   (`commentBoundary`) beside its subject, and is the boundary's width over or under it;
 - how far it covers its subject's block and whether it covers the quoted words;
-- how far the page scrolled as the card opened.
+- how far the page scrolled from the input that opened the card, except where `m`
+  travelled from the page's top.
 
     uv run leaf-dev preview --source .tmp/placements/run-XXXX/index.html
 """
@@ -68,7 +69,7 @@ from leaf_dev.browser import (
     scroll_settled,
     settle,
 )
-from leaf_dev.states import OPEN_CARD, State, open_card
+from leaf_dev.states import OPEN_CARD, State
 from leaf_dev.visits import said, visits
 
 OUT = ROOT / ".tmp" / "placements"
@@ -430,19 +431,35 @@ def centre(page: Page, case: Case) -> None:
     settle(page)
 
 
-def by_walk(page: Page, case: Case) -> None:
+# Each route returns the page's scroll just before the input that opens the card.
+
+
+def by_walk(page: Page, case: Case) -> float:
     page.locator("body").focus()
+    before = page.evaluate("scrollY")
     page.keyboard.press("m")
     page.wait_for_function(OPEN_CARD)
+    return before
 
 
-def by_marker(page: Page, case: Case) -> None:
-    open_card(
-        page, page.locator(f'[data-lf-margin-for="{case.subject}"] .lf-margin-marker')
+def by_marker(page: Page, case: Case) -> float:
+    """A press on the margin marker, brought into the window first where the subject's
+    middle left it out, as a reader scrolls to it."""
+    marker = page.locator(f'[data-lf-margin-for="{case.subject}"] .lf-margin-marker')
+    marker.evaluate(
+        "m => { const box = m.getBoundingClientRect();"
+        " if (box.top < 0 || box.bottom > innerHeight)"
+        " scrollBy(0, box.top - innerHeight / 3); }"
     )
+    settle(page)
+    before = page.evaluate("scrollY")
+    marker.click()
+    page.wait_for_function(OPEN_CARD)
+    return before
 
 
-def by_tap(page: Page, case: Case) -> None:
+def by_tap(page: Page, case: Case) -> float:
+    before = page.evaluate("scrollY")
     first = page.evaluate(
         f"(args) => {{ const {{block, range}} = ({PASSAGE})(args);"
         " return (range ?? block).getClientRects()[0].toJSON(); }",
@@ -452,9 +469,10 @@ def by_tap(page: Page, case: Case) -> None:
     page.wait_for_function(
         "() => document.querySelector('.lf-margin-preview:not([hidden]), .lf-fp-opened')"
     )
+    return before
 
 
-def by_comment(page: Page, case: Case) -> None:
+def by_comment(page: Page, case: Case) -> float:
     page.evaluate(
         f"""(args) => {{
           let {{block, range}} = ({PASSAGE})(args);
@@ -466,8 +484,10 @@ def by_comment(page: Page, case: Case) -> None:
     )
     page.keyboard.press("c")
     page.keyboard.insert_text(case.typed)
+    before = page.evaluate("scrollY")
     page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function(OPEN_CARD)
+    return before
 
 
 ROUTES = {
@@ -528,8 +548,7 @@ def journey(case: Case):
             converse(page, case)
         if case.route != "m":
             centre(page, case)
-        before = page.evaluate("scrollY")
-        ROUTES[case.route](page, case)
+        before = ROUTES[case.route](page, case)
         settle(page)
         page.mouse.move(0, 0)
         opened = page.evaluate("scrollY")
@@ -660,7 +679,7 @@ def described(case: Case) -> str:
     return " · ".join(steps)
 
 
-def result_html(found: dict, scrolled: int | None) -> str:
+def result_html(case: Case, found: dict, scrolled: int | None) -> str:
     if "size" not in found:
         return f"The thread opens {found['where']}."
     width, height = found["size"]
@@ -673,7 +692,8 @@ def result_html(found: dict, scrolled: int | None) -> str:
         tags.append(("warn", f"covers {found['covers']} px of its subject"))
     if found["outside"]:
         tags.append(("danger", "partly outside the window"))
-    if scrolled:
+    # `m` from the page's top travels to the thread, as the reader expects.
+    if scrolled and case.route != "m":
         tags.append(("", f"page scrolled {abs(scrolled)} px to open it"))
     chips = "".join(
         f' <small class="tag{" " + tone if tone else ""}">{html.escape(t)}</small>'
@@ -837,7 +857,7 @@ def placements(names, engine, base) -> None:
                             data = outlined(Path(visit.reading["shot"]), reading)
                             name = media_name(data, ".png")
                             (media / name).write_bytes(data)
-                            result = result_html(found, scrolled)
+                            result = result_html(case, found, scrolled)
                             got[arm] = {
                                 "image": f"/media/{name}",
                                 "result": result,

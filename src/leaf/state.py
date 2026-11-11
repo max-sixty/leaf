@@ -941,18 +941,25 @@ def renew_agent_turn(session_id: str, agent: str) -> str | None:
         return turn
 
 
-def note_agent_pointer(session_id: str, turn: str, pages: dict[str, int]) -> None:
+def note_agent_pointer(
+    session_id: str, turn: str, pages: dict[str, int], *, deadline: float
+) -> None:
     """Note that the open agent turn `turn` was handed, by pointer, each page's input
     through the log position `pages` gives it, so its next tool boundary hands it
     none of that again while it reads and acknowledges the delivery
-    (`hook_transport.carry_agent_turn`)."""
-    with flocked(session_lock_path(session_id)):
-        turns = agent_turns(session_id)
-        entry = turns.get(turn)
-        if entry is None or not agent_turn_open(entry, session_record(session_id)):
-            return
-        turns[turn] = {**entry, "pointed": {**entry.get("pointed", {}), **pages}}
-        _write_agent_turns(session_id, turns)
+    (`hook_transport.carry_agent_turn`). A session lock still held at `deadline`
+    leaves the note unwritten, as the main thread's pointer note does
+    (`hook_transport.note_pointer`)."""
+    try:
+        with flocked(session_lock_path(session_id), deadline=deadline):
+            turns = agent_turns(session_id)
+            entry = turns.get(turn)
+            if entry is None or not agent_turn_open(entry, session_record(session_id)):
+                return
+            turns[turn] = {**entry, "pointed": {**entry.get("pointed", {}), **pages}}
+            _write_agent_turns(session_id, turns)
+    except TimeoutError:
+        return
 
 
 def close_agent_turns(

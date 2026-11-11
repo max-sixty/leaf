@@ -7,8 +7,7 @@ working fork that took a thread's work (`state.AGENT_TURNS`, `forks.py`). A pick
 the page log names the turn that took messages in, and an agent's reply names the
 turn that posted it (`thread.post_reply`), so the log says which turn took each
 message and which answered it. A thread's waiting messages are the user's messages
-in it since the agent's last answer there, and that answer ends the thread's round
-(`rounds`).
+in it the agent still owes an answer, as the fold settles them (`rounds`).
 
 A turn holds a thread from the moment it takes the thread until another turn does:
 
@@ -59,47 +58,66 @@ from .state import agent_turn_stamps
 class Rounds(NamedTuple):
     """The page's threads by their current round (`rounds`)."""
 
-    # Each thread's waiting messages in log order, the user's since the agent's last
-    # answer in it.
+    # Each thread's waiting messages in log order: the user's messages there the
+    # agent still owes an answer.
     waiting: dict[str, list[dict]]
-    # The ids of the user's messages an agent's working line came after, which read
+    # The ids of the waiting messages an agent's working line came after, which read
     # On it (`forks.forked`).
     lined: set[str]
     # Each thread's last answer from the agent: its last message that responds to
     # one of the user's, which leaves out a message the agent wrote unasked.
     answers: dict[str, dict]
-    # The agent's message that ended each answered message's round, by the user's
-    # message's id.
+    # The agent's answer that settled each of the user's settled messages, by the
+    # user's message's id.
     answered: dict[str, dict]
 
 
 def rounds(events: list[dict]) -> Rounds:
-    """The page's threads by their current round, from the log."""
-    from .events import taken_back
+    """The page's threads by their current round, from the log. An answer settles
+    the user's messages as the fold settles them (`events.settlements`), by the
+    exact message its `responds` names, so a message the agent writes unasked, or
+    one answering an older message, ends no round."""
+    from .events import settlements, taken_back
     from .thread_context import thread_names
 
     messages = kinds_declaring("message")
     names = thread_names(events)
     withdrawn = taken_back(events)
+    turns: dict[str, list[dict]] = {}
+    lines: dict[str, list[int]] = {}
+    for event in events:
+        if event["kind"] not in messages or event["id"] in withdrawn:
+            continue
+        if (thread := names.get(event["id"])) is None:
+            continue
+        if event["author"] != "user" and event.get("ephemeral"):
+            # The agent's working line answers nothing, and speaks for what waits.
+            lines.setdefault(thread, []).append(event["seq"])
+        else:
+            turns.setdefault(thread, []).append(event)
     waiting: dict[str, list[dict]] = {}
     lined: set[str] = set()
     answers: dict[str, dict] = {}
     answered: dict[str, dict] = {}
-    for event in events:
-        if event["kind"] not in messages or event["id"] in withdrawn:
-            continue
-        thread = names.get(event["id"])
-        if thread is None:
-            continue
-        if event["author"] == "user":
-            waiting.setdefault(thread, []).append(event)
-        elif event.get("ephemeral"):
-            # The agent's working line answers nothing, and speaks for what waits.
-            lined.update(said["id"] for said in waiting.get(thread, []))
-        else:
-            answered.update((said["id"], event) for said in waiting.pop(thread, []))
-            if "responds" in event:
-                answers[thread] = event
+    for thread, said in turns.items():
+        settled = settlements({"turns": said})
+        for settlement in settled:
+            answered.update(
+                (each["id"], settlement.answer) for each in settlement.turns
+            )
+        floor = max((each.answer["seq"] for each in settled if each.batch), default=0)
+        if owed := [
+            each
+            for each in said
+            if each["author"] == "user"
+            and each["seq"] > floor
+            and each["id"] not in answered
+        ]:
+            waiting[thread] = owed
+            newest_line = max(lines.get(thread, []), default=0)
+            lined.update(each["id"] for each in owed if each["seq"] < newest_line)
+        if replies := [each for each in said if "responds" in each]:
+            answers[thread] = replies[-1]
     return Rounds(waiting, lined, answers, answered)
 
 
@@ -118,7 +136,8 @@ def holding_turns(
     unpicked = []
     for thread, said in found.waiting.items():
         if picked := [newest[event["id"]] for event in said if event["id"] in newest]:
-            holders.update((event["id"], max(picked)[1]) for event in said)
+            holder = max(picked)[1]
+            holders.update((event["id"], holder) for event in said)
         else:
             unpicked.append(thread)
     if unpicked and running:

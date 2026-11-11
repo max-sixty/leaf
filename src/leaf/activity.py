@@ -690,9 +690,11 @@ def canonical_activity(
     agents = running_agent_turns(
         present["agent_turns"], present["session_alive"] is True, now
     )
+    # Only a running agent turn's holding changes what any reader here does, so a
+    # page with none, as every page without working forks is, reads none.
     holders = (
         holding_turns(events, present["claim_session"], agents)
-        if present.get("claim_session")
+        if agents and present.get("claim_session")
         else {}
     )
     workflows, aging = _canonical_workflows(

@@ -789,6 +789,7 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
             sid,
             turn,
             {batch["page"]: batch["through_seq"] for batch in delivery["batches"]},
+            deadline=deadline,
         )
         message = delivery_pointer_prompt(delivery["id"])
     print(json.dumps(harness.hook_context("PostToolBatch", message)), flush=True)

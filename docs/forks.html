@@ -104,7 +104,8 @@
             <dt id="term-kept-back">Kept back</dt>
             <dd>
               A new thread message Leaf withholds from the main thread while a line fork
-              writes its working line and sorts it, for 30 s at most.
+              writes its working line and sorts it, until 30 s after the thread's
+              newest message, so a message that follows restarts the wait.
             </dd>
             <dt id="term-holds">Holds</dt>
             <dd>
@@ -757,8 +758,9 @@ flowchart TD
               The user chose the clerk's line on 2026-11-11, over the fork's own
               SendMessage to <code>main</code>. Leaf writes the line from the log, so it
               also covers a fork that failed or was stopped before it could write, and
-              it wakes the main thread only when the main thread owes something, after a
-              first run and a resumed one alike. A fork's SendMessage would name the
+              Leaf's own wake comes only when the main thread owes something, after a
+              first run and a resumed one alike, though Claude Code still wakes it at
+              every resumed run's end. A fork's SendMessage would name the
               fork as its sender and could say what the fork did beyond the outcomes
               above, but it would wake the main thread for every answer, and add a
               second report to a resumed run's notification.

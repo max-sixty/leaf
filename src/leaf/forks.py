@@ -715,16 +715,16 @@ def _post(session_id: str, basis: dict, text: str) -> dict:
     """The line fork's working line, posted as the agent's while the thread is still
     kept back as `basis` has it, and the thread handed to the session after it; or why
     nothing was."""
-    posted = _say(session_id, basis, text, ephemeral=True)
+    posted = _line(session_id, basis, text)
     if "line" not in posted:
         return posted
     return {**_hand_over(session_id, basis, None), **posted}
 
 
-def _say(session_id: str, basis: dict, text: str, *, ephemeral: bool) -> dict:
-    """Post `text` as the agent's, its working line where `ephemeral`, else its
-    answer, while the thread is still kept back as `basis` has it: `{"text", "line"}`
-    with the posted message's id, or the outcome where Leaf posted nothing."""
+def _line(session_id: str, basis: dict, text: str) -> dict:
+    """Post `text` as the agent's working line, while the thread is still kept back
+    as `basis` has it: `{"text", "line"}` with the posted message's id, or the
+    outcome where Leaf posted nothing."""
     from .delivery import ReceiptRefused
     from .findings import Rejected
     from .refusals import Refused
@@ -739,7 +739,7 @@ def _say(session_id: str, basis: dict, text: str, *, ephemeral: bool) -> dict:
                 fence=lambda page: _still_kept_back(page, session_id, basis)
             ),
             claimed_session=session_id,
-            ephemeral=ephemeral,
+            ephemeral=True,
         )
     except (FileNotFoundError, ReceiptRefused):
         return {"outcome": "dropped", "text": text}
@@ -897,7 +897,7 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
 
     page_dir = Path(basis["page"])
     agent = _fork_name(basis["thread"])
-    posted = _say(session_id, basis, line, ephemeral=True)
+    posted = _line(session_id, basis, line)
     if "line" not in posted:
         return posted
     try:

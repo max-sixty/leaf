@@ -1172,8 +1172,9 @@ def deliverable(
     if pending or owed:
         from .forks import kept_from_main
 
-        # A kept-back message the cursor has passed is owed and unreferenced, and
-        # stays kept back all the same; so does one an agent's turn holds.
+        # A message an agent's running turn holds is owed and unreferenced once the
+        # cursor has passed it, and stays the agent's all the same; a kept-back one
+        # is still pending, and stays kept back.
         if forked := kept_from_main(page):
             pending = [event for event in pending if event["id"] not in forked]
             owed = [event for event in owed if event["id"] not in forked]

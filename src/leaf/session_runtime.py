@@ -31,6 +31,7 @@ ends with its generation. Page servers retain their own runtime, so choosing
 delivery does not replace a comparison arm's renderer.
 """
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -153,20 +154,20 @@ def own_launcher() -> Path:
     return (PLUGIN_ROOT / "bin" / "leaf").resolve()
 
 
-def module_current(root: object) -> bool:
-    """Whether the Claude Code hooks modules loaded from the plugin copy at `root`
-    are those this Leaf ships, file for file as its `hooks.json` lists them. A
-    session keeps the modules it loaded while its hooks hand themselves to another
-    Leaf (the header), so a contract between this Leaf's Python and a module holds
-    only where the two copies' modules are the same."""
-    if not isinstance(root, str):
+def module_current(digest: object) -> bool:
+    """Whether the Claude Code hooks module running in a session, which names itself
+    by its source's SHA-256 as it loaded (`digest`), is one this Leaf ships, as its
+    `hooks.json` lists them. A session keeps the module it loaded while its hooks hand
+    themselves to another Leaf (the header), and a checkout can change under it, so a
+    contract between this Leaf's Python and the module holds only where the code that
+    loaded is this Leaf's own."""
+    if not isinstance(digest, str):
         return False
     hooks = PLUGIN_ROOT / "hooks"
     try:
         modules = json.loads((hooks / "hooks.json").read_text())["modules"]
-        return all(
-            (Path(root) / "hooks" / module).read_bytes()
-            == (hooks / module).read_bytes()
+        return any(
+            hashlib.sha256((hooks / module).read_bytes()).hexdigest() == digest
             for module in modules
         )
     except (OSError, ValueError, KeyError, TypeError):

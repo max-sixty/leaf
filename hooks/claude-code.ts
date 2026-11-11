@@ -147,11 +147,34 @@ function statusOf({ kind, detail }: Leaf["activity"]) {
 let leaves: Leaf[] = [];
 let following: { stop: () => unknown } | undefined;
 let followAgain = false;
+// The SHA-256 of this module's source as Claude Code loaded it, read by the first hook
+// after a load or reload, which names the module to the pages follower: a checkout can
+// change under a running session, so only what loaded says which code reads the
+// follower (`session_runtime.module_current`).
+let loadedDigest = "";
+
+/** The SHA-256 of this module's source file as it stands, in hex, or "" where it
+ * can't be read. */
+async function digestOf($: EngineInterface) {
+  try {
+    const read = await $.fs.read(`${$.plugin.root}/hooks/claude-code.ts`, {
+      as: "bytes",
+    });
+    const bytes = Uint8Array.from(atob(read.base64), (char) => char.charCodeAt(0));
+    const hash = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(hash), (byte) =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("");
+  } catch {
+    return "";
+  }
+}
 
 /** The session's id, once Claude Code's process is known. A module loaded or reloaded
  * mid-session sees no session.start, so whichever hook comes first reads it. */
 async function sessionOf($: EngineInterface) {
   if (!claudePid) {
+    loadedDigest = await digestOf($);
     claudePid = (await $.process.run(["/bin/sh", "-c", "echo $PPID"])).stdout.trim();
     lineForks = (await $.env.get("LEAF_FORK_REPLIES")) !== "off";
     workForks = (await $.env.get("LEAF_FORK_WORK")) === "on";
@@ -226,13 +249,14 @@ function follow($: EngineInterface, session: string) {
         "--pages",
       ],
       env: environment(session),
-      // `module` names this copy, so a follower under another Leaf, whose kept-back
-      // threads this module may not read, keeps none back (`hooks.cmd_pages`).
+      // `module` names the code running here, so a follower under another Leaf,
+      // whose kept-back threads this module may not read, keeps none back
+      // (`hooks.cmd_pages`).
       input: JSON.stringify({
         hook_event_name: "Pages",
         session_id: session,
         forks: lineForks,
-        module: $.plugin.root,
+        module: loadedDigest,
       }),
     });
   } catch (error) {

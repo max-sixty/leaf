@@ -406,7 +406,8 @@ def cmd_pages(payload: dict) -> None:
     its own.
 
     A payload asking for `forks`, from a hooks module this Leaf ships (its `module`,
-    `session_runtime.module_current`), makes the follower the session's forks lane
+    the digest of the module's source as it loaded, `session_runtime.module_current`),
+    makes the follower the session's forks lane
     (`forks.take_lane`) while it runs, and gives each page the threads Leaf keeps back
     (`kept_back`), each as the `thread` and `inputs` the module asks a line fork about,
     handing to the session those whose bound has passed (`forks.look`). Between presence reads it waits on each

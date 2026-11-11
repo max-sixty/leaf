@@ -3,6 +3,7 @@ moves through (`forks.py`'s table), what Leaf keeps back from the session meanwh
 the message reads once a fork has posted the agent's working line and handed the
 thread over."""
 
+import hashlib
 import json
 import os
 import re
@@ -56,8 +57,14 @@ from leaf.service import PageTransaction
 from leaf.state import session_file
 
 # What Leaf's Claude Code hooks module gives the pages follower of session s1, asking
-# for forks from the module this Leaf ships (`hooks.cmd_pages`).
-FOLLOWER = {"session_id": "s1", "forks": True, "module": str(state_model.PLUGIN_ROOT)}
+# for forks from the module this Leaf ships, by its source's digest (`hooks.cmd_pages`).
+FOLLOWER = {
+    "session_id": "s1",
+    "forks": True,
+    "module": hashlib.sha256(
+        (state_model.PLUGIN_ROOT / "hooks" / "claude-code.ts").read_bytes()
+    ).hexdigest(),
+}
 
 
 def past_the_take() -> None:
@@ -1755,16 +1762,15 @@ def test_the_pages_follower_holds_the_lane_and_lists_kept_back_threads(
 
 
 def test_a_follower_for_another_copys_module_keeps_nothing_back(
-    claimed, tmp_path, monkeypatch, capsys
+    claimed, monkeypatch, capsys
 ):
     """The session keeps the hooks module it loaded while its hooks run a newer
     Leaf, and that module may read kept-back threads by an older contract, so a
-    follower whose module isn't this Leaf's takes no lane and keeps nothing back:
-    the session's messages reach it as they would without forks."""
-    other = tmp_path / "other-copy"
-    shutil.copytree(state_model.PLUGIN_ROOT / "hooks", other / "hooks")
-    module = other / "hooks" / "claude-code.ts"
-    module.write_text(module.read_text() + "\n// an older contract\n")
+    follower whose module's source, as it loaded, isn't this Leaf's takes no lane
+    and keeps nothing back: the session's messages reach it as they would without
+    forks."""
+    older = (state_model.PLUGIN_ROOT / "hooks" / "claude-code.ts").read_bytes()
+    stale = hashlib.sha256(older + b"\n// an older contract\n").hexdigest()
     serving(claimed, 1)
     server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
 
@@ -1781,7 +1787,7 @@ def test_a_follower_for_another_copys_module_keeps_nothing_back(
     monkeypatch.setattr(hooks_model.time, "sleep", sleep)
     monkeypatch.setattr(file_changes_model, "wait", wait)
     with pytest.raises(Stopped):
-        hooks_model.cmd_pages({**FOLLOWER, "module": str(other)})
+        hooks_model.cmd_pages({**FOLLOWER, "module": stale})
     [listed] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert "kept_back" not in listed[0]
 

@@ -392,7 +392,7 @@ def main_thread_request(driven) -> None:
     subagent's after them, which it doesn't."""
     row = {
         "message": {"type": "assistant", "role": "assistant", "content": []},
-        "door": "model",
+        "door": "response",
         "origin": {"kind": "model", "model": "claude-opus-5-5"},
     }
     driven.emit("session.append", {**row, "uuid": "r1"})

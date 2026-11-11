@@ -639,11 +639,20 @@ export const register: Register = (on) => {
     return yield* next(e);
   });
 
-  // Only the doors of the conversation's own rows: attachments, hook context and
-  // compaction summaries are left to the plugins that rewrite them, and Claude Code
-  // tells the user when one of those sends a row past a handler beneath it (read
-  // at 2.1.321).
-  for (const door of ["model", "prompt", "tool-message", "queue", "note"] as const)
+  // Only the doors of the rows the model reads in the transcript: attachments, hook
+  // context, compaction summaries and notices are left to the plugins that rewrite
+  // them, and Claude Code tells the user when one of those sends a row past a
+  // handler beneath it; a queue record is no row of the conversation (read at
+  // 2.1.322, whose doors `tsc -p tsconfig.json` checks this list against).
+  for (const door of [
+    "prompt",
+    "command",
+    "response",
+    "tool-result",
+    "tool-message",
+    "delivery",
+    "note",
+  ] as const)
     on("session.append", { door }, async ($, e, next) => {
       const stored = await next(e);
       if (e.agentId === undefined && stored.deny === undefined) lastRow = stored.uuid;

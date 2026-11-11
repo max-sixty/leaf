@@ -1999,11 +1999,16 @@ def test_closing_a_surface_leaves_the_next_tab_where_the_user_is_reading(
         page.keyboard.press("Escape")
 
 
-def test_a_landing_that_moves_nothing_stops_a_scroll_still_under_way(browser, serve):
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_landing_that_moves_nothing_stops_a_scroll_still_under_way(
+    engine, request, serve
+):
     """A navigation takes the reader's place from a scroll the browser is still driving,
     even where its destination already stands where it lands: the log the reader set
     moving stops where the landing found it, rather than running on past what they
-    chose."""
+    chose. Firefox ran the log on to its end, since it stops no smooth scroll for an
+    instant write of the position the page last saw (arrivals.js,
+    `stopWhereItStands`)."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(3))
     rows = "".join(
         f"<p>Line {n} of the incident, long enough to read as its own passage.</p>"
@@ -2015,7 +2020,7 @@ def test_a_landing_that_moves_nothing_stops_a_scroll_still_under_way(browser, se
         f'landed on</h2><div id="log" data-bound="start" style="height: 400px">{rows}'
         f"</div>{filler * 20}",
     )
-    page = open_page(browser, serve(source))
+    page = open_page(request.getfixturevalue(engine), serve(source))
     page.emulate_media(reduced_motion="no-preference")
     resized(page, 1280, 800)
     page.evaluate("location.hash = 'section'")

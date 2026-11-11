@@ -2,9 +2,19 @@
    A plain document names its native overflow boxes; Leaf substitutes its declared
    reading regions without changing the landing arithmetic or fixed-box boundary. An
    edge is read and put back across that ancestry (`edgeAt`, `returnTo`), for a hold
-   and a landing alike. */
+   and a landing alike. Native input chains its scroll along it (`scrollChainOf`), so
+   the box an input scrolls is read here too (`inputScroller`). */
+import { inputs } from "./inputs.js";
 import { renderedParent } from "./shadow-tree.js";
-import { aimedTop, moveScrollerBy, pageScroller } from "./scrolling.js";
+import {
+  aimedTop,
+  aimScroll,
+  moveScrollerBy,
+  pageScroller,
+  SCROLL_SLACK,
+  scrollLimit,
+  scrollsFor,
+} from "./scrolling.js";
 import { fixedInWindow, userScrollport } from "./geometry.js";
 
 /** @type {(node: Node | null | undefined) => Element} */
@@ -41,6 +51,52 @@ export function* scrollersOf(node) {
     node = box;
   }
 }
+
+// The boxes a scroll passes to once each inner one is spent, as native input chains it
+// at a box whose overscroll-behavior lets it go: `scrollersOf`'s, then the page's. A
+// fixed box ends `scrollersOf` because the page's scroll leaves it in place, but its
+// scroll still chains to the page, the box its containing block, the viewport, scrolls.
+/** @param {Element | null} node @returns {Generator<Element>} */
+export function* scrollChainOf(node) {
+  let last = null;
+  for (last of scrollersOf(node)) yield last;
+  if (last !== pageScroller) yield pageScroller;
+}
+
+// The box an input at `element` scrolls: along the chain native scrolling follows from
+// where it lands, the first that can still move the wheel's way, so a pane at its end
+// passes the wheel to the page around it, unless it contains its overscroll. A wheel
+// nothing can follow, and every other input, aims at the innermost box.
+/** @param {Element | null | undefined} element @param {Event} event */
+export const inputScroller = (element, event) => {
+  if (!element) return pageScroller;
+  const chain = [];
+  for (const box of scrollChainOf(element)) {
+    chain.push(box);
+    // The browser's own chaining rule: a box that contains its overscroll passes
+    // nothing on.
+    if (getComputedStyle(box).overscrollBehaviorY !== "auto") break;
+  }
+  const innermost = chain[0] ?? pageScroller;
+  if (!(event instanceof WheelEvent) || !event.deltaY) return innermost;
+  const down = event.deltaY > 0;
+  return (
+    chain.find((box) =>
+      down
+        ? box.scrollTop < scrollLimit(box) - SCROLL_SLACK
+        : box.scrollTop > SCROLL_SLACK,
+    ) ?? innermost
+  );
+};
+// An input the browser scrolls for starts the scroll of the box it moves (scrolling.js,
+// `scrollsFor`, `aimScroll`), a frame or more before that box's first scroll event. The
+// input lands on an element: the one under the pointer, or the one holding focus, the
+// body where nothing does.
+inputs.observe((event) => {
+  if (!scrollsFor(event)) return;
+  const [at] = event.composedPath();
+  if (at instanceof Element) aimScroll(inputScroller(at, event), event);
+});
 
 // The element whose scrollers move `node`: the node itself, or for a range over
 // words, the element holding them.

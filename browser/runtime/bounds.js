@@ -20,15 +20,11 @@
    arrives there stays in view while the user is at the end. A user who scrolls back
    stays where they stopped, since a log that pulls them down while they are reading an
    earlier line is a log they cannot read; returning to the end resumes following. The
+   end keeper every box that follows its end shares does the following
+   (scrolling.js, `followEnd`); this module opens the box at its end once it is drawn. The
    place continuity records for a following block is its end (`followingItsEnd`), so a
    revision that restores places leaves it following rather than on the line that was
    at its top.
-
-   Whether the user is at the end is read from their scroll, not from the content: by
-   the time content has changed, the box's scroll height has already moved past a
-   user who was at the end a moment ago. A scroll event can also trail the change it
-   answers by a frame, so a box standing above where this module last put it has been
-   scrolled back even before its event arrives.
 
    The box that scrolls is the bounded element, unless its widget's theme moves the
    bound to a box inside it and names that box with a `--lf-bound-box` selector on
@@ -59,7 +55,7 @@
    would show it at its top and then jump. */
 import { skipped } from "./shadow-tree.js";
 import { sizeObserver } from "./rendering.js";
-import { SCROLL_SLACK, atScrollEnd as atEnd, scrollToEnd } from "./scrolling.js";
+import { followEnd, scrollToEnd } from "./scrolling.js";
 import { watchArrivals } from "./arrivals.js";
 import { authoredScope, pageDocument } from "./passages.js";
 import { compoundReadingRegionId, registerReadingRegion } from "./reading-regions.js";
@@ -71,7 +67,7 @@ const BOUND = marks["x-bound"].paint;
 const BOUNDED = `[${BOUND}]`;
 const FOLLOWING = `[${BOUND}="end"]`;
 // Each block's hold, for the element's life, and the holds registered now.
-/** @typedef {{bounded: Element, id: string, bound: string | null, box: Element | null, pinned: number | null, left: boolean, sync: () => void}} BoundHold */
+/** @typedef {{bounded: Element, id: string, bound: string | null, box: Element | null, follow: import("./scrolling.js").EndKeeper | null, sync: () => void}} BoundHold */
 /** @type {WeakMap<Element, BoundHold>} */
 const holds = new WeakMap();
 /** @type {Set<BoundHold>} */
@@ -97,25 +93,15 @@ const regionId = (bounded) =>
     ? compoundReadingRegionId(bounded, "bound")
     : `${THIS_DOCUMENT}:${(unnamed += 1)}`;
 
-// Whether the box's bounded block follows its end and the user is there: the user
-// has not scrolled back since this module last pinned it.
-/** @param {BoundHold} hold @param {Element} box */
-const following = (hold, box) =>
-  hold.bounded.matches(FOLLOWING) &&
-  !hold.left &&
-  !(hold.pinned !== null && box.scrollTop < hold.pinned - SCROLL_SLACK && !atEnd(box));
-
 /** @param {Element} box */
 const heldBy = (box) => {
   const hold = byBox.get(box);
   return hold?.box === box && registered.has(hold) ? hold : null;
 };
 
+// Whether the box's bounded block follows its end and the user is there.
 /** @param {Element} box */
-export const followingItsEnd = (box) => {
-  const hold = heldBy(box);
-  return Boolean(hold && following(hold, box));
-};
+export const followingItsEnd = (box) => Boolean(heldBy(box)?.follow?.standsAtEnd());
 
 // The bounded block a registered region body scrolls, or null for any other box.
 /** @param {Element} box */
@@ -129,13 +115,17 @@ function holdBlock(bounded) {
     id: regionId(bounded),
     bound: null,
     box: null,
-    pinned: null,
-    left: false,
+    follow: null,
     sync: () => sync(false),
   };
   /** @type {(() => void) | null} */
   let stopRegion = null;
+  const stopFollowing = () => {
+    hold.follow?.stop();
+    hold.follow = null;
+  };
   const letGo = () => {
+    stopFollowing();
     if (hold.box && hold.box !== bounded) resize.unobserve(hold.box);
     stopRegion?.();
     stopRegion = null;
@@ -146,22 +136,10 @@ function holdBlock(bounded) {
   const adopt = (box) => {
     if (box === hold.box) return;
     letGo();
-    const onScroll = () => {
-      if (bounded.hasAttribute("hidden") || skipped(bounded)) return;
-      hold.left = !atEnd(box);
-      if (!hold.left) hold.pinned = box.scrollTop;
-    };
-    box.addEventListener("scroll", onScroll, { passive: true });
     resize.observe(box);
     byBox.set(box, hold);
     hold.box = box;
-    hold.left = false;
-    hold.pinned = null;
-    const release = registerReadingRegion({ id: hold.id, host: bounded, body: box });
-    stopRegion = () => {
-      box.removeEventListener("scroll", onScroll);
-      release();
-    };
+    stopRegion = registerReadingRegion({ id: hold.id, host: bounded, body: box });
     registered.add(hold);
   };
   // `observed` when the block's own size observer asks, which cannot take a fresh
@@ -172,7 +150,6 @@ function holdBlock(bounded) {
     if (!bounded.isConnected || hold.bound === null) return letGo();
     if (bounded.hasAttribute("hidden") || skipped(bounded)) {
       if (!hold.box) adopt(bounded);
-      hold.pinned = null;
       if (!observed) {
         resize.unobserve(bounded);
         resize.observe(bounded);
@@ -181,13 +158,14 @@ function holdBlock(bounded) {
     }
     const box = scrollerOf(bounded);
     adopt(box);
-    if (!bounded.matches(FOLLOWING)) return;
-    if (!following(hold, box)) {
-      hold.left = true;
-      return;
-    }
+    if (!bounded.matches(FOLLOWING)) return stopFollowing();
+    // What the log holds changed, or its size: the keeper reads it at once.
+    if (hold.follow) return hold.follow.check();
+    // A box under a `display: none` ancestor has no end to open at, so it opens once
+    // drawn, when its size observation next asks.
+    if (!box.checkVisibility()) return;
     scrollToEnd(box);
-    hold.pinned = box.scrollTop;
+    hold.follow = followEnd(box);
   };
   const resize = sizeObserver(() => sync(true));
   resize.observe(bounded);

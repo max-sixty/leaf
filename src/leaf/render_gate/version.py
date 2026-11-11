@@ -8,6 +8,7 @@ from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS, close_render_
 from .readings import (
     SWEEP_WIDTHS,
     arrangement_changes,
+    drawn_height_advice,
     open_widgets,
     passive_layout_shift_advice,
     settle_at,
@@ -144,6 +145,7 @@ def _render_version_attempt(
 
     def desktop_sweep(page, registry):
         # Read the desktop viewport before the sweep changes it.
+        advice.extend(drawn_height_advice(page, _viewport_label(desktop)))
         advice.extend(passive_layout_shift_advice(page))
         sample(page, registry)
         widths = sweep(page, steps, open_widgets(registry))

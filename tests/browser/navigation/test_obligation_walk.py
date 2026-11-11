@@ -759,8 +759,9 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     typed quickly ends where it ends typed slowly, `d m` lands the ask, `m Shift+m`
     returns to the ask `m` set off from, `j m` beside an ask `j` leaves in view
     moves no further than `j`, Back after `m m` returns to where the first `m` lands,
-    and `d`, or `d d`, pressed while the browser's own PageDown still moves the page
-    steps on from where PageDown lands. Each ends where the same keys typed slowly end.
+    `d`, or `d d`, pressed while the browser's own PageDown still moves the page, or
+    before it has, steps on from where PageDown lands, and `m` pressed then lands where
+    it lands alone. Each ends where the same keys typed slowly end.
     Home pressed before `d` has moved the page keeps it at the top, though at the top
     Home itself moves nothing."""
     asks = "".join(
@@ -842,14 +843,14 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     from_the_top()
     page.keyboard.press("d")
     step = settled()
+    # Pressed before PageDown's scroll has moved the page, as a typed pair is: the
+    # browser's first scroll event comes a frame or more after the key.
     from_the_top()
     page.keyboard.press("PageDown")
-    page.wait_for_function("scrollY > 0")
     page.keyboard.press("d")
     assert settled() == pytest.approx(paged_down + step, abs=2)
     from_the_top()
     page.keyboard.press("PageDown")
-    page.wait_for_function("scrollY > 0")
     page.keyboard.press("d")
     # Two frames of PageDown's scroll between the presses, as a typed pair gets.
     page.evaluate(
@@ -857,6 +858,13 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     )
     page.keyboard.press("d")
     assert settled() == pytest.approx(paged_down + 2 * step, abs=2)
+    # `m` lands where it lands alone, though no instant write stops PageDown's scroll.
+    from_the_top()
+    page.keyboard.press("PageDown")
+    page.wait_for_function("scrollY > 0")
+    page.keyboard.press("m")
+    expect(first).to_be_focused()
+    assert settled() == pytest.approx(landing, abs=2)
 
     from_the_top()
     with held_frames(page):

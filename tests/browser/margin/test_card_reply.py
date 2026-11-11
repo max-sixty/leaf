@@ -14,7 +14,7 @@ from render_cases_interaction import (
     PANEL_PAGE,
     panel_comment,
 )
-from render_cases_layout import ring_faults, rings_drawn, solid_png
+from render_cases_layout import NAMED, ring_faults, rings_drawn, solid_png
 from render_harness import (
     example_media,
     holding,
@@ -305,6 +305,41 @@ def test_a_reply_next_on_me_lands_on_rings_its_card(browser, serve):
     worn = [seen["who"].split(" ")[0] for seen in drawn if seen["here"]]
     assert worn == ["div.lf-margin-preview-card"], drawn
     assert not (faults := ring_faults(drawn, "on the reply Next On Me reached")), (
+        "\n".join(faults)
+    )
+
+
+def test_next_on_me_rings_the_options_a_card_message_asks_with_whole(browser, serve):
+    """Next On Me lands on the options a reply in a card asks with, and their location
+    ring stands whole inside the card's transcript. The ring stands a region's gap out,
+    and the transcript kept only a control's room past its sides, so it cut the ring's
+    whole inline end and the foot of its corners."""
+    question = {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Claude",
+        "parent": LONG_THREAD_ROOT["id"],
+        "responds": LONG_THREAD_ROOT["id"],
+        "revision": 1,
+        "text": "Shall I merge it?",
+        "markup": '<lf-options id="merge" choose>'
+        '<lf-option id="merge-go"><strong>Merge it once CI passes</strong></lf-option>'
+        '<lf-option id="merge-read"><strong>I will read the diff first</strong>'
+        "</lf-option></lf-options>",
+        "id": "b" * 32,
+    }
+    page = open_page(
+        browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT, question])
+    )
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+    page.keyboard.press("m")
+    options = page.locator(".lf-margin-preview lf-options#merge")
+    expect(options).to_be_focused()
+    expect(options).to_have_attribute("data-lf-projected-location", "")
+    drawn = rings_drawn(page)
+    assert any(seen["who"] == options.evaluate(NAMED) for seen in drawn), drawn
+    assert not (faults := ring_faults(drawn, "on the options Next On Me reached")), (
         "\n".join(faults)
     )
 

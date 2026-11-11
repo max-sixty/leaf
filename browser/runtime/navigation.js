@@ -28,9 +28,9 @@ import {
   unconcealedReadingRegions,
   userReadingRegion,
   readingRegionFor,
-  scrollChainOf,
   scrollersOf,
 } from "./reading-regions.js";
+import { scrollChainOf } from "./scroll-containers.js";
 import {
   currentLocationOrigin,
   walkOrigin,

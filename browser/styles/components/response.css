@@ -107,8 +107,9 @@ leaf-composition-field {
   display: none;
 }
 /* The new-line key a focused box that holds lines says after its send key
-   (composing/input.js, `lineHint`), at its keys' size, a step below the label's, since
-   it qualifies the box rather than naming it. Where room runs short the label stands
+   (composing/input.js, `lineHint`), in the small font (`--font-small`), its keys' size
+   and a step below the label's, since it qualifies the box rather than naming it, in
+   the voice of the words before it. Where room runs short the label stands
    whole, and what follows it goes whole onto a line the placeholder doesn't show, this
    hint first, then the send key; the label shortens only where it can't stand alone.
    Keeping the hint and shortening the label instead cut the label of a box of
@@ -127,7 +128,8 @@ leaf-composition-field {
   align-items: baseline;
   gap: 0.25em;
   overflow: visible;
-  font-size: var(--t-6);
+  font: var(--font-small);
+  font-style: inherit;
 }
 :is(.lf-compose-placeholder, .lf-compose-press) .lf-key-badge {
   background: transparent;

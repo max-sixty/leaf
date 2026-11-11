@@ -760,7 +760,7 @@ class Watching:
 def test_the_watch_wakes_the_idle_session_for_a_to_do_its_fork_opened(
     claimed, lane, interactive, capsys, monkeypatch
 ):
-    """A fork's answer leaves the idle session owing nothing, so the watch that
+    """A fork's answer leaves the idle session nothing new to do, so the watch that
     follows its closed turn sleeps through it, even on a thread holding a to-do the
     main thread opened. A to-do the fork opened is work the main thread now owes, so
     the watch wakes the session as the fork's line about it is queued, though the

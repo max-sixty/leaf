@@ -131,8 +131,8 @@ told. Confirming the lines from the transcript, as `delivery.confirm_entered` do
 for input, would close that gap.
 
 A line queued with `wake` tells the session of work it now owes, such as a to-do a
-fork opened (`forks.ended`), and wakes an idle session until a hook has printed it:
-the watch between turns wakes for it once the turn has closed (`waking`,
+fork opened (`forks.ended`). Until a hook has printed it, the watch between turns
+wakes the session for it once the turn has closed (`waking`,
 `session.watch_between_turns`). None of the clerk's own lines wakes the session.
 
 Each fork's outcome goes to the diagnostics of every page the session holds
@@ -323,9 +323,9 @@ QUEUED = Record(
         "The lines Leaf queued for a session's next step, in the state home's "
         "`sessions/<digest>.clerk` (`state.session_file`): one for each record the "
         "clerk wrote and each finding it passes on (`clerk`), and one as each fork "
-        "of the conversation takes a thread and as its run ends (`forks`). A line "
-        "that `wake`s tells the session of work it now owes, and wakes it while it "
-        "is idle until a hook has printed it.",
+        "of the conversation takes a thread and as its run ends (`forks`). Each says "
+        "whether it wakes the session (`wake`): a line that tells it of work it now "
+        "owes wakes it while it is idle, until a hook has printed the line.",
         object_schema(
             {
                 "lines": {

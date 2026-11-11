@@ -712,8 +712,8 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
     (`left_owed`), and for a line Leaf queued that tells the session of work it now
     owes, such as a to-do a fork opened (`clerk.waking`), until a hook has printed
     it; the watch follows the queue's file itself (`Watch.told`), since no page's
-    reading stamps it. The session lease and each page transaction retain ownership of delivery,
-    revival and competing-watch decisions. The newest watch takes the lease from
+    reading stamps it. The session lease and each page transaction retain ownership
+    of delivery, revival and competing-watch decisions. The newest watch takes the lease from
     any holder, and a watch superseded that way ends without a word: the newest
     runs the Leaf its harness runs now, while an older one may run a Leaf the
     session has since left, one that cannot read a page the session now holds.

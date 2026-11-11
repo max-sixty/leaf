@@ -50,7 +50,8 @@ leaf-composition-field {
 }
 /* One line whatever its key badge's box: the badge paints into the field's padding, so
    the hint stands where the words will and sizes nothing. A narrow field shortens the
-   label and keeps the key. It is apparatus, so the field's selectable text stops at it. */
+   label and keeps the key, unless it also says the new-line key (below). It is
+   apparatus, so the field's selectable text stops at it. */
 .lf-compose-placeholder {
   display: flex;
   align-items: baseline;
@@ -106,11 +107,13 @@ leaf-composition-field {
   display: none;
 }
 /* The new-line key a focused box that holds lines says after its send key
-   (composing/input.js, `lineHint`). Where room runs short the label shortens first,
-   down to a few letters, and the send key and the hint stay; only where even that
-   shortened label can't stand beside them does the hint go, whole, onto a line the
-   placeholder doesn't show, and the label takes its room back. The gap carries that
-   line clear of the badge's overhang. */
+   (composing/input.js, `lineHint`), at its keys' size, a step below the label's, since
+   it qualifies the box rather than naming it. Where room runs short the label stands
+   whole, and what follows it goes whole onto a line the placeholder doesn't show, this
+   hint first, then the send key; the label shortens only where it can't stand alone.
+   Keeping the hint and shortening the label instead cut the label of a box of
+   ordinary width to a few letters, which named nothing. The gap carries that line
+   clear of the badge's overhang. */
 .lf-compose-placeholder:has(> .lf-compose-placeholder-line) {
   flex-wrap: wrap;
   align-content: flex-start;
@@ -118,17 +121,13 @@ leaf-composition-field {
   overflow: clip;
   overflow-clip-margin: 4px;
 }
-.lf-compose-placeholder:has(> .lf-compose-placeholder-line)
-  > .lf-compose-placeholder-words {
-  flex: 1 1 4em;
-  max-inline-size: max-content;
-}
 .lf-compose-placeholder > .lf-compose-placeholder-line {
   flex: none;
   display: flex;
   align-items: baseline;
   gap: 0.25em;
   overflow: visible;
+  font-size: var(--t-6);
 }
 :is(.lf-compose-placeholder, .lf-compose-press) .lf-key-badge {
   background: transparent;

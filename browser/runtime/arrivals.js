@@ -339,37 +339,36 @@ function announceScroll(box) {
 // Complete a scroll write and publish the position that will paint. Native scroll
 // events arrive too late for writes in an animation frame or resize delivery.
 //
-// An instant write that would leave a still box where it stands writes nothing. Its only
-// effect would be one nobody asked for: in Firefox it cancels the rubber band of a flick
-// into an edge, which runs after the box's scroll has ended, so a writer restating where
-// the box stands took that motion from the user (a margin card that put its transcript
-// back at its end at every scroll's end flattened each flick's band). While the browser
-// or a glide moves the box (`browserScrolls`, `holdScroll`), the same write is how a
-// script stops or takes over that motion, as `stopScroll` stops a scroll the browser
-// drives before a landing and a glide takes over a wheel's, so it is written, where the
-// box stands (`stopWhereItStands`); a script's own instant write leaves nothing in
-// motion. Where the box stands is read to the pixel: its scroll size is a whole number
-// of pixels, so an end read from it stands up to a pixel short of the browser's own, as
-// 314 did of Firefox's 314.25 at a 2x display.
+// An instant write that would leave the box where it stands writes nothing, so a writer
+// may restate a position as often as it likes, as `keeps` lets one restate a DOM value.
+// The write's only effect would be one nobody asked for: it stops the scroll the browser
+// drives, and in Firefox it cancels the rubber band of a flick into an edge, which runs
+// after the box's scroll has ended (a margin card that put its transcript back at its
+// end at every scroll's end flattened each flick's band). Stopping a scroll is a write
+// of its own (`stopWhereItStands`). Where the box stands is read to the pixel: its
+// scroll size is a whole number of pixels, so an end read from it stands up to a pixel
+// short of the browser's own, as 314 did of Firefox's 314.25 at a 2x display.
 /** @param {Element} box @param {ScrollToOptions} options */
 export function setScroll(box, options) {
   const { scrollTop, scrollLeft } = box;
   const { behavior = "instant" } = options;
-  if (behavior === "instant" && !moves(box, options)) {
-    if (holds.has(box) || browserScrolls(box)) stopWhereItStands(box);
-    placed.set(box, { top: box.scrollTop, left: box.scrollLeft });
-    return;
-  }
+  if (behavior === "instant" && !moves(box, options)) return;
   box.scrollTo({ ...options, behavior });
   if (behavior !== "instant") return;
   placed.set(box, { top: box.scrollTop, left: box.scrollLeft });
   if (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft) announceScroll(box);
 }
-// The one scroll write meant to leave a box where it stands, which the write watch
-// knows by this name (tests/write_watch.js, `EXPECTED_SCROLLS`).
+// Stop the scroll the browser drives in a box, leaving the box where it stands, as a
+// landing does before it places its destination (scrolling.js, `stopScroll`) and a glide
+// before it takes over a wheel's motion (`glideTo`). It is the one scroll write meant to
+// move nothing, which the write watch knows by this name (tests/write_watch.js,
+// `EXPECTED_SCROLLS`). Firefox doesn't stop its smooth scroll for a write of the
+// position the page last saw, so there a glide's first write that moves the box stops it.
 /** @param {Element} box */
-const stopWhereItStands = (box) =>
+export function stopWhereItStands(box) {
   box.scrollTo({ top: box.scrollTop, left: box.scrollLeft, behavior: "instant" });
+  placed.set(box, { top: box.scrollTop, left: box.scrollLeft });
+}
 // Whether a write to `top` and `left` takes the box a pixel or more from where it
 // stands, once the browser clamps it to the box's range.
 /** @param {Element} box @param {ScrollToOptions} options */

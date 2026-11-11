@@ -23,6 +23,7 @@ const {
   holdScroll,
   scrolling,
   setScroll,
+  stopWhereItStands,
   watchScrollEnds,
 } = await import("/runtime/arrivals.js");
 const { clockValue, tickClock } = await import("/runtime/presence.js");
@@ -387,6 +388,25 @@ test("a clock render reports its failure once and recovers on the next reading",
 test("a scroll a script holds ends once, after its release, and stays the script's until the box moves on", async () => {
   const box = document.createElement("div");
   document.body.append(box);
+  let at = 0;
+  Object.defineProperties(box, {
+    clientHeight: { value: 100 },
+    scrollHeight: { value: 400 },
+    clientWidth: { value: 100 },
+    scrollWidth: { value: 100 },
+    scrollLeft: { value: 0 },
+    scrollTop: {
+      get: () => at,
+      set: (/** @type {number} */ to) => {
+        at = to;
+      },
+    },
+    scrollTo: {
+      value: (/** @type {ScrollToOptions} */ { top = at }) => {
+        at = Math.min(Math.max(top, 0), 300);
+      },
+    },
+  });
   /** @type {Element[]} */
   const ended = [];
   const stop = watchScrollEnds((end) => ended.push(end));
@@ -428,7 +448,7 @@ test("a scroll a script holds ends once, after its release, and stays the script
   }
 });
 
-test("an instant write reaches a still box only where it moves it, and always while a scroll runs in it", () => {
+test("an instant write reaches a box only where it moves it, and a stop writes where it stands", () => {
   /** @param {number} low @param {number} high @param {number} at */
   const scroller = (low, high, at) => {
     const box = document.createElement("div");
@@ -466,12 +486,16 @@ test("an instant write reaches a still box only where it moves it, and always wh
   setScroll(reversed.box, { top: 0 });
   assert.deepEqual(reversed.writes, [0]);
   reversed.box.remove();
-  // While the browser drives a scroll in the box, writing where it stands stops it.
+  // While the browser drives a scroll in the box, a restated position still writes
+  // nothing, and only a stop writes where the box stands, which leaves it the script's.
   const moving = scroller(0, 300, 120);
   moving.box.dispatchEvent(new window.Event("scroll"));
   assert.equal(browserScrolls(moving.box), true);
   setScroll(moving.box, { top: moving.box.scrollTop });
+  assert.deepEqual(moving.writes, []);
+  stopWhereItStands(moving.box);
   assert.deepEqual(moving.writes, [120]);
+  assert.equal(browserScrolls(moving.box), false);
   moving.box.dispatchEvent(new window.Event("scrollend"));
   moving.box.remove();
 });

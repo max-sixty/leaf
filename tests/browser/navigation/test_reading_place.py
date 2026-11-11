@@ -1084,7 +1084,7 @@ def test_align_current_item_from_the_menu_on_touch_reserves_z(browser, serve):
       window.beforeAlign = [s.anchorNode,s.anchorOffset,s.focusNode,s.focusOffset];
       scrollBy(0,-80);
     }""")
-    panel_control(page, ALIGN_ROW, at="navigate").tap()
+    press_visible(page, panel_control(page, ALIGN_ROW, at="navigate"), touch=True)
     _expect_aligned(page, "#remembered")
     assert page.evaluate("""() => {
       const s = getSelection();

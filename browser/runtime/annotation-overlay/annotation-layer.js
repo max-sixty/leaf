@@ -11,8 +11,9 @@
    markers" would hide every arrival on every page.
 
    `setAnnotationsHidden` is the one writer. It states the fact on the root for the
-   stylesheets (base.css, marks.css, chrome.css), keeps it for the tab, and tells each
-   watcher, so the margin can take focus and its card off what it hides. Readers ask
+   stylesheets, keeps it for the tab, and tells each watcher, so the margin can take
+   focus and its card off what it hides and the passage paint can empty the durable
+   marks (anchor-paint.js, `paintDurable`). Readers ask
    `annotationsHidden()` rather than the root attribute, which is a rendering; a
    renderer that reads it repaints when it changes. */
 import { signal } from "/runtime/framework.js";

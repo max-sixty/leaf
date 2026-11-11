@@ -618,17 +618,19 @@ def test_o_hides_what_is_drawn_over_the_page_and_the_panel_says_so(browser, serv
       const b = el.getBoundingClientRect();
       return [b.left, b.top, b.width, b.height].map(Math.round).join(',');
     })"""
-    wash = """() => getComputedStyle(document.documentElement)
-      .getPropertyValue('--lf-annotation-wash').trim()"""
+    # The words the durable marks paint, which hiding the layer registers empty.
+    marked = """() => [...(CSS.highlights.get('lf-mark') ?? [])]
+      .map(range => range.toString()).join(' ')"""
+    passage = "Prose far enough below the changes"
+    page.wait_for_function(f"() => ({marked})() === {passage!r}")
     before = page.evaluate(boxes)
-    assert page.evaluate(wash) == ""
 
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("o")
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
     expect(pin).to_be_hidden()
     expect(rail).to_be_visible()
-    assert page.evaluate(wash) == "transparent"
+    assert page.evaluate(marked) == ""
     margins_laid_out(page)
     assert page.evaluate(boxes) == before, "hiding the annotations moved the page"
 
@@ -640,6 +642,7 @@ def test_o_hides_what_is_drawn_over_the_page_and_the_panel_says_so(browser, serv
     margins_laid_out(page)
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
     expect(pin).to_be_hidden()
+    assert page.evaluate(marked) == ""
 
     field = panel_field(page)
     expect(field).to_have_attribute("data-lf-says", "status")
@@ -668,7 +671,7 @@ def test_o_hides_what_is_drawn_over_the_page_and_the_panel_says_so(browser, serv
 
     page.keyboard.press("o")
     expect(pin).to_be_visible()
-    assert page.evaluate(wash) == ""
+    assert page.evaluate(marked) == passage
     expect(page.locator("html")).not_to_have_attribute(
         "data-lf-annotations", re.compile(".*")
     )

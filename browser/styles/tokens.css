@@ -416,6 +416,17 @@
   --mark-hover: light-dark(#dfd1edb3, #6152a079);
   --mark-strong: light-dark(#dfd1ed, #6152a099);
   --mark-ink: light-dark(#4a3b7d, #9d8fd6);
+  /* The words a passage highlight covers (annotation-marks.css): a comment's in
+     --mark-ink, and a draft's in the accent, each lifted in dark toward the light ink
+     the dark paper's prose wears. */
+  --mark-ink-text: light-dark(
+    var(--mark-ink),
+    color-mix(in srgb, var(--mark-ink) 50%, white)
+  );
+  --mark-pending-text: light-dark(
+    var(--accent),
+    color-mix(in srgb, var(--accent) 60%, var(--ink))
+  );
   /* The draft's wash, relative to the accent so one definition serves both schemes; the
      passage highlight (annotation-marks.css) reads it. */
   --mark-pending: color-mix(in srgb, var(--accent) 20%, transparent);

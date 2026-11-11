@@ -109,6 +109,19 @@ test("a crowded column at the window's edge withholds every other row's chip, th
   );
 });
 
+test("a typed prefix that puts every other row's chip away leaves the rest level", () => {
+  const rows = Array.from({ length: 12 }, (_, at) => box(100, 100 + 14 * at, 300, 14));
+  const kept = rows.filter((_, at) => at % 2);
+  const seated = seatHints(
+    kept.map((target) => ({ start: chip(90, target.top - 8), target })),
+    { band: 2, viewport, targets: rows },
+  );
+  assert.ok(
+    seated.every(({ face, box }) => box && middle(box) === middle(face.target)),
+    seated,
+  );
+});
+
 test("a chip the window's edge holds stands level with no other row", () => {
   // Two pixels of the first row show at the window's head, above two whole rows.
   const rows = [box(100, 0, 300, 2), box(100, 2, 300, 14), box(100, 16, 300, 14)];

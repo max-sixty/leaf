@@ -309,7 +309,8 @@ export function seatHints(
   // above as much as its own, so wherever two rows' corner chips would collide, each
   // stands level with its own row instead (`level`). Rows sharing a column and no line
   // are neighbours; a footnote marker beside another shares neither and stays on its
-  // corner.
+  // corner. Every target the scene shows counts, chip or no chip, so a typed prefix
+  // that puts a row's chip away leaves its neighbours level.
   /** @param {HintFace} face */
   const corner = (face) => (face.placement ?? "corner") === "corner";
   /** @param {import("../rect.js").Box} one @param {import("../rect.js").Box} other */
@@ -319,12 +320,12 @@ export function seatHints(
     faces.filter(
       (face) =>
         corner(face) &&
-        faces.some(
-          (other) =>
-            other !== face &&
-            corner(other) &&
-            rowNeighbours(face.target, other.target) &&
-            overlaps(face.start, other.start),
+        targets.some(
+          (target) =>
+            target !== face.target &&
+            rowNeighbours(face.target, target) &&
+            Math.abs(target.left - face.target.left) < face.start.width &&
+            Math.abs(target.top - face.target.top) < face.start.height,
         ),
     ),
   );
@@ -516,8 +517,8 @@ export function createHintSession({
   // Where the audible walk stands in `hinted()`, or -1 when no hint has been heard.
   let at = -1;
   let stale = false;
-  /** @type {HintBox[] | null} */
-  let sceneTargets = null; // the whole map's targets, until the map or its page moves
+  /** @type {Map<C, HintBox> | null} */
+  let sceneTargets = null; // member → its target, until the map or its page moves
   const seats = chipSeats(layer);
 
   const hinted = () => candidates.filter(({ code }) => code.startsWith(prefix));
@@ -736,14 +737,22 @@ export function createHintSession({
     const plans = layout(hinted(), { current, reading });
     // The chips a typed prefix keeps are seated clear of the targets whose chips it put
     // away (`seatHints`, `targets`), read with the whole map and kept while the prefix
-    // freezes it, so a letter lays out only the chips it keeps.
-    if (!prefix || !sceneTargets)
-      sceneTargets = (prefix ? layout(candidates, { current, reading }) : plans).map(
-        ({ target }) => target,
+    // freezes it, so a letter lays out only the chips it keeps. A kept target that has
+    // moved since says the page has, as a revision reflowing it does, and the whole map
+    // is read again.
+    const moved = plans.some(({ candidate, target }) => {
+      const was = sceneTargets?.get(candidate);
+      return !was || was.left !== target.left || was.top !== target.top;
+    });
+    if (!prefix || moved)
+      sceneTargets = new Map(
+        (prefix ? layout(candidates, { current, reading }) : plans).map(
+          ({ candidate, target }) => [candidate, target],
+        ),
       );
     const drawn = new Set(plans.map((chip) => chip.candidate));
     if (wasWalking && current && !drawn.has(current)) at = -1;
-    draw(plans, sceneTargets);
+    draw(plans, [...(sceneTargets?.values() ?? [])]);
     // The keys were painted before geometry retired the browsed hint, and a map
     // that has just emptied or filled changes which of the caller's rows stand.
     if ((wasWalking && at < 0) || emptyBefore !== (candidates.length === 0)) repaint();

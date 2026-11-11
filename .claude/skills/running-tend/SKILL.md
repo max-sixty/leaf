@@ -328,6 +328,32 @@ In the rolling survey, apply `/developing-leaf`, "Regular maintenance", to each 
 you review. Propose a removal that takes a feature away in an issue for the
 maintainer; a consolidation or delegation that keeps behavior is an ordinary fix.
 
+## Review-runs: benchmark costs that grow
+
+Root `AGENTS.md`, **Responsiveness**, sets how fast each cost may grow with the page,
+and the daily scheduled `ci` run's `bench` job measures those costs. Nothing passes or
+fails on its readings (`tests/AGENTS.md`, **Results do not depend on execution
+speed**), because a CI runner's speed varies from run to run and no single threshold
+separates a regression from a slow runner. So this review weighs the readings in place
+of a cutoff.
+
+Read the report of the latest scheduled run (`gh run list -w ci -e schedule`). Its
+`bench-report-*` artifact holds the browser and server tables, each reading by size
+with the exponent of its growth. Earlier runs' artifacts go back 30 days, and
+`dev/bench/data.js` on the `gh-pages` branch holds each run's CPU and `shown` readings
+at 64 sections.
+
+Judge from several runs whether a cost grows faster than the page, or rises across
+runs at the same size, by more than the runner's noise explains. The header of
+`dev/leaf_dev/commands/bench.py` says which readings a busy runner stretches; an
+exponent compares sizes within one run, so a slow runner moves it less than the
+readings themselves. Where a cost grows, open an issue that names the reading, its
+values at each size, the runs compared, and the commits between the last run that read
+it at its earlier level and the first that read it higher. Where an open issue already
+tracks that cost, add only what it lacks, and leave one labelled `backlog` alone
+(**Leave backlog issues to the maintainer**). Say in the run summary which runs you
+compared, whether or not anything grew.
+
 ## Weekly: test tier budgets
 
 Read the latest daily `ci` run that finished (`gh run list -w ci -e schedule`): its

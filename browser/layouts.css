@@ -325,29 +325,37 @@
    * own, gets its breakouts placed as for a centred one, and the render check reports
    * any that leave the window. Any other column, such as one in a tab's panel, gives
    * none. The lengths inherit, since WebKit left one passed down with `inherit` stale
-   * after a resize (notes/browser-support.md). */
+   * after a resize (notes/browser-support.md).
+   *
+   * The room is registered `*`, so each reader receives the expression and resolves
+   * it, percentage included. The shell's width enters the expression as a length
+   * (`--lf-shell-width`), since a container unit left in it would resolve against the
+   * reader's container. Registered `<length-percentage>`, Chromium 158 counted the
+   * room as changed on every restyle of the column though its value was the same, so
+   * each restyle of the column, as when focus marks it on the user's return to a
+   * passage, restyled every box under it (notes/browser-support.md). */
   @property --lf-shell-width {
     syntax: "<length>";
     inherits: true;
     initial-value: 0px;
   }
   @property --lf-free-start {
-    syntax: "<length-percentage>";
+    syntax: "*";
     inherits: true;
     initial-value: 0px;
   }
   @property --lf-free-end {
-    syntax: "<length-percentage>";
+    syntax: "*";
     inherits: true;
     initial-value: 0px;
   }
   @property --lf-free-left {
-    syntax: "<length-percentage>";
+    syntax: "*";
     inherits: true;
     initial-value: 0px;
   }
   @property --lf-free-right {
-    syntax: "<length-percentage>";
+    syntax: "*";
     inherits: true;
     initial-value: 0px;
   }
@@ -403,7 +411,11 @@
             var(--lf-shell-width) - 2 * var(--col-pad) - 100% - var(--note) *
               clamp(
                 0,
-                sign(100cqi - 2 * var(--col-pad) - var(--col) - var(--note)) + 1,
+                sign(
+                    var(--lf-shell-width) - 2 * var(--col-pad) - var(--col) -
+                      var(--note)
+                  ) +
+                  1,
                 1
               )
           ) /
@@ -761,10 +773,15 @@
     margin: 0;
     padding: 0;
     --lf-wide-page: 0;
+    --lf-shell-width: 100cqi;
     --lf-free-end: max(
       0px,
-      100cqi - var(--col) - (var(--aside) + var(--sp-4)) *
-        clamp(0, sign(100cqi - var(--col) - var(--aside) - var(--sp-4)) + 1, 1)
+      var(--lf-shell-width) - var(--col) - (var(--aside) + var(--sp-4)) *
+        clamp(
+          0,
+          sign(var(--lf-shell-width) - var(--col) - var(--aside) - var(--sp-4)) + 1,
+          1
+        )
     );
     padding-inline-end: var(--lf-free-end);
   }

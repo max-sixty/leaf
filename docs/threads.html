@@ -440,10 +440,10 @@
             The agent's reply can take minutes, so when the user opens an untitled
             thread, Leaf also asks the harness's model for a title at once, in a
             separate request: in Claude Code, Leaf's plugin asks Haiku from inside the
-            session, on the session's own login; in Codex, an App Server request; in
-            Pi, a print-mode run of the model the user configured. The
-            request holds only the thread's passage and first message, nothing from the
-            agent's conversation, and runs in parallel with the agent's work. Leaf uses the
+            session, on the session's own login; in Codex, an App Server request; in Pi,
+            a print-mode run of the model the user configured. The request holds only
+            the thread's passage and first message, nothing from the agent's
+            conversation, and runs in parallel with the agent's work. Leaf uses the
             first title it receives. While the agent is working on an untitled thread,
             the panel shows animated dots in place of the title; a thread nobody named
             shows its opening words.

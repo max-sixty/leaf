@@ -109,6 +109,22 @@ test("a crowded column at the window's edge withholds every other row's chip, th
   );
 });
 
+test("a walk onto a crowded row moves no chip where every row's chip stands", () => {
+  const rows = Array.from({ length: 8 }, (_, at) => box(100, 100 + 14 * at, 300, 14));
+  const faces = rows.map((target) => ({ start: chip(90, target.top - 8), target }));
+  const lefts = (browsed) =>
+    seatHints(faces, { band: 2, viewport, browsed }).map(({ box }) => box.left);
+  assert.deepEqual(lefts(faces[3]), lefts(undefined));
+});
+
+test("a walk onto a row whose chip the window's edge withholds shows that chip", () => {
+  const rows = Array.from({ length: 8 }, (_, at) => box(4, 100 + 14 * at, 300, 14));
+  const faces = rows.map((target) => ({ start: chip(-6, target.top - 8), target }));
+  const seated = seatHints(faces, { band: 2, viewport, browsed: faces[3] });
+  assert.equal(middle(seated[3].box), middle(rows[3]));
+  readsAsOwnRow(seated, rows);
+});
+
 test("a typed prefix that puts every other row's chip away leaves the rest level", () => {
   const rows = Array.from({ length: 12 }, (_, at) => box(100, 100 + 14 * at, 300, 14));
   const kept = rows.filter((_, at) => at % 2);

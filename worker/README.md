@@ -531,12 +531,15 @@ The records to read first:
 | `page_fault`                                                             | The adapter answered `500`: route, method, page path, exception class, and `detail`                                                                                          |
 
 The session's `component=leaf-container`, `event=http_error` records identify
-forwarded HTTP 5xx responses by status, method and `source`: `adapter` means the
-response carried Python's `Leaf-Release` stamp; `disconnected` means it matched
-the Containers SDK's fixed connection-loss response; `unclassified` means neither
-was established. These records retain no URL or response body. Use their native
-trace ID to join the request's invocation records. A `disconnected` response
-identifies the proxy boundary, not why its container connection was lost.
+forwarded HTTP 5xx responses by status, method, `source` and `retried`:
+`adapter` means the response carried Python's `Leaf-Release` stamp;
+`disconnected` means it matched one of the Containers SDK's proxy-failure
+responses; `unclassified` means neither was established. A `disconnected`
+`GET` or `HEAD` is sent once more (`retried: true`), and the visitor sees the
+second answer; a write is never resent. These records retain no URL or response
+body. Use their native trace ID to join the request's invocation records. A
+`disconnected` response identifies the proxy boundary, not why its container
+connection was lost.
 
 The page's private `observations.jsonl` also records these hosted-turn boundaries.
 Only that private diagnostic stream retains the complete published reply updates,
@@ -585,7 +588,10 @@ recovers a start that outlasts that window.
 
 ### Saved state and capacity
 
-Read-only visits do not prewarm a container. The existing session Durable Object
+Read-only visits do not prewarm a container. Focusing a text box does: the tab's
+interaction log reports the focus within a quarter second, and the Worker starts the
+session's container (`prewarmContainer` in `worker/src/agent.ts`), so its boot overlaps
+the visitor's typing. The existing session Durable Object
 serves saved documents, comments, choices and private resources while compute is
 stopped. A write or a missing saved response starts Python, which restores the
 canonical page record before accepting requests. `leaf_website.storage` publishes
@@ -609,8 +615,9 @@ snapshot uses.
 An interrupted upload therefore retains at most one successor until that page
 retries; other pages' concurrent uploads and readers remain protected.
 
-`max_instances` caps concurrent `basic` containers: 5,900 for production and 90 for
-`dev`, under Cloudflare's account limit of 6,000. A container with no requests stops
+Each container is a custom instance of one vCPU and 3 GiB (`wrangler.toml` gives the
+reason). `max_instances` caps them at 1,470 for production and 20 for `dev`, under the
+account's default limit of 1,500 concurrent vCPU. A container with no requests stops
 after ten minutes (`sleepAfter` in `worker/src/index.ts`). A rollout replaces a
 container as soon as it reaches it, however recently the container started
 (`rollout_active_grace_period = 0`, whose reason `wrangler.toml` gives). The adapter

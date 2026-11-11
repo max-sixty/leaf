@@ -12,7 +12,7 @@
    then writes. Each fold answers from its arguments alone, so `tests/runtime/` runs them
    without a browser. */
 
-import { clamp, overlaps, overlapsAcross, union } from "../rect.js";
+import { clamp, overlaps, overlapsAcross, shifted, union } from "../rect.js";
 
 /** @typedef {import("../rect.js").Box} Box */
 /** @typedef {{before: readonly (Box | null)[], home: Box, after: readonly (Box | null)[]}} SeatSet */
@@ -289,6 +289,31 @@ export function seatRow(pin, { gap, occupied = [] }) {
       (inside(below, bounds) ? below : corner);
   }
   return { rect, folded };
+}
+
+// `pin` read `dx` across and `dy` down from where it was read: the layout's record of a
+// pin from an earlier pass, brought to where the page stands now (margin-layout.js,
+// `seatings`). Every positional field of `Pin` moves, so a field added to it moves here.
+/** @param {Pin} pin @param {number} dx @param {number} dy @returns {Pin} */
+export function shiftedPin(pin, dx, dy) {
+  /** @param {Box} box */
+  const at = (box) => shifted(box, dx, dy);
+  /** @param {SeatSet} seats */
+  const move = ({ before, home, after }) => ({
+    before: before.map((seat) => seat && at(seat)),
+    home: at(home),
+    after: after.map((seat) => seat && at(seat)),
+  });
+  return {
+    ...pin,
+    held: pin.held && at(pin.held),
+    seats: move(pin.seats),
+    floor: pin.floor + dy,
+    cover: pin.cover.map(at),
+    controls: pin.controls.map(at),
+    bounds: at(pin.bounds),
+    folds: pin.folds && { ...pin.folds, seats: move(pin.folds.seats) },
+  };
 }
 
 /** @param {Box} rect @param {Box} bounds */

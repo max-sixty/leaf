@@ -61,6 +61,11 @@
   }
   const facts = {
     message: (words) => messages(words).length > 0,
+    // No margin row shows for `target`, as once a resolved thread's row leaves.
+    rowLeft: (target) =>
+      ![...document.querySelectorAll("[data-lf-margin-for]")].some(
+        (row) => row.dataset.lfMarginFor === target && shown(row),
+      ),
     // Admission and presentation belong to this exact gesture, even when its
     // workflow already advanced beyond the initial delivery receipt.
     delivered: (_intent, attempt) =>

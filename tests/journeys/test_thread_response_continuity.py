@@ -494,9 +494,10 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     holding(page, held, 1, "the reply that will be refused")
     rendered(page)
     if place == "nested-end":
-        scroller = page.locator("#continuity-scroll")
-        scroller.evaluate("node => {node.scrollTop = node.scrollHeight}")
-        scroll_settled(page, scroller)
+        page.locator("#continuity-scroll").evaluate(
+            "node => {node.scrollTop = node.scrollHeight}"
+        )
+        scroll_settled(page, "#continuity-scroll")
     attempt = held[0].request.post_data_json["attempt"]
     assert held[0].request.post_data_json["parent"] == parent
 

@@ -1437,25 +1437,45 @@ def test_tab_onto_a_seat_under_the_pinned_file_name_brings_it_out(browser, serve
     resized(page, 1280, 720)
     reply = page.locator("lf-diff .lf-diff-thread-outlet .lf-thread-reply leaf-text")
     expect(reply).to_be_visible()
-    # The field just below the window's top, where the pinned name stands over it.
+    head = page.locator("#patch .lf-diff-file > details > summary")
+    # Focus opens the field, which grows, so it is placed once open and the name is
+    # pinned: its foot just below the name, which stands over the rest of it and over
+    # the control beside it. The user still sees the field, so Tab moves on from it
+    # rather than letting go of it.
     reply.evaluate(
-        "el => scrollBy({top: el.getBoundingClientRect().top - 4, behavior: 'instant'})"
+        "el => scrollBy({top: el.getBoundingClientRect().top, behavior: 'instant'})"
     )
     scroll_settled(page)
     reply.evaluate("el => el.focus({preventScroll: true})")
+    scroll_settled(page)
+    reply.evaluate(
+        """(el, head) => scrollBy({
+            top: el.getBoundingClientRect().bottom - head.getBoundingClientRect().bottom
+                - 6,
+            behavior: 'instant'})""",
+        head.element_handle(),
+    )
+    scroll_settled(page)
+    beside = page.locator("lf-diff .lf-diff-thread-outlet .lf-compose-dictate")
+    under = beside.evaluate(
+        "(el, head) => el.getBoundingClientRect().top"
+        " < head.getBoundingClientRect().bottom",
+        head.element_handle(),
+    )
+    assert under, "the control beside the field starts under the pinned name"
     page.keyboard.press("Tab")
     rendered(page)
     read = page.evaluate(
         """() => {
         const root = document.getElementById('patch').shadowRoot;
         const head = root.querySelector('.lf-diff-file > details > summary');
-        const seat = root.querySelector('.lf-diff-thread-outlet');
         const focused = root.activeElement;
-        return {inSeat: seat.contains(focused), top: focused.getBoundingClientRect().top,
+        return {beside: focused?.matches('.lf-diff-thread-outlet .lf-compose-dictate'),
+                top: focused?.getBoundingClientRect().top,
                 head: head.getBoundingClientRect().bottom};
     }"""
     )
-    assert read["inSeat"], read
+    assert read["beside"], read
     assert read["top"] >= read["head"], read
 
 

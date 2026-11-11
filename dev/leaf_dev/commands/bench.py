@@ -231,17 +231,24 @@ HALFWAY = """(band) => {
   if (under && under !== page) halfway(under);
   return [x, y];
 }"""
-# The passage a comment selects, brought into view: the first paragraph after the
-# page's title, or the title where none follows it.
-PASSAGE = """() => {
+# The passage a comment selects, brought into view: the `nth` paragraph drawn after the
+# page's title, past any a comment's editor holds, or the title where none is.
+PASSAGE = """(nth) => {
   const title = document.querySelector("h1");
-  const passage = [...document.querySelectorAll("p")].find(
-    (p) => title.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING,
-  ) ?? title;
+  const passage = [...document.querySelectorAll("p")].filter(
+    (p) =>
+      title.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING &&
+      !p.closest("[contenteditable]") &&
+      p.checkVisibility(),
+  )[nth] ?? title;
   passage.scrollIntoView({ block: "nearest" });
   const box = passage.getBoundingClientRect();
   return [box.x, box.y];
 }"""
+# The target of the margin row whose thread card is open.
+OPEN_ROW = """() => document
+  .querySelector('[aria-controls="lf-margin-preview"][aria-expanded="true"]')
+  ?.closest("[data-lf-margin-for]")?.dataset.lfMarginFor"""
 # The first card not in its board's first column, and the column left of it.
 MOVABLE = """() => {
   for (const card of document.querySelectorAll("lf-card")) {
@@ -454,6 +461,19 @@ def comment(t: int) -> dict:
     }
 
 
+# The user's comment on the words of `ask_sections`' first paragraph, which the page
+# paints as a passage mark: a highlight range, where a comment on a whole section
+# outlines its element.
+PASSAGE_COMMENT = {
+    "kind": "comment",
+    "author": "user",
+    "revision": 1,
+    "id": "c-passage",
+    "text": "Why these words?",
+    "anchor": {"section": "s1", "quote": "Some words about section 1."},
+}
+
+
 def answer(t: int) -> dict:
     """The agent answering thread `t`."""
     return {
@@ -524,6 +544,8 @@ class Collection(NamedTuple):
 # Every page `leaf-dev bench` generates, by the collection that grows with `n`.
 COLLECTIONS: dict[str, Collection] = {
     "asks": Collection(ask_sections),
+    # The same with one passage mark, whose style every input may restyle page-wide.
+    "asks-marked": Collection(ask_sections, lambda _: [PASSAGE_COMMENT]),
     "document": Collection(document_lines),
     "prose": Collection(prose_sections),
     "rows": Collection(table_rows),
@@ -897,10 +919,11 @@ def triple_click(tab: Tab) -> None:
         tab.page.mouse.up(click_count=clicks)
 
 
-def write_comment(tab: Tab) -> Goals:
-    """Select the start of the passage (`PASSAGE`), open its comment and write it."""
+def write_comment(tab: Tab, nth: int = 0) -> Goals:
+    """Select the start of the `nth` passage (`PASSAGE`), open its comment and write
+    it."""
     tab.words = f"Bench comment {tab.bench.serial()}."
-    x, y = tab.page.evaluate(PASSAGE)
+    x, y = tab.page.evaluate(PASSAGE, nth)
     tab.page.mouse.move(x + 2, y + 10)
     tab.page.mouse.down()
     tab.page.mouse.move(x + 200, y + 10, steps=8)
@@ -921,6 +944,32 @@ def write_comment(tab: Tab) -> Goals:
 
 def send(tab: Tab) -> None:
     tab.page.keyboard.press("ControlOrMeta+Enter")
+
+
+def aim_at_resolve(tab: Tab) -> Goals:
+    """Send a comment as `comment` does, on the next passage so that its row is its
+    thread's alone, wait for the page to take in the server's reading of it, and rest
+    the mouse over Resolve in its thread's card. Resolving takes the thread's row out
+    of the margin, so the row's leaving marks it painted. A card an earlier input left
+    open is put away first, since it can stand over the passage."""
+    for _ in range(2):
+        tab.page.keyboard.press("Escape")
+    tab.page.mouse.move(4, 4)
+    ended(tab.page)
+    write_comment(tab, nth=1)
+    send(tab)
+    resolve = tab.page.locator(".lf-margin-preview .lf-resolve")
+    resolve.wait_for(state="visible")
+    ended(tab.page)
+    target = until(tab.page, OPEN_ROW, "the thread's card names no row")
+    box = resolve.bounding_box()
+    assert box is not None
+    tab.page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    tab.quiet(400)
+    return {
+        "painted": ("rowLeft", target),
+        "shown": ("delivered", {"kind": "resolve"}),
+    }
 
 
 def lift_card(tab: Tab) -> Goals:
@@ -1072,6 +1121,7 @@ INPUTS: dict[str, Input] = {
     ),
     "select": Input(triple_click, 4, aim_at_title, each=False, after=400, needs="h1"),
     "comment": Input(send, ready=write_comment, paints=True, after=400, needs="h1"),
+    "resolve": Input(press, ready=aim_at_resolve, paints=True, after=400, needs="h1"),
     "move": Input(drop_card, ready=lift_card, paints=True, after=400, needs="lf-card"),
     "reply": Input(agent_reply, ready=ask_agent, paints=True, after=300),
     "status": Input(agent_status, ready=name_status, paints=True, after=300),

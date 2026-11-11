@@ -31,7 +31,7 @@ import { threadNamed } from "../thread/state.js";
 import { threadPreview } from "../thread/messages.js";
 import { pointRange } from "../preview.js";
 import { renderedParent, shadowHost } from "../shadow.js";
-import { annotationsHidden } from "./annotation-layer.js";
+import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { keepsOnOne } from "../keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
 
@@ -174,6 +174,27 @@ export function createAnchorPaint({
   let aimed = false;
   let resting = false;
   let pointed = false;
+
+  // A comment's and a reaction's marks on words are the annotation layer's, and hiding
+  // the layer (`o`) registers their highlights empty, so the words wear whatever the page
+  // and the highlights under them give them. Restyling them instead fails in Firefox and
+  // WebKit, which read a highlight's `color: currentColor` as the element's colour and
+  // paint it over a text document's syntax colours. The marks of a gesture (hover, the
+  // thread the user is in, the draft) paint either way.
+  /** @param {typeof MARK | typeof REACT} name */
+  function paintDurable(name) {
+    const ranges = annotationsHidden()
+      ? []
+      : name === MARK
+        ? [...passages.values()].flatMap(({ ranges }) => ranges)
+        : [...reacted.values()].flat();
+    CSS.highlights.set(name, new Highlight(...ranges));
+  }
+  watchAnnotations(() => {
+    if (!mounted) return;
+    paintDurable(MARK);
+    paintDurable(REACT);
+  });
 
   /** @param {string | null} id */
   const marksFor = (id) => (id === null ? [] : (marked.get(id) ?? []));
@@ -467,8 +488,10 @@ export function createAnchorPaint({
     if (arrived) return void presentDocument();
     const affected = new Set(ids.filter((id) => passages.has(id) || reacted.has(id)));
     if (!affected.size) return;
-    const mark = CSS.highlights.get(MARK);
-    const react = CSS.highlights.get(REACT);
+    // Hidden, the durable highlights hold nothing, and showing them reads the maps.
+    const shown = !annotationsHidden();
+    const mark = shown ? CSS.highlights.get(MARK) : undefined;
+    const react = shown ? CSS.highlights.get(REACT) : undefined;
     /** @type {Set<Node>} */
     const nodes = new Set();
     let whole = false;
@@ -650,9 +673,6 @@ export function createAnchorPaint({
     actionOutline = [];
     visualTargets.clear();
 
-    const posted = [];
-    const reactions = [];
-
     // In the page's reading order, as the margin lists its entries, which names the
     // thread a press on overlapping passages opens and the order a mark's preview lists
     // them in (resolved-target.js, `readingOrder`).
@@ -666,7 +686,6 @@ export function createAnchorPaint({
       const ranges = found.kind === "passage" ? (found.ranges ?? []) : [];
       if (bareReaction(thread)) {
         reacted.set(thread.id, ranges);
-        reactions.push(...ranges);
         continue;
       }
 
@@ -688,7 +707,6 @@ export function createAnchorPaint({
             ? kept
             : [...ranges],
         );
-        posted.push(...ranges);
       }
     }
     const order = [...last.keys()];
@@ -703,8 +721,8 @@ export function createAnchorPaint({
     if (action) rememberVisual(action);
     paintOutlines(before);
 
-    if (remarked) CSS.highlights.set(MARK, new Highlight(...posted));
-    CSS.highlights.set(REACT, new Highlight(...reactions));
+    if (remarked) paintDurable(MARK);
+    paintDurable(REACT);
     paintCurrentLocation(false);
     // A pass that made new marks rebinds the hover to them even when the semantic id
     // did not change, then updates the shared visual projection once.

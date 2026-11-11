@@ -3162,6 +3162,12 @@ def test_a_scroll_during_a_gesture_may_not_carry_its_control(browser, how, gestu
     page.wait_for_function("scrollY > 0")
     paint(page)
     judge_watches()
+    if how == "passive":
+        # The gesture's own scroll moves nothing, which is this case's point and a
+        # scroll write the write watch reports.
+        consume_browser_errors(
+            page, {"code": "unmoved-scroll", "node": ["html"], "how": "scrollBy"}
+        )
     if how in ("scrolls", "renames its entry"):
         consume_browser_errors(
             page,

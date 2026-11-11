@@ -203,10 +203,14 @@ LOW_PASSAGE_PAGE = leaf_page(
 )
 
 
-# Whether the margin card's motion has ended (box-motion.js).
+# Whether the margin card's motion has ended (box-motion.js): no finite animation on
+# the document's clock runs in it. A scroll-driven one, as a transcript's head
+# annotations ride their message's exit, follows the scroll and never ends, and Firefox
+# gives it a finite end time.
 CARD_AT_REST = (
     "() => !document.querySelector('.lf-margin-preview').getAnimations({subtree: true})"
-    ".some(a => Number.isFinite(a.effect?.getComputedTiming().endTime))"
+    ".some(a => a.timeline === document.timeline"
+    " && Number.isFinite(a.effect?.getComputedTiming().endTime))"
 )
 
 # Every motion held at its first frame is finished, until the card rests.

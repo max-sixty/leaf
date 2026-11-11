@@ -293,10 +293,13 @@ The watches below report problems. Fix what they report rather than consuming it
 is no per-test
 allowance list.
 
-- `write_watch.js` reports a DOM write that changes nothing. Fix the writer with
-  `runtime/keeps.js`. A write that must restate, as a vendored component's does, joins
-  `EXPECTED` in `write_watch.js` with its reason; a test that reads the page by changing
-  it and putting it back does so inside `lfUnwatched`.
+- `write_watch.js` reports a DOM write that changes nothing, and a scroll write that
+  moves nothing. Fix a DOM writer with `runtime/keeps.js`; the runtime's scroll writes
+  go through `setScroll` (`runtime/arrivals.js`), which never writes one that moves
+  nothing, and a stop goes through `stopWhereItStands`. A write
+  that must restate, as a vendored component's does, joins `EXPECTED` or
+  `EXPECTED_SCROLLS` in `write_watch.js` with its reason; a test that reads the page by
+  changing it and putting it back does so inside `lfUnwatched`.
 - `shift_watch.js` reports a box that moves on screen without input, typing that
   moves its field, and a scroll a gesture makes that carries the control it was made
   on, unless the gesture takes the user somewhere (`browser/AGENTS.md`, "The page holds still under the user's aim").

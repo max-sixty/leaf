@@ -712,11 +712,13 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
     (`left_owed`), and for a line Leaf queued that tells the session of work it now
     owes, such as a to-do a fork opened (`clerk.waking`), until a hook has printed
     it; the watch follows the queue's file itself (`Watch.told`), since no page's
-    reading stamps it. The session lease and each page transaction retain ownership
-    of delivery, revival and competing-watch decisions. The newest watch takes the lease from
-    any holder, and a watch superseded that way ends without a word: the newest
-    runs the Leaf its harness runs now, while an older one may run a Leaf the
-    session has since left, one that cannot read a page the session now holds.
+    reading stamps it. Escape leaves the turn open, so after it both wait for the
+    user's next prompt, as input the stopped turn confirmed does. The session lease
+    and each page transaction retain ownership of delivery, revival and
+    competing-watch decisions. The newest watch takes the lease from any holder, and
+    a watch superseded that way ends without a word: the newest runs the Leaf its
+    harness runs now, while an older one may run a Leaf the session has since left,
+    one that cannot read a page the session now holds.
     """
     interrupted = payload.get("hook_event_name") == "Interrupt"
     at_prompt = payload.get("hook_event_name") == "UserPromptSubmit"
@@ -803,10 +805,15 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
             return "told", []
         return None
 
+    # What `ready` last found on each page, which the wake line names: a hook can take
+    # a line off the queue between the two, which no page's lock orders.
+    found_on: dict[Path, Wake] = {}
+
     def ready(reading: PageTick) -> bool:
         found = wakes_for(reading)
         if found is None:
             return False
+        found_on[reading.page_dir] = found[0]
         if interrupted:
             return True
         claim = reading.transaction.active_claim
@@ -821,17 +828,17 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
             or time.monotonic() > settled
         )
 
-    def wake_text(tick: PageTick) -> str:
-        found = wakes_for(tick)
-        assert found is not None, "the watch wakes only for a page it is ready for"
-        return wake_line(tick.page_dir, found[0])
-
     # How the watch ended, which its record in each page it read keeps.
     ended = "stopped"
     try:
         while harness.process_runs():
             mark = watch.mark()
-            reading = read_watch_pass(watch, None, wake_text, ready)
+            reading = read_watch_pass(
+                watch,
+                None,
+                lambda tick: wake_line(tick.page_dir, found_on[tick.page_dir]),
+                ready,
+            )
             # Superseded during the pass, it leaves what it found to its successor.
             if not watch.holds():
                 ended = "superseded"

@@ -626,51 +626,6 @@ def test_a_forks_end_reports_only_what_its_own_turn_wrote(claimed, lane, monkeyp
     assert "Profile it" not in told and "owes nothing" not in told
 
 
-def test_the_watch_wakes_the_idle_session_for_a_thread_its_fork_gave_back(
-    claimed, lane, interactive, capsys, monkeypatch
-):
-    """While a fork holds a thread, the main thread's closed turn owes nothing, so the
-    watch that follows it sleeps. As the fork's turn ends with the thread unanswered,
-    the main thread owes its answer, and the watch wakes the session for it, though
-    the page's log hasn't moved."""
-    serving(claimed, 1)
-    session_model.cmd_waiting(claimed)
-    asked, taken = taken_by_a_fork(claimed, "Does the suggest service cache?")
-    forks_model.started(
-        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
-    )
-    stop = {"hook_event_name": "Stop", "session_id": "s1", "prompt_id": "p1"}
-    context(capsys, "UserPromptSubmit")
-    hooks_model.cmd_hook("claude-code", stop)
-    assert capsys.readouterr().out == ""
-    passed = Event()
-    await_news = session_model.Watch.await_news
-
-    def after_a_pass(watch, mark, *args, **kwargs):
-        passed.set()
-        return await_news(watch, mark, *args, **kwargs)
-
-    monkeypatch.setattr(session_model.Watch, "await_news", after_a_pass)
-    woke: list = []
-    watch = Thread(
-        target=lambda: woke.append(hooks_model.cmd_watch("claude-code", stop)),
-        daemon=True,
-    )
-    watch.start()
-    assert passed.wait(STATED_TIMEOUT), f"the watch never read the pages: {woke}"
-    assert woke == []
-
-    forks_model.ended(
-        "s1",
-        agent="agent-1",
-        turn=None,
-        answer=f"{forks_model.HAND_BACK} the session is changing its startup.",
-        failed=None,
-    )
-    watch.join(STATED_TIMEOUT)
-    assert woke and woke[0].startswith(f"{claimed} has an update still owed an answer")
-
-
 def started_fork(page_dir, text: str, agent: str) -> dict:
     """The user's message in a thread of its own, which a fork the module spawned as
     `agent` took; the message."""
@@ -706,25 +661,22 @@ def main_thread_opens_a_to_do(page_dir, thread: str) -> None:
 
 class Watching:
     """The watch session s1's Stop hook starts, run in a thread, and its passes over
-    the pages. Each pass begins as the watch marks what it reads (`Watch.mark`),
-    when this notes the lines queued for the session and the agent turns still open,
-    which only grow and shrink until a hook hears the lines, and ends as the watch
-    waits for news. It waits as long as the test runs, so it wakes only for a write
-    it follows, never at its periodic recheck."""
+    the pages, each of which begins as the watch marks the reading it starts from
+    (`Watch.mark`) and ends as it waits for news. It waits as long as the test runs,
+    so it wakes only for a write it follows, never at its periodic recheck."""
 
     def __init__(self, monkeypatch):
         self.woke: list = []
-        # What each pass began from, and how many passes have ended.
-        self.began: list[tuple[list[str], dict]] = []
+        # The watch and the reading each pass began from, and how many have ended.
+        self.began: list[tuple[session_model.Watch, tuple]] = []
         self.ended = 0
         self.passed = Condition()
         mark, await_news = session_model.Watch.mark, session_model.Watch.await_news
 
         def marking(watch):
-            began = (clerk_model.queued("s1"), state_model.open_agent_turns("s1"))
             marked = mark(watch)
             with self.passed:
-                self.began.append(began)
+                self.began.append((watch, marked[1]))
             return marked
 
         def awaiting(watch, marked, timeout=None):
@@ -741,20 +693,55 @@ class Watching:
             daemon=True,
         )
         self.thread.start()
-        self.read(lambda queued, turns: True)
+        self.settle()
 
-    def read(self, began) -> None:
-        """Wait until a pass that `began` accepts by what it began from, its queued
-        lines and open agent turns, has read the pages, or the watch has woken the
-        session."""
+    def settle(self) -> None:
+        """Wait until the watch has read the pages as they stand now and waits for
+        news, so only a later write it follows can wake it; or until it has woken
+        the session."""
+
+        def settled() -> bool:
+            if not self.thread.is_alive():
+                return True
+            if not self.began or self.ended < len(self.began):
+                return False
+            watch, began = self.began[-1]
+            return watch.reading() == began
+
         with self.passed:
-            assert self.passed.wait_for(
-                lambda: (
-                    any(began(*state) for state in self.began[: self.ended])
-                    or not self.thread.is_alive()
-                ),
-                STATED_TIMEOUT,
-            ), f"the watch never read the pages: {self.woke}"
+            assert self.passed.wait_for(settled, STATED_TIMEOUT), (
+                f"the watch never read the pages as they stand: {self.woke}"
+            )
+
+
+def test_the_watch_wakes_the_idle_session_for_a_thread_its_fork_gave_back(
+    claimed, lane, interactive, capsys, monkeypatch
+):
+    """While a fork holds a thread, the main thread's closed turn owes nothing, so the
+    watch that follows it sleeps. As the fork's turn ends with the thread unanswered,
+    the main thread owes its answer, and the watch wakes the session for it, though
+    the page's log hasn't moved."""
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed)
+    started_fork(claimed, "Does the suggest service cache?", "agent-1")
+    context(capsys, "UserPromptSubmit")
+    hooks_model.cmd_hook(
+        "claude-code",
+        {"hook_event_name": "Stop", "session_id": "s1", "prompt_id": "p1"},
+    )
+    assert capsys.readouterr().out == ""
+    watching = Watching(monkeypatch)
+    assert watching.woke == []
+
+    forks_model.ended(
+        "s1",
+        agent="agent-1",
+        turn=None,
+        answer=f"{forks_model.HAND_BACK} the session is changing its startup.",
+        failed=None,
+    )
+    watching.thread.join(STATED_TIMEOUT)
+    assert watching.woke == [session_model.wake_line(claimed, "owed")]
 
 
 def test_the_watch_wakes_the_idle_session_for_a_to_do_its_fork_opened(
@@ -782,7 +769,7 @@ def test_the_watch_wakes_the_idle_session_for_a_to_do_its_fork_opened(
 
     answered = fork_ends(claimed, monkeypatch, asked, "agent-1", asks_back=False)
     assert answered == "answer"
-    watching.read(lambda queued, turns: bool(queued))
+    watching.settle()
     assert watching.woke == []
 
     # The watch reads the pages once the fork's turn has closed, before its line is
@@ -791,7 +778,7 @@ def test_the_watch_wakes_the_idle_session_for_a_to_do_its_fork_opened(
 
     def closed_and_read(*args, **kwargs):
         closed = close(*args, **kwargs)
-        watching.read(lambda queued, turns: not turns)
+        watching.settle()
         return closed
 
     monkeypatch.setattr(forks_model, "close_agent_turns", closed_and_read)

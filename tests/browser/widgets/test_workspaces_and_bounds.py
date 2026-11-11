@@ -1120,6 +1120,105 @@ def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_user_scrolls_back(
     assert page.locator("#feed").evaluate("feed => feed.scrollTop") == 200
 
 
+STREAMED_LOG_PAGE = leaf_page(
+    "A log a stream feeds",
+    '<h1 id="t">Deploy</h1><div id="log" data-bound="end">'
+    + "".join(
+        f'<p>Entry {n}: <a href="#t">shard {n}</a> copied.</p>' for n in range(30)
+    )
+    + "</div>",
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_page_up_in_a_log_a_stream_feeds_leaves_its_end(engine, request, serve):
+    """u pressed in a log following its end pages it up while entries stream in. The
+    press starts a glide whose first frame can leave the box where it stands, and the
+    log's own follower, which read only the box's offset, took the next entry for a
+    reader still at the end, put the log back there and stopped the glide, so the press
+    did nothing: one press in eight in Chromium, four in Firefox. The end keeper every
+    box shares lets a box a glide heads back from go (scrolling.js, `followEnd`). Each
+    trial presses once in the middle of a stream of an entry every 4ms."""
+    page = open_page(
+        request.getfixturevalue(engine), live_url(serve(STREAMED_LOG_PAGE))
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1280, 900)
+    log = page.locator("#log")
+    log.locator("a").last.focus()
+    short_of_end = []
+    for trial in range(6):
+        log.evaluate(
+            "log => log.scrollTo({top: log.scrollHeight, behavior: 'instant'})"
+        )
+        scroll_settled(page, "#log")
+        page.evaluate(
+            """(trial) => { window.lfStream = new Promise((done) => {
+              const log = document.getElementById('log');
+              let n = 0;
+              const tick = () => {
+                log.append(Object.assign(document.createElement('p'),
+                  {textContent: `Streamed ${trial}.${n}`}));
+                if (++n < 60) setTimeout(tick, 4); else done();
+              };
+              tick();
+            }); }""",
+            trial,
+        )
+        page.wait_for_timeout(60)
+        page.keyboard.press("u")
+        page.evaluate("() => window.lfStream")
+        scroll_settled(page, "#log")
+        short_of_end.append(
+            log.evaluate("log => log.scrollHeight - log.clientHeight - log.scrollTop")
+        )
+    assert all(
+        short > log.evaluate("log => log.clientHeight") / 2 for short in short_of_end
+    ), short_of_end
+
+
+def test_a_log_follows_text_it_gains_and_opens_at_its_end_once_drawn(
+    browser, serve, subtests
+):
+    """A `<pre>` log grows by text alone, which resizes no element a size observer
+    reports, and a log mounted under a `display: none` ancestor has no end until it is
+    drawn. The end keeper's first version missed both: the `<pre>` stayed 200px short of
+    its end, and the late log opened at its top."""
+    page = open_page(browser, live_url(serve(FEED_PAGE)))
+    resized(page, 1280, 900)
+    at_end = """(id) => { const log = document.getElementById(id);
+      return log.scrollHeight > log.clientHeight
+        && log.scrollHeight - log.scrollTop - log.clientHeight <= 2; }"""
+    with subtests.test(log="text"):
+        page.evaluate(
+            """() => { const pre = document.createElement('pre');
+              pre.id = 'text-log'; pre.dataset.lfBound = 'end';
+              pre.style.cssText = 'max-block-size: 200px; overflow: auto';
+              pre.textContent = Array.from({length: 60}, (_, i) => `line ${i}`)
+                .join('\\n');
+              document.querySelector('main').append(pre); }"""
+        )
+        page.wait_for_function(at_end, arg="text-log")
+        page.evaluate(
+            """() => { const pre = document.getElementById('text-log');
+              for (let i = 0; i < 10; i++) pre.append(`\\nappended ${i}`); }"""
+        )
+        page.wait_for_function(at_end, arg="text-log")
+    with subtests.test(log="drawn late"):
+        page.evaluate(
+            """() => { const wrap = document.createElement('div');
+              wrap.id = 'undrawn'; wrap.style.display = 'none';
+              wrap.innerHTML = '<div id="late-log" data-lf-bound="end">'
+                + '<p>Entry</p>'.repeat(60) + '</div>';
+              document.querySelector('main').append(wrap); }"""
+        )
+        rendered(page)
+        page.evaluate(
+            "() => { document.getElementById('undrawn').style.display = ''; }"
+        )
+        page.wait_for_function(at_end, arg="late-log")
+
+
 def test_a_declared_inner_scroller_can_be_rebuilt_without_taking_a_nested_bound(
     browser, serve
 ):

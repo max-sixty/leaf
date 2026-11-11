@@ -447,7 +447,7 @@ export function createThreadPreview({
       ? followEnd(
           transcript,
           (before) => session.arriving || Boolean(session.placesEnd?.(before)),
-        )
+        ).stop
       : null;
     if (previewRegionMounted && transcript) {
       // The transcript's width and shown turns when its gutter was last decided.

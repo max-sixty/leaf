@@ -2585,3 +2585,76 @@ def test_an_answer_a_card_followed_says_new_reply_once_its_picture_outgrows_it(
     words = asked.bounding_box()
     assert transcript.bounding_box()["y"] <= head["y"], head
     assert words["y"] + words["height"] <= press.bounding_box()["y"], words
+
+
+def test_an_edit_landing_as_a_card_s_last_turn_grows_shows_at_its_end(browser, serve):
+    """A reader at a card's transcript end sees the agent's edit to the last turn at
+    once, though it lands in the task where the turn grew, here as its picture loaded,
+    before the end keeper read that growth (thread-card.js, `newsMoves`). The card asked
+    the transcript's offset whether its reader followed the end, and the offset, short
+    of the end by the picture, said no: the edit waited behind the card's notice while
+    the keeper took the reader to the end."""
+    page = open_page(browser, serve(LONG_THREAD_PAGE, events=LONG_THREAD))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+    held = []
+    picture = "/media/051bee487bfb5d13.png"
+    page.route(f"**{picture}", lambda route: held.append(route))
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    transcript = preview.locator(".lf-thread-transcript")
+    expect(transcript).to_be_visible()
+    words = f"The capture:\n\n![Capture]({picture})"
+    answer = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": LONG_THREAD_ROOT["id"],
+            "revision": 1,
+            "text": words,
+        },
+    )
+    told(page)
+    holding(page, held, 1, "the answer's picture")
+    rendered(page)
+    past_end = "list => list.scrollHeight - list.clientHeight - list.scrollTop"
+    assert transcript.evaluate(past_end) <= 1
+    # The page's next reading waits for the picture and is taken in the task where it
+    # loads.
+    page.evaluate(
+        """picture => {
+          const image = document.querySelector(`.lf-margin-preview img[src="${picture}"]`);
+          const loaded = new Promise(resolve =>
+            image.addEventListener('load', resolve, {once: true}));
+          const own = Response.prototype.text;
+          Response.prototype.text = async function () {
+            const body = await own.call(this);
+            if (!this.url.includes('/api/state')) return body;
+            Response.prototype.text = own;
+            window.lfReadingHeld = true;
+            await loaded;
+            return body;
+          };
+        }""",
+        picture,
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "agent",
+            "agent": "Claude",
+            "message": answer["id"],
+            "text": f"{words}\n\nOne more thing about the second layer.",
+        },
+    )
+    page.wait_for_function("() => window.lfReadingHeld === true")
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
+    held[0].fulfill(body=pixels, content_type="image/png")
+    told(page)
+    rendered(page)
+    assert preview.locator(".lf-msg", has_text="One more thing").is_visible()
+    assert preview.locator(".lf-thread-news:visible").count() == 0
+    assert transcript.evaluate(past_end) <= 1

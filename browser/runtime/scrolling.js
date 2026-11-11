@@ -481,8 +481,7 @@ export const scrollGoal = (box) =>
 // already stands. A keeper that read that box as following its end would put it back
 // there and stop the glide, and the press would do nothing.
 /** @param {Element} box */
-export const followsEnd = (box) =>
-  atScrollEnd(box) && atScrollEnd(box, scrollGoal(box));
+const followsEnd = (box) => atScrollEnd(box) && atScrollEnd(box, scrollGoal(box));
 // Run `then` once the scroll a key has the browser drive in `box`, as Space's and
 // PageDown's are, has ended, and say whether it waits. A step pressed while others wait
 // on the box joins them, so they run in the order pressed, and none of them runs if Leaf

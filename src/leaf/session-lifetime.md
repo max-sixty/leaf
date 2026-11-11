@@ -224,6 +224,11 @@ tool-boundary and Stop hooks hand into a turn:
   of it (`Harness.fits_hook_context`) and, for Claude Code and Pi, the hook records it
   before its deadline. Otherwise it hands over a pointer the agent confirms with
   `leaf delivery ack`.
+- Under Claude Code, the prompt and tool-boundary hooks also carry the lines Leaf
+  queued for the session's next step in `sessions/<session>.clerk`, and take each off
+  the queue once printed (`clerk.py`). A line that tells the session of work it now
+  owes, such as a to-do a working fork opened, wakes it: the watch wakes for it once
+  the turn has closed, following that file itself since no page's reading stamps it.
 
 `delivery.py` owns receipt: when each harness's hook output counts as read, and how a
 handover the turn never confirmed becomes input again. Session death is neither
@@ -249,7 +254,9 @@ the claimant's harness may offer a nudge, the one way to reach such a session.
 
 Admission sends a nudge when an event is appended to a page whose claimant takes no
 input, once per ending of its turn (`presence.nudge_unwatched`). For a message a fork
-holds, its hand-over nudges in admission's place (`forks.py`). An interrupted turn
+holds, its hand-over nudges in admission's place, and so does a working fork's end for
+what it leaves the session owing, a thread given back or a to-do it opened
+(`forks.py`). An interrupted turn
 runs no hook, so Claude Code also starts the watch as each prompt starts, which waits
 while that turn runs and wakes for what an interrupt leaves (`hooks.cmd_watch`). Where
 no watch holds the lease, the page's server sends for the input an interrupted turn

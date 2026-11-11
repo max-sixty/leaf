@@ -256,8 +256,9 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
 - The fork can message the main thread itself: its SendMessage to `main` arrived as
   an `<agent-message from="…">` and started a turn on the idle main session 60 ms
   later (2026-11-07). The module's `$.session.send` to its own session id fails as
-  "no live session"; Leaf's prototype tells the main thread through the clerk's
-  queued lines instead, which wait for its next tool boundary or prompt.
+  "no live session". Leaf tells the main thread through the clerk's queued lines
+  instead, which wait for its next tool boundary or prompt; a line telling it of a
+  to-do a fork opened wakes an idle session, as a thread a fork gave back does.
 
 ### The design
 
@@ -267,8 +268,11 @@ what the main thread hears when a fork ends, follow-ups and flurries, the main t
 as coordinator, and which parts are built and which planned. The user set its model
 on 2026-11-10 (forks do the questions and small tasks they can, significant work
 becomes a to-do the main thread schedules, and the main thread coordinates), and
-chose the same day that a thread's follow-ups go to the fork that answered it. The
-research above and the steps below stay here.
+chose the same day that a thread's follow-ups go to the fork that answered it. On
+2026-11-11 they chose the clerk's lines over the fork's own SendMessage for telling
+the main thread what a fork did, with Leaf waking an idle session for a to-do a fork
+opened (the guide's "How a fork tells the main thread" says why). The research above
+and the steps below stay here.
 
 Landing steps 1 to 3 on `main` needs a protocol bump: a Leaf at protocol 43 doesn't
 know that a fork's pickup holds the message, and picks the message up again for the
@@ -370,9 +374,9 @@ build's protocol check (`pnpm run check:browser`) fails on this branch with
 
 4. **Sorting, obligations and follow-ups**: the line fork sorts three ways; a
    significant message becomes a to-do on its thread; a fork tells the main thread
-   what it did; a thread's further messages go to the fork that answered it (built);
-   and the shipped instructions say what forks and the main thread each do, scored
-   with `evals/` before and after.
+   what it did, in the clerk's lines (built); a thread's further messages go to the
+   fork that answered it (built); and the shipped instructions say what forks and the
+   main thread each do, scored with `evals/` before and after.
 
    Follow-ups are built, behind the same flag. Where a thread's last answer names a
    fork's turn that has closed in the session's present generation
@@ -391,8 +395,9 @@ build's protocol check (`pnpm run check:browser`) fails on this branch with
    turn Leaf opened (`forks.started`). A thread whose fork's turn still runs keeps its
    further messages with that fork, even after it has answered (`holding.py`). Each resumed run's end wakes an idle
    main thread with Claude Code's notification of it, which the first run's end
-   doesn't (above, "What Claude Code gives the module"); Leaf leaves that notification
-   as it is while how a fork tells the main thread what it did is open.
+   doesn't (above, "What Claude Code gives the module"). Leaf leaves that
+   notification as it is, so an idle main thread wakes at every resumed run's end,
+   whatever the run leaves it owing.
 
    On 2026-11-10 the journey's `fork-resume` step, run twice on a host at load 3 to
    7, sent a further question to a thread whose fork had answered it and ended. The

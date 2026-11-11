@@ -41,7 +41,12 @@ with no moment in which neither has them. The fork's `leaf` commands act in its 
 closes the turn and judges each thread by what the turn picked up and wrote. The main
 session hears as a fork takes a thread and as its run ends (`clerk.queue`), since
 Claude Code tells it nothing of a fork a module made, and it can steer or stop the
-fork by the name Leaf gives it.
+fork by the name Leaf gives it. The user chose these lines on 2026-11-11 over the
+fork's own SendMessage to the main thread, which would wake it for every answer
+(`docs/forks.html`, "How a fork tells the main thread"). A line waits for the
+session's next tool boundary or prompt, and Leaf wakes an idle session only for what
+a fork's end leaves it owing: a thread given back, whose answer is owed again, and a
+to-do the fork opened, whose line wakes it (`ended`).
 
 The user chose on 2026-11-10 that one fork works a thread. While a fork's turn runs,
 its thread's further messages are its own, and Leaf keeps none back for another

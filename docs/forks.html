@@ -160,7 +160,8 @@
             <dt id="term-clerk">Clerk's line</dt>
             <dd>
               A line Leaf queues for the main thread, which it reads at its next tool
-              boundary or prompt.
+              boundary or prompt. A line telling it of a to-do a fork opened wakes an
+              idle session.
             </dd>
             <dt id="term-to-do">To-do</dt>
             <dd>
@@ -708,7 +709,8 @@ flowchart TD
                 </td>
                 <td>
                   That the fork answered and opened the to-do, named with its text,
-                  which the main thread now owes and schedules.
+                  which the main thread now owes and schedules. If the session is idle,
+                  Leaf wakes it.
                 </td>
               </tr>
               <tr id="ending-hand-back">
@@ -720,7 +722,7 @@ flowchart TD
                 </td>
                 <td>
                   That the fork gave the thread back, and why; the main thread now owes
-                  its answer. If no watch runs for the session, Leaf wakes it.
+                  its answer. If the session is idle, Leaf wakes it.
                 </td>
               </tr>
               <tr id="ending-taken-over">
@@ -743,43 +745,34 @@ flowchart TD
               ends. So Leaf tells it, in lines its clerk queues: one as a fork takes a
               thread, naming the fork so the main thread can SendMessage it, and one as
               the fork's run ends. A line waits for the main thread's next tool boundary
-              or prompt, and Leaf wakes an idle session only for a thread given back.
-              The end of a resumed run is different: Claude Code notifies the main
-              thread of it, which starts a turn on an idle session, and that turn reads
-              the queued lines.
+              or prompt. Where the run leaves the main thread owing something, the
+              answer to a thread the fork gave back or a to-do the fork opened, Leaf
+              also wakes an idle session for it. The end of a resumed run is different:
+              Claude Code notifies the main thread of it, which starts a turn on an idle
+              session, and that turn reads the queued lines.
               <span class="tag ok">built</span>
               <span class="tag">only with the flag</span>
             </p>
-            <div class="callout warn" id="telling-question">
-              <strong
-                >Open question: the clerk's line, or the fork's own SendMessage</strong
-              >
-              <p>
-                The alternative to the clerk's line is the fork's own SendMessage to
-                <code>main</code>. In a probe it arrived as an agent message and started
-                a turn on an idle main session 60 ms later. It would wake an idle
-                session at once, name the fork as its sender, and could say what the
-                fork did beyond the outcomes above, so the main thread neither redoes
-                nor contradicts it. Leaf writes the clerk's line from the log, so it
-                also covers a fork that failed or was stopped before it could write.
-              </p>
-              <p>
-                Claude Code offers no third way: a hooks module can start a fork only
-                with <code>$.agent.spawn</code>, whose first run never notifies the main
-                thread, since the module's call to the Agent tool is refused (2.1.322).
-                A resumed run's notification wakes an idle main thread whichever way is
-                chosen. In two live runs that woken turn took 23 s and 28 s over 4 and 5
-                model requests, and checked the forks' answers.
-              </p>
-              <p>
-                Recommended, and not yet decided: the clerk's line, with Leaf also
-                waking an idle session for a to-do a fork opened, since the main thread
-                then owes work. That wakes the main thread only when it owes something,
-                and works the same for a first run and a resumed one. A fork's
-                SendMessage would add a second report to a resumed run's notification,
-                and wake the main thread for every answer.
-              </p>
-            </div>
+            <p id="telling-decided">
+              The user chose the clerk's line on 2026-11-11, over the fork's own
+              SendMessage to <code>main</code>. Leaf writes the line from the log, so it
+              also covers a fork that failed or was stopped before it could write, and
+              it wakes the main thread only when the main thread owes something, after a
+              first run and a resumed one alike. A fork's SendMessage would name the
+              fork as its sender and could say what the fork did beyond the outcomes
+              above, but it would wake the main thread for every answer, and add a
+              second report to a resumed run's notification.
+            </p>
+            <p id="telling-probes">
+              In a probe, a fork's SendMessage arrived as an agent message and started a
+              turn on an idle main session 60 ms later. Claude Code offers no third way:
+              a hooks module can start a fork only with <code>$.agent.spawn</code>,
+              whose first run never notifies the main thread, since the module's call to
+              the Agent tool is refused (2.1.322). A resumed run's notification wakes an
+              idle main thread whichever way tells it; in two live runs that woken turn
+              took 23 s and 28 s over 4 and 5 model requests, and checked the forks'
+              answers.
+            </p>
           </section>
         </section>
 
@@ -938,8 +931,8 @@ flowchart TD
               to act on now: an answer to a question the main thread asked, steering its
               current work, or a question it is weighing. The to-do is the session's and
               stays open after the fork's turn ends, while the fork's start on it stops
-              counting with the turn. The main thread hears that the fork opened it (the
-              <code>todo</code> outcome above).
+              counting with the turn. The main thread hears that the fork opened it, and
+              an idle session is woken for it (the <code>todo</code> outcome above).
             </p>
             <p id="obligations-significant">
               <span class="tag">planned</span>
@@ -1020,14 +1013,6 @@ flowchart TD
                 </th>
                 <td><small class="tag">planned</small></td>
               </tr>
-              <tr id="status-telling">
-                <th scope="row">
-                  <a href="#telling-question"
-                    >The fork's own SendMessage in place of the clerk's line</a
-                  >
-                </th>
-                <td><small class="tag warn">open question</small></td>
-              </tr>
               <tr id="status-standing">
                 <th scope="row">
                   <a href="#follow-up-standing">One standing fork per session</a>
@@ -1075,6 +1060,15 @@ flowchart TD
               >: its header holds the states a thread moves through and why the line
               fork runs as it does; <code>_take</code> and <code>ended</code> hold the
               rules this page names for a working fork's take and end.
+            </li>
+            <li id="source-clerk">
+              <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/clerk.py"
+                ><code>src/leaf/clerk.py</code></a
+              >: <code>queue</code> and <code>waking</code>, the clerk's lines and which
+              of them wake an idle session; and
+              <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/session.py"
+                ><code>src/leaf/session.py</code></a
+              >: <code>watch_between_turns</code>, what the watch wakes the session for.
             </li>
             <li id="source-state">
               <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/state.py"

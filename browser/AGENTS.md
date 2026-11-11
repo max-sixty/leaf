@@ -437,9 +437,11 @@ controls as they reach the page's own; the chrome keeps unlayered page rules up 
 class's weight off itself (`styles/chrome-guard.css`), and a package restyles it on
 purpose by part from its `chrome.css` (`chrome_restyle` in `layer.py`).
 
-A `:has()` rule can turn a local write into a restyle of the whole page or chrome. An
-unkeyed rightmost compound widens what it invalidates, and a condition on the chrome
-root, `body` or `html` is re-evaluated on writes below it. Prefer a class that names the
+A `:has()` rule can turn a local write into a restyle of the whole page or chrome. One
+rule anywhere whose subject after a `:has()` names no element can make every focus move
+restyle the page (`test_a_has_leads_only_to_a_subject_naming_an_element` says which
+subjects name one), and a condition on the chrome root, `body` or `html` is
+re-evaluated on writes below it. Prefer a class that names the
 targets, or a condition its owner sets on the styled element, and measure with
 `leaf-dev bench --read paint --profile`.
 
@@ -452,7 +454,7 @@ whole restyle, so put one that most elements fail ahead of the exact question, a
 `table:has(th[scope="row"]:first-child):has(> * > tr > th[scope="row"]:first-child)`
 does, or qualify the compound with a class that rejects most elements. An `@scope`
 rooted on the compound also answers once, but its root needs a class, id or
-attribute (`test_an_untyped_has_leads_only_to_a_typed_subject`), and it reaches
+attribute (`test_a_has_leads_only_to_a_subject_naming_an_element`), and it reaches
 only the root's subtree, never its later siblings.
 
 A `:has()` naming `:focus` or `:focus-visible` makes every focus move, on every page,

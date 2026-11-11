@@ -1376,6 +1376,9 @@
       ...readings,
     ]);
     beganAt.set(replacement, beganAt.get(cancelled));
+    // A replayed effect that an earlier one had continued begins a motion of its own,
+    // so that link no longer leads anywhere (and would loop `continued`).
+    continuations.delete(replacement);
     continuations.set(cancelled, replacement);
     for (const rendering of renderings)
       if (rendering.own.has(cancelled)) rendering.own.add(replacement);

@@ -28,6 +28,7 @@
 // terminal's band last drawn; what a press copies prints as `{"copied": <text>}`,
 // and a toast as `{"toast": <text>}`.
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import * as path from "node:path";
 import * as readline from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -135,6 +136,12 @@ const $ = {
   },
   env: {
     get: async (name) => options.env?.[name],
+  },
+  fs: {
+    read: async (file, { as } = {}) =>
+      as === "bytes"
+        ? { base64: readFileSync(file).toString("base64") }
+        : readFileSync(file, "utf8"),
   },
   clock: {
     now: async () => Date.now(),
@@ -251,11 +258,22 @@ function drawn(key, node = band.terminal) {
 // The events whose hooks stream, as Claude Code's declarations name them.
 const STREAMING = new Set(["turn.step"]);
 
-// The driver raises each event it is given, so a matcher selects nothing here but
-// a render hook's component, under which it files the hook: `ui.render:<component>`.
+// The driver files a render hook under its component, `ui.render:<component>`, and
+// runs any other hook whose matcher, if it has one, matches the event's input as
+// Claude Code matches it: each named field equal to its value, or matching its
+// pattern.
+const matches = (matcher, e) =>
+  Object.entries(matcher).every(([field, value]) =>
+    value instanceof RegExp ? value.test(e[field] ?? "") : e[field] === value,
+  );
 await register((event, ...rest) => {
   const key = event === "ui.render" ? `${event}:${rest[0].component}` : event;
-  hooks.set(key, [...(hooks.get(key) ?? []), rest.at(-1)]);
+  const hook = rest.at(-1);
+  const matcher = event !== "ui.render" && rest.length > 1 ? rest[0] : undefined;
+  const filed = matcher
+    ? ($, e, next) => (matches(matcher, e) ? hook($, e, next) : next(e))
+    : hook;
+  hooks.set(key, [...(hooks.get(key) ?? []), filed]);
 });
 print({ pid: process.pid });
 

@@ -388,14 +388,17 @@ FORK_USAGE = {
 
 
 def main_thread_request(driven) -> None:
-    """The main thread's request and the rows it stored, which a fork resends, with a
-    subagent's after them, which it doesn't."""
+    """The main thread's request and the rows it stored, which a fork resends: the
+    model's reply and a tool's result, by Claude Code's doors for them. A subagent's
+    row after them, and hook context and a queue record, which are no rows the model
+    reads in the transcript, don't move the cut."""
     row = {
         "message": {"type": "assistant", "role": "assistant", "content": []},
         "door": "response",
         "origin": {"kind": "model", "model": "claude-opus-5-5"},
     }
-    driven.emit("session.append", {**row, "uuid": "r1"})
+    driven.emit("session.append", {**row, "uuid": "r0"})
+    driven.emit("session.append", {**row, "uuid": "r1", "door": "tool-result"})
     step = {"turnId": "t1", "index": 0, "model": "claude-opus-5-5", "effort": "xhigh"}
     driven.emit("turn.step", {**step, "messageCount": 12})
     driven.emit("session.append", {**row, "uuid": "r2"})
@@ -404,6 +407,8 @@ def main_thread_request(driven) -> None:
         {**step, "model": "claude-haiku-5-5", "messageCount": 3, "agentId": "a1"},
     )
     driven.emit("session.append", {**row, "uuid": "r3", "agentId": "a1"})
+    driven.emit("session.append", {**row, "uuid": "r4", "door": "hook-context"})
+    driven.emit("session.append", {**row, "uuid": "r5", "door": "queue"})
 
 
 def test_a_turn_end_forks_the_conversation_for_the_clerk(

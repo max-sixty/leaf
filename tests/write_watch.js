@@ -519,7 +519,7 @@
       );
   // Scroll writes that move nothing on purpose, as `EXPECTED` lists DOM writes:
   // CodeMirror's measure puts back the scroll its height map anchors, which the browser
-  // clamps at the editor's end, and `setScroll` stops a scroll the browser or a glide
+  // clamps at the editor's end, and a landing or a glide stops a scroll the browser
   // drives, which this watch can't see (arrivals.js, `stopWhereItStands`).
   const EXPECTED_SCROLLS = [
     (by) => by[0].includes("vendor/codemirror."),

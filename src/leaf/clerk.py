@@ -105,7 +105,10 @@ question nor any way to ask it again, opened a second thread on the same subject
 The user asked why Leaf hadn't reopened the first and continued there, so the fork
 now asks a question again as the agent would, under its id in its thread, rather
 than asking a second one beside it. A new question on an old subject still opens a
-thread of its own.
+thread of its own. The title check above stays: replayed with this question on
+2026-11-11, the real turn ends where it had fired found the fork asking again, in a
+new thread under the same title, a question the agent had withdrawn as already asked
+on the page, in 4 of 4 runs.
 
 A first version wrote every ask as a to-do on the user on the page, titled from the
 chat line, and `m` left a long title cut to half a line in the panel (2026-10-31).

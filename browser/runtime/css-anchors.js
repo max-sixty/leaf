@@ -97,18 +97,18 @@ import { chromeRoot } from "./chrome.js";
 // watch gives it back in the same mutation checkpoint (`keepParts`).
 /** @type {WeakMap<Element, string>} */
 const anchorNames = new WeakMap();
-// Each name back to the box whose scrolls carry what is anchored by it (`anchorHolder`),
-// forgotten once that box is collected, so the map holds only boxes still alive.
-/** @type {Map<string, WeakRef<Element>>} */
-const holders = new Map();
+// Each name back to the anchor Leaf gave it, forgotten once that anchor is collected, so
+// the map holds only anchors still alive.
+/** @type {Map<string, WeakRef<Anchor>>} */
+const named = new Map();
 const collected = new FinalizationRegistry((/** @type {string} */ name) => {
-  if (!holders.get(name)?.deref()) holders.delete(name);
+  if (!named.get(name)?.deref()) named.delete(name);
 });
-/** @param {string} name @param {Element} holder */
-const holdName = (name, holder) => {
-  if (holders.get(name)?.deref() === holder) return;
-  holders.set(name, new WeakRef(holder));
-  collected.register(holder, name);
+/** @param {string} name @param {Anchor} anchor */
+const holdName = (name, anchor) => {
+  if (named.get(name)?.deref() === anchor) return;
+  named.set(name, new WeakRef(anchor));
+  collected.register(anchor, name);
 };
 let anchorOrdinal = 0;
 const nextName = () => `--lf-a${++anchorOrdinal}`;
@@ -383,7 +383,7 @@ function contentStart(scroller) {
       },
     };
     starts.set(scroller, handle);
-    holdName(handle.name, scroller);
+    holdName(handle.name, handle);
   }
   const { name } = handle;
   if (scroller.getRootNode() === document) keeps(scroller, START, name);
@@ -396,12 +396,12 @@ function contentStart(scroller) {
 /** @param {Anchor} anchor */
 export const anchorHolder = (anchor) => (isElement(anchor) ? anchor : anchor.scroller);
 
-// The box whose scrolls carry a box Leaf anchored by `name` (`anchorHolder`), while it
-// stands in the document; null for a name Leaf didn't give.
-/** @param {string} name */
-export const anchorHolderNamed = (name) => {
-  const holder = holders.get(name)?.deref();
-  return holder?.isConnected ? holder : null;
+// The anchor Leaf gave `name`, while it stands in the document; null for a name Leaf
+// didn't give.
+/** @param {string} name @returns {Anchor | null} */
+export const anchorNamed = (name) => {
+  const anchor = named.get(name)?.deref();
+  return anchor && anchorHolder(anchor).isConnected ? anchor : null;
 };
 
 // The name `el` answers to as an anchor, given it first where it has none.

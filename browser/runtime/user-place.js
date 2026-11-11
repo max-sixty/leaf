@@ -77,8 +77,8 @@ import {
 } from "./geometry.js";
 import { pageScroller, placeKept, scrollChoices, scrollGoal } from "./scrolling.js";
 import { edgeAt, holderOf, returnTo, scrollersOf } from "./scroll-containers.js";
-import { anchorHolderNamed } from "./css-anchors.js";
-import { inChrome, renderedParent, under } from "./shadow-tree.js";
+import { anchorNamed } from "./css-anchors.js";
+import { inChrome, isElement, renderedParent, under } from "./shadow-tree.js";
 import {
   declareFocusPlace,
   focused,
@@ -112,9 +112,10 @@ const boxStoodAt = (node) => {
 
 // The boxes whose scroll moves `node`, innermost first. The walk up through the boxes
 // scrolling it stops at a box fixed in the window (`scrollersOf`), but a fixed box
-// anchored to an element, as the thread card, the comment box and the margin's rows
-// are (css-anchors.js), rides every scroll that carries that element, so the walk goes
-// on from there.
+// anchored by Leaf, as the thread card, the comment box and the margin's rows are
+// (css-anchors.js), rides every scroll that carries its anchor, so the walk goes on
+// from there. A scroller's own scroll carries the start of its content, but not the
+// scroller's own box, which a box in a reading region is anchored to.
 /** @param {Element} node @returns {Element[]} */
 const carriers = (node) => {
   const boxes = [...scrollersOf(node)];
@@ -124,9 +125,14 @@ const carriers = (node) => {
   while (fixed instanceof Element && !fixedInWindow(fixed))
     fixed = renderedParent(fixed);
   const anchor =
-    fixed instanceof Element &&
-    anchorHolderNamed(getComputedStyle(fixed).positionAnchor);
-  return anchor ? [...boxes, ...carriers(anchor)] : boxes;
+    fixed instanceof Element && anchorNamed(getComputedStyle(fixed).positionAnchor);
+  if (!anchor) return boxes;
+  return [
+    ...boxes,
+    ...(isElement(anchor)
+      ? carriers(anchor).filter((box) => box !== anchor)
+      : carriers(anchor.scroller)),
+  ];
 };
 
 // The focused node while it is where the user is: while any of it, or the box it stands

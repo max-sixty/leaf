@@ -203,17 +203,18 @@
  * Every change of the box's layout takes effect in one step, and what the user sees
  * then travels from where it was drawn to where it stands, by one model
  * (box-motion.js): the surface behind the box, a separate layer, follows by a
- * clip, the way the Codex app's floating panel moves, and so does the field's ring; a
- * part that kept its size is carried by a transform; one that changed size grows from
- * where it stood, carrying its words by their start corner; one that is new is revealed
- * by the edges of what holds it. That carrying is for the user's own change, a key,
- * press or typing: news, such as an answer growing a thread's view, shows what it moved
- * where it now stands, revealed by the surface's clip, so news moves nothing the reader
- * reads. Nothing's layout tweens, so the box's room on the page is its new room at
- * once. The user asked for this on 20 October, after a line the field gained left its
- * attachment vanishing and its ring outrunning the box, and more room left the field
- * behind the box widening around it; it replaced revealing everything a change moved
- * by the surface's clip, which hid each part that moved until the clip reached it. */
+ * clip, the way the Codex app's floating panel moves, and so does the caret's ring,
+ * round the box or the field; a part that kept its size is carried by a transform; one
+ * that changed size grows from where it stood, carrying its words by their start
+ * corner; one that is new is revealed by the edges of what holds it. That carrying is
+ * for the user's own change, a key, press or typing: news, such as an answer growing a
+ * thread's view, shows what it moved where it now stands, revealed by the surface's
+ * clip, so news moves nothing the reader reads. Nothing's layout tweens, so the box's
+ * room on the page is its new room at once. The user asked for this on 20 October,
+ * after a line the field gained left its attachment vanishing and its ring outrunning
+ * the box, and more room left the field behind the box widening around it; it replaced
+ * revealing everything a change moved by the surface's clip, which hid each part that
+ * moved until the clip reached it. */
 import {
   html,
   noChange,
@@ -1899,7 +1900,7 @@ export function createFloatingPanel({
   // The box's layout changes in one step, whatever changed it: a view opening, a field
   // growing a line, more room, folding to the leaf. Everything the user sees then moves
   // from where it was drawn to where it stands, by one model (box-motion.js): the
-  // surface draws the box's outline, and the field's ring while it moves; a part that
+  // surface draws the box's outline, and the caret's ring while it moves; a part that
   // kept its size is carried; one that changed size grows from where it stood; one that
   // is new is revealed by the edges of what holds it. The first reading, and any under
   // reduced motion, is taken as it is.

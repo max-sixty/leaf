@@ -396,9 +396,25 @@
     margin: 0;
     box-shadow: none;
   }
-  /* The caret in the field wears the ring an anchored comment box wears (response.css),
-     so a key that moves it there, `c` among them, shows where the words will go. */
-  .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus-visible]) {
+  /* The caret in the field shows where the words will go, as an anchored comment box's
+     ring does (response.css), so a key that moves it there, `c` among them, shows it
+     too. The ring goes round the smallest box holding only what the user is writing:
+     the whole panel while no view stands over the row, when the panel holds the leaf,
+     the field and Send alone, so the panel reads as one comment box with one contour,
+     as the anchored one does; and the field while a view's messages share the panel,
+     where a ring round the panel would mark the messages too. The field's own ring,
+     inside the panel's hairline, read as a part of a toolbar at the window's foot
+     beside the anchored box, though it stood larger than that box. The box wearing the
+     ring declares it (`--lf-wears-ring`, focus.js `ringBox`), and box-motion.js draws a
+     ring the card wears as the card moves. */
+  .lf-floating-panel:not([data-lf-open])
+    .lf-fp-card:has(.lf-fp-field .lf-compose-field > leaf-text[data-lf-focus-visible]) {
+    outline: var(--focus-ring);
+    --lf-wears-ring: 1;
+  }
+  .lf-floating-panel[data-lf-open]
+    .lf-fp-field
+    .lf-compose-field:has(> leaf-text[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     border-radius: var(--r);
     --lf-wears-ring: 1;

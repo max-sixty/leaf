@@ -97,6 +97,9 @@ import { chromeRoot } from "./chrome.js";
 // watch gives it back in the same mutation checkpoint (`keepParts`).
 /** @type {WeakMap<Element, string>} */
 const anchorNames = new WeakMap();
+// Each name back to the box whose scrolls carry what is anchored by it (`anchorHolder`).
+/** @type {Map<string, WeakRef<Element>>} */
+const holders = new Map();
 let anchorOrdinal = 0;
 const nextName = () => `--lf-a${++anchorOrdinal}`;
 /** @param {string} name */
@@ -153,6 +156,7 @@ export function anchorReading(el, name) {
   if (!isElement(el)) return { name: el.name };
   name ??= anchorNames.get(el) ?? nextName();
   anchorNames.set(el, name);
+  holders.set(name, new WeakRef(el));
   if (el.getRootNode() !== document)
     return partNamed(el) ? { el, name } : { el, name, write: name, part: true };
   const written = inlineStyle(el).anchorName;
@@ -369,6 +373,7 @@ function contentStart(scroller) {
       },
     };
     starts.set(scroller, handle);
+    holders.set(handle.name, new WeakRef(scroller));
   }
   const { name } = handle;
   if (scroller.getRootNode() === document) keeps(scroller, START, name);
@@ -380,6 +385,14 @@ function contentStart(scroller) {
 // own scroll carries it too, or the anchor itself.
 /** @param {Anchor} anchor */
 export const anchorHolder = (anchor) => (isElement(anchor) ? anchor : anchor.scroller);
+
+// The box whose scrolls carry a box Leaf anchored by `name` (`anchorHolder`), while it
+// stands in the document; null for a name Leaf didn't give.
+/** @param {string} name */
+export const anchorHolderNamed = (name) => {
+  const holder = holders.get(name)?.deref();
+  return holder?.isConnected ? holder : null;
+};
 
 // The name `el` answers to as an anchor, given it first where it has none.
 /** @param {Anchor} el */

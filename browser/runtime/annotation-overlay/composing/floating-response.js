@@ -636,10 +636,6 @@ export function createFloatingResponsePlacement({
     declareOffFlowSurface(fabBar, {
       floats: () => Boolean(response.anchor && response.floating),
       away: () => fabWithheld,
-      standsBy: () => {
-        const target = response.target ?? anchorGeometry(response.anchor)?.contextNode;
-        return target instanceof Element ? target : (target?.parentElement ?? null);
-      },
       bringBack: /** @param {ScrollBehavior} behavior */ (behavior) => {
         const found = response.resolved;
         const anchor = response.anchor;

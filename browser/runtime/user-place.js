@@ -67,6 +67,7 @@
    same (reading-place.js, `capturePlace`; version.js). */
 import {
   clippedPlace,
+  fixedInWindow,
   inFront,
   layoutWindow,
   seenRect,
@@ -76,6 +77,7 @@ import {
 } from "./geometry.js";
 import { pageScroller, placeKept, scrollChoices, scrollGoal } from "./scrolling.js";
 import { edgeAt, holderOf, returnTo, scrollersOf } from "./scroll-containers.js";
+import { anchorHolderNamed } from "./css-anchors.js";
 import { inChrome, renderedParent, under } from "./shadow-tree.js";
 import {
   declareFocusPlace,
@@ -108,23 +110,23 @@ const boxStoodAt = (node) => {
   return null;
 };
 
-// What each surface fixed over the page stands by while it floats (off-flow.js): every
-// scroll that moves that moves the surface, as the browser carries a box anchored to it,
-// though the walk up from the surface stops at its fixed box (`scrollersOf`).
-/** @type {Map<Element, () => Element | null>} */
-const stands = new Map();
-/** @param {Element} surface @param {() => Element | null} by */
-export function surfaceStandsBy(surface, by) {
-  stands.set(surface, by);
-}
-// The boxes whose scroll moves `node`, those of what its surface stands by included.
-/** @param {Element} node */
+// The boxes whose scroll moves `node`, innermost first. The walk up through the boxes
+// scrolling it stops at a box fixed in the window (`scrollersOf`), but a fixed box
+// anchored to an element, as the thread card, the comment box and the margin's rows
+// are (css-anchors.js), rides every scroll that carries that element, so the walk goes
+// on from there.
+/** @param {Element} node @returns {Element[]} */
 const carriers = (node) => {
-  for (const [surface, by] of stands) {
-    const stand = under(node, surface) && by();
-    if (stand) return [...scrollersOf(stand)];
-  }
-  return [...scrollersOf(node)];
+  const boxes = [...scrollersOf(node)];
+  /** @type {Node | null} */
+  let fixed = boxes.at(-1) ?? node;
+  if (fixed === pageScroller) return boxes;
+  while (fixed instanceof Element && !fixedInWindow(fixed))
+    fixed = renderedParent(fixed);
+  const anchor =
+    fixed instanceof Element &&
+    anchorHolderNamed(getComputedStyle(fixed).positionAnchor);
+  return anchor ? [...boxes, ...carriers(anchor)] : boxes;
 };
 
 // The focused node while it is where the user is: while any of it, or the box it stands

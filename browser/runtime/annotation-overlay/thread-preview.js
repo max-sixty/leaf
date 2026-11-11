@@ -1337,11 +1337,13 @@ export function createThreadPreview({
         if (!field?.value) scheduleThreadPreviewPosition();
       }
     });
-    const standsBy = () =>
-      entryPlace(previewSession?.entry) ?? previewSession?.control ?? null;
     declareOffFlowSurface(preview, {
-      standsBy,
-      bringBack: (behavior) => scrollToElement(standsBy(), behavior, "nearest"),
+      bringBack: (behavior) =>
+        scrollToElement(
+          entryPlace(previewSession?.entry) ?? previewSession?.control ?? null,
+          behavior,
+          "nearest",
+        ),
     });
     move(chromeRoot, preview, chromeForeground);
     previewRegionMounted = true;

@@ -12,7 +12,7 @@
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
-      /* The Layout tab's drawings are the theme's svg.drawing idiom. A figure of several
+      /* The panel's drawings are the theme's svg.drawing idiom. A figure of several
          panels sets them side by side and stacks them on a narrow window, so no panel's
          words shrink past reading. */
       .panels {
@@ -21,36 +21,22 @@
         gap: 24px;
         margin-block: 8px 28px;
       }
-      .panels.two {
-        --panels: 2;
-      }
-      .panels figure,
-      figure.fig {
+      .panels figure {
         margin: 0;
       }
-      .panels figcaption,
-      figure.fig figcaption {
+      .panels figcaption {
         font: 14px/1.45 var(--sans);
         color: var(--muted);
         margin-top: 10px;
       }
-      .panels figcaption strong,
-      figure.fig figcaption strong {
+      .panels figcaption strong {
         color: var(--ink);
         display: block;
         font-size: 15px;
         margin-bottom: 2px;
       }
-      figure.fig svg {
-        max-width: 480px;
-        margin-inline: auto;
-      }
-      figure.fig.small svg {
-        max-width: 360px;
-      }
       /* Marks particular to these drawings, on the same tokens as the theme's
-         svg.drawing idiom: the rail, a surface drawn over the page, an
-         attribute's outline, a split that lands somewhere new, and a scroll thumb. */
+         svg.drawing idiom: the rail and a surface drawn over the page. */
       svg.drawing .rail {
         fill: var(--accent-tint);
       }
@@ -61,21 +47,6 @@
         stroke-width: 1.5;
         stroke-dasharray: 5 4;
       }
-      svg.drawing .attr {
-        fill: none;
-        stroke: var(--ok);
-        stroke-width: 1.5;
-        stroke-dasharray: 2 3;
-      }
-      svg.drawing .split {
-        stroke: var(--danger);
-        stroke-width: 1.2;
-        stroke-dasharray: 4 3;
-      }
-      svg.drawing .thumb {
-        fill: var(--muted);
-        opacity: 0.6;
-      }
 
       @media (max-width: 760px) {
         .panels {
@@ -85,22 +56,6 @@
           max-width: 360px;
           margin-inline: auto;
         }
-      }
-
-      /* The Data tab's survival table: a mark per cell, centred under its column. */
-      #data-survives-table :is(th, td):not(:first-child) {
-        text-align: center;
-      }
-      #data-survives-table .kept {
-        color: var(--ok);
-      }
-      #data-survives-table .lost {
-        color: var(--muted);
-      }
-
-      /* A flag keeps its spelling on one line. */
-      #anchors-agent code {
-        white-space: nowrap;
       }
     </style>
   </head>
@@ -116,10 +71,10 @@
           doing, by keyboard, pointer or touch.
         </p>
         <p id="using-scope">
-          This guide is for the person working on a page: the panel, threads, what waits
-          on them and the keys. <a href="/pages/">Pages</a> is for the page's author,
-          and <a href="/how-it-works/">How it works</a> explains the mechanism behind
-          both. Leaf is experimental software.
+          This guide is for the person working on a page: the floating panel, threads,
+          On Me, and the keys and touch routes. <a href="/pages/">Pages</a> is for the
+          page's author, and <a href="/how-it-works/">How it works</a> explains the
+          mechanism behind both. Leaf is experimental software.
           <a href="https://github.com/max-sixty/leaf/blob/main/notes/browser-support.md"
             >Browser support gaps</a
           >
@@ -135,7 +90,7 @@
               <ul>
                 <li><a href="#chrome">Panel, rail and thread cards</a></li>
                 <li><a href="#panel-line">What the panel's line says</a></li>
-                <li><a href="#progress-on-lists">On Me and the agent’s list</a></li>
+                <li><a href="#on-me">On Me</a></li>
                 <li><a href="#updates-notices">Notices</a></li>
               </ul>
             </nav>
@@ -158,9 +113,9 @@
               The On view shows one list at a time, under a tab named for its actor,
               with completed items under Done, and a Threads tab listing the open
               threads under Open, then the resolved ones under Resolved.
-              <a href="#progress-on-lists">On Me and the agent’s list</a>
-              defines their membership. Opening a view preserves the page’s text
-              wrapping and reading position.
+              <a href="#on-me">On Me</a>, below, says what the lists hold and how an
+              item is answered. Opening a view preserves the page’s text wrapping and
+              reading position.
             </p>
             <p id="chrome-bars">
               The page reserves space at the bottom for the panel's row, so the last
@@ -174,11 +129,10 @@
               The <em>rail</em> is the strip to the right of <code>main</code> where
               Leaf places comment and decision markers. It appears when the window has
               enough space: about 960px on a column page or about 1920px on a sidebar
-              page. <code>data-rail="right"</code> keeps it visible above 640px, except
-              on a workspace, whose panes scroll on their own. Where no rail fits, and
-              inside a scrolling pane, a small pin appears beside the target on the
-              page. Leaf places it clear of text and controls when space permits. The
-              <kbd>o</kbd> shortcut hides pins and passage highlights.
+              page. Where no rail fits, and inside a scrolling pane, a small pin appears
+              beside the target on the page. Leaf places it clear of text and controls
+              when space permits. The <kbd>o</kbd> shortcut hides pins and passage
+              highlights.
             </p>
             <p id="chrome-surfaces-what">
               A thread card opens beside its marker in the margin. If the margin is
@@ -437,69 +391,24 @@
               the leaf.
             </p>
           </section>
-          <section id="progress-on-lists" class="layout-flow">
-            <h2>On Me and the agent’s list</h2>
-            <p id="progress-lists-meaning">
-              The On view gathers outstanding work across the page, using the
-              <a href="/how-it-works/#ontology-relations"
-                >obligations, to-dos and workflows</a
-              >
-              defined in How it works. A status sentence alone creates no obligation.
+          <section id="on-me" class="layout-flow">
+            <h2>On Me</h2>
+            <p id="on-me-what">
+              The On Me mark at the end of the panel's row counts what waits on the
+              user: each choice a widget asks them to make, each question the agent asks
+              them in a thread, and each update of theirs that failed to send. Pressing
+              the mark opens the list;
+              <kbd>m</kbd> walks the items in page order, landing on each where it is
+              answered.
             </p>
-            <table id="progress-list-members">
-              <thead>
-                <tr>
-                  <th>List</th>
-                  <th>What belongs there</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>On Me</td>
-                  <td>
-                    Open obligations: each widget that asks, on the page or in a thread
-                    message; each agent message sent with <code>--obligation</code>; and
-                    each update the user needs to send again.
-                  </td>
-                </tr>
-                <tr>
-                  <td>On Claude (or the attached agent’s name)</td>
-                  <td>
-                    Updates still owed a reply or a stamped revision, and open agent
-                    to-dos.
-                  </td>
-                </tr>
-                <tr>
-                  <td>Done</td>
-                  <td>
-                    Each list’s finished records: answered or withdrawn obligations and
-                    ended to-dos. User decisions appear under On Me; answered
-                    conversations under the agent’s list. A decision recorded in a
-                    revision finishes the widget’s record, without a duplicate update in
-                    Done.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <p id="progress-lists-answer">
-              On the page, an item On Me is answered only in the widget or thread that
-              asks it, and Leaf adds no control of its own to end one. A widget’s
-              obligation is answered by the actions its
-              <code>x-awaits</code> declaration names, such as a pick, or the Done a
-              multi-select choice offers as its own control. A question in a thread is
-              answered by the user’s reply there or a settling reaction, such as 👍. The
-              agent ends its to-dos with <code>leaf task end</code>, and records the
-              same way an answer the user gave elsewhere, such as in chat. Done history
-              records the outcome, including withdrawn obligations and failed or dropped
-              to-dos.
-            </p>
-
-            <p id="progress-lists-thread">
-              A thread’s attention identifies which side it awaits, using its updates,
-              questions, and to-dos. The page-wide lists collect that work across
-              threads and widgets. While a thread about a decision awaits the agent, its
-              unanswered update represents the work on the agent’s list; the decision
-              returns to On Me when it needs the user again.
+            <p id="on-me-answer">
+              The user answers an item where it asks: with the widget's own pick, or
+              with a reply or a settling reaction, such as 👍, in its thread. Leaf adds
+              no control of its own to end one. The tab named for the agent holds what
+              it still owes: replies to the user's updates, and its open to-dos. Done
+              holds each list's finished items.
+              <a href="/how-it-works/#progress-on-lists">The On lists</a> in How it
+              works says exactly what belongs on each.
             </p>
           </section>
           <section id="updates-notices" class="layout-flow">
@@ -565,7 +474,7 @@
               <ul>
                 <li><a href="#comments">Comments and replies</a></li>
                 <li><a href="#practice">Try a thread</a></li>
-                <li><a href="#thread-readings">Thread readings</a></li>
+                <li><a href="#thread-readings">What a thread shows</a></li>
                 <li><a href="#ending">How a thread ends</a></li>
               </ul>
             </nav>
@@ -576,7 +485,9 @@
               Select a passage, then use the comment control or press <kbd>c</kbd> to
               write a comment. The thread keeps that passage as its anchor. Its marker
               opens the conversation beside the passage, where the agent's reply and the
-              reply box appear.
+              reply box appear. To comment on a whole element, such as a table or
+              figure, ⌥-click it or press <kbd>s</kbd> and choose it;
+              <kbd>w</kbd> starts Draw mode, for drawing on the page.
             </p>
             <p id="panel-route">
               The <strong>Threads</strong> tab of Leaf's On view, which the panel's On
@@ -587,8 +498,7 @@
             <p id="reactions">
               A reaction records brief feedback on a passage or agent reply without
               opening a thread. The default reactions request keeping, changing,
-              clarifying, shortening, supporting, or prioritizing content. Packages can
-              declare additional reactions.
+              clarifying, shortening, supporting, or prioritizing content.
             </p>
           </section>
           <section id="practice" class="layout-flow">
@@ -637,7 +547,7 @@
             </lf-sample>
           </section>
           <section id="thread-readings" class="layout-flow">
-            <h2>Thread readings</h2>
+            <h2>What a thread shows</h2>
             <p id="thread-readings-lede">
               A thread appears in several places at once: its card in Threads, its entry
               in the margin, its row in the Page Map, its row in On Me, and its line in
@@ -671,8 +581,8 @@
                 </tr>
                 <tr id="reading-workflow">
                   <td>
-                    How far the agent has got with an update: Queued for Claude, Up
-                    next, Replying, Not answered
+                    <a href="/how-it-works/#stages">How far the agent has got</a> with
+                    an update: Queued for Claude, Up next, Replying, Not answered
                   </td>
                   <td>the message itself; the margin and Page Map entries</td>
                 </tr>
@@ -690,9 +600,10 @@
           <section id="ending" class="layout-flow">
             <h2>How a thread ends</h2>
             <p id="resolving-user">
-              The user usually closes a thread with <strong>Resolve thread</strong> once
-              they have read the answer. Its marker and ink leave the page, and it moves
-              from Threads' <strong>Open</strong> list to <strong>Resolved</strong>.
+              The user usually closes a thread with <strong>Resolve thread</strong>, or
+              <kbd>r</kbd> on the focused thread, once they have read the answer. Its
+              marker and ink leave the page, and it moves from Threads'
+              <strong>Open</strong> list to <strong>Resolved</strong>.
               <strong>Reopen</strong> brings it back, as does <kbd>z</kbd> when
               resolving was the user's latest action.
             </p>
@@ -705,10 +616,10 @@
             <p id="withdrawing">
               <kbd>z</kbd> takes back the user's latest action, a message they just sent
               included: a comment, reply or reaction. A reaction's mark also has an undo
-              control of its own. The log gains an <code>undo</code> naming the message,
-              and the message leaves the page, with any thread it started. Where
-              something has already answered it, it stays in its place instead and reads
-              Deleted. To delete an older message, the user rewrites it to no words.
+              control of its own. An undone message leaves the page, with any thread it
+              started. Where something has already answered it, it stays in its place
+              instead and reads Deleted. To delete an older message, the user rewrites
+              it to no words.
             </p>
             <p id="unsent-words">
               Words typed but not sent are kept after their box closes. If a new version
@@ -852,8 +763,10 @@
               <h2>Comments, threads and widgets</h2>
               <p id="phone-comments-select">
                 Select words to quote them in the panel’s field; tap the field to open a
-                comment below the block. For a whole table, figure or other element, use
-                <a href="/how-it-works/#phone-gap-element">Select mode</a>.
+                comment below the block. For a whole table, figure or other element,
+                open the leaf’s menu → Annotations →
+                <a href="/how-it-works/#phone-gap-element">Select mode</a>, then tap the
+                element.
               </p>
               <p id="phone-comments-pins">
                 Where the margin cannot hold a rail, markers appear as pins on their

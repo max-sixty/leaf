@@ -304,7 +304,7 @@
             </p>
             <p id="asking-lists">
               Each ask joins the user's On Me list until the widget or thread that asks
-              it is answered (<a href="/using/#progress-on-lists"
+              it is answered (<a href="/how-it-works/#progress-on-lists"
                 >On Me and the agent’s list</a
               >).
             </p>
@@ -978,7 +978,9 @@ flowchart TD
               <li id="margin-rail">
                 <strong>The rail</strong>, on the right, where Leaf places a marker
                 beside each commented or decided passage. It needs a window about 960px
-                wide, or about 1010px on a touch screen.
+                wide, or about 1010px on a touch screen; a sidebar page needs about
+                1920px, unless <code>data-rail="right"</code> on <code>body</code> keeps
+                it from 640px, except on a workspace, whose panes scroll on their own.
               </li>
               <li id="margin-sidebar">
                 <strong>A sidebar</strong>, an <code>aside</code> beside the body in

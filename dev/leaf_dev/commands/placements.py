@@ -3,36 +3,39 @@ each card stands and how it is shaped.
 
     uv run leaf-dev placements [--case NAME]... [--base [REF]] [--browser ENGINE]
 
-A case is one configuration a reader meets: a window, the subject the thread is on
-(words quoted in a block, or a whole block), the messages the thread holds, the route
-that opens its card (`m` from the page's top or with the subject in view, a press on
-its margin marker, a tap on its words, or a comment the reader sends), and what
-follows the opening, such as the agent's answer arriving or a scroll. Every case opens
-on one page, `fixture()`, whose blocks span the subjects pages hold: a one-line, a
-three-line and a sixteen-line paragraph, a heading, a list, a choice widget, and a
-section whose table spans the window. Add a case for a shape someone meets: a line in
-`CASES`, and a block in `fixture()` and `SUBJECTS` if its subject isn't there yet.
+A case is one configuration a reader meets: the subject the thread is on (words quoted
+in a block, or a whole block), the messages the thread holds, the route that opens its
+card (`m` from the page's top or with the subject in view, a press on its margin
+marker, a tap on its words, or a comment the reader sends), what follows the opening,
+such as the agent's answer arriving or a scroll, and the windows it opens in, the
+1728×999 and 1000×700 ones unless it names others. Every case opens on one page,
+`fixture()`, whose blocks span the subjects pages hold: a one-line, a three-line and a
+sixteen-line paragraph, a heading, a list, a choice widget, and a section holding a
+table wider than the column. Add a case for a shape someone meets: a line in `CASES`,
+and a block in `fixture()` and `SUBJECTS` if its subject isn't there yet. A quote lies
+within one text node of its block.
 
-Each case is visited on each arm through `leaf_dev.visits`, the loop `leaf-dev probe`
-runs, so a case reads what Leaf draws on its own: the case sets only the page, the
-thread's words and the reader's input. `--base` adds the merge base with `main`, or
-REF, beside this working tree.
+Each case is visited in each window on each arm through `leaf_dev.visits`, the loop
+`leaf-dev probe` runs, so a case reads what Leaf draws on its own: it sets only the
+page, the thread's words and the reader's input. `--base` adds the merge base with
+`main`, or REF, beside this working tree.
 
 Each run writes, under `.tmp/placements/run-*/`, `index.html`, a Leaf page source of
 the gallery, with its captures in `media/` under the names a page's media take
 (`leaf page media` adds them to another page under the same names); `gallery.html`,
 its sections alone, for a page that shows them among its own with `STYLE`;
-`readings.jsonl`, one line per case and arm; and each failure's traceback. Each
-capture outlines the subject's block in orange and fills the quoted words, drawn after
-the capture so the outline shows where a card covers them. What the gallery reports
-beside each capture is measured in the tab:
+`readings.jsonl`, one line per case, window and arm; and each failure's traceback.
+Each capture outlines in orange the block Leaf resolves the thread to, which its card
+keeps clear of, and fills the quoted words, drawn after the capture so the outline
+shows where a card covers them. What the gallery reports beside each capture is
+measured in the tab:
 
 - the card's side and size, or the floating panel where the thread opens there;
-- how much narrower the card stands than it could: the least of the width its
-  contents take unwrapped, the measure (`--thread-card`), and its room, which runs
+- how much narrower the card stands than it could, and which limit that is: the width
+  its contents take unwrapped, the measure (`cardMeasure`), or its room, which runs
   from the card's inner edge to the far edge of the placement boundary
-  (`commentBoundary`) beside its subject, and is the boundary's width over or under it;
-- how far it covers its subject's block and whether it covers the quoted words;
+  (`commentBoundary`) beside its subject, and is the boundary's width above or below;
+- the part of its subject's block it covers, and whether it covers the quoted words;
 - how far the page scrolled from the input that opened the card, except where `m`
   travelled from the page's top.
 
@@ -41,6 +44,7 @@ beside each capture is measured in the tab:
 
 import html
 import json
+import time
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
@@ -69,7 +73,7 @@ from leaf_dev.browser import (
     scroll_settled,
     settle,
 )
-from leaf_dev.states import OPEN_CARD, State
+from leaf_dev.states import OPEN_CARD, State, open_card
 from leaf_dev.visits import said, visits
 
 OUT = ROOT / ".tmp" / "placements"
@@ -108,8 +112,8 @@ SUBJECTS = {
     "h-steps": "a heading",
     "step-1": "a list item",
     "choice": "a choice widget",
-    "wide": "a section whose table spans the window",
-    "wide-table": "a table that spans the window",
+    "wide": "a section holding a table wider than the column",
+    "wide-table": "a table wider than the column",
 }
 
 # Words each case quotes, each found once on the page.
@@ -122,7 +126,7 @@ ROUTE_WORDS = {
     "m": "opened by m from the page's top",
     "m-near": "opened by m with its words already in the window's middle",
     "marker": "opened from its margin marker",
-    "click": "opened by a tap on its words",
+    "tap": "opened by a tap on its words",
     "comment": "the reader comments, and Send opens the card",
 }
 
@@ -132,9 +136,9 @@ class Case:
     """One configuration: `subject` is the id of the block the thread is on, `quote`
     the words it quotes there, or None for the whole block. `thread` holds its
     messages before the page opens, the agent's question first and then the reader's
-    and the agent's in turn; a thread the reader starts by `route` "comment" holds
-    none, and opens with `typed`. `arrives` is the agent's message arriving once the
-    card is open, and `scroll` the pixels a wheel then scrolls the page."""
+    and the agent's in turn, ending with the agent's; a thread the reader starts by
+    `route` "comment" holds none, and opens with `typed`, which `arrives` answers once
+    the card is open. `scroll` is the pixels a wheel then scrolls the page."""
 
     name: str
     title: str
@@ -145,11 +149,24 @@ class Case:
     typed: str = "Why a week?"
     arrives: str | None = None
     scroll: int = 0
-    window: Window = WIDE
+    windows: tuple[Window, ...] = (WIDE, NARROW)
 
     def __post_init__(self):
-        assert self.route in ROUTE_WORDS, self.route
-        assert (self.route == "comment") == (not self.thread), self.name
+        assert self.subject in SUBJECTS, f"{self.name}: add {self.subject} to SUBJECTS"
+        assert self.route in ROUTE_WORDS, f"{self.name}: no route {self.route}"
+        commented = self.route == "comment"
+        assert commented == (not self.thread), (
+            f"{self.name}: a thread holds messages unless the reader starts it"
+        )
+        assert commented or len(self.thread) % 2, (
+            f"{self.name}: the agent's message opens and ends a thread"
+        )
+        assert commented or not self.arrives, (
+            f"{self.name}: what arrives answers the reader's comment"
+        )
+        assert (self.route == "tap") == all(w.touch for w in self.windows), (
+            f"{self.name}: a tap needs a touch window, and a touch window a tap"
+        )
 
 
 CASES = (
@@ -174,7 +191,7 @@ CASES = (
     ),
     Case(
         "section",
-        "A conversation on a section whose table spans the window",
+        "A conversation on a section holding a wide table",
         "wide",
         None,
         TURNS,
@@ -187,73 +204,31 @@ CASES = (
     Case("list-item", "A question on words in a list item", "step-1", STEP, (MEDIUM,)),
     Case("widget", "A question on a choice widget", "choice", None, (MEDIUM,)),
     Case(
-        "narrow-words",
-        "A short question on a few words",
-        "p-medium",
-        WARM,
-        window=NARROW,
-    ),
-    Case(
-        "narrow-words-long",
-        "A long question on a few words",
-        "p-medium",
-        WARM,
-        (LONG,),
-        window=NARROW,
-    ),
-    Case(
-        "narrow-words-long-near",
+        "words-long-near",
         "A long question on a few words already in view",
         "p-medium",
         WARM,
         (LONG,),
         route="m-near",
-        window=NARROW,
+        windows=(NARROW,),
     ),
     Case(
-        "narrow-comment-answered",
-        "The reader's short comment, then a long answer arrives",
-        "p-medium",
-        WARM,
-        (),
-        route="comment",
-        arrives=ANSWER,
-        window=NARROW,
-    ),
-    Case(
-        "narrow-paragraph",
-        "A long question on a sixteen-line paragraph",
-        "p-long",
-        None,
-        (LONG,),
-        window=NARROW,
-    ),
-    Case(
-        "narrow-scrolled",
+        "scrolled",
         "A long question opened by m, then the page scrolled down 300 px",
         "p-medium",
         WARM,
         (LONG,),
         scroll=300,
-        window=NARROW,
+        windows=(NARROW,),
     ),
     Case(
-        "narrow-section",
-        "A conversation on a section whose table spans the window",
-        "wide",
-        None,
-        TURNS,
-        route="marker",
-        window=NARROW,
-    ),
-    Case(
-        "phone-words",
+        "phone",
         "A question on a few words, tapped",
         "p-medium",
         WARM,
         (MEDIUM,),
-        route="click",
-        window=PHONE,
+        route="tap",
+        windows=(PHONE,),
     ),
 )
 
@@ -354,66 +329,67 @@ def log_lines(case: Case) -> list[dict]:
     ]
 
 
-# The subject's block and the client rectangles of its quoted words, in the window.
-PASSAGE = """([subject, quote]) => {
+# Where the reader aims: the case's block, and a range over its quoted words.
+AIM = """([subject, quote]) => {
   const block = document.getElementById(subject);
   if (!quote) return {block, range: null};
-  const nodes = [];
   const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) nodes.push(node);
-  const text = nodes.map((node) => node.data).join('').replace(/\\s+/g, ' ');
-  const at = (offset) => {
-    let seen = 0;
-    for (const node of nodes) {
-      const squeezed = node.data.replace(/\\s+/g, ' ');
-      if (offset <= seen + squeezed.length) return [node, offset - seen];
-      seen += squeezed.length;
-    }
-  };
-  const start = text.indexOf(quote);
-  const range = document.createRange();
-  range.setStart(...at(start));
-  range.setEnd(...at(start + quote.length));
-  return {block, range};
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const at = node.data.indexOf(quote);
+    if (at < 0) continue;
+    const range = document.createRange();
+    range.setStart(node, at);
+    range.setEnd(node, at + quote.length);
+    return {block, range};
+  }
+  throw new Error(`“${quote}” is in no text node of #${subject}`);
 }"""
 
-READ = f"""async ([subject, quote]) => {{
-  const box = (r) => r && {{left: Math.round(r.left), top: Math.round(r.top),
-    right: Math.round(r.right), bottom: Math.round(r.bottom)}};
-  const {{block, range}} = ({PASSAGE})([subject, quote]);
+# What the tab shows once the card has opened, read with Leaf's own modules: the block
+# Leaf resolves the thread to and the rectangles of its quoted words, the card, and
+# the placement boundary and measure the card stands by.
+READ = """async () => {
+  const box = (r) => r && {left: Math.round(r.left), top: Math.round(r.top),
+    right: Math.round(r.right), bottom: Math.round(r.bottom)};
+  const entry = new URL(document.querySelector('script[data-lf-entry]').dataset.lfEntry,
+    location.href);
+  const runtime = (path) => import(new URL(`runtime/${path}`, entry));
+  const [api, anchors, placement] = await Promise.all([runtime('widget-api.js'),
+    runtime('anchor-resolution.js'), runtime('annotation-overlay/comment-placement.js')]);
+  const [thread] = api.readThreads().threads;
+  const target = anchors.resolveAnchor(thread.anchor);
+  const quote = (target.segments ?? []).flatMap((segment) => {
+    const range = document.createRange();
+    range.setStart(segment.node, segment.start);
+    range.setEnd(segment.node, segment.end);
+    return [...range.getClientRects()].map(box);
+  });
   const card = document.querySelector('.lf-margin-preview');
   const panel = document.querySelector('.lf-fp-opened');
   const shown = (node) => node && node.checkVisibility() ? node : null;
   // The card's width with nothing narrowing it: as wide as its words and rows
   // need to stand on one line each.
-  const natural = (card) => {{
+  const natural = (card) => {
     const style = card.style, saved = [style.width, style.minWidth, style.maxWidth];
     [style.width, style.minWidth, style.maxWidth] = ['max-content', '0px', 'none'];
     const width = card.getBoundingClientRect().width;
     [style.width, style.minWidth, style.maxWidth] = saved;
     return Math.round(width);
-  }};
-  let boundary = {{left: 8, top: 8, right: innerWidth - 8, bottom: innerHeight - 8}};
-  try {{
-    const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
-    const placement = await import(new URL(
-      'runtime/annotation-overlay/comment-placement.js', new URL(entry, location.href)));
-    boundary = box(placement.commentBoundary());
-  }} catch {{}}
-  return {{
+  };
+  return {
     window: [innerWidth, innerHeight],
     scrollY: Math.round(scrollY),
-    measure: parseFloat(getComputedStyle(document.documentElement)
-      .getPropertyValue('--thread-card')),
-    boundary,
+    measure: placement.cardMeasure(),
+    gap: placement.COMMENT_GAP,
+    boundary: box(placement.commentBoundary()),
     card: box(shown(card)?.getBoundingClientRect()),
     natural: shown(card) && natural(card),
     side: shown(card)?.getAttribute('data-lf-thread-placement') ?? null,
     panel: box(shown(panel)?.getBoundingClientRect()),
-    block: box(block.getBoundingClientRect()),
-    quote: range ? [...range.getClientRects()].map(box) : [],
-  }};
-}}"""
+    block: box(target.place.getBoundingClientRect()),
+    quote,
+  };
+}"""
 
 
 def centre(page: Page, case: Case) -> None:
@@ -421,7 +397,7 @@ def centre(page: Page, case: Case) -> None:
     block's top to the window's top where the block is taller than the window."""
     page.evaluate(
         f"""(args) => {{
-          const {{block, range}} = ({PASSAGE})(args);
+          const {{block, range}} = ({AIM})(args);
           const r = (range ?? block).getBoundingClientRect();
           scrollBy(0, r.top - Math.max(0, (innerHeight - r.height) / 2));
         }}""",
@@ -443,29 +419,18 @@ def by_walk(page: Page, case: Case) -> float:
 
 
 def by_marker(page: Page, case: Case) -> float:
-    """A press on the margin marker, brought into the window first where the subject's
-    middle left it out, as a reader scrolls to it."""
     marker = page.locator(f'[data-lf-margin-for="{case.subject}"] .lf-margin-marker')
-    marker.evaluate(
-        "m => { const box = m.getBoundingClientRect();"
-        " if (box.top < 0 || box.bottom > innerHeight)"
-        " scrollBy(0, box.top - innerHeight / 3); }"
-    )
-    settle(page)
-    before = page.evaluate("scrollY")
-    marker.click()
-    page.wait_for_function(OPEN_CARD)
-    return before
+    return open_card(page, marker)
 
 
 def by_tap(page: Page, case: Case) -> float:
     before = page.evaluate("scrollY")
     first = page.evaluate(
-        f"(args) => {{ const {{block, range}} = ({PASSAGE})(args);"
+        f"(args) => {{ const {{block, range}} = ({AIM})(args);"
         " return (range ?? block).getClientRects()[0].toJSON(); }",
         [case.subject, case.quote],
     )
-    page.mouse.click(first["left"] + 4, first["top"] + first["height"] / 2)
+    page.touchscreen.tap(first["left"] + 4, first["top"] + first["height"] / 2)
     page.wait_for_function(
         "() => document.querySelector('.lf-margin-preview:not([hidden]), .lf-fp-opened')"
     )
@@ -475,7 +440,7 @@ def by_tap(page: Page, case: Case) -> float:
 def by_comment(page: Page, case: Case) -> float:
     page.evaluate(
         f"""(args) => {{
-          let {{block, range}} = ({PASSAGE})(args);
+          let {{block, range}} = ({AIM})(args);
           if (!range) range = document.createRange(), range.selectNodeContents(block);
           getSelection().removeAllRanges();
           getSelection().addRange(range);
@@ -494,7 +459,7 @@ ROUTES = {
     "m": by_walk,
     "m-near": by_walk,
     "marker": by_marker,
-    "click": by_tap,
+    "tap": by_tap,
     "comment": by_comment,
 }
 
@@ -514,7 +479,15 @@ def answer(words: str, leaves: str) -> None:
     served.leaf("thread", "reply", ref, leaves, "--text", words)
 
 
-def converse(page: Page, case: Case) -> None:
+def caught_up(page: Page) -> None:
+    """Wait until the tab shows the server's reading, and has settled."""
+    wait_until_ready(
+        page, PageClient(served_page.get().address).state(), through="state"
+    )
+    settle(page)
+
+
+def converse(case: Case) -> None:
     """The turns after the agent's question, the reader's from another tab and the
     agent's answers, the last of which waits on the reader, so `m` walks to it."""
     served = served_page.get()
@@ -534,18 +507,28 @@ def converse(page: Page, case: Case) -> None:
             }
         )
         answer(rest[n + 1], "--done" if n + 2 < len(rest) else "--obligation")
-    wait_until_ready(page, PageClient(served.address).state(), through="state")
-    settle(page)
 
 
-def journey(case: Case):
-    """The reader's input for `case`, returning how far opening the card scrolled."""
+# Whether the card's transcript shows the message holding these words.
+ANSWER_SHOWN = """(words) => {
+  const transcript = document.querySelector('.lf-margin-preview .lf-thread-transcript');
+  const message = [...transcript.querySelectorAll('.lf-msg')]
+    .find((node) => node.textContent.includes(words));
+  if (!message?.checkVisibility()) return false;
+  const shown = transcript.getBoundingClientRect(), box = message.getBoundingClientRect();
+  return box.top < shown.bottom && box.bottom > shown.top;
+}"""
+
+
+def journey(case: Case, window: Window):
+    """The reader's input for `case` in `window`, returning how far the page scrolled
+    from the input that opened the card."""
 
     def run(page: Page) -> dict:
         settle(page)
-        served = served_page.get()
         if len(case.thread) > 1:
-            converse(page, case)
+            converse(case)
+            caught_up(page)
         if case.route != "m":
             centre(page, case)
         before = ROUTES[case.route](page, case)
@@ -554,18 +537,20 @@ def journey(case: Case):
         opened = page.evaluate("scrollY")
         if case.arrives:
             answer(case.arrives, "--done")
-            state = PageClient(served.address).state()
-            wait_until_ready(page, state, through="state")
+            caught_up(page)
+            # A card holding the answer behind its notice or New reply shows it at
+            # the reader's press (held-news.js, thread-card.js).
+            news = page.locator(".lf-margin-preview [data-lf-news] >> visible=true")
+            deadline = time.monotonic() + 10
+            while not page.evaluate(ANSWER_SHOWN, case.arrives[:40]):
+                assert time.monotonic() < deadline, "the answer never showed"
+                if news.count():
+                    news.first.click()
+                    page.mouse.move(0, 0)
+                page.wait_for_timeout(100)
             settle(page)
-            # A card holding the answer behind its notice shows it at the reader's
-            # press (held-news.js).
-            news = page.locator(".lf-margin-preview .lf-thread-news")
-            if news.is_visible():
-                news.click()
-                settle(page)
-                page.mouse.move(0, 0)
         if case.scroll:
-            page.mouse.move(2, case.window.size[1] / 2)
+            page.mouse.move(2, window.size[1] / 2)
             page.mouse.wheel(0, case.scroll)
             scroll_settled(page)
             settle(page)
@@ -581,43 +566,60 @@ def overlap(a: dict, b: dict) -> tuple[int, int]:
     return (max(0, width), max(0, height))
 
 
+SIDES = {
+    "right": "beside its subject, on the right",
+    "left": "beside its subject, on the left",
+    "above": "above its subject",
+    "below": "below its subject",
+}
+
+
 def findings(reading: dict) -> dict:
     """What the gallery says of one capture, from its reading."""
     card, boundary = reading["card"], reading["boundary"]
     if not card:
-        return {"where": "in the panel" if reading["panel"] else "no card"}
+        return {
+            "where": "in the panel" if reading["panel"] else "nowhere: no card opened"
+        }
     side = reading["side"]
-    room = {
-        "right": boundary["right"] - card["left"],
-        "left": card["right"] - boundary["left"],
-    }.get(side, boundary["right"] - boundary["left"])
     width, height = card["right"] - card["left"], card["bottom"] - card["top"]
+    limits = {
+        "its words need": reading["natural"],
+        "the measure": reading["measure"],
+        "its room": {
+            "right": boundary["right"] - card["left"],
+            "left": card["right"] - boundary["left"],
+        }.get(side, boundary["right"] - boundary["left"]),
+    }
+    limit = min(limits, key=lambda name: limits[name])
     window = {
         "left": 0,
         "top": 0,
         "right": reading["window"][0],
         "bottom": reading["window"][1],
     }
-    shown = {
-        **reading["block"],
-        "top": max(reading["block"]["top"], 0),
-        "bottom": min(reading["block"]["bottom"], reading["window"][1]),
-    }
-    across, covered = overlap(card, shown)
+    covered = overlap(card, clipped(reading["block"], window))
+    block_height = reading["block"]["bottom"] - reading["block"]["top"]
     return {
-        "where": {
-            "right": "beside its subject, on the right",
-            "left": "beside its subject, on the left",
-            "above": "over its subject",
-            "below": "under its subject",
-        }.get(side, f"at {side}"),
+        "where": SIDES.get(side, f"at {side}"),
         "size": [width, height],
-        "narrower": max(
-            0, round(min(reading["natural"], reading["measure"], room) - width)
-        ),
-        "covers": covered if across else 0,
+        "narrower": max(0, round(limits[limit] - width)),
+        "limit": limit,
+        "covers": list(covered) if all(covered) else None,
         "covers_quote": any(all(overlap(card, words)) for words in reading["quote"]),
+        "fits": block_height + reading["gap"] + height
+        <= boundary["bottom"] - boundary["top"],
         "outside": overlap(card, window) != (width, height),
+    }
+
+
+def clipped(a: dict, b: dict) -> dict:
+    """The part of box `a` inside box `b`."""
+    return {
+        "left": max(a["left"], b["left"]),
+        "top": max(a["top"], b["top"]),
+        "right": min(a["right"], b["right"]),
+        "bottom": min(a["bottom"], b["bottom"]),
     }
 
 
@@ -646,24 +648,21 @@ def outlined(shot: Path, reading: dict) -> bytes:
     return out.read_bytes()
 
 
-def words(n: int) -> str:
-    return f"{n} words"
+def words(text: str) -> str:
+    return f"{len(text.split())} words"
 
 
-def described(case: Case) -> str:
+def described(case: Case, window: Window) -> str:
     """The case's configuration in a line, after its title."""
-    width, height = case.window.size
-    if case.thread:
-        counts = [len(m.split()) for m in case.thread]
-        thread = (
-            f"the agent's question, {words(counts[0])}"
-            if len(counts) == 1
-            else f"{len(counts)} messages, {words(sum(counts))} in all"
-        )
+    width, height = window.size
+    if len(case.thread) == 1:
+        thread = f"the agent's question, {words(case.thread[0])}"
+    elif case.thread:
+        thread = f"{len(case.thread)} messages, {words(' '.join(case.thread))} in all"
     else:
-        thread = f"the reader's comment, {words(len(case.typed.split()))}"
+        thread = f"the reader's comment, {words(case.typed)}"
     steps = [
-        f"{width}×{height}{', touch' if case.window.touch else ''}",
+        f"{width}×{height}{', touch' if window.touch else ''}",
         f"on “{case.quote}” in {SUBJECTS[case.subject]}"
         if case.quote
         else f"on {SUBJECTS[case.subject]}",
@@ -671,47 +670,51 @@ def described(case: Case) -> str:
         ROUTE_WORDS[case.route],
     ]
     if case.arrives:
-        steps.append(
-            f"then the agent's answer arrives, {words(len(case.arrives.split()))}"
-        )
+        steps.append(f"then the agent's answer arrives, {words(case.arrives)}")
     if case.scroll:
         steps.append(f"then the page scrolls {case.scroll} px")
     return " · ".join(steps)
 
 
-def result_html(case: Case, found: dict, scrolled: int | None) -> str:
+def result(case: Case, found: dict, scrolled: int | None) -> tuple[str, list]:
+    """The sentence a tile says of a card, and its flags, each a tone and words."""
     if "size" not in found:
-        return f"The thread opens {found['where']}."
+        return f"The thread opens {found['where']}.", []
     width, height = found["size"]
     tags = []
     if found["narrower"] > 2:
-        tags.append(("warn", f"{found['narrower']} px narrower than its room"))
+        tags.append(("warn", f"{found['narrower']} px narrower than {found['limit']}"))
+    # Covering what it's about is a fault where the card and its block would fit in the
+    # window one above the other, and the only way to stand otherwise.
+    tone, fitting = (
+        ("danger", ", though both fit in the window")
+        if found["fits"]
+        else ("warn", "; both don't fit in the window")
+    )
     if found["covers_quote"]:
-        tags.append(("danger", "covers the quoted words"))
+        tags.append((tone, f"covers the quoted words{fitting}"))
     elif found["covers"]:
-        tags.append(("warn", f"covers {found['covers']} px of its subject"))
+        covered = "covers {} × {} px of its subject".format(*found["covers"])
+        tags.append((tone, covered + fitting))
     if found["outside"]:
         tags.append(("danger", "partly outside the window"))
     # `m` from the page's top travels to the thread, as the reader expects.
     if scrolled and case.route != "m":
         tags.append(("", f"page scrolled {abs(scrolled)} px to open it"))
-    chips = "".join(
-        f' <small class="tag{" " + tone if tone else ""}">{html.escape(t)}</small>'
-        for tone, t in tags
-    )
-    return f"The card stands {found['where']}, {width} × {height} px.{chips}"
+    return f"The card stands {found['where']}, {width} × {height} px.", tags
 
 
-def tile(case: Case, arms: dict[str, dict]) -> str:
+def tile(case: Case, window: Window, arms: dict[str, dict]) -> str:
     """One figure: the case's capture on each arm, its configuration and result."""
+    key = f"{case.name}-{window.size[0]}x{window.size[1]}"
     shots = {arm: got for arm, got in arms.items() if got.get("image")}
     alt = {
-        arm: html.escape(f"{case.title}: {got['words']}", quote=True)
+        arm: html.escape(f"{case.title}: {got['sentence']}", quote=True)
         for arm, got in shots.items()
     }
     if set(shots) == {"base", "head"}:
         picture = (
-            f'<lf-shot id="shot-{case.name}" before="{shots["base"]["image"]}"'
+            f'<lf-shot id="shot-{key}" before="{shots["base"]["image"]}"'
             f' after="{shots["head"]["image"]}" alt="{alt["head"]}"></lf-shot>'
         )
     else:
@@ -719,18 +722,23 @@ def tile(case: Case, arms: dict[str, dict]) -> str:
             f'<a href="{got["image"]}"><img src="{got["image"]}" alt="{alt[arm]}"></a>'
             for arm, got in shots.items()
         )
-    results = "".join(
-        f"<br>{arm.capitalize() + ': ' if len(arms) > 1 else ''}"
-        + (
-            got["result"]
-            if got.get("image")
-            else f"Failed: {html.escape(got['failed'])}"
+
+    def said_of(got: dict) -> str:
+        if not got.get("image"):
+            return f"Failed: {html.escape(got['failed'])}"
+        chips = "".join(
+            f' <small class="tag{" " + tone if tone else ""}">{html.escape(text)}</small>'
+            for tone, text in got["tags"]
         )
+        return html.escape(got["sentence"]) + chips
+
+    results = "".join(
+        f"<br>{arm.capitalize() + ': ' if len(arms) > 1 else ''}{said_of(got)}"
         for arm, got in arms.items()
     )
     return (
-        f'<figure id="case-{case.name}">{picture}\n<figcaption><strong>'
-        f"{html.escape(case.title)}</strong> {html.escape(described(case))}"
+        f'<figure id="case-{key}">{picture}\n<figcaption><strong>'
+        f"{html.escape(case.title)}</strong> {html.escape(described(case, window))}"
         f"{results}</figcaption></figure>"
     )
 
@@ -743,19 +751,17 @@ STYLE = """<style>
 </style>"""
 
 
-def gallery(cases: list[Case], tiles: dict[str, str]) -> str:
+def gallery(tiles: dict[Window, list[str]]) -> str:
     """The tiles, a section for each window, which a page holding `STYLE` shows."""
-    sections = []
-    for window in dict.fromkeys(case.window for case in cases):
-        width, height = window.size
-        figures = "\n".join(tiles[c.name] for c in cases if c.window == window)
-        sections.append(
-            f'<section id="window-{width}x{height}" class="layout-flow">\n'
-            f"<h2>{width}×{height} window{', under a finger' if window.touch else ''}"
-            f'</h2>\n<div class="layout-tiles placements" data-width="available">\n'
-            f"{figures}\n</div>\n</section>"
-        )
-    return "\n".join(sections)
+    return "\n".join(
+        f'<section id="window-{window.size[0]}x{window.size[1]}" class="layout-flow">\n'
+        f"<h2>{window.size[0]}×{window.size[1]} window"
+        f"{', under a finger' if window.touch else ''}</h2>\n"
+        f'<div class="layout-tiles placements" data-width="available">\n'
+        + "\n".join(figures)
+        + "\n</div>\n</section>"
+        for window, figures in tiles.items()
+    )
 
 
 def page(sections: str, arms, engine: str) -> str:
@@ -771,8 +777,8 @@ def page(sections: str, arms, engine: str) -> str:
 <main class="layout-column">
 <h1 id="title">Thread card placements</h1>
 <p id="lede">Each capture is a thread card as Leaf draws it in {engine.capitalize()} ({commits}), with
-its subject's block outlined in orange and the quoted words filled. Regenerate with
-<code>uv run leaf-dev placements</code>; add a case to <code>CASES</code> in
+the block it keeps clear of outlined in orange and its quoted words filled. Regenerate
+with <code>uv run leaf-dev placements</code>; add a case to <code>CASES</code> in
 <code>dev/leaf_dev/commands/placements.py</code>.</p>
 {sections}
 </main>
@@ -787,63 +793,63 @@ its subject's block outlined in orange and the quoted words filled. Regenerate w
     "names",
     multiple=True,
     type=click.Choice([case.name for case in CASES]),
-    help="Run only this case; repeat for more.",
+    help="Run only this case, in each of its windows; repeat for more.",
 )
 @engine_option
 @base_option()
 def placements(names, engine, base) -> None:
     """Open a thread card in each case of CASES and write a gallery of where it
     stands and how it is shaped (this module's header says what each reports)."""
-    cases = [case for case in CASES if not names or case.name in names]
+    runs = [
+        (case, window)
+        for case in CASES
+        if not names or case.name in names
+        for window in case.windows
+    ]
     out = run_directory(OUT)
     media = out / "media"
     media.mkdir()
+    scratch = out / "scratch"
+    scratch.mkdir()
     (out / "fixture.html").write_text(fixture())
-    tiles = {}
+    tiles: dict[Window, list[str]] = {}
     failed = False
     with launch(engine) as browser:
-        arms = choose_arms(base, out / "scratch")
+        arms = choose_arms(base, scratch)
         with (out / "readings.jsonl").open("w") as readings:
-            for case in cases:
-                log = out / "scratch" / f"{case.name}.jsonl"
-                log.parent.mkdir(exist_ok=True)
+            for case, window in runs:
+                key = f"{case.name}-{window.size[0]}x{window.size[1]}"
+                log = scratch / f"{case.name}.jsonl"
                 log.write_text(
                     "".join(json.dumps(line) + "\n" for line in log_lines(case))
                 )
                 got: dict[str, dict] = {}
 
-                def read(arm, visit, case=case):
+                def read(arm, visit, key=key):
                     visit.doing = "read"
-                    visit.reading["placement"] = visit.page.evaluate(
-                        READ, [case.subject, case.quote]
-                    )
-                    shot = out / "scratch" / f"{case.name}-{arm}.png"
+                    visit.reading["placement"] = visit.page.evaluate(READ)
+                    shot = scratch / f"{key}-{arm}.png"
                     shot.write_bytes(screenshot(visit.page))
                     visit.reading["shot"] = str(shot)
 
                 with visits(
                     browser,
                     arms,
-                    State(case.name, str(out / "fixture.html"), window=case.window),
+                    State(key, str(out / "fixture.html"), window=window),
                     out / "fixture.html",
-                    out / "scratch" / case.name,
-                    window=case.window,
+                    scratch / key,
+                    window=window,
                     scheme="light",
                     motion="no-preference",
                     read=read,
                     log=log,
-                    run=journey(case),
+                    run=journey(case, window),
                 ) as each:
                     for arm, visit in each:
-                        record: dict = {
-                            "case": case.name,
-                            "arm": arm,
-                            "commit": visit.commit,
-                        }
+                        record: dict = {"case": key, "arm": arm, "commit": visit.commit}
                         if visit.error:
                             failed = True
-                            trace = out / f"{case.name}-{arm}-error.txt"
-                            trace.write_text(
+                            (out / f"{key}-{arm}-error.txt").write_text(
                                 "".join(traceback.format_exception(visit.error))
                             )
                             record["failed"] = f"{visit.doing}: {said(visit.error)}"
@@ -857,13 +863,11 @@ def placements(names, engine, base) -> None:
                             data = outlined(Path(visit.reading["shot"]), reading)
                             name = media_name(data, ".png")
                             (media / name).write_bytes(data)
-                            result = result_html(case, found, scrolled)
+                            sentence, tags = result(case, found, scrolled)
                             got[arm] = {
                                 "image": f"/media/{name}",
-                                "result": result,
-                                "words": html.unescape(
-                                    result.split("<small")[0].strip()
-                                ),
+                                "sentence": sentence,
+                                "tags": tags,
                             }
                             record |= {
                                 "reading": reading,
@@ -874,11 +878,11 @@ def placements(names, engine, base) -> None:
                         readings.write(json.dumps(record) + "\n")
                         readings.flush()
                         click.echo(
-                            f"{case.name} {arm}: "
+                            f"{key} {arm}: "
                             + (record.get("failed") or json.dumps(record["found"]))
                         )
-                tiles[case.name] = tile(case, got)
-    sections = gallery(cases, tiles)
+                tiles.setdefault(window, []).append(tile(case, window, got))
+    sections = gallery(tiles)
     (out / "gallery.html").write_text(sections)
     (out / "index.html").write_text(page(sections, arms, engine))
     click.echo(f"wrote {out / 'index.html'}")

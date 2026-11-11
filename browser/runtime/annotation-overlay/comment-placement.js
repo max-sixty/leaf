@@ -5,10 +5,7 @@
    them do is stated rule by rule in `placement-rules.json`, beside this module; this
    header says how the code keeps each rule, by its id, and which designs it rejected.
    Floating UI does the placing (floating.js): this module chooses the side and names
-   the boxes, and Floating UI's offset, size and shift do the rest. `leaf-dev
-   placements` opens a card in each configuration that has shaped one and draws where
-   it stands: run it with `--base` on a change here, and add a case for a shape a
-   reader meets.
+   the boxes, and Floating UI's offset, size and shift do the rest.
 
    A comment stands by what it is about. `clear` is the box it keeps
    clear of, as the page shows it: the paragraph holding a passage, the element, or the

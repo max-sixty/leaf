@@ -21,7 +21,7 @@ export const upgraded = () => document.body.dataset.lfUpgraded === "1";
 // control inside a closed `<details>` stays pending until the details open. A
 // scroll-driven animation, such as the contents map's lens or a margin card's message
 // heads, moves only while something scrolls, which `scrolling` reads, and a paused one
-// isn't running, so neither is in it. Only an animation on the document's timeline runs
+// isn't running, so neither is in it. Only an animation on a document timeline runs
 // on the clock: Firefox 159 gave a message head's view-timeline animation a finite end
 // (30769 ms on 2026-11-11), where Chromium gives a percentage.
 const finiteMotion = () =>
@@ -31,7 +31,7 @@ const finiteMotion = () =>
       const effect = animation.effect;
       if (
         animation.playState !== "running" ||
-        animation.timeline !== document.timeline ||
+        !(animation.timeline instanceof DocumentTimeline) ||
         !Number.isFinite(effect?.getComputedTiming().endTime)
       )
         return false;

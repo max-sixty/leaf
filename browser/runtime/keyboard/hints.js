@@ -520,8 +520,9 @@ export function seatHints(
 
    Membership and seating are separate readings, and the difference is how often each is
    taken. `read` answers which members the map holds and what codes name them, each
-   member already carrying its `code` because a scene can be a subset of a wider reading
-   whose codes it keeps; that answer is held until something invalidates it. `layout`
+   member already carrying its `code` because the codes are the caller's, so `kept` and a
+   typed letter narrow the map without recoding it; that answer is held until something
+   invalidates it. `layout`
    answers where those members are, from one `scene` reading for every member a paint
    seats, because a chip's place among its neighbours and its own box are the same
    measurement: derived from different readings they put the chip where neither reading
@@ -825,7 +826,7 @@ export function createHintSession({
     const moving = scrolling();
     const wasWalking = at >= 0;
     const heard = hinted()[at];
-    const emptyBefore = candidates.length === 0;
+    const emptyBefore = mapped.length === 0;
     const detached = candidates.some((candidate) => !identity(candidate)?.isConnected);
     // Only at rest and with no letters typed: a partly typed code freezes the map until
     // the user completes or backs out of that prefix.
@@ -849,8 +850,9 @@ export function createHintSession({
     if (wasWalking && current && !kept.some(({ candidate }) => candidate === current))
       at = -1;
     // The keys were painted before geometry retired the browsed hint, and a map
-    // that has just emptied or filled changes which of the caller's rows stand.
-    if ((wasWalking && at < 0) || emptyBefore !== (candidates.length === 0)) repaint();
+    // that has just emptied or filled, after `kept`, changes which of the caller's
+    // rows stand.
+    if ((wasWalking && at < 0) || emptyBefore !== (mapped.length === 0)) repaint();
   }
 
   // A page that moves under an armed map makes opaque labels temporarily untrustworthy,

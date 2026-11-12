@@ -551,7 +551,7 @@ export const fileModelsPassage = (segments) =>
   );
 // A cell candidate: an opaque widget or one of its original direct children, which
 // always fence, or an unmodelled generated element, which fences once a word of the
-// page's reading is its own (`readPage`).
+// page's reading is its own (`indexed`).
 /** @param {Element} el */
 const opaque = (el) => passageFences.has(el);
 // Editing values and readonly islands inside them are separate passage cells.

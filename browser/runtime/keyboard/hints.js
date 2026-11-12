@@ -334,9 +334,24 @@ export function seatHints(
         ),
     ),
   );
+  // A crowded column's chips stand in columns as wide as its widest chip, each at its
+  // column's left edge, so where codes grow from one letter to two, neither column's
+  // edge moves.
+  /** @param {T} face */
+  const columnWidth = (face) =>
+    Math.max(
+      ...faces
+        .filter(
+          (other) =>
+            crowded.has(other) &&
+            Math.abs(other.target.left - face.target.left) < face.start.width,
+        )
+        .map(({ start }) => start.width),
+    );
   const measured = nestOutsets(faces, (face) => beforeLeft(face) - edgeLeft).map(
     ({ face, outset }) => {
       const { start, target, placement = "corner" } = face;
+      const column = crowded.has(face) ? columnWidth(face) : start.width;
       const preferredLeft =
         placement === "below"
           ? target.left + (target.width - start.width) / 2
@@ -344,7 +359,7 @@ export function seatHints(
             ? beforeLeft({ start, target }) - outset
             : placement === "above"
               ? target.left
-              : start.left;
+              : start.left + (start.width - column) / 2;
       const left = clamp(
         preferredLeft,
         edgeLeft,
@@ -371,6 +386,7 @@ export function seatHints(
         seated: first,
         ownTarget: placement !== "corner" ? target : null,
         clamped: held,
+        column,
       };
     },
   );
@@ -417,7 +433,7 @@ export function seatHints(
     return placed;
   };
   /** @param {typeof measured[number]} measuredFace @param {Map<T, HintBox | null>} placed */
-  const seatOne = ({ face, seated, ownTarget, clamped }, placed) => {
+  const seatOne = ({ face, seated, ownTarget, clamped, column }, placed) => {
     /** @param {HintBox} seat */
     const barriersAcross = (seat) => [
       ...fixedBarriers.filter((other) => overlapsAcross(other, seat)),
@@ -467,7 +483,7 @@ export function seatHints(
     /** @returns {HintBox | null} */
     const levelled = () => {
       for (const step of [0, 1, 2]) {
-        const left = seated.left - step * (seated.width + clear);
+        const left = seated.left - step * (column + clear);
         if (left < edgeLeft) break;
         const seat = movedTo(seated, left, seated.top);
         if (

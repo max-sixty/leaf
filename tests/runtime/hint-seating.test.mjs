@@ -97,6 +97,23 @@ test("a crowded column levels each chip with its row and steps every other one o
   assert.deepEqual(overlapping(seated.map(({ box }) => box)), []);
 });
 
+test("a crowded column whose codes grow a letter keeps both columns' left edges", () => {
+  // Chips centre on their corners, so a longer code would start further left.
+  const rows = Array.from({ length: 12 }, (_, at) => box(100, 100 + 14 * at, 300, 14));
+  const seated = seatHints(
+    rows.map((target, at) => {
+      const width = at < 6 ? 20 : 30;
+      return { start: box(100 - width / 2, target.top - 8, width, 16), target };
+    }),
+    { band: 2, viewport },
+  );
+  assert.deepEqual(
+    seated.map(({ box }) => box.left),
+    rows.map((_, at) => (at % 2 ? 53 : 85)),
+  );
+  assert.deepEqual(overlapping(seated.map(({ box }) => box)), []);
+});
+
 test("a crowded column at the window's edge withholds every other row's chip, the rest level", () => {
   const rows = Array.from({ length: 12 }, (_, at) => box(4, 100 + 14 * at, 300, 14));
   const seated = seatHints(

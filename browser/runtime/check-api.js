@@ -36,7 +36,7 @@ export {
   stackLevel,
   shownParts,
 } from "./geometry.js";
-export { skipped } from "./shadow-tree.js";
+export { drawnElements, skipped } from "./shadow-tree.js";
 export { windowHoldsRail } from "./content-layout.js";
 export { renderedParent, uiInside, upFrom } from "./shadow.js";
 export { authoredBody } from "./widget-elements.js";

@@ -5,16 +5,16 @@
  * It reads the content at its vertical end without scrolling or changing styles,
  * so a check neither disturbs the reader nor depends on whether a hidden overlay
  * scrollbar happened to paint in the headless browser. It walks only what the browser
- * draws (`drawnElements`), passing over a hidden tab and what an off-screen
- * `content-visibility: auto` box skips, such as a long text document's runs, since
- * asking about those elements makes the browser style them first: the live view's
- * reading of a megabyte of text spent 1.4 s doing that. So it can't see the end of such
- * a document while the reader is away from it. SVG readings use native primitive
- * bounds: stroke/filter extents, clip paths and nested SVG viewport transforms are not
- * reconstructed here. */
-import { renderedParent, userScrollport } from "/runtime/check-api.js";
+ * draws (`drawnElements` in runtime/shadow-tree.js), passing over a hidden tab and
+ * what an off-screen `content-visibility: auto` box skips, such as a long text
+ * document's runs, since asking about those elements makes the browser style them
+ * first: the live view's reading of a megabyte of text spent 1.4 s doing that. So it
+ * can't see the end of such a document while the reader is away from it. SVG readings
+ * use native primitive bounds: stroke/filter extents, clip paths and nested SVG
+ * viewport transforms are not reconstructed here. */
+import { drawnElements, renderedParent, userScrollport } from "/runtime/check-api.js";
 import { at, place } from "./locate.js";
-import { drawnElements, drawnPage } from "./open-roots.js";
+import { drawnPage } from "./open-roots.js";
 
 /** @param {Element} el */
 const visible = (el) =>

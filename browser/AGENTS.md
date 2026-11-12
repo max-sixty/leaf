@@ -648,7 +648,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Open or close a native modal or popover                                                               | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (_lint_)           |
 | Focus on a popover's control as it opens, and the control's `aria-expanded`                           | `keyboard/layer-stack.js`, as each popover opens or closes                         |
 | Whether a node is, or is inside, an open native layer, and of which kind                              | `shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (_lint_) |
-| Whether a node stands in content the browser skips, and the box that skips it                         | `shadow-tree.js` `skipped`, `skipper`                                              |
+| Whether a node stands in content the browser skips, the box that skips it, and every element it draws | `shadow-tree.js` `skipped`, `skipper`, `drawnElements`                             |
 | Which native layers are open, in opening order, and whether a modal admits a node                     | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits`                      |
 | The element a URL fragment names, or the part of a widget its key names                               | `anchor-resolution.js` `fragmentTarget`, `fragmentAddress`                         |
 | This page's URL with a fragment naming an element, or a widget's key                                  | `anchor-coordinate.js` `fragmentUrl`                                               |

@@ -326,3 +326,46 @@ export const skipper = (element) => {
 };
 /** @param {Element} element */
 export const skipped = (element) => Boolean(skipper(element));
+
+// Every element the browser draws at or under `root`, through the open shadow trees of
+// the hosts it draws, each tree in its own order, which a reading of the page as drawn
+// walks (render-checks/open-roots.js, `drawnPage`). An element that draws no box of its
+// own, under `display: contents` or a slot, is left out and what it holds is walked. A
+// box skips all it holds or none of it, but a closed disclosure's summary, which comes
+// first, so the first child `skipper` names a box for answers for the siblings after it,
+// which go unasked: of a long text document's run out of view, one line is asked. On a
+// page of thirty 4 MB documents in tabs, the walk asks about 900 of two million
+// elements. A slotted child stands in its slot rather than beside its siblings, so each
+// asks for itself, and a host draws no child that no slot takes.
+/** @param {Element} root @returns {Element[]} */
+export function drawnElements(root) {
+  /** @type {Element[]} */
+  const found = [];
+  /** @param {Element | null} child @param {boolean} hosted */
+  const within = (child, hosted) => {
+    for (; child; child = child.nextElementSibling) {
+      if (drawn(child)) {
+        found.push(child);
+        walk(child);
+        continue;
+      }
+      if (hosted && !child.assignedSlot) continue;
+      if (skipper(child)) {
+        if (child.assignedSlot) continue;
+        return;
+      }
+      if (getComputedStyle(child).display === "contents") walk(child);
+    }
+  };
+  /** @param {Element} parent */
+  const walk = (parent) => {
+    const shadow = parent.shadowRoot;
+    if (shadow) within(shadow.firstElementChild, false);
+    within(parent.firstElementChild, shadow !== null);
+  };
+  if (drawn(root)) {
+    found.push(root);
+    walk(root);
+  }
+  return found;
+}

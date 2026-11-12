@@ -226,9 +226,7 @@ def read_user_views(page_dir: Path, active_revision: int | None) -> dict:
 
     Freshness states recency; visibility independently says whether the document
     remains on screen. A hidden report remains factual context.
-    Checks carry their own timestamp and scope, even when the context has moved. A
-    document reads its checks again once its page changes, so the checks a fresh
-    report carries are its current reading however long ago it was taken.
+    Checks carry their own timestamp and scope, even when the context has moved.
     Reading never renews attention or prunes storage.
     """
     now = _now()
@@ -241,6 +239,12 @@ def read_user_views(page_dir: Path, active_revision: int | None) -> dict:
         if checks is not None:
             checks = {
                 **checks,
+                "freshness": (
+                    "fresh"
+                    if (now - aware_instant(checks["checked_at"])).total_seconds()
+                    <= FRESH_FOR_S
+                    else "stale"
+                ),
                 "matches_view": all(checks[key] == record[key] for key in _CHECK_BASIS),
             }
         sessions.append(

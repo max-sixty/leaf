@@ -12,13 +12,11 @@ import { layoutWindow, seenRect, shownWindow, watchRoom } from "./geometry.js";
 import { randomId } from "./ids.js";
 import { layerHeaders, sessionIsActive } from "./layer-client.js";
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
-import { inPage, leafSurface, pageDocument } from "./passages.js";
 import { pageReadiness } from "./presentation.js";
 import { coarsePointer } from "./pointer.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
 import { tagsDeclaring } from "./registry.js";
 import { watchSemantic } from "./semantic-state.js";
-import { LAYOUT } from "./widget-upgrade.js";
 
 const REPORT_MS = 10_000;
 const QUIET_MS = 300;
@@ -133,14 +131,6 @@ export async function readCurrentUserView() {
   };
 }
 
-// A change to the page's own markup: not on a Leaf surface, and not only adding or
-// removing one, as a toast or the field Copy appends does.
-/** @param {MutationRecord} record */
-const movesPage = (record) =>
-  inPage(record.target) &&
-  (record.type !== "childList" ||
-    [...record.addedNodes, ...record.removedNodes].some((node) => !leafSurface(node)));
-
 export function observeUserView() {
   if (offlineInteractive) return;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
@@ -151,20 +141,6 @@ export function observeUserView() {
   let checkedBasis = null;
   /** @type {string | null} */
   let lastSent = null;
-  // Whether the page has said it changed since the checks were read. A page nobody
-  // changes is not read again, however long it shows, so a heartbeat costs what the
-  // context costs and not a walk of the page. What says so: the page's state, which a
-  // gesture or an agent's data changes; a widget rearranging inside its box (`LAYOUT`);
-  // the page's own markup, which a disclosure, a tab or the page's script changes (a
-  // Leaf surface moves nothing the checks read, and the runtime's marks stand in
-  // attributes this doesn't hear, page-paint.js); and a box the browser starts or stops
-  // drawing as the user scrolls (`content-visibility: auto`). A change inside a widget's
-  // shadow tree that neither its state nor `LAYOUT` carries goes unheard until another
-  // does.
-  let changed = true;
-  const change = () => {
-    changed = true;
-  };
 
   /** @param {ViewContext} view @param {boolean} [keepalive] */
   function send(view, keepalive = false) {
@@ -181,19 +157,19 @@ export function observeUserView() {
     }).catch(() => {});
   }
 
-  function report({ heartbeat = false, keepalive = false } = {}) {
+  function report({ inspect = false, keepalive = false } = {}) {
     // A public website visitor has no private page until they act. Optional
     // observations cannot start a container merely to collect context.
     if (!sessionIsActive()) return;
     if (!Number.isInteger(runtime.currentRevision)) return;
     const view = context();
     if (!view) return;
-    // The checks walk what the browser draws, so they are read again at once for a new
-    // revision, window or scheme, and otherwise by the heartbeat after the page changed.
-    // A change in state, such as an option the user picks, reaches them at the next
-    // heartbeat, as a disclosure the user opens does, rather than costing every gesture
-    // a walk of the page. They keep the log position they were read at, so
-    // `matches_view` says when they lag it.
+    // The checks walk everything the browser draws, so they are read again for a new
+    // revision, window or scheme, and otherwise only by the heartbeat. A change in
+    // state, such as an option the user picks, reaches them at the next heartbeat, as a
+    // disclosure the user opens does, rather than costing every gesture a walk of the
+    // page. They keep the log position they were read at, so `matches_view` says when
+    // they lag it.
     const basis = JSON.stringify([
       view.revision,
       view.viewport,
@@ -204,12 +180,11 @@ export function observeUserView() {
     if (
       view.visible &&
       pageReadiness() === null &&
-      (basis !== checkedBasis || (heartbeat && changed))
+      (inspect || basis !== checkedBasis)
     ) {
       if (reading) {
         checks = readChecks(view, reading);
         checkedBasis = basis;
-        changed = false;
       } else if (!loading) {
         loadReading()
           .then(schedule)
@@ -222,7 +197,7 @@ export function observeUserView() {
     // A change that leaves the reading as it stood sends nothing; the heartbeat keeps
     // it live.
     const said = JSON.stringify({ ...view, sequence: null, checks });
-    if (!heartbeat && !keepalive && said === lastSent) return;
+    if (!inspect && !keepalive && said === lastSent) return;
     lastSent = said;
     send(view, keepalive);
   }
@@ -246,20 +221,7 @@ export function observeUserView() {
   });
   document.addEventListener("lf-session-active", schedule);
   watchSemantic(() => {
-    change();
     if (document.visibilityState !== "hidden") schedule();
-  });
-  document.addEventListener(LAYOUT, change);
-  document.addEventListener("contentvisibilityautostatechange", change, {
-    capture: true,
-  });
-  new MutationObserver((records) => {
-    if (!changed && records.some(movesPage)) change();
-  }).observe(pageDocument(), {
-    childList: true,
-    subtree: true,
-    characterData: true,
-    attributeFilter: ["style", "class", "hidden", "open"],
   });
   watchRoom(schedule);
   window.addEventListener("pageshow", schedule);
@@ -267,7 +229,7 @@ export function observeUserView() {
   for (const preference of [darkPreference, coarsePointer])
     preference.addEventListener("change", schedule);
   setInterval(() => {
-    if (document.visibilityState !== "hidden") report({ heartbeat: true });
+    if (document.visibilityState !== "hidden") report({ inspect: true });
   }, REPORT_MS);
   // Let the presented frame paint before importing or measuring checks.
   schedule();

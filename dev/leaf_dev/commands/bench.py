@@ -1327,7 +1327,7 @@ def cpu_pass(
             """Wait for two quiet half seconds in a row, or QUIET_TRIES, and return
             the page's CPU per ms over the last two: what it spends with no input
             once the work a load leaves behind has run, such as the view checks the
-            runtime reads after the page settles, which walk the whole page."""
+            runtime reads after the page settles, which walk what the page draws."""
             spent: list[float] = []
             while len(spent) < 2 or (
                 max(spent[-2:]) >= QUIET_MS and len(spent) < QUIET_TRIES

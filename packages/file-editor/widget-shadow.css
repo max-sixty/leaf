@@ -130,10 +130,13 @@
  * focus cue inside the editor frame, above the scroller's own stacking context
  * (its positioned gutters otherwise cover the left edge). Editing focus stays
  * on the content and the cue never receives pointer input. */
+:host(lf-file-editor) .cm-content {
+  --lf-focus-box: .cm-editor;
+}
 :host(lf-file-editor) .cm-content[data-lf-focus-visible] {
   outline: none;
 }
-:host(lf-file-editor) .cm-editor:has(.cm-content[data-lf-focus-visible])::after {
+:host(lf-file-editor) .cm-editor[data-lf-control-focus-visible]::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -142,7 +145,7 @@
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-inset);
 }
-:host(lf-file-editor) .cm-editor:has(.cm-content[data-lf-focus-visible]) {
+:host(lf-file-editor) .cm-editor[data-lf-control-focus-visible] {
   --lf-wears-ring: 1;
 }
 /* The editing region keeps the height the host states while typing grows the file. */

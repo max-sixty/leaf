@@ -27,7 +27,8 @@ session had it, which hid it from the nudge and the overdue count.
 
 The fork thinks at `EFFORT` whatever the session's own effort, since every second it
 takes keeps the thread's messages from the session. The turn-end check's fork has an
-effort of its own (`clerk.EFFORT`), measured on its own work. On 2026-11-09 low wrote
+effort of its own (`clerk.EFFORT`), measured on its own work. Each falls back to the
+session's effort where the asked one cost the cache, as the clerk's header says. On 2026-11-09 low wrote
 lines as good as xhigh's. On 40 recorded thread messages, each replayed from its
 session's transcript (`notes/fork-replies.md`, "How well the fork judges"), a judge
 blind to the effort passed 35 lines at each effort and preferred low's on 19, xhigh's

@@ -721,10 +721,13 @@ summary,
     appearance: auto;
   }
 }
+.lf-choice > input {
+  --lf-focus-box: .lf-choice;
+}
 .lf-choice > input[data-lf-focus-visible] {
   outline: none;
 }
-.lf-choice:has(> input[data-lf-focus-visible]) {
+.lf-choice[data-lf-control-focus-visible] {
   outline: var(--focus-ring);
   --lf-wears-ring: 1;
 }
@@ -1389,7 +1392,10 @@ wa-copy-button.lf-icon-action {
 /* Comment boxes, the response bar's field (`.lf-response-control`, response.css) and its
    choices share their frame and focus paint. Other uses of the editor plumbing, such
    as option entry, supply their own face. Containers place comment boxes; they do not
-   supply a second frame. */
+   supply a second frame. A field shows its words' focus, and not its buttons'. */
+.lf-compose-field > leaf-text {
+  --lf-focus-box: .lf-compose-field;
+}
 .lf-comment-box > leaf-composition-field > .lf-compose-field,
 .lf-response-control,
 .lf-response-face {
@@ -1399,7 +1405,7 @@ wa-copy-button.lf-icon-action {
 }
 .lf-comment-box
   > leaf-composition-field
-  > .lf-compose-field:has(> leaf-text[data-lf-focus-visible]),
+  > .lf-compose-field[data-lf-control-focus-visible],
 .lf-response-control[data-lf-focus-visible],
 .lf-response-face[data-lf-focus-visible] {
   outline: var(--focus-ring);

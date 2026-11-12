@@ -124,12 +124,12 @@ def test_a_margin_card_clears_its_row_without_sacrificing_message_width(
         }"""
     )
     past = (
-        geometry["viewport"] - 8 - (geometry["controlsRight"] + 8)
+        geometry["viewport"] - 8 - (geometry["controlsRight"] + 16)
         >= geometry["preferred"]
     )
     assert past == (width == 2400), geometry
     assert geometry["cardLeft"] == pytest.approx(
-        (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT)) + 8,
+        (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT)) + 16,
         abs=0.5,
     ), geometry
     assert geometry["cardRight"] == pytest.approx(
@@ -612,7 +612,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     # right of the words, so the card stands there, across the cluster, at its whole
     # height.
     assert beside["shellWidth"] - 8 - beside["controlsRight"] < 320, beside
-    assert beside["cardLeft"] >= page.evaluate(WORDS_RIGHT) + 7.5, beside
+    assert beside["cardLeft"] >= page.evaluate(WORDS_RIGHT) + 15.5, beside
     assert beside["cardRight"] == pytest.approx(beside["shellWidth"] - 8, abs=0.5), (
         beside
     )

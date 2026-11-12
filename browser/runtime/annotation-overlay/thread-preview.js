@@ -1324,6 +1324,15 @@ export function createThreadPreview({
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);
     onCurrentLocation((node, cause, left) => {
+      // Focus in the transcript lifts the fade over its top (annotation-chrome.css), so
+      // the fade never lies over a focused message's ring.
+      const transcript = previewSession?.transcript;
+      if (transcript?.parentElement)
+        keeps(
+          transcript.parentElement,
+          "data-lf-transcript-focus",
+          node && under(node, transcript) ? "" : null,
+        );
       if (
         node &&
         under(node, preview) &&

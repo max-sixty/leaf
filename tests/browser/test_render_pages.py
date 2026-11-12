@@ -44,6 +44,7 @@ from render_cases_widgets import (
     RAIL_BAND_PAGE,
     RAIL_BANDS,
     ROOM_GEOMETRY,
+    SCROLLING_DIAGRAM_PAGE,
     TWIN_V1,
     TWIN_V2,
     TYPED_PARTS_PAGE,
@@ -1110,7 +1111,7 @@ def test_a_diagram_taken_out_while_its_renderer_loads_draws_when_put_back(
 def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve):
     """A focused visual draws one ring, its own mark; entering its thread keeps the
     mark on the same target, one outline, rather than adding a second."""
-    url = serve(WIDE_DIAGRAM_PAGE)
+    url = serve(SCROLLING_DIAGRAM_PAGE)
     append_carried_log_record(
         serve.page_dir,
         {

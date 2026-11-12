@@ -544,7 +544,16 @@ leaf-composition-field {
    (`--lf-thread-text-pad-block`, as a margin card's do). So opening it adds nothing to
    the message's height. Discard and Save stand at the message's head (`.lf-msg-edit-actions`). Rejected by the user on 2026-10-22: the
    reply box's own field, its padding inside the words' box, under a draft's cropped
-   shelf of the pictures, which moved and rewrapped the words. */
+   shelf of the pictures, which moved and rewrapped the words.
+   The field's ground is a pale accent, the hue of its focus ring and its Save, so an
+   open rewrite reads as one at a glance, focused or not. The reply box's ground all
+   but vanishes on a card's paper, and the frame alone, in the room the message
+   already kept, left the user unable to tell a message being edited from one at rest
+   (11 November 2026). The ground states its lightness and chroma rather than mixing
+   the accent into the card, since a few percent of the accent's blue in the card's
+   cream comes out grey, which reads as a disabled field. Rejected: a word in the head
+   saying it is being edited, which narrates what the user is doing (glossary); a wash
+   over the whole message, head included, too faint around the field to read. */
 .lf-msg-editor {
   display: block;
   min-width: 0;
@@ -562,6 +571,10 @@ leaf-composition-field {
   margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
   margin-block: calc(
     var(--lf-thread-text-pad-block, 0px) - var(--lf-compose-pad-block) - 1px
+  );
+  background: light-dark(
+    oklch(from var(--accent) 0.955 0.02 h),
+    oklch(from var(--accent) 0.29 0.03 h)
   );
 }
 .lf-msg-editor > leaf-composition-field > .lf-compose-field > leaf-text {

@@ -157,11 +157,11 @@ away or moves them out of reach (`../SOUL.md`, "Preserve the user's attention an
   message, a draft or any value for editing draws it in its display's place and face:
   every line of its words keeps its position, type and breaks, and its pictures and
   other parts keep their places and sizes. The editor adds only what editing needs, such
-  as a field's frame, Save and Discard, or a picture's removal mark, in room the display
-  already has: around the content, or at the head where the display's own control
-  stood. Where the frame needs room the display lacks, the display keeps that room at
-  rest, rather than the content moving on opening, as a scroller holding messages keeps
-  the thread's text inset beside them. Checks:
+  as a field's frame and ground, Save and Discard, or a picture's removal mark, in room
+  the display already has: around the content, or at the head where the display's own
+  control stood. Where the frame needs room the display lacks, the display keeps that
+  room at rest, rather than the content moving on opening, as a scroller holding
+  messages keeps the thread's text inset beside them. Checks:
   `test_a_rewrite_keeps_the_message_as_it_stood` and `test_a_draft_edits_where_it_reads`.
   Owners: `thread/message-edit.js`, `.lf-msg-editor` in `styles/components/response.css`,
   and `composing/text-field.js`.

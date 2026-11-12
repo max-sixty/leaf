@@ -44,7 +44,8 @@
    "Typed words survive"): a comment box over the message's body, every line of its words
    where it stood and broken where it broke, its pictures under them as the message
    draws them (`sentMedia`), each with the removal mark a rewrite adds, and the field's
-   frame and padding in the room around them (response.css, `.lf-msg-editor`). Discard
+   frame and padding in the room around them, on a ground that says it is open
+   (response.css, `.lf-msg-editor`). Discard
    and Save stand among the message's head controls as glyphs, where its Edit stood
    (`.lf-msg-edit-actions`), standing over the end of a short head's labels on the
    message's ground (controls.css), so the head's words stay where they stood. The

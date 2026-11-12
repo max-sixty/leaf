@@ -22,10 +22,13 @@ function readContents(node, read) {
     contents.collapse(true);
   }
 }
-// The boxes of the lines `node`'s contents are drawn in.
+// The boxes of the lines `node`'s contents are drawn in, and the box around them all.
 /** @param {Node} node */
 export const contentsRects = (node) =>
   readContents(node, (range) => [...range.getClientRects()]);
+/** @param {Node} node */
+export const contentsBox = (node) =>
+  readContents(node, (range) => range.getBoundingClientRect());
 
 // The box an element shows as. An element that generates none of its own — a
 // display: contents wrapper — shows as what its contents paint, so its bounds are
@@ -45,7 +48,7 @@ export function elementBox(el) {
   // its bounds from contents, which a hidden-until-found panel deliberately skips.
   if (r.width || r.height || skipped(el) || getComputedStyle(el).display !== "contents")
     return r;
-  return readContents(el, (range) => range.getBoundingClientRect());
+  return contentsBox(el);
 }
 
 // A number a widget can only read off a box the browser has laid out, such as the room

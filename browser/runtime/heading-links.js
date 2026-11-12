@@ -58,6 +58,7 @@ import { pageScope } from "./keyboard/register.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { HEADING, inChrome, pageQueryAll } from "./passages.js";
 import { upFrom } from "./shadow-tree.js";
+import { contentsRects } from "./shown-box.js";
 
 /** @typedef {{heading: Element, control: ReturnType<typeof copyControl>, shown: Set<string>, events: AbortController, stop: () => void}} HeadingLink */
 /** @type {Map<Element, HeadingLink>} */
@@ -165,9 +166,7 @@ function makeLink(heading) {
 /** @param {Element} heading */
 function firstLine(heading) {
   const box = heading.getBoundingClientRect();
-  const range = document.createRange();
-  range.selectNodeContents(heading);
-  const line = range.getClientRects()[0];
+  const [line] = contentsRects(heading);
   return line
     ? { top: line.top - box.top, height: line.height }
     : { top: 0, height: box.height };

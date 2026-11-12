@@ -1214,9 +1214,9 @@ def _stale_keys(page):
     page.wait_for_function("() => window.__lfFullscreenRequests === 0")
     page_at_rest(page)
     painted = page.evaluate_handle(_PAINTED_KEYS)
-    page.evaluate(
-        "async () => (await window.__lfWidgetApi()).commandsChanged(document.body)"
-    )
+    # `paintKeys` reads every element's keys again (keyboard/scopes.js). Saying an
+    # element's commands changed reads only that element's, and `body` declares none.
+    page.evaluate("async () => (await window.__lfCheckApi()).paintKeys()")
     rendered(page)
     stale = page.evaluate(_REPAINTED_KEYS, painted)
     painted.dispose()

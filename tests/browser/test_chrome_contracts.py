@@ -51,7 +51,7 @@ from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.media import store_uploaded_media
-from leaf.render_checks import rendered
+from leaf.render_checks import rendered, wait_for_probe
 
 
 def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve):
@@ -188,11 +188,7 @@ def test_a_compact_comment_keeps_no_room_for_send_under_a_mouse(browser, serve):
         # Layout already has its final width while Send still rides the box's
         # growth (box-motion.js). Compare their geometry only once it rests.
         rendered(page)
-        page.wait_for_function(
-            """() => !document.querySelector('.lf-fab-bar')
-              .getAnimations({subtree: true}).some(motion =>
-                Number.isFinite(motion.effect?.getComputedTiming().endTime))"""
-        )
+        wait_for_probe(page, "restingIn", ".lf-fab-bar")
         return field.bounding_box()
 
     page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
@@ -339,6 +335,49 @@ def test_resolving_a_thread_restyles_what_focus_marks(browser, serve):
 
     short, long = restyled(4), restyled(24)
     assert long - short < 10, {"4 sections": short, "24 sections": long}
+
+
+@pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
+def test_a_focus_move_near_a_long_pages_end_restyles_what_focus_marks(browser, serve):
+    """Shift+Tab from the last section's link to the one before it. Focus marks each
+    ancestor of the link it leaves and lands on, the column's `main` among them, and
+    each `:has()` that reads a focus mark is asked again of the elements on that path.
+    Two shapes once made each move restyle every section before the link: a
+    `:has(~ …)` asked of every child of `main`, which sends Chromium back through
+    every earlier sibling (the static guard beside it in test_interact_layer.py), and
+    the column's room registered as a `<length-percentage>`, which Chromium counts as
+    changed whenever the column restyles (layouts.css). Counted in
+    the browser's own restyled elements, a page of six times the sections restyles no
+    more."""
+
+    def restyled(sections):
+        page = open_page(
+            browser,
+            serve(
+                leaf_page(
+                    "Sections",
+                    "<h1>Sections</h1>"
+                    + "".join(
+                        f'<section id="s{g}"><h2>Section {g}</h2>'
+                        f"<p>Some words about section {g}.</p>"
+                        f'<p>More words with a <a id="a{g}" href="#s1">link</a>.</p>'
+                        "</section>"
+                        for g in range(1, sections + 1)
+                    ),
+                )
+            ),
+        )
+        page.locator(f"#a{sections}").focus()
+        rendered(page)
+        counts = restyle_counts(
+            page, lambda: (page.keyboard.press("Shift+Tab"), rendered(page))
+        )
+        expect(page.locator(f"#a{sections - 1}")).to_be_focused()
+        page.close()
+        return sum(counts)
+
+    short, long = restyled(8), restyled(48)
+    assert long - short < 10, {"8 sections": short, "48 sections": long}
 
 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])

@@ -11,7 +11,7 @@ import {
   verbatimOwnerIdentity,
 } from "/runtime/check-api.js";
 import { at, place, unique } from "./locate.js";
-import { openRoots } from "./open-roots.js";
+import { drawnPage, openRoots } from "./open-roots.js";
 
 /** @param {Element} owner @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
 const compositionalWords = (owner, declarations) => {
@@ -482,10 +482,11 @@ export function silentWords(declarations) {
 // reading carries the threshold so its consumer can distinguish it from a failure.
 const SHRUNK_LABEL_THRESHOLD_PX = 10;
 
-export function shrunkLabelReading() {
+/** @param {Element[]} [drawn] what the browser draws of the page (`drawnPage`) */
+export function shrunkLabelReading(drawn = drawnPage()) {
   return {
     threshold_px: SHRUNK_LABEL_THRESHOLD_PX,
-    drawings: shrunkLabels(SHRUNK_LABEL_THRESHOLD_PX),
+    drawings: shrunkLabels(SHRUNK_LABEL_THRESHOLD_PX, drawn),
   };
 }
 
@@ -509,7 +510,10 @@ export function shrunkLabelReading() {
 //
 // One entry per drawing, the outermost <svg>, because the fix is the drawing's: its
 // labels, its layout, or the room it is given. Every open root, since a drawing a module
-// makes on a project's page is that page's too; the runtime's own layer is skipped.
+// makes on a project's page is that page's too; the runtime's own layer is skipped. Only
+// a drawing the browser draws (`drawnPage`): one in a tab not chosen or an
+// off-screen `content-visibility: auto` box is skipped content, which asking about would
+// make the browser lay out.
 //
 // A run of words counts only where it is painted, which is asked of the element holding
 // it — the <text>, or the <tspan> inside one — since that is what the browser lays out
@@ -519,8 +523,8 @@ export function shrunkLabelReading() {
 // <defs>; a run laid out under visibility or opacity has a box and paints nothing. The
 // `hidden` attribute is no separate case: on an HTML ancestor it is display: none, and on
 // an SVG element Chrome draws the words anyway.
-/** @param {number} floor */
-function shrunkLabels(floor) {
+/** @param {number} floor @param {Element[]} drawn */
+function shrunkLabels(floor, drawn) {
   const chrome = (/** @type {Element} */ el) => {
     /** @type {Element | null} */
     let node = el;
@@ -534,10 +538,8 @@ function shrunkLabels(floor) {
   /** @typedef {{at: string, place: import("./locate.js").Place, labels: number, drawn?: number, set?: number, words?: string}} ShrunkDrawing */
   /** @type {Map<SVGSVGElement, ShrunkDrawing>} */
   const drawings = new Map();
-  for (const svg of openRoots(document).flatMap((r) => [
-    ...r.querySelectorAll("svg"),
-  ])) {
-    if (svg.ownerSVGElement) continue;
+  for (const svg of drawn) {
+    if (!(svg instanceof SVGSVGElement) || svg.ownerSVGElement) continue;
     for (const text of svg.querySelectorAll("text")) {
       // A local-name selector also matches HTML templates mounted inside SVG.
       // Only native SVG text has the geometry this reading measures.

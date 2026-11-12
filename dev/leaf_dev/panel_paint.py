@@ -29,7 +29,7 @@ from io import BytesIO
 from PIL import Image, ImageChops, ImageColor
 from playwright.sync_api import expect
 
-from leaf.render_checks import one_frame, rendered
+from leaf.render_checks import one_frame, rendered, wait_for_probe
 from leaf_dev.browser import PANEL
 
 ROUTES = (
@@ -44,12 +44,7 @@ def settled(page):
     """Wait until layout has started the panel's motion and that motion has finished,
     so a box read is where it rests."""
     rendered(page)
-    page.wait_for_function(
-        "selectors => selectors.every(s =>"
-        " !document.querySelector(s).getAnimations({subtree: true}).some(a =>"
-        " Number.isFinite(a.effect?.getComputedTiming().endTime)))",
-        arg=[PANEL, ".lf-fp-ground"],
-    )
+    wait_for_probe(page, "restingIn", PANEL, ".lf-fp-ground")
 
 
 def ink_box(image, colour):

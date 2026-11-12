@@ -38,7 +38,7 @@ from browser.threads import (
 )
 from leaf import cli as cli_model
 from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered
+from leaf.render_checks import one_frame, rendered, wait_for_probe
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -137,10 +137,7 @@ def test_a_refused_reply_folds_away_and_its_words_return_whole(browser, serve, s
 
     # A margin card follows the send with its own motion (box-motion.js), which ends
     # before the card is read where it stands.
-    page.wait_for_function(
-        "() => !document.querySelector('.lf-margin-preview')?.getAnimations({subtree: true})"
-        ".some(a => Number.isFinite(a.effect?.getComputedTiming().endTime))"
-    )
+    wait_for_probe(page, "restingIn", ".lf-margin-preview")
     route = held.pop()
     route.fulfill(
         status=400,

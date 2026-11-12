@@ -442,8 +442,11 @@ rule anywhere whose subject after a `:has()` names no element can make every wri
 a state another `:has()` reads, such as a hover, restyle the page
 (`test_a_has_leads_only_to_a_subject_naming_an_element` says which subjects name
 one), and a condition on the chrome root, `body` or `html` is
-re-evaluated on writes below it. Prefer a class that names the
-targets, or a condition its owner sets on the styled element, and measure with
+re-evaluated on writes below it. A `:has(~ …)` asked of elements most selectors reach,
+such as every child of `main`, makes each such write restyle every block before the
+one written (`test_a_has_reads_no_sibling_of_an_element_most_selectors_reach`). Prefer
+a class that names the targets, or a condition its owner sets on the styled element
+or its parent, such as a property a style query reads, and measure with
 `leaf-dev bench --read paint --profile`.
 
 A `:has()` on a compound that a combinator follows, as in
@@ -659,7 +662,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Open or close a native modal or popover                                                               | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (_lint_)           |
 | Focus on a popover's control as it opens, and the control's `aria-expanded`                           | `keyboard/layer-stack.js`, as each popover opens or closes                         |
 | Whether a node is, or is inside, an open native layer, and of which kind                              | `shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (_lint_) |
-| Whether a node stands in content the browser skips, and the box that skips it                         | `shadow-tree.js` `skipped`, `skipper`                                              |
+| Whether a node stands in content the browser skips, the box that skips it, and every element it draws | `shadow-tree.js` `skipped`, `skipper`, `drawnElements`                             |
 | Which native layers are open, in opening order, and whether a modal admits a node                     | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits`                      |
 | The element a URL fragment names, or the part of a widget its key names                               | `anchor-resolution.js` `fragmentTarget`, `fragmentAddress`                         |
 | This page's URL with a fragment naming an element, or a widget's key                                  | `anchor-coordinate.js` `fragmentUrl`                                               |

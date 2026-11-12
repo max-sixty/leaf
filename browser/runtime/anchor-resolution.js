@@ -304,7 +304,7 @@ export const ADDRESSABLE = '[id]:not(.lf-ui):not([id^="lf-"])';
 export function isAddressable(at) {
   if (!at.matches(ADDRESSABLE) || inChrome(at) || inUi(at) || settledAway(at))
     return false;
-  const visual = tagsDeclaring((entry) => entry["x-visual"]).join(",");
+  const visual = declaredVisualSelector();
   return !(visual && at.parentElement && closestAcross(at.parentElement, visual));
 }
 

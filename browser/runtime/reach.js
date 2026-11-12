@@ -14,7 +14,7 @@ import { LAYOUT } from "./widget-upgrade.js";
 import { eventSource } from "./pointer.js";
 import { keeps } from "./keeps.js";
 
-// Scroll owners opt into reach: the page's markup with the `scroll` class, and code,
+// Scroll owners opt into reach: the page's markup with the `lf-scroll` class, and code,
 // Leaf's or a package's, with `data-lf-scroll`, a name a page's own CSS can't reach by
 // accident. Their CSS owns overflow, including changes at breakpoints; the shared rule
 // contains positioned descendants. Style discovery measures only these surfaces. Stop
@@ -22,7 +22,7 @@ import { keeps } from "./keeps.js";
 // registration opts its body in.
 /** @typedef {Document | Element | ShadowRoot} Scope
  * @typedef {Pick<CSSStyleDeclaration, "overflowX" | "overflowY" | "position" | "direction">} ScrollStyle */
-const SCROLL_SURFACE = ".scroll, [data-lf-scroll]";
+const SCROLL_SURFACE = ".lf-scroll, [data-lf-scroll]";
 /** @type {WeakMap<Element, {classes: string | null, style: string | null}>} */
 const seenDeclarations = new WeakMap();
 /** @type {WeakSet<Node>} */

@@ -212,8 +212,9 @@ jobs:
   # No reading passes or fails anything (tests/AGENTS.md, "Results do not depend on
   # execution speed"); the job fails only when the command does. Its report, each
   # reading by size with the exponent of its growth, goes to the job's summary, its log
-  # and the `bench-report` artifact, where an agent reads it, since GitHub serves no
-  # job summary to its API.
+  # and the `bench-report` artifact. GitHub serves no job summary to its API, so Tend's
+  # daily `review-runs` reads the artifact and weighs whether a cost grows
+  # (`.claude/skills/running-tend/SKILL.md`, "Review-runs: benchmark costs that grow").
   #
   # The load's and each input's main-thread CPU and each gesture's `shown` at 64
   # sections, the size of the largest real pages, are charted on the `gh-pages`

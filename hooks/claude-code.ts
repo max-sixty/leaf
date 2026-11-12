@@ -320,9 +320,9 @@ let forkAgain = false;
  * off the turn's path, and a turn that ends while a fork is out starts one more
  * after it. `$.model.fork` resends the main thread's own last request, its model,
  * system prompt and tools, so the cache serves the conversation, and thinks at the
- * effort Leaf's question names (`clerk.EFFORT`), which the cache doesn't depend on;
- * it takes no answer schema, so Leaf checks the answer against its own
- * (`read_answer`). What Leaf wrote goes to the debug log, beside Claude Code's own
+ * effort Leaf's question names (`clerk.EFFORT`), or at the session's own where that
+ * effort cost the cache (`runFork`); it takes no answer schema, so Leaf checks the
+ * answer against its own (`read_answer`). What Leaf wrote goes to the debug log, beside Claude Code's own
  * lines for the fork's tokens (`Forked agent [plugin_model_fork] finished`) and the
  * effort it sent; the module logs no usage of its own, since the debug log redacts
  * a `*_tokens` field, and hands the fork's usage and time, or why it gave no answer,
@@ -343,6 +343,12 @@ async function clerk($: EngineInterface, session: string) {
         const asked = await forkStep($, session, {});
         if (!asked) continue;
         const ran = await runFork($, asked);
+        // The main thread's request has just gone out, so its cache is warm, and a
+        // fork that wrote more of its prompt than it read met the rewrite. A thread's
+        // fork can't tell: an idle session's cache may have expired (`runFork`).
+        const usage = ran.usage as Record<string, unknown> | undefined;
+        const written = Number(usage?.cache_creation_input_tokens ?? 0);
+        if (written > Number(usage?.cache_read_input_tokens ?? 0)) rewrote = true;
         const applied = await forkStep($, session, { basis: asked.basis, ...ran });
         if (ran.answer === undefined) {
           $.ui.log(`Leaf: the clerk's fork gave no answer (${ran.failed})`, {
@@ -391,20 +397,40 @@ function request() {
   );
 }
 
+// Whether a turn-end check of this session wrote more of its prompt to the cache
+// than it read, so later forks think at the session's own effort (`runFork`).
+let rewrote = false;
+
 /** Fork the conversation with the prompt and effort Leaf asked for, and what Leaf
  * notes of the fork: its `answer`, or why it gave none (`failed`, a thrown error
  * included), with its time, its usage, the effort Claude Code reports it sent
  * (since 2.1.318), which the fork's diagnostics give as its own, and the main
- * thread's request it resent (`request`), whose effort is the session's. */
+ * thread's request it resent (`request`), whose effort is the session's.
+ *
+ * A fork at another effort than the session's reads the conversation from the cache
+ * only where Claude Code's per-message effort reaches the model; otherwise the
+ * changed effort writes the conversation to the cache again from the session's
+ * first reply on, a cache write billed where a read was expected (issue #5891:
+ * through a proxy that rewrites mid-conversation system messages, on Vertex, or
+ * with `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS`). Leaf can't tell those setups
+ * apart from the module, so the turn-end check's usage does (`clerk`): it forks just
+ * after the main thread's request, while the cache is warm, so once one writes more
+ * of its prompt than it reads, each later fork of the session thinks at the
+ * session's effort, which the cache serves. A thread's fork can find the cache
+ * expired in an idle session at any effort, so its usage decides nothing. */
 async function runFork(
   $: EngineInterface,
   asked: { prompt: string; effort: ModelEffort },
 ): Promise<Record<string, unknown>> {
   const resent = request();
+  const effort =
+    rewrote && lastStep?.effort !== undefined
+      ? (lastStep.effort as ModelEffort)
+      : asked.effort;
   const started = await $.clock.now();
   let ran: Record<string, unknown>;
   try {
-    const reply = await $.model.fork({ prompt: asked.prompt, effort: asked.effort });
+    const reply = await $.model.fork({ prompt: asked.prompt, effort });
     ran = {
       ...(reply.isAnswered ? { answer: reply.text } : { failed: reply.reason }),
       ...("usage" in reply ? { usage: reply.usage } : {}),

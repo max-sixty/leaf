@@ -19,8 +19,11 @@ export const upgraded = () => document.body.dataset.lfUpgraded === "1";
 // that can still change boxes must. One on an element the page doesn't render changes
 // no box, and Firefox never starts it: a colour transition the scheme starts on a
 // control inside a closed `<details>` stays pending until the details open. A
-// scroll-driven animation, such as the contents map's lens, has no end in time, and a
-// paused one isn't running, so neither is in it.
+// scroll-driven animation, such as the contents map's lens or a margin card's message
+// heads, moves only while something scrolls, which `scrolling` reads, and a paused one
+// isn't running, so neither is in it. Only an animation on a document timeline runs
+// on the clock: Firefox 159 gave a message head's view-timeline animation a finite end
+// (30769 ms on 2026-11-11), where Chromium gives a percentage.
 const finiteMotion = () =>
   openRoots(document)
     .flatMap((root) => root.getAnimations())
@@ -28,6 +31,7 @@ const finiteMotion = () =>
       const effect = animation.effect;
       if (
         animation.playState !== "running" ||
+        !(animation.timeline instanceof DocumentTimeline) ||
         !Number.isFinite(effect?.getComputedTiming().endTime)
       )
         return false;
@@ -52,6 +56,21 @@ export function finishMoving() {
   for (const animation of motion) animation.finish();
   return motion.length;
 }
+
+// Whether the motion `finiteMotion` reads has ended within each element a selector
+// names, shadow trees included; a selector naming nothing reads as at rest. A test reads
+// one surface's geometry once that surface rests, while motion elsewhere runs on.
+export const restingIn = (/** @type {string[]} */ ...selectors) => {
+  const roots = selectors.flatMap((selector) => document.querySelector(selector) ?? []);
+  return !finiteMotion().some((animation) => {
+    const effect = animation.effect;
+    /** @type {Node | null} */
+    let node = effect instanceof KeyframeEffect ? effect.target : null;
+    while (node && !roots.some((root) => root === node))
+      node = node.parentNode ?? (node instanceof ShadowRoot ? node.host : null);
+    return node !== null;
+  });
+};
 
 // The page is settled once nothing is moving: no finite animation, and no scroll in
 // flight, such as a landing's glide, which is no animation and moves every box it

@@ -278,7 +278,7 @@ Leaf renders it, and its Source tab shows the exact Markdown. Where Markdown syn
 itself the subject, show it literally in `<pre><code>`.
 
 For a custom horizontal scroll area, set `overflow-x: auto` and add
-`class="scroll"` to that same box. Leaf contains its positioned descendants and
+`class="lf-scroll"` to that same box. Leaf contains its positioned descendants and
 adds keyboard access and continuation cues when content exceeds the box. Its CSS may
 change overflow at a breakpoint; Leaf measures the declared surface, never all of its
 descendants. For a box that scrolls vertically, see `page-layout.md`, "Bounds and widths".

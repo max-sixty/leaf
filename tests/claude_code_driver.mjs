@@ -5,10 +5,10 @@
 // Arguments: the session id, then the driver's options as JSON: `pluginRoot`, the
 // plugin's directory in place of this tree; `throwSpawn`, which makes every
 // `$.process.spawn` throw; `forkReply`, the text `$.model.fork` answers with;
-// `forkRejects`, which makes every fork reject; `completeReply`, the text
-// `$.model.complete` answers with, after `completeRefusals` completions it answers
-// as a provider's 429; and `env`, Claude Code's
-// environment, all that `$.env`
+// `forkRejects`, which makes every fork reject; `forkUsage`, the usage a fork
+// reports in place of one that read its prompt from the cache; `completeReply`, the
+// text `$.model.complete` answers with, after `completeRefusals` completions it
+// answers as a provider's 429; and `env`, Claude Code's environment, all that `$.env`
 // reads and what the module's processes inherit over the driver's own. Each stdin line is `{"emit": <event>, "e": <input>}`:
 // the driver runs that event's hooks over `e`, the bottom of the chain answering
 // with the input it reached, and prints `{"event", "result"}` once they resolve. A
@@ -167,7 +167,7 @@ const $ = {
     fork: async ({ prompt, effort }) => {
       print({ forked: prompt, effort });
       if (options.forkRejects) throw new Error("the model refused the request");
-      const usage = {
+      const usage = options.forkUsage ?? {
         input_tokens: 10,
         output_tokens: 20,
         cache_read_input_tokens: 1000,

@@ -33,14 +33,14 @@
    else reads the result off the placement record. A point whose words no longer
    resolve, or that had none, stands at the target's top; a reload keeps none. */
 import { resolveAnchor } from "./anchor-resolution.js";
-import { inChrome, pageText } from "./passages.js";
+import { inChrome, pageReadingVersion } from "./passages.js";
 import { clamp } from "./rect.js";
 import { targetSegments } from "./resolved-target.js";
 import { isElement, isText } from "./shadow-tree.js";
 import { upFrom, under } from "./shadow.js";
 
 // A sent comment's point by its thread's key: `{ element, passage, row, readFor }`.
-/** @typedef {{element: Element, passage: import("./anchor-resolution.js").Anchor | null, row: string, readFor: ReturnType<typeof pageText> | null}} HeldPoint */
+/** @typedef {{element: Element, passage: import("./anchor-resolution.js").Anchor | null, row: string, readFor: object | null}} HeldPoint */
 /** @type {Map<string, HeldPoint>} */
 const points = new Map();
 // Points a send has handed over (`commitPoint`), until the pass takes them in.
@@ -131,10 +131,8 @@ export function commitPoint(key, element, passage) {
 // it holds and forgets nothing.
 /** @param {Iterable<{key: string, target: Element | null}>} threads @param {ReadonlySet<string>} known */
 export function placePoints(threads, known) {
-  // The page reading is taken only for a point to find again. A pass in which every
-  // point still stands, as after each closed tab's document draws once the page has
-  // presented, reads no page: reading it walks every element the page holds.
-  /** @type {ReturnType<typeof pageText> | undefined} */
+  // Which page reading stands is asked only for a point to find again.
+  /** @type {object | undefined} */
   let text;
   for (const [key, { element, passage }] of handed) {
     if (!known.has(key)) continue;
@@ -149,7 +147,11 @@ export function placePoints(threads, known) {
     const point = points.get(key);
     if (!point) continue;
     let element = livePoint(target, point.element);
-    if (!element && point.passage && point.readFor !== (text ??= pageText())) {
+    if (
+      !element &&
+      point.passage &&
+      point.readFor !== (text ??= pageReadingVersion())
+    ) {
       point.readFor = text;
       const found = resolveAnchor(point.passage);
       element = livePoint(target, pointInto(target, targetSegments(found)[0]?.node));

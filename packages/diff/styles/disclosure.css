@@ -1,16 +1,31 @@
 /* Native evidence closure folds its pixels while CSS retires its controls.
-   Every opening is instant, including a reopen during an unfinished fold. */
+   Every opening is instant, including a reopen during an unfinished fold, and so is a
+   closing from the keyboard on the fold's summary. The fold states its duration and
+   its content reads it, because a `:has()` before `::details-content` made every focus
+   move restyle the whole page in Chromium
+   (test_a_has_leads_only_to_a_subject_naming_an_element). The duration doesn't
+   inherit, so changing it restyles the fold and its content's box, not every line. */
+@property --lf-fold-time {
+  syntax: "<time>";
+  inherits: false;
+  initial-value: 0s;
+}
 @media screen and (prefers-reduced-motion: no-preference) {
   @supports (block-size: calc-size(auto, size)) and (interactivity: inert) {
     :is(.lf-diff-fold, .lf-call-group) {
       interpolate-size: allow-keywords;
+      --lf-fold-time: var(--lf-motion-fold);
+    }
+    :is(.lf-diff-fold, .lf-call-group):has(> summary[data-lf-focus-visible]) {
+      --lf-fold-time: 0s;
     }
     :is(.lf-diff-fold, .lf-call-group)::details-content {
       block-size: auto;
       overflow: clip;
+      --lf-fold-time: inherit;
       transition:
-        block-size var(--lf-motion-fold) ease,
-        content-visibility var(--lf-motion-fold) allow-discrete;
+        block-size var(--lf-fold-time) ease,
+        content-visibility var(--lf-fold-time) allow-discrete;
     }
     :is(.lf-diff-fold, .lf-call-group):not([open])::details-content {
       block-size: 0;
@@ -18,10 +33,7 @@
     :is(.lf-diff-fold, .lf-call-group):not([open]) > :not(summary) {
       interactivity: inert;
     }
-    :is(.lf-diff-fold, .lf-call-group)[open]::details-content,
-    :is(.lf-diff-fold, .lf-call-group):has(
-        > summary[data-lf-focus-visible]
-      )::details-content {
+    :is(.lf-diff-fold, .lf-call-group)[open]::details-content {
       transition-duration: 0s;
     }
   }

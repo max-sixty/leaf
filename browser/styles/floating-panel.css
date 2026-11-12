@@ -398,7 +398,7 @@
   }
   /* The caret in the field wears the ring an anchored comment box wears (response.css),
      so a key that moves it there, `c` among them, shows where the words will go. */
-  .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus-visible]) {
+  .lf-fp-field .lf-compose-field[data-lf-control-focus-visible] {
     outline: var(--focus-ring);
     border-radius: var(--r);
     --lf-wears-ring: 1;
@@ -1149,7 +1149,10 @@
     opacity: 0;
     cursor: pointer;
   }
-  .lf-fp-chooser:has(> select[data-lf-focus-visible]) {
+  .lf-fp-chooser > select {
+    --lf-focus-box: .lf-fp-chooser;
+  }
+  .lf-fp-chooser[data-lf-control-focus-visible] {
     outline: var(--focus-ring);
   }
   :is(.lf-fp-on-page, .lf-fp-close)[data-lf-unoffered] {
@@ -1204,12 +1207,10 @@
     outline: none;
     box-shadow: none;
   }
-  .lf-fp-stage:has(
-      > .lf-fp-view[data-lf-focus-visible]:not(
-          [data-lf-leaving],
-          [data-lf-route="thread"]
-        )
-    )::after {
+  .lf-fp-stage > .lf-fp-view:not([data-lf-leaving], [data-lf-route="thread"]) {
+    --lf-focus-box: .lf-fp-stage;
+  }
+  .lf-fp-stage[data-lf-control-focus-visible]::after {
     content: "";
     position: absolute;
     inset: 4px;

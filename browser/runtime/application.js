@@ -368,30 +368,37 @@ function createApplication(dependencies) {
       overlay?.paint(entries);
     }
   };
-  // A direct redraw can show what the presenter's last paint did not read, such as the
-  // age of a message in a card it just opened, so it follows its own reads until the
-  // presenter's next paint reads them all again, and a change to one, such as the
+  // A direct draw can show what the presenter's last paint did not read, such as the
+  // age of a message in a card a gesture just opened, so it follows its own reads until
+  // the presenter's next paint reads them all again, and a change to one, such as the
   // clock, repaints through the presenter.
   let following = () => {};
   const forget = () => {
     following();
     following = () => {};
   };
-  const renderAnnotations = () => {
-    forget();
+  /** @template T @param {() => T} draw @returns {T} */
+  const follow = (draw) => {
     let first = true;
+    /** @type {T | undefined} */
+    let drawn;
     const stop = effect(() => {
       if (first) {
         first = false;
-        paintAnnotations();
+        drawn = draw();
       } else untracked(() => void marginPresentation?.present());
     });
-    // The paint may itself have redrawn them directly, which follows its own reads.
+    // The draw may itself have drawn something directly, which follows its own reads.
     const nested = following;
     following = () => {
       nested();
       stop();
     };
+    return /** @type {T} */ (drawn);
+  };
+  const renderAnnotations = () => {
+    forget();
+    follow(paintAnnotations);
   };
   renderAnnotations.refresh = () => {
     if (annotationsDrawn) renderAnnotations();
@@ -439,8 +446,10 @@ function createApplication(dependencies) {
     openPageMap: dependencies.annotationCommands.openPageMap,
     pageMapDialogContains: dependencies.annotationCommands.pageMapDialogContains,
     scrollThreadIntoView: dependencies.annotationCommands.scrollThreadIntoView,
+    // A card a gesture opens draws its thread outside the presenter's paint, and
+    // follows what it read, its messages' ages among them.
     renderMarginThread: (host, thread, outlets) =>
-      renderMarginThread(host, thread, inlineView, outlets),
+      follow(() => renderMarginThread(host, thread, inlineView, outlets)),
     placedAt: dependencies.anchorPlacement.placedAt,
     marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
     currentLocationObligation:

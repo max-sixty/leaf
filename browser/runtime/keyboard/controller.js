@@ -114,11 +114,20 @@ export function mountKeyboard({
   const afterControl = (ev) => {
     if (ev.key.length !== 1) press(ev);
   };
-  // A key whose default the control or page code already prevented is theirs, as
-  // role-button-press.js reads a press. Read again here, it would act at wherever that
-  // code had moved focus, such as the trigger a page's menu hands focus back to.
+  // A key aimed inside `body` whose default is already prevented when it reaches here
+  // is the page's, as role-button-press.js reads a press. Read again here, it would act
+  // at wherever page code had moved focus, such as the trigger a page's menu hands
+  // focus back to. Leaf's chrome stands outside `body`, and a mode armed over the page
+  // with nothing focused reads keys aimed at `body` itself, so those stay Leaf's
+  // whatever a page listener prevents.
   document.addEventListener("keydown", (ev) => {
-    if (!ev.defaultPrevented) afterControl(ev);
+    const { target } = ev;
+    const pages =
+      ev.defaultPrevented &&
+      target instanceof Node &&
+      target !== document.body &&
+      document.body.contains(target);
+    if (!pages) afterControl(ev);
   });
   // A key typed in a Leaf field stops at the field (field-keys.js), so this
   // pass reads it there.

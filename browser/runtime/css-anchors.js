@@ -244,7 +244,9 @@ export function anchorElement(target) {
 export function anchorReaches(anchor, box) {
   const holder = anchorHolder(anchor);
   const host = hostIn(holder, document);
-  if (!host) return false;
+  // Chromium lacks anchors inside a foreignObject (notes/browser-support.md, "An anchor
+  // inside an SVG foreignObject in Chromium").
+  if (!host || host.closest("foreignObject")) return false;
   const layer = nativeLayerHolding(holder);
   if (layer !== nativeLayerHolding(box)) return !layer;
   const order = host.compareDocumentPosition(box);

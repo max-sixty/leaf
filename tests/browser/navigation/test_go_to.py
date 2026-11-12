@@ -377,6 +377,40 @@ def test_generated_hints_spread_around_crowded_targets(browser, serve):
     page.wait_for_url(re.compile(r"#s1$"))
 
 
+def test_a_chip_stands_beside_a_link_in_an_svg_drawing_s_html(browser, serve):
+    """Chromium resolves no anchor to an element inside a foreignObject, so the chip
+    anchored to a link there stood off the window while its code still followed it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Drawn terminal",
+                '<h1 id="top">Drawn terminal</h1><svg id="drawing" width="400" '
+                'height="120"><foreignObject x="80" y="40" width="200" height="40">'
+                '<div xmlns="http://www.w3.org/1999/xhtml"><a id="run" '
+                'href="#top">$ wt merge</a></div></foreignObject></svg>',
+            )
+        ),
+    )
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS).first).to_be_visible()
+    rendered(page)
+    chips = page.evaluate(
+        """(selector) => {
+          const run = document.getElementById('run').getBoundingClientRect();
+          return [...document.querySelectorAll(selector)].map((chip) => {
+            const r = chip.getBoundingClientRect();
+            const gap = Math.hypot(
+              Math.max(run.left - r.right, r.left - run.right, 0),
+              Math.max(run.top - r.bottom, r.top - run.bottom, 0));
+            return [chip.dataset.lfGoToKind, chip.dataset.lfGoToTarget, Math.round(gap)];
+          });
+        }""",
+        CHIPS,
+    )
+    assert any(gap == 0 for *_, gap in chips), chips
+
+
 def test_narrowing_the_map_leaves_every_kept_chip_where_it_stood(browser, serve):
     """A kind filter and a typed letter only hide the chips they rule out. Reseated
     alone, a filtered column of folds stood on its rows' corners, half over the links

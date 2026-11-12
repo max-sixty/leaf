@@ -450,7 +450,9 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
 
     last = codes[-1]
     page.keyboard.press(last[0])
-    expect(hints).to_have_count(sum(code.startswith(last[0]) for code in codes))
+    expect(page.locator(".lf-target-picker-hint:visible")).to_have_count(
+        sum(code.startswith(last[0]) for code in codes)
+    )
     page.keyboard.press(last[1])
     expect(hints).to_have_count(0)
     expect(page.locator(".lf-fab-input")).to_be_focused()
@@ -607,7 +609,9 @@ def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
     codes = hints.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
     tail = next(code for code in codes if len(code) > 1)
     page.keyboard.press(tail[0])
-    expect(hints).to_have_count(sum(code.startswith(tail[0]) for code in codes))
+    expect(page.locator(".lf-target-picker-hint:visible")).to_have_count(
+        sum(code.startswith(tail[0]) for code in codes)
+    )
     continued = page.locator(
         f'.lf-target-picker-hint[data-lf-hint-code="{tail}"] .lf-binding-sequence'
     )

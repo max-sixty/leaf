@@ -299,24 +299,30 @@ export function seatHints(
   const edgeBottom = viewport.bottom - band;
   /** @param {HintFace} face */
   const beforeLeft = ({ start, target }) => target.left - start.width - clear;
+  // Whether `seat` stands on a target other than `face`'s or one around it.
+  /** @param {HintBox} seat @param {HintFace} face */
+  const coversAnother = (seat, face) =>
+    targets.some(
+      (target) =>
+        target !== face.target &&
+        !encloses(target, face.target) &&
+        overlaps(seat, target),
+    );
   // A before seat stands level with its target's first line, so in a list of short rows
   // each chip reads as its own row's rather than the boundary with the row above. A
   // chip that would cover its own target at the window's edge, or a neighbour's words
-  // in a row of buttons, keeps its target's corner, which covers less of them.
+  // where it can't stand above its own target (below), keeps its target's corner, which
+  // covers less of them.
   /** @param {HintFace} face */
   const level = ({ start, target }) =>
     target.top + (Math.min(target.height, 2 * start.height) - start.height) / 2;
-  /** @param {T} face @param {number} left */
+  /** @param {HintFace} face @param {number} left */
   const levelTop = (face, left) => {
-    const { start, target } = face;
     const top = level(face);
-    const seat = movedTo(start, left, top);
-    const covers = faces.some(
-      (other) =>
-        overlaps(seat, other.target) &&
-        (other === face || !encloses(other.target, target)),
-    );
-    return covers ? start.top : top;
+    const seat = movedTo(face.start, left, top);
+    return overlaps(seat, face.target) || coversAnother(seat, face)
+      ? face.start.top
+      : top;
   };
   // A corner chip hangs half above its target, which reads as the target's while the
   // target runs on below it. In a list of rows shorter than a chip, it covers the row
@@ -358,13 +364,27 @@ export function seatHints(
     );
   const measured = nestOutsets(faces, (face) => beforeLeft(face) - edgeLeft).map(
     ({ face, outset }) => {
-      const { start, target, placement = "corner" } = face;
+      const { start, target } = face;
+      // Before a target with another beside it, as in a row of cards or buttons, a chip
+      // stands on the neighbour and reads as the neighbour's, so it stands above its own
+      // target where no other target stands there, as a control's does. Both seats are
+      // read before the window's edge moves them, since that edge can push a chip onto
+      // its own target's contents, which are no neighbour.
+      const placement =
+        face.placement === "before" &&
+        coversAnother(movedTo(start, beforeLeft(face) - outset, level(face)), face) &&
+        !coversAnother(
+          movedTo(start, target.left, target.top - start.height - clear),
+          face,
+        )
+          ? "above"
+          : (face.placement ?? "corner");
       const column = crowded.has(face) ? columnWidth(face) : start.width;
       const preferredLeft =
         placement === "below"
           ? target.left + (target.width - start.width) / 2
           : placement === "before"
-            ? beforeLeft({ start, target }) - outset
+            ? beforeLeft(face) - outset
             : placement === "above"
               ? target.left
               : start.left + (start.width - column) / 2;
@@ -421,15 +441,6 @@ export function seatHints(
         off(target) >= off(own),
     );
   };
-  // Whether `seat` stands on a target other than `face`'s or one around it.
-  /** @param {HintBox} seat @param {T} face */
-  const coversAnother = (seat, face) =>
-    targets.some(
-      (target) =>
-        target !== face.target &&
-        !encloses(target, face.target) &&
-        overlaps(seat, target),
-    );
   // Faces are seated in turn, each clear of those before it, so the order decides which
   // of two crowded chips steps out or is withheld.
   /** @param {typeof measured} order */

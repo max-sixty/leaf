@@ -219,19 +219,47 @@ test("a before chip stands level with its target's first line, so each row in a 
   );
 });
 
-test("a before chip that would cover a neighbouring target keeps its own target's corner", () => {
+test("a before chip that would stand on a neighbouring target stands above its own", () => {
   const buttons = [box(100, 100, 100, 30), box(205, 100, 100, 30)];
+  const before = (targets) =>
+    seat(
+      targets.map((target) => ({
+        start: chip(target.left, target.top),
+        target,
+        placement: "before",
+      })),
+    );
+  assert.deepEqual(before(buttons), [
+    { left: 78, top: 107 },
+    { left: 205, top: 82 },
+  ]);
+  // Where another target stands above it too, as in a grid of buttons, the chip keeps
+  // its target's corner, which covers less of the neighbour's words.
+  assert.deepEqual(
+    before([...buttons, box(100, 135, 100, 30), box(205, 135, 100, 30)]),
+    [
+      { left: 78, top: 107 },
+      { left: 205, top: 82 },
+      { left: 78, top: 142 },
+      { left: 183, top: 135 },
+    ],
+  );
+  // A target around its own is no neighbour: the first slot of a film keeps its seat
+  // before the film's edge, and the next slot's chip stands above it.
+  const film = box(100, 100, 300, 60);
+  const slots = [box(110, 110, 30, 40), box(145, 110, 30, 40)];
   assert.deepEqual(
     seat(
-      buttons.map((target) => ({
+      [film, ...slots].map((target) => ({
         start: chip(target.left, target.top),
         target,
         placement: "before",
       })),
     ),
     [
-      { left: 78, top: 107 },
-      { left: 183, top: 100 },
+      { left: 68, top: 108 },
+      { left: 88, top: 118 },
+      { left: 145, top: 92 },
     ],
   );
 });

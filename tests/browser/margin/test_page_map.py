@@ -969,8 +969,9 @@ def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
 
 def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, serve):
     """Which location of how many, and how far down, is how a user listening places a
-    margin entry in the walk. Painted, the same words read as progress toward something, which
-    is not what they say, so they belong to the accessible name alone."""
+    margin entry in the walk, said by the entry they are on. Painted, the same words read
+    as progress toward something, which is not what they say, so they belong to the
+    accessible name alone."""
     subject = (
         "Which jobs should we start before the first frost reaches the garden, "
         "while keeping the bird bath available and leaving enough time to replace "
@@ -982,17 +983,18 @@ def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, ser
     )
     resized(page, 1440, 900)
     entries = page.locator(".lf-margin-entry")
-    # What each entry the margin shows says when pointed at; one folded into another's
-    # overflow shows nothing to point at.
-    buttons = [
-        {
-            "name": entries.nth(index).get_attribute("aria-label"),
-            "word": " ".join(preview_parts(entries.nth(index)))
-            if entries.nth(index).is_visible()
-            else "",
+
+    # What each entry the margin shows is called with the user on it, and says when
+    # pointed at; one folded into another's overflow shows nothing to point at.
+    def reading(entry):
+        if entry.is_visible():
+            entry.focus()
+        return {
+            "name": entry.get_attribute("aria-label"),
+            "word": " ".join(preview_parts(entry)) if entry.is_visible() else "",
         }
-        for index in range(entries.count())
-    ]
+
+    buttons = [reading(entries.nth(index)) for index in range(entries.count())]
     placed = [button for button in buttons if re.search(r"\d+ of \d+", button["name"])]
     assert placed, "no margin entry announced where it stands in the walk"
     for button in placed:
@@ -1037,6 +1039,7 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
     page = open_page(browser, url)
     resized(page, 1440, 900)
     marker = page.locator('[data-lf-margin-for="t-parser"] > .lf-margin-marker')
+    marker.focus()
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, 1 of 1,"))
     expect(page.locator('[data-lf-margin-for="t-mounts"]')).to_have_count(0)
     expect(page.get_by_role("navigation", name="Page Map, 2 locations")).to_have_count(

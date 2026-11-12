@@ -1088,8 +1088,9 @@ def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
 
 
 def test_a_row_leaving_renames_the_rows_after_it(browser, serve):
-    """A marker's name says where its row stands among the rows, so a listener's count
-    stays true when another row leaves, though nothing else about the marker changed."""
+    """The name of the marker the user is on says where its row stands among the rows,
+    so a listener's count stays true when another row leaves, though nothing else about
+    the marker changed."""
     body = "<h1>Rows</h1>" + "".join(
         f'<p id="line-{n}">Line {n}, with a thread on it.</p>' for n in range(1, 4)
     )
@@ -1100,6 +1101,7 @@ def test_a_row_leaving_renames_the_rows_after_it(browser, serve):
     page = open_page(browser, live_url(url))
     resized(page, 1440, 900)
     last = page.locator('[data-lf-margin-for="line-3"] > .lf-margin-marker')
+    last.focus()
     expect(last).to_have_attribute("aria-label", re.compile(r"3 of 3"))
     append_command(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": roots[0]["id"]}

@@ -41,14 +41,17 @@
    the page that knows a deferred upgrade exists is whoever remembered to name it, which
    is a reader repeating what the page should settle.
 
-   A widget reaches this through two routes, and each declares what it defers, so no
+   A widget reaches this through three routes, and each declares what it defers, so no
    widget keeps work off the presentation path without the page counting it.
    `afterPresentation` is the wait and the declaration together, for work the widget
-   earns the right to start only once the user has the page. `deferredArrival` is the
-   declaration alone, for work already running that presentation need not wait for,
-   such as a live sample's child page starting below the window: the work starts
-   now, the page presents without it, and `arrived` waits for it. Neither hands a
-   package the bare `presented` wait. */
+   earns the right to start only once the user has the page. `whenNear` is the same for
+   work it earns only once the reader comes near the node, such as a live sample's
+   child page: the page counts the browser's first reading of the node, so a reader of
+   its final boxes waits for whatever that reading starts, and a check that reads every
+   document the page can show starts the rest (`startNearWork`). `deferredArrival` is
+   the declaration alone, for work already running that presentation need not wait
+   for: the work starts now, the page presents without it, and `arrived` waits for it.
+   None hands a package the bare `presented` wait. */
 
 import { whileConnected } from "./arrivals.js";
 import { applicationPresented } from "./semantic-state.js";
@@ -97,6 +100,57 @@ export async function whenArrived() {
 /** Run `work` once the page has presented, as an arrival the page answers for.
  * @template T @param {() => T | PromiseLike<T>} work @returns {Promise<T>} */
 export const afterPresentation = (work) => deferredArrival(presented.then(work));
+
+// How near the window `whenNear` starts work: within a window's height above or below
+// it, so a reader scrolling at a reading pace finds it done, while a jump, such as a
+// contents link or a tab, lands on it starting. A scroller inside the window, such as
+// a pane, grows by nothing, so work in it starts as its node shows there:
+// `scrollMargin`, which would grow it, reads differently in each engine
+// (notes/browser-support.md, "Intersection margins of nested scrollers"), and a node in
+// a cross-origin document, such as a sample's own sample, gets no margin at all.
+const NEAR = "100% 0px";
+/** @type {Set<() => void>} */
+const nearing = new Set();
+
+/** Run `start` once, when `node` comes within `NEAR` of the window, as an
+ * IntersectionObserver reads it, counting what it returns as an arrival, as
+ * `afterPresentation` does. The wait counts too, until the browser's first reading,
+ * which it takes at its next rendering even in a frame off screen, has said whether
+ * `start` runs, so work that reading starts is counted before the wait lands. Returns
+ * the step that stops waiting.
+ * @param {Element} node @param {() => unknown} start */
+export function whenNear(node, start) {
+  /** @type {PromiseWithResolvers<void>} */
+  const { promise: read, resolve: land } = Promise.withResolvers();
+  deferredArrival(read);
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (entries.some(({ isIntersecting }) => isIntersecting)) run();
+      land();
+    },
+    { rootMargin: NEAR },
+  );
+  const stop = () => {
+    observer.disconnect();
+    nearing.delete(run);
+    land();
+  };
+  const run = () => {
+    nearing.delete(run);
+    observer.disconnect();
+    deferredArrival(Promise.resolve(start()));
+    land();
+  };
+  nearing.add(run);
+  observer.observe(node);
+  return stop;
+}
+
+/** Start all work waiting for its node to near the window, for a check that reads
+ * every document the page can show rather than those near where it opened. */
+export function startNearWork() {
+  for (const run of [...nearing]) run();
+}
 
 // The `/api/state` answer this page last applied: the reading that names it, the moment
 // the server took it, and the moment its activity could next change with no file

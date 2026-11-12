@@ -201,9 +201,13 @@ page script is the worked example (the playground package's author instructions,
 "Stateful previews").
 
 Run a heavy renderer that can wait until the user has the page through
-`afterPresentation(() => …)`. Pass work that starts now but need not delay
-presentation, such as a slow load whose result moves nothing visible, to
-`deferredArrival(promise)`. Checks and tests that wait for the page wait for both.
+`afterPresentation(() => …)`, and one that can wait until the user comes near it through
+`whenNear(element, () => …)`, which starts it once `element` comes within a window's
+height of the window and returns a step that stops waiting. Pass work that
+starts now but need not delay presentation, such as a slow load whose result moves
+nothing visible, to `deferredArrival(promise)`. Checks and tests that wait for the page
+wait for the work each of these has started, and `page check --render` first starts all
+work still waiting for the user to come near.
 Before deferring work that resizes the widget, ask `growthIsSeen(element)`: if growing
 now would move what the user sees, pass the work to the widget controller's
 `present(promise)` instead, so it lands before presentation.

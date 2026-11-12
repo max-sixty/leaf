@@ -71,6 +71,7 @@ from render_harness import (
     open_page,
     plant_quiet_word,
     primed,
+    reached_sample,
     resized,
     root_overflow,
     still_page,
@@ -582,8 +583,10 @@ def test_page_fixture_renders(browser, serve, source):
 
     The journeys share one page because each reads only what its own journey changes,
     and the page the journey before handed over is one a reader could have reached.
-    Resting reads the untouched page, so it goes first, and the framing readings and
-    the scroll want the page as a reader first opens it, so they follow. A resize
+    Resting reads the untouched page, so it goes first, and the framing readings want
+    the page as a reader first opens it, so they follow. The journeys after them
+    compare the page with itself, so every live sample starts before them, since a
+    sample starts as it nears the window and stays started. A resize
     starting narrow needs a page that first painted narrow, so that journey gets a
     page of its own, as does a narrowing no one scrolled before
     (`untouched_resize_findings`)."""
@@ -620,6 +623,12 @@ def test_page_fixture_renders(browser, serve, source):
             str(Finding.read(said))
             for said in render_checks_model.evaluate_probe(page, "wordsInFormControls")
         ],
+    }
+    # Work the page holds until the reader nears it, such as a live sample's page,
+    # stays started once it starts, so the journeys that compare the page with itself
+    # start it all first.
+    render_checks_model.start_near_work(page)
+    findings |= {
         "scrolled": scroll_findings(page),
         "closed surfaces": surface_findings(page),
         "resized from the widest": resize_findings(page, RESIZE_PATH),
@@ -651,12 +660,7 @@ def test_page_fixture_opens_without_firefox_console_warnings(
     leaves the console as `firefox_browser` requires: empty."""
     page = open_page(firefox_browser, serve(source))
     for sample in page.locator("lf-sample:has(> template[data-sample])").all():
-        sample.scroll_into_view_if_needed()
-        sample.evaluate(
-            """sample => Promise.race([sample.ready, new Promise((_, reject) =>
-              setTimeout(() => reject(new Error(`${sample.id} never got ready: ${
-                sample.textContent.trim().slice(0, 80)}`)), 60_000))])"""
-        )
+        reached_sample(sample)
 
 
 def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, serve):

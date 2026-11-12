@@ -708,6 +708,28 @@ def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
     ), f"an async reading has to name itself, and this came back as {failures}"
 
 
+def test_the_gate_reads_a_sample_far_below_the_window(browser, serve):
+    """A live sample starts its page only as the reader nears it, but the gate reads
+    every document the page can show (`start_near_work`), so it refuses a page whose
+    sample's own script throws wherever on the page the sample stands."""
+    source = leaf_page(
+        "Far fault",
+        '<p id="words">Words.</p><div style="height: 400vh"></div>'
+        '<lf-sample id="far"><template id="far-source" data-sample>'
+        '<p id="practice">Practice.</p><script>function sampleFault() {'
+        " throw new TypeError('thrown in the sample'); } sampleFault();</script>"
+        "</template></lf-sample>",
+    )
+    failures = render_gate_model.render_version(
+        browser.unwatched, serve(source)
+    ).failures
+    assert any(
+        failure.code == "page-exception"
+        and "thrown in the sample" in failure.values["text"]
+        for failure in failures
+    ), failures
+
+
 def test_a_devtools_issue_inside_nested_cross_origin_frames_is_unplaced(browser):
     """A same-origin inner frame cannot lend access through its outer boundary."""
     context = browser.new_context()
@@ -2115,7 +2137,8 @@ def resize_findings(page, path):
     positions too, since native scroll snapping can settle away from zero.
     Both ends are tried: a state written on the way down and one written on the
     way up are cleared by different widths, so each journey runs on a page opened at
-    the end it starts from.
+    the end it starts from. Work a width brings near the window, such as a live
+    sample's page, stays started at every other, so the journey starts it all first.
 
     Unlike a scroll, a resize lays the whole page out again and repaints it, so what it
     writes at each step costs nothing beside that; a write that restates what stood is
@@ -2149,6 +2172,7 @@ def resize_findings(page, path):
         ]
 
     left_alone(page)
+    render_checks_model.start_near_work(page)
     # A sample can hold its child's growth while the reader sees the frame. Resizing
     # interrupts that reading and releases the held height; take the baseline after
     # that first release, so the return trip compares settled layouts at each width.

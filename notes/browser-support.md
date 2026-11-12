@@ -306,6 +306,23 @@ editor also revealed its frame without a JavaScript reveal call.
 Reproduce by focusing the parent, then invoking native focus or reveal from a
 child message handler; separately type into an offscreen focused child editor.
 
+### Intersection margins of nested scrollers
+
+Work a widget defers until its node nears the window, such as a live sample's child
+page, starts once the node comes within a window's height of the window
+(`browser/runtime/presentation.js`, `whenNear`), through an IntersectionObserver's
+`rootMargin`, which every engine applies to the window alone. A node in a scroller
+inside the window, such as a pane or a thread card, therefore starts its work as it
+shows there. `scrollMargin` would grow those scrollers too, but on
+2026-11-11, on a Leaf column page with a sample frame about 3,800px down a 900px
+window, HeadlessChrome 158.0.8127.18 (Playwright 1.65.0) read the frame as
+intersecting under `rootMargin: "100% 0px"` with `scrollMargin: "100% 0px"`, though
+under either alone it did not and the reported root ended at 1,800px. Playwright
+Firefox 159.0 instead grew the window by both, to 2,700px. Plain test pages, even with
+the body as an inline-size container, read correctly in both. Recheck by observing
+`#far iframe` with each option in `uv run leaf-dev probe` of a page that places
+`<lf-sample id="far">` under a 400vh spacer, in both engines.
+
 ### A selection written during focus in WebKit
 
 Playwright WebKit 26.6 revealed an editor's selection written inside its

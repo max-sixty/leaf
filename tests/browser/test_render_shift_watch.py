@@ -2060,8 +2060,8 @@ def test_a_frame_off_screen_judges_existing_records_without_awaiting_paint(
     browser, when, opaque
 ):
     """A child frame its embedding page hides or scrolls out of the viewport paints
-    nothing on screen, and Chrome stops rendering an opaque one there, as it does the
-    feature gallery's samples below the fold. The frame learns it is off screen itself,
+    nothing on screen, and Chrome stops rendering an opaque one there, as it does a
+    live sample scrolled out of the window. The frame learns it is off screen itself,
     across origins, and its judgement ends on that fact rather than awaiting paint."""
     page = field_page(browser)
     page.set_viewport_size({"width": 900, "height": 600})

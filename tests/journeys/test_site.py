@@ -46,6 +46,7 @@ from render_harness import (
     open_threads,
     page_comment,
     panel_menu,
+    reached_sample,
     resized,
     root_overflow,
     select,
@@ -1400,7 +1401,7 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
             samples = page.locator("#bg-interactions lf-sample")
             expect(samples).to_have_count(3)
             for sample in samples.all():
-                sample.evaluate("async sample => { await sample.ready; }")
+                reached_sample(sample)
         if source.stem in framed:
             framed.remove(source.stem)
             expect(page.locator("body > main.layout-workspace")).to_have_count(1)

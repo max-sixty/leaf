@@ -55,6 +55,7 @@ from render_harness import (
     panel_says,
     panel_settled,
     panel_view,
+    reached_sample,
     resized,
     root_overflow,
     round_trip,
@@ -830,6 +831,8 @@ def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
 def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     """Child pages hold independent panel and anchored views across sample Reset."""
     page = open_page(browser, serve(named_source("thread-panel-gallery")))
+    for sample in ("overview", "on-you", "resolved", "summary"):
+        reached_sample(page.locator(f"#{sample}-sample"))
     views = {
         "overview": page.frame_locator("#overview-sample iframe"),
         "you": page.frame_locator("#on-you-sample iframe"),

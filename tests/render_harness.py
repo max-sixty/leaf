@@ -931,33 +931,6 @@ def long_press(page, point):
     )
 
 
-_SAMPLE_READY = """(sample, ms) => Promise.race([sample.ready, new Promise((_, reject) =>
-  setTimeout(() => reject(new Error(`${sample.id} never got ready`)), ms))])"""
-
-
-# The tabs holding an element, outermost first, as each one's set and label.
-_TAB_PATH = """element => {
-  const path = [];
-  for (let tab = element.closest('lf-tab'); tab; tab = tab.parentElement.closest('lf-tab'))
-    path.push({set: tab.parentElement.id, label: tab.getAttribute('label')});
-  return path.reverse();
-}"""
-
-
-def reached_sample(sample):
-    """Bring the live sample the locator `sample` names into the window, as a reader
-    choosing its tabs and scrolling to it does, and wait until its page is usable,
-    returning its `ready` reading. A sample starts its page only as it nears the
-    window (lf-sample.js, `APPROACH`), so a page reading ready says nothing of one
-    further down or in a shut tab."""
-    for tab in sample.evaluate(_TAB_PATH):
-        sample.page.locator(f"#{tab['set']}").get_by_role(
-            "tab", name=tab["label"], exact=True
-        ).click()
-    sample.scroll_into_view_if_needed()
-    return sample.evaluate(_SAMPLE_READY, render_checks_model.SERVED_TIMEOUT_MS)
-
-
 def holding(page, held, count, what):
     """Wait until `held` has collected `count` requests the route put there."""
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000

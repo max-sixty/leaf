@@ -23,7 +23,6 @@ from render_harness import (
     active_digit_bindings,
     available_commands,
     open_page,
-    reached_sample,
     resized,
     rgb_pixel,
     stamp_page,
@@ -32,6 +31,7 @@ from render_harness import (
     write,
 )
 
+from leaf.render_checks import start_near_work
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -271,6 +271,9 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
     # Serve each example with its data and history: live samples can select
     # authored threads as part of the exhibit.
     page = open_page(browser, serve(source))
+    # A live sample's frame takes its child's height once the child starts, which it
+    # does as it nears the window, so every one starts before the gutters are read.
+    start_near_work(page)
     scale = page.evaluate("() => devicePixelRatio")
     # Rendered, not merely present. A sample inside a tab panel the page is not
     # showing sits in skipped content, which still reports its last laid-out rect — a
@@ -298,10 +301,6 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
         assert page.locator(f"#{spec}").evaluate("el => el.checkVisibility()"), (
             f"{spec} remained hidden after opening its tabs"
         )
-        # A live sample's frame takes its child's height once the child starts, which
-        # it does as it nears the window.
-        if page.locator(f"#{spec} > template[data-sample]").count():
-            reached_sample(page.locator(f"#{spec}"))
         # A live sample paints its gutter on the exhibit around its frame, since its
         # host controls cannot be the table's second caption.
         painter = page.locator(f"#{spec}").evaluate(

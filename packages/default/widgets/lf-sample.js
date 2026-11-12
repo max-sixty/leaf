@@ -17,32 +17,29 @@
  * when that opens. Until then nothing loads, the frame keeps its placeholder height
  * and the status line stays empty, so starting moves nothing; `ready` waits, and
  * Reset starts the child. The browser's Find searches only the children that have
- * started. The user chose this in November 2026 over starting each child as its
- * sample mounts, which cost the feature gallery a Leaf runtime per sample on every
- * load, most of them in shut tabs. A frame the reader sees as it mounts starts at
- * once, and the containing page presents before it unless the frame's resize on
- * arrival would move what the reader sees then, and stops waiting for it once the
- * host says its load waits on the server (`waiting`). The sample's arrival is its
- * child's: the child's presentation and then whatever that document deferred, the
- * samples it started included. The page reads as arriving until every started child
- * has arrived, and until the browser's first reading of each waiting frame has said
- * whether it starts. Each document the frame loads, on mount, Reset or a reload, is
- * counted from when it begins (`deferredArrival`) until it arrives, fails, departs or
- * the sample leaves. A reload's document is counted once it connects; the parent
- * cannot tell its departure from one to a page outside Leaf, whose load can land
- * before the departure's notice, so nothing is counted between. Work a child starts
- * after it has arrived, such as one of its own samples' Reset, is the child's to
- * count. A resize of a child the reader did not ask to load, one started by nearing
- * the window, waits while it would move what they see, the frame keeping its current
- * height (`heldGrowth`), until they look away, or until they click, type or press a
- * key inside the child, which makes every later resize of that document theirs,
- * though not a wheel or touch that scrolls past it; a resize after Reset or Return to
- * page, or one of a frame the reader saw as it mounted, is theirs and applies at
- * once. A load that waited on its server arrives as news, held the same way, whoever
- * asked for it: after minutes of waiting the reader may have moved on. The status
- * line keeps its room through loading, ready and failure, so the frame below it stays
- * put; a failure's words that run past it stand in a disclosure the reader opens over
- * the frame.
+ * started. A frame the reader sees as it mounts starts at once, and the containing
+ * page presents before it unless the frame's resize on arrival would move what the
+ * reader sees then, and stops waiting for it once the host says its load waits on the
+ * server (`waiting`). The sample's arrival is its child's: the child's presentation
+ * and then whatever that document deferred, the samples it started included. The page
+ * reads as arriving until every started child has arrived, and until the browser's
+ * first reading of each waiting frame has said whether it starts. Each document the
+ * frame loads, on mount, Reset or a reload, is counted from when it begins
+ * (`deferredArrival`) until it arrives, fails, departs or the sample leaves. A
+ * reload's document is counted once it connects; the parent cannot tell its departure
+ * from one to a page outside Leaf, whose load can land before the departure's notice,
+ * so nothing is counted between. Work a child starts after it has arrived, such as
+ * one of its own samples' Reset, is the child's to count. A resize of a child the
+ * reader did not ask to load, one started by nearing the window, waits while it would
+ * move what they see, the frame keeping its current height (`heldGrowth`), until they
+ * look away, or until they click, type or press a key inside the child, which makes
+ * every later resize of that document theirs, though not a wheel or touch that
+ * scrolls past it; a resize after Reset or Return to page, or one of a frame the
+ * reader saw as it mounted, is theirs and applies at once. A load that waited on its
+ * server arrives as news, held the same way, whoever asked for it: after minutes of
+ * waiting the reader may have moved on. The status line keeps its room through
+ * loading, ready and failure, so the frame below it stays put; a failure's words that
+ * run past it stand in a disclosure the reader opens over the frame.
  * Reset stays focusable
  * while loading but accepts no new press, preserving the parent's keyboard position.
  * Ordinary children remain static

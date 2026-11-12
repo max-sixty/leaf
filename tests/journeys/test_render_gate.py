@@ -71,7 +71,6 @@ from render_harness import (
     open_page,
     plant_quiet_word,
     primed,
-    reached_sample,
     resized,
     root_overflow,
     still_page,
@@ -659,8 +658,15 @@ def test_page_fixture_opens_without_firefox_console_warnings(
     response blocked as opaque. Every page of the corpus, each live sample loaded,
     leaves the console as `firefox_browser` requires: empty."""
     page = open_page(firefox_browser, serve(source))
+    # A sample starts its page as it nears the window, so every one starts first.
+    render_checks_model.start_near_work(page)
     for sample in page.locator("lf-sample:has(> template[data-sample])").all():
-        reached_sample(sample)
+        sample.scroll_into_view_if_needed()
+        sample.evaluate(
+            """sample => Promise.race([sample.ready, new Promise((_, reject) =>
+              setTimeout(() => reject(new Error(`${sample.id} never got ready: ${
+                sample.textContent.trim().slice(0, 80)}`)), 60_000))])"""
+        )
 
 
 def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, serve):

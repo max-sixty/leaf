@@ -499,11 +499,17 @@ writers set instead).
   or a package module writes starts with `lf-` or `data-lf-`, the names `page check`
   refuses an author (`../src/leaf/validation.md`), so a page's CSS for its own names
   never reaches Leaf's elements; a page restyles Leaf on purpose through the theme's
-  tokens. Where a Leaf control looks like an idiom an author writes, such as `.button`
-  or `data-room`, it wears the idiom's `lf-` twin (`.lf-btn`, `data-lf-room`), and one
-  theme rule selects both. A library's names on an element Leaf draws for that library,
-  such as Pierre's row attributes, stay the library's. Check:
-  `test_leaf_writes_its_own_marks_under_its_prefix`.
+  tokens. The kernel's rules name no class a page coins for itself either, so a page's
+  own `.button` or `.choice` keeps its author's look: a page takes a Leaf control's
+  face by writing that control's name (`lf-btn`, `lf-choice`), which a kernel idiom
+  declares and `page check` therefore lets it write. Where a Leaf control looks like an
+  attribute idiom, `data-room`, it wears the idiom's `lf-` twin (`data-lf-room`), and
+  one theme rule selects both. The kernel's other classes for authors are the Layouts'
+  (`layout-column`, `density-working`), and a theme's idioms, such as the reading
+  theme's `.tag`, come with the theme a page takes. A library's names on an element
+  Leaf draws for that library, such as Pierre's row attributes, stay the library's.
+  Checks: `test_leaf_writes_its_own_marks_under_its_prefix`,
+  `test_the_kernel_styles_no_class_a_page_coins`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
   heights, `--raise-1` to `--raise-3` (`base.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.

@@ -73,11 +73,6 @@ OBSTACLES = {
         "the render gate refuses a page that scrolls sideways, so a table wider than a"
         " narrow window, which the open web lets the page scroll to, is refused"
     ),
-    "class-vocabulary": (
-        "Leaf's own classes reach a page's classes of the same name on any page:"
-        " `.choice` takes a choice target's aim floor and start alignment"
-        " (controls.css)"
-    ),
 }
 KNOWN = {
     "dashboard": {
@@ -86,7 +81,6 @@ KNOWN = {
             "past-column <table> in <section id=shards>",
         },
     },
-    "form": {"class-vocabulary": {"size of main and 6 more #33a7a88b"}},
 }
 
 # A page that builds content after it loads says it has finished as a page does to

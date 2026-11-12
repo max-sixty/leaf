@@ -80,7 +80,10 @@ lf-draft > pre {
   lf-draft:has(.lf-draft-edit) {
     border-color: var(--muted);
   }
-  lf-draft:has(.lf-draft-edit[data-lf-focus-visible]) {
+  lf-draft > .lf-draft-edit {
+    --lf-focus-box: lf-draft;
+  }
+  lf-draft[data-lf-control-focus-visible] {
     outline: var(--focus-ring);
     --lf-wears-ring: 1;
   }

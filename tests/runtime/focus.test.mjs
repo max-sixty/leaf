@@ -31,6 +31,7 @@ const {
   holdFocus,
   layerLanding,
   onCurrentLocation,
+  onFocusVisibility,
   onPress,
   openLayer,
   openerOf,
@@ -158,6 +159,50 @@ test("focus paint follows the settled destination without painting same-script r
   assert.equal(first.hasAttribute("data-lf-focus"), false);
   assert.equal(second.hasAttribute("data-lf-focus"), true);
   assert.equal(box.hasAttribute("data-lf-focus-within"), true);
+});
+
+test("the box a control names shows its focus while the control holds it", async () => {
+  const { box, first, second } = scene();
+  first.style.setProperty("--lf-focus-box", "section");
+  focusDestination(first, "move");
+  await settled();
+  assert.equal(box.hasAttribute("data-lf-control-focus"), true);
+  assert.equal(box.hasAttribute("data-lf-control-focus-visible"), true);
+  focusDestination(second, "move");
+  await settled();
+  assert.equal(box.hasAttribute("data-lf-control-focus"), false);
+  assert.equal(box.hasAttribute("data-lf-control-focus-visible"), false);
+});
+
+test("a control that stops naming its box while it holds focus takes the box's marks off", async () => {
+  const { box, first } = scene();
+  const style = document.createElement("style");
+  style.textContent = "section > input:not([data-off]) { --lf-focus-box: section; }";
+  document.head.append(style);
+  focusDestination(first, "move");
+  await settled();
+  assert.equal(box.hasAttribute("data-lf-control-focus"), true);
+  first.toggleAttribute("data-off", true);
+  await settled();
+  assert.equal(box.hasAttribute("data-lf-control-focus"), false);
+  style.remove();
+});
+
+test("a box named by something that isn't a selector is reported, and the paint goes on", async () => {
+  const { box, first } = scene();
+  const reported = [];
+  const report = globalThis.reportError;
+  globalThis.reportError = (error) => reported.push(error);
+  const visibility = [];
+  const stop = onFocusVisibility(() => visibility.push(focused()));
+  first.style.setProperty("--lf-focus-box", '"section"');
+  focusDestination(first, "move");
+  await settled();
+  stop();
+  globalThis.reportError = report;
+  assert.equal(reported.length, 1);
+  assert.equal(box.hasAttribute("data-lf-control-focus"), false);
+  assert.deepEqual(visibility, [first]);
 });
 
 test("a hold gives way to a placement, not to typing where it holds", () => {

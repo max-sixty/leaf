@@ -80,11 +80,13 @@
    runtime-owned surfaces and widget apparatus, and its comment says which hole
    each half alone leaves.
 
-   A quote's copies are found by one automaton over every quote's spelling (`scan`), in
-   time with the page however long or many the quotes, so the stored quote is never
-   truncated: it is the passage the user selected. The copies of the quotes
-   anchor placement keeps are carried from one reading to the next through the span the
-   two differ in (`carry`), so a change to the page is searched only around it.
+   A quote's copies are found in the reading's letters (`spell`, `scan`), kept with the
+   reading: a few quotes by the platform's string search, many by one automaton over
+   every quote's spelling, in time with the page however long or many the quotes, so the
+   stored quote is never truncated: it is the passage the user selected. The copies of
+   the quotes anchor placement keeps are carried from one reading to the next through
+   the span the two differ in (`carry`), so a change to the page is searched only around
+   it. An anchor asked of a reading again has the answer it had (`findQuote`).
 
    Shadow trees: only open roots declared through `x-shadow` join the page reading;
    any other root is opaque, and its host reads by its light children (`walk`).
@@ -142,7 +144,7 @@ import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
 import { presentDocument, readPart } from "./semantic-state.js";
-import { COLLAPSE, PHRASING, TEXT_BLOCK } from "./kernel-facts.js";
+import { COLLAPSE, COLLAPSE_CHARS, PHRASING, TEXT_BLOCK } from "./kernel-facts.js";
 import { textUnits } from "./text-alignment.js";
 import { excerptWords } from "./words.js";
 import { union } from "./rect.js";
@@ -1631,8 +1633,29 @@ function spanOf(reading, lo, hi) {
 //
 // What a copy's sides were read from is kept on it (`near`), so the index of quotes
 // asks them again only once a change lands there (`carry`).
-/** @param {PageReading} reading @param {number} at @param {string} want @param {boolean} before @param {Copy} [copy] */
-const holds = (reading, at, want, before, copy) => {
+//
+// A side's letters (`letters`, `want` less its spaces) are compared first, outward from
+// the copy through raw, and a letter that differs refutes it: the side's words hold the
+// reading's letters there in order and nothing else but spaces, so no read of words can
+// spell `want` past it, and only a change from that letter to the copy can make it. The
+// copies of a word the user selected mostly differ in the letter beside them, so telling
+// 17,000 of them apart costs about as many comparisons rather than reading every word
+// around them.
+/** @param {PageReading} reading @param {number} at @param {string} want @param {string} letters
+ * @param {boolean} before @param {Copy} [copy] */
+const holds = (reading, at, want, letters, before, copy) => {
+  /** @param {number} lo @param {number} hi */
+  const read = (lo, hi) => {
+    if (copy)
+      copy.near = copy.near
+        ? [Math.min(copy.near[0], lo), Math.max(copy.near[1], hi)]
+        : [lo, hi];
+  };
+  const differs = lettersDiffer(reading.raw, at, letters, before);
+  if (differs) {
+    read(...differs);
+    return false;
+  }
   const edge = fenceEdge(reading, at, before);
   // One character is all it takes to refute an empty side, and asking for none would answer
   // with none: doubling zero never grows.
@@ -1642,15 +1665,28 @@ const holds = (reading, at, want, before, copy) => {
     const hi = before ? at : Math.min(edge, at + raw);
     const there = wordsBetween(reading, lo, hi);
     if (there.length >= enough || (before ? lo === edge : hi === edge)) {
-      if (copy)
-        copy.near = copy.near
-          ? [Math.min(copy.near[0], lo), Math.max(copy.near[1], hi)]
-          : [lo, hi];
+      read(lo, hi);
       if (!want) return there === "";
       return before ? there.endsWith(want) : there.startsWith(want);
     }
   }
 };
+// The raw span from raw place `at` out to the first letter, read away from it, that is
+// not `letters`' letter there, read the same way: before it for the words ahead of a
+// copy, from it for those after. Null where raw spells all of them.
+/** @param {string} raw @param {number} at @param {string} letters @param {boolean} before
+ * @returns {[number, number] | null} */
+function lettersDiffer(raw, at, letters, before) {
+  let i = before ? at : at - 1;
+  for (let k = 0; k < letters.length; k++) {
+    if (before) while (--i >= 0 && kindOf(raw.charCodeAt(i)) !== 0);
+    else while (++i < raw.length && kindOf(raw.charCodeAt(i)) !== 0);
+    const wanted = letters.charCodeAt(before ? letters.length - 1 - k : k);
+    if (i >= 0 && i < raw.length && raw.charCodeAt(i) === wanted) continue;
+    return before ? [Math.max(i, 0), at] : [at, Math.min(i + 1, raw.length)];
+  }
+  return null;
+}
 // The fence a neighbourhood of `at` stops at: the last at or before it, else the reading's
 // start, or the first at or after it, else its end. Fences stand in reading order.
 /** @param {PageReading} reading @param {number} at @param {boolean} before */
@@ -2700,20 +2736,92 @@ const withinCell = (text, from, to) => fenceEdge(text, from + 1, false) >= to;
 // space or an edge where the quote has a space, and nothing or an edge where it has
 // none. An edge is where two inline elements meet, and only the page's CSS says whether
 // a word ends there, so it reads either way, as `occurrences` (anchor_capture.py)
-// reads one too. An automaton over every quote's spelling (`automatonOf`) finds the
-// places in one pass over the page, and each is held to its quote's spaces there. What
-// the automaton costs to build is its quotes' spellings: 1,600 quotes of 640 letters
-// each, a million characters, take about 120 ms.
+// reads one too. The places are found in the reading's own letters (`spell`), and each
+// is held to its quote's spaces there (`copyAt`).
 //
-// Whether raw[i] separates words: an edge, or whitespace by the rule a quote is split
-// into words by. Each code unit is put to the rule once.
-const gapKinds = new Uint8Array(0x10000);
+// What a code unit is to a quote: 0 a letter, 1 an edge, 2 whitespace by the rule a
+// quote is split into words by. Each code unit is put to the rule once.
+const unitKinds = new Uint8Array(0x10000).fill(3);
+/** @param {number} code */
+function kindOf(code) {
+  let kind = unitKinds[code];
+  if (kind === 3) {
+    const unit = String.fromCharCode(code);
+    unitKinds[code] = kind = unit === EDGE ? 1 : COLLAPSIBLE.test(unit) ? 2 : 0;
+  }
+  return /** @type {number} */ (kind);
+}
 /** @param {string} raw @param {number} i */
-function gapAt(raw, i) {
-  const code = raw.charCodeAt(i);
-  if (!gapKinds[code])
-    gapKinds[code] = raw[i] === EDGE || COLLAPSIBLE.test(raw.charAt(i)) ? 1 : 2;
-  return gapKinds[code] === 1;
+const gapAt = (raw, i) => kindOf(raw.charCodeAt(i)) !== 0;
+// A run of a reading's letters, raw's characters but its gaps (`kindOf`), each word run
+// into the next, and where each STEP-th of them stands in raw (`marks`), so a place
+// among the letters is a place in the reading again by a walk of fewer than STEP
+// letters (`rawAt`). A quote's copies are searched for in the letters as a string, by
+// the platform's string search where the quotes are few (`eachPlace`), and a copy's
+// neighbours are told apart by them first (`holds`). Spelling the 4 MB of a text
+// document takes 15 ms in Chromium and 30 ms in Firefox, against 90 ms for one pass of
+// the automaton over its characters; a whole reading's letters are kept with it
+// (`spelledReading`), and a change spells only around itself (`carry`).
+/** @typedef {{spelling: string, marks: Int32Array}} Spelled */
+const STEP = 32;
+// The letters of raw[lo..end), taken out by the platform's own replace, which keeps every
+// code unit as it stands, and the marks counted after.
+const GAPS = new RegExp(`[${EDGE}${COLLAPSE_CHARS}]+`, "g");
+/** @param {string} raw @param {number} lo @param {number} end @returns {Spelled} */
+function spell(raw, lo, end) {
+  const spelling = (lo === 0 && end === raw.length ? raw : raw.slice(lo, end)).replace(
+    GAPS,
+    "",
+  );
+  const marks = new Int32Array(Math.ceil(spelling.length / STEP));
+  for (let i = lo, n = 0; n < spelling.length; i++) {
+    const code = raw.charCodeAt(i);
+    if ((unitKinds[code] === 3 ? kindOf(code) : unitKinds[code]) !== 0) continue;
+    if (n % STEP === 0) marks[n / STEP] = i;
+    n += 1;
+  }
+  return { spelling, marks };
+}
+/** @type {WeakMap<PageReading, Spelled>} */
+const spellings = new WeakMap();
+/** @param {PageReading} reading */
+function spelledReading(reading) {
+  let spelled = spellings.get(reading);
+  if (!spelled)
+    spellings.set(reading, (spelled = spell(reading.raw, 0, reading.raw.length)));
+  return spelled;
+}
+// Where letter `s` of a run spelled from `raw` stands in raw.
+/** @param {string} raw @param {Spelled} spelled @param {number} s */
+function rawAt(raw, { marks }, s) {
+  let i = /** @type {number} */ (marks[Math.floor(s / STEP)]);
+  for (let k = s % STEP; k > 0; k--) while (kindOf(raw.charCodeAt(++i)) !== 0);
+  return i;
+}
+// The raw place just past `count` letters at or after `at`, or raw's end.
+/** @param {string} raw @param {number} at @param {number} count */
+function lettersFrom(raw, at, count) {
+  let i = at;
+  for (let seen = 0; i < raw.length && seen < count; i++) if (!gapAt(raw, i)) seen += 1;
+  return i;
+}
+// The copy of a quote whose letters start at letter `s` of a run spelled from the
+// reading, where the reading parts them as the quote does: whatever parts each letter
+// from the one before (nothing, an edge or whitespace) is held to the quote's space or
+// none there. Null where it parts them otherwise.
+/** @param {PageReading} reading @param {Spelled} spelled @param {QuoteEntry} entry
+ * @param {number} s @returns {Copy | null} */
+function copyAt(reading, spelled, entry, s) {
+  const { raw } = reading;
+  let i = rawAt(raw, spelled, s);
+  const from = i;
+  for (let j = 1; j < entry.spelling.length; j++) {
+    let parted = 0;
+    for (let kind; (kind = kindOf(raw.charCodeAt(++i))) !== 0;)
+      if (kind > parted) parted = kind;
+    if (parted === (entry.spaced[j] ? 0 : 2)) return null;
+  }
+  return { from, to: i + 1, fenced: !withinCell(reading, from, i + 1), near: null };
 }
 // An automaton over a set of strings (Aho–Corasick): a trie of their code units, each
 // state's longest proper suffix that is also a state (`fail`), and the nearest such
@@ -2722,7 +2830,7 @@ function gapAt(raw, i) {
 // run, the strings' total length and the places found, however many of the strings
 // share a start or how many lengths they come in.
 /** @template E @typedef {{edges: Map<number, number>, fail: number[], link: number[],
- * ends: (E[] | null)[], widest: number}} Automaton */
+ * ends: (E[] | null)[], depth: number[]}} Automaton */
 // A state's transitions are keyed in one map by the state and the code unit together.
 /** @param {number} state @param {number} code */
 const edgeKey = (state, code) => state * 0x10000 + code;
@@ -2733,7 +2841,6 @@ function automatonOf(strings) {
   const [fail, link, parent, code, depth] = [[0], [0], [0], [0], [0]];
   /** @type {(E[] | null)[]} */
   const ends = [null];
-  let widest = 0;
   for (const [string, entry] of strings) {
     let state = 0;
     for (let t = 0; t < string.length; t++) {
@@ -2752,7 +2859,6 @@ function automatonOf(strings) {
       state = next;
     }
     (ends[state] ??= []).push(entry);
-    widest = Math.max(widest, string.length);
   }
   // Each state's suffix links from those of the states above it, shallowest first.
   const states = [...fail.keys()].slice(1);
@@ -2773,13 +2879,13 @@ function automatonOf(strings) {
     fail[state] = suffix;
     link[state] = ends[suffix] ? suffix : /** @type {number} */ (link[suffix]);
   }
-  return { edges, fail, link, ends, widest };
+  return { edges, fail, link, ends, depth };
 }
-// Every place in a run of code units where one of an automaton's strings ends: its
-// entry, and the place just past its last code unit.
+// Every place in a run of code units where one of an automaton's strings starts: its
+// entry, and the place of its first code unit.
 /** @template E @param {Automaton<E>} automaton @param {number} length
- * @param {(t: number) => number} codeAt @param {(entry: E, end: number) => void} take */
-function runAutomaton({ edges, fail, link, ends }, length, codeAt, take) {
+ * @param {(t: number) => number} codeAt @param {(entry: E, start: number) => void} take */
+function runAutomaton({ edges, fail, link, ends, depth }, length, codeAt, take) {
   let state = 0;
   for (let t = 0; t < length; t++) {
     const unit = codeAt(t);
@@ -2793,26 +2899,40 @@ function runAutomaton({ edges, fail, link, ends }, length, codeAt, take) {
       state = /** @type {number} */ (fail[state]);
     }
     for (let at = ends[state] ? state : link[state]; at; at = link[at])
-      for (const entry of ends[at] ?? []) take(entry, t + 1);
+      for (const entry of ends[at] ?? [])
+        take(entry, t + 1 - /** @type {number} */ (depth[at]));
   }
 }
-// Every place each of `strings` starts in `text`, copies that overlap included, found by
-// one pass over the text for all of them.
+// Every place each of `strings` starts in `text`, copies that overlap included, with the
+// entry it came with, each string's in order. A few strings are each found by the
+// platform's string search, which in the 3.3 million letters of a 4 MB text document
+// takes under 1 ms a string, against 60 to 90 ms for one pass of an automaton; more are
+// found by one pass of an automaton over them all (`automaton`, built where none is
+// handed in), so finding many strings costs the text and the strings, not their product.
+const FEW = 32;
+/** @template E @param {string} text @param {readonly (readonly [string, E])[]} strings
+ * @param {(entry: E, start: number) => void} take @param {() => Automaton<E>} [automaton] */
+function eachPlace(text, strings, take, automaton = () => automatonOf(strings)) {
+  if (strings.length > FEW) {
+    runAutomaton(automaton(), text.length, (t) => text.charCodeAt(t), take);
+    return;
+  }
+  for (const [string, entry] of strings)
+    if (string)
+      for (let at = text.indexOf(string); at >= 0; at = text.indexOf(string, at + 1))
+        take(entry, at);
+}
 /** @param {string} text @param {Iterable<string>} strings @returns {Map<string, number[]>} */
 export function findEach(text, strings) {
   /** @type {Map<string, number[]>} */
   const found = new Map();
   for (const string of strings) found.set(string, []);
-  const automaton = automatonOf(
+  eachPlace(
+    text,
     [...found.keys()]
       .filter(Boolean)
       .map((string) => /** @type {const} */ ([string, string])),
-  );
-  runAutomaton(
-    automaton,
-    text.length,
-    (t) => text.charCodeAt(t),
-    (string, end) => found.get(string)?.push(end - string.length),
+    (string, start) => found.get(string)?.push(start),
   );
   return found;
 }
@@ -2830,46 +2950,39 @@ function quoteEntry(quote) {
   for (const word of words.slice(0, -1)) spaced[(at += word.length)] = 1;
   return { quote, spelling, spaced, copies: [], changedAt: 0 };
 }
+/** @param {Iterable<QuoteEntry>} entries */
+const spellingsOf = (entries) =>
+  [...entries].map((entry) => /** @type {const} */ ([entry.spelling, entry]));
 /** @param {Iterable<QuoteEntry>} entries @returns {Automaton<QuoteEntry>} */
-const quotesAutomaton = (entries) =>
-  automatonOf(
-    [...entries].map((entry) => /** @type {const} */ ([entry.spelling, entry])),
-  );
-// Every copy of an automaton's quotes that starts in raw[lo..hi): each place the page
-// spells a quote and parts its letters as the quote does, and whether a fence parts it.
-/** @param {PageReading} reading @param {Automaton<QuoteEntry>} automaton @param {number} lo
- * @param {number} hi @param {(entry: QuoteEntry, copy: Copy) => void} take */
-function scan(reading, automaton, lo, hi, take) {
+const quotesAutomaton = (entries) => automatonOf(spellingsOf(entries));
+/** @param {Iterable<QuoteEntry>} entries */
+const widestOf = (entries) => {
+  let widest = 0;
+  for (const { spelling } of entries) widest = Math.max(widest, spelling.length);
+  return widest;
+};
+// Every copy of `entries`' quotes that starts in raw[lo..hi): each place the page spells
+// a quote and parts its letters as the quote does, and whether a fence parts it. The
+// whole reading is searched in its kept letters, a span of it in letters spelled from
+// the span on to as many letters past it as the widest quote holds.
+/** @param {PageReading} reading @param {readonly QuoteEntry[]} entries @param {number} lo
+ * @param {number} hi @param {(entry: QuoteEntry, copy: Copy) => void} take
+ * @param {() => Automaton<QuoteEntry>} [automaton] the automaton over `entries` */
+function scan(reading, entries, lo, hi, take, automaton) {
   const { raw } = reading;
-  /** @type {number[]} */
-  const codes = [];
-  /** @type {number[]} */
-  const places = [];
-  // What parts each letter from the one before: 0 nothing, 1 an edge, 2 whitespace.
-  /** @type {number[]} */
-  const parted = [];
-  let since = 0;
-  for (let i = lo, past = 0; i < raw.length; i++) {
-    if (gapAt(raw, i)) {
-      since = Math.max(since, raw[i] === EDGE ? 1 : 2);
-      continue;
-    }
-    if (i >= hi && ++past > automaton.widest) break;
-    parted.push(since);
-    since = 0;
-    codes.push(raw.charCodeAt(i));
-    places.push(i);
-  }
-  const codeAt = (/** @type {number} */ t) => /** @type {number} */ (codes[t]);
-  runAutomaton(automaton, codes.length, codeAt, (entry, end) => {
-    const start = end - entry.spelling.length;
-    for (let j = 1; j < entry.spelling.length; j++)
-      if (parted[start + j] === (entry.spaced[j] ? 0 : 2)) return;
-    const from = /** @type {number} */ (places[start]);
-    if (from >= hi) return;
-    const to = /** @type {number} */ (places[end - 1]) + 1;
-    take(entry, { from, to, fenced: !withinCell(reading, from, to), near: null });
-  });
+  const spelled =
+    lo === 0 && hi >= raw.length
+      ? spelledReading(reading)
+      : spell(raw, lo, lettersFrom(raw, hi, widestOf(entries)));
+  eachPlace(
+    spelled.spelling,
+    spellingsOf(entries),
+    (entry, s) => {
+      const copy = copyAt(reading, spelled, entry, s);
+      if (copy && copy.from < hi) take(entry, copy);
+    },
+    automaton,
+  );
 }
 // Where two readings of the page part, as the span of each that differs. Before it both
 // hold the same characters, in the same text nodes at the same offsets and in the same
@@ -2979,7 +3092,7 @@ const index = {
   version: 0,
 };
 // Each of `quotes`' copies in a piece: those a pass of its own found in this reading
-// already (`askedOf`), and the rest by one pass over it for all of them.
+// already (`askedOf`), and the rest by one search of its letters for all of them (`scan`).
 /** @param {PieceIndex} piece @param {Iterable<string>} quotes */
 function addQuotes(piece, quotes) {
   const { reading, entries } = piece;
@@ -2995,7 +3108,7 @@ function addQuotes(piece, quotes) {
   }
   piece.automaton = null;
   if (fresh.length)
-    scan(reading, quotesAutomaton(fresh), 0, reading.raw.length, (entry, copy) =>
+    scan(reading, fresh, 0, reading.raw.length, (entry, copy) =>
       entry.copies.push(copy),
     );
 }
@@ -3058,13 +3171,21 @@ function carry(piece, now) {
     entry.copies = copies;
     if (changed) moved.add(entry);
   }
-  const automaton = (piece.automaton ??= quotesAutomaton(piece.entries.values()));
-  const lo = lettersBefore(now.raw, from, automaton.widest);
-  scan(now, automaton, lo, span.now, (entry, copy) => {
-    if (copy.to <= from) return; // standing before the change, as it stood
-    entry.copies.push(copy);
-    moved.add(entry);
-  });
+  const entries = [...piece.entries.values()];
+  const lo = lettersBefore(now.raw, from, widestOf(entries));
+  const automaton = () => (piece.automaton ??= quotesAutomaton(entries));
+  scan(
+    now,
+    entries,
+    lo,
+    span.now,
+    (entry, copy) => {
+      if (copy.to <= from) return; // standing before the change, as it stood
+      entry.copies.push(copy);
+      moved.add(entry);
+    },
+    automaton,
+  );
   if (moved.size) index.version += 1;
   for (const entry of moved) {
     entry.copies = entry.copies
@@ -3150,16 +3271,29 @@ function copiesOf(text, quote) {
   if (asked.has(quote)) return asked.get(quote) ?? null;
   const entry = quoteEntry(quote);
   if (entry)
-    scan(text, quotesAutomaton([entry]), 0, text.raw.length, (_, copy) =>
-      entry.copies.push(copy),
-    );
+    scan(text, [entry], 0, text.raw.length, (_, copy) => entry.copies.push(copy));
   asked.set(quote, entry);
   return entry;
 }
+/** @type {WeakMap<PageReading, Map<string, Map<Element | null, Copy | null>>>} */
+const chosen = new WeakMap();
 /** @param {PageReading} text @param {string} quote @param {{prefix?: string, suffix?: string}} anchor @param {Element | null} [within] */
 export function findQuote(text, quote, anchor, within) {
+  const [pre, post] = [anchor.prefix ?? "", anchor.suffix ?? ""];
+  // An anchor asked of a reading again has the answer it had, which is kept with the
+  // reading: a selection's anchor is asked by everything that shows or acts on it.
+  let asked = chosen.get(text);
+  if (!asked) chosen.set(text, (asked = new Map()));
+  const question = `${quote}\u0000${pre}\u0000${post}`;
+  let answers = asked.get(question);
+  if (!answers) asked.set(question, (answers = new Map()));
+  const known = answers.get(within ?? null);
+  if (known !== undefined) return known ? spanOf(text, known.from, known.to) : [];
   const entry = copiesOf(text, quote);
-  if (!entry) return [];
+  if (!entry) {
+    answers.set(within ?? null, null);
+    return [];
+  }
   // A unique exact-context occurrence wins. If no context survives, a sole quote
   // occurrence is still identifiable; two are not. Document order is not identity:
   // guessing the first copy after the intended one's neighbours changed quietly moves
@@ -3171,24 +3305,30 @@ export function findQuote(text, quote, anchor, within) {
   // (anchor_capture.py, `occurrences`; tests/quote_cases.json holds both to one set of
   // cases). Context is read only to tell copies apart: a sole candidate is the answer
   // whatever its neighbours say, and a second exact one settles that none is unique.
+  // Every copy in the words of an element under `within` stands under it, unless a slot
+  // of the element's own tree shows it words from outside it.
+  const key = readingPieces.get(text);
+  const all = !within || (key !== undefined && under(key, within) && !holdsSlot(key));
   /** @type {Copy[]} */
   const candidates = [];
   let end = -1;
   for (const copy of entry.copies) {
     const inside =
-      !within ||
+      all ||
       (under(pointAt(text, copy.from)?.node, within) &&
         under(pointAt(text, copy.to - 1)?.node, within));
     if (!inside || copy.from < end) continue;
     end = copy.to;
     if (!copy.fenced) candidates.push(copy);
   }
-  const [pre, post] = [anchor.prefix ?? "", anchor.suffix ?? ""];
   const exact = [];
+  const [preLetters, postLetters] = [pre, post].map((side) =>
+    side.replace(COLLAPSE, ""),
+  );
   for (const hit of candidates.length > 1 ? candidates : []) {
     if (
-      !holds(text, hit.from, pre, true, hit) ||
-      !holds(text, hit.to, post, false, hit)
+      !holds(text, hit.from, pre, /** @type {string} */ (preLetters), true, hit) ||
+      !holds(text, hit.to, post, /** @type {string} */ (postLetters), false, hit)
     )
       continue;
     exact.push(hit);
@@ -3196,6 +3336,7 @@ export function findQuote(text, quote, anchor, within) {
   }
   const found =
     candidates.length === 1 ? candidates[0] : exact.length === 1 ? exact[0] : null;
+  answers.set(within ?? null, found ?? null);
   // The characters the match covers, cut out of the index the same way a neighbourhood is —
   // walking the segments a second time to rebuild the span would be a second answer to
   // "which text is this", and the two disagree wherever an edge falls inside the match.
@@ -3241,57 +3382,69 @@ function searchableWords() {
 // must identify one occurrence or detach. It does keep the passage reader's other rules —
 // elastic whitespace, an edge read inside a word or as a gap between two (`scan`), and
 // no match crossing an opaque passage fence — so choosing a result produces exactly the
-// kind of segments capture and resolution use.
-/** @param {PageReading} text @param {string} query */
-function findText(text, query) {
+// kind of segments capture and resolution use. Each is found as it is asked for, and a
+// match the page doesn't show is a step that finds nothing (null).
+/** @param {PageReading} text @param {string} query @returns {Generator<Segment[] | null>} */
+function* findText(text, query) {
   const words = query.split(COLLAPSE).filter(Boolean);
-  if (!words.length) return [];
+  if (!words.length) return;
   const pattern = new RegExp(
     words
       .map((w) => [...w].map(escape).join(`${EDGE}*`))
       .join(`(?:${COLLAPSE.source}|${EDGE})+`),
     "giu",
   );
-  const out = [];
   const searchable = searchableWords();
   for (let match; (match = pattern.exec(text.raw));) {
     const from = match.index;
     const to = from + match[0].length;
     const segments = spanOf(text, from, to);
-    if (withinCell(text, from, to) && segments.every(searchable)) out.push(segments);
+    if (withinCell(text, from, to) && segments.every(searchable)) yield segments;
     // A rejected match must not consume the beginning of a reachable one.
     else {
       const start = text.raw.slice(from, from + 2);
       const point = start[Symbol.iterator]().next();
       if (!point.done) pattern.lastIndex = from + point.value.length;
+      yield null;
     }
   }
-  return out;
 }
 
 // Every match of a search over the page's words, in reading order: the frame's and each
 // part's, each found in its own reading, since a match stands in one passage cell
-// (`findText`) and every part stands in one (`pageText`). The first search reads every
-// part.
-/** @param {string} query */
-export function pageFind(query) {
+// (`findText`) and every part stands in one (`pageText`). Each is found as it is asked
+// for, and a part is read when the search reaches it, so whoever asks can take them a
+// few at a time: on a page of 30 text documents of 4 MB, reading every part takes 3 s
+// in Chromium and 6 to 9 s in Firefox, and a query matching a million times takes
+// seconds to check each match is one the page shows (`searchableWords`). A step that
+// finds nothing, the step before a part is read or a match the page hides, is null, so a
+// reader can stop before each part too. The matches are of the page as it read when the
+// search began, and its reader asks again once the page has changed
+// (`pageReadingVersion`).
+/** @param {string} query @returns {Generator<Segment[] | null>} */
+export function* pageMatches(query) {
   const framed = pageText();
   const { marks } = frameCollected();
   /** @param {PartMark} mark */
   const startOf = (mark) => framed.segments[mark.at]?.rawStart ?? Infinity;
   /** @param {PartMark} mark */
-  const inPart = (mark) => findText(pageText(mark.root), query);
-  const found = [];
+  function* inPart(mark) {
+    yield null;
+    yield* findText(pageText(mark.root), query);
+  }
   let m = 0;
   for (const match of findText(framed, query)) {
+    if (!match) {
+      yield null;
+      continue;
+    }
     const [first] = match;
     const at = first ? (framed.positions.get(first.node) ?? 0) + first.start : 0;
     for (let mark = marks[m]; mark && startOf(mark) <= at; mark = marks[++m])
-      found.push(...inPart(mark));
-    found.push(match);
+      yield* inPart(mark);
+    yield match;
   }
-  for (const mark of marks.slice(m)) found.push(...inPart(mark));
-  return found;
+  for (const mark of marks.slice(m)) yield* inPart(mark);
 }
 
 // Display context completes its outer language-aware word within the local window.

@@ -11,7 +11,7 @@ import { html, nothing, render, signal } from "/runtime/framework.js";
 import {
   contextAround,
   inChrome,
-  pageFind,
+  pageMatches,
   pageReadingVersion,
   readingHolding,
   quoteFrom,
@@ -91,6 +91,7 @@ const previousMatchControl = matchStep("previous-match");
 const nextMatchControl = matchStep("next-match");
 const pageSearchControls = [pageSearchStatus, previousMatchControl, nextMatchControl];
 const noMatches = "No matches";
+const searching = "Searching";
 /** @param {number} position @param {number} total */
 // Where the user stands among the matches, as every walk says it.
 const searchCount = (position, total) => `${position} of ${total}`;
@@ -168,7 +169,25 @@ export function createTargetPicker({
   const matches = signal([]);
   /** @type {object | null} */
   let matchesIn = null; // the page reading `matches` were found in (`pageReadingVersion`)
+  let matchesFor = ""; // the query they match
   let active = -1;
+  // A search's matches arrive a slice at a time (passages.js, `pageMatches`): the first
+  // slice in the task the query changed in, each later one in a task of its own, so no
+  // search holds the page while it reads documents the page hasn't read or checks a
+  // million matches. `matches` holds what has arrived, in reading order. Its signal
+  // changes as the first match arrives, which is all its readers ask (the arrows'
+  // availability), and the array grows in place after. `pending` finds the rest, and
+  // until it has, a step past the last match or before the first stays put rather than
+  // coming round.
+  /** @type {Iterator<Match | null> | null} */
+  let pending = null;
+  // Where the search lands once it can tell: the match the search stood on before the
+  // page changed, found again, else the match at its index; for a new query, the first
+  // match at or below the top of the window, else the first. `show` brings it into view.
+  /** @type {{was: Match | null, index: number, show: boolean} | null} */
+  let landing = null;
+  // How long a slice searches before the page may draw.
+  const SLICE_MS = 8;
   let searchReturnsToHints = false;
   /** @type {{query: string, index: number} | null} */
   let repeatedSearch = null;
@@ -317,8 +336,18 @@ export function createTargetPicker({
   }
   function clearMatches() {
     matches.value = [];
+    matchesIn = null;
+    matchesFor = "";
     active = -1;
+    pending = null;
+    landing = null;
   }
+  // Whether a step would come round past an end of matches still arriving.
+  /** @param {import("../keyboard/bindings.js").Step} direction */
+  const stillFinding = (direction) =>
+    pending !== null &&
+    active >= 0 &&
+    (active + direction < 0 || active + direction >= matches.value.length);
   /** @param {boolean} on */
   function setPageSearch(on) {
     pickerMode.value = on ? "search" : "hints";
@@ -354,24 +383,25 @@ export function createTargetPicker({
     return firstShown(segments, reading);
   }
 
-  /** @param {Match[]} found */
-  function startingMatch(found) {
-    const next = found.findIndex((segments) => segmentsBox(segments).bottom > 0);
-    return next === -1 ? 0 : next;
-  }
-
+  // While the search runs, the count grows where it stands, and before it lands the
+  // slot, as wide as "99 of 99", shows an ellipsis.
   function presentSearchStatus() {
     const query = searchQuery();
+    const total = matches.value.length;
     const status = !query
       ? nothing
-      : matches.value.length
-        ? searchCount(active + 1, matches.value.length)
-        : searchCount(0, 0);
+      : pending && active < 0
+        ? "…"
+        : total
+          ? searchCount(active + 1, total)
+          : searchCount(0, 0);
     const label = !query
       ? null
-      : matches.value.length
-        ? `Match ${active + 1} of ${matches.value.length}`
-        : noMatches;
+      : pending && active < 0
+        ? searching
+        : total
+          ? `Match ${active + 1} of ${total}${pending ? " so far" : ""}`
+          : noMatches;
     keeps(pageSearchStatus, "aria-label", label);
     render(html`${status}`, pageSearchWords);
   }
@@ -444,10 +474,70 @@ export function createTargetPicker({
     };
   }
 
-  /** @param {string} query */
-  function find(query) {
+  // Starts a search for `query`, landing as `landing` says, and takes its first slice.
+  /** @param {string} query @param {Match | null} was @param {number} index @param {boolean} show
+   * @returns {void} */
+  function find(query, was, index, show) {
     matchesIn = pageReadingVersion();
-    return pageFind(query);
+    matchesFor = query;
+    pending = query ? pageMatches(query) : null;
+    landing = query ? { was, index, show } : null;
+    matches.value = [];
+    active = -1;
+    if (pending) return findMore();
+    presentSearchStatus();
+    repaint();
+  }
+
+  // One slice of the standing search, and the next asked for while it stands. A page
+  // that changed under it is searched again, standing where it stood. The count is
+  // redrawn each slice; the page, where the search lands and where it ends.
+  /** @returns {void} */
+  function findMore() {
+    const search = pending;
+    if (!search) return;
+    if (pageReadingVersion() !== matchesIn)
+      return landing
+        ? find(matchesFor, landing.was, landing.index, landing.show)
+        : find(matchesFor, matches.value[active] ?? null, Math.max(active, 0), false);
+    const found = matches.value;
+    const from = found.length;
+    const until = performance.now() + SLICE_MS;
+    for (let next = search.next(); ; next = search.next()) {
+      if (next.done) {
+        pending = null;
+        break;
+      }
+      if (next.value) found.push(next.value);
+      if (performance.now() >= until) break;
+    }
+    if (found.length && !from) matches.value = [...found];
+    const landed = active < 0 && landing !== null && land(from, landing);
+    presentSearchStatus();
+    if (landed || !pending) repaint();
+    if (pending) setTimeout(() => pending === search && findMore());
+  }
+
+  // The match the search lands on among those that arrived from `from`, once it can
+  // tell, and whether it can.
+  /** @param {number} from @param {NonNullable<typeof landing>} at */
+  function land(from, { was, index, show }) {
+    const found = matches.value;
+    for (let k = from; k < found.length && active < 0; k++)
+      if (
+        was
+          ? sameMatch(/** @type {Match} */ (found[k]), was)
+          : segmentsBox(/** @type {Match} */ (found[k])).bottom > 0
+      )
+        active = k;
+    if (active < 0 && !pending && found.length)
+      active = was ? Math.min(index, found.length - 1) : 0;
+    if (active < 0 && pending) return false;
+    landing = null;
+    if (repeatedSearch && !pageSearchOpen() && active >= 0)
+      repeatedSearch.index = active;
+    if (show) showMatch();
+    return true;
   }
 
   // A match is a run of one reading's segments, placed in the reading it came from. A
@@ -458,12 +548,7 @@ export function createTargetPicker({
     const query = pageSearchOpen() ? searchQuery() : repeatedSearch?.query;
     const current = matches.value[active];
     if (!query || !current || pageReadingVersion() === matchesIn) return false;
-    const found = find(query);
-    const same = found.findIndex((candidate) => sameMatch(candidate, current));
-    active = same >= 0 ? same : found.length ? Math.min(active, found.length - 1) : -1;
-    matches.value = found;
-    if (repeatedSearch && !pageSearchOpen() && active >= 0)
-      repeatedSearch.index = active;
+    find(query, current, active, false);
     return true;
   }
 
@@ -477,12 +562,7 @@ export function createTargetPicker({
   }
 
   function search() {
-    const query = searchQuery();
-    matches.value = query ? find(query) : [];
-    active = matches.value.length ? startingMatch(matches.value) : -1;
-    presentSearchStatus();
-    showMatch();
-    repaint();
+    find(searchQuery(), null, 0, true);
   }
 
   // A match out of sight is brought into it where its words start (anchor-travel.js,
@@ -498,7 +578,11 @@ export function createTargetPicker({
     refreshMatches();
     const found = matches.value;
     if (!hasRows(found)) return presentSearchStatus();
-    const selected = cycledRow(found, found[active], direction);
+    landing = null;
+    const selected = stillFinding(direction)
+      ? found[active]
+      : cycledRow(found, found[active], direction);
+    if (!selected) return presentSearchStatus();
     active = found.indexOf(selected);
     presentSearchStatus();
     showMatch();
@@ -562,8 +646,15 @@ export function createTargetPicker({
   function repeatSearch(direction) {
     const repetition = repeatedSearch;
     if (!repetition) return;
-    const found = find(repetition.query);
-    matches.value = found;
+    if (matchesFor !== repetition.query || pageReadingVersion() !== matchesIn)
+      find(
+        repetition.query,
+        matches.value[repetition.index] ?? null,
+        repetition.index,
+        false,
+      );
+    const found = matches.value;
+    if (!hasRows(found) && pending) return notice(searching);
     if (!hasRows(found)) {
       repeatedSearch = null;
       active = -1;
@@ -571,7 +662,10 @@ export function createTargetPicker({
       return repaint();
     }
     const from = Math.min(repetition.index, found.length - 1);
-    const selected = cycledRow(found, found[from], direction);
+    active = from;
+    const selected = stillFinding(direction)
+      ? /** @type {Match} */ (found[from])
+      : cycledRow(found, found[from], direction);
     active = found.indexOf(selected);
     repetition.index = active;
     showMatch();

@@ -731,6 +731,58 @@ def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser,
     expect(opener).to_have_attribute("aria-expanded", "false")
 
 
+def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
+    """A page's own menu that answers Escape or Enter on its item, preventing the key's
+    default and handing focus back to its trigger, keeps the user there: Leaf takes no
+    step of its own for that key. Leaf's dispatcher used to read the key again at the
+    document, at the trigger the menu had just focused, so Escape stepped the user off
+    it to the document and Enter pressed the trigger again, reopening the menu. UI SDK's
+    menu and select behave this way, as most popup libraries do."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.evaluate("""() => {
+      const trigger = document.createElement('button');
+      trigger.id = 'menu-trigger';
+      trigger.textContent = 'Actions';
+      trigger.setAttribute('aria-haspopup', 'menu');
+      trigger.setAttribute('aria-expanded', 'false');
+      const menu = document.createElement('div');
+      menu.id = 'menu';
+      menu.popover = 'manual';
+      menu.setAttribute('role', 'menu');
+      menu.innerHTML = '<div role="menuitem" tabindex="-1" id="rename">Rename</div>';
+      window.chosen = [];
+      const close = () => {
+        menu.hidePopover();
+        trigger.setAttribute('aria-expanded', 'false');
+        trigger.focus();
+      };
+      trigger.addEventListener('click', () => {
+        if (menu.matches(':popover-open')) return close();
+        menu.showPopover();
+        trigger.setAttribute('aria-expanded', 'true');
+        menu.querySelector('#rename').focus();
+      });
+      menu.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') window.chosen.push('rename');
+        else if (event.key !== 'Escape') return;
+        event.preventDefault();
+        close();
+      });
+      document.querySelector('main').append(trigger, menu);
+    }""")
+    trigger = page.locator("#menu-trigger")
+    menu = page.locator("#menu")
+
+    for key in ("Escape", "Enter"):
+        trigger.click()
+        expect(page.locator("#rename")).to_be_focused()
+        page.keyboard.press(key)
+        expect(menu).to_be_hidden()
+        expect(trigger).to_be_focused()
+        expect(trigger).to_have_attribute("aria-expanded", "false")
+    assert page.evaluate("() => window.chosen") == ["rename"]
+
+
 def test_a_native_control_keeps_its_keys_from_the_widget_around_it(
     browser, serve, subtests
 ):

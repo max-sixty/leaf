@@ -31,3 +31,40 @@ security policy didn't block it. What it cost:
 For the existing kinds it is mostly a different way of drawing the same values, and
 CSS on the native inputs can reach the same density. The case for adopting it is the
 editors, once a page needs to decide motion. Firefox and WebKit were not probed.
+
+## UI SDK
+
+[UI SDK](https://github.com/vercel-labs/ui) (Apache-2.0, `@ui-sdk/*` 0.1.0-beta.1,
+first published 2026-11-12) is a library of interaction behaviors with no runtime
+dependencies: roving focus, popups with layered dismissal, typeahead, drag and drop
+and keyboard shortcuts, with adapters for React, Vue, Svelte, Solid and web
+components. It also ships an agent bridge that reads and operates its components, and
+`checkPattern`, which checks a rendered widget against its WAI-ARIA Authoring
+Practices pattern. Read, and probed in Chromium, on 2026-11-12.
+
+- **Leaf's runtime.** Leaf's popups use the platform (popover, `<dialog>`, CSS anchor
+  positioning), and one keyboard register drives dispatch, menus, the command
+  reference and `aria-keyshortcuts`. Adopting UI SDK there would add a second owner
+  for keys, Escape, positioning and component state.
+- **Page code.** A page can load its web components today with
+  `<script type="module" src="https://ui-sdk.dev/web@0.1.0-beta.1.js">`, online only.
+  Its select, tabs, menu and dialog worked inside Leaf, typeahead included, once
+  Leaf's keyboard stopped acting on keys a page had already handled
+  (`browser/runtime/keyboard/controller.js`). Escape on a tooltip's focused trigger
+  still drops focus to the body, because UI SDK hears that Escape on `document`, after
+  Leaf's listener there. Their values reach the event log only
+  where page code passes them to a playground contributor or a widget controller.
+  Each component's entry measures 13–53 KB gzipped on its own, by the repository's
+  `size-budget.json`.
+- **`checkPattern`** (`@ui-sdk/core/testing`, marked experimental). Bundled with
+  esbuild and injected into eight examples through `leaf-dev probe --journey`, it
+  found four defects in controls Leaf draws: `lf-tabs` gives its tablist no
+  accessible name; the margin's `role="toolbar"` holds up to 15 tab stops, and
+  ArrowRight, ArrowDown, Home and End from its first entry moved nothing; the
+  playground's choice cards put Enlarge buttons inside a `radiogroup`; and Pierre's
+  file tree puts its search field inside `role="tree"`. It also reported problems
+  that weren't there. It presses keys with synthetic events, which don't move focus
+  between native radios; it reads `aria-controls` as an attribute and misses a
+  reference set through `ariaControlsElements`; and it reads focus from
+  `document.activeElement`, which stops at a shadow host. Those false reports keep it
+  out of `page check`.

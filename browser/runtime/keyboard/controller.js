@@ -114,7 +114,12 @@ export function mountKeyboard({
   const afterControl = (ev) => {
     if (ev.key.length !== 1) press(ev);
   };
-  document.addEventListener("keydown", afterControl);
+  // A key whose default the control or page code already prevented is theirs, as
+  // role-button-press.js reads a press. Read again here, it would act at wherever that
+  // code had moved focus, such as the trigger a page's menu hands focus back to.
+  document.addEventListener("keydown", (ev) => {
+    if (!ev.defaultPrevented) afterControl(ev);
+  });
   // A key typed in a Leaf field stops at the field (field-keys.js), so this
   // pass reads it there.
   readLeavingKeys((ev) => {

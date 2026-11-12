@@ -143,6 +143,8 @@ async function sessionOf($: EngineInterface) {
   if (!claudePid) {
     claudePid = (await $.process.run(["/bin/sh", "-c", "echo $PPID"])).stdout.trim();
     repliesFork = (await $.env.get("LEAF_FORK_REPLIES")) !== "off";
+    for (const name of WITHOUT_EFFORT)
+      if (TRUTHY.test((await $.env.get(name)) ?? "")) atSessionEffort = true;
   }
   return $.session.id();
 }
@@ -335,7 +337,8 @@ async function clerk($: EngineInterface, session: string) {
         // fork can't tell: an idle session's cache may have expired (`runFork`).
         const usage = ran.usage as Record<string, unknown> | undefined;
         const written = Number(usage?.cache_creation_input_tokens ?? 0);
-        if (written > Number(usage?.cache_read_input_tokens ?? 0)) rewrote = true;
+        if (written > Number(usage?.cache_read_input_tokens ?? 0))
+          atSessionEffort = true;
         const applied = await forkStep($, session, { basis: asked.basis, ...ran });
         if (ran.answer === undefined) {
           $.ui.log(`Leaf: the clerk's fork gave no answer (${ran.failed})`, {
@@ -384,9 +387,17 @@ function request() {
   );
 }
 
-// Whether a turn-end check of this session wrote more of its prompt to the cache
-// than it read, so later forks think at the session's own effort (`runFork`).
-let rewrote = false;
+// Whether this session's forks think at the session's own effort (`runFork`): its
+// environment names a backend that sends no per-message effort (`WITHOUT_EFFORT`),
+// or a turn-end check wrote more of its prompt to the cache than it read.
+let atSessionEffort = false;
+// The variables of Claude Code's environment under which it sends no per-message
+// effort (2.1.321, #5891 and #5904), each set by a value Claude Code reads as true.
+const WITHOUT_EFFORT = [
+  "CLAUDE_CODE_USE_VERTEX",
+  "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS",
+];
+const TRUTHY = /^(1|true|yes|on)$/i;
 
 /** Fork the conversation with the prompt and effort Leaf asked for, and what Leaf
  * notes of the fork: its `answer`, or why it gave none (`failed`, a thrown error
@@ -399,8 +410,10 @@ let rewrote = false;
  * changed effort writes the conversation to the cache again from the session's
  * first reply on, a cache write billed where a read was expected (issue #5891:
  * through a proxy that rewrites mid-conversation system messages, on Vertex, or
- * with `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS`). Leaf can't tell those setups
- * apart from the module, so the turn-end check's usage does (`clerk`): it forks just
+ * with `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS`). Where Claude Code's environment
+ * names such a backend (`WITHOUT_EFFORT`), every fork of the session thinks at the
+ * session's effort from the first. A proxy shows in no variable, so there the
+ * turn-end check's usage decides (`clerk`): it forks just
  * after the main thread's request, while the cache is warm, so once one writes more
  * of its prompt than it reads, each later fork of the session thinks at the
  * session's effort, which the cache serves. A thread's fork can find the cache
@@ -411,7 +424,7 @@ async function runFork(
 ): Promise<Record<string, unknown>> {
   const resent = request();
   const effort =
-    rewrote && lastStep?.effort !== undefined
+    atSessionEffort && lastStep?.effort !== undefined
       ? (lastStep.effort as ModelEffort)
       : asked.effort;
   const started = await $.clock.now();

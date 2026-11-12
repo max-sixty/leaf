@@ -498,6 +498,27 @@ def test_a_fork_that_rewrote_the_cache_sends_later_forks_at_the_sessions_effort(
     driven.quit()
 
 
+@pytest.mark.parametrize(
+    "backend", ["CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS"]
+)
+def test_a_backend_without_per_message_effort_forks_at_the_sessions_effort(
+    page_dir, monkeypatch, spawn, sessionless, backend
+):
+    """Where Claude Code's environment names a backend that sends no per-message
+    effort (#5904), the first fork of the session already goes at the session's own
+    effort, so no fork writes the conversation to the cache again to find that out."""
+    reply = json.dumps({"asks": [], "findings": []})
+    driven = ClaudeCode(
+        spawn, "cc-fork-vertex", {"forkReply": reply, "env": {backend: "1"}}
+    )
+    holding_page(driven, page_dir, monkeypatch)
+    main_thread_request(driven)
+    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "reason": "answer"}
+    driven.emit("turn.complete", {**ended, "turnId": "t1"})
+    assert driven.forks.get(timeout=STATED_TIMEOUT)["effort"] == RESENT["effort"]
+    driven.quit()
+
+
 def test_a_failed_fork_stays_out_of_the_conversation_and_the_next_turn_forks(
     page_dir, monkeypatch, spawn, sessionless
 ):

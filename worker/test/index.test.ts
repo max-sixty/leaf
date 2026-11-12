@@ -2445,16 +2445,30 @@ describe("website page agent", () => {
       expect(idFromString.mock.calls.every(([id]) => id === "trusted-owner")).toBe(
         true,
       );
-      await expect(
-        handler(
-          new Request(`https://leaf-state.internal/blobs/${digest}`, {
-            method: "PUT",
-            body: new Uint8Array(1024 * 1024 + 1),
-          }) as never,
-          env as never,
-          context as never,
-        ),
-      ).rejects.toThrow("exceeds 1 MiB");
+      // A refusal reaches the container as an answer carrying its reason, which
+      // a thrown handler would turn into a closed connection.
+      const oversized = await handler(
+        new Request(`https://leaf-state.internal/blobs/${digest}`, {
+          method: "PUT",
+          body: new Uint8Array(1024 * 1024 + 1),
+        }) as never,
+        env as never,
+        context as never,
+      );
+      expect(oversized.status).toBe(500);
+      expect(await oversized.text()).toBe("page storage chunk exceeds 1 MiB");
+      const otherRelease = await handler(
+        new Request("https://leaf-state.internal/prepare", {
+          method: "PUT",
+          body: JSON.stringify({ ...publication, release: "previous-release" }),
+        }) as never,
+        env as never,
+        context as never,
+      );
+      expect(otherRelease.status).toBe(500);
+      expect(await otherRelease.text()).toBe(
+        "publication does not name a page in this website release",
+      );
     } finally {
       close();
     }

@@ -275,41 +275,58 @@ LeafWebsiteSession.outboundByHost = {
     env: Env,
     ctx: OutboundHandlerContext,
   ) => {
-    // The proxy supplies the owning DO identity. The container cannot select a
-    // different user's session by changing a URL, cookie, or request header.
-    const session = env.PAGES.get(env.PAGES.idFromString(ctx.containerId));
-    const path = new URL(request.url).pathname;
-    if (request.method === "GET" && path === "/records") {
-      return session.savedRecords();
+    try {
+      return await answerPageStore(request, env, ctx);
+    } catch (error) {
+      // An outbound handler that throws reaches the container as a connection closed
+      // without a response, so answer with the store's reason for the container to
+      // log. A container still on the previous image after a deploy meets the new
+      // release's refusal here (`PageStore.checkRelease`).
+      return new Response(error instanceof Error ? error.message : String(error), {
+        status: 500,
+      });
     }
-    if (request.method === "PUT" && path === "/prepare") {
-      return Response.json(await session.preparePublication(await request.json()));
-    }
-    const blob = /^\/blobs\/([0-9a-f]{64})$/.exec(path);
-    if (blob !== null && request.method === "PUT") {
-      // Bound the body before it crosses the RPC boundary or enters SQLite.
-      let length = 0;
-      const body = request.body?.pipeThrough(
-        new TransformStream<Uint8Array, Uint8Array>({
-          transform(chunk, controller) {
-            length += chunk.byteLength;
-            if (length > CHUNK_BYTES)
-              throw new Error("page storage chunk exceeds 1 MiB");
-            controller.enqueue(chunk);
-          },
-        }),
-      );
-      await session.saveBlob(blob[1], await new Response(body).arrayBuffer());
-      return new Response(null, { status: 204 });
-    }
-    if (request.method === "PUT" && path === "/publication") {
-      await session.savePublication(await request.json());
-      return new Response(null, { status: 204 });
-    }
-    return new Response("unknown page storage operation", { status: 404 });
   },
   "api.openai.com": proxyModelRequest,
 };
+
+async function answerPageStore(
+  request: Request,
+  env: Env,
+  ctx: OutboundHandlerContext,
+): Promise<Response> {
+  // The proxy supplies the owning DO identity. The container cannot select a
+  // different user's session by changing a URL, cookie, or request header.
+  const session = env.PAGES.get(env.PAGES.idFromString(ctx.containerId));
+  const path = new URL(request.url).pathname;
+  if (request.method === "GET" && path === "/records") {
+    return session.savedRecords();
+  }
+  if (request.method === "PUT" && path === "/prepare") {
+    return Response.json(await session.preparePublication(await request.json()));
+  }
+  const blob = /^\/blobs\/([0-9a-f]{64})$/.exec(path);
+  if (blob !== null && request.method === "PUT") {
+    // Bound the body before it crosses the RPC boundary or enters SQLite.
+    let length = 0;
+    const body = request.body?.pipeThrough(
+      new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, controller) {
+          length += chunk.byteLength;
+          if (length > CHUNK_BYTES) throw new Error("page storage chunk exceeds 1 MiB");
+          controller.enqueue(chunk);
+        },
+      }),
+    );
+    await session.saveBlob(blob[1], await new Response(body).arrayBuffer());
+    return new Response(null, { status: 204 });
+  }
+  if (request.method === "PUT" && path === "/publication") {
+    await session.savePublication(await request.json());
+    return new Response(null, { status: 204 });
+  }
+  return new Response("unknown page storage operation", { status: 404 });
+}
 
 function randomSessionId(): string {
   return newSessionId(crypto.getRandomValues(new Uint8Array(16)));

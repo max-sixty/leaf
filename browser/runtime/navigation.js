@@ -151,7 +151,8 @@ export function placeThreadEdge(thread, edge) {
   scrollIntoView(thread, { behavior: scrollBehavior(), block: edge });
 }
 
-// j/k take small pixel steps; d/u move 60% of the visible reading page. Both follow
+// j/k take small pixel steps; d/u move 60% of the visible reading page; Go-to's `g g`
+// and `g G` take an unbounded step, which `glideTo` stops at the box's edge. All follow
 // the active region and glide (scrolling.js, `glideTo`). A press steps from where the
 // box is headed (`scrollGoal`), so presses made while the page still moves, whether
 // after another step, after a landing such as `m`'s, or after the browser's own Space

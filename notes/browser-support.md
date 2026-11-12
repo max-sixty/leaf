@@ -178,30 +178,37 @@ the pin with no input. Playwright Chromium 156.0.8078.4 (build 1248) and WebKit 
 
 ### Highlight style inheritance
 
-Firefox has no highlight inheritance (css-pseudo-4, "Cascading and Per-Element
-Highlight Styles"). It resolves a `::highlight()` style as it paints a run of text,
-only from the rules that match the run's own element
+Firefox and shipping Safari have no highlight inheritance (css-pseudo-4, "Cascading
+and Per-Element Highlight Styles"). Firefox resolves a `::highlight()` style as it
+paints a run of text, only from the rules that match the run's own element
 (`nsIFrame::ComputeHighlightSelectionStyle`), and
 [bug 1999628](https://bugzilla.mozilla.org/show_bug.cgi?id=1999628) is open for it,
 unassigned. On 2026-11-11, Playwright Firefox 159.0 (build 1572) and release Firefox
 160.0 on macOS painted nothing from a rule on `:root` or `:host`, in the document or
 a shadow tree, and `getComputedStyle(element, "::highlight(name)")` read the
-rule's background as transparent on every element below the root. Playwright
-Chromium 158.0.8127.18 (build 1254) and WebKit 27.2 (build 2388) painted it on every
-element below the root and read it there, shadow trees included.
+rule's background as transparent on every element below the root. On 2026-11-12,
+Safari 26.1 on the iOS simulator answered the same way to the probe below. Playwright
+Chromium 158.0.8127.18 (build 1254) and Playwright's WebKit 27.2 (build 2388) painted
+the rule on every element below the root and read it there, shadow trees included.
 
 The comment marks' rules (`browser/runtime/annotation-overlay/annotation-marks.css`)
 name the root and each shadow host, since Chromium resolves a highlight's style for
 every element a rule matches. `prepaint.js` asks whether a root highlight style
 reaches the head, and where it doesn't, `stylesheets.js` (`markSheet`) widens the
-rules to every element. Firefox resolves the widened rules only where it paints, so
-its load costs the same as with no mark rules. The engines then differ in where a
-mark reads its tokens: in Firefox on the element its words sit in, and in Chromium
-and WebKit on the root or the shadow host above them. No shipped page, theme or
-widget sets a mark token anywhere else. Recheck in Firefox with
-`uv run leaf-dev probe --state passage-reaction --browser firefox --js window.lfHighlightsInherit`;
-it reads `false` there today, and once its `result` is `true`, delete the widening
-and the probe.
+rules to every element. So the saving reaches Chromium today, and Safari once it
+ships the inheritance Playwright's WebKit has. Firefox resolves the widened rules
+only where it paints, so its load costs the same as with no mark rules. The engines
+then differ in where a mark reads its colours. Where the rules are widened, each
+element reads its own tokens and `color-scheme`. Where they inherit, a mark reads
+them on the root or the shadow host above it: a `--mark` set on a section of the
+page is ignored, and words marked in a region with its own `color-scheme`, such as
+a dark panel on a light page, wear the root scheme's ink and wash. No shipped page,
+theme or widget sets a mark token below the root or gives text a scheme of its own;
+of about 10,300 page sources on the maintainer's machine on 2026-11-12, two design
+explorations set a scheme below the root. Recheck in Firefox and in iOS Safari with
+`uv run leaf-dev probe review-a-plan --browser firefox --js window.lfHighlightsInherit`
+and the same with `--browser ios`; each reads `false` today. Delete the widening and
+the probe only once every engine Leaf supports reads `true`.
 
 ### Font style in syntax highlights
 

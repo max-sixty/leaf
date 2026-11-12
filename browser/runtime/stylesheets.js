@@ -33,17 +33,17 @@ export const chromeSharedClasses = Object.freeze(["lf-ui"]);
 export const marksSheet = constructSheet(sheets.marks);
 
 // The comment marks' rules style each highlight on the root and on each shadow host
-// (annotation-marks.css), and every element inherits that style. Firefox has no
-// highlight inheritance: it styles a highlight only from the rules that match the
-// element its text sits in (notes/browser-support.md, "Highlight style inheritance").
-// Where prepaint.js found that a root highlight style doesn't reach the head, the rules
-// are widened to every element.
+// (annotation-marks.css), and every element inherits that style. Firefox and Safari 26
+// have no highlight inheritance: they style a highlight only from the rules that match
+// the element its text sits in (notes/browser-support.md, "Highlight style
+// inheritance"). Where prepaint.js found that a root highlight style doesn't reach the
+// head, the highlight rules are widened to every element.
 /** @param {string} text */
 function markSheet(text) {
   const sheet = constructSheet(text);
   if (!window.lfHighlightsInherit)
     for (const rule of sheet.cssRules)
-      if (rule instanceof CSSStyleRule)
+      if (rule instanceof CSSStyleRule && rule.selectorText.includes("::highlight("))
         rule.selectorText = rule.selectorText.replace(/:root|:host/g, "*");
   return sheet;
 }

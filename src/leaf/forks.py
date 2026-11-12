@@ -608,7 +608,7 @@ This message comes from Leaf, not the user. The user just wrote in a thread on a
 Leaf's delivery of the thread to you; "events" are the user's messages, oldest first, and the one that owes the thread's answer carries its `answer`:
 {json.dumps(delivery, ensure_ascii=False)}
 
-Do the work, then answer the user in the thread yourself, as the session would, with the `leaf thread reply` the delivery's `answer` names. Run each `leaf` command as a command of its own that begins with `leaf`, which is how Leaf knows it is yours; give a reply's text with `--text`, or with `--file` naming a file an earlier command wrote. Leaf hands you anything else the user writes in the thread at your next tool call, and your answer then goes to their newest message.
+Do the work, then answer the user in the thread yourself, as the session would, with the `leaf thread reply` the delivery's `answer` names. Run each `leaf` command as a Bash call of its own that begins with `leaf` and has no other `leaf` in it, which is how Leaf knows it is yours; give a reply's text with `--text`, or, where the text names a `leaf` command, with `--file` naming a file you wrote first. Leaf hands you anything else the user writes in the thread at your next tool call, and your answer then goes to their newest message.
 
 If the work proves bigger than a message, such as a change to the session's files, branch, page or pull requests, or research long enough to need progress of its own, do what you can without changing those, then answer with what you found and add `--todo "<the rest of the work, in a few words>"` to that reply. The to-do is the session's: the main session takes it up in its own order, after its current work. If instead the main session has to act on the message now, because it answers a question the session asked, steers its current work, or would settle a question it is weighing, don't answer: end your turn with "{HAND_BACK}" and one line saying why, and Leaf gives the thread to the main session. Leaf tells the main session what you did either way.
 </leaf-fork-work>"""
@@ -628,7 +628,7 @@ This message comes from Leaf, not the user. The user wrote again in the thread y
 Leaf's delivery of the thread to you; "events" are the user's new messages, oldest first, and the one that owes the thread's answer carries its `answer`:
 {json.dumps(delivery, ensure_ascii=False)}
 
-Answer as before: do the work, then reply with the `leaf thread reply` the delivery's `answer` names, run as a command of its own that begins with `leaf`, adding `--todo` where the rest of the work is bigger than a message; or, if the main session has to act on the message now, end your turn with "{HAND_BACK}" and one line saying why.
+Answer as before: do the work, then reply with the `leaf thread reply` the delivery's `answer` names, run as a Bash call of its own that begins with `leaf` and has no other `leaf` in it, adding `--todo` where the rest of the work is bigger than a message; or, if the main session has to act on the message now, end your turn with "{HAND_BACK}" and one line saying why.
 </leaf-fork-work>"""
 
 
@@ -866,7 +866,9 @@ def started(session_id: str, basis: dict, turn: str, agent: str) -> dict:
     Leaf opened for the thread `basis` names (`state.name_agent_turn`), so its
     commands act in that turn and its tool boundaries carry the thread's further
     messages: the fork the module spawned or the one it resumed. A turn that ended first, as its session's may have, is
-    left closed, and the fork then acts as any subagent of the session does."""
+    left closed: a fork Leaf never named then acts as any subagent of the session
+    does, and one it named before, as a resumed fork is, has its commands refused
+    (`state.acting_agent_turn`)."""
     named = name_agent_turn(session_id, turn, agent)
     outcome = {
         "step": "start",

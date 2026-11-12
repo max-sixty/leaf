@@ -1289,12 +1289,14 @@ def test_an_ended_forks_later_command_stays_its_own_and_is_refused(
 
 def test_a_forks_leaf_command_must_lead_its_bash_call(claimed, lane, capsys):
     """Leaf marks a fork's `leaf` command only where it leads the Bash call, since a
-    mark spliced in elsewhere could land in quoted text. A known fork's call that
-    may run `leaf` anywhere else would act as the main thread's, so the hook denies
-    it, saying to run each `leaf` command on its own: after another command, after a
-    keyword or in a command substitution, and where the word only names `leaf`. A
-    call whose only `leaf` leads it is marked, one that runs no `leaf` goes on as it
-    came, and so does any call of a subagent the session ran no turn for."""
+    mark spliced in elsewhere could land in quoted text. A known fork's call with
+    `leaf` anywhere else may act as the main thread's, so the hook denies it, saying
+    to run each `leaf` command on its own: after another command or a keyword, in a
+    command substitution however it starts, quoted, in a string `bash -c` runs or an
+    unquoted here-document, and where the word only names `leaf`, as a reply's text
+    or a search may. A call whose only `leaf` leads it is marked; one with no `leaf`
+    word, or with one only in a quoted here-document, goes on as it came, and so
+    does any call of a subagent the session ran no turn for."""
     asked, taken = taken_by_a_fork(claimed, "Does the autocomplete service cache?")
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
@@ -1303,13 +1305,15 @@ def test_a_forks_leaf_command_must_lead_its_bash_call(claimed, lane, capsys):
     for index, command in enumerate(
         (
             f"cd /tmp && {reply}",
-            f"cd x; {reply}",
             f"{reply} && leaf page state p",
             f"if true; then {reply}; fi",
-            f"echo $({reply})",
-            f'{reply} "$(leaf page state p)"',
+            f'echo "$(true; {reply})"',
             f"echo `{reply}`",
             f"timeout 30 {reply}",
+            "'leaf' page state p",
+            "bash -c 'leaf page state p'",
+            "cat <<EOF\n$(leaf page state p)\nEOF",
+            reply.replace("--text Yes", '--text "Run \\`leaf page state\\` to see"'),
             "grep leaf notes.md",
         )
     ):
@@ -1318,22 +1322,26 @@ def test_a_forks_leaf_command_must_lead_its_bash_call(claimed, lane, capsys):
         assert "beginning with `leaf`" in answer["permissionDecisionReason"]
     for index, command in enumerate(
         (
-            'grep -rn "leaf thread" notes.md',
-            'echo "a; leaf b"',
-            "echo 'run $(leaf page state) later'",
-            "cat > reply.md <<'EOF'\nleaf thread reply answers a message\nEOF",
+            "grep -rn leaf_words src/leaf",
+            "git diff src/leaf",
+            "cat ~/.local/state/leaf/pages/p/index.html",
+            "uv run leaf-dev timeline p",
+            'echo "Leaf\'s page"',
+            "cat > reply.md <<'EOF'\nRun `leaf page state` to see it.\nEOF",
         )
     ):
-        assert hook_answer(capsys, command, "agent-1", f"passed-{index}") is None
+        assert hook_answer(capsys, command, "agent-1", f"passed-{index}") is None, (
+            command
+        )
     for index, command in enumerate(
         (
             reply,
-            reply.replace("--text Yes", "--text 'Run `leaf page state` to see it'"),
-            reply.replace("--text Yes", '--text "Yes, see leaf page state"'),
+            f"/plugin/bin/{reply}",
+            reply.replace("--text Yes", "--file reply.md"),
         )
     ):
         marked = hook_answer(capsys, command, "agent-1", f"marked-{index}")
-        assert marked is not None, command
+        assert marked is not None and "updatedInput" in marked, command
         assert marked["updatedInput"]["command"] == command.replace(
             "leaf ", "leaf --agent-id agent-1 ", 1
         )

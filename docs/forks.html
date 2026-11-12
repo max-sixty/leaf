@@ -584,17 +584,19 @@ flowchart TD
             whose spawn the module never reported, stops counting once it lapses.
           </p>
           <p id="acting-compound">
-            A marked agent's Bash call that may run <code>leaf</code> other than as its
-            first word is denied with the instruction to run each <code>leaf</code>
-            command on its own: after another command, as in
-            <code>cd x &amp;&amp; leaf …</code>, after a keyword, as in
-            <code>if …; then leaf …</code>, or in a command substitution,
-            <code>$(leaf …)</code>, double-quoted too. Unmarked, such a command would
-            act as the main thread, and a mark spliced into it could land inside quoted
-            text. The rule reads words rather than Bash's grammar, so it also denies a
-            call that only names <code>leaf</code>, as <code>grep leaf</code> does, and
-            points the fork at the Grep tool; single-quoted text and a here-document
-            pass.
+            A marked agent's Bash call with the word <code>leaf</code> anywhere but as
+            its first word is denied with the instruction to run each
+            <code>leaf</code> command on its own, as in
+            <code>cd x &amp;&amp; leaf …</code>, <code>if …; then leaf …</code>,
+            <code>"$(true; leaf …)"</code> or <code>bash -c 'leaf …'</code>. Unmarked,
+            such a command would act as the main thread, and a mark spliced into it
+            could land inside quoted text. The rule reads words rather than Bash's
+            grammar, so it also denies a call that only names <code>leaf</code>, as a
+            search or a reply's text naming a <code>leaf</code> command does; the denial
+            says to write such text to a file and pass <code>--file</code>, and to
+            search with the Grep tool. Only a here-document with a quoted delimiter,
+            which Bash never expands, passes, and a script that runs <code>leaf</code>
+            is out of its reach.
           </p>
           <p id="acting-module">
             The marking lives in <code>hooks.json</code> rather than Leaf's hooks

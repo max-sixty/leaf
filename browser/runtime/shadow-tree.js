@@ -339,6 +339,11 @@ export const skipped = (element) => Boolean(skipper(element));
 // tabs, the walk asks about the open document's 68,000 lines of two million elements,
 // in about 10 ms. A slotted child stands in its slot rather than beside its siblings,
 // so each asks for itself, and a host draws no child that no slot takes.
+//
+// One case goes unwalked: a `display: contents` child of an `auto` box on screen.
+// `skipper` names the box for any child of it that draws no box, on screen or not, and
+// telling such a child from a skipped line would mean asking each undrawn child its
+// `display`, which makes the browser style it: 21 s in Chromium on the page above.
 /** @param {Element} root @returns {Element[]} */
 export function drawnElements(root) {
   /** @type {Element[]} */

@@ -787,17 +787,23 @@ export function createHintSession({
     return plans.filter((plan) => narrowed.has(plan.candidate) && shown(plan));
   }
 
-  // Whether the seats still stand for `plans`: each has a seat, measured against its
-  // target where the target still stands, with the chrome's barriers where they stood.
+  // Whether the seats still stand for the whole map's `plans`: every target and the
+  // chrome's barriers stand where the seats were measured against them, every chip that
+  // shows has a seat, and the walk is not on a withheld chip, which seats the map again
+  // with that chip first (`seatHints`, `browsed`).
   /** @param {ReturnType<typeof layout>} plans */
   function standing(plans) {
     if (!seating) return false;
-    const { targets, barriers } = seating;
+    const { targets, barriers, withheld } = seating;
+    const heard = hinted()[at];
     return (
+      !(heard && withheld.has(heard)) &&
       plans.every(({ model, target }) => {
         const was = targets.get(model.key);
-        return seats.seated(model.key) && was && sameBox(was, target);
-      }) && sameBoxes(chrome.barriers(), barriers)
+        return was !== undefined && sameBox(was, target);
+      }) &&
+      showable(plans).every(({ model }) => seats.seated(model.key)) &&
+      sameBoxes(chrome.barriers(), barriers)
     );
   }
 
@@ -816,44 +822,29 @@ export function createHintSession({
       seats.clear();
       return;
     }
-    // A scroll holds the seats, the map the user has read keeping its faces up to date in
-    // them as they type or walk it.
-    if (scrolling()) {
-      show(layout(hinted(), { current: hinted()[at], reading: scene() }).filter(shown));
-      return;
-    }
+    const moving = scrolling();
     const wasWalking = at >= 0;
     const heard = hinted()[at];
     const emptyBefore = candidates.length === 0;
     const detached = candidates.some((candidate) => !identity(candidate)?.isConnected);
-    // Only with no letters typed: a partly typed code freezes the map until the user
-    // completes or backs out of that prefix.
-    const reread = !prefix && (stale || detached || !candidates.length);
-    // So does every paint while the seats stand, except a walk onto a withheld chip,
-    // which seats the map again with that chip first (`seatHints`, `browsed`).
-    let kept =
-      reread || (heard && seating?.withheld.has(heard))
-        ? null
-        : layout(hinted(), {
-            current: heard,
-            reading: scene(),
-          }).filter(shown);
-    if (!kept || !standing(kept)) {
-      if (reread) {
-        hold(read());
-        at = heard
-          ? hinted().findIndex(
-              (candidate) =>
-                identity(candidate) === identity(heard) &&
-                candidate.code === heard.code,
-            )
-          : -1;
-      }
-      const plans = layout(candidates, { current: hinted()[at], reading: scene() });
-      draw(plans);
-      kept = showable(plans);
+    // Only at rest and with no letters typed: a partly typed code freezes the map until
+    // the user completes or backs out of that prefix.
+    if (!moving && !prefix && (stale || detached || !candidates.length)) {
+      hold(read());
+      at = heard
+        ? hinted().findIndex(
+            (candidate) =>
+              identity(candidate) === identity(heard) && candidate.code === heard.code,
+          )
+        : -1;
     }
+    const plans = layout(candidates, { current: hinted()[at], reading: scene() });
+    // A scroll holds the seats, and so does every paint while they stand, the map the
+    // user has read keeping its faces up to date in them as they type or walk it.
+    if (!moving && !standing(plans)) draw(plans);
+    const kept = showable(plans);
     show(kept);
+    if (moving) return;
     const current = hinted()[at];
     if (wasWalking && current && !kept.some(({ candidate }) => candidate === current))
       at = -1;

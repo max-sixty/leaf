@@ -178,14 +178,30 @@ the pin with no input. Playwright Chromium 156.0.8078.4 (build 1248) and WebKit 
 
 ### Highlight style inheritance
 
-Playwright Firefox 155 accepted `:root::highlight()` and `:host::highlight()`
-on 2026-10-22 but painted no highlight on nested syntax spans in either light
-or shadow DOM. Universal highlight rules paint those ranges correctly; retain
-them in `browser/runtime/annotation-overlay/annotation-marks.css` and
-`browser/runtime/marks.css`. Revisit root-scoped rules when
-`test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme` in
-`tests/browser/navigation/test_comment_marks.py` passes with them in supported
-engines. Chromium 153.0.8010.12 passed both forms in that check.
+Firefox has no highlight inheritance (css-pseudo-4, "Cascading and Per-Element
+Highlight Styles"). It resolves a `::highlight()` style as it paints a run of text,
+only from the rules that match the run's own element
+(`nsIFrame::ComputeHighlightSelectionStyle`), and
+[bug 1999628](https://bugzilla.mozilla.org/show_bug.cgi?id=1999628) is open for it,
+unassigned. On 2026-11-11, Playwright Firefox 159.0 (build 1572) and release Firefox
+160.0 on macOS painted nothing from a rule on `:root` or `:host`, in the document or
+a shadow tree, and `getComputedStyle(element, "::highlight(name)")` read the
+rule's background as transparent on every element below the root. Playwright
+Chromium 158.0.8127.18 (build 1254) and WebKit 27.2 (build 2388) painted it on every
+element below the root and read it there, shadow trees included.
+
+The comment marks' rules (`browser/runtime/annotation-overlay/annotation-marks.css`)
+name the root and each shadow host, since Chromium resolves a highlight's style for
+every element a rule matches. `prepaint.js` asks whether a root highlight style
+reaches the head, and where it doesn't, `stylesheets.js` (`markSheet`) widens the
+rules to every element. Firefox resolves the widened rules only where it paints, so
+its load costs the same as with no mark rules. The engines then differ in where a
+mark reads its tokens: in Firefox on the element its words sit in, and in Chromium
+and WebKit on the root or the shadow host above them. No shipped page, theme or
+widget sets a mark token anywhere else. Recheck in Firefox with
+`uv run leaf-dev probe --state passage-reaction --browser firefox --js window.lfHighlightsInherit`;
+it reads `false` there today, and once its `result` is `true`, delete the widening
+and the probe.
 
 ### Font style in syntax highlights
 

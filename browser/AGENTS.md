@@ -464,11 +464,12 @@ move.
 
 A `::highlight()` rule with no originating element adds to the restyle of every
 element, on every page, whether or not the highlight has a range there. Name the
-elements whose text the ranges paint. The comment marks can land on any text and
-Firefox inherits no highlight style (`notes/browser-support.md`, "Highlight style
-inheritance"), so theirs stay universal, and in Chromium a custom property changing
-on `html` or `body` then restyles every element (`root-state.js` says what the root's
-writers set instead).
+elements whose text the ranges paint. The comment marks can land on any text, so
+their rules name only the root and each shadow host, whose highlight styles every
+element below inherits; where an engine has no highlight inheritance, `stylesheets.js`
+(`markSheet`) widens them to every element. In Chromium a custom property changing on
+`html` then restyles every element (`root-state.js` says what the root's writers set
+instead).
 
 ### Layouts, styles and controls
 

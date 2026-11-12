@@ -116,6 +116,8 @@ interface Window {
     setRest(value: string): void;
   };
   lfRootState: LeafRootState;
+  /** Whether a highlight style on the root reaches the elements below it (prepaint.js). */
+  lfHighlightsInherit: boolean;
 }
 
 interface HTMLElement {

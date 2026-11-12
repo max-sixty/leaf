@@ -1038,14 +1038,16 @@ describe("product-site delivery", () => {
     }
   });
 
-  it("starts the session's container when the visitor focuses a text box", async () => {
+  it("has the session's container compose the page when the visitor focuses a text box", async () => {
     const sessionId = "17".repeat(16);
     const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
     const env = environment();
-    const start = vi.fn(async () => undefined);
+    const fetched = vi.fn(
+      async (_request: Request) => new Response(null, { status: 204 }),
+    );
     vi.mocked(getContainer)
       .mockClear()
-      .mockReturnValue({ start } as never);
+      .mockReturnValue({ fetch: fetched } as never);
     const pending: Promise<unknown>[] = [];
     const focused = (control: string, textBox?: true) =>
       worker.fetch(
@@ -1080,7 +1082,15 @@ describe("product-site delivery", () => {
         env.PAGES,
         containerId(sessionId),
       );
-      expect(start).toHaveBeenCalledOnce();
+      expect(fetched).toHaveBeenCalledOnce();
+      const [request] = fetched.mock.calls[0]!;
+      expect(request.method).toBe("POST");
+      expect(request.url).toBe(
+        "http://container/examples/triage-board/_leaf/agent/prewarm",
+      );
+      expect(logged).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "container_prewarm_completed" }),
+      );
     } finally {
       vi.mocked(getContainer).mockClear();
       logged.mockRestore();

@@ -559,6 +559,52 @@ def test_a_stored_rewrite_lapses(checks, later, messages, expected):
     assert checks("cc-lapse-2", 2, later=later, messages=messages) == expected
 
 
+def test_thread_replies_keep_a_lapsed_rewrite_until_a_check_asks_again(
+    checks, page_dir, monkeypatch, spawn, tmp_path
+):
+    """A thread's fork learns nothing from its usage, so it can't renew or drop a
+    lapsed answer: asking again there would pay a rewrite on every reply until a
+    turn-end check. Each reply keeps the session's effort, and the store, and the
+    next check asks again."""
+    assert checks("cc-lapse-reply-1", 1, forkUsage=REWROTE) == [LOW]
+    store = tmp_path / "store.json"
+    stored = json.loads(store.read_text())
+    driven = ClaudeCode(
+        spawn,
+        "cc-lapse-reply-2",
+        {"forkReply": "Looking", "store": str(store), "forkUsage": REWROTE},
+    )
+    holding_page(driven, page_dir, monkeypatch, serve=False)
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    wait_for(
+        lambda: band_lines(
+            driven.bands.get(timeout=STATED_TIMEOUT)["terminal"], "terminal"
+        ),
+        bool,
+        failure="the band never showed the page",
+    )
+    driven.send({"advance": 8 * DAY_MS})
+    main_thread_request(driven)
+    for text in ("Why 2 s?", "And the retry?"):
+        append_carried_log_record(
+            page_dir, {"kind": "comment", "author": "user", "text": text}
+        )
+        assert driven.forks.get(timeout=STATED_TIMEOUT)["effort"] == SESSIONS
+        wait_for(
+            lambda: driven.debug.get(timeout=STATED_TIMEOUT),
+            lambda line: line.startswith("Leaf: a fork took"),
+            failure=lambda: (
+                f"the fork never reported: {list(driven.diagnostics.queue)}"
+            ),
+        )
+    assert json.loads(store.read_text()) == stored
+    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False}
+    driven.emit("turn.complete", {**ended, "reason": "answer", "turnId": "t1"})
+    assert driven.forks.get(timeout=STATED_TIMEOUT)["effort"] == LOW
+    driven.quit()
+
+
 def test_a_check_after_the_cache_expired_stores_nothing(checks, tmp_path):
     """A check made once the main thread's last request has left the cache writes
     the conversation again at any effort, so its usage stores no answer."""

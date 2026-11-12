@@ -449,9 +449,10 @@ function backendOf(model: string) {
  * `$.store` under the model and the route's variables (`backendOf`), and every fork
  * of every session on that backend then thinks at the session's effort, which the
  * cache serves, from its first. The answer lapses after `ANSWER_LAPSES_MS`; then a
- * check asks at the changed effort again while the conversation is small, and a
- * check that keeps the cache drops the answer, so a backend that gains per-message
- * effort is found again (issue #5906). A thread's fork can find the cache expired in
+ * check, the only fork whose usage can renew or drop it, asks at the changed effort
+ * again while the conversation is small, and every other fork keeps the session's
+ * effort. A check that keeps the cache drops the answer, so a backend that gains
+ * per-message effort is found again (issue #5906). A thread's fork can find the cache expired in
  * an idle session at any effort, so its usage decides nothing. */
 async function runFork(
   $: EngineInterface,
@@ -476,6 +477,7 @@ async function runFork(
       });
     }
   const asksAgain =
+    learns &&
     stored !== undefined &&
     started - stored.at >= ANSWER_LAPSES_MS &&
     (lastStep?.messages ?? Infinity) <= SMALL_CONVERSATION;

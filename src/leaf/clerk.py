@@ -188,10 +188,9 @@ effort leaves the cache whole where Claude Code's per-message effort reaches the
 model: in the claude-code journey on 2026-11-04, with the session at xhigh, a low
 fork read 98% of the conversation from the cache, as one at the session's effort
 did. Where it doesn't reach the model, a low fork writes the conversation to the
-cache again (#5891), so the hooks module forks at the session's effort from the
-first where Claude Code's environment names such a backend, such as Vertex (#5904),
-and otherwise once a turn-end check of a session does (`runFork` in
-`hooks/claude-code.ts`).
+cache again (#5891), so once a turn-end check does, the hooks module remembers it
+for that backend and makes its forks at the session's effort, in later sessions too
+(`runFork` in `hooks/claude-code.ts`).
 On turns planted in that journey, which leave an ask in the chat, answer it there,
 make the page stale or set work running that no page shows, or leave nothing, the low fork named all 19 planted items and nothing at any
 of the 13 quiet turns over five runs, as the session's effort did, with 0.45 times

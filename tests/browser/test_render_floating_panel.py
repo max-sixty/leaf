@@ -5103,6 +5103,65 @@ def test_a_long_reply_takes_its_room_from_the_thread_s_top(browser, serve):
     assert view.evaluate(beside) == pytest.approx(stood, abs=1)
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_wheel_as_the_thread_gives_up_room_moves_it_as_far_as_without(
+    engine, request, serve
+):
+    """A wheel up the open thread's view, as the view gives up room at its top in the
+    same moment, as it does to a reply that gains a line or to a draft from another tab,
+    moves the thread as far as the wheel moves it alone, and the view gives way too
+    (scrolling.js, `keepFoot`). Firefox applies the wheel's scroll a frame or more after
+    the wheel, and the view's own move made meanwhile cancelled it: with 100px of room
+    taken from 300, a wheel of 200px up left the view 100px further down the thread
+    rather than 100px further up it."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Which job comes first?")
+    thread_model.post_reply(
+        serve.page_dir, {"responds": root}, "The mounts come first. " * 120
+    )
+    page = floating(request.getfixturevalue(engine), url)
+    # The view opens 300px tall, so the room it gives up below is a share of its own.
+    page.add_style_tag(
+        content="leaf-floating-panel .lf-fp-view[data-lf-route='thread']"
+        " { max-height: 300px }"
+    )
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(panel_view("thread"))
+    expect(view.locator(".lf-msg")).to_have_count(2)
+    assert view.evaluate("v => v.clientHeight") == 300
+    # The room the view gives up stands in for a reply's new line, taken as the wheel
+    # is heard, before the browser applies its scroll.
+    view.evaluate("""v => v.addEventListener('wheel', () => {
+      if (v.dataset.giving) v.style.maxHeight = `${v.clientHeight - 100}px`;
+    }, {passive: true})""")
+    settled(page)
+    view.hover()
+    moved = {}
+    for giving in (False, True):
+        view.evaluate("v => { v.scrollTop = 400; }")
+        settled(page)
+        # The wheel's scroll ends once, the move the view owes made at that end.
+        stood = view.evaluate(
+            """async (v, giving) => {
+              if (giving) v.dataset.giving = '1';
+              const { watchScrollEnds } = await window.__lfCheckApi();
+              window.lfEnded = false;
+              const stop = watchScrollEnds((box) => {
+                if (box !== v) return;
+                stop();
+                window.lfEnded = true;
+              });
+              return v.scrollTop; }""",
+            giving,
+        )
+        page.mouse.wheel(0, -200)
+        page.wait_for_function("() => window.lfEnded")
+        moved[giving] = stood - view.evaluate("v => v.scrollTop")
+    assert moved[False] > 100, moved
+    assert moved[True] == pytest.approx(moved[False] - 100, abs=2), moved
+
+
 @pytest.mark.parametrize("touch", [False, True])
 def test_the_page_end_stops_as_far_above_the_row_as_the_row_stands_up(
     browser, serve, touch

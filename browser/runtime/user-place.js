@@ -75,7 +75,13 @@ import {
   shownWindow,
   stuckBox,
 } from "./geometry.js";
-import { pageScroller, placeKept, scrollChoices, scrollGoal } from "./scrolling.js";
+import {
+  chosenSince,
+  pageScroller,
+  placeKept,
+  scrollChoices,
+  scrollGoal,
+} from "./scrolling.js";
 import { edgeAt, holderOf, returnTo, scrollersOf } from "./scroll-containers.js";
 import { anchorNamed } from "./css-anchors.js";
 import { inChrome, isElement, renderedParent, under } from "./shadow-tree.js";
@@ -304,10 +310,12 @@ export function holdPlace(node, standIn = () => null) {
 // line's Comment, stands where its own layout put it, and is kept like any other. A
 // control the change replaced, or one focus left, has nothing to keep.
 //
-// The keep yields to any scroll since the reading: a scroll the user or a landing chose
-// and ended (scrolling.js, `scrollChoices`), one the browser is still running, as a
-// smooth scroll or a wheel's glide, or has yet to start for the reader's input
-// (arrivals.js, `browserScrolls`), so it never overrides a scroll under way. It yields
+// The keep yields to any scroll since the reading in a box that scrolls the place: a
+// scroll the user or a landing chose and ended (scrolling.js, `chosenSince`), one the
+// browser is still running, as a smooth scroll or a wheel's glide, or has yet to start
+// for the reader's input (arrivals.js, `browserScrolls`), so it never overrides a scroll
+// under way. A scroll in another box leaves the place to be kept: a landing in another
+// pane made the keep give up a focused control the change then moved. It yields
 // to the user's own act since too, a press or a key anywhere but in the field held
 // (focus.js, `onUserInput`), whose result is its own to place: a disclosure the user
 // opened while a diff waited on its syntax grammar moved 140px when the keep put the
@@ -399,11 +407,11 @@ export function holdUserPlace() {
   }));
   return () => {
     unwatch();
-    if (acted || scrollChoices() !== choices) return;
+    if (acted) return;
     const still = new Set();
     for (const { place, focus, hold } of holds) {
       const boxes = [...scrollersOf(holderOf(place))];
-      if (boxes.some(browserScrolls)) return;
+      if (boxes.some((box) => browserScrolls(box) || chosenSince(box, choices))) return;
       if ((focus && focused() !== node) || still.has(boxes[0])) continue;
       if (hold()) return;
       still.add(boxes[0]);

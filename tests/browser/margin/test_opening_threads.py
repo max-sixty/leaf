@@ -560,7 +560,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     expect(marker).to_have_count(1)
     expect(marker.locator(".lf-margin-count")).to_have_count(0)
-    expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, "))
+    expect(marker).to_have_attribute("aria-label", re.compile(r"Thread, \d+ of"))
     expect(marker).not_to_have_attribute("title", re.compile(".+"))
     more = marker.locator("xpath=..").locator(":scope > .lf-margin-more")
     expect(more).to_be_hidden()

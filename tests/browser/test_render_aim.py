@@ -1338,10 +1338,10 @@ def test_comments_pointed_at_one_row_stand_as_one_margin_row(browser, serve):
 
 
 def test_a_pointed_row_is_announced_where_it_stands_and_by_its_words(browser, serve):
-    """A listener on a margin row's marker places it by how far down the page it is and
-    tells rows apart by their names. A pointed row stands two-thirds of the way down the
-    section, and it is named by the line it stands by, not only by the section the
-    target's own row names."""
+    """A listener places a margin row by how far down the page it is and tells rows
+    apart by their names. A pointed row stands two-thirds of the way down the section, and
+    it is named by the line it stands by, not only by the section the target's own row
+    names."""
     page = open_page(browser, serve(TALL_ROWS_PAGE))
     resized(page, 1440, 900)
     expect(page.locator("#whole p")).to_have_count(80)
@@ -1352,7 +1352,6 @@ def test_a_pointed_row_is_announced_where_it_stands_and_by_its_words(browser, se
           const row = document.querySelectorAll('#whole p')[50].getBoundingClientRect();
           const host = [...document.querySelectorAll('[data-lf-margin-for]')]
             .find((host) => host.lfTarget?.id === 'whole');
-          host.querySelector('.lf-margin-marker').focus();
           return {
             at: Math.round((row.top - main.getBoundingClientRect().top)
                            / main.scrollHeight * 100),

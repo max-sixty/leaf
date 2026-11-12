@@ -29,7 +29,8 @@ option to click, reads none of that input, and the report names it as missing.
   write to the file it changes, to the first frame that paints its result (`painted`);
   for a gesture, also to the arrival of its POST's answer (`answered`) and to the
   frame that presents the server's reading of its event (`shown`), which root
-  `AGENTS.md` holds to BUDGET_MS. Each counts the requests and bytes it caused
+  `AGENTS.md` holds to BUDGET_MS. Each frame is timed as it is laid out, just before
+  it paints (`leaf_dev.painted`). Each counts the requests and bytes it caused
   (`Traffic`).
 - `server` times the server's paths on each generated page in this process, with no
   browser, on this checkout only (`leaf_dev.server_paths`).
@@ -1451,8 +1452,9 @@ def paint_pass(
 def measure(
     tab: Tab, traffic: Traffic, name: str, goals: Goals, profiles: Path | None
 ) -> dict:
-    """Arm the frame sampler for `goals`, make input `name`, and read when each goal was
-    first painted, the long frames up to the last, and the trips the input caused."""
+    """Arm the frame sampler for `goals`, make input `name`, and read when the frame
+    that first painted each goal was laid out, the long frames up to the last, and the
+    trips the input caused."""
     page = tab.page
     page.evaluate(
         "goals => window.__leafBench.arm(goals)",

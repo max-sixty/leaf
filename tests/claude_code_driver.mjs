@@ -43,6 +43,10 @@ function stored() {
   if (options.store === undefined || !fs.existsSync(options.store)) return memory;
   return JSON.parse(fs.readFileSync(options.store, "utf8"));
 }
+function keyed(key) {
+  if (key.length > 256) throw new Error(`the key is ${key.length} characters`);
+  return key;
+}
 function keep(entries) {
   memory = entries;
   if (options.store !== undefined)
@@ -133,11 +137,12 @@ const $ = {
   clock: {
     now: async () => Date.now() + advanced,
   },
+  // Claude Code refuses a key over 256 characters (2.1.316).
   store: {
-    get: async (key) => stored()[key],
-    set: async (key, value) => keep({ ...stored(), [key]: value }),
+    get: async (key) => stored()[keyed(key)],
+    set: async (key, value) => keep({ ...stored(), [keyed(key)]: value }),
     delete: async (key) => {
-      const { [key]: _, ...rest } = stored();
+      const { [keyed(key)]: _, ...rest } = stored();
       keep(rest);
     },
     keys: async () => Object.keys(stored()),

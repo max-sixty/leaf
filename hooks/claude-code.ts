@@ -419,10 +419,15 @@ const ANSWER_LAPSES_MS = 7 * 24 * 60 * 60 * 1000;
 // again rewrites a conversation still small, for cents.
 const SMALL_CONVERSATION = 20;
 
-/** The store key of whether a change of effort costs the cache, for a model on
- * this process's route. */
-function backendKey(model: string) {
-  return `fork-effort ${JSON.stringify({ model, ...route })}`;
+// The `$.store` key whose value maps each backend (`backendOf`) to its stored
+// rewrite. One fixed key, since `$.store` refuses a key over 256 characters and a
+// backend's model and base URLs can be longer.
+const ANSWERS = "fork-effort";
+type Answers = Record<string, { at: number }>;
+
+/** The backend a model on this process's route names, in `ANSWERS`. */
+function backendOf(model: string) {
+  return JSON.stringify({ model, ...route });
 }
 
 /** Fork the conversation with the prompt and effort Leaf asked for, and what Leaf
@@ -441,7 +446,7 @@ function backendKey(model: string) {
  * a model without per-message effort, so the turn-end check's usage tells (`learns`):
  * where the check went at a changed effort while the main thread's cache was warm
  * and wrote more of its prompt than it read, the module stores that answer in
- * `$.store` under the model and the route's variables (`backendKey`), and every fork
+ * `$.store` under the model and the route's variables (`backendOf`), and every fork
  * of every session on that backend then thinks at the session's effort, which the
  * cache serves, from its first. The answer lapses after `ANSWER_LAPSES_MS`; then a
  * check asks at the changed effort again while the conversation is small, and a
@@ -456,15 +461,15 @@ async function runFork(
   const resent = request();
   const started = await $.clock.now();
   const session = lastStep?.effort;
-  // The backend's key, where Leaf asks for another effort than the session's.
+  // The backend, where Leaf asks for another effort than the session's.
   const key =
     lastStep && session !== undefined && session !== asked.effort
-      ? backendKey(lastStep.model)
+      ? backendOf(lastStep.model)
       : undefined;
   let stored: { at: number } | undefined;
   if (key)
     try {
-      stored = ((await $.store.get(key)) ?? undefined) as { at: number } | undefined;
+      stored = ((await $.store.get(ANSWERS)) as Answers | undefined)?.[key];
     } catch (error) {
       $.ui.log(`Leaf: the fork's stored effort answer is unreadable: ${error}`, {
         to: "debug",
@@ -494,9 +499,15 @@ async function runFork(
     if (started - lastSent < CACHE_LIFETIME_MS)
       try {
         const written = Number(usage.cache_creation_input_tokens ?? 0);
-        if (written > Number(usage.cache_read_input_tokens ?? 0))
-          await $.store.set(key, { at: started });
-        else if (stored !== undefined) await $.store.delete(key);
+        const rewrote = written > Number(usage.cache_read_input_tokens ?? 0);
+        if (rewrote || stored !== undefined) {
+          const { [key]: _, ...others } =
+            ((await $.store.get(ANSWERS)) as Answers | undefined) ?? {};
+          await $.store.set(
+            ANSWERS,
+            rewrote ? { ...others, [key]: { at: started } } : others,
+          );
+        }
       } catch (error) {
         $.ui.log(`Leaf: the fork's effort answer went unstored: ${error}`, {
           to: "debug",

@@ -533,6 +533,10 @@ def test_a_fork_that_rewrote_the_cache_sends_later_forks_at_the_sessions_effort(
     assert checks("cc-rewrote-1", 2, forkUsage=REWROTE) == [LOW, SESSIONS]
     assert checks("cc-rewrote-2", 1) == [SESSIONS]
     assert checks("cc-rewrote-3", 1, env={"CLAUDE_CODE_USE_VERTEX": "1"}) == [LOW]
+    # A route longer than a store key holds its answer too.
+    proxy = {"ANTHROPIC_BASE_URL": "https://proxy.example/" + "p" * 300}
+    assert checks("cc-rewrote-4", 1, forkUsage=REWROTE, env=proxy) == [LOW]
+    assert checks("cc-rewrote-5", 1, env=proxy) == [SESSIONS]
 
 
 @pytest.mark.parametrize(

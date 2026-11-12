@@ -42,6 +42,7 @@ import {
   pageDocument,
   pageQueryAll,
   pageReadingVersion,
+  readingElements,
 } from "./passages.js";
 import { pageUpgraded } from "./page-paint.js";
 import { documentChanged, readPart } from "./semantic-state.js";
@@ -145,7 +146,7 @@ export function createAnchorControls({
     /** @type {Map<Element, VisualAction[]>} */
     const groups = new Map();
     const claimed = new Set();
-    for (const candidate of pageQueryAll(visualSelector())) {
+    for (const candidate of readingElements(visualSelector())) {
       const found = visualAt(candidate);
       if (!found || found.element !== candidate) continue;
       const parts = visualParts(candidate);
@@ -248,7 +249,9 @@ export function createAnchorControls({
   // might have: its words moved (passages.js, `pageReadingVersion`), a caller said the
   // document changed (`presentDocument`), the shown document was replaced, or a visual
   // signalled new parts (`onLayoutInvalidated`). A thread pass over an unchanged page keeps
-  // the responses it published.
+  // the responses it published. The pictures are found in each piece of the page's
+  // reading, kept until that piece changes (passages.js, `readingElements`), so planning
+  // again after one part of the page changed searches that part alone.
   /** @type {[ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>, ReturnType<typeof shownDocument>] | null} */
   let plannedFor = null;
   function prepareVisualActions() {

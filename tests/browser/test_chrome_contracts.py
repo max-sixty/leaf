@@ -337,6 +337,49 @@ def test_resolving_a_thread_restyles_what_focus_marks(browser, serve):
     assert long - short < 10, {"4 sections": short, "24 sections": long}
 
 
+@pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
+def test_a_focus_move_near_a_long_pages_end_restyles_what_focus_marks(browser, serve):
+    """Shift+Tab from the last section's link to the one before it. Focus marks each
+    ancestor of the link it leaves and lands on, the column's `main` among them, and
+    each `:has()` that reads a focus mark is asked again of the elements on that path.
+    Two shapes once made each move restyle every section before the link: a
+    `:has(~ …)` asked of every child of `main`, which sends Chromium back through
+    every earlier sibling (the static guard beside it in test_interact_layer.py), and
+    the column's room registered as a `<length-percentage>`, which Chromium counts as
+    changed whenever the column restyles (layouts.css). Counted in
+    the browser's own restyled elements, a page of six times the sections restyles no
+    more."""
+
+    def restyled(sections):
+        page = open_page(
+            browser,
+            serve(
+                leaf_page(
+                    "Sections",
+                    "<h1>Sections</h1>"
+                    + "".join(
+                        f'<section id="s{g}"><h2>Section {g}</h2>'
+                        f"<p>Some words about section {g}.</p>"
+                        f'<p>More words with a <a id="a{g}" href="#s1">link</a>.</p>'
+                        "</section>"
+                        for g in range(1, sections + 1)
+                    ),
+                )
+            ),
+        )
+        page.locator(f"#a{sections}").focus()
+        rendered(page)
+        counts = restyle_counts(
+            page, lambda: (page.keyboard.press("Shift+Tab"), rendered(page))
+        )
+        expect(page.locator(f"#a{sections - 1}")).to_be_focused()
+        page.close()
+        return sum(counts)
+
+    short, long = restyled(8), restyled(48)
+    assert long - short < 10, {"8 sections": short, "48 sections": long}
+
+
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
 def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
     request, serve, engine

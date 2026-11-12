@@ -441,8 +441,11 @@ A `:has()` rule can turn a local write into a restyle of the whole page or chrom
 rule anywhere whose subject after a `:has()` names no element can make every focus move
 restyle the page (`test_a_has_leads_only_to_a_subject_naming_an_element` says which
 subjects name one), and a condition on the chrome root, `body` or `html` is
-re-evaluated on writes below it. Prefer a class that names the
-targets, or a condition its owner sets on the styled element, and measure with
+re-evaluated on writes below it. A `:has(~ …)` asked of elements most selectors reach,
+such as every child of `main`, makes each focus move restyle every block before the
+focused one (`test_a_has_reads_no_sibling_of_an_element_most_selectors_reach`). Prefer
+a class that names the targets, or a condition its owner sets on the styled element
+or its parent, such as a property a style query reads, and measure with
 `leaf-dev bench --read paint --profile`.
 
 A `:has()` on a compound that a combinator follows, as in

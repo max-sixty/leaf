@@ -1867,6 +1867,64 @@ def _untyped_after_has(selector):
     )
 
 
+def test_a_has_reads_no_sibling_of_an_element_most_selectors_reach():
+    """A `:has()` that reads its element's later siblings, as `:has(~ b)` does, names
+    that element by a class, id or attribute, a custom element's tag, `html` or
+    `body`, or reaches it through a `:where()` whose ancestor does, as
+    `aside:where(.layout-sidebar > *)` does. Chromium flags every later sibling of
+    each element it asks such a `:has()` of, and on each write to an attribute some
+    `:has()` reads, focus marks among them, walks back from a flagged element through
+    every earlier sibling and restyles each one some `:has()` names as its subject.
+    Asked of every child of `main`, by `:where(main > *):has(~ [data-lf-views="parts"])`
+    in layouts.css, it made each focus move restyle every block before the focused one:
+    1,131 elements a move near the end of a page of 1,024 sections in a plain `main`,
+    and 108 once `main` answered with a style query instead (Chromium 158, a trace's
+    restyled-element count, 11 November 2026). `.layout-sidebar > aside:has(~ …)` asked
+    it of every `aside` in the page's content."""
+
+    def rare(compound):
+        return any(
+            part[0] in ".#["
+            or part in ("html", "body", ":root")
+            or (part[0].isalpha() and "-" in part)
+            or (
+                part.startswith((":is(", ":where("))
+                and all(
+                    any(map(rare, _split_top(each, " >+~")))
+                    for each in _split_top(part[part.index("(") + 1 : -1], ",")
+                )
+            )
+            for part in _simple_selectors(compound)
+        )
+
+    def reaches_later_siblings(selector):
+        for compound in _split_top(selector, " >+~"):
+            for part in _simple_selectors(compound):
+                if not part.startswith((":is(", ":where(", ":not(", ":has(")):
+                    continue
+                arguments = _split_top(part[part.index("(") + 1 : -1], ",")
+                if part.startswith(":has(") and not rare(compound):
+                    if any(each.startswith("~") for each in arguments):
+                        yield compound
+                for each in arguments:
+                    yield from reaches_later_siblings(each.lstrip("~+> "))
+
+    found = []
+    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
+        for sheet in sorted(root.rglob("*.css")):
+            if "vendor" in sheet.parts:
+                continue
+            where = sheet.relative_to(ROOT)
+            for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
+                found += [
+                    f"{where}: {selector}" for _ in reaches_later_siblings(selector)
+                ]
+    assert not found, (
+        "name the element this `:has(~ …)` is asked of by a class, id or attribute:\n"
+        + "\n".join(found)
+    )
+
+
 def test_controls_are_built_by_role_and_never_by_face():
     """Leaf's controls come from a closed set of roles, each with one face, so a widget
     cannot draw two controls of one kind two ways. The classes of a role's face are

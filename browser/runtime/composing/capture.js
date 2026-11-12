@@ -12,7 +12,7 @@ import {
   closestAcross,
   pageWords,
   pointAt,
-  readingOf,
+  readingHolding,
   segmentBlock,
   segmentsIn,
   spanIn,
@@ -304,8 +304,8 @@ export function snapSelection() {
   if (!first || !last) return;
   // Each end snaps in the reading it stands in, a part's or the frame's (passages.js,
   // `pageText`); a sentence snaps only within one.
-  const head = readingOf(first.node);
-  const tail = readingOf(last.node);
+  const head = readingHolding(first.node);
+  const tail = readingHolding(last.node);
   const [start] = spanIn(head, [first]);
   const [, stop] = spanIn(tail, [last]);
   let lo = snapOut(head, start, true);

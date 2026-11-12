@@ -13,7 +13,7 @@ import {
   inChrome,
   pageFind,
   pageReadingVersion,
-  readingOf,
+  readingHolding,
   quoteFrom,
   rangeOf,
   passageStart,
@@ -513,7 +513,7 @@ export function createTargetPicker({
   /** @param {Match} segments */
   function matchDescription(segments) {
     const { before, after } = contextAround(
-      readingOf(segments[0]?.node ?? document.body),
+      readingHolding(segments[0]?.node ?? document.body),
       segments,
     );
     const phrase = quoteFrom(segments);

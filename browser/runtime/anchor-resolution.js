@@ -36,9 +36,9 @@ import {
   contextAround,
   neighbourhood,
   pageText,
-  partOf,
+  readingPart,
   readingFrom,
-  readingOf,
+  readingHolding,
   rangeOf,
   segmentsIn,
   textNodesUnder,
@@ -422,7 +422,7 @@ export function anchorForPassage(selected, node) {
   if (!quote) return section === null ? null : { section };
   // Words on both sides of a part's edge stand in no one reading, and no copy of them is
   // found again, since every part is a passage cell of its own (passages.js, `pageText`).
-  if (!projected && segments.some((seg) => partOf(seg.node)))
+  if (!projected && segments.some((seg) => readingPart(seg.node)))
     return { section, quote, detached: true };
   // Identity is the context for projected data: the display values beside a datum may
   // reorder or repeat, so their words would make incidental layout a second,
@@ -673,7 +673,7 @@ function designTargetAt(
             // A repeated control’s announcement and its durable anchor share the same
             // distinguishing context, including neighbouring table cells.
             const at = resolved.segments[0]?.node ?? face;
-            const context = contextAround(readingOf(at), resolved.segments, {
+            const context = contextAround(readingHolding(at), resolved.segments, {
               before: [...(captured.prefix ?? "")].length,
               after: [...(captured.suffix ?? "")].length,
             });

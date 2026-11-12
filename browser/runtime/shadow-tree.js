@@ -12,7 +12,7 @@
 // rather than `instanceof ShadowRoot`, whose class belongs to one window: an iframe's
 // runtime climbs its parent document's elements out to the frame's place in the page.
 /** @param {Node | null | undefined} node @returns {node is ShadowRoot} */
-const isShadowRoot = (node) =>
+export const isShadowRoot = (node) =>
   node != null && node.nodeType === node.DOCUMENT_FRAGMENT_NODE && "host" in node;
 /** Native event origins can be nodes from another window; Window and other targets are not tree nodes.
  * @param {unknown} node @returns {node is Node} */

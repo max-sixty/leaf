@@ -16,9 +16,11 @@ import {
   findQuote,
   pageReadingVersion,
   pageText,
+  quoteFrom,
   quotesChanged,
   readingParts,
   says,
+  segmentsIn,
   trackQuotes,
 } from "/runtime/passages.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
@@ -36,7 +38,7 @@ const datum = (id, inner) =>
 
 // Prose, three parts, a datum standing inside a line (which reads with the line), and a
 // declared tree holding two parts whose slots show the host's light children, one of
-// them a heading.
+// them a heading, and a slot outside them that shows a part among those children.
 const page = () => {
   freshVocabulary();
   document.body.innerHTML =
@@ -56,12 +58,14 @@ const page = () => {
   const staged = document.createElement("template");
   staged.innerHTML =
     datum("s", '<p>Staged <slot name="x"></slot></p><slot name="h"></slot>') +
-    datum("t", "<p><slot></slot></p>");
+    datum("t", "<p><slot></slot></p>") +
+    '<section id="w"><slot name="p"></slot></section>';
   shadowStage(host, [...staged.content.childNodes]);
   // The stage clears light children, so what its slots take arrives after it.
   host.innerHTML =
     '<b id="slotted" slot="x">Slotted words</b><h4 slot="h">Slotted heading</h4>' +
-    '<i id="other">Other</i>';
+    '<i id="other">Other</i>' +
+    datum("u", '<p id="u1">Shown words</p>').replace("<div ", '<div slot="p" ');
   return host;
 };
 
@@ -77,7 +81,7 @@ const standsUnder = (node, root) => {
 const facts = (segments) => segments.map((segment) => FACTS.map((key) => segment[key]));
 // The kept pieces must say what a fresh walk of the whole page says: the body is no
 // part, so its own reading is that walk. The frame holds its words outside the parts,
-// with a fence where each part stands, and each part its words under it.
+// with a fence where each part stands, and each datum its words under it.
 const assertPieces = (what) => {
   const whole = pageText(document.body);
   const parts = readingParts();
@@ -88,13 +92,13 @@ const assertPieces = (what) => {
     facts(whole.segments.filter((segment) => !inPart(segment))),
     `${what}: the frame's words`,
   );
-  for (const root of parts) {
-    const own = pageText(root);
+  for (const root of elements().filter((element) => element.matches("[data-lf-datum]")))
     assert.deepEqual(
-      facts(own.segments),
+      facts(pageText(root).segments),
       facts(whole.segments.filter(({ node }) => standsUnder(node, root))),
-      `${what}: the words of part ${root.id}`,
+      `${what}: the words of datum ${root.id}`,
     );
+  for (const root of parts) {
     const before = frame.segments.findIndex(
       ({ node }) => root.compareDocumentPosition(node) & 4,
     );
@@ -146,10 +150,11 @@ const readEverything = () => {
   outlineOf();
 };
 
+const by = (id) => document.getElementById(id);
+
 // Each kind of change, in turn on one page.
 /** @param {HTMLElement} host */
 const changes = (host) => {
-  const by = (id) => document.getElementById(id);
   const fresh = (markup) => {
     const template = document.createElement("template");
     template.innerHTML = markup;
@@ -218,6 +223,15 @@ const changes = (host) => {
         chrome.append(by("b"));
       },
     ],
+    [
+      "a slot that shows a part made a part",
+      () => {
+        const shows = host.shadowRoot.querySelector("#w");
+        shows.setAttribute("data-lf-projection", "w");
+        shows.setAttribute("data-lf-datum", "w");
+      },
+    ],
+    ["words edited in the part it shows", () => (by("u1").firstChild.data = "Shown")],
     ["chrome put over parts", () => by("s1").classList.add("lf-ui")],
     ["chrome taken off them", () => by("s1").classList.remove("lf-ui")],
     ["a fence put around parts", () => fencePassageParts(by("s1"))],
@@ -264,6 +278,40 @@ test("each change drops the pieces whose outline it moved", () => {
     readEverything();
     change();
     assertOutline(what);
+  }
+});
+
+// A slot shows what another slot passes on to it, so a change to what holds the first
+// reaches the parts among the children of the second's host.
+test("a change over a slot reaches the parts another slot passes on to it", () => {
+  freshVocabulary();
+  document.body.innerHTML =
+    '<main><p>Prose</p><lf-staged id="outer"></lf-staged></main>';
+  const nodes = (markup) => {
+    const template = document.createElement("template");
+    template.innerHTML = markup;
+    return [...template.content.childNodes];
+  };
+  const outer = document.getElementById("outer");
+  shadowStage(outer, nodes('<lf-staged id="inner"></lf-staged>'));
+  const inner = outer.shadowRoot.getElementById("inner");
+  shadowStage(inner, nodes('<div id="holder"><slot></slot></div>'));
+  inner.append(document.createElement("slot"));
+  outer.innerHTML = datum("x", '<p id="x1">Passed on</p>');
+  assert.deepEqual(readingParts(), [by("x")]);
+  const holder = inner.shadowRoot.getElementById("holder");
+  const steps = [
+    [
+      "what holds the slot made a part",
+      () => holder.setAttribute("data-lf-datum", "h"),
+    ],
+    ["words edited in the part passed on", () => (by("x1").firstChild.data = "Edited")],
+  ];
+  holder.setAttribute("data-lf-projection", "w");
+  for (const [what, change] of steps) {
+    readEverything();
+    change();
+    assertPieces(what);
   }
 });
 
@@ -316,41 +364,132 @@ test("a line rewritten in a part changes only the quotes standing on it", () => 
   assert.deepEqual(quotesChanged(version).quotes, ["Line 7 of"]);
 });
 
-// Hearing a change costs the kept parts it may have moved, however many nodes it put in
-// or took out: each kept part is climbed once a batch, not once for each node.
-test("hearing rows replaced at once costs the kept parts, not rows times parts", () => {
-  /** @param {number} n */
-  const climbs = (n) => {
+// Anchor placement finds a datum's quote in that datum's own words, whether the datum is
+// a part or stands in one or in a line, so a change to those words changes the quote.
+for (const [what, markup] of [
+  [
+    "inside a part",
+    datum("outer", "<p>Outer words</p>" + datum("d", "alpha beta gamma")),
+  ],
+  [
+    "standing in a line",
+    '<p>Words <span id="d" data-lf-projection="w" data-lf-datum="d">alpha beta gamma</span></p>',
+  ],
+  [
+    "that is a heading",
+    '<h2 id="d" data-lf-projection="w" data-lf-datum="d">alpha beta gamma</h2>',
+  ],
+])
+  test(`a quote in a datum ${what} changes when its words move`, () => {
     freshVocabulary();
-    document.body.innerHTML = "<main><section></section></main>";
-    const box = document.querySelector("section");
-    const rows = (tag) =>
-      Array.from({ length: n }, (_, i) => {
-        const row = document.createElement("div");
-        row.setAttribute("data-lf-projection", "w");
-        row.setAttribute("data-lf-datum", `l${i}`);
-        row.textContent = `line ${i} ${tag}`;
-        return row;
-      });
-    box.append(...rows("first"));
-    for (const root of readingParts()) pageText(root);
-    let read = 0;
-    const slot = Object.getOwnPropertyDescriptor(Element.prototype, "assignedSlot");
-    Object.defineProperty(Element.prototype, "assignedSlot", {
+    document.body.innerHTML = `<main><p>Prose before</p>${markup}</main>`;
+    const own = document.getElementById("d");
+    trackQuotes(["beta gamma"]);
+    assert.ok(findQuote(pageText(own), "beta gamma", {}).length);
+    const { version } = quotesChanged(0);
+    own.firstChild.data = "words first alpha beta gamma";
+    assert.deepEqual(quotesChanged(version).quotes, ["beta gamma"]);
+  });
+
+// A page of `n` datum rows between two paragraphs, every piece read.
+/** @param {number} n */
+const rowsPage = (n) => {
+  freshVocabulary();
+  const rows = Array.from({ length: n }, (_, i) =>
+    datum(`r${i}`, `line ${i} of the rows`),
+  );
+  document.body.innerHTML =
+    '<main><p id="intro">Intro words before the rows</p><section>' +
+    rows.join("") +
+    '</section><p id="outro">Outro words</p></main>';
+  for (const root of readingParts()) pageText(root);
+  return document.querySelector("section").children;
+};
+// How many times the walk asks a node which slot shows it, as each step up the reading's
+// tree does, while `run` runs.
+/** @param {() => void} run */
+const stepsUp = (run) => {
+  let steps = 0;
+  const kinds = [Element, Text].map(({ prototype }) => [
+    prototype,
+    Object.getOwnPropertyDescriptor(prototype, "assignedSlot"),
+  ]);
+  for (const [prototype, slot] of kinds)
+    Object.defineProperty(prototype, "assignedSlot", {
       ...slot,
       get() {
-        read += 1;
+        steps += 1;
         return slot.get.call(this);
       },
     });
-    try {
-      box.replaceChildren(...rows("again"));
-      pageReadingVersion();
-    } finally {
-      Object.defineProperty(Element.prototype, "assignedSlot", slot);
-    }
-    return read;
+  try {
+    run();
+  } finally {
+    for (const [prototype, slot] of kinds)
+      Object.defineProperty(prototype, "assignedSlot", slot);
+  }
+  return steps;
+};
+
+// The frame's marks are in reading order, so where a selection stands among the parts is
+// a binary search: one in prose, or across the edge between two parts, compares about as
+// many places on a page of a thousand parts as on one of a hundred.
+test("a selection compares a few parts' places however many the page holds", () => {
+  /** @param {number} n */
+  const steps = (n) => {
+    const rows = rowsPage(n);
+    const range = (from, start, to, end) => {
+      const made = document.createRange();
+      made.setStart(from, start);
+      made.setEnd(to, end);
+      return made;
+    };
+    const intro = document.getElementById("intro").firstChild;
+    const inProse = range(intro, 4, intro, 20);
+    const next = rows[n / 2 + 1].firstChild;
+    const across = range(rows[n / 2].firstChild, 5, next, next.data.indexOf(" of"));
+    assert.equal(quoteFrom(segmentsIn(inProse)), "o words before t");
+    assert.equal(
+      quoteFrom(segmentsIn(across)),
+      `${n / 2} of the rows line ${n / 2 + 1}`,
+    );
+    return [stepsUp(() => segmentsIn(inProse)), stepsUp(() => segmentsIn(across))];
   };
-  const [small, large] = [climbs(100), climbs(200)];
-  assert.ok(large < small * 3, `${small} climbs for 100 rows, ${large} for 200`);
+  const [small, large] = [steps(100), steps(1000)];
+  for (const [k, what] of ["in prose", "across two parts"].entries())
+    assert.ok(
+      large[k] < small[k] * 2,
+      `${what}: ${small[k]} steps beside 100 parts, ${large[k]} beside 1000`,
+    );
+});
+
+// A selection across parts holds the frame's words and each part's in reading order.
+test("a selection across parts reads the frame's words and theirs in order", () => {
+  const rows = rowsPage(3);
+  const range = document.createRange();
+  range.setStart(document.getElementById("intro").firstChild, 6);
+  range.setEnd(document.getElementById("outro").firstChild, 3);
+  assert.equal(
+    quoteFrom(segmentsIn(range)),
+    "words before the rows line 0 of the rows line 1 of the rows line 2 of the rows Out",
+  );
+  range.setStart(rows[1].firstChild, 7);
+  assert.equal(quoteFrom(segmentsIn(range)), "of the rows line 2 of the rows Out");
+});
+
+// Hearing a change finds the kept parts it moved from the nodes it changed down, so a
+// paragraph put in the frame costs as much beside a thousand kept parts as beside a
+// hundred.
+test("hearing a paragraph put in the frame costs the same however many parts are kept", () => {
+  /** @param {number} n */
+  const steps = (n) => {
+    rowsPage(n);
+    return stepsUp(() => {
+      const added = Object.assign(document.createElement("p"), { textContent: "More" });
+      document.getElementById("outro").before(added);
+      pageReadingVersion();
+    });
+  };
+  const [small, large] = [steps(100), steps(1000)];
+  assert.equal(large, small, `${small} steps beside 100 parts, ${large} beside 1000`);
 });

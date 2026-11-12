@@ -1038,14 +1038,16 @@ describe("product-site delivery", () => {
     }
   });
 
-  it("starts the session's container when the visitor focuses a text box", async () => {
+  it("has the session's container compose the page when the visitor focuses a text box", async () => {
     const sessionId = "17".repeat(16);
     const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
     const env = environment();
-    const start = vi.fn(async () => undefined);
+    const fetched = vi.fn(
+      async (_request: Request) => new Response(null, { status: 204 }),
+    );
     vi.mocked(getContainer)
       .mockClear()
-      .mockReturnValue({ start } as never);
+      .mockReturnValue({ fetch: fetched } as never);
     const pending: Promise<unknown>[] = [];
     const focused = (control: string, textBox?: true) =>
       worker.fetch(
@@ -1080,7 +1082,15 @@ describe("product-site delivery", () => {
         env.PAGES,
         containerId(sessionId),
       );
-      expect(start).toHaveBeenCalledOnce();
+      expect(fetched).toHaveBeenCalledOnce();
+      const [request] = fetched.mock.calls[0]!;
+      expect(request.method).toBe("POST");
+      expect(request.url).toBe(
+        "http://container/examples/triage-board/_leaf/agent/prewarm",
+      );
+      expect(logged).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "container_prewarm_completed" }),
+      );
     } finally {
       vi.mocked(getContainer).mockClear();
       logged.mockRestore();
@@ -2161,7 +2171,7 @@ describe("website page agent", () => {
     }
   });
 
-  it("reads again once when the container connection drops, but never resends a write", async () => {
+  it("resends a read or a view report once when the container connection drops, but no other write", async () => {
     const { storage, close } = sqliteStorage();
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
@@ -2221,6 +2231,31 @@ describe("website page agent", () => {
         status: 500,
         source: "disconnected",
         retried: false,
+      });
+
+      // A view report replaces only an older report of its session, so a resent
+      // copy changes nothing the first one stored.
+      forwardedContainerFetch.mockClear();
+      forwardedContainerFetch
+        .mockResolvedValueOnce(new Response(lost, { status: 500 }))
+        .mockResolvedValueOnce(new Response(null, { status: 204 }));
+      const view = await session.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/user-view", {
+          method: "POST",
+          body: '{"session":"s","sequence":3}',
+        }),
+      );
+      expect(view.status).toBe(204);
+      expect(forwardedContainerFetch).toHaveBeenCalledTimes(2);
+      const resent = forwardedContainerFetch.mock.calls[1][0] as Request;
+      expect(await resent.text()).toBe('{"session":"s","sequence":3}');
+      expect(log).toHaveBeenLastCalledWith({
+        component: "leaf-container",
+        event: "http_error",
+        method: "POST",
+        status: 500,
+        source: "disconnected",
+        retried: true,
       });
       expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|secret/);
     } finally {
@@ -2435,16 +2470,30 @@ describe("website page agent", () => {
       expect(idFromString.mock.calls.every(([id]) => id === "trusted-owner")).toBe(
         true,
       );
-      await expect(
-        handler(
-          new Request(`https://leaf-state.internal/blobs/${digest}`, {
-            method: "PUT",
-            body: new Uint8Array(1024 * 1024 + 1),
-          }) as never,
-          env as never,
-          context as never,
-        ),
-      ).rejects.toThrow("exceeds 1 MiB");
+      // A refusal reaches the container as an answer carrying its reason, which
+      // a thrown handler would turn into a closed connection.
+      const oversized = await handler(
+        new Request(`https://leaf-state.internal/blobs/${digest}`, {
+          method: "PUT",
+          body: new Uint8Array(1024 * 1024 + 1),
+        }) as never,
+        env as never,
+        context as never,
+      );
+      expect(oversized.status).toBe(500);
+      expect(await oversized.text()).toBe("page storage chunk exceeds 1 MiB");
+      const otherRelease = await handler(
+        new Request("https://leaf-state.internal/prepare", {
+          method: "PUT",
+          body: JSON.stringify({ ...publication, release: "previous-release" }),
+        }) as never,
+        env as never,
+        context as never,
+      );
+      expect(otherRelease.status).toBe(500);
+      expect(await otherRelease.text()).toBe(
+        "publication does not name a page in this website release",
+      );
     } finally {
       close();
     }

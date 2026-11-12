@@ -34,7 +34,6 @@
 import { inputCount } from "../focus.js";
 import { randomId } from "../ids.js";
 import { pressCommand } from "../keyboard/dispatch.js";
-import { paintKeys } from "../keyboard/scopes.js";
 import { notice } from "../notifications.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -140,14 +139,8 @@ async function landGesture({ land, answer, pending, refused }) {
       if (!landed) return step(land);
     },
   );
-  const presentation = whenDocumentPresented();
-  paintKeys();
-  try {
-    await presentation;
-    const landed = await startLanding();
-    const accepted = await answer;
-    await finishLanding(accepted, landed);
-  } finally {
-    paintKeys();
-  }
+  await whenDocumentPresented();
+  const landed = await startLanding();
+  const accepted = await answer;
+  await finishLanding(accepted, landed);
 }

@@ -680,6 +680,7 @@ async function boot() {
     leavesOffered,
     marginEntries: app.overlay ?? null,
     placeThreadEdge,
+    stepReading: navigation.stepReading,
   });
   const currentLocationPainters = {
     markHere: items.markHere,

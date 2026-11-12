@@ -437,10 +437,15 @@ controls as they reach the page's own; the chrome keeps unlayered page rules up 
 class's weight off itself (`styles/chrome-guard.css`), and a package restyles it on
 purpose by part from its `chrome.css` (`chrome_restyle` in `layer.py`).
 
-A `:has()` rule can turn a local write into a restyle of the whole page or chrome. An
-unkeyed rightmost compound widens what it invalidates, and a condition on the chrome
-root, `body` or `html` is re-evaluated on writes below it. Prefer a class that names the
-targets, or a condition its owner sets on the styled element, and measure with
+A `:has()` rule can turn a local write into a restyle of the whole page or chrome. One
+rule anywhere whose subject after a `:has()` names no element can make every focus move
+restyle the page (`test_a_has_leads_only_to_a_subject_naming_an_element` says which
+subjects name one), and a condition on the chrome root, `body` or `html` is
+re-evaluated on writes below it. A `:has(~ …)` asked of elements most selectors reach,
+such as every child of `main`, makes each focus move restyle every block before the
+focused one (`test_a_has_reads_no_sibling_of_an_element_most_selectors_reach`). Prefer
+a class that names the targets, or a condition its owner sets on the styled element
+or its parent, such as a property a style query reads, and measure with
 `leaf-dev bench --read paint --profile`.
 
 A `:has()` on a compound that a combinator follows, as in
@@ -452,7 +457,7 @@ whole restyle, so put one that most elements fail ahead of the exact question, a
 `table:has(th[scope="row"]:first-child):has(> * > tr > th[scope="row"]:first-child)`
 does, or qualify the compound with a class that rejects most elements. An `@scope`
 rooted on the compound also answers once, but its root needs a class, id or
-attribute (`test_an_untyped_has_leads_only_to_a_typed_subject`), and it reaches
+attribute (`test_a_has_leads_only_to_a_subject_naming_an_element`), and it reaches
 only the root's subtree, never its later siblings.
 
 A `:has()` naming `:focus` or `:focus-visible` makes every focus move, on every page,
@@ -497,11 +502,17 @@ writers set instead).
   or a package module writes starts with `lf-` or `data-lf-`, the names `page check`
   refuses an author (`../src/leaf/validation.md`), so a page's CSS for its own names
   never reaches Leaf's elements; a page restyles Leaf on purpose through the theme's
-  tokens. Where a Leaf control looks like an idiom an author writes, such as `.button`
-  or `data-room`, it wears the idiom's `lf-` twin (`.lf-btn`, `data-lf-room`), and one
-  theme rule selects both. A library's names on an element Leaf draws for that library,
-  such as Pierre's row attributes, stay the library's. Check:
-  `test_leaf_writes_its_own_marks_under_its_prefix`.
+  tokens. The kernel's rules name no class a page coins for itself either, so a page's
+  own `.button` or `.choice` keeps its author's look: a page takes a Leaf control's
+  face by writing that control's name (`lf-btn`, `lf-choice`), which a kernel idiom
+  declares and `page check` therefore lets it write. Where a Leaf control looks like an
+  attribute idiom, `data-room`, it wears the idiom's `lf-` twin (`data-lf-room`), and
+  one theme rule selects both. The kernel's other classes for authors are the Layouts'
+  (`layout-column`, `density-working`), and a theme's idioms, such as the reading
+  theme's `.tag`, come with the theme a page takes. A library's names on an element
+  Leaf draws for that library, such as Pierre's row attributes, stay the library's.
+  Checks: `test_leaf_writes_its_own_marks_under_its_prefix`,
+  `test_the_kernel_styles_no_class_a_page_coins`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
   heights, `--raise-1` to `--raise-3` (`base.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
@@ -631,8 +642,9 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a box is stuck, and the band sticky headers cover                                             | `geometry.js` `stuckBox`, `visibleBand`                                            |
 | Which headers the page itself holds over the document, at the window's top                            | `root-headers.js` `pageHeads`                                                      |
 | Whether a box scrolls, for a script or for the user                                                   | `geometry.js` `scrollContainer`, `userScrollport`                                  |
+| The box an input scrolls, along the chain native scrolling follows                                    | `scroll-containers.js` `inputScroller`, `scrollChainOf`                            |
 | Which axes a box clips                                                                                | `rect.js` `clippingAxes`                                                           |
-| Whether a box is at its scroll end, and whether it follows that end                                   | `scrolling.js` `atScrollEnd`, `SCROLL_SLACK`, `followsEnd`                         |
+| Whether a box is at its scroll end                                                                    | `scrolling.js` `atScrollEnd`, `SCROLL_SLACK`                                       |
 | The positions a box's scroll takes on each axis, on whichever side of zero                            | `arrivals.js` `scrollRange`                                                        |
 | When a box's scroll ends, a glide's counted once, and whether the browser or a script moves it        | `arrivals.js` `watchScrollEnds`, `holdScroll`, `browserScrolls` (_lint_)           |
 | Whether the reader or layout chose a box's scroll position                                            | `scrolling.js` `chosenSince`, `placeKept`                                          |
@@ -643,10 +655,11 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a place is already shown, which every nearest landing asks first, and the room a landing has  | `landing-scroll.js` `alreadyShown`, `landingRoom`                                  |
 | Bring something into view without scrolling the page around it, or only inside one box (its `within`) | `landing-scroll.js` `scrollIntoView` (_lint_)                                      |
 | Move a box to its end, or by an amount                                                                | `scrolling.js` `scrollToEnd`, `moveScrollerBy` (_lint_)                            |
+| Keep a reader who stands at a box's end there as it changes, and say whether they stand there         | `scrolling.js` `followEnd`                                                         |
 | Open or close a native modal or popover                                                               | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (_lint_)           |
 | Focus on a popover's control as it opens, and the control's `aria-expanded`                           | `keyboard/layer-stack.js`, as each popover opens or closes                         |
 | Whether a node is, or is inside, an open native layer, and of which kind                              | `shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (_lint_) |
-| Whether a node stands in content the browser skips, and the box that skips it                         | `shadow-tree.js` `skipped`, `skipper`                                              |
+| Whether a node stands in content the browser skips, the box that skips it, and every element it draws | `shadow-tree.js` `skipped`, `skipper`, `drawnElements`                             |
 | Which native layers are open, in opening order, and whether a modal admits a node                     | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits`                      |
 | The element a URL fragment names, or the part of a widget its key names                               | `anchor-resolution.js` `fragmentTarget`, `fragmentAddress`                         |
 | This page's URL with a fragment naming an element, or a widget's key                                  | `anchor-coordinate.js` `fragmentUrl`                                               |

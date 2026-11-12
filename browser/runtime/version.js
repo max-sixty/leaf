@@ -135,8 +135,8 @@ import {
   placeKept,
   SCROLL_SLACK,
   scrollChoices,
-  scrollLimit,
 } from "./scrolling.js";
+import { inputScroller } from "./scroll-containers.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
@@ -146,7 +146,6 @@ import {
   readingRegions,
   recentReadingRegion,
   regionsSettled,
-  scrollChainOf,
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
@@ -212,8 +211,9 @@ const PRIVATE_REVISION_PARAM = "_leaf-revision";
 // properties that page-local styles read. The live document also paints its own facts
 // onto those same two elements. Most arrive after this module, but the server's prepaint
 // bootstrap deliberately runs before the module graph and has already written sample
-// presentation facts. Authored markup cannot use the `data-lf-` or
-// `lf-` namespaces, so that boundary identifies the authored share without mistaking
+// presentation facts. Authored markup cannot use the `data-lf-` or `lf-` namespaces,
+// but for the kernel idioms' classes, which a page writes on a control or a scroll box
+// and never on a root, so that boundary identifies the authored share without mistaking
 // early runtime state for page source. An activation can then replace exactly that share
 // without erasing the presentation, layout, and mode facts the surviving runtime owns.
 /** @param {Element} root */
@@ -2570,33 +2570,6 @@ export function createVersionController({
   };
   const readerChose = (/** @type {Element} */ box, /** @type {number} */ count) =>
     chosenSince(box, Math.max(count, ownEnd.get(box) ?? 0));
-  // The box an input scrolls: along the chain native scrolling follows from where it
-  // lands, the first that can still move the wheel's way, so a pane at its end passes
-  // the wheel to the page around it, unless it contains its overscroll. A wheel nothing
-  // can follow, and every other input, aims at the innermost box.
-  const inputBox = (
-    /** @type {Element | null | undefined} */ element,
-    /** @type {Event} */ event,
-  ) => {
-    if (!element) return pageScroller;
-    const chain = [];
-    for (const box of scrollChainOf(element)) {
-      chain.push(box);
-      // The browser's own chaining rule: a box that contains its overscroll passes
-      // nothing on.
-      if (getComputedStyle(box).overscrollBehaviorY !== "auto") break;
-    }
-    const innermost = chain[0] ?? pageScroller;
-    if (!(event instanceof WheelEvent) || !event.deltaY) return innermost;
-    const down = event.deltaY > 0;
-    return (
-      chain.find((box) =>
-        down
-          ? box.scrollTop < scrollLimit(box) - SCROLL_SLACK
-          : box.scrollTop > SCROLL_SLACK,
-      ) ?? innermost
-    );
-  };
   // The bounded region scrolling a box, null for the page, undefined for neither.
   const regionForBox = (/** @type {Element | undefined} */ box) =>
     box === pageScroller
@@ -3010,7 +2983,7 @@ export function createVersionController({
       const at = event.type === "keydown" ? focused() : event.composedPath()[0];
       const element =
         at instanceof Element ? at : at instanceof Node ? at.parentElement : null;
-      const box = inputBox(element, event);
+      const box = inputScroller(element, event);
       touched.set(box, inputCount());
       held(box);
     });

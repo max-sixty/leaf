@@ -272,6 +272,8 @@ one user share `one_user`.
 Drag selections with `select`; a synthetic `dispatchEvent` skips the event sequence the
 runtime listens to. `locator.click()` scrolls its target into view, so where a press's
 effect on scroll is the subject, scroll first and read the baseline after.
+Each Playwright tap waits out the page's previous one, so two taps never make a
+double tap (`render_harness.fresh_taps`); a test of a double tap sends raw CDP touches.
 
 Inject nothing to make observation easier: read traffic from the runtime's own ledger,
 set network conditions with `page.route`, and collect errors with the browser fixture.

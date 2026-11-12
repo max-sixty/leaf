@@ -38,7 +38,7 @@ the page. Register the track as a reading region, since it may scroll.
 
 A horizontal scroll surface a module builds wears `data-lf-scroll` on its actual
 viewport and declares overflow in its CSS; the page's own markup says the same with
-`class="scroll"` (`page-authoring.md`), a name the module leaves to the page, so the
+`class="lf-scroll"` (`page-authoring.md`), a name the module leaves to the page, so the
 page's CSS for it reaches only the page's own boxes. The mark supplies containment. Leaf adds keyboard
 access and continuation cues, inspecting these surfaces for overflow instead of reading
 every descendant's styles. A reading region's body receives the mark when it

@@ -8,9 +8,10 @@
    refreshes after current widget claims and required conversation commits. Mechanical
    paints and immediate contribution updates refresh this same directory.
 
-   Each collection reads the whole page, and an entry stays the same object from one
-   collection to the next for as long as what it is made from holds still (`keptEntry`),
-   so a reader learns whether an entry changed by comparing the two. */
+   Each collection reads the whole page's records, and the words of a target only where
+   they changed (`passageRows`). An entry stays the same object from one collection to
+   the next for as long as what it is made from holds still (`keptEntry`), so a reader
+   learns whether an entry changed by comparing the two. */
 import { share } from "/runtime/framework.js";
 import { replyIsEditing } from "./thread/replies.js";
 import { KINDS } from "./contribution-model.js";
@@ -26,6 +27,7 @@ import {
   findEach,
   GENERATED,
   inChrome,
+  keptAnswer,
   quoteFrom,
   textNodesUnder,
 } from "./passages.js";
@@ -277,9 +279,46 @@ export function createAnnotationInventory({
   // passage starts among the target's words, heard as they are read, and every place each
   // passage's words stand in them, found by one pass for all of them. So a paragraph
   // holding many quoted passages costs its words and its passages, not their product.
+  //
+  // A passage's key is kept, under where it starts and what it says, for as long as the
+  // target's words are unchanged (passages.js, `keptAnswer`). So a collection reads a
+  // target again only where its words changed or a passage in it is new. Every change to
+  // the page starts a collection, a closed tab's document drawing included, and a change
+  // to one part of the page leaves a datum in another unchanged. Keyed afresh on every
+  // collection, one comment on a 4 MB text document read that document again each time
+  // another of 30 drew, 200 ms each in Chromium.
   /** @param {Element} target @param {readonly (readonly [Segment, ...Segment[]])[]} quoted
    * @returns {string[]} */
   function passageRows(target, quoted) {
+    // Each key by the passage's first text node, then by where it starts there and what
+    // it says.
+    /** @type {Map<Text, Map<string, string>>} */
+    const kept = keptAnswer(target, "passage rows", () => new Map());
+    const asked = quoted.map((passage) => ({
+      passage,
+      node: passage[0].node,
+      key: `${passage[0].start} ${quoteFrom(passage)}`,
+    }));
+    const unkeyed = asked.filter(({ node, key }) => !kept.get(node)?.has(key));
+    if (unkeyed.length) {
+      const read = readPassageRows(
+        target,
+        unkeyed.map(({ passage }) => passage),
+      );
+      unkeyed.forEach(({ node, key }, at) =>
+        kept.set(
+          node,
+          (kept.get(node) ?? new Map()).set(key, /** @type {string} */ (read[at])),
+        ),
+      );
+    }
+    return asked.map(
+      ({ node, key }) => /** @type {string} */ (kept.get(node)?.get(key)),
+    );
+  }
+  /** @param {Element} target @param {readonly (readonly [Segment, ...Segment[]])[]} quoted
+   * @returns {string[]} */
+  function readPassageRows(target, quoted) {
     // How many of the target's words stand before each passage's first character, as
     // reading the target only up to there would say: all of them where the passage
     // starts in none of its text nodes.

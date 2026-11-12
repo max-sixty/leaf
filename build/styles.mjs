@@ -25,23 +25,23 @@ export const styleEntries = [
     "node_modules/@awesome.me/webawesome/dist/styles/native.css",
     "browser/styles/vendor/webawesome-native.css",
     {
-      "Checkboxes + Radios": { input: ":is(.lf-choice, .choice) > input" },
+      "Checkboxes + Radios": { input: ".lf-choice > input" },
       Buttons: {
-        button: ":is(.lf-btn, .button, .lf-icon-action)",
-        ".wa-plain": ":not(.lf-commit, .primary)",
-        ".wa-outlined": ":is(.lf-commit, .primary)",
+        button: ":is(.lf-btn, .lf-icon-action)",
+        ".wa-plain": ":not(.lf-commit)",
+        ".wa-outlined": ".lf-commit",
         ":disabled": ':is(:disabled, [aria-disabled="true"])',
         "::file-selector-button": null,
       },
       "Text Fields + Textareas + Selects": {
-        input: "input:is(.lf-ui, .field)",
+        input: "input:is(.lf-ui, .lf-field)",
         // Leaf's own text boxes grow with their words (controls.css), which the
         // library's fixed-height field doesn't; an authored one takes the library's.
-        textarea: "textarea.field",
+        textarea: "textarea.lf-field",
         // A single-choice listbox (`size` over 1) keeps the browser's face: the
         // library draws every select but a multiple one as closed, a line tall.
         select:
-          'select:is(.lf-ui, .field):is([multiple], :not([size]), [size="0"], [size="1"])',
+          'select:is(.lf-ui, .lf-field):is([multiple], :not([size]), [size="0"], [size="1"])',
       },
     },
   ],

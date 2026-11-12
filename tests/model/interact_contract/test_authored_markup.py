@@ -34,7 +34,10 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
     class unconditionally, so nothing anywhere said the page's own words had
     gone. The <p class="note"> is the control: an ordinary class is the author's
     to write, and the count below is exact so a reservation that swallowed it
-    would be caught here rather than in a page that stopped rendering."""
+    would be caught here rather than in a page that stopped rendering. The button
+    wears the names a kernel idiom gives a page's own control to take Leaf's face
+    (`structure.AUTHORED_CLASSES`), which the reservation leaves to the author, and
+    the one beside them it doesn't."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
@@ -42,6 +45,7 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
             '<p id="q" class="lf-quiet">said out of sight</p>'
             '<p id="n" class="lf-not-coined-yet">a name the runtime has not taken</p>'
             '<p id="k" class="note">an ordinary class the author owns</p>'
+            '<button id="b" class="lf-btn lf-commit lf-icon-action">Send</button>'
             '<p id="g" data-lf-gen="1">generated-looking</p>',
         )
     )
@@ -55,6 +59,7 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
         ("<div>", ["lf-chrome"]),
         ("<p>", ["lf-quiet"]),
         ("<p>", ["lf-not-coined-yet"]),
+        ("<button>", ["lf-icon-action"]),
         ("<p>", ["data-lf-gen"]),
     ]
 

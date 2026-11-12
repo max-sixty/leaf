@@ -292,12 +292,14 @@ session.</p></details>
 )
 # Generated go-to hints, painted in their own transient layer. The code is metadata on the
 # chip because its visible text also carries the ellipsis marking a sequence in progress.
+# A chip a typed letter or a filter rules out keeps its seat, hidden, so a count of the
+# map the user sees counts `:visible` chips.
 CHIPS = ".lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]"
 
 
 def address_codes(page):
     rendered(page)
-    return page.locator(CHIPS).evaluate_all(
+    return page.locator(f"{CHIPS}:visible").evaluate_all(
         "chips => chips.map(chip => chip.dataset.lfHintCode)"
     )
 

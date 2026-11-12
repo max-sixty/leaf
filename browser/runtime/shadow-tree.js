@@ -331,18 +331,24 @@ export const skipped = (element) => Boolean(skipper(element));
 // the hosts it draws, each tree in its own order, which a reading of the page as drawn
 // walks (render-checks/open-roots.js, `drawnPage`). An element that draws no box of its
 // own, under `display: contents` or a slot, is left out and what it holds is walked. A
-// box skips all it holds or none of it, but a closed disclosure's summary, which comes
-// first, so the first child `skipper` names a box for answers for the siblings after it,
-// which go unasked: of a long text document's run out of view, one line is asked. On a
-// page of thirty 4 MB documents in tabs, the walk asks about 900 of two million
-// elements. A slotted child stands in its slot rather than beside its siblings, so each
-// asks for itself, and a host draws no child that no slot takes.
+// box under `content-visibility: hidden`, such as a folded tab panel, skips everything
+// it holds, so once `skipper` names it for one child the rest go unasked. An `auto` box
+// on screen draws the children beside one that draws no box, and a closed disclosure
+// draws its summary wherever it stands, so under either each child is asked whether it
+// is drawn, though nothing it holds is asked. On a page of thirty 4 MB documents in
+// tabs, the walk asks about the open document's 68,000 lines of two million elements,
+// in about 10 ms. A slotted child stands in its slot rather than beside its siblings,
+// so each asks for itself, and a host draws no child that no slot takes.
 /** @param {Element} root @returns {Element[]} */
 export function drawnElements(root) {
   /** @type {Element[]} */
   const found = [];
   /** @param {Element | null} child @param {boolean} hosted */
   const within = (child, hosted) => {
+    // Whether `skipper` named a box for an earlier child. It names the same box for
+    // every later child the browser doesn't draw, since its climb starts from the
+    // parent they share.
+    let skipping = false;
     for (; child; child = child.nextElementSibling) {
       if (drawn(child)) {
         found.push(child);
@@ -350,9 +356,13 @@ export function drawnElements(root) {
         continue;
       }
       if (hosted && !child.assignedSlot) continue;
-      if (skipper(child)) {
+      if (skipping && !child.assignedSlot) continue;
+      const box = skipper(child);
+      if (box) {
         if (child.assignedSlot) continue;
-        return;
+        if (getComputedStyle(box).contentVisibility === "hidden") return;
+        skipping = true;
+        continue;
       }
       if (getComputedStyle(child).display === "contents") walk(child);
     }

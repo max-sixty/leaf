@@ -406,9 +406,9 @@ def test_user_view_checks_read_current_geometry_without_changing_the_page(
 def test_user_view_checks_ask_nothing_inside_what_the_browser_skips(browser, serve):
     """The reading of the user's view walks what the browser draws: of a folded panel,
     a closed disclosure and a box out of view under `content-visibility: auto`, it asks
-    no more than a child whether it is drawn. Asking about what they hold would make the
-    browser style it first, and a page of long documents in tabs is almost all such
-    content (open-roots.js, `drawnElements`)."""
+    no more than each child whether it is drawn. Asking about what they hold would make
+    the browser style it first, and a page of long documents in tabs is almost all such
+    content (`drawnElements` in runtime/shadow-tree.js)."""
     held = "".join(f"<div><p>Row {n}</p><p>More {n}</p></div>" for n in range(20))
     source = leaf_page(
         "Skipped content",
@@ -445,6 +445,39 @@ def test_user_view_checks_ask_nothing_inside_what_the_browser_skips(browser, ser
     )
     assert reading["skipped"], "a box drew what it holds, so the reading proves nothing"
     assert reading["inside"] == [], reading
+
+
+def test_user_view_checks_read_what_a_box_draws_beside_a_child_it_does_not(
+    browser, serve
+):
+    """A box on screen under `content-visibility: auto` draws the children beside one
+    that draws no box, and a closed disclosure draws its summary wherever the summary
+    stands, so the reading of the user's view reads the drawings both show."""
+
+    def drawing(words):
+        return (
+            '<svg viewBox="0 0 1000 100" style="width:250px;font-size:20px">'
+            f'<text x="10" y="30">{words}</text></svg>'
+        )
+
+    source = leaf_page(
+        "Drawn beside",
+        '<h1 id="t">Drawn beside</h1>'
+        '<section id="auto" style="content-visibility: auto"><span hidden>Note</span>'
+        f'<figure id="in-auto">{drawing("Auto label")}</figure></section>'
+        f'<details id="late"><p>Folded</p><summary>{drawing("Summary label")}</summary>'
+        "</details>",
+    )
+    page = open_page(browser, serve(source))
+    assert page.evaluate(
+        "() => document.querySelector('#in-auto svg').checkVisibility("
+        "{contentVisibilityAuto: true}) && document.querySelector('#late summary svg')"
+        ".checkVisibility({contentVisibilityAuto: true})"
+    ), "a drawing is not drawn, so the reading proves nothing"
+    reading = render_checks_model.evaluate_probe(page, "readViewChecks", [])
+    assert {
+        drawing["words"] for drawing in reading["checks"]["shrunk_labels"]["drawings"]
+    } == {"Auto label", "Summary label"}, reading["checks"]["shrunk_labels"]
 
 
 # A widget whose module draws a 120px box, where its authored markup holds nothing.

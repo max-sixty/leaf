@@ -438,11 +438,15 @@ class's weight off itself (`styles/chrome-guard.css`), and a package restyles it
 purpose by part from its `chrome.css` (`chrome_restyle` in `layer.py`).
 
 A `:has()` rule can turn a local write into a restyle of the whole page or chrome. One
-rule anywhere whose subject after a `:has()` names no element can make every focus move
-restyle the page (`test_a_has_leads_only_to_a_subject_naming_an_element` says which
-subjects name one), and a condition on the chrome root, `body` or `html` is
-re-evaluated on writes below it. Prefer a class that names the
-targets, or a condition its owner sets on the styled element, and measure with
+rule anywhere whose subject after a `:has()` names no element can make every write to
+a state another `:has()` reads, such as a hover, restyle the page
+(`test_a_has_leads_only_to_a_subject_naming_an_element` says which subjects name
+one), and a condition on the chrome root, `body` or `html` is
+re-evaluated on writes below it. A `:has(~ …)` asked of elements most selectors reach,
+such as every child of `main`, makes each such write restyle every block before the
+one written (`test_a_has_reads_no_sibling_of_an_element_most_selectors_reach`). Prefer
+a class that names the targets, or a condition its owner sets on the styled element
+or its parent, such as a property a style query reads, and measure with
 `leaf-dev bench --read paint --profile`.
 
 A `:has()` on a compound that a combinator follows, as in
@@ -457,10 +461,12 @@ rooted on the compound also answers once, but its root needs a class, id or
 attribute (`test_a_has_leads_only_to_a_subject_naming_an_element`), and it reaches
 only the root's subtree, never its later siblings.
 
-A `:has()` naming `:focus` or `:focus-visible` makes every focus move, on every page,
-restyle most of the page twice: once for the blur and once for the focus. Name
-`data-lf-focus` or `data-lf-focus-visible` instead, which `focus.js` writes once for a
-move.
+No `:has()` reads where focus is, by `:focus`, `:focus-visible` or a mark `focus.js`
+writes: each made every focus move restyle much of the page
+(`test_no_has_reads_where_focus_is`). A rule for focus anywhere in a box reads the box's
+`data-lf-focus-within` or `data-lf-focus-visible-within`. A rule for one control's focus
+reads the box that control names with `--lf-focus-box` (base.css), which `focus.js`
+marks `data-lf-control-focus` and `data-lf-control-focus-visible`.
 
 A `::highlight()` rule with no originating element adds to the restyle of every
 element, on every page, whether or not the highlight has a range there. Name the
@@ -636,6 +642,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether the page shows a node at all, and what it shows of a sample it holds                          | `geometry.js` `presented`, `frameView`, `watchRoom`                                |
 | Whether a box placed against a target belongs in layout yet                                           | `geometry.js` `nearWindow`, `nearObserver`                                         |
 | Where an element or Range destination is, and how much of it survives clipping                        | `geometry.js` `placeBox`, `clippedPlace`                                           |
+| What a node's contents are drawn in; a Range made for it slows every DOM write until it is collected  | `shown-box.js` `contentsRects`, `contentsBox`                                      |
 | Whether a box is stuck, and the band sticky headers cover                                             | `geometry.js` `stuckBox`, `visibleBand`                                            |
 | Which headers the page itself holds over the document, at the window's top                            | `root-headers.js` `pageHeads`                                                      |
 | Whether a box scrolls, for a script or for the user                                                   | `geometry.js` `scrollContainer`, `userScrollport`                                  |
@@ -656,7 +663,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Open or close a native modal or popover                                                               | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (_lint_)           |
 | Focus on a popover's control as it opens, and the control's `aria-expanded`                           | `keyboard/layer-stack.js`, as each popover opens or closes                         |
 | Whether a node is, or is inside, an open native layer, and of which kind                              | `shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (_lint_) |
-| Whether a node stands in content the browser skips, and the box that skips it                         | `shadow-tree.js` `skipped`, `skipper`                                              |
+| Whether a node stands in content the browser skips, the box that skips it, and every element it draws | `shadow-tree.js` `skipped`, `skipper`, `drawnElements`                             |
 | Which native layers are open, in opening order, and whether a modal admits a node                     | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits`                      |
 | The element a URL fragment names, or the part of a widget its key names                               | `anchor-resolution.js` `fragmentTarget`, `fragmentAddress`                         |
 | This page's URL with a fragment naming an element, or a widget's key                                  | `anchor-coordinate.js` `fragmentUrl`                                               |

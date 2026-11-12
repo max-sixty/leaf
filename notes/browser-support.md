@@ -139,12 +139,19 @@ children too, and children that set the property again a level further. A plain
 length, a plain percentage, or the same expression registered `*`, restyled the
 element alone. On 2026-11-10, a class on a column page's `main` that changed
 nothing restyled 246 elements at 10 sections, and 6 with the room set to a
-constant; focus marking `main` as the user landed on a passage did the same. So
-the column computes its room in properties that don't inherit (`--lf-room-start`,
-`--lf-room-end`, `browser/layouts.css`) and passes it to its children in
-`--lf-free-start` and its kin, registered `*`. Firefox and WebKit were not
-checked. Recheck by registering `--lf-free-*` `<length-percentage>` again:
-`test_resolving_a_thread_restyles_what_focus_marks` in
+constant; focus marking `main` as the user landed on a passage did the same.
+
+It holds for a property that doesn't inherit too, where the element also states
+a length in container units: on 2026-11-11, with the column's room in
+non-inheriting `<length-percentage>` properties and its shell's width in `cqi`, a
+`:has()` asked again of `main` as focus moved restyled every element under it:
+7,152 elements a move at 1,024 sections, and 1,014 with the room registered `*`.
+So the column resolves the lengths in its room in registered `<length>`
+properties (`--lf-room-length`, `--lf-room-note`, `browser/layouts.css`) and
+states the room from them, percentage and all, only in `--lf-free-start` and its
+kin, registered `*`. Firefox and WebKit were not checked. Recheck by registering
+`--lf-free-start` `<length-percentage>` again:
+`test_a_focus_move_near_a_long_pages_end_restyles_what_focus_marks` in
 `tests/browser/test_chrome_contracts.py` fails while the gap stands.
 
 ### Contents spine lens

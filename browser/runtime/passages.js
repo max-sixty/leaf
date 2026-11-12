@@ -161,6 +161,8 @@ import { union } from "./rect.js";
  * @typedef {{outline: readonly Element[], at: Map<Element, number>,
  * over: Pick<Map<Element, Over | null>, "get">,
  * above: Pick<Map<Element, Element | null>, "get" | "has">}} OutlineReading
+ * @typedef {OutlineReading & {over: Map<Element, Over | null>,
+ * above: Map<Element, Element | null>}} WalkedOutline
  * @typedef {{node: Text, offset: number, segment: Segment}} Point
  * @typedef {keyof typeof READINGS} Reading */
 
@@ -551,7 +553,7 @@ export const fileModelsPassage = (segments) =>
   );
 // A cell candidate: an opaque widget or one of its original direct children, which
 // always fence, or an unmodelled generated element, which fences once a word of the
-// page's reading is its own (`readPage`).
+// page's reading is its own (`indexed`).
 /** @param {Element} el */
 const opaque = (el) => passageFences.has(el);
 // Editing values and readonly islands inside them are separate passage cells.
@@ -1901,11 +1903,11 @@ const forget = (scope) => {
 // part's.
 /** @typedef {{root: Element, at: number, heading: number}} PartMark
  * @typedef {{segments: Segment[], chains: (CellChain | null)[], marks: PartMark[],
- * outline: OutlineReading}} Collected
+ * outline: WalkedOutline}} Collected
  * @typedef {{block: Element | null, segments: Segment[]}} BlockRun
  * @typedef {{token: object, collected: Collected | null, reading: PageReading | null,
  * within: WeakMap<Element, PageReading>, runs: (BlockRun | PartMark)[] | null,
- * headed: boolean | null}} Piece */
+ * headed: boolean | null, matched: Map<string, Element[]>}} Piece */
 /** @type {Piece | null} */
 let frame = null;
 /** @type {Map<Element, Piece>} */
@@ -1918,6 +1920,7 @@ const freshPiece = () => ({
   within: new WeakMap(),
   runs: null,
   headed: null,
+  matched: new Map(),
 });
 const framePiece = () => (frame ??= freshPiece());
 /** @param {Element} root */
@@ -2493,7 +2496,7 @@ const outlineFold = () => {
       const up = open.at(-1)?.state ?? null;
       open.push({ element, state: { container: element, heading: null, up } });
     },
-    /** @returns {OutlineReading} */
+    /** @returns {WalkedOutline} */
     read: () => ({ outline: Object.freeze(outline), at, over, above }),
     // How many headings the walk has recorded so far.
     count: () => outline.length,
@@ -2597,14 +2600,91 @@ function partHeaded(root) {
       slot.assignedElements({ flatten: true }).some(heading),
     );
   piece.headed ??=
-    [
-      root,
-      ...liveStages().filter(
-        (stage) => declaredRoot(stage.host) === stage && readingUnder(stage.host, root),
-      ),
-    ].some(holds) && partCollected(root).outline.outline.length > 0;
+    partScopes(root).some(holds) && partCollected(root).outline.outline.length > 0;
   return piece.headed;
 }
+// The trees a part's words stand in, found natively rather than walked: the part's own
+// and each declared shadow tree under it. What a slot in either shows belongs to the part
+// too, wherever that node sits in the light tree.
+/** @param {Element} root @returns {(Element | ShadowRoot)[]} */
+const partScopes = (root) => [
+  root,
+  ...liveStages().filter(
+    (stage) => declaredRoot(stage.host) === stage && readingUnder(stage.host, root),
+  ),
+];
+/** The elements with one of `tags` that stand where the page reading reads its words,
+ * in reading order. Each piece's are kept until that piece changes, so after a change
+ * only the piece it landed in is searched again. The frame's are among the elements its
+ * walk entered, which its outline records in the walk's order, each part's root where
+ * the part stands (`over`). A part's are found natively in its trees (`partScopes`)
+ * and among what their slots show, keeping those the walk reaches. Only the watcher
+ * says a piece changed, and it hears an element arrive or leave wherever the reading
+ * reads. An element's tag never changes, while a marker it bears, such as its `id` or
+ * `class`, can change without the watcher hearing it. On a page of 30 text documents of 4 MB, a query of the whole page took
+ * 57 ms in Chromium, and one part's 2 ms.
+ * @param {readonly string[]} tags @returns {Element[]} */
+export function readingElements(tags) {
+  catchUpReading();
+  const { outline, marks } = frameCollected();
+  const parted = new Set(marks.map(({ root }) => root));
+  const names = new Set(tags);
+  const key = tags.join(",");
+  const reads = readsIn(pageDocument());
+  const piece = framePiece();
+  let own = piece.matched.get(key);
+  if (!own)
+    piece.matched.set(
+      key,
+      (own = [...outline.over.keys()].filter(
+        (element) =>
+          parted.has(element) || (names.has(element.localName) && reads(element)),
+      )),
+    );
+  return own.flatMap((element) =>
+    parted.has(element) ? partElements(element, names, key) : [element],
+  );
+}
+/** @param {Element} root @param {ReadonlySet<string>} names @param {string} key
+ * @returns {Element[]} */
+function partElements(root, names, key) {
+  const piece = partPiece(root);
+  const kept = piece.matched.get(key);
+  if (kept) return kept;
+  const scopes = partScopes(root);
+  const query = [...names, "slot"].join(", ");
+  /** @type {Set<Element>} */
+  const found = new Set();
+  /** @param {Element | ShadowRoot} scope */
+  const search = (scope) => {
+    if (isElement(scope) && names.has(scope.localName)) found.add(scope);
+    for (const element of scope.querySelectorAll(query)) {
+      if (names.has(element.localName)) found.add(element);
+      if (!isHTML(element, "slot")) continue;
+      for (const shown of element.assignedElements({ flatten: true }))
+        if (!scopes.some((within) => within.contains(shown))) search(shown);
+    }
+  };
+  scopes.forEach(search);
+  const reads = readsIn(pageDocument());
+  const matched = [...found]
+    .filter((element) => walkedTo(element, root) && reads(element))
+    .sort(readingOrder);
+  piece.matched.set(key, matched);
+  return matched;
+}
+// Whether the walk down from `root` reaches `node` (`readingChildren`): not where a light
+// child of a host stands whose declared tree the walk reads in their place.
+/** @param {Node} node @param {Element} root */
+const walkedTo = (node, root) => {
+  for (let at = node; at !== root;) {
+    const up = readingParent(at);
+    if (!up) return true;
+    if (isElement(up) && declaredRoot(up) && at.parentNode === up) return false;
+    at = up;
+  }
+  return true;
+};
 // The container a heading heads, from where it stands on: what holds it, or what holds
 // the `header` or `hgroup` it stands in, as HTML's outline reads a page's title in its
 // header heading the page's sections. What holds it is what the walk that records the

@@ -14,6 +14,8 @@ import test from "node:test";
 import { createHintSession, codedHints } from "/runtime/keyboard/hints.js";
 import { setQuickShortcuts } from "/runtime/keyboard/bindings.js";
 import { liveEl } from "/runtime/notifications.js";
+import { mountRepaint } from "/runtime/repaint.js";
+import { nextRender } from "/runtime/rendering.js";
 import { html } from "/runtime/framework.js";
 
 // Three letters, so a fourth link branches: a, s, da, ds.
@@ -391,6 +393,33 @@ test("a filter narrows the map to the members it keeps, their codes and seats un
   assert.deepEqual(map.shown(), ["a", "s", "da", "ds"]);
   assert.equal(map.seat("ds"), seat);
   assert.equal(seat.style.cssText, stood);
+});
+
+// The walk's rows stand on whether the filtered map holds anyone, so a re-read that
+// empties or refills it asks for the keys again even while the unfiltered scene still
+// holds members.
+test("a re-read that empties or refills a filtered map repaints the keys", async (t) => {
+  const map = hintMap(t, ["one", "two", "three"]);
+  let frames = 0;
+  const frame = () => new Promise((resolve) => nextRender(resolve));
+  mountRepaint({ reflectKeys: () => frames++ });
+  t.after(() => mountRepaint({}));
+  map.session.arm();
+  map.filter(({ name }) => name.startsWith("t"));
+  map.session.paint();
+  await frame();
+  assert.equal(map.canChoose(), false);
+
+  for (const scene of [["one"], ["one", "two"]]) {
+    map.show(scene);
+    map.session.invalidate();
+    await frame();
+    const before = frames;
+    map.session.paint();
+    await frame();
+    assert.ok(frames > before, `no repaint after the map read ${scene}`);
+  }
+  assert.deepEqual(map.shown(), ["s"]);
 });
 
 test("a target a layout moves is seated again where it now stands", (t) => {

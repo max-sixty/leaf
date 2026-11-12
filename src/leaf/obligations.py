@@ -82,6 +82,7 @@ from leaf.projection import (
 )
 from leaf.registry.contract import exhibits, matches_when
 from leaf.registry.kernel import verb_writers
+from leaf.registry.reactions import reaction_tokens
 from leaf.thread_context import widget_messages
 
 if TYPE_CHECKING:
@@ -1099,7 +1100,7 @@ def thread_obligation_readings(
         }
         for question, (identity, message) in newest.items()
     )
-    tokens = registry.get("$reactions", {}).get("tokens", {})
+    tokens = reaction_tokens(registry)
     # The newest open to-do on each thread.
     newest_todo: dict[str, int] = {}
     for todo in log.owed:

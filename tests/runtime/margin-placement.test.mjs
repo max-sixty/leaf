@@ -9,10 +9,10 @@ import test from "node:test";
 import { overlaps } from "/runtime/rect.js";
 
 import {
+  Footprints,
   arrivals,
   inSeatingOrder,
   packRow,
-  pinSpot,
   rowPlacement,
   seatRow,
   seatsBy,
@@ -116,11 +116,11 @@ test("rows are packed from the top, so a push carries on down the stack", () => 
 
 // The layout seats both postures in one shared order, carrying each final footprint.
 const packRows = (rows, gap, occupied = []) => {
-  const placed = [...occupied];
+  const placed = new Footprints(occupied);
   return new Map(
     inSeatingOrder(rows).map((row) => {
       const push = packRow(row, gap, placed);
-      placed.push({
+      placed.add({
         ...row.rect,
         top: row.rect.top + push,
         bottom: row.rect.bottom + push,
@@ -166,11 +166,11 @@ const pin = (over = {}) => {
   return value;
 };
 const seatRows = (pins, { gap, occupied = [] }) => {
-  const placed = [...occupied];
+  const placed = new Footprints(occupied);
   return new Map(
     inSeatingOrder(pins.map((pin) => ({ ...pin, rect: pin.seats.home }))).map((pin) => {
       const seat = seatRow(pin, { gap, occupied: placed });
-      placed.push(seat.rect);
+      placed.add(seat.rect);
       return [pin.key, seat];
     }),
   );
@@ -178,7 +178,10 @@ const seatRows = (pins, { gap, occupied = [] }) => {
 const seatOf = (...pins) => seatRows(pins, { gap: 4 });
 
 test("a pin takes the first of its seats that stands inside its bounds and covers nothing", () => {
-  assert.deepEqual(pinSpot([outside, corner, above], [], box(4, 0, 500, 900)), outside);
+  assert.deepEqual(seatOf(pin({ bounds: box(4, 0, 500, 900) })).get("card"), {
+    rect: outside,
+    folded: false,
+  });
   assert.deepEqual(seatOf(pin()).get("card"), { rect: corner, folded: false });
   assert.deepEqual(seatOf(pin({ cover: [title] })).get("card"), {
     rect: above,
@@ -435,6 +438,34 @@ test("a hidden row keeps the pass it came at, and what has no row is forgotten",
   // The row gone for a pass, a row its target gains later is news.
   const gone = arrivals(last, [], 2);
   assert.equal(arrivals(gone, [{ row: "new", at: "t" }], 3).get("new"), 3);
+});
+
+test("the footprints answer what a scan in the order they were seated answers", () => {
+  // Footprints of mixed heights, many overlapping, seated in no order of their tops,
+  // some sharing a top. A slide moves a seat past the first footprint it meets, so which
+  // of several overlapping footprints answers decides where the seat lands.
+  let seed = 7;
+  const next = (span) => (seed = (seed * 48271) % 2147483647) % span;
+  const seated = Array.from({ length: 400 }, () => {
+    const top = next(40) * 25;
+    return box(next(300), top, 0, top + 4 + next(120));
+  }).map((footprint) => ({ ...footprint, right: footprint.left + 10 + next(80) }));
+  const footprints = new Footprints(seated);
+  for (let probe = 0; probe < 400; probe += 1) {
+    const top = next(1100) - 50;
+    const seat = box(next(300), top, 0, top + 1 + next(60));
+    seat.right = seat.left + 1 + next(60);
+    assert.equal(
+      footprints.hit(seat),
+      seated.find((footprint) => overlaps(footprint, seat)),
+    );
+    assert.deepEqual(
+      [...footprints.from(top)].filter((footprint) => footprint.bottom > top),
+      seated
+        .filter((footprint) => footprint.bottom > top)
+        .toSorted((a, b) => a.top - b.top),
+    );
+  }
 });
 
 test("rail packing preserves already held pin footprints", () => {

@@ -3706,7 +3706,7 @@ def test_the_aim_stands_where_its_targets_own_marks_do(browser, serve, subtests)
             leaf_page(
                 "Cramped targets",
                 """<h1 id="h">Cramped targets</h1>
-<p><label for="name">Name</label> <input id="name" class="field" type="text" value="Ada"></p>
+<p><label for="name">Name</label> <input id="name" class="lf-field" type="text" value="Ada"></p>
 <lf-options id="ship" choose>
   <lf-option id="ship-monday"><strong>Ship Monday</strong> soon</lf-option>
   <lf-option id="ship-thursday"><strong>Ship Thursday</strong> later</lf-option>
@@ -3759,7 +3759,7 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
                 "Focus paint ownership",
                 "<h1>Focus paint ownership</h1><button>Unnamed control</button>"
                 '<button id="named">Named control</button><span id="component"></span>'
-                '<label class="choice"><input id="pick" type="checkbox">Keep this choice</label>'
+                '<label class="lf-choice"><input id="pick" type="checkbox">Keep this choice</label>'
                 '<section><lf-tabs id="views">'
                 '<lf-tab id="view-a" label="First">First panel</lf-tab>'
                 '<lf-tab id="view-b" label="Second">Second panel</lf-tab>'
@@ -3805,8 +3805,8 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
     choice = page.get_by_role("checkbox", name="Keep this choice", exact=True)
     expect(choice).to_be_focused()
     expect(choice).to_have_css("outline-style", "none")
-    expect(page.locator(".choice")).to_have_css("outline-width", "2px")
-    expect(page.locator(".choice")).to_have_css("outline-style", "solid")
+    expect(page.locator(".lf-choice")).to_have_css("outline-width", "2px")
+    expect(page.locator(".lf-choice")).to_have_css("outline-style", "solid")
     rendered(page)
     expect(page.locator(FOCUS_MARK)).to_have_count(0)
 

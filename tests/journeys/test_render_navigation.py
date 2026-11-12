@@ -310,7 +310,7 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
 
 
 def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serve):
-    """A declared scroll surface (`class="scroll"`) that starts scrolling after the page
+    """A declared scroll surface (`class="lf-scroll"`) that starts scrolling after the page
     loads is reachable, shows its edge mark, and starts the sticky-header slot again, as
     it does when the page loads with it scrolling: whether a shorter window, a narrower container, or a page script made
     it scroll, by a class it adds as it adapts to the box's size or by a box it inserts,
@@ -329,10 +329,10 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
             leaf_page(
                 "Late scrollers",
                 '<div id="meter"></div>'
-                f'<div id="by-window" class="scroll">{wide}</div>'
+                f'<div id="by-window" class="lf-scroll">{wide}</div>'
                 '<div id="holder">'
-                f'<div id="by-container" class="scroll">{wide}</div></div>'
-                f'<div id="by-script" class="scroll">{wide}</div>'
+                f'<div id="by-container" class="lf-scroll">{wide}</div></div>'
+                f'<div id="by-script" class="lf-scroll">{wide}</div>'
                 '<details id="more"><summary>More</summary><table id="drawn"><tbody>'
                 "<tr><td>Cell</td></tr></tbody></table></details>",
                 head="<style>.wide { width: 900px; }"
@@ -365,7 +365,7 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
         }).observe(box);
         const inserted = document.createElement('div');
         inserted.id = 'by-insert';
-        inserted.className = 'scroll';
+        inserted.className = 'lf-scroll';
         inserted.innerHTML = '<div class="wide">An inserted block.</div>';
         document.querySelector('main').append(inserted);
         layoutChanged(inserted);

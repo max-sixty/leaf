@@ -292,7 +292,7 @@ def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
                 "Focus routes",
                 """
 <h1 id="focus-heading">Focus routes</h1>
-<p><button class="button" id="focus-button" type="button">Ordinary button</button></p>
+<p><button class="lf-btn" id="focus-button" type="button">Ordinary button</button></p>
 <lf-tabs id="focus-tabs">
   <lf-tab id="focus-first" label="First">First panel.</lf-tab>
   <lf-tab id="focus-second" label="Second">Second panel.</lf-tab>
@@ -302,7 +302,7 @@ def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
   <lf-option id="focus-choice" for="focus-heading">Keep this option.</lf-option>
   <lf-option id="focus-peer" for="focus-heading">Keep another option.</lf-option>
 </lf-options></lf-ask>
-<lf-shadow-focus id="focus-shadow"><button class="button" type="button">Shadow button</button></lf-shadow-focus>
+<lf-shadow-focus id="focus-shadow"><button class="lf-btn" type="button">Shadow button</button></lf-shadow-focus>
 <lf-ask id="focus-open-decision"><h2>Which other option?</h2>
 <lf-options id="focus-open-options" choose>
   <lf-option id="focus-open-choice">Keep this one.</lf-option>
@@ -543,8 +543,8 @@ def test_choice_rings_fit_clipped_edges_and_follow_native_visibility(browser, se
                 """
 <h1>Choices</h1>
 <div style="overflow:clip;display:flex;gap:16px">
-<label class="choice"><input id="check" type="checkbox">Outline changes</label>
-<label class="choice"><input id="radio" type="radio" name="view">Full frame</label>
+<label class="lf-choice"><input id="check" type="checkbox">Outline changes</label>
+<label class="lf-choice"><input id="radio" type="radio" name="view">Full frame</label>
 </div>
 <p><button>Next</button></p>
 """,

@@ -105,8 +105,8 @@ def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
         "Commented form",
         '<section id="form"><p id="words">Fill this in, please.</p>'
         '<textarea id="field">Notes</textarea></section>'
-        '<p><button id="act" class="button">Act</button> '
-        '<button id="twin" class="button">Twin</button></p>',
+        '<p><button id="act" class="lf-btn">Act</button> '
+        '<button id="twin" class="lf-btn">Twin</button></p>',
     )
     page = open_page(
         browser,

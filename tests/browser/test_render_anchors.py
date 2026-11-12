@@ -2441,6 +2441,47 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert result["quote"] == "first last"
 
 
+def test_a_diff_marks_changed_words_only_where_the_line_mostly_stayed(browser, serve):
+    """A word mark locates an edit inside a line that otherwise stayed the same.
+
+    Where most of a changed pair was rewritten, marks would cover most of both lines
+    and point at nothing, so the pair stays a plain removed row above a plain added
+    row, as delta's default `--max-line-distance` leaves it."""
+    markup = leaf_page(
+        "diff",
+        """
+<h1 id="t">Diff</h1>
+<lf-diff id="patch"><pre>
+diff --git a/notes.md b/notes.md
+--- a/notes.md
++++ b/notes.md
+@@ -1,4 +1,4 @@
+ Release steps:
+-1. Run the test suite.
+-2. Tell the team the build is ready.
++1. Run the full test suite.
++2. Tag the commit and push the tag.
+ 3. Close the milestone.
+</pre></lf-diff>
+""",
+    )
+    page = open_page(browser, serve(markup))
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+    marks = page.evaluate("""() => Object.fromEntries(
+      [...document.querySelector('#patch').shadowRoot.querySelectorAll('[data-line]')]
+        .filter(line => line.dataset.lineType.startsWith('change-'))
+        .map(line => [line.textContent,
+          [...line.querySelectorAll('[data-diff-span]')].map(span => span.textContent)]))""")
+    assert marks == {
+        "1. Run the test suite.": [],
+        "2. Tell the team the build is ready.": [],
+        "1. Run the full test suite.": ["full "],
+        "2. Tag the commit and push the tag.": [],
+    }
+
+
 def test_a_diff_can_start_with_every_file_collapsed(browser, serve):
     """A large patch can defer every file body without losing native disclosure."""
     authored = DIFF_PAGE.replace(

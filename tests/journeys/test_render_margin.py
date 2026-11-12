@@ -388,8 +388,9 @@ def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
     """Read beside its passage, a card holds its top, so a turn arriving extends it
     downward. Written in, it holds its reply's foot: each wrap of the reply grows the
     card up from the line typed, its transcript unscrolled, until it reaches the
-    window's head, and then the editor scrolls internally. A send leaves the caret in
-    the reply, so the answer grows the card up from the reply box too."""
+    window's head, and then the editor scrolls internally. A send empties the reply,
+    so the card holds its top again: the sent turn and the answer after it grow the
+    card down past the reply box."""
     page = open_page(browser, serve(OBLIGATION_PAGE, events=[COMMENT_ON_OBLIGATION]))
     resized(page, 1920, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
@@ -503,19 +504,20 @@ def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
     with sending(page, "the reply"):
         send.click()
     expect(preview).to_contain_text("Sent")
-    # The send leaves the caret in the reply, holding the card under the pressed
-    # Send. An answer arriving then grows the card up from the reply box.
+    # The send empties the reply, so the caret it leaves there holds no line: the card
+    # keeps its top, and the sent turn joins under the transcript, moving the box down.
+    # An answer arriving then grows the card down past the box too.
     rendered(page)
     expect(editor).to_be_focused()
     expect(preview).to_be_visible()
     sent = page.evaluate(CARD_AND_REPLY)
-    # The sent turn may need more room above the reply row than the window has.
-    # Hold the reply box Send stood in unless the window's head clamps the card. The
-    # box is empty now, so Dictate stands in Send's corner, in a box of its own size.
-    expected_reply = max(
-        pressed["editorTop"], sent["head"] + sent["editorTop"] - sent["cardTop"]
-    )
-    assert sent["editorTop"] == pytest.approx(expected_reply, abs=0.5), (pressed, sent)
+    for edge in ("cardTop", "turn"):
+        assert sent[edge] == pytest.approx(pressed[edge], abs=0.5), (
+            edge,
+            pressed,
+            sent,
+        )
+    assert sent["editorTop"] > pressed["editorTop"] + 10, (pressed, sent)
     append_carried_log_record(
         serve.page_dir,
         {
@@ -532,13 +534,13 @@ def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
     expect(preview).to_contain_text("Noted.")
     rendered(page)
     answered = page.evaluate(CARD_AND_REPLY)
-    for edge in ("editorTop", "cardBottom"):
+    for edge in ("cardTop", "turn"):
         assert answered[edge] == pytest.approx(sent[edge], abs=0.5), (
             edge,
             sent,
             answered,
         )
-    assert answered["cardTop"] < sent["cardTop"] - 10, (sent, answered)
+    assert answered["editorTop"] > sent["editorTop"] + 10, (sent, answered)
     # Keep the complete send-and-answer journey exercised before the known Linux
     # native-caret boundary failure collected while the tall draft was focused.
     assert caret["caretBottom"] <= caret["boxBottom"], caret

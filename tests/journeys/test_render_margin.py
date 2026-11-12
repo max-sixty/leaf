@@ -47,7 +47,7 @@ from render_harness import (
 
 from leaf import cli as cli_model
 from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.render_checks import rendered, wait_for_probe
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -449,12 +449,7 @@ def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
         assert now["scrolled"] == 0, now
     # Layout is ready before the box's motion has carried the card's head to its landing.
     # Keep the per-input stability readings, then measure the completed wrap.
-    page.wait_for_function(
-        """() => !document.querySelector('.lf-margin-preview')
-            .getAnimations({subtree: true}).some(animation =>
-                animation.playState === 'running' &&
-                animation.effect.getComputedTiming().iterations !== Infinity)"""
-    )
+    wait_for_probe(page, "restingIn", ".lf-margin-preview")
     wrapped = page.evaluate(CARD_AND_REPLY)
     for edge in ("cardTop", "turn", "editorTop"):
         assert wrapped[edge] < before[edge] - 30, (edge, before, wrapped)
@@ -466,12 +461,7 @@ def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
     # scrolls.
     write(editor, "\n".join(f"Line {n}" for n in range(60)))
     rendered(page)
-    page.wait_for_function(
-        """() => !document.querySelector('.lf-margin-preview')
-            .getAnimations({subtree: true}).some(animation =>
-                animation.playState === 'running' &&
-                animation.effect.getComputedTiming().iterations !== Infinity)"""
-    )
+    wait_for_probe(page, "restingIn", ".lf-margin-preview")
     tall = page.evaluate(CARD_AND_REPLY)
     assert tall["cardBottom"] == pytest.approx(before["cardBottom"], abs=1), tall
     assert tall["cardTop"] == pytest.approx(tall["head"], abs=1), tall
@@ -494,12 +484,7 @@ def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
     send = preview.get_by_role("button", name="Send", exact=True)
     # rendered() settles Leaf's preparation, while the shrinking draft can still
     # animate. click() waits for a stable Send; measure the same landing it presses.
-    page.wait_for_function(
-        """() => !document.querySelector('.lf-margin-preview')
-            .getAnimations({subtree: true}).some(animation =>
-                animation.playState === 'running' &&
-                animation.effect.getComputedTiming().iterations !== Infinity)"""
-    )
+    wait_for_probe(page, "restingIn", ".lf-margin-preview")
     pressed = page.evaluate(CARD_AND_REPLY)
     with sending(page, "the reply"):
         send.click()

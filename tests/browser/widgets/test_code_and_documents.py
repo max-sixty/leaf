@@ -554,11 +554,9 @@ def test_the_page_presents_without_waiting_for_a_closed_tab_s_document(browser, 
     """A document in a tab nobody opened draws once the page has presented, each in a
     task of its own, so presentation waits only for the document in view. Drawn first,
     30 tabs of 50,000 lines held presentation for 22 s in Firefox, which then restyled
-    every row of every closed tab as the page presented, a 2.6 s frame. The closed
-    tabs' documents announce their draws (`drawn`, which stamps their data's
-    provenance) together once the last has drawn, so the page reads itself again once:
-    announced one at a time, a comment anchored by its words made the page read every
-    element again after each, 3 to 5 s a document in Firefox."""
+    every row of every closed tab as the page presented, a 2.6 s frame. Each announces
+    its draw (`drawn`, which stamps its data's provenance) as it draws, so a comment on
+    its words stands on them without waiting for the documents after it."""
     tabs = "".join(
         f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
         f'source="text-{at}"></lf-text-document></lf-tab>'
@@ -589,10 +587,10 @@ def test_the_page_presents_without_waiting_for_a_closed_tab_s_document(browser, 
         "announced doc-0",
         "doc-0",
         "presented",
-        "doc-1",
-        "doc-2",
         "announced doc-1",
+        "doc-1",
         "announced doc-2",
+        "doc-2",
     ]
 
 
@@ -630,25 +628,17 @@ def closed_documents(serve, count):
     return url
 
 
-def test_a_tab_opened_while_closed_documents_draw_reports_its_document_at_once(
-    browser, serve
-):
+def test_a_closed_tab_s_document_reports_its_draw_while_later_ones_wait(browser, serve):
     """A closed tab's document reports its draw, marking its text and stamping its
-    data's provenance, with the other closed tabs' once the last has drawn, or as soon
-    as its tab shows: opened before its draw, it reports as it draws; opened after,
-    it reports as it opens. Either way the stamp a comment on its text anchors to
-    stands while the other documents still draw."""
+    data's provenance, as it draws, whether its tab shows or not, so the stamp a
+    comment on its text anchors to stands while the documents after it still wait to
+    draw."""
     url = closed_documents(serve, 4)
     page = open_page(browser, url, init_script=HOLD_QUEUE, upgraded=False)
     page.wait_for_function("() => document.body.hasAttribute('data-lf-presented')")
     last = page.locator("#doc-3")
-    page.get_by_role("tab", name="Doc 1", exact=True).click()
     expect(page.locator("#doc-1 figure")).to_have_attribute("data-lf-source", "text-1")
     expect(last).not_to_have_class("lf-rendered")
-    expect(page.locator("#doc-2")).to_have_class("lf-rendered")
-    expect(page.locator("#doc-2 figure")).not_to_have_attribute(
-        "data-lf-source", "text-2"
-    )
     page.get_by_role("tab", name="Doc 2", exact=True).click()
     expect(page.locator("#doc-2 figure")).to_have_attribute("data-lf-source", "text-2")
     expect(last).not_to_have_class("lf-rendered")

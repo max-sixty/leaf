@@ -232,8 +232,8 @@ export function anchorElement(target) {
   let el = outsideScopes(target);
   for (let at = /** @type {Node | null} */ (el); isElement(at); at = renderedParent(at))
     if (at.localName === "foreignObject") el = at;
-  for (let host; !nameable(el) && (host = shadowHost(el.getRootNode()));) el = host;
   while (el instanceof SVGElement && el.ownerSVGElement) el = el.ownerSVGElement;
+  for (let host; !nameable(el) && (host = shadowHost(el.getRootNode()));) el = host;
   if (el !== target) return el;
   const [part] = shownParts(target);
   return part && part !== target ? part : target;

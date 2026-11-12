@@ -104,8 +104,8 @@
             <dt id="term-kept-back">Kept back</dt>
             <dd>
               A new thread message Leaf withholds from the main thread while a line fork
-              writes its working line and sorts it, until 30 s after the thread's
-              newest message, so a message that follows restarts the wait.
+              writes its working line and sorts it, until 30 s after the thread's newest
+              message, so a message that follows restarts the wait.
             </dd>
             <dt id="term-holds">Holds</dt>
             <dd>
@@ -584,12 +584,17 @@ flowchart TD
             whose spawn the module never reported, stops counting once it lapses.
           </p>
           <p id="acting-compound">
-            A marked agent's Bash call that runs <code>leaf</code> other than as its
-            first word, as <code>cd x &amp;&amp; leaf …</code> does, or runs a second
-            <code>leaf</code> after the first, is denied with the instruction to run
-            each <code>leaf</code> command on its own. Unmarked, such a command would
+            A marked agent's Bash call that may run <code>leaf</code> other than as its
+            first word is denied with the instruction to run each <code>leaf</code>
+            command on its own: after another command, as in
+            <code>cd x &amp;&amp; leaf …</code>, after a keyword, as in
+            <code>if …; then leaf …</code>, or in a command substitution,
+            <code>$(leaf …)</code>, double-quoted too. Unmarked, such a command would
             act as the main thread, and a mark spliced into it could land inside quoted
-            text.
+            text. The rule reads words rather than Bash's grammar, so it also denies a
+            call that only names <code>leaf</code>, as <code>grep leaf</code> does, and
+            points the fork at the Grep tool; single-quoted text and a here-document
+            pass.
           </p>
           <p id="acting-module">
             The marking lives in <code>hooks.json</code> rather than Leaf's hooks
@@ -724,10 +729,10 @@ flowchart TD
               also covers a fork that failed or was stopped before it could write, and
               Leaf's own wake comes only when the main thread owes something, after a
               first run and a resumed one alike, though Claude Code still wakes it at
-              every resumed run's end. A fork's SendMessage would name the
-              fork as its sender and could say what the fork did beyond the outcomes
-              above, but it would wake the main thread for every answer, and add a
-              second report to a resumed run's notification.
+              every resumed run's end. A fork's SendMessage would name the fork as its
+              sender and could say what the fork did beyond the outcomes above, but it
+              would wake the main thread for every answer, and add a second report to a
+              resumed run's notification.
             </p>
             <p id="telling-probes">
               In a probe, a fork's SendMessage arrived as an agent message and started a
@@ -806,18 +811,19 @@ flowchart TD
               opens the new turn and records its pickup, as a first take does, and the
               hooks module resumes the fork by its agent id, then tells Leaf it runs the
               turn. Leaf's message resuming it (<code>forks.resume_prompt</code>)
-              carries the thread's delivery and names what the rest of the session did
-              on the page since the fork's last turn began: the threads it wrote in, the
-              revisions it published and the to-dos it opened or ended, which the fork's
-              transcript lacks. The fork can SendMessage the main thread to ask about
-              them.
+              carries the thread's delivery and tells the fork to read
+              <code>leaf page state</code> before it answers, since its transcript lacks
+              what the rest of the session did on the page meanwhile. The fork can
+              SendMessage the main thread to ask about it.
             </li>
             <li id="follow-up-new-fork">
               A thread the main thread answered last gets a new fork, once the fork it
               took the thread from has ended, and so does one whose fork ran in an
-              earlier generation or can't be resumed. A message the main thread writes
-              in the thread unasked, such as a correction of the fork's answer, answers
-              nothing, so the thread stays the fork's.
+              earlier generation. A thread whose fork Claude Code can't resume goes to
+              the main thread instead: the module ends the turn Leaf opened, which gives
+              the thread back. A message the main thread writes in the thread unasked,
+              such as a correction of the fork's answer, answers nothing, so the thread
+              stays the fork's.
             </li>
             <li id="follow-up-threads">
               Messages in different threads start a fork each, side by side.
@@ -1032,7 +1038,7 @@ flowchart TD
             <li id="source-hooks">
               <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/hooks.py"
                 ><code>src/leaf/hooks.py</code></a
-              >: <code>agent_command</code> and <code>leaf_commands</code>, the marking,
+              >: <code>agent_command</code> and <code>leaf_words</code>, the marking,
               the denial while a turn awaits its agent and the refusal of a compound
               command; and
               <a

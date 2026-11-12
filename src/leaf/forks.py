@@ -52,9 +52,11 @@ The user chose on 2026-11-10 that one fork works a thread. While a fork's turn r
 its thread's further messages are its own, and Leaf keeps none back for another
 (`_kept_back`). A later message the line fork judges `take`, in a thread whose last
 answer names a fork's turn that has since closed, goes to that fork again, resumed in
-a new turn (`_resumable`), with a message (`resume_prompt`) naming what the rest of
-the session did on the page since the fork's last turn began (`_since`), which the
-fork's transcript lacks.
+a new turn (`_resumable`), with a message (`resume_prompt`) that tells it to read
+the page's state, since its transcript lacks what the rest of the session did there
+meanwhile. The user chose on 2026-11-12 that reading over a summary Leaf wrote of it,
+and that a thread whose fork can't be resumed goes to the main thread rather than to
+a new fork.
 
 The line is the agent's progress message in the thread (`thread.post_reply`), which
 the thread shows until the session's own words replace it. From the moment Leaf
@@ -132,6 +134,7 @@ line fork's prompt on a short constructed conversation for each kind of message
 """
 
 import json
+import shlex
 import time
 from datetime import datetime
 from pathlib import Path
@@ -220,10 +223,6 @@ ANSWER = {
 
 # How hard the line fork thinks, whatever the session's effort (the header says why).
 EFFORT = "low"
-# How many of the threads the session wrote in, and of the to-dos it opened or
-# ended, Leaf names to a fork it resumes before counting the rest (`_since`), since
-# the fork reads the list on every resume.
-SINCE_NAMED = 5
 
 
 class KeptBack(NamedTuple):
@@ -615,14 +614,16 @@ If the work proves bigger than a message, such as a change to the session's file
 </leaf-fork-work>"""
 
 
-def resume_prompt(delivery: dict, since: str) -> str:
+def resume_prompt(delivery: dict) -> str:
     """The message that resumes the fork that answered a thread, for the user's
-    further messages in it (`_take`): what Leaf gives it, what the rest of the session
-    did on the page since the fork's last turn began (`_since`), which its transcript
-    lacks, and the delivery Leaf recorded as its new turn's. The fork's first task
-    (`work_prompt`) stays in its transcript, so this repeats only how it answers."""
+    further messages in it (`_take`): what Leaf gives it, that it reads the page's
+    state for what the rest of the session did there since its last turn, which its
+    transcript lacks, and the delivery Leaf recorded as its new turn's. The fork's
+    first task (`work_prompt`) stays in its transcript, so this repeats only how it
+    answers."""
+    page = shlex.quote(delivery["batches"][0]["page"])
     return f"""{WORK_OPENING}
-This message comes from Leaf, not the user. The user wrote again in the thread you answered, and Leaf gives it to you in a new turn of your own. {since} To ask the main session about anything it did, SendMessage main.
+This message comes from Leaf, not the user. The user wrote again in the thread you answered, and Leaf gives it to you in a new turn of your own. Your transcript lacks what the rest of the session has done on the page since your last turn, so read where the page stands with `leaf page state {page}` before you answer. To ask the main session about anything it did, SendMessage main.
 
 Leaf's delivery of the thread to you; "events" are the user's new messages, oldest first, and the one that owes the thread's answer carries its `answer`:
 {json.dumps(delivery, ensure_ascii=False)}
@@ -759,14 +760,12 @@ def _fork_name(thread: str) -> str:
     return f"leaf-{thread}"
 
 
-def _resumable(
-    page: PageTransaction, session_id: str, thread: str
-) -> tuple[str, dict] | None:
-    """The fork turn that gave `thread`'s last answer, the turn the answer names
-    (`thread.post_reply`), by its id and as `agent_turns` keeps it, whose fork Leaf
-    gives the thread's waiting messages to again. A message the main thread wrote in
-    the thread unasked, such as a correction of the fork's answer, answers nothing,
-    so the thread stays the fork's. None where the main thread answered last, or the
+def _resumable(page: PageTransaction, session_id: str, thread: str) -> str | None:
+    """The agent id of the fork whose turn gave `thread`'s last answer, the turn the
+    answer names (`thread.post_reply`), which Leaf gives the thread's waiting
+    messages to again. A message the main thread wrote in the thread unasked, such
+    as a correction of the fork's answer, answers nothing, so the thread stays the
+    fork's. None where the main thread answered last, or the
     fork's turn still runs or was opened in an earlier generation of the session,
     whose agents ended with it, or the fork runs another turn, as one resumed for a
     message the user then took back does, since an agent runs one turn at a time
@@ -787,93 +786,7 @@ def _resumable(
         or agent_turn_of(session_id, entry["agent"]) is not None
     ):
         return None
-    return turn, entry
-
-
-def _since(events: list[dict], turn: str, entry: dict, thread: str) -> str:
-    """What the rest of the session did on the page from when the fork's last turn
-    `turn` opened, as `agent_turns` keeps it (`entry`), which the fork is told on its
-    resume (`resume_prompt`): the threads it wrote in, the revisions it published,
-    and the to-dos it opened or ended, each named so the fork can look it up. The
-    fork's transcript holds what the session had done when that turn opened, from
-    the conversation it was forked from or Leaf's earlier messages, and nothing it
-    did while the fork ran. What the fork's own turn wrote is left out: the replies
-    that name it (`thread.post_reply`), with the to-dos they opened and the revisions
-    they published. The delivery carries the thread's own messages, so this
-    names only where the session wrote, and it names at most `SINCE_NAMED` other
-    threads and to-dos, counting the rest."""
-    from .events import taken_back
-    from .thread_context import thread_names
-    from .todos import TodoReading
-
-    opened = datetime.fromisoformat(entry["opened"])
-    own = {event["id"] for event in events if event.get("turn") == turn}
-
-    def theirs(event: dict) -> bool:
-        return event["id"] not in own and datetime.fromisoformat(event["ts"]) > opened
-
-    messages = kinds_declaring("message")
-    names = thread_names(events)
-    withdrawn = taken_back(events)
-    wrote = dict.fromkeys(
-        names[event["id"]]
-        for event in events
-        if event["kind"] in messages
-        and event["author"] == "agent"
-        and not event.get("ephemeral")
-        and event["id"] not in withdrawn
-        and event["id"] in names
-        and theirs(event)
-    )
-    others = [written for written in wrote if written != thread]
-    places = (["this thread"] if thread in wrote else []) + [
-        f"thread {written}" for written in others[:SINCE_NAMED]
-    ]
-    revisions = [
-        event["revision"]
-        for event in events
-        if "publication" in event and theirs(event)
-    ]
-    changes = []
-    for todo in TodoReading(events).todos:
-        began = theirs(todo)
-        ended = todo["outcome"] is not None and theirs(todo["outcome"])
-        verb = "opened and ended" if began and ended else "opened" if began else "ended"
-        if began or ended:
-            changes.append(
-                f"{verb} the to-do “{todo['title']}” ({todo['id']})"
-                + (f" as {todo['state']}" if ended else "")
-            )
-    done = []
-    if places:
-        done.append(
-            f"wrote in {', '.join(places)}"
-            + (
-                f" and {_counted(len(others) - SINCE_NAMED, 'other thread')}"
-                if len(others) > SINCE_NAMED
-                else ""
-            )
-        )
-    if revisions:
-        done.append(
-            f"published revision {revisions[0]}"
-            if len(revisions) == 1
-            else f"published revisions {revisions[0]} to {revisions[-1]}"
-        )
-    done.extend(changes[:SINCE_NAMED])
-    if len(changes) > SINCE_NAMED:
-        done.append(f"changed {_counted(len(changes) - SINCE_NAMED, 'other to-do')}")
-    opening = "Since your last turn began, the rest of the session"
-    if not done:
-        return f"{opening} has done nothing on the page."
-    cut = len(others) > SINCE_NAMED or len(changes) > SINCE_NAMED
-    return f"{opening} {'; '.join(done)}." + (
-        " `leaf page state` lists the rest." if cut else ""
-    )
-
-
-def _counted(count: int, noun: str) -> str:
-    return f"{count} {noun}{'' if count == 1 else 's'}"
+    return entry["agent"]
 
 
 def _take(session_id: str, basis: dict, line: str) -> dict:
@@ -887,11 +800,11 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
     (`clerk.queue`).
 
     Where a fork's turn gave the thread's last answer and has closed (`_resumable`),
-    the outcome adds `resume`, `{"agentId", "prompt"}`, that fork's agent id and
-    the message that resumes it (`resume_prompt`), so one fork works the thread
-    however many messages the user sends it. The module resumes it, or, where the
-    resume fails, spawns a fork with `prompt`, and then says which agent runs the
-    turn (`started`), which until then no agent runs."""
+    the outcome adds `resume`, that fork's agent id, and its `prompt` is the message
+    that resumes it (`resume_prompt`), so one fork works the thread however many
+    messages the user sends it. The module spawns or resumes the fork, then says
+    which agent runs the turn (`started`), which until then no agent runs; a resume
+    that fails ends the turn (`ended`), which gives the thread to the main thread."""
     from .clerk import queue
     from .delivery import batch_refs, freeze_delivery, receive_passed, record_pickup
 
@@ -909,15 +822,10 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
                 # Only the session can settle what owes no reply in the thread.
                 _hand_over_kept_back(page, session_id, basis["inputs"])
                 return {"outcome": "hand_over", **posted}
-            answered = _resumable(page, session_id, basis["thread"])
+            resumed = _resumable(page, session_id, basis["thread"])
             turn = open_agent_turn(session_id)
             if turn is None:
                 return {"outcome": "dropped", **posted}
-            since = (
-                None
-                if answered is None
-                else _since(page.events, *answered, basis["thread"])
-            )
             delivery = freeze_delivery([data])
             by_id = {event["id"]: event for event in page.events}
             record_pickup(
@@ -945,16 +853,10 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
         **posted,
         "agent": agent,
         "turn": turn,
-        "prompt": work_prompt(delivery, agent),
         **(
-            {}
-            if answered is None or since is None
-            else {
-                "resume": {
-                    "agentId": answered[1]["agent"],
-                    "prompt": resume_prompt(delivery, since),
-                }
-            }
+            {"prompt": work_prompt(delivery, agent)}
+            if resumed is None
+            else {"prompt": resume_prompt(delivery), "resume": resumed}
         ),
     }
 
@@ -963,8 +865,7 @@ def started(session_id: str, basis: dict, turn: str, agent: str) -> dict:
     """Record that the agent its harness names `agent` runs the fork turn `turn`
     Leaf opened for the thread `basis` names (`state.name_agent_turn`), so its
     commands act in that turn and its tool boundaries carry the thread's further
-    messages: the fork the module spawned, the one it resumed, or the one it spawned
-    where a resume failed. A turn that ended first, as its session's may have, is
+    messages: the fork the module spawned or the one it resumed. A turn that ended first, as its session's may have, is
     left closed, and the fork then acts as any subagent of the session does."""
     named = name_agent_turn(session_id, turn, agent)
     outcome = {

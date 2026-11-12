@@ -341,7 +341,7 @@ def fork_entries(row: dict) -> list[dict]:
     took = f" in {elapsed / 1000:.1f} s" if elapsed is not None else ""
     agent = f" to {row['agent']}" if row.get("agent") else ""
     if "resume" in row:
-        agent += f", resuming agent {row['resume']['agentId']}"
+        agent += f", resuming agent {row['resume']}"
     if "turn" in row:
         agent += f" in turn {row['turn'][:8]}"
     out.append(

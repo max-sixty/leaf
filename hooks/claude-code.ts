@@ -541,10 +541,10 @@ async function changeForks(
 
 /** Give a thread's work to the fork Leaf chose (`forks._take`): resume the fork that
  * answered the thread before, where Leaf names one (`resume`), or else spawn a fork
- * of the conversation with Leaf's task, named so the main thread can reach it; then
- * tell Leaf which agent runs the turn it opened for it (`forks.started`). A fork
- * that can't be resumed gives way to a spawned one, and one that fails to start ends
- * that turn at once, which gives the thread back (`forks.ended`). */
+ * of the conversation, named so the main thread can reach it, either with Leaf's
+ * `prompt`; then tell Leaf which agent runs the turn it opened for it
+ * (`forks.started`). A fork that can't be resumed or fails to start ends that turn
+ * at once, which gives the thread to the main thread (`forks.ended`). */
 async function workFork(
   $: EngineInterface,
   session: string,
@@ -554,11 +554,17 @@ async function workFork(
     prompt: string;
     text: string;
     turn: string;
-    resume?: { agentId: string; prompt: string };
+    resume?: string;
   },
 ) {
-  let agentId = given.resume && (await resumeFork($, given.resume, given.turn));
-  if (agentId === undefined) {
+  let agentId = given.resume;
+  if (agentId !== undefined) {
+    const failed = await resumeFork($, agentId, given.prompt, given.turn);
+    if (failed !== undefined) {
+      await forkStep($, session, { ended: { turn: given.turn, failed } });
+      return;
+    }
+  } else {
     let early: { answer: string } | { failed: string } | undefined;
     spawning += 1;
     try {
@@ -604,12 +610,13 @@ async function workFork(
 
 /** Resume the fork `agentId` with Leaf's message, as `$.session.send` resumes a
  * finished subagent from its transcript in a new run under the same id (measured at
- * 2.1.322); its id, or undefined where the send failed, as it does for an agent
+ * 2.1.322); undefined once sent, or why the send failed, as it does for an agent
  * whose transcript is gone. It goes into `$.state` before the send, so the end of
  * its run, which may come before the send returns, closes its turn. */
 async function resumeFork(
   $: EngineInterface,
-  { agentId, prompt }: { agentId: string; prompt: string },
+  agentId: string,
+  prompt: string,
   turn: string,
 ) {
   const started = await $.clock.now();
@@ -617,15 +624,13 @@ async function resumeFork(
   let reason: string;
   try {
     const sent = await $.session.send({ to: { agentId }, text: prompt });
-    if (sent.isDelivered) return agentId;
+    if (sent.isDelivered) return undefined;
     reason = sent.reason;
   } catch (error) {
     reason = String(error);
   }
   await changeForks($, ({ [agentId]: _unresumed, ...forks }) => forks);
-  const why = `Leaf: fork ${agentId} could not be resumed, so a new one starts`;
-  $.ui.log(`${why}: ${reason}`, { to: "debug" });
-  return undefined;
+  return `the fork could not be resumed: ${reason}`;
 }
 
 export const register: Register = (on) => {

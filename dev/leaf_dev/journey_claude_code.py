@@ -865,8 +865,7 @@ def steps(
             cc.until(lambda: decided(again), "fork-resume: no fork decided on it", 60)
             taken = require(decided(again), "fork-resume: no fork decided on it")
             require(
-                taken["outcome"] == "take"
-                and taken.get("resume", {}).get("agentId") == agent,
+                taken["outcome"] == "take" and taken.get("resume") == agent,
                 f"fork-resume: the message did not go back to {agent}: "
                 f"{fork_summary(taken)}",
             )

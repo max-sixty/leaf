@@ -208,39 +208,42 @@ def cmd_hook(harness: str, payload: dict) -> None:
 
 # A command that begins with `leaf`, by name or by a path to the launcher.
 LEADING_LEAF = re.compile(r"\s*(?:\S*/)?leaf(?=\s|$)")
-# The operators that start a new command in a Bash command line, outside quotes.
-COMMAND_BREAKS = frozenset(";&|(\n")
-ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")
 # A here-document's body, which is a command's input rather than commands.
 HERE_DOCUMENT = re.compile(
     r"(<<-?[ \t]*(['\"]?)(\w+)\2[^\n]*)\n.*?\n[ \t]*\3[ \t]*(?=\n|$)", re.S
 )
+# Bash's quoting, left to right: a single-quoted string, whose text is literal, a
+# double-quoted one, in which a `'` is literal, and a backslash escape.
+QUOTING = re.compile(r"'[^']*'|\"(?:\\.|[^\"\\])*\"|\\.", re.S)
+# A command substitution, `$(…)` or backticks, that runs `leaf`, in a word or quotes.
+SUBSTITUTED_LEAF = re.compile(r"(?:\$\(|`)\s*(?:\S*/)?leaf(?=\s|$|[)`])")
 
 
-def leaf_commands(command: str) -> list[int]:
-    """The token index at which each `leaf` command in the Bash command line
-    `command` starts: the word `leaf`, or a path ending in `/leaf`, where a command
-    starts, which is the line's start or after `;`, `&`, `|`, `(` or a newline
-    outside quotes, past any variable assignments. A here-document's body is input,
-    not commands. A line Bash couldn't parse, with a quote left open, has none."""
-    lexer = shlex.shlex(
-        HERE_DOCUMENT.sub(r"\1", command), posix=True, punctuation_chars="();<>|&\n"
+def leaf_words(command: str) -> list[int]:
+    """The index of each token in the Bash command line `command` that may run
+    `leaf`: the word `leaf`, or a path ending in `/leaf`, wherever it stands, since
+    a keyword such as `then`, or a command such as `xargs` that runs its arguments,
+    can start one anywhere; and a command substitution that begins with one, in
+    double quotes too. It errs toward finding one, as in `grep leaf`. Single-quoted
+    text and a here-document's body are input, not commands, so a `leaf` that Bash
+    runs from a string, as `bash -c '…'` or `eval` would, or from a script, is out of
+    its reach. A line Bash couldn't parse, with a quote left open, has none."""
+    unquoted = QUOTING.sub(
+        lambda quoted: "''" if quoted[0].startswith("'") else quoted[0],
+        HERE_DOCUMENT.sub(r"\1", command),
     )
+    lexer = shlex.shlex(unquoted, posix=True, punctuation_chars="();<>|&\n")
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
     try:
         tokens = list(lexer)
     except ValueError:
         return []
-    starts, starting = [], True
-    for index, token in enumerate(tokens):
-        if token and set(token) <= COMMAND_BREAKS:
-            starting = True
-        elif starting and not ASSIGNMENT.match(token):
-            if token == "leaf" or token.endswith("/leaf"):
-                starts.append(index)
-            starting = False
-    return starts
+    return [
+        index
+        for index, token in enumerate(tokens)
+        if token == "leaf" or token.endswith("/leaf") or SUBSTITUTED_LEAF.search(token)
+    ]
 
 
 def agent_command(sid: str, payload: dict) -> dict | None:
@@ -264,11 +267,13 @@ def agent_command(sid: str, payload: dict) -> dict | None:
     none of a plugin's hooks for the calls of an agent that plugin spawned
     (measured at 2.1.322), while `hooks.json`'s run for every agent.
 
-    Such an agent's command that runs `leaf` other than as its leading word, as
-    `cd x && leaf …` or a second `leaf` after `&&` does (`leaf_commands`), would act
-    as the main thread's, and a mark spliced into it could land inside quoted text,
-    so the answer denies it and tells the agent to run each `leaf` command on its
-    own, beginning with `leaf`.
+    Such an agent's command that may run `leaf` other than as its leading word, as
+    `cd x && leaf …`, `if …; then leaf …` or a `$(leaf …)` does (`leaf_words`),
+    would act as the main thread's, and a mark spliced into it could land inside
+    quoted text, so the answer denies it and tells the agent to run each `leaf`
+    command on its own, beginning with `leaf`. The rule reads words rather than
+    Bash's grammar, so it also denies a call that only names `leaf`, as
+    `grep leaf` does, and the denial points the agent at the Grep tool.
 
     A fork runs before Leaf learns its agent id: the turn Leaf opened for it stays
     unnamed until the module, once `$.agent.spawn` or its resume returns, says which
@@ -283,7 +288,7 @@ def agent_command(sid: str, payload: dict) -> dict | None:
     if not agent or not isinstance(given, dict) or "command" not in given:
         return None
     leading = LEADING_LEAF.match(given["command"])
-    starts = leaf_commands(given["command"])
+    starts = leaf_words(given["command"])
     if leading is None and not starts:
         return None
     if agent_turn_of(sid, agent) is None and _awaits_agent(sid):
@@ -296,9 +301,10 @@ def agent_command(sid: str, payload: dict) -> dict | None:
     if leading is None or starts not in ([], [0]):
         return _denied(
             "Run each `leaf` command as a Bash call of its own, beginning with "
-            "`leaf`, with no `cd` or other command before it or another `leaf` "
-            "after it: Leaf marks only a leading `leaf` as this agent's, and any "
-            "other would act as the main thread's."
+            "`leaf`, with no `cd` or other command before it and no other `leaf` "
+            "or `$(…)` running one in it: Leaf marks only a leading `leaf` as this "
+            "agent's, and any other would act as the main thread's. To search "
+            "for the word `leaf`, use the Grep tool."
         )
     command = (
         given["command"][: leading.end()]

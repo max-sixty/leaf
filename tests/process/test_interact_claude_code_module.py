@@ -684,9 +684,9 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
 ):
     """The user's later message in a thread a fork answered, once that fork's run has
     ended, goes to the same fork: the module resumes it with Leaf's message, and Leaf
-    hears that it runs the new turn, which its next end closes. A fork Claude Code
-    can't resume gives way to a new fork spawned with Leaf's whole task, which runs
-    the turn Leaf opened."""
+    hears that it runs the new turn, which its next end closes. Where Claude Code
+    can't resume the fork, the module ends the turn Leaf opened and spawns nothing,
+    which gives the thread to the main thread."""
     driven = ClaudeCode(
         spawn,
         "cc-resume",
@@ -740,27 +740,32 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
     sent = driven.sent.get(timeout=STATED_TIMEOUT)
     assert sent["to"] == {"agentId": "agent-1"}
     assert sent["text"].startswith("<leaf-fork-work>") and "And uv?" in sent["text"]
-    if not resumes:
-        spawned = driven.spawned.get(timeout=STATED_TIMEOUT)
-        assert "made to do what the message asks" in spawned["prompt"]
-    runs = "agent-1" if resumes else "agent-2"
-    second = wait_for(
-        lambda: state_model.agent_turn_of("cc-resume", runs),
-        lambda turn: turn not in (None, first),
-        failure="Leaf never heard which agent runs the follow-up's turn",
-    )
-    if not resumes:
-        assert state_model.agent_turn_of("cc-resume", "agent-1") is None
-    pickup = [e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"][
-        -1
-    ]
-    assert (pickup["events"], pickup["turn"]) == ([more["id"]], second)
-    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": runs})
+    if resumes:
+        second = wait_for(
+            lambda: state_model.agent_turn_of("cc-resume", "agent-1"),
+            lambda turn: turn not in (None, first),
+            failure="Leaf never heard which agent runs the follow-up's turn",
+        )
+        pickup = [
+            e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"
+        ][-1]
+        assert (pickup["events"], pickup["turn"]) == ([more["id"]], second)
+        driven.emit(
+            "turn.complete", {**ended, "reason": "answer", "agentId": "agent-1"}
+        )
     wait_for(
         lambda: state_model.open_agent_turns("cc-resume"),
         lambda turns: turns == {},
         failure="the follow-up's turn never closed",
     )
+    if not resumes:
+        [gave] = [
+            note
+            for note in read_interactions(page_dir, types=("fork_outcome",))
+            if note.get("step") == "end" and more["id"] in note["inputs"]
+        ]
+        assert gave["outcome"] == "hand_back", gave
+        assert "could not be resumed" in gave["why"], gave
     driven.settle()
     assert driven.spawned.empty() and driven.sent.empty()
     driven.quit()

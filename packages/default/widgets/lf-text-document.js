@@ -531,11 +531,9 @@ class RunColours {
 // draw (`announce`: its text's marks and `drawn`, which stamps its data's provenance
 // and has the page take a new reading) once the queue is empty, together with the
 // others, or as soon as it shows; until then a comment on its data stands on the
-// document (anchor-resolution.js). Reported one at a time, each sent the page through a
-// pass that read every element in it again to find a comment's words: 3 to 5 s a
-// document in Firefox with one comment on the page. The queue is a stopgap: a page
-// reading that keeps what an unchanged part of the page read would make each report
-// cheap, and the queue removable.
+// document (anchor-resolution.js). Each report starts a document pass whose cost grows
+// with the whole page, so the documents report together. The queue is a stopgap until a
+// pass costs what the change it follows does.
 /** @type {{doc: TextDocument, value: string | null, rendering: number}[]} */
 const drawingLater = [];
 /** @type {Promise<void> | null} */

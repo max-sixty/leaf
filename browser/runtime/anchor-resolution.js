@@ -34,10 +34,11 @@ import {
   closestAcross,
   cut,
   contextAround,
-  fencedAt,
   neighbourhood,
   pageText,
+  readingPart,
   readingFrom,
+  readingHolding,
   rangeOf,
   segmentsIn,
   textNodesUnder,
@@ -391,9 +392,16 @@ export function datumAimTarget(datum) {
 /** @param {Range} range */
 export const anchorForRange = (range) =>
   anchorForPassage(segmentsIn(range), range.commonAncestorContainer);
-/** @param {import("./passages.js").Segment[]} segments @param {Node} node @returns {CapturedAnchor | null} */
-export function anchorForPassage(segments, node) {
+/** @param {import("./passages.js").Segment[]} selected @param {Node} node @returns {CapturedAnchor | null} */
+export function anchorForPassage(selected, node) {
   const holder = node.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
+  // The passage is the selection's words: a drag from a paragraph's end into a
+  // document's first line holds the newline between them, which is neither's word.
+  /** @param {import("./passages.js").Segment} segment */
+  const says = ({ node: text, start, end }) => /\S/.test(text.data.slice(start, end));
+  const from = selected.findIndex(says);
+  const to = selected.findLastIndex(says);
+  const segments = from < 0 ? [] : selected.slice(from, to + 1);
   // The neighbours come from the same indexed reading the search uses and stop at
   // the same opaque-widget fences as the file-side capture. The browser knows words
   // a module generated and may quote them; it does not pretend the file can confirm
@@ -412,15 +420,19 @@ export function anchorForPassage(segments, node) {
   if (projected && !quote) return projected;
   const section = closestAcross(holder, ADDRESSABLE)?.id ?? null;
   if (!quote) return section === null ? null : { section };
-  const page = pageText();
+  // Words on both sides of a part's edge stand in no one reading, and no copy of them is
+  // found again, since every part is a passage cell of its own (passages.js, `pageText`).
+  if (!projected && segments.some((seg) => readingPart(seg.node)))
+    return { section, quote, detached: true };
   // Identity is the context for projected data: the display values beside a datum may
   // reorder or repeat, so their words would make incidental layout a second,
   // conflicting answer to which datum the user selected. Its own words still tell
   // repeats within it apart, as the lines around each copy tell apart a line a text
-  // document holds twice, so a datum's context stops at its edges.
-  const reading = datum && projected ? fencedAt(page, datum) : page;
+  // document holds twice, so a datum's context is read from its words alone, the
+  // reading `resolveAnchor` searches.
+  const reading = pageText(projected ? datum : null);
   const base = projected || { section };
-  const [start, stop] = spanIn(page, segments);
+  const [start, stop] = spanIn(reading, segments);
   for (let width = CONTEXT; ; width *= 2) {
     const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
     const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
@@ -660,7 +672,8 @@ function designTargetAt(
           ) {
             // A repeated control’s announcement and its durable anchor share the same
             // distinguishing context, including neighbouring table cells.
-            const context = contextAround(pageText(), resolved.segments, {
+            const at = resolved.segments[0]?.node ?? face;
+            const context = contextAround(readingHolding(at), resolved.segments, {
               before: [...(captured.prefix ?? "")].length,
               after: [...(captured.suffix ?? "")].length,
             });
@@ -803,7 +816,9 @@ export function resolveAnchor(anchor) {
     // where the quote was all of the datum's words, so it named the datum, as a row's
     // label does. A quote with datum words around it named a passage in the datum, such
     // as a line of a text document, and once its words are gone it stands nowhere on the
-    // page, rather than at the top of the datum.
+    // page, rather than at the top of the datum. The quote is searched for in the datum's
+    // words alone, the reading its context was captured from (`anchorForPassage`), so
+    // finding it costs what the datum holds rather than what the page does.
     if (datums.length > 1) return null;
     const [datum] = datums;
     if (!datum) {
@@ -823,7 +838,7 @@ export function resolveAnchor(anchor) {
         exact: true,
         status: "exact",
       };
-    const segments = findQuote(pageText(), anchor.quote, anchor, datum);
+    const segments = findQuote(pageText(datum), anchor.quote, anchor, datum);
     const [first] = segments;
     if (!first && (anchor.prefix || anchor.suffix)) return null;
     return first

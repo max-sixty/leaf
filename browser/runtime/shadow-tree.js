@@ -12,7 +12,7 @@
 // rather than `instanceof ShadowRoot`, whose class belongs to one window: an iframe's
 // runtime climbs its parent document's elements out to the frame's place in the page.
 /** @param {Node | null | undefined} node @returns {node is ShadowRoot} */
-const isShadowRoot = (node) =>
+export const isShadowRoot = (node) =>
   node != null && node.nodeType === node.DOCUMENT_FRAGMENT_NODE && "host" in node;
 /** Native event origins can be nodes from another window; Window and other targets are not tree nodes.
  * @param {unknown} node @returns {node is Node} */
@@ -308,10 +308,10 @@ export function excludedByInert(node) {
 //
 // `skipper` names the box that skips `el`, so a reading over many elements under it,
 // such as a long text document's lines in one run, asks once and passes over the rest.
+/** @param {Element} box */
+export const drawn = (box) => box.checkVisibility({ contentVisibilityAuto: true });
 /** @param {Element} element @returns {Element | null} */
 export const skipper = (element) => {
-  const drawn = (/** @type {Element} */ box) =>
-    box.checkVisibility({ contentVisibilityAuto: true });
   if (drawn(element)) return null;
   let child = element;
   let box = renderedParent(element);

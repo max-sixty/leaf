@@ -10,9 +10,10 @@ import { html, nothing, render, signal } from "/runtime/framework.js";
 
 import {
   contextAround,
-  findText,
   inChrome,
-  pageText,
+  pageFind,
+  pageReadingVersion,
+  readingHolding,
   quoteFrom,
   rangeOf,
   passageStart,
@@ -165,8 +166,8 @@ export function createTargetPicker({
   // that arrives with no key, as a paste does, offers the arrows all the same.
   /** @type {import("@preact/signals-core").Signal<Match[]>} */
   const matches = signal([]);
-  /** @type {import("../passages.js").PageReading | null} */
-  let matchesIn = null; // the reading `matches` were found in
+  /** @type {object | null} */
+  let matchesIn = null; // the page reading `matches` were found in (`pageReadingVersion`)
   let active = -1;
   let searchReturnsToHints = false;
   /** @type {{query: string, index: number} | null} */
@@ -445,8 +446,8 @@ export function createTargetPicker({
 
   /** @param {string} query */
   function find(query) {
-    matchesIn = pageText();
-    return findText(matchesIn, query);
+    matchesIn = pageReadingVersion();
+    return pageFind(query);
   }
 
   // A match is a run of one reading's segments, placed in the reading it came from. A
@@ -456,7 +457,7 @@ export function createTargetPicker({
   function refreshMatches() {
     const query = pageSearchOpen() ? searchQuery() : repeatedSearch?.query;
     const current = matches.value[active];
-    if (!query || !current || pageText() === matchesIn) return false;
+    if (!query || !current || pageReadingVersion() === matchesIn) return false;
     const found = find(query);
     const same = found.findIndex((candidate) => sameMatch(candidate, current));
     active = same >= 0 ? same : found.length ? Math.min(active, found.length - 1) : -1;
@@ -511,7 +512,10 @@ export function createTargetPicker({
 
   /** @param {Match} segments */
   function matchDescription(segments) {
-    const { before, after } = contextAround(pageText(), segments);
+    const { before, after } = contextAround(
+      readingHolding(segments[0]?.node ?? document.body),
+      segments,
+    );
     const phrase = quoteFrom(segments);
     return `${before ? `…${before} ` : ""}${phrase}${after ? ` ${after}…` : ""}`;
   }

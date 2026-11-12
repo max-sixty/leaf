@@ -161,6 +161,8 @@ import { union } from "./rect.js";
  * @typedef {{outline: readonly Element[], at: Map<Element, number>,
  * over: Pick<Map<Element, Over | null>, "get">,
  * above: Pick<Map<Element, Element | null>, "get" | "has">}} OutlineReading
+ * @typedef {OutlineReading & {over: Map<Element, Over | null>,
+ * above: Map<Element, Element | null>}} WalkedOutline
  * @typedef {{node: Text, offset: number, segment: Segment}} Point
  * @typedef {keyof typeof READINGS} Reading */
 
@@ -1901,7 +1903,7 @@ const forget = (scope) => {
 // part's.
 /** @typedef {{root: Element, at: number, heading: number}} PartMark
  * @typedef {{segments: Segment[], chains: (CellChain | null)[], marks: PartMark[],
- * outline: OutlineReading, elements: Element[]}} Collected
+ * outline: WalkedOutline}} Collected
  * @typedef {{block: Element | null, segments: Segment[]}} BlockRun
  * @typedef {{token: object, collected: Collected | null, reading: PageReading | null,
  * within: WeakMap<Element, PageReading>, runs: (BlockRun | PartMark)[] | null,
@@ -2333,9 +2335,7 @@ export function keptAnswer(element, question, answer) {
 // whether a break stood before it, and the outline the walk records. A root outside the
 // page, such as a widget in a message the panel shows, holds none of the page's words.
 // With `marksParts`, as the frame is read, each part is left out where it stands, marked
-// with how far through the words and the outline the walk had come, and the elements
-// the walk enters are kept in its order, each part's root where the part stands
-// (`readingElements`).
+// with how far through the words and the outline the walk had come.
 /** @param {Element} root @param {boolean} marksParts @returns {Collected} */
 function collect(root, marksParts) {
   /** @type {Segment[]} */
@@ -2344,8 +2344,6 @@ function collect(root, marksParts) {
   const chains = []; // the cell candidates over each segment, nearest first
   /** @type {PartMark[]} */
   const marks = [];
-  /** @type {Element[]} */
-  const elements = [];
   const keeps = READINGS.says;
   let breakBefore = false;
   const outline = outlineFold();
@@ -2364,22 +2362,16 @@ function collect(root, marksParts) {
         const inner = enter(ctx, child);
         outline.enter(child, inner, true);
         marks.push({ root: child, at: segments.length, heading: outline.count() });
-        elements.push(child);
         outline.enter(child, inner, false);
         return true;
       },
       (ctx) => {
         if (keeps(ctx)) breakBefore = true;
       },
-      marksParts
-        ? (element, ctx, entering) => {
-            if (entering) elements.push(element);
-            outline.enter(element, ctx, entering);
-          }
-        : outline.enter,
+      outline.enter,
       null,
     );
-  return { segments, chains, marks, outline: outline.read(), elements };
+  return { segments, chains, marks, outline: outline.read() };
 }
 /** @param {Element} root */
 const partCollected = (root) => (partPiece(root).collected ??= collect(root, false));
@@ -2504,7 +2496,7 @@ const outlineFold = () => {
       const up = open.at(-1)?.state ?? null;
       open.push({ element, state: { container: element, heading: null, up } });
     },
-    /** @returns {OutlineReading} */
+    /** @returns {WalkedOutline} */
     read: () => ({ outline: Object.freeze(outline), at, over, above }),
     // How many headings the walk has recorded so far.
     count: () => outline.length,
@@ -2621,56 +2613,78 @@ const partScopes = (root) => [
     (stage) => declaredRoot(stage.host) === stage && readingUnder(stage.host, root),
   ),
 ];
-/** The elements of the page reading that match `selector`, in the frame's reading
- * order with each part's where the part stands. Each piece's matches are kept until
- * that piece changes, so after a change only the piece it landed in is searched again.
- * The frame's come from the elements its walk entered (`collect`); a part's are found
- * natively in its trees (`partScopes`) and among the elements their slots show. Only
- * the watcher says a piece changed, so `selector` may test only what the watcher hears
- * change: an element's tag, or the markers in `READING_MARKERS`. On a page of 30 text
- * documents of 4 MB, a query of the whole page took 57 ms in Chromium, and one part's
- * 2 ms.
- * @param {string} selector @returns {Element[]} */
-export function readingElements(selector) {
+/** The elements with one of `tags` that stand where the page reading reads its words,
+ * in reading order. Each piece's are kept until that piece changes, so after a change
+ * only the piece it landed in is searched again. The frame's are among the elements its
+ * walk entered, which its outline records in the walk's order, each part's root where
+ * the part stands (`over`). A part's are found natively in its trees (`partScopes`)
+ * and among what their slots show, keeping those the walk reaches. Only the watcher
+ * says a piece changed, and it hears an element arrive or leave wherever the reading
+ * reads. An element's tag never changes, while a marker it bears, such as its `id` or
+ * `class`, can change without the watcher hearing it. On a page of 30 text documents of 4 MB, a query of the whole page took
+ * 57 ms in Chromium, and one part's 2 ms.
+ * @param {readonly string[]} tags @returns {Element[]} */
+export function readingElements(tags) {
   catchUpReading();
-  const { elements, marks } = frameCollected();
+  const { outline, marks } = frameCollected();
   const parted = new Set(marks.map(({ root }) => root));
+  const names = new Set(tags);
+  const key = tags.join(",");
+  const reads = readsIn(pageDocument());
   const piece = framePiece();
-  let own = piece.matched.get(selector);
+  let own = piece.matched.get(key);
   if (!own)
     piece.matched.set(
-      selector,
-      (own = elements.filter(
-        (element) => parted.has(element) || element.matches(selector),
+      key,
+      (own = [...outline.over.keys()].filter(
+        (element) =>
+          parted.has(element) || (names.has(element.localName) && reads(element)),
       )),
     );
   return own.flatMap((element) =>
-    parted.has(element) ? partElements(element, selector) : [element],
+    parted.has(element) ? partElements(element, names, key) : [element],
   );
 }
-/** @param {Element} root @param {string} selector @returns {Element[]} */
-function partElements(root, selector) {
+/** @param {Element} root @param {ReadonlySet<string>} names @param {string} key
+ * @returns {Element[]} */
+function partElements(root, names, key) {
   const piece = partPiece(root);
-  const kept = piece.matched.get(selector);
+  const kept = piece.matched.get(key);
   if (kept) return kept;
   const scopes = partScopes(root);
+  const query = [...names, "slot"].join(", ");
   /** @type {Set<Element>} */
   const found = new Set();
   /** @param {Element | ShadowRoot} scope */
   const search = (scope) => {
-    if (isElement(scope) && scope.matches(selector)) found.add(scope);
-    for (const element of scope.querySelectorAll(`${selector}, slot`)) {
-      if (element.matches(selector)) found.add(element);
+    if (isElement(scope) && names.has(scope.localName)) found.add(scope);
+    for (const element of scope.querySelectorAll(query)) {
+      if (names.has(element.localName)) found.add(element);
       if (!isHTML(element, "slot")) continue;
       for (const shown of element.assignedElements({ flatten: true }))
         if (!scopes.some((within) => within.contains(shown))) search(shown);
     }
   };
   scopes.forEach(search);
-  const matched = [...found];
-  piece.matched.set(selector, matched);
+  const reads = readsIn(pageDocument());
+  const matched = [...found]
+    .filter((element) => walkedTo(element, root) && reads(element))
+    .sort(readingOrder);
+  piece.matched.set(key, matched);
   return matched;
 }
+// Whether the walk down from `root` reaches `node` (`readingChildren`): not where a light
+// child of a host stands whose declared tree the walk reads in their place.
+/** @param {Node} node @param {Element} root */
+const walkedTo = (node, root) => {
+  for (let at = node; at !== root;) {
+    const up = readingParent(at);
+    if (!up) return true;
+    if (isElement(up) && declaredRoot(up) && at.parentNode === up) return false;
+    at = up;
+  }
+  return true;
+};
 // The container a heading heads, from where it stands on: what holds it, or what holds
 // the `header` or `hgroup` it stands in, as HTML's outline reads a page's title in its
 // header heading the page's sections. What holds it is what the walk that records the

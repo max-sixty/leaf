@@ -31,7 +31,7 @@ import {
   unclaimedVisualGesture,
   visualAt,
   visualParts,
-  visualSelector,
+  visualTags,
 } from "./anchor-resolution.js";
 import { registerContribution } from "./contributions.js";
 import { commandScope } from "./keyboard/scopes.js";
@@ -146,7 +146,7 @@ export function createAnchorControls({
     /** @type {Map<Element, VisualAction[]>} */
     const groups = new Map();
     const claimed = new Set();
-    for (const candidate of readingElements(visualSelector())) {
+    for (const candidate of readingElements(visualTags())) {
       const found = visualAt(candidate);
       if (!found || found.element !== candidate) continue;
       const parts = visualParts(candidate);

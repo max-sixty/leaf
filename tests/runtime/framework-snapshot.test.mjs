@@ -174,6 +174,23 @@ test("sharing a list keeps each item the prior list holds, wherever it moved", (
   assert.equal(first, items[0]);
 });
 
+// A fold hands back a subtree it made before where its inputs held still, and sharing
+// answers it from the last time without reading it again. That answer holds only
+// against the value it was shared as.
+test("a subtree shared before is answered from that sharing only against its value", () => {
+  const shared = { list: [{ id: 1 }], meta: { kept: true } };
+  const next = { list: [{ id: 1 }], meta: { kept: true } };
+  assert.equal(share(shared, next), shared);
+  assert.equal(share(shared, next), shared);
+  // Against another value it shares with that one, as a reader of it compares.
+  const other = { list: [{ id: 2 }], meta: { kept: true } };
+  const against = share(other, next);
+  assert.deepEqual(against, next);
+  assert.equal(against.meta, other.meta);
+  assert.equal(against.list, next.list);
+  assert.equal(share(shared, next), shared);
+});
+
 test("sharing keeps a JSON field named __proto__ an own field", () => {
   const prior = JSON.parse('{"kept": {"a": 1}, "__proto__": {"x": 1}}');
   const next = JSON.parse('{"kept": {"a": 1}, "__proto__": {"x": 2}}');

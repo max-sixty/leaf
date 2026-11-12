@@ -38,6 +38,7 @@ import {
   turnMessage,
 } from "../pending/model.js";
 import { PENDING } from "../thread/identity.js";
+import { keptReadings } from "../kept.js";
 
 /** @import {
  *   AuthoredMap, Thread, Event, Command, LocalMessage, LocalEdit, ThreadGesture,
@@ -724,23 +725,35 @@ function widgetIndex(root) {
 /** @type {WidgetEntries} */
 const NO_ENTRIES = { classified: [], desired: [], undo: [] };
 
-// Everything one widget's reading draws from the root, each part by identity.
+// The parts of the root any widget's reading draws from (`widgetInputs`).
+/** @param {SemanticRoot} root @param {WidgetIndex} index */
+const widgetParts = (root, index) => ({
+  descriptors: root.document.descriptors,
+  states: root.document.registry.$states,
+  widgets: root.effective.widgets,
+  memberships: root.effective.memberships,
+  authored: root.document.authored,
+  hostAvailable: root.effective.hostAvailable,
+  ready: root.phase === "ready",
+  index,
+});
+
+// Everything one widget's reading draws from those parts, each by identity.
 /**
- * @param {SemanticRoot} root
- * @param {WidgetIndex} index
+ * @param {ReturnType<typeof widgetParts>} parts
  * @param {WidgetDescriptor} descriptor
  */
-function widgetInputs(root, index, { id, tag }) {
+function widgetInputs(parts, { id, tag }) {
   return {
-    registered: root.document.descriptors.get(id),
-    states: root.document.registry.$states[tag],
-    current: root.effective.widgets.get(id),
-    memberships: root.effective.memberships.get(id),
-    authored: root.document.authored.get(id),
-    hostAvailable: root.effective.hostAvailable,
-    ready: root.phase === "ready",
-    entries: index.byWidget.get(id) ?? NO_ENTRIES,
-    heldBy: index.heldBy.get(id) ?? null,
+    registered: parts.descriptors.get(id),
+    states: parts.states[tag],
+    current: parts.widgets.get(id),
+    memberships: parts.memberships.get(id),
+    authored: parts.authored.get(id),
+    hostAvailable: parts.hostAvailable,
+    ready: parts.ready,
+    entries: parts.index.byWidget.get(id) ?? NO_ENTRIES,
+    heldBy: parts.index.heldBy.get(id) ?? null,
   };
 }
 
@@ -823,6 +836,12 @@ export function createSemanticApplication({ presentation } = {}) {
   // one reads changed (`kept.js`).
   const widgetStates = widgetStateReader();
   const threadRecords = threadRecordReader();
+  // Each step of `derive` that reads the whole page, run again only where one of the
+  // parts it reads changed (`kept.js`). A step left alone hands back what it made last
+  // time, which the publisher has shared before and so need not compare again
+  // (snapshot.js, `share`): a publication about one thing costs what it changed.
+  /** @type {ReturnType<typeof keptReadings<any>>} */
+  const steps = keptReadings();
   const initial = {
     document: /** @type {SemanticDocument} */ ({
       revision: null,
@@ -876,6 +895,9 @@ export function createSemanticApplication({ presentation } = {}) {
   };
   const publisher = createApplicationPublisher(initial);
   const widgets = publisher.select(widgetIndex);
+  // Read by every widget's selection in place of the root, so a publication that moves
+  // none of these parts, such as a comment's, reads no widget again.
+  const parts = publisher.select((root) => widgetParts(root, widgets.read()));
   let dataTaken = -Infinity;
   let order = 0;
   // The attempts of `settled` and of the ledger whose receipts a document pass has drawn
@@ -916,13 +938,24 @@ export function createSemanticApplication({ presentation } = {}) {
     // the log's sequence would publish a new semantic epoch.
     const served = state?.browser.views[String(document.revision)];
     /** @type {PageView | null} */
-    const view = served ? (({ basis: _basis, ...rest }) => rest)(served) : null;
-    const admitted = normalizedProjection([
-      view?.document.projection,
-      view?.thread.projection,
-    ]);
-    const coverage = logCoverage(view, events);
-    const classifiedIds = new Set(admitted.entries.map(({ e }) => e.id));
+    const view = steps.read("view", [served], () =>
+      served ? (({ basis: _basis, ...rest }) => rest)(served) : null,
+    );
+    const projections = [view?.document.projection, view?.thread.projection];
+    /** @type {ReturnType<typeof normalizedProjection>} */
+    const admitted = steps.read("admitted", projections, () =>
+      normalizedProjection(projections),
+    );
+    /** @type {ReturnType<typeof logCoverage>} */
+    const coverage = steps.read("coverage", [...projections, events], () =>
+      logCoverage(view, events),
+    );
+    /** @type {Set<string>} */
+    const classifiedIds = steps.read(
+      "classified",
+      [admitted],
+      () => new Set(admitted.entries.map(({ e }) => e.id)),
+    );
     // A revision may reuse a widget/verb with a different operation. Keep its pending
     // delivery, but stop drawing it against that new declaration. This tab wrote a
     // pending action's definition itself, so it draws while the shown declaration
@@ -950,11 +983,12 @@ export function createSemanticApplication({ presentation } = {}) {
         return draws ? [{ ...projection, targetId }] : [];
       },
     );
-    const projection = foldProjection({
-      ...admitted,
-      coverage,
-      pendingEntries: localProjections,
-    });
+    /** @type {ReturnType<typeof foldProjection>} */
+    const projection = steps.read(
+      "projection",
+      [admitted, coverage, ...localProjections],
+      () => foldProjection({ ...admitted, coverage, pendingEntries: localProjections }),
+    );
     // A local comment belongs to the shown document even before saved history arrives.
     // Fold it through the same ledger and receipt path in every phase; collection.phase
     // still says whether this is a complete reading. The obligations need the log to say which
@@ -971,16 +1005,28 @@ export function createSemanticApplication({ presentation } = {}) {
               ? [event]
               : [],
     );
-    const folded = foldThreads(view?.thread.threads ?? [], gestures);
-    const widgets = widgetStates(document.authored, projection);
-    const { parents: widgetParents, memberships } = currentWidgetRelations(
-      document,
-      widgets,
-      projection,
+    /** @type {ReturnType<typeof foldThreads>} */
+    const folded = steps.read("threads", [view?.thread.threads, ...gestures], () =>
+      foldThreads(view?.thread.threads ?? [], gestures),
+    );
+    /** @type {ReturnType<typeof widgetStates>} */
+    const widgets = steps.read("widgets", [document.authored, projection], () =>
+      widgetStates(document.authored, projection),
+    );
+    /** @type {ReturnType<typeof currentWidgetRelations>} */
+    const { parents: widgetParents, memberships } = steps.read(
+      "relations",
+      [document.descriptors, widgets, projection],
+      () => currentWidgetRelations(document, widgets, projection),
     );
     const todos = ready ? (state?.browser.todos ?? []) : [];
+    /** @type {ObligationLists} */
     const servedItems = ready
-      ? normalizedObligations(view, widgets, document, projection)
+      ? steps.read(
+          "obligations",
+          [view?.obligations, widgets, document.descriptors, projection],
+          () => normalizedObligations(view, widgets, document, projection),
+        )
       : NO_OBLIGATIONS;
     // Thread attention is the server's reading, and one local fact adjusts it: a
     // refused send hands a thread the server left with the agent back to the user,
@@ -1186,6 +1232,7 @@ export function createSemanticApplication({ presentation } = {}) {
         ...item,
         workflow: serving.get(item.id) ?? null,
       }));
+    steps.done();
     return {
       hostAvailable,
       projection,
@@ -1376,22 +1423,23 @@ export function createSemanticApplication({ presentation } = {}) {
     selectWidgets() {
       return widgetsPart.read();
     },
-    // A widget's reading, recomputed only when one of the parts it draws moves, so a
-    // publication about another widget or a thread costs each widget a comparison.
+    // A widget's reading, recomputed only when one of the parts it draws moves. A
+    // publication that moves none of the parts any widget draws reads no widget, and
+    // one about another widget costs each widget a comparison.
     /** @param {WidgetDescriptor} descriptor */
     selectWidget(descriptor) {
       /** @type {ReturnType<typeof widgetInputs> | null} */
       let inputs = null;
       /** @type {ReturnType<typeof widgetReading>} */
       let reading;
-      return publisher.select((root) => {
-        const next = widgetInputs(root, widgets.read(), descriptor);
+      return publisher.select((from) => {
+        const next = widgetInputs(from, descriptor);
         const keys = /** @type {(keyof typeof next)[]} */ (Object.keys(next));
         const prior = inputs;
         if (prior && keys.every((key) => next[key] === prior[key])) return reading;
         inputs = next;
         return (reading = widgetReading(next, descriptor));
-      });
+      }, parts);
     },
     entry,
     /** @param {number | null} revision @param {number | null} [stamp] */

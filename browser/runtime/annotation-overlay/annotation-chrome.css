@@ -4,6 +4,21 @@
  * floating response placement and the contextual Thread preview; importing page chrome
  * needs none of it. */
 
+/* Where a thread card's fade stands, which thread-preview.js writes on the thread as
+   its transcript scrolls (`paintContinuation`). Registered as not inheriting, and taken
+   by the fade alone (`.lf-page-thread::after`, below), so a write restyles the thread
+   and its fade rather than every element the thread holds. */
+@property --lf-thread-fade-top {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --lf-thread-fade-height {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
 /* The hand over a mark stands on the element under the pointer (anchor-paint.js,
    `paintHand`). Armed, the aim's cursor stands instead (chrome.css), and an element's
    mark states its own (below), at a weight this rule doesn't pass. */
@@ -266,8 +281,10 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
     pointer-events: auto;
   }
   /* thread-preview.js writes the width and height cap the card's placement gives it
-     (comment-placement.js); these are the fallbacks for a card no placement has sized
-     yet, so only they are held to the viewport. The selected thread's transcript is
+     (comment-placement.js) as the card's own `min-width`, `max-width` and `max-height`,
+     never as custom properties, which every element in the card would inherit, so each
+     fit would restyle the whole card; these are the bounds for a card no placement has
+     sized yet, so only they are held to the viewport. The selected thread's transcript is
      the card's reading scroller; metadata and reply stand outside it. Anchored to what
      it is about, it moves with the words (floating.js), and passes under the floating
      panel the way they do. Its insets are its placement's alone:
@@ -282,9 +299,9 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
     /* As wide as its thread, between the bounds its placement gives it
        (thread-preview.js, `placeThreadPreview`). */
     width: max-content;
-    min-width: var(--lf-thread-min-width, 0);
-    max-width: var(--lf-thread-width, min(var(--thread-card), calc(100vw - 16px)));
-    max-height: var(--lf-thread-max-height, calc(100vh - var(--lf-head-room) - 16px));
+    min-width: 0;
+    max-width: min(var(--thread-card), calc(100vw - 16px));
+    max-height: calc(100vh - var(--lf-head-room) - 16px);
     box-sizing: border-box;
     margin: 0;
     padding: 0;
@@ -680,11 +697,13 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
        author stays crisp while words fade into its moving lower edge. */
     content: "";
     position: absolute;
-    inset: var(--lf-thread-fade-top, 0px) 0 auto;
+    --lf-thread-fade-top: inherit;
+    --lf-thread-fade-height: inherit;
+    inset: var(--lf-thread-fade-top) 0 auto;
     grid-column: 1 / -1;
     grid-row: 1;
     align-self: start;
-    height: var(--lf-thread-fade-height, 0px);
+    height: var(--lf-thread-fade-height);
     border-radius: 0;
     outline: none;
     background: linear-gradient(var(--paper), transparent);

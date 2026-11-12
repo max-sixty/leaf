@@ -9,14 +9,18 @@
  * owner can secure their mutation methods in place. This module does not derive
  * activity, reconcile receipts, or perform transport and rendering.
  *
- * Sharing is what makes identity mean "unchanged": a fold rebuilds its whole result on
- * every publication, and a subtree whose contents did not move comes back as the
- * object the last reading held. So a selection is a `computed` compared by identity,
- * and a reader subscribed to one part of the reading hears only that part change. A
- * selection shares its own derived value against its previous one by the same rule.
- * Native Preact computed values and effects own dependency tracking. Derivations read
- * their supplied immutable root, and subscriber callbacks run untracked so notifying
- * a consumer cannot make its reads dependencies of the publisher.
+ * Sharing is what makes identity mean "unchanged": a subtree whose contents did not
+ * move comes back as the object the last reading held. A fold hands back what it made
+ * last time for a step whose inputs held still (kept.js), and sharing answers such a
+ * subtree from the last time it shared it (`sharedAs`), so a publication costs what it
+ * changed rather than what the page holds. So a selection is a `computed` compared by
+ * identity, and a reader subscribed to one part of the reading hears only that part
+ * change. A selection shares its own derived value against its previous one by the
+ * same rule, and one derived from another selection (`select`'s `from`) is derived
+ * again only when that one moves. Native Preact computed values and effects own
+ * dependency tracking. Derivations read their supplied immutable root, and subscriber
+ * callbacks run untracked so notifying a consumer cannot make its reads dependencies
+ * of the publisher.
  */
 import {
   computed,
@@ -105,13 +109,25 @@ export const defineOwn = (object, key, value) =>
     configurable: true,
   });
 
+// What each subtree a fold produced was last shared as, where that was another value. A
+// fold that hands back a subtree it made before, as a step whose inputs held still does
+// (kept.js), meets the value it was shared as last time, and is answered without its
+// contents being read again: neither the subtree nor that value can have changed
+// since, the one owned by the fold that keeps it and the other frozen once published.
+// A subtree shared as itself was published as itself, so meeting it again it is that
+// value, which needs no entry here.
+/** @type {WeakMap<object, unknown>} */
+const sharedAs = new WeakMap();
+
 /**
  * `next`, with every subtree deep-equal to the matching one in `prior` replaced by
  * `prior`'s. Plain objects, arrays, Maps and Sets compare by contents (a Map or Set by
  * its entries in order, an object by its keys in any order); anything else by identity.
  * An array's item that `prior`'s array holds at any index stays as it is.
  * Returns `prior` itself when the two are equal, and `next` itself when nothing in it
- * could be shared, so neither input is copied or mutated needlessly.
+ * could be shared, so neither input is copied or mutated needlessly. A subtree of
+ * `next` shared before, against the value now in its place, is answered at once
+ * (`sharedAs`), so `next` must not change once it has been shared.
  *
  * @template T
  * @param {unknown} prior
@@ -127,6 +143,21 @@ export function share(prior, next) {
     typeof next !== "object"
   )
     return next;
+  if (sharedAs.get(next) === prior) return /** @type {T} */ (prior);
+  const shared = compared(prior, next);
+  if (shared !== next) sharedAs.set(next, shared);
+  return shared;
+}
+
+/**
+ * `share` for two objects not shared before.
+ *
+ * @template {object} T
+ * @param {object} prior
+ * @param {T} next
+ * @returns {T}
+ */
+function compared(prior, next) {
   if (Array.isArray(next)) {
     if (!Array.isArray(prior)) return next;
     // An item the prior list holds anywhere is already shared, so a list that gained,
@@ -229,15 +260,21 @@ export function createApplicationPublisher(initial) {
       return root.peek();
     },
     /**
+     * A selection of the root, or of `from`, another selection, which it then reads in
+     * the root's place, so it is derived again only when that one moves rather than on
+     * every publication.
+     *
      * @template T
-     * @param {(snapshot: Immutable<S>) => T} derive
+     * @template [F=Immutable<S>]
+     * @param {(snapshot: F) => T} derive
+     * @param {SnapshotReading<F>} [from]
      * @returns {SnapshotReading<Immutable<T>>}
      */
-    select(derive) {
+    select(derive, from) {
       /** @type {unknown} */
       let prior;
       const selected = computed(() => {
-        const value = root.value;
+        const value = from ? from.read() : /** @type {F} */ (root.value);
         return signalUntracked(() => (prior = immutable(share(prior, derive(value)))));
       });
       /** @type {SnapshotReading<Immutable<T>>} */

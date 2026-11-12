@@ -31,6 +31,7 @@ const {
   holdFocus,
   layerLanding,
   onCurrentLocation,
+  onFocusVisibility,
   onPress,
   openLayer,
   openerOf,
@@ -185,6 +186,23 @@ test("a control that stops naming its box while it holds focus takes the box's m
   await settled();
   assert.equal(box.hasAttribute("data-lf-control-focus"), false);
   style.remove();
+});
+
+test("a box named by something that isn't a selector is reported, and the paint goes on", async () => {
+  const { box, first } = scene();
+  const reported = [];
+  const report = globalThis.reportError;
+  globalThis.reportError = (error) => reported.push(error);
+  const visibility = [];
+  const stop = onFocusVisibility(() => visibility.push(focused()));
+  first.style.setProperty("--lf-focus-box", '"section"');
+  focusDestination(first, "move");
+  await settled();
+  stop();
+  globalThis.reportError = report;
+  assert.equal(reported.length, 1);
+  assert.equal(box.hasAttribute("data-lf-control-focus"), false);
+  assert.deepEqual(visibility, [first]);
 });
 
 test("a hold gives way to a placement, not to typing where it holds", () => {

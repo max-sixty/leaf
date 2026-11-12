@@ -642,17 +642,23 @@ export function visibleFocus(node = focused()) {
     : null;
 }
 // The box that shows `node`'s focus: the nearest around it that matches the selector
-// `node` names in `--lf-focus-box`, short of the document roots, or none.
+// `node` names in `--lf-focus-box`, short of the document roots, or none. A name that
+// isn't a selector, such as a quoted one, is reported and names no box, so the rest of
+// the paint still runs.
 /** @param {Element} node */
 function focusBox(node) {
   const selector = getComputedStyle(node).getPropertyValue("--lf-focus-box").trim();
   if (!selector) return null;
-  for (
-    let box = renderedParent(node);
-    isElement(box) && box !== document.body && box !== document.documentElement;
-    box = renderedParent(box)
-  )
-    if (box.matches(selector)) return box;
+  try {
+    for (
+      let box = renderedParent(node);
+      isElement(box) && box !== document.body && box !== document.documentElement;
+      box = renderedParent(box)
+    )
+      if (box.matches(selector)) return box;
+  } catch (error) {
+    reportError(error);
+  }
   return null;
 }
 /** @param {Element | null} node */

@@ -6563,9 +6563,9 @@ def test_a_walk_through_search_matches_in_closed_tabs_reaches_each_in_turn(
         "?.id === id && String(getSelection()) === 'needle'"
     )
     page.keyboard.press("Enter")
-    page.wait_for_function(selected, arg="d2", timeout=10_000)
+    page.wait_for_function(selected, arg="d2")
     page.keyboard.press("n")
-    page.wait_for_function(selected, arg="d3", timeout=10_000)
+    page.wait_for_function(selected, arg="d3")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

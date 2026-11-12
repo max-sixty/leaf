@@ -498,7 +498,15 @@ export function createTargetPicker({
   /** @param {boolean} [first] @returns {void} */
   function findMore(first = false) {
     const search = pending;
-    if (search && pageReadingVersion() !== matchesIn) return restart();
+    if (search && pageReadingVersion() !== matchesIn) {
+      // A search the field no longer shows, as after Enter, stops where the page
+      // changed; `n` searches again (`repeatSearch`).
+      if (!pageSearchOpen()) {
+        pending = null;
+        return;
+      }
+      return restart();
+    }
     const landed = search !== null && take(() => false, performance.now() + SLICE_MS);
     presentSearchStatus();
     if (landed || !pending || first) repaint();
@@ -560,12 +568,15 @@ export function createTargetPicker({
 
   // A match is a run of one reading's segments, placed in the reading it came from. A
   // change to the page's words, such as a revision landing while the search stands open,
-  // makes a new reading with no position for the old nodes. So each reader finds the
-  // matches again first, keeping the active one where it still stands.
+  // makes a new reading with no position for the old nodes. So each reader of the open
+  // search finds the matches again first, keeping the active one where it still stands.
+  // Once the field has closed, only `n` searches again (`repeatSearch`), so a page an
+  // agent keeps revising runs no search the user has finished with.
   function refreshMatches() {
-    const query = pageSearchOpen() ? searchQuery() : repeatedSearch?.query;
+    const query = searchQuery();
     const current = matches.value[active];
-    if (!query || !current || pageReadingVersion() === matchesIn) return false;
+    if (!pageSearchOpen() || !query || !current || pageReadingVersion() === matchesIn)
+      return false;
     find(query, current, active, false);
     return true;
   }

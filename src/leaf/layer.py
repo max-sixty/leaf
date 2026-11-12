@@ -23,6 +23,7 @@ from .files import file_stamp
 from .findings import Finding
 from .locations import first_overlap, located
 from .machine import package_store
+from .page_memory import once
 from .refusals import Refused
 from .registry.contract import is_element_name
 from .registry.kernel import kernel_protocol
@@ -598,7 +599,8 @@ class LayerVocabulary:
     widgets: frozenset[str]
     instructions: dict[str, bytes]
     # What readers derive from this vocabulary, such as a revision's
-    # (`registry.storage.revision_vocabulary`), held for as long as it is.
+    # (`registry.storage.revision_vocabulary`), held for as long as it is, each
+    # made once (`page_memory.once`).
     readings: dict = field(default_factory=dict, repr=False)
 
 
@@ -664,15 +666,25 @@ def _selection(
     return inputs, copies
 
 
-@cache
+_vocabularies: dict = {}
+_compositions: dict = {}
+
+
 def _vocabulary(inputs: tuple[Path, ...], copies: tuple) -> LayerVocabulary:
-    return compose_vocabulary(checked_inputs(list(inputs)))
+    return once(
+        _vocabularies,
+        (inputs, copies),
+        lambda: compose_vocabulary(checked_inputs(list(inputs))),
+    )
 
 
-@cache
 def _composed(inputs: tuple[Path, ...], copies: tuple) -> LayerComposition:
-    return _composition(
-        checked_layer_inputs(list(inputs)), lambda: _vocabulary(inputs, copies)
+    return once(
+        _compositions,
+        (inputs, copies),
+        lambda: _composition(
+            checked_layer_inputs(list(inputs)), lambda: _vocabulary(inputs, copies)
+        ),
     )
 
 

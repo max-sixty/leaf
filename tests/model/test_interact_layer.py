@@ -55,6 +55,7 @@ from leaf import layer as layer_model
 from leaf import locations as interact_locations
 from leaf import machine as machine_model
 from leaf import packages as packages_model
+from leaf import page_memory
 from leaf import schema as schema_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
@@ -2718,6 +2719,56 @@ def test_reading_a_page_composes_only_its_layers_vocabulary(
         assert read.exit_code == 0, read.output
 
     assert composed == []
+
+
+def test_requests_arriving_together_compose_the_pages_layer_once(page_dir, monkeypatch):
+    """A cold server meets its page's requests together, such as a diff page's
+    deferred load for each file, and each needs the page's layer. The first composes
+    it and the rest wait for it; composing it once per request, all at once, kept a
+    visitor's first comment on leaf.page waiting behind 46 of them."""
+    record = registry_storage.layer_record(page_dir)
+    assert record is not None
+    layer_model._vocabularies.clear()
+    requests: list[threading.Thread] = []
+    composed = []
+    compose = layer_model.compose_vocabulary
+
+    def asking(thread: threading.Thread) -> bool:
+        # A thread waiting for another's reading states nothing, so read where it
+        # stands: inside `once`, which it enters only to ask for the layer.
+        frame = sys._current_frames().get(thread.ident or 0)
+        while frame is not None and frame.f_code is not page_memory.once.__code__:
+            frame = frame.f_back
+        return frame is not None
+
+    def held(inputs):
+        # Hold the first composition until every other request has either asked for
+        # the layer or begun composing it too.
+        composed.append(threading.current_thread())
+        others = [thread for thread in requests if thread not in composed]
+        wait_for(
+            lambda: len(composed) > 1 or all(asking(thread) for thread in others),
+            bool,
+            failure="the other requests neither asked for the layer nor composed it",
+        )
+        return compose(inputs)
+
+    monkeypatch.setattr(layer_model, "compose_vocabulary", held)
+    together = threading.Barrier(8)
+    read = []
+
+    def request():
+        together.wait(STATED_TIMEOUT)
+        read.append(registry_storage.selected_vocabulary(record, page_dir))
+
+    requests.extend(threading.Thread(target=request) for _ in range(8))
+    for thread in requests:
+        thread.start()
+    for thread in requests:
+        thread.join(STATED_TIMEOUT)
+
+    assert len(composed) == 1
+    assert len(read) == 8 and all(vocabulary is read[0] for vocabulary in read)
 
 
 @pytest.mark.parametrize(

@@ -2720,6 +2720,41 @@ def test_reading_a_page_composes_only_its_layers_vocabulary(
     assert composed == []
 
 
+def test_requests_arriving_together_compose_the_pages_layer_once(page_dir, monkeypatch):
+    """A cold server meets its page's requests together, such as a diff page's
+    deferred load for each file, and each needs the page's layer. The first composes
+    it and the rest wait for it; composing it once per request, all at once, kept a
+    visitor's first comment on leaf.page waiting behind 46 of them."""
+    record = registry_storage.layer_record(page_dir)
+    assert record is not None
+    layer_model._vocabularies.clear()
+    composed = []
+    compose = layer_model.compose_vocabulary
+
+    def slow(inputs):
+        composed.append(inputs)
+        # Long enough for every request to ask before the first finishes.
+        threading.Event().wait(0.2)
+        return compose(inputs)
+
+    monkeypatch.setattr(layer_model, "compose_vocabulary", slow)
+    together = threading.Barrier(8)
+    read = []
+
+    def request():
+        together.wait()
+        read.append(registry_storage.selected_vocabulary(record, page_dir))
+
+    requests = [threading.Thread(target=request) for _ in range(8)]
+    for thread in requests:
+        thread.start()
+    for thread in requests:
+        thread.join()
+
+    assert len(composed) == 1
+    assert len(read) == 8 and all(vocabulary is read[0] for vocabulary in read)
+
+
 @pytest.mark.parametrize(
     ("path", "contents", "named"),
     [

@@ -51,6 +51,9 @@ function hintMap(t, names) {
     return links.get(name);
   };
   let inView = names;
+  // Links in the scene whose chips have no room to show, and the filter on the map.
+  let covered = new Set();
+  let keep = () => true;
   const taken = [];
   const session = createHintSession({
     layer,
@@ -62,9 +65,11 @@ function hintMap(t, names) {
       );
     },
     identity: (candidate) => candidate.member,
+    kept: (candidate) => keep(candidate),
     scene: () => ({}),
     layout: (candidates, { current }) =>
-      candidates.map((candidate) => {
+      candidates.flatMap((candidate) => {
+        if (covered.has(candidate.name)) return [];
         const target = candidate.member.getBoundingClientRect();
         return {
           candidate,
@@ -104,6 +109,20 @@ function hintMap(t, names) {
     taken,
     links,
     show: (names) => (inView = names),
+    cover: (names) => (covered = new Set(names)),
+    filter: (matches) => {
+      keep = matches;
+      return session.narrow();
+    },
+    // Moves a link down the page, as a layout that reflows it does.
+    move: (name, by) => {
+      const node = links.get(name);
+      const box = node.getBoundingClientRect();
+      node.getBoundingClientRect = () =>
+        new DOMRect(box.x, box.y + by, box.width, box.height);
+    },
+    seat: (code) =>
+      layer.querySelector(`[data-code="${code}"]`).closest(".lf-chip-seat"),
     tab: () => walk.runKey("Tab"),
     shiftTab: () => walk.runKey("Shift+Tab"),
     enter: () => choose.run(),
@@ -349,4 +368,50 @@ test("a disarmed map paints nothing and is read fresh when armed again", (t) => 
   assert.equal(map.session.prefix(), "");
   map.session.paint();
   assert.deepEqual(map.shown(), ["a"]);
+});
+
+test("a filter narrows the map to the members it keeps, their codes and seats unchanged", (t) => {
+  const map = hintMap(t, ["one", "two", "three", "four"]);
+  map.session.arm();
+  map.session.paint();
+  const seat = map.seat("ds");
+  const stood = seat.style.cssText;
+  const kept = map.filter(({ name }) => name.startsWith("t"));
+  assert.deepEqual(
+    kept.map(({ name, code }) => [name, code]),
+    [
+      ["two", "s"],
+      ["three", "da"],
+    ],
+  );
+  map.session.paint();
+  assert.deepEqual(map.shown(), ["s", "da"]);
+  map.filter(() => true);
+  map.session.paint();
+  assert.deepEqual(map.shown(), ["a", "s", "da", "ds"]);
+  assert.equal(map.seat("ds"), seat);
+  assert.equal(seat.style.cssText, stood);
+});
+
+test("a target a layout moves is seated again where it now stands", (t) => {
+  const map = hintMap(t, ["one", "two"]);
+  map.session.arm();
+  map.session.paint();
+  const stood = map.seat("s").style.cssText;
+  map.move("two", 100);
+  map.session.paint();
+  assert.notEqual(map.seat("s").style.cssText, stood);
+});
+
+test("a heard target that loses its chip's room retires the walk", (t) => {
+  const map = hintMap(t, ["one", "two"]);
+  map.session.arm();
+  map.session.paint();
+  map.tab();
+  map.session.paint();
+  assert.equal(map.current(), "a");
+  map.cover(["one"]);
+  map.session.paint();
+  assert.deepEqual(map.shown(), ["s"]);
+  assert.equal(map.canChoose(), false);
 });

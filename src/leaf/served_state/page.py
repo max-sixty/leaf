@@ -12,7 +12,7 @@ from typing import NamedTuple
 
 from ..activity import WORKING_GRACE
 from ..data import browser_data_from
-from ..files import revision_label
+from ..files import revision_labels
 from ..read_state import seen_revision
 from .browser import BrowserReading, project_browser_state
 from .context import PageRead, read_page
@@ -71,11 +71,18 @@ def read_served_page(
         "active": active,
         "versions": list(context.versions),
         "revision_labels": {
-            str(revision): revision_label(context.events, revision)
-            for revision in sorted(
-                context.revisions
-                | {event["revision"] for event in context.events if "revision" in event}
-            )
+            str(revision): label
+            for revision, label in revision_labels(
+                context.events,
+                sorted(
+                    context.revisions
+                    | {
+                        event["revision"]
+                        for event in context.events
+                        if "revision" in event
+                    }
+                ),
+            ).items()
         },
         # What the page's own user last saw; a hosted copy's reader is someone else.
         "seen": (

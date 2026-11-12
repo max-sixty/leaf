@@ -6,7 +6,9 @@ import os
 import re
 import sys
 import time
-from collections.abc import Collection
+from bisect import bisect_left
+from collections.abc import Collection, Iterable
+from itertools import accumulate
 from pathlib import Path
 from stat import S_ISDIR, S_ISREG
 
@@ -293,23 +295,37 @@ def document_descriptor(
         "revision": revision,
         "version": stamped_version(events, revision),
         "url": url,
-        "label": revision_label(events, revision),
+        "label": revision_labels(events, [revision])[revision],
         # The capture decides executable identity, independently of public stamps.
         "executable": executable,
         "activated_at": activated_at,
     }
 
 
-def revision_label(events: list, revision: int) -> str:
-    """A working revision named in the public vocabulary available at that point."""
-    if version := stamped_version(events, revision):
-        return f"v{version}"
-    earlier = [
-        event["version"]
+def revision_labels(events: list, revisions: Iterable[int]) -> dict[int, str]:
+    """Each working revision named in the public vocabulary available at that point:
+    its own stamp, else the newest stamp on an earlier revision.
+
+    One pass over the log labels every revision, so a reading that labels them all
+    grows with the page, not with revisions times events."""
+    stamps = sorted(
+        (event["revision"], event["version"])
         for event in events
-        if event["kind"] == "note" and event["revision"] < revision
-    ]
-    return f"Draft after v{max(earlier)}" if earlier else "Draft"
+        if event["kind"] == "note"
+    )
+    stamped = dict(stamps)
+    # The newest version stamped on any revision up to each stamped revision.
+    newest = list(accumulate((version for _, version in stamps), max))
+    stamped_revisions = [revision for revision, _ in stamps]
+    labels = {}
+    for revision in revisions:
+        if version := stamped.get(revision):
+            labels[revision] = f"v{version}"
+        elif earlier := bisect_left(stamped_revisions, revision):
+            labels[revision] = f"Draft after v{newest[earlier - 1]}"
+        else:
+            labels[revision] = "Draft"
+    return labels
 
 
 def published_versions(page_dir: Path, events: list) -> list:

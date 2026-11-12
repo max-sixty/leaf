@@ -11,9 +11,9 @@
  *
  * Sharing is what makes identity mean "unchanged": a subtree whose contents did not
  * move comes back as the object the last reading held. A fold hands back what it made
- * last time for a step whose inputs held still (kept.js), and sharing answers such a
- * subtree from the last time it shared it (`sharedAs`), so a publication costs what it
- * changed rather than what the page holds. So a selection is a `computed` compared by
+ * last time for a step whose inputs held still (kept.js), and sharing a fold's result
+ * (`shareFold`) answers such a subtree from the last time it shared it, so a
+ * publication costs what it changed rather than what the page holds. So a selection is a `computed` compared by
  * identity, and a reader subscribed to one part of the reading hears only that part
  * change. A selection shares its own derived value against its previous one by the
  * same rule, and one derived from another selection (`select`'s `from`) is derived
@@ -109,32 +109,49 @@ export const defineOwn = (object, key, value) =>
     configurable: true,
   });
 
-// What each subtree a fold produced was last shared as, where that was another value. A
-// fold that hands back a subtree it made before, as a step whose inputs held still does
-// (kept.js), meets the value it was shared as last time, and is answered without its
-// contents being read again: neither the subtree nor that value can have changed
-// since, the one owned by the fold that keeps it and the other frozen once published.
-// A subtree shared as itself was published as itself, so meeting it again it is that
-// value, which needs no entry here.
-/** @type {WeakMap<object, unknown>} */
-const sharedAs = new WeakMap();
-
 /**
  * `next`, with every subtree deep-equal to the matching one in `prior` replaced by
  * `prior`'s. Plain objects, arrays, Maps and Sets compare by contents (a Map or Set by
  * its entries in order, an object by its keys in any order); anything else by identity.
  * An array's item that `prior`'s array holds at any index stays as it is.
  * Returns `prior` itself when the two are equal, and `next` itself when nothing in it
- * could be shared, so neither input is copied or mutated needlessly. A subtree of
- * `next` shared before, against the value now in its place, is answered at once
- * (`sharedAs`), so `next` must not change once it has been shared.
+ * could be shared, so neither input is copied or mutated needlessly.
  *
  * @template T
  * @param {unknown} prior
  * @param {T} next
  * @returns {T}
  */
-export function share(prior, next) {
+export const share = (prior, next) => shared(prior, next, null);
+
+// What each subtree of a fold's result was last shared as, where that was another
+// value: a subtree shared as itself was published as itself, so meeting it again it is
+// that value.
+/** @type {WeakMap<object, unknown>} */
+const foldShared = new WeakMap();
+
+/**
+ * `share` for a fold's result, which hands back unchanged the subtrees it made before
+ * from inputs that held still (kept.js). A subtree met again against the value it was
+ * shared as is answered at once, without its contents being read: the fold owns the
+ * subtree and never changes it, and the value it was shared as is frozen once
+ * published. Only the application's fold may pass a value here.
+ *
+ * @template T
+ * @param {unknown} prior
+ * @param {T} next
+ * @returns {T}
+ */
+export const shareFold = (prior, next) => shared(prior, next, foldShared);
+
+/**
+ * @template T
+ * @param {unknown} prior
+ * @param {T} next
+ * @param {WeakMap<object, unknown> | null} kept what each subtree was last shared as
+ * @returns {T}
+ */
+function shared(prior, next, kept) {
   if (Object.is(prior, next)) return next;
   if (
     prior === null ||
@@ -143,21 +160,22 @@ export function share(prior, next) {
     typeof next !== "object"
   )
     return next;
-  if (sharedAs.get(next) === prior) return /** @type {T} */ (prior);
-  const shared = compared(prior, next);
-  if (shared !== next) sharedAs.set(next, shared);
-  return shared;
+  if (kept?.get(next) === prior) return /** @type {T} */ (prior);
+  const result = compared(prior, next, kept);
+  if (kept && result !== next) kept.set(next, result);
+  return result;
 }
 
 /**
- * `share` for two objects not shared before.
+ * `shared` for two objects not shared before.
  *
  * @template {object} T
  * @param {object} prior
  * @param {T} next
+ * @param {WeakMap<object, unknown> | null} kept
  * @returns {T}
  */
-function compared(prior, next) {
+function compared(prior, next, kept) {
   if (Array.isArray(next)) {
     if (!Array.isArray(prior)) return next;
     // An item the prior list holds anywhere is already shared, so a list that gained,
@@ -170,7 +188,7 @@ function compared(prior, next) {
       typeof child === "object" &&
       (held ??= new Set(prior)).has(child)
         ? child
-        : share(prior[index], child),
+        : shared(prior[index], child, kept),
     );
     if (
       prior.length === next.length &&
@@ -188,7 +206,7 @@ function compared(prior, next) {
       ([key, child]) =>
         /** @type {const} */ ([
           key,
-          prior.has(key) ? share(prior.get(key), child) : child,
+          prior.has(key) ? shared(prior.get(key), child, kept) : child,
         ]),
     );
     if (
@@ -205,7 +223,9 @@ function compared(prior, next) {
   if (next instanceof Set) {
     if (!(prior instanceof Set)) return next;
     const priorMembers = [...prior];
-    const members = [...next].map((child, index) => share(priorMembers[index], child));
+    const members = [...next].map((child, index) =>
+      shared(priorMembers[index], child, kept),
+    );
     if (
       priorMembers.length === members.length &&
       members.every((child, index) => child === priorMembers[index])
@@ -227,7 +247,7 @@ function compared(prior, next) {
   const after = /** @type {Record<string, unknown>} */ (next);
   const keys = Object.keys(after);
   const children = keys.map((key) =>
-    Object.hasOwn(before, key) ? share(before[key], after[key]) : after[key],
+    Object.hasOwn(before, key) ? shared(before[key], after[key], kept) : after[key],
   );
   if (
     keys.length === Object.keys(before).length &&

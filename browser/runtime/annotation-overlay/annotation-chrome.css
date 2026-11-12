@@ -4,21 +4,6 @@
  * floating response placement and the contextual Thread preview; importing page chrome
  * needs none of it. */
 
-/* Where a thread card's fade stands, which thread-preview.js writes on the thread as
-   its transcript scrolls (`paintContinuation`). Registered as not inheriting, and taken
-   by the fade alone (`.lf-page-thread::after`, below), so a write restyles the thread
-   and its fade rather than every element the thread holds. */
-@property --lf-thread-fade-top {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
-@property --lf-thread-fade-height {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
-
 /* The hand over a mark stands on the element under the pointer (anchor-paint.js,
    `paintHand`). Armed, the aim's cursor stands instead (chrome.css), and an element's
    mark states its own (below), at a weight this rule doesn't pass. */
@@ -694,16 +679,19 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
   }
   .lf-margin-thread .lf-page-thread::after {
     /* Share the transcript's grid track without reserving reading space. The
-       author stays crisp while words fade into its moving lower edge. */
+       author stays crisp while words fade into its moving lower edge. Its place
+       (`--lf-thread-fade-top`, `--lf-thread-fade-height`, thread-preview.js) inherits,
+       so each write restyles the thread's elements: registered as not inheriting and
+       taken with `inherit`, it stays at its first value in WebKit
+       (notes/browser-support.md, "A non-inheriting property taken with `inherit` in
+       WebKit"). */
     content: "";
     position: absolute;
-    --lf-thread-fade-top: inherit;
-    --lf-thread-fade-height: inherit;
-    inset: var(--lf-thread-fade-top) 0 auto;
+    inset: var(--lf-thread-fade-top, 0px) 0 auto;
     grid-column: 1 / -1;
     grid-row: 1;
     align-self: start;
-    height: var(--lf-thread-fade-height);
+    height: var(--lf-thread-fade-height, 0px);
     border-radius: 0;
     outline: none;
     background: linear-gradient(var(--paper), transparent);

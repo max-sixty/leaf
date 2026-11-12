@@ -19,6 +19,7 @@ import ssl
 import tarfile
 import threading
 import time
+import urllib.error
 import urllib.request
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
@@ -56,6 +57,13 @@ CHUNK_BYTES = 1024 * 1024
 UPLOADS = 8
 
 
+class PageStoreRefused(OSError):
+    """A call the page store answered with an error, carrying the store's reason
+    (`worker/src/index.ts`, the `leaf-state.internal` handler), which a page fault
+    records as its detail. An `OSError`, as urllib's own errors are, so callers
+    handle it as they handle the store being unreachable."""
+
+
 @contextmanager
 def _request(path: str, payload: dict | bytes | None = None) -> Generator[HTTPResponse]:
     url = os.environ["LEAF_PAGE_STORE_URL"].rstrip("/") + path
@@ -76,7 +84,12 @@ def _request(path: str, payload: dict | bytes | None = None) -> Generator[HTTPRe
     )
     certificate = os.environ.get("CODEX_CA_CERTIFICATE")
     context = ssl.create_default_context(cafile=certificate) if certificate else None
-    with urllib.request.urlopen(request, context=context, timeout=60) as response:
+    try:
+        response = urllib.request.urlopen(request, context=context, timeout=60)
+    except urllib.error.HTTPError as error:
+        reason = error.read().decode(errors="replace").strip()
+        raise PageStoreRefused(f"{path} answered {error.code}: {reason}") from error
+    with response:
         yield response
 
 

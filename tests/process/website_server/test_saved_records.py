@@ -118,6 +118,7 @@ def durable_page_store():
                 if stored["fail"]:
                     self.send_response(503)
                     self.end_headers()
+                    self.wfile.write(b"page store unavailable")
                     return
                 stored["publications"].append(publication)
                 stored["records"][publication["root"]] = publication["record"]

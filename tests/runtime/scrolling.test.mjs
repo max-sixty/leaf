@@ -3,14 +3,14 @@
    a control takes keys of its own, as Space presses a button; read as the reader's
    scroll, Space on a button or a tap on one made a keep holding the reader's place across
    what the press changed stand down. A link or a button takes no arrow or paging key,
-   and a radio no paging key, so the browser scrolls for those. And which of those
-   scrolls a writer of a box's end leaves alone (`leavesEnd`): one up or across, until
-   it ends. */
+   and a radio no paging key, so the browser scrolls for those. And which way such a
+   scroll heads its box until it ends, and where it found the box (`readerScroll`),
+   which a writer of the box's end asks first. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { aimScroll, leavesEnd, scrollsFor } from "/runtime/scrolling.js";
+import { aimScroll, readerScroll, scrollsFor } from "/runtime/scrolling.js";
 
 test("the browser scrolls for a wheel, and for a scroll key a control leaves it", () => {
   const button = document.createElement("button");
@@ -58,7 +58,7 @@ test("the browser scrolls for a wheel, and for a scroll key a control leaves it"
   [button, field, link, radio, prose].forEach((node) => node.remove());
 });
 
-test("a scroll up or across leaves the box's end to the reader until it ends", () => {
+test("a scroll heads its box the furthest way any of its inputs does, until it ends", () => {
   const box = document.createElement("div");
   document.body.append(box);
   let top = 200;
@@ -79,22 +79,35 @@ test("a scroll up or across leaves the box's end to the reader until it ends", (
     box.dispatchEvent(new window.Event("scrollend"));
   };
   aimScroll(box, wheel({ deltaY: 100 }));
-  assert.equal(leavesEnd(box), false, "a wheel down heads to the end");
+  assert.deepEqual(readerScroll(box), {
+    heads: "down",
+    top: 200,
+    fromEnd: 0,
+    starts: 0,
+  });
+  top = 150;
+  aimScroll(box, wheel({ deltaX: 80 }));
+  aimScroll(box, wheel({ deltaY: 100 }));
+  assert.deepEqual(
+    readerScroll(box),
+    { heads: "across", top: 200, fromEnd: 0, starts: 0 },
+    "across, from where the first input found the box",
+  );
   aimScroll(box, wheel({ deltaY: -100 }));
-  assert.equal(leavesEnd(box), true, "one up in the same scroll leaves it");
+  assert.equal(readerScroll(box)?.heads, "up");
   ended();
-  assert.equal(leavesEnd(box), false, "until that scroll ends");
-  for (const [input, leaves] of /** @type {[Event, boolean][]} */ ([
-    [wheel({ deltaX: 80 }), true],
-    [wheel({ deltaX: 100, deltaY: -80 }), true],
-    [wheel({ deltaY: 100, deltaX: 4 }), false],
-    [key("PageUp"), true],
-    [key(" ", true), true],
-    [key("End"), false],
-    [key(" "), false],
+  assert.equal(readerScroll(box), null, "until that scroll ends");
+  for (const [input, heads] of /** @type {[Event, string][]} */ ([
+    [wheel({ deltaX: 100, deltaY: -80 }), "across"],
+    [wheel({ deltaY: 100, deltaX: 4 }), "down"],
+    [wheel({ deltaY: -100, deltaX: 4 }), "up"],
+    [key("PageUp"), "up"],
+    [key(" ", true), "up"],
+    [key("End"), "down"],
+    [key(" "), "down"],
   ])) {
     aimScroll(box, input);
-    assert.equal(leavesEnd(box), leaves);
+    assert.equal(readerScroll(box)?.heads, heads);
     ended();
   }
   box.remove();

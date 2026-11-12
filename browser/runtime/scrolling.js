@@ -311,37 +311,52 @@ document.addEventListener(
 // keeper that wrote a log's end as entries streamed in took the box from a wheel or
 // PageUp aimed up it, every time in Firefox. So the input starts the box's sequence
 // (arrivals.js, `startReaderScroll`), says whether a key set it going, as each of its
-// scroll events does, and records whether it heads the box anywhere but down, to its end
-// (`leavesEnd`).
+// scroll events does, and records which way it heads the box and where it found it
+// (`readerScroll`).
 const UP_KEYS = new Set(["PageUp", "ArrowUp", "Home"]);
-// The boxes an input has headed up or across, while the reader's scroll it started runs.
-/** @type {WeakSet<Element>} */
-const away = new WeakSet();
+// The ways an input heads a box, each ranking above the one before: a scroll heads the
+// way the furthest-ranked of its inputs does.
+const HEADINGS = /** @type {const} */ (["down", "across", "up"]);
+/** @typedef {{heads: (typeof HEADINGS)[number], top: number, fromEnd: number, starts: number}} ReaderScroll */
+/** @type {WeakMap<Element, ReaderScroll>} */
+const asked = new WeakMap();
 /** @param {Element} box @param {Event} event */
 export function aimScroll(box, event) {
   if (scrollKeyLast) keyScrolled.add(box);
   else keyScrolled.delete(box);
-  if (!readerScrolls(box)) away.delete(box);
+  const was = readerScrolls(box) ? asked.get(box) : undefined;
   startReaderScroll(box);
-  // A wheel heads down where it moves down more than across, as a trackpad's scroll down
-  // does though it drifts across a little. The keeper's write of the end then costs the
-  // reader that drift, and holding the end for it would leave a log entries stream into
-  // unfollowed through every such scroll.
-  const down =
-    event instanceof WheelEvent
-      ? event.deltaY > Math.abs(event.deltaX)
-      : event instanceof KeyboardEvent &&
-        !UP_KEYS.has(event.key) &&
-        !(event.key === " " && event.shiftKey);
-  if (!down) away.add(box);
+  // A wheel heads down or up where it moves that way more than across, as a trackpad's
+  // scroll down does though it drifts across a little. The keeper's write of the end
+  // then costs the reader that drift, and holding the end for it would leave a log
+  // entries stream into unfollowed through every such scroll.
+  /** @type {ReaderScroll["heads"]} */
+  let heads = "across";
+  if (event instanceof WheelEvent) {
+    const across = Math.abs(event.deltaX);
+    if (event.deltaY > across) heads = "down";
+    else if (-event.deltaY > across) heads = "up";
+  } else if (event instanceof KeyboardEvent) {
+    const shifted = event.key === " " && event.shiftKey;
+    heads = UP_KEYS.has(event.key) || shifted ? "up" : "down";
+  }
+  if (was && HEADINGS.indexOf(was.heads) >= HEADINGS.indexOf(heads)) return;
+  const top = box.scrollTop;
+  const fromEnd = scrollLimit(box) - top;
+  const leaf = starts.get(box) ?? 0;
+  asked.set(box, was ? { ...was, heads } : { heads, top, fromEnd, starts: leaf });
 }
-// Whether the reader has asked the browser to scroll `box` up or across, and that scroll
-// has yet to end (`aimScroll`), though the box may not have moved yet. A writer that
-// would put the box at its end asks this first, as its keeper does (`followEnd`): its
-// write would cancel that scroll, a wheel across a log's long lines as surely as one up
-// it. A reader heading down, to the end, still stands at it.
+// The scroll the reader's input has asked the browser for in `box` while it runs
+// (`aimScroll`), though the box may not have moved yet: which way it heads the box, down
+// to its end, up, which takes the reader from it, or across, which leaves them at it;
+// where its first input found the box, from its top and from its end; and how many
+// moves Leaf had started in the box then (`startScroll`). Null where no such scroll
+// runs. A writer that would put the box at its end asks this first, as its
+// keeper does (`followEnd`): its write would cancel a scroll up or across, a wheel
+// across a log's long lines as surely as one up it, and takes a reader heading down
+// where they were going.
 /** @param {Element} box */
-export const leavesEnd = (box) => readerScrolls(box) && away.has(box);
+export const readerScroll = (box) => (readerScrolls(box) && asked.get(box)) || null;
 /** @param {Element[]} boxes */
 export function placeKept(...boxes) {
   for (const box of boxes) kept.set(box, box.scrollTop);
@@ -725,18 +740,22 @@ export function keepFoot(box) {
 // it, as a press of u starts one up a log a stream feeds, stays where it was sent: a
 // keeper that read only the box's offset put that log back at its end and stopped the
 // glide, so the press did nothing. A wheel or key heading the box up, or across a log's
-// long lines, takes it from the keeper at the input (`leavesEnd`): the browser applies
+// long lines, takes it from the keeper at the input (`readerScroll`): the browser applies
 // that scroll a frame or more later, Firefox each wheel's and key's, and the keeper's
 // write of the end in between cancelled every one, a horizontal wheel's too. So the
-// keeper writes nothing until that scroll ends. It reads the box meanwhile, telling the
-// reader's moves from layout's, since layout moves the box then too: a log emptied and
-// refilled is clamped to its top, and read only once the scroll ended, that reader
-// stood at the top of a full log and was left there. A reader the scroll took away
-// stays where it took them, and one it left at the end, as an input a handler
-// prevented leaves them, is put at the end that moved meanwhile. A reader heading down
-// still stands at the end, and the keeper's write takes them where they were going, so
-// a log a reader wheels down at its end keeps following its entries through the wheel.
-// Layout may carry the box the other way in the change itself, as
+// keeper writes nothing until that scroll ends, and then, at its first reading of the
+// drawn box, puts a reader who stood at the end and whom the scroll left there at the
+// end that moved meanwhile, as an input a handler prevented leaves them; a reader the
+// scroll took away stays where it took them, and so does one Leaf moved meanwhile, as
+// `g g` does. Layout moves the box meanwhile too, as a log emptied and refilled is
+// clamped to its top, and no reading tells its moves from the reader's: a reading
+// before the scroll's own event can find the box already moved. So the input says.
+// Across, the reader moves the box up or down by nothing, so every such move is
+// layout's. Up, they stayed where the box stands where the input found it, from its top
+// or, where layout carried it up with entries a log lost, from its end. A reader
+// heading down still stands at the end, and the keeper's write takes them where they
+// were going, so a log a reader wheels down at its end keeps following its entries
+// through the wheel. Layout may carry the box the other way in the change itself, as
 // Chromium's scroll anchoring did by 58px as a shorter window shrank a card's
 // transcript, and that reader still stands at the end. A box the browser doesn't draw,
 // as in a hidden tab or a shut disclosure, is read only once it is drawn again: its
@@ -790,31 +809,34 @@ export function followEnd(box, yields = () => false) {
     const back = stood.top - SCROLL_SLACK;
     return box.scrollTop >= back && (holding(box)?.goal ?? box.scrollTop) >= back;
   };
-  // While the reader's input heads the box up or across (`leavesEnd`), whether the
-  // reader stood at the end as it began, and whether a scroll since has moved the box. A
-  // size reading meanwhile is layout's, as a clamp or an appended entry is, and takes in
-  // that move before the move's own scroll event, which then finds the box where the
-  // reading left it. So a scroll event that finds the box moved, by more than the pixel
-  // a write's rounding leaves it off its aim, is the reader's, or Leaf's, as `g g`
-  // pressed meanwhile; a scroll across moves the box up or down by nothing. Judged by the box's distance from its end instead, a log that lost its
-  // oldest entries and gained new ones in one change read as the reader's move.
-  /** @type {{end: boolean, left: boolean} | null} */
+  // Whether the reader's input heads the box up or across (`readerScroll`).
+  const leaving = () => (readerScroll(box)?.heads ?? "down") !== "down";
+  // The reader's scroll the keeper holds the end back for, with whether the reader stood
+  // at the end as it began, kept past the scroll's end until a reading of the drawn box
+  // settles it.
+  /** @type {ReaderScroll & {end: boolean} | null} */
   let held = null;
   const holds = () => {
-    if (!stood || !leavesEnd(box)) return false;
-    held ??= { end: stood.end, left: false };
+    const asked = readerScroll(box);
+    if (!stood || !asked || asked.heads === "down") return false;
+    held = { ...asked, end: held?.end ?? stood.end };
     return true;
   };
+  // Whether the reader's scroll left them at the end the keeper held back (the header).
+  /** @param {NonNullable<typeof held>} scroll */
+  const stayed = ({ end, starts: since, heads, top, fromEnd }) =>
+    end &&
+    (starts.get(box) ?? 0) === since &&
+    (heads === "across" ||
+      box.scrollTop === top ||
+      Math.abs(scrollLimit(box) - box.scrollTop - fromEnd) < 1);
   const check = () => {
     if (!drawn()) return;
     if (!holds()) {
-      // Once that scroll has ended, at the first reading of a drawn box, a reader who
-      // stood at the end and whom no scroll took from it, as an input a handler
-      // prevented leaves them, is put at the end that moved meanwhile.
-      const caught = held;
+      const scroll = held;
       held = null;
-      if (caught && stood) {
-        if (caught.end && !caught.left && !yields(stood)) scrollToEnd(box);
+      if (scroll && stood) {
+        if (stayed(scroll) && !yields(stood)) scrollToEnd(box);
       } else if (
         stood &&
         scrollLimit(box) !== stood.limit &&
@@ -827,12 +849,7 @@ export function followEnd(box, yields = () => false) {
   };
   const stopWatching = watchHeld(box, check);
   const scrolled = () => {
-    if (!drawn()) return;
-    const before = stood;
-    if (before && holds()) {
-      if (held && Math.abs(box.scrollTop - before.top) > SCROLL_SLACK) held.left = true;
-      stand(extentNow());
-    } else stand(before ?? extentNow());
+    if (drawn()) stand(stood ?? extentNow());
   };
   const stopEnds = watchScrollEnds((ended) => {
     if (ended === box) check();
@@ -849,6 +866,6 @@ export function followEnd(box, yields = () => false) {
       box.removeEventListener("scroll", scrolled);
     },
     check,
-    standsAtEnd: () => !leavesEnd(box) && (atStoodEnd() || followsEnd(box)),
+    standsAtEnd: () => !leaving() && (atStoodEnd() || followsEnd(box)),
   };
 }

@@ -244,6 +244,14 @@ test("a before chip that would stand on a neighbouring target stands above its o
       { left: 183, top: 135 },
     ],
   );
+  // The seat above is read where the window lets it stand: pushed in from the window's
+  // right edge, it would stand on the target above and left of its own.
+  const edge = before([
+    box(940, 100, 45, 30),
+    box(990, 100, 10, 30),
+    box(960, 65, 25, 25),
+  ]);
+  assert.deepEqual(edge[1], { left: 968, top: 100 });
   // A target around its own is no neighbour: the first slot of a film keeps its seat
   // before the film's edge, and the next slot's chip stands above it.
   const film = box(100, 100, 300, 60);

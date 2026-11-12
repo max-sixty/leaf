@@ -572,16 +572,16 @@ fixed scrolling panel while scrolling both the document and panel.
 ### An anchor inside an SVG foreignObject in Chromium
 
 A fixed box anchored to an HTML element inside an SVG `<foreignObject>` takes
-its `anchor()` fallback, so a key chip, aim or mark there stood at -9999px, off
-the window. Playwright Chromium 158.0.8127.18 (build 1254) did so on
-2026-11-12; Firefox 159.0 (build 1572) and WebKit 27.2 (build 2388) placed the
-box on the element. `anchorReaches` in `browser/runtime/css-anchors.js` reads
-such an anchor as out of reach in every engine, so the box stands where its
-target was measured, as for an anchor in another native layer, and the pass a
-scroll brings places it again. Recheck with
-`test_a_chip_stands_beside_a_link_in_an_svg_drawing_s_html` with that check
-removed, or a fixed box whose `left` is `anchor(--a left, -9999px)` against a
-button in a `foreignObject`.
+its `anchor()` fallback, so a key chip, aim, mark or margin row there stood at
+-9999px, off the window. Playwright Chromium 158.0.8127.18 (build 1254) did so
+on 2026-11-12; Firefox 159.0 (build 1572) and WebKit 27.2 (build 2388) placed
+the box on the element, and all three placed it on the drawing's `<svg>`.
+`anchorElement` in `browser/runtime/css-anchors.js` anchors such an element
+through the drawing in every engine, as it does the drawing's own shapes, with
+the box's insets measured from the drawing. Recheck with
+`test_a_chip_stands_beside_a_link_in_an_svg_drawing_s_html` with the
+`foreignObject` step removed from `anchorElement`, or a fixed box whose `left`
+is `anchor(--a left, -9999px)` against a button in a `foreignObject`.
 
 ### An anchor's transforms in Firefox
 

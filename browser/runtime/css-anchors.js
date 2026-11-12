@@ -209,7 +209,9 @@ export function nameable(el) {
 // the document's. A target in a shadow tree anchors as itself where the
 // document can name it (`nameable`), and otherwise through the host holding its tree; a
 // shape inside an SVG drawing has no CSS box of its own, so it anchors through the
-// drawing; a `display: contents` target through its first shown part. Wherever it
+// drawing, and so does the drawing's HTML in a `foreignObject`, which Chromium anchors
+// nothing to (notes/browser-support.md, "An anchor inside an SVG foreignObject in
+// Chromium"); a `display: contents` target through its first shown part. Wherever it
 // anchors, what stands against it is written as insets from the anchor's box.
 /** @param {Element} target */
 function outsideScopes(target) {
@@ -228,6 +230,8 @@ function outsideScopes(target) {
 /** @param {Element} target */
 export function anchorElement(target) {
   let el = outsideScopes(target);
+  for (let at = /** @type {Node | null} */ (el); isElement(at); at = renderedParent(at))
+    if (at.localName === "foreignObject") el = at;
   for (let host; !nameable(el) && (host = shadowHost(el.getRootNode()));) el = host;
   while (el instanceof SVGElement && el.ownerSVGElement) el = el.ownerSVGElement;
   if (el !== target) return el;
@@ -244,9 +248,7 @@ export function anchorElement(target) {
 export function anchorReaches(anchor, box) {
   const holder = anchorHolder(anchor);
   const host = hostIn(holder, document);
-  // Chromium lacks anchors inside a foreignObject (notes/browser-support.md, "An anchor
-  // inside an SVG foreignObject in Chromium").
-  if (!host || host.closest("foreignObject")) return false;
+  if (!host) return false;
   const layer = nativeLayerHolding(holder);
   if (layer !== nativeLayerHolding(box)) return !layer;
   const order = host.compareDocumentPosition(box);

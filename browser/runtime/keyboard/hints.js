@@ -365,18 +365,23 @@ export function seatHints(
   const measured = nestOutsets(faces, (face) => beforeLeft(face) - edgeLeft).map(
     ({ face, outset }) => {
       const { start, target } = face;
+      /** @param {number} left @param {number} top */
+      const inWindow = (left, top) =>
+        movedTo(
+          start,
+          clamp(left, edgeLeft, Math.max(edgeLeft, edgeRight - start.width)),
+          clamp(top, edgeTop, Math.max(edgeTop, edgeBottom - start.height)),
+        );
       // Before a target with another beside it, as in a row of cards or buttons, a chip
       // stands on the neighbour and reads as the neighbour's, so it stands above its own
-      // target where no other target stands there, as a control's does. Both seats are
-      // read before the window's edge moves them, since that edge can push a chip onto
-      // its own target's contents, which are no neighbour.
+      // target where no other target stands there, as a control's does. The seat before
+      // is read where the chip would stand without the window, whose edge can push it
+      // onto its own target's contents, which are no neighbour; the seat above, where the
+      // window lets it stand.
       const placement =
         face.placement === "before" &&
         coversAnother(movedTo(start, beforeLeft(face) - outset, level(face)), face) &&
-        !coversAnother(
-          movedTo(start, target.left, target.top - start.height - clear),
-          face,
-        )
+        !coversAnother(inWindow(target.left, target.top - start.height - clear), face)
           ? "above"
           : (face.placement ?? "corner");
       const column = crowded.has(face) ? columnWidth(face) : start.width;
@@ -388,11 +393,7 @@ export function seatHints(
             : placement === "above"
               ? target.left
               : start.left + (start.width - column) / 2;
-      const left = clamp(
-        preferredLeft,
-        edgeLeft,
-        Math.max(edgeLeft, edgeRight - start.width),
-      );
+      const { left } = inWindow(preferredLeft, start.top);
       const preferredTop =
         placement === "below"
           ? target.bottom + clear
@@ -403,11 +404,7 @@ export function seatHints(
               : crowded.has(face)
                 ? level(face)
                 : start.top;
-      const first = movedTo(
-        start,
-        left,
-        clamp(preferredTop, edgeTop, Math.max(edgeTop, edgeBottom - start.height)),
-      );
+      const first = inWindow(preferredLeft, preferredTop);
       const held = first.left !== preferredLeft || first.top !== preferredTop;
       return {
         face,

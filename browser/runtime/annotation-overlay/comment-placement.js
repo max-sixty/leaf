@@ -523,9 +523,10 @@ export function commentPlacement() {
     },
   ) {
     const minimumWidth = cardMinimum();
-    const gap = subjectGap();
     const across = vertical(side);
     const unanchored = !clear;
+    // A surface with no subject stands by the room's edge, which wears no mark.
+    const gap = unanchored ? COMMENT_GAP : subjectGap();
     // Floating UI reads a window attachment point for the unanchored posture,
     // sharing the same sizing, shift and coordinate conversion as an anchored box.
     clear ??= new DOMRect(boundary.left, boundary.top, minimumWidth, 0);

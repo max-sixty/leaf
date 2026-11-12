@@ -513,6 +513,30 @@ test("a rising card has the window's height and keeps the top it stood at", asyn
   assert.equal(await place(true), 692);
 });
 
+test("a surface with no subject keeps the room's gap, not a mark's", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  const platform = windowPlatform(() => ({ width: 320, height: 120 }));
+  const card = commentPlacement();
+  const seat = card.choose({
+    clear: null,
+    boundary,
+    scroller: scroller(1000),
+    coarse: false,
+  });
+  const { reference, placement, middleware } = seat.options(ui, {
+    clear: null,
+    row: boundary.top,
+    boundary,
+    fit() {},
+  });
+  const answer = await ui.computePosition(
+    { getBoundingClientRect: () => reference },
+    document.body,
+    { placement, middleware, platform, strategy: "fixed" },
+  );
+  assert.equal(answer.y, boundary.top + 8);
+});
+
 test("chrome beside a card's columns leaves it the window's height", async () => {
   const ui = await import("/vendor/floating-ui.esm.js");
   const platform = windowPlatform(() => ({ width: 320, height: 700 }));

@@ -51,7 +51,6 @@ import {
   keepsText,
   langForPath,
   layoutChanged,
-  loadDeferred,
   listWalkPosition,
   move,
   nextRender,
@@ -97,17 +96,17 @@ import { pierre, markSyntax } from "/widgets/pierre.js";
 /** @typedef {import("@pierre/diffs").FileDiffMetadata} NativeFile */
 /** @typedef {{path: string, previousPath?: string, operation: "copy" | "rename" | "add" | "delete" | "modify", hunkCount: number, binary: boolean, oldMode?: string, newMode?: string, additions: number, deletions: number}} FileRecord */
 /** @typedef {NativeFile & {record: FileRecord}} ParsedFile */
-/** @typedef {FileSummary & ({parsed: ParsedFile} | {manifest: Exclude<import("../../../browser/types/contract.js").DataUnifiedDiff, string>})} SourceRecord */
+/** @typedef {FileSummary & ({parsed: ParsedFile} | {patch: string})} SourceRecord */
 /** @typedef {{path: string, hunk: number} & ({side: "both", oldLine: number, newLine: number} | {side: "old", oldLine: number, newLine?: never} | {side: "new", newLine: number, oldLine?: never})} SourceLine */
 /** @typedef {SourceLine & {node: HTMLElement, row: HTMLDivElement, content: string}} RenderedLine */
 /** @typedef {Pick<FileRecord, "path"> & Partial<Omit<FileRecord, "path">>} FileSummary */
 /** @typedef {{outlet: HTMLElement, row: Element | null, active: boolean}} ThreadSeat */
 /** @typedef {{kind: "text", row: HTMLDetailsElement, details: HTMLDetailsElement, header: HTMLElement} | {kind: "metadata", row: HTMLDivElement, details: null, header: HTMLDivElement}} FilePresentation */
-/** @typedef {{node: HTMLDivElement, actions: HTMLDivElement, record: FileSummary, source: SourceRecord, file: ParsedFile | undefined, rendered: Awaited<ReturnType<typeof renderFile>> | null, filtered: boolean, loaded: boolean, failed: boolean, refused: boolean, renderKey: string | null, loading: {rendering: number, promise: Promise<void>} | null, disclosure: {node: HTMLDetailsElement, open: boolean, changed: () => void} | null} & FilePresentation} FileEntry */
+/** @typedef {{node: HTMLDivElement, actions: HTMLDivElement, record: FileSummary, source: SourceRecord, file: ParsedFile | undefined, rendered: Awaited<ReturnType<typeof renderFile>> | null, filtered: boolean, loaded: boolean, refused: boolean, renderKey: string | null, loading: {rendering: number, promise: Promise<void>} | null, disclosure: {node: HTMLDetailsElement, open: boolean, changed: () => void} | null} & FilePresentation} FileEntry */
 /** @typedef {FileEntry & {kind: "text"}} TextEntry */
 /** @typedef {FilePresentation & {kind: "text"}} TextPresentation */
-/** @typedef {{error: unknown, retry?: boolean} | {file: ParsedFile, renderKey: string | null, rendered: Awaited<ReturnType<typeof renderFile>> | null}} EntryPreparation */
-/** @typedef {{error: unknown, retry?: boolean} | {file: ParsedFile}} EntryEvidence */
+/** @typedef {{error: unknown} | {file: ParsedFile, renderKey: string | null, rendered: Awaited<ReturnType<typeof renderFile>> | null}} EntryPreparation */
+/** @typedef {{error: unknown} | {file: ParsedFile}} EntryEvidence */
 /** @type {Promise<typeof import("/vendor/pierre-parser.esm.js")> | null} */
 let parser = null;
 const parse = () => (parser ??= import("/vendor/pierre-parser.esm.js"));
@@ -124,24 +123,24 @@ const OPTIONS = Object.freeze({
 
 // The records every source form renders from, in the shape of the contract's file
 // manifest. A patch text is parsed once, strictly, so a malformed hunk never becomes
-// incomplete evidence, and each record carries its parsed file where a manifest's
-// record defers its patch. The path keys a record in either form; the contract
-// refuses a manifest that repeats one, and this refuses a patch text that does.
+// incomplete evidence, and each record carries its parsed file; a manifest's record
+// carries its own patch, which `readEntry` parses alone. The path keys a record in
+// either form; the contract refuses a manifest that repeats one, and this refuses a
+// patch text that does.
 /** @param {import("../../../browser/types/contract.js").DataUnifiedDiff} source @returns {Promise<readonly SourceRecord[]>} */
 async function sourceRecords(source) {
   if (typeof source !== "string")
-    return source.files.map(({ path }) => ({ path, manifest: source }));
+    return source.files.map(({ path, patch }) => ({ path, patch }));
   return (await parsedFiles(source)).map((file) => ({ path: file.name, parsed: file }));
 }
 
-// A deferred patch must describe its keyed logical file, including both native
+// A manifest's patch must describe its keyed logical file, including both native
 // sections of a file-type replacement. All display metadata comes from this parse.
-/** @param {string} patch @param {SourceRecord} record */
-async function deferredFile(patch, record) {
-  const { path } = record;
+/** @param {string} patch @param {string} path */
+async function recordFile(patch, path) {
   const [file, extra] = await parsedFiles(patch);
   if (!file || extra || file.name !== path)
-    throw new Error(`the deferred patch for ${path} does not contain that one file`);
+    throw new Error(`the patch for ${path} does not contain that one file`);
   return file;
 }
 
@@ -491,7 +490,6 @@ function fileEntry(view, record) {
     source: record,
     file: undefined,
     loaded: false,
-    failed: false,
     refused: false,
     renderKey: null,
     loading: null,
@@ -966,33 +964,19 @@ function joinChangeRuns(file) {
 }
 
 // The box takes the place of the file's lines, so core's composer leaves their outlets
-// first: a user writing about one of them stays in it, and the hold below, which
-// would hand them to Retry, finds them outside the file. A patch the widget cannot draw
-// offers no Retry, and the hold lands on the file's header.
-/** @param {TextPresentation} view @param {unknown} error @param {(() => void) | false | undefined} retry */
-function deferredError(view, error, retry) {
+// first: a user writing about one of them stays in it, and the hold below finds them
+// outside the file and lands on the file's header.
+/** @param {TextPresentation} view @param {unknown} error */
+function fileError(view, error) {
   const { details, header } = view;
   releaseOutlets(details);
   const restore = holdFocus(details);
-  const message = describeFailure(error);
   const box = document.createElement("div");
   box.className = "lf-error";
   generatedElement(box, { says: false });
-  box.textContent = retry
-    ? `That file's diff failed to load: ${message}`
-    : `That file's diff cannot be shown: ${message}`;
-  let standIn = header;
-  if (retry) {
-    standIn = offerAction("symbol", "", undefined, { action: "retry" });
-    standIn.addEventListener("click", () => {
-      if (standIn.getAttribute("aria-disabled") === "true") return;
-      standIn.setAttribute("aria-disabled", "true");
-      retry();
-    });
-    box.append(" ", standIn);
-  }
+  box.textContent = `That file's diff cannot be shown: ${describeFailure(error)}`;
   setChildren(details, [header, box]);
-  restore?.(standIn);
+  restore?.(header);
 }
 
 customElements.define(
@@ -1320,7 +1304,6 @@ customElements.define(
               source: record,
               file: "file" in evidence ? evidence.file : undefined,
               loaded: entry.kind === "metadata",
-              failed: false,
               refused: false,
               loading: null,
             });
@@ -1418,23 +1401,14 @@ customElements.define(
       );
     }
 
-    // A patch that fails to load may load on Retry. One this widget cannot draw never
-    // will, so it offers no Retry, and `applyEntry` reports it to the agent, which stored
-    // it, once the current rendering shows it: the manifest's producer leaves judging a
-    // patch to this widget.
+    // `applyEntry` reports a manifest's patch this widget cannot draw to the agent,
+    // which stored it, once the current rendering shows it: the manifest's producer
+    // leaves judging a patch to this widget.
     /** @param {SourceRecord} record @returns {Promise<EntryEvidence>} */
     async readEntry(record) {
       if ("parsed" in record) return { file: record.parsed };
-      let patch;
       try {
-        patch = /** @type {string} */ (
-          await loadDeferred(record.manifest, record.path)
-        );
-      } catch (error) {
-        return { error, retry: true };
-      }
-      try {
-        return { file: await deferredFile(patch, record) };
+        return { file: await recordFile(record.patch, record.path) };
       } catch (error) {
         return { error };
       }
@@ -1676,27 +1650,16 @@ customElements.define(
     /** @param {TextEntry} entry @param {EntryPreparation} prepared */
     applyEntry(entry, prepared) {
       if ("error" in prepared) {
-        const { error, retry } = prepared;
-        entry.failed = true;
+        // Nothing loads a patch this widget refused again.
+        entry.refused = true;
         paintSummary(entry, entry.record, false);
         paintFileDetails(entry, {});
         if (!entry.details.open) entry.details.open = true;
         if (entry.disclosure) entry.disclosure.open = true;
-        // Reopening retries a load; nothing loads a patch this widget refused again.
-        entry.refused = !retry;
-        if (entry.refused) reportFailure(this, error);
+        reportFailure(this, prepared.error);
         entry.rendered = null;
         entry.renderKey = null;
-        deferredError(
-          entry,
-          error,
-          retry &&
-            (() => {
-              if (!entry.failed) return;
-              entry.failed = false;
-              this.present(this.loadEntry(entry));
-            }),
-        );
+        fileError(entry, prepared.error);
         return null;
       }
       const { file, renderKey, rendered } = prepared;
@@ -1762,7 +1725,7 @@ customElements.define(
       else if (entry.filtered) this.clearFilter();
       if (!entry.details) return null;
       if (!entry.details.open) entry.details.open = true;
-      if (entry.loaded || entry.failed) return null;
+      if (entry.loaded || entry.refused) return null;
       return this.loadEntry(entry);
     }
 
@@ -1789,7 +1752,6 @@ customElements.define(
             entry.refused
           )
             return;
-          entry.failed = false;
           this.present(this.loadEntry(entry));
         },
       };

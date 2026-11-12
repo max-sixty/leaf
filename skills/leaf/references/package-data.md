@@ -387,13 +387,9 @@ git diff main... | leaf package run diff patch_manifest.py | leaf data set PAGE 
 ```
 
 A contract whose value holds keyed rows declares `records`, naming the array and each
-row's key, which must be a unique non-empty string. A row's large payload can be
-`deferred`: the file keeps it, but the page receives rows without it, and a widget
-fetches one with `loadDeferred(value, key)`. The widget decides when it needs that
-evidence; `lf-diff` loads and checks each patch before showing its row, and defers only
-textual rendering until the file opens. Its contract's schema has a `files` array of
-`{path, patch}` objects:
+row's key, which must be a unique non-empty string. `lf-diff`'s contract has a `files`
+array of `{path, patch}` objects:
 
 ```json
-{ "records": { "items": "files", "key": "path", "deferred": "patch" } }
+{ "records": { "items": "files", "key": "path" } }
 ```

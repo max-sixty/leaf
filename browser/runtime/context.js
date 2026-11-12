@@ -87,19 +87,11 @@ const allocation = (name) => /** @type {any} */ (document.body.getAttribute(name
 export const annotationMode = allocation("data-annotations") ?? "overlay";
 
 export const offlineInteractive = offlinePayload !== null;
-// An export holds each data value outside its reading, as one gzipped JSON body
-// (`exporting.py`): a source's value with its deferred fields left out, and each
-// deferred field. The bodies are spans of one embedded file at the address the payload
-// names. A span of a buffer of that file decodes about three times faster than a slice
-// of its Blob, which a diff of thousands of files feels. The state read decodes the
-// values from a buffer it lets go; the first deferred read keeps one for the page's
-// life, since a widget loading records one at a time would otherwise read the whole
-// file for each. Each read decodes its own copy, as each answer from a server is one,
-// so the runtime holds no decoded copy beside the reading it accepted.
-const readDataFile = () =>
-  fetch(offlinePayload.data).then((response) => response.arrayBuffer());
-/** @type {Promise<ArrayBuffer> | undefined} */
-let deferredFile;
+// An export holds each source's value outside its reading, as one gzipped JSON body
+// (`exporting.py`), a span of one embedded file at the address the payload names. The
+// state read decodes each value from a buffer of that file, which it then lets go.
+// Each read decodes its own copy, as each answer from a server is one, so the runtime
+// holds no decoded copy beside the reading it accepted.
 /** @param {ArrayBuffer} file @param {[number, number]} span */
 const decodeSpan = (file, [start, length]) =>
   new Response(
@@ -112,24 +104,15 @@ const decodeSpan = (file, [start, length]) =>
 export const offlineState = async () => {
   if (!offlineInteractive) return null;
   const state = structuredClone(offlinePayload.state);
-  const file = await readDataFile();
+  const file = await fetch(offlinePayload.data).then((response) =>
+    response.arrayBuffer(),
+  );
   await Promise.all(
     Object.entries(offlinePayload.values).map(async ([source, span]) => {
       state.data.sources[source].value = await decodeSpan(file, span);
     }),
   );
   return state;
-};
-// One record's deferred field, as the deferred door answers it, or undefined where the
-// record defers none.
-/** @param {string} source @param {string} key */
-export const offlineDeferred = (source, key) => {
-  const fields = Object.hasOwn(offlinePayload.deferred, source)
-    ? offlinePayload.deferred[source]
-    : {};
-  if (!Object.hasOwn(fields, key)) return undefined;
-  deferredFile ??= readDataFile();
-  return deferredFile.then((file) => decodeSpan(file, fields[key]));
 };
 /** @param {string} path */
 export const runtimeModule = (path) =>

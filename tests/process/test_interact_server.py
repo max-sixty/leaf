@@ -1330,7 +1330,7 @@ def test_api_state_carries_each_sources_current_value(server, page_dir):
     )
 
 
-def test_deferred_data_sends_a_manifest_then_serves_one_exact_payload(server, page_dir):
+def test_keyed_records_refuse_a_repeated_key_and_arrive_whole(server, page_dir):
     schema = {
         "type": "object",
         "properties": {
@@ -1357,15 +1357,8 @@ def test_deferred_data_sends_a_manifest_then_serves_one_exact_payload(server, pa
     declare_on_page(
         page_dir,
         lambda registry: registry["$data"]["contracts"]["diff-files"].update(
-            records={"items": "files", "key": "key", "deferred": "patch"}
+            records={"items": "files", "key": "key"}
         ),
-    )
-    index = page_dir / "index.html"
-    index.write_text(
-        index.read_text().replace(
-            "</main>",
-            '<lf-test-data id="other-data" source="other-patch"></lf-test-data></main>',
-        )
     )
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None
@@ -1383,62 +1376,24 @@ def test_deferred_data_sends_a_manifest_then_serves_one_exact_payload(server, pa
             },
         )
     assert 'repeated ["a", "a,b", "b"]' in str(repeated.value)
-    data_model.cmd_data_set(
-        page_dir,
-        "review-patch",
-        {
-            "files": [
-                {
-                    "key": "src/a.py",
-                    "path": "src/a.py",
-                    "patch": "diff --git a/src/a.py b/src/a.py\n",
-                },
-                {
-                    "key": "src/b.py",
-                    "path": "src/b.py",
-                    "patch": "diff --git a/src/b.py b/src/b.py\n",
-                },
-            ]
-        },
-    )
+    value = {
+        "files": [
+            {
+                "key": key,
+                "path": key,
+                "patch": f"diff --git a/{key} b/{key}\n",
+            }
+            for key in ["src/a.py", "src/b.py"]
+        ]
+    }
+    data_model.cmd_data_set(page_dir, "review-patch", value)
 
     status, body = fetch(f"{server}/api/state")
     assert status == 200
-    data = json.loads(body)["data"]
-    assert data["sources"]["review-patch"]["value"] == {
-        "files": [
-            {"key": "src/a.py", "path": "src/a.py"},
-            {"key": "src/b.py", "path": "src/b.py"},
-        ]
-    }
-
-    held = data["sources"]["review-patch"]["revision"]
-    deferred_url = f"{server}/api/deferred?source_revision={held}&source=review-patch&key=src%2Fa.py"
-    status, body = fetch(deferred_url)
-    assert status == 200
-    assert json.loads(body) == {
-        "revision": held,
-        "source": "review-patch",
-        "contract": "diff-files",
-        "key": "src/a.py",
-        "value": "diff --git a/src/a.py b/src/a.py\n",
-    }
-
-    # Each source keeps its own revision, so replacing another leaves this one read.
-    data_model.cmd_data_set(page_dir, "other-patch", {"files": []})
-    assert fetch(deferred_url)[0] == 200
-
-    data_model.cmd_data_set(
-        page_dir,
-        "review-patch",
-        {"files": [{"key": "src/a.py", "path": "src/a.py", "patch": "new"}]},
-    )
-    status, body = fetch(deferred_url)
-    assert status == 409
-    assert f"no longer holds revision {held!r}" in json.loads(body)["error"]
+    assert json.loads(body)["data"]["sources"]["review-patch"]["value"] == value
 
 
-def test_historical_deferred_reads_keep_the_document_revision_and_layer(
+def test_a_historical_state_read_keeps_its_layer_and_reads_current_data(
     server, page_dir
 ):
     """A pinned document reads current data through its captured data contract."""
@@ -1486,27 +1441,9 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     historical = json.loads(body)
     assert status == 200
     assert historical["layer"]["generation"] == first_layer
-    assert (
-        "patch"
-        not in historical["data"]["sources"]["review-patch"]["value"]["files"][0]
+    assert historical["data"]["sources"]["review-patch"]["value"] == patch_manifest(
+        patch
     )
-
-    address = urllib.parse.urlsplit(server)
-    connection = http.client.HTTPConnection(address.hostname, address.port)
-    held = historical["data"]["sources"]["review-patch"]["revision"]
-    connection.request(
-        "GET",
-        f"/api/deferred?source_revision={held}&source=review-patch&key=app.py&t="
-        + TOKEN,
-        headers={"Leaf-View-Revision": str(first.revision)},
-    )
-    response = connection.getresponse()
-    deferred = json.loads(response.read())
-    connection.close()
-
-    assert response.status == 200
-    assert response.getheader("Leaf-Layer") == first_layer
-    assert deferred["value"] == patch
 
 
 def _select_another_layer(page_dir):
@@ -3967,12 +3904,6 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
     declare_data_input(
         page_dir, "patches", schema, contract="patch-list", activate=False
     )
-    declare_on_page(
-        page_dir,
-        lambda registry: registry["$data"]["contracts"]["patch-list"].update(
-            records={"items": "files", "key": "key", "deferred": "patch"}
-        ),
-    )
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None
     data_model.cmd_data_set(
@@ -4029,7 +3960,11 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
     ) as server:
         status, state = fetch(f"{server.origin}/api/state")
         assert status == 200
-        assert json.loads(state)["reading"] == snapshot.reading
+        served = json.loads(state)
+        assert served["reading"] == snapshot.reading
+        assert served["data"]["sources"]["patches"]["value"] == {
+            "files": [{"key": "a.py", "patch": "old"}]
+        }
         assert fetch(f"{server.origin}/")[0] == 200
         assert fetch(f"{server.origin}{snapshot.context.versions[0]['url']}")[0] == 200
         assert active is not None
@@ -4039,13 +3974,6 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
             json.loads(fetch(f"{server.origin}/registry.json")[1])
             == snapshot.context.registry
         )
-        held = projection["data"]["sources"]["patches"]["revision"]
-        status, deferred = fetch(
-            f"{server.origin}/api/deferred?source_revision={held}&source=patches&key=a.py"
-        )
-        assert status == 200
-        assert json.loads(deferred)["value"] == "old"
-
         assert _news(server.origin) == snapshot.reading
 
 

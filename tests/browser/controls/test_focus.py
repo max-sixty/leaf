@@ -16,7 +16,7 @@ from render_cases_layout import (
     serious_axe_violations,
 )
 from render_cases_navigation import DIFF_PAGE
-from render_cases_widgets import SCROLLED, WIDE_DIAGRAM_PAGE
+from render_cases_widgets import SCROLLED, SCROLLING_DIAGRAM_PAGE
 from render_harness import (
     LONG_PAGE,
     RELEASE_FOCUS,
@@ -377,7 +377,7 @@ def test_a_comment_on_a_scrolling_box_leaves_its_tab_stop_alone(browser, serve):
 
     Read with the comment on and off the same box, because the assertion says nothing
     unless the box would otherwise have the stop."""
-    url = serve(WIDE_DIAGRAM_PAGE)
+    url = serve(SCROLLING_DIAGRAM_PAGE)
     page = open_page(browser, url)
     resized(page, 760, 900)
     diagram = page.locator("#flow")

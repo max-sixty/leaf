@@ -446,19 +446,24 @@ window's width, a breakout may move by an offset again. In Leaf,
 `test_a_table_granted_room_stands_on_the_prose_axis` ring a paragraph beside
 breakouts and fail if the page then scrolls sideways.
 
-### An inherited length after a container resize in WebKit
+### A non-inheriting property taken with `inherit` in WebKit
 
-A registered custom property that does not inherit, computed from `100cqi` on the
-column and passed to a child with `inherit`, kept the child's first value in
-Playwright WebKit 27.2 after the window resized: the column's own value followed
-the resize, but an `available` block sized from the child's copy stayed 1392px wide
-at 1200 and 900px wide windows (2026-10-31). Declared to inherit, the same
-property updates in every child. So the column's room (`--lf-free-start`,
-`--lf-free-end`, `browser/layouts.css`) inherits, and a box outside the column's
-flow sets it back to zero. Recheck with
+A child or `::after` that takes a registered custom property declared
+`inherits: false` with `inherit` keeps its first value in Playwright WebKit 27.2
+when only that property changes on its parent; Chromium 158.0.8127.18 and
+Firefox 159.0 restyle it (2026-11-12, a parent's `--len` set from 10px to 30px
+left a child's and an `::after`'s `height: var(--len)` at 10px). On 2026-10-31
+the same engine kept a child's copy of the column's room through a window resize:
+an `available` block sized from it stayed 1392px wide at 1200 and 900px wide
+windows. So the column's room (`--lf-free-start`, `--lf-free-end`,
+`browser/layouts.css`) inherits, and a box outside the column's flow sets it back
+to zero; and a thread card's fade (`--lf-thread-fade-top`,
+`--lf-thread-fade-height`, `annotation-chrome.css`) inherits, though each write then
+restyles every element in the thread. Recheck with a page holding that pair of
+rules in `leaf-dev probe --browser webkit`, then with
 `test_a_breakout_grows_only_from_a_holder_that_spans_the_column` in
-`tests/browser/test_render_pages.py` under `webkit_browser`, after making the
-properties non-inheriting and passing them down with `inherit`.
+`tests/browser/test_render_pages.py` under `webkit_browser` after making the
+column's properties non-inheriting and passing them down with `inherit`.
 
 ### State-preserving content reordering
 

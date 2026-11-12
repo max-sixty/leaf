@@ -2951,18 +2951,20 @@ export function createVersionController({
       nextRender(() => recordPlaces([box]));
     });
     for (const type of ["popstate", "hashchange"]) addEventListener(type, releaseHolds);
-    // Arriving or editing changes the place even when no scroller moves. Keep the intact
-    // place now: an immediate resize can invalidate geometry before a later record runs.
-    // Record again after any seat or layout commits, once a frame for each box, in the
-    // latest record's turn: a key and the arrival it makes, or a key and its input, are
-    // read there once, after everything the later of them queued.
+    // Arriving or editing changes the place even when no scroller moves. It is recorded
+    // once a frame for each box, after any seat or layout commits, in the latest record's
+    // turn: a key and the arrival it makes, or a key and its input, are read there once,
+    // after everything the later of them queued. Read in the input's own task, it read
+    // the page's layout midway through that task's writes, a forced layout of the whole
+    // page on a long one, only to cover a window resized in the same frame; a frame that
+    // resized records nothing (`regionsSettled`), so a shift there restores the place
+    // recorded before the input.
     /** @type {Map<Element, number>} */
     const settling = new Map();
     const recordCurrentLocation = () => {
       const at = focused();
       if (!at || !focusInPage(at)) return;
       const box = boxOf(at);
-      recordPlaces([box], { currentLocation: true });
       cancelRender(settling.get(box));
       settling.set(
         box,

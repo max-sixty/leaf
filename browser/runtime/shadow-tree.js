@@ -130,8 +130,10 @@ const renderedParentNode = (node) =>
 // order, and a host stands for its whole tree only by losing the order inside it, so the
 // two ancestries are compared from the top instead: the first nodes where they part
 // share a parent, and that parent's tree orders them. A host's shadow root and its other
-// children share a parent and no tree, and the root comes first. `under` is whether
-// `node` is inside `root`, or `root` itself.
+// children share a parent and no tree, and the root comes first. `ordering()` answers
+// the same for a sort of many nodes, reading each node's climb once and each parent's
+// children once, where a comparison alone would read both climbs and walk the siblings
+// between the two. `under` is whether `node` is inside `root`, or `root` itself.
 /** @param {(node: Node) => Node | null} parentOf */
 export function alongClimb(parentOf) {
   /** @param {Node} node */
@@ -141,27 +143,63 @@ export function alongClimb(parentOf) {
       nodes.push(at);
     return nodes.reverse();
   };
+  /** @param {Node} first @param {Node} second */
+  const inTree = (first, second) =>
+    first.compareDocumentPosition(second) & first.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+  /**
+   * @param {Node[]} left
+   * @param {Node[]} right
+   * @param {(first: Node, second: Node) => number} siblings
+   */
+  const ordered = (left, right, siblings) => {
+    let index = 0;
+    while (index < left.length && index < right.length && left[index] === right[index])
+      index += 1;
+    const first = left[index];
+    const second = right[index];
+    if (!first || !second) return left.length - right.length;
+    if (isShadowRoot(first)) return -1;
+    if (isShadowRoot(second)) return 1;
+    return siblings(first, second);
+  };
   return {
     /** @param {Node} a @param {Node} b */
-    order(a, b) {
-      if (a === b) return 0;
-      const left = chain(a);
-      const right = chain(b);
-      let index = 0;
-      while (
-        index < left.length &&
-        index < right.length &&
-        left[index] === right[index]
-      )
-        index += 1;
-      const first = left[index];
-      const second = right[index];
-      if (!first || !second) return left.length - right.length;
-      if (isShadowRoot(first)) return -1;
-      if (isShadowRoot(second)) return 1;
-      return first.compareDocumentPosition(second) & first.DOCUMENT_POSITION_FOLLOWING
-        ? -1
-        : 1;
+    order: (a, b) => (a === b ? 0 : ordered(chain(a), chain(b), inTree)),
+    ordering() {
+      /** @type {Map<Node, Node[]>} */
+      const chains = new Map();
+      /** @param {Node} node */
+      const chainOf = (node) => {
+        let nodes = chains.get(node);
+        if (!nodes) chains.set(node, (nodes = chain(node)));
+        return nodes;
+      };
+      /** @type {Map<Node, Map<Node, number>>} */
+      const indices = new Map();
+      /** @param {Node} parent @param {Node} child */
+      const indexIn = (parent, child) => {
+        let at = indices.get(parent);
+        if (!at) {
+          at = new Map();
+          let index = 0;
+          for (let node = parent.firstChild; node; node = node.nextSibling)
+            at.set(node, index++);
+          indices.set(parent, at);
+        }
+        return /** @type {number} */ (at.get(child));
+      };
+      // Children of one node in its own tree stand in the order of its child list;
+      // anything else, such as a slot's fallback beside what it is assigned, is left to
+      // the tree as `order` leaves it.
+      /** @param {Node} first @param {Node} second */
+      const siblings = (first, second) => {
+        const parent = first.parentNode;
+        return parent && parent === second.parentNode
+          ? indexIn(parent, first) - indexIn(parent, second)
+          : inTree(first, second);
+      };
+      /** @param {Node} a @param {Node} b */
+      return (a, b) => (a === b ? 0 : ordered(chainOf(a), chainOf(b), siblings));
     },
     /** @param {Node | null | undefined} node @param {Node | null | undefined} root */
     under(node, root) {
@@ -181,6 +219,7 @@ export const under = alongClimb(composedParentNode).under;
 // the rendered tree, which includes slots and their shadow ancestors.
 const rendered = alongClimb(renderedParentNode);
 export const renderedOrder = rendered.order;
+export const renderedOrdering = rendered.ordering;
 export const renderedUnder = rendered.under;
 
 // Which layer a node stands in — the runtime's chrome, a declared label, or the
@@ -241,8 +280,9 @@ export const byRenderedOrder = (items, placeOfItem) => {
     if (place) placed.push({ item, place });
     else unplaced.push(item);
   }
+  const order = renderedOrdering();
   return [
-    ...placed.sort((a, b) => renderedOrder(a.place, b.place)).map(({ item }) => item),
+    ...placed.sort((a, b) => order(a.place, b.place)).map(({ item }) => item),
     ...unplaced,
   ];
 };

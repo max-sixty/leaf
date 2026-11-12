@@ -626,7 +626,7 @@ export function createThreadPreview({
   // clipped contents receive newly available room without requiring a complete fit.
   /** @param {number} room @param {number} cap @param {Reading | null} reading @param {Session} session */
   function measureThreadCard(room, cap, reading, session) {
-    preview.style.setProperty("--lf-thread-width", layoutPx(room));
+    preview.style.setProperty("max-width", layoutPx(room));
     const transcript = session.transcript;
     // Growing a top-held card may reveal new words below, but must not reveal lines
     // the reader had already scrolled past. Leave that scroll travel in its transcript.
@@ -636,14 +636,14 @@ export function createThreadPreview({
         cap,
         preview.offsetHeight + Math.max(0, scrollLimit(transcript) - reading.scroll),
       );
-    const worn = parseFloat(preview.style.getPropertyValue("--lf-thread-max-height"));
+    const worn = parseFloat(preview.style.getPropertyValue("max-height"));
     const height = preview.offsetHeight;
     const overflow = [
       session.transcript,
       ...previewList.querySelectorAll(REPLY_BOX),
     ].some((box) => box && box.scrollHeight > box.clientHeight + 0.5);
     if (!(worn >= 0) || cap < height - 0.5 || (overflow && cap > height + 0.5))
-      preview.style.setProperty("--lf-thread-max-height", layoutPx(cap));
+      preview.style.setProperty("max-height", layoutPx(cap));
     // A reader at the end stays there through this fit by the transcript's own keeper
     // (`syncPreviewTranscript`).
     if (reading?.latest) showArrival(session, reading.transcript);
@@ -813,7 +813,7 @@ export function createThreadPreview({
               (session.width ?? Infinity) / scale.x,
             );
             preview.style.setProperty(
-              "--lf-thread-min-width",
+              "min-width",
               layoutPx(session.width === null ? Math.min(cardMinimum(), room) : room),
             );
             // Choosing its spot, the card is capped by the boundary alone, and slides

@@ -10,7 +10,7 @@ have to picture from a description, and put that thing on the page in its own fo
   pair (`authoring-evidence.md`, "Interactive and visual evidence").
 - A behavior, such as an interaction, a motion or a process over time, runs: in a live
   sample the user operates (`live-samples.md`), or in `lf-motion` from the `motion`
-  package.
+  package. An order of events between actors is an `lf-timeline`.
 - A proposal or mechanism nothing can show yet is drawn: where things sit, what
   contains, calls or feeds what, how a state changes, today beside the proposal, and
   alternatives in one frame at one scale.

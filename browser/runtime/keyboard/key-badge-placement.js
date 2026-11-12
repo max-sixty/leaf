@@ -4,7 +4,8 @@
    a different control: a digit laid over a neighbour's corner reads as that neighbour's.
    It may move back inside the viewport, but it yields wherever that move would cover
    fixed chrome or another badge: its ordered choices make a missing digit inferable. Opaque generated target
-   hints instead use the no-drop placement in hints.js.
+   hints instead spread apart while each still reads as its own target's (hints.js,
+   `seatHints`).
 
    One pass constructs this reading once and asks it for every member, so the clips over
    shared ancestors are walked once and every member is admitted, tested for exposure,
@@ -78,7 +79,8 @@ export function keyBadgePlacement() {
   // floating panel's row states the armed map's filter and changes as the user types it,
   // so a map that read it would lose members as it armed and swap codes as its own
   // legend grew. A chip that would land there is moved by the placement pass instead
-  // (`spreadHints`, hints.js), which keeps the route where dropping the member loses it.
+  // (`seatHints`, hints.js), or withheld where no move leaves it reading as its own
+  // target's, and its member stays in the map either way.
   /** @param {Box | null | undefined} box @param {number} [sourceTop] */
   const clearBox = (box, sourceTop = box?.top) => {
     if (!box) return null;

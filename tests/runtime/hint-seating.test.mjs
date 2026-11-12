@@ -20,10 +20,9 @@ const box = (left, top, width, height) => ({
 });
 const chip = (left, top) => box(left, top, 20, 16);
 const seat = (faces, over = {}) =>
-  seatHints(faces, { band: 2, viewport, ...over }).map(({ box: { left, top } }) => ({
-    left,
-    top,
-  }));
+  seatHints(faces, { band: 2, viewport, ...over }).map(
+    ({ box }) => box && { left: box.left, top: box.top },
+  );
 
 test("a chip drawn on another is seated below it", () => {
   const target = box(100, 100, 200, 20);
@@ -47,10 +46,134 @@ test("a chip below its target is centred under it and clears it", () => {
 });
 
 test("a chip past the window's corner is held inside the band", () => {
-  const target = box(900, 700, 90, 20);
-  assert.deepEqual(seat([{ start: chip(990, 795), target }]), [
+  // The last few pixels of a control show in the window's corner.
+  const target = box(990, 795, 10, 5);
+  assert.deepEqual(seat([{ start: chip(980, 787), target }]), [
     { left: 978, top: 782 },
   ]);
+});
+
+// Whether each seated chip reads as its own row's: no other row's band is nearer the
+// chip's middle than its own row's.
+const readsAsOwnRow = (seated, rows) => {
+  for (const { face, box: at } of seated.filter(({ box }) => box)) {
+    const middle = (at.top + at.bottom) / 2;
+    const off = (row) => Math.max(row.top - middle, middle - row.bottom, 0);
+    assert.ok(
+      rows.every((row) => off(row) >= off(face.target)),
+      `the chip for the row at ${face.target.top} stands at ${at.top}`,
+    );
+  }
+};
+const overlapping = (boxes) =>
+  boxes.flatMap((one, at) =>
+    boxes
+      .slice(at + 1)
+      .filter(
+        (other) =>
+          one.left < other.right &&
+          other.left < one.right &&
+          one.top < other.bottom &&
+          other.top < one.bottom,
+      )
+      .map((other) => `${one.top} and ${other.top}`),
+  );
+
+// The middle of a box, down the page.
+const middle = (one) => (one.top + one.bottom) / 2;
+
+test("a crowded column levels each chip with its row and steps every other one out a column", () => {
+  // Rows closer together than a chip and its gap. Spread down the column, each chip
+  // stood further past its own row than the last, twelve rows in by four rows.
+  const rows = Array.from({ length: 12 }, (_, at) => box(100, 100 + 14 * at, 300, 14));
+  const seated = seatHints(
+    rows.map((target) => ({ start: chip(90, target.top - 8), target })),
+    { band: 2, viewport },
+  );
+  assert.deepEqual(
+    seated.map(({ face, box }) => [box.left, middle(box) === middle(face.target)]),
+    rows.map((_, at) => [at % 2 ? 68 : 90, true]),
+  );
+  assert.deepEqual(overlapping(seated.map(({ box }) => box)), []);
+});
+
+test("a crowded column whose codes grow a letter keeps both columns' left edges", () => {
+  // Chips centre on their corners, so a longer code would start further left.
+  const rows = Array.from({ length: 12 }, (_, at) => box(100, 100 + 14 * at, 300, 14));
+  const seated = seatHints(
+    rows.map((target, at) => {
+      const width = at < 6 ? 20 : 30;
+      return { start: box(100 - width / 2, target.top - 8, width, 16), target };
+    }),
+    { band: 2, viewport },
+  );
+  assert.deepEqual(
+    seated.map(({ box }) => box.left),
+    rows.map((_, at) => (at % 2 ? 53 : 85)),
+  );
+  assert.deepEqual(overlapping(seated.map(({ box }) => box)), []);
+});
+
+test("a crowded column at the window's edge withholds every other row's chip, the rest level", () => {
+  const rows = Array.from({ length: 12 }, (_, at) => box(4, 100 + 14 * at, 300, 14));
+  const seated = seatHints(
+    rows.map((target) => ({ start: chip(-6, target.top - 8), target })),
+    { band: 2, viewport },
+  );
+  assert.deepEqual(
+    seated.map(({ face, box }) => box && middle(box) === middle(face.target)),
+    rows.map((_, at) => (at % 2 ? null : true)),
+  );
+});
+
+test("a walk onto a crowded row moves no chip where every row's chip stands", () => {
+  const rows = Array.from({ length: 8 }, (_, at) => box(100, 100 + 14 * at, 300, 14));
+  const faces = rows.map((target) => ({ start: chip(90, target.top - 8), target }));
+  const lefts = (browsed) =>
+    seatHints(faces, { band: 2, viewport, browsed }).map(({ box }) => box.left);
+  assert.deepEqual(lefts(faces[3]), lefts(undefined));
+});
+
+test("a walk onto a row whose chip the window's edge withholds shows that chip", () => {
+  const rows = Array.from({ length: 8 }, (_, at) => box(4, 100 + 14 * at, 300, 14));
+  const faces = rows.map((target) => ({ start: chip(-6, target.top - 8), target }));
+  const seated = seatHints(faces, { band: 2, viewport, browsed: faces[3] });
+  assert.equal(middle(seated[3].box), middle(rows[3]));
+  readsAsOwnRow(seated, rows);
+});
+
+test("a chip the window's edge holds stands level with no other row", () => {
+  // Two pixels of the first row show at the window's head, above two whole rows.
+  const rows = [box(100, 0, 300, 2), box(100, 2, 300, 14), box(100, 16, 300, 14)];
+  const seated = seatHints(
+    rows.map((target) => ({ start: chip(90, target.top - 8), target })),
+    { band: 2, viewport },
+  );
+  readsAsOwnRow(seated, rows);
+});
+
+test("a chip with no seat beside its own target is withheld", () => {
+  // Three pixels of a row show at the window's foot, under the panel's band.
+  const panel = box(50, 760, 900, 40);
+  const target = box(100, 797, 300, 3);
+  assert.deepEqual(seat([{ start: chip(90, 789), target }], { barriers: [panel] }), [
+    null,
+  ]);
+});
+
+test("adjacent footnote markers' chips all stand, stacked around the markers", () => {
+  const markers = [300, 308, 316].map((left) => box(left, 100, 8, 24));
+  const seated = seat(
+    markers.map((target) => ({ start: chip(target.left - 10, 92), target })),
+  );
+  assert.ok(seated.every(Boolean), seated);
+  const boxes = seated.map(({ left, top }) => box(left, top, 20, 16));
+  for (const [at, one] of boxes.entries())
+    for (const other of boxes.slice(at + 1))
+      assert.ok(
+        one.bottom <= other.top || other.bottom <= one.top,
+        `${one.top} and ${other.top} collide`,
+      );
 });
 
 test("before-target chips stay outside the words, including when the window clamps them", () => {
@@ -63,6 +186,13 @@ test("before-target chips stay outside the words, including when the window clam
   const target = box(0, 100, 200, 20);
   assert.deepEqual(seat([{ start: chip(0, 100), target, placement: "before" }]), [
     { left: 2, top: 82 },
+  ]);
+});
+
+test("a before chip whose target fills the window stands on its target", () => {
+  const page = box(0, 0, 1000, 800);
+  assert.deepEqual(seat([{ start: chip(0, 0), target: page, placement: "before" }]), [
+    { left: 2, top: 2 },
   ]);
 });
 

@@ -263,7 +263,7 @@ def _clipped_content(at: str, v: dict) -> str:
     if v["across"]:
         cuts.append(
             f"{v['across']}px of it past its width — let it wrap, or scroll it"
-            ' sideways with overflow-x: auto and class="scroll"'
+            ' sideways with overflow-x: auto and class="lf-scroll"'
         )
     return f"{at} cuts off its content where no scroll reaches it: " + "; ".join(cuts)
 
@@ -678,7 +678,7 @@ _TEXT = {
         )
         + 'to give it more room, mark it data-width="wide" or "available" rather than'
         " sizing it past the column, or scroll it sideways in a box of its own with"
-        ' overflow-x: auto and class="scroll"'
+        ' overflow-x: auto and class="lf-scroll"'
     ),
     "outside-frame": lambda at, v: (
         f"{at} stands {v['past']}px outside the {v['frame']} that frames it — declare"
@@ -877,7 +877,7 @@ _TEXT = {
     "reserved-markers": lambda at, v: (
         f"{at} at line {v['line']} wears the runtime's own markers"
         f" ({', '.join(v['markers'])}); the lf- and data-lf- namespaces are the"
-        " runtime's to write"
+        " runtime's to write, but for the classes Leaf's idioms name"
     ),
     "ids-taken-by-messages": lambda at, v: (
         f"ids already taken by message markup: {_json(v['ids'])}"

@@ -535,8 +535,8 @@ forwarded HTTP 5xx responses by status, method, `source` and `retried`:
 `adapter` means the response carried Python's `Leaf-Release` stamp;
 `disconnected` means it matched one of the Containers SDK's proxy-failure
 responses; `unclassified` means neither was established. A `disconnected`
-`GET` or `HEAD` is sent once more (`retried: true`), and the visitor sees the
-second answer; a write is never resent. These records retain no URL or response
+`GET`, `HEAD` or `POST` to `api/user-view` is sent once more (`retried: true`),
+and the visitor sees the second answer; no other write is resent. These records retain no URL or response
 body. Use their native trace ID to join the request's invocation records. A
 `disconnected` response identifies the proxy boundary, not why its container
 connection was lost.

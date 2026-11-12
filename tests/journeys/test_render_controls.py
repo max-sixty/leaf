@@ -306,7 +306,7 @@ RING_CASES = (
             "notification-playground": (
                 (
                     "lf-playground input[type=radio]",
-                    ":is(.lf-choice, .choice)[data-lf-control-focus-visible]",
+                    ".lf-choice[data-lf-control-focus-visible]",
                 ),
             ),
             "pr-walkthrough": (

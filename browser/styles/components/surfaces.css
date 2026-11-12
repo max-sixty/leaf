@@ -562,7 +562,6 @@ a[data-lf-external]::after,
   )
 ),
 .lf-btn,
-.button,
 button.lf-inline-action,
 .lf-react,
 .lf-margin-entry {
@@ -594,7 +593,6 @@ button.lf-inline-action,
 }
 :where(
   .lf-btn,
-  .button,
   button.lf-icon-action,
   button.lf-inline-action,
   button.lf-mark-action,

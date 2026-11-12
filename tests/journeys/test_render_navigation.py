@@ -310,7 +310,7 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
 
 
 def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serve):
-    """A declared scroll surface (`class="scroll"`) that starts scrolling after the page
+    """A declared scroll surface (`class="lf-scroll"`) that starts scrolling after the page
     loads is reachable, shows its edge mark, and starts the sticky-header slot again, as
     it does when the page loads with it scrolling: whether a shorter window, a narrower container, or a page script made
     it scroll, by a class it adds as it adapts to the box's size or by a box it inserts,
@@ -329,10 +329,10 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
             leaf_page(
                 "Late scrollers",
                 '<div id="meter"></div>'
-                f'<div id="by-window" class="scroll">{wide}</div>'
+                f'<div id="by-window" class="lf-scroll">{wide}</div>'
                 '<div id="holder">'
-                f'<div id="by-container" class="scroll">{wide}</div></div>'
-                f'<div id="by-script" class="scroll">{wide}</div>'
+                f'<div id="by-container" class="lf-scroll">{wide}</div></div>'
+                f'<div id="by-script" class="lf-scroll">{wide}</div>'
                 '<details id="more"><summary>More</summary><table id="drawn"><tbody>'
                 "<tr><td>Cell</td></tr></tbody></table></details>",
                 head="<style>.wide { width: 900px; }"
@@ -365,7 +365,7 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
         }).observe(box);
         const inserted = document.createElement('div');
         inserted.id = 'by-insert';
-        inserted.className = 'scroll';
+        inserted.className = 'lf-scroll';
         inserted.innerHTML = '<div class="wide">An inserted block.</div>';
         document.querySelector('main').append(inserted);
         layoutChanged(inserted);
@@ -1421,7 +1421,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     obligation_key = next(key for key in mixed_codes if key != "reading:threadList")
 
     page.keyboard.press("m")
-    filtered = page.locator(CHIPS)
+    filtered = page.locator(f"{CHIPS}:visible")
     expect(filtered).to_have_count(2)
     assert address_codes(page) == list(mixed_codes.values())
     page.keyboard.press("Escape")
@@ -1484,7 +1484,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     page.evaluate("() => document.activeElement?.blur()")
     page.keyboard.press("g")
     page.keyboard.press("h")
-    expect(page.locator(CHIPS)).to_have_count(0)
+    expect(page.locator(f"{CHIPS}:visible")).to_have_count(0)
     expect(page.locator(".lf-live")).to_have_text("No visible hyperlinks.")
     expect_panel_says(page, "No visible hyperlinks.")
     page.evaluate(
@@ -1514,7 +1514,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     resized(page, 1200, 800)
     expect_panel_says(page, "No visible hyperlinks.")
-    expect(page.locator(CHIPS)).to_have_count(0)
+    expect(page.locator(f"{CHIPS}:visible")).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator(CHIPS).first).to_be_visible()
     expect(page.locator(".lf-live")).to_have_text("All go-to targets.")
@@ -1538,10 +1538,14 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     page.keyboard.press("h")
     links = page.locator(f'{CHIPS}[data-lf-go-to-kind="Link"]')
     expect(links).to_have_count(3)
-    expect(page.locator(f'{CHIPS}:not([data-lf-go-to-kind="Link"])')).to_have_count(0)
+    expect(
+        page.locator(f'{CHIPS}:visible:not([data-lf-go-to-kind="Link"])')
+    ).to_have_count(0)
     resized(page, 1180, 800)
     expect(links).to_have_count(3)
-    expect(page.locator(f'{CHIPS}:not([data-lf-go-to-kind="Link"])')).to_have_count(0)
+    expect(
+        page.locator(f'{CHIPS}:visible:not([data-lf-go-to-kind="Link"])')
+    ).to_have_count(0)
     page.keyboard.type(address_code(page, "Link", "lk2"))
     page.wait_for_url(re.compile(r"#p2$"))
     expect(page.locator("#p2")).to_be_focused()

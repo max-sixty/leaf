@@ -1505,6 +1505,76 @@ def test_kernel_selectors_name_no_package_tag():
     assert leaks == [], leaks
 
 
+def test_the_kernel_styles_no_class_a_page_coins():
+    """The kernel reaches a page's element by a class only where that class is one of
+    Leaf's own names (browser/AGENTS.md, "Leaf's elements wear only Leaf's names"): an
+    `lf-` class, which a page writes only where a kernel idiom lets it, as `lf-btn`
+    does, or a Layout's. Before this check it styled a page's own `.button`, `.field`,
+    `.choice` and `.scroll`, so a plain page's `<label class="choice">` took Leaf's aim
+    floor and grew its form (tests/fixtures/plain/form.html). A kernel sheet's selectors and `@scope` preludes, and the
+    selectors the runtime hands a DOM query, name no other class but a library's on the
+    elements Leaf draws for it: PhotoSwipe's in the chrome's lightbox, and CodeMirror's
+    in a text field's closed tree."""
+    authored = ("lf-", "layout-", "density-")
+    libraries = ("pswp", "cm-")
+
+    def classes(tokens):
+        """The class selectors among `tokens`, in and out of `:is()`-like arguments."""
+        previous = None
+        for token in tokens:
+            if (
+                token.type == "ident"
+                and previous is not None
+                and previous.type == "literal"
+                and previous.value == "."
+            ):
+                yield token.value
+            if token.type in ("function", "() block"):
+                yield from classes(
+                    token.arguments if token.type == "function" else token.content
+                )
+            previous = token
+
+    def coined(selector):
+        return sorted(
+            name
+            for name in classes(tinycss2.parse_component_value_list(selector))
+            if not name.startswith(authored + libraries)
+        )
+
+    def preludes(rules):
+        for rule in rules:
+            if rule.type == "qualified-rule" or (
+                rule.type == "at-rule" and rule.lower_at_keyword == "scope"
+            ):
+                yield tinycss2.serialize(rule.prelude).strip()
+            if getattr(rule, "content", None) is not None:
+                yield from preludes(tinycss2.parse_blocks_contents(rule.content))
+
+    leaks = []
+    for sheet in sorted(schema_model.ASSETS.rglob("*.css")):
+        where = sheet.relative_to(schema_model.ASSETS)
+        if "vendor" in sheet.parts and where.name != "webawesome-native.css":
+            continue
+        rules = tinycss2.parse_stylesheet(sheet.read_text(), skip_comments=True)
+        leaks += [f"{where}: {coined(p)}" for p in preludes(rules) if coined(p)]
+    modules = [
+        module
+        for module in sorted(schema_model.ASSETS.rglob("*.js"))
+        if "vendor" not in module.parts
+    ]
+    queries = json.loads(js_facts("queries", modules))
+    assert any(queries.values()), "no DOM query was read — the reading is broken"
+    for module in modules:
+        where = module.relative_to(schema_model.ASSETS)
+        leaks += [
+            f"{where}: {coined(selector)}"
+            for selector in queries[str(module)]
+            if coined(selector)
+        ]
+    assert leaks == [], leaks
+
+
 def test_a_sheet_both_trees_take_names_the_widgets_it_styles():
     """A package's widget-shadow.css goes into the document's lf-base as well as each
     shadow tree, with no scope around it (`layer.py`, `compose`), so each rule names
@@ -2429,12 +2499,12 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
     # One sheet gives both delivery trees the default.
     face_sheet = schema_model.ASSETS / "styles/control-face.css"
     control_face = (
-        ":where( :is(:root, :host) .lf-ui-face, :is(:root, :host) .button, "
-        ":is(:root, :host) .field, "
+        ":where( :is(:root, :host) .lf-ui-face, :is(:root, :host) .lf-btn, "
+        ":is(:root, :host) .lf-field, "
         ":root body :is(button, input, select, textarea):not(.lf-chrome *), "
         ":host :is(button, input, select, textarea) )"
     )
-    control_ink = ":where(.lf-ui-face, .button, .field)"
+    control_ink = ":where(.lf-ui-face, .lf-field)"
     default = [(face_sheet, control_face), (face_sheet, control_ink)]
     assert faces[:2] == default, faces[:2]
     defaults = [

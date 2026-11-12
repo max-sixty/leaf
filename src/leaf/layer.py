@@ -497,8 +497,9 @@ def portable_sheet(inputs: list[Path], tags: list[str]) -> bytes:
     shadow.css) nested under `:where(<the layer's tags>)`, then the sheets of each package that ships
     widgets (widget-shadow.css and defaults.css), all in lf-base, the tier a widget
     module's adopted rules take off Leaf too (runtime/base-layer.js). The nesting keeps
-    the shared sheet's page-wide control faces (`.button`, `.field`, a native control's
-    font) to the widgets' insides, so the host's own markup keeps its look; it adds no
+    the shared sheet's page-wide faces (a native control's font, and the faces a Leaf
+    page's own controls take by name, such as `.lf-btn`) to the widgets' insides, so
+    the host's own markup keeps its look; it adds no
     specificity and keeps each rule's order, so a widget's insides rank as on a Leaf
     page. A rule there that reaches the widget element itself, or declares on `:root`,
     reaches nothing on the host, which is why the tokens stand outside it. The shared

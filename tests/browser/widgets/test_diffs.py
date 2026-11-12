@@ -395,10 +395,10 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
             leaf_page(
                 "Scrolling boxes",
                 f'<aside><div class="layout-track" id="side">{long_diff("in-side")}</div></aside>'
-                f'<div class="layout-column"><h1>Scrolling boxes</h1><div id="box" class="scroll">{long_diff("in-box")}</div>'
-                '<div id="inline" class="scroll" style="max-height: 320px; overflow: auto">'
+                f'<div class="layout-column"><h1>Scrolling boxes</h1><div id="box" class="lf-scroll">{long_diff("in-box")}</div>'
+                '<div id="inline" class="lf-scroll" style="max-height: 320px; overflow: auto">'
                 f"{long_diff('in-inline')}</div>"
-                '<div id="hidden" class="scroll" style="max-height: 320px; overflow: hidden">'
+                '<div id="hidden" class="lf-scroll" style="max-height: 320px; overflow: hidden">'
                 f"{long_diff('in-hidden')}</div>"
                 '<div id="panel" class="tall"><p>Panel.</p></div>'
                 + "<p>Filler.</p>" * 60

@@ -1714,8 +1714,9 @@ def test_a_has_leads_only_to_a_subject_naming_an_element():
     `:has()` leads on to a subject naming none, as `.a:has(> b) > :not(c)`,
     `.a:has(> b) > *` and `.a:has(> b) :first-child` do, makes every write to an
     attribute another `:has()` reads restyle everything under the element whose `:has()`
-    the write may change. Focus marks are such attributes, so every focus move
-    restyled the page, whether or not the rule matched anything there. A pseudo-element
+    the write may change, whether or not the rule matched anything there: a pointer's
+    hover and a margin row's selection are such states, and focus marks were until no
+    `:has()` read them (`test_no_has_reads_where_focus_is`). A pseudo-element
     Chromium draws in the element's own shadow tree, such as `::details-content`,
     `::placeholder` or `::file-selector-button`, names no element either; `::before`,
     `::after` and `::marker` stand for their element. Measured on 11 November 2026 by
@@ -1795,6 +1796,48 @@ def _untyped_after_has(selector):
         if part.startswith((":is(", ":where(", ":not("))
         for argument in _split_top(part[part.index("(") + 1 : -1], ",")
     )
+
+
+def test_no_has_reads_where_focus_is():
+    """No `:has()` in Leaf's sheets reads where focus is: a focus mark, a box's
+    `data-lf-control-focus` marks, or a focus pseudo-class. A box that shows the focus of
+    a control inside it is named by the control (`--lf-focus-box`, base.css), and
+    focus.js marks the box. In Chromium, a `:has()` reading a focus mark made each focus
+    move restyle what lay under every element whose `:has()` the move might change, and
+    the whole page wherever any rule, an author's included, put a `:has()` before a
+    subject naming no element. Measured on 12 November 2026 on `pr-walkthrough`, moving
+    focus between two links in main: with the 25 such rules Leaf had, a move restyled
+    1,419 elements (5.5 ms), and 7,345 (22 ms) with an authored `.zz:has(> .yy) > *`
+    added; without them it restyled 18, with that rule or without it."""
+    reads_focus = re.compile(r"data-lf-[\w-]*focus|:focus")
+    found = []
+    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
+        for sheet in sorted(root.rglob("*.css")):
+            if "vendor" in sheet.parts:
+                continue
+            where = sheet.relative_to(ROOT)
+            selectors = [selector for _c, _e, selector, _d in _style_rules(sheet)]
+            for selector in [*selectors, *_scope_roots(sheet)]:
+                if any(map(reads_focus.search, _has_arguments(selector))):
+                    found.append(f"{where}: {selector}")
+    assert not found, (
+        "name the box that shows a control's focus from the control, with "
+        "--lf-focus-box, and read its data-lf-control-focus marks:\n" + "\n".join(found)
+    )
+
+
+def _has_arguments(selector):
+    """The argument of every `:has()` in a selector, nested ones included."""
+    arguments, at = [], selector.find(":has(")
+    while at != -1:
+        depth = 0
+        for end in range(at + 4, len(selector)):
+            depth += (selector[end] in "([") - (selector[end] in ")]")
+            if not depth:
+                break
+        arguments.append(selector[at + 5 : end])
+        at = selector.find(":has(", at + 5)
+    return arguments
 
 
 def test_controls_are_built_by_role_and_never_by_face():

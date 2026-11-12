@@ -11,10 +11,12 @@
    the complete map, which is why codes are assigned here rather than by the session.
 
    Lowercase `g`, `j`, `k`, and `p` retain their structural meanings, while `f`, `h`, `m`,
-   and `t` name filters; `i` resumes writing, `v` restores selection and `z` aligns the current item at the top; these are excluded from the generated alphabet. `g g` and
-   `g G` glide to the page edges; from a focused thread, `g k` and `g j` place its card at
-   an edge of the list; `g p` returns focus to the page while leaving open surfaces
-   in place. Uppercase mnemonics remain named
+   and `t` name filters; `i` resumes writing, `v` restores selection and `z` aligns the
+   current item at the top; these are excluded from the generated alphabet. `g g` and
+   `g G` glide what `u` and `d` move, a workspace's pane as well as the page, to its
+   edges (navigation.js, `stepReading`); from a focused thread, `g k` and `g j` place
+   its card at an edge of the list; `g p` returns focus to the page while leaving open
+   surfaces in place. Uppercase mnemonics remain named
    global destinations: `g T` Threads, `g M` On Me, `g L` All pages, `g P` the
    searchable Page Map and `g V` Versions. `g T`, `g M` and `g L` open the floating
    panel's view of that name, and `g V` its Versions, through the panel's own doors
@@ -75,7 +77,7 @@ import { closestAcross, inPage, pageQueryAll } from "../passages.js";
 
 import { claimsEsc, saying } from "./scopes.js";
 import { repaint } from "../repaint.js";
-import { glideTo, pageScroller, stopGlide } from "../scrolling.js";
+import { pageScroller, stopGlide } from "../scrolling.js";
 
 // The eye's copy of the go-to map. The layer is aria-hidden because the live region and
 // Tab walk provide the same map without asking a screen reader to traverse paint chrome.
@@ -98,6 +100,7 @@ goToHintLayer.setAttribute("aria-hidden", "true");
  * @property {() => boolean} leavesOffered
  * @property {{visibleMarginEntries: () => HTMLElement[], activateMarginEntry: (element: HTMLElement) => unknown, marginEntryKind: (element: Element) => string | null} | null} marginEntries
  * @property {typeof import("../navigation.js").placeThreadEdge} placeThreadEdge
+ * @property {ReturnType<typeof import("../navigation.js").createNavigation>["stepReading"]} stepReading
  */
 /** @param {GoToOptions} options */
 export function createGoToSequence({
@@ -109,6 +112,7 @@ export function createGoToSequence({
   leavesOffered,
   marginEntries,
   placeThreadEdge,
+  stepReading,
 }) {
   // How a destination in this sequence is written where the sequence itself is not on screen —
   // a notice naming the way back to a draft that has just gone down, say. Spelled off the
@@ -649,12 +653,12 @@ export function createGoToSequence({
           {
             id: "navigation.page.top",
             binding: "g",
-            title: "Go to the top of the page",
+            title: "Go to the top",
           },
           {
             id: "navigation.page.bottom",
             binding: "Shift+g",
-            title: "Go to the bottom of the page",
+            title: "Go to the bottom",
           },
         ],
         title: "top / bottom",
@@ -662,8 +666,9 @@ export function createGoToSequence({
         when: atGoToTargets,
         runKey: (binding) => {
           setGoToSequence(false); // before the travel, so the arrival's own scrolling paints nothing
-          const box = pageScroller;
-          glideTo(box, binding === "g" ? 0 : box.scrollHeight);
+          // A step no box can outrun stops at the edge of the box that takes it, so an
+          // edge moves what `u` and `d` move, chosen and chained the same way.
+          stepReading(binding === "g" ? -Infinity : Infinity, "page");
         },
       },
       {

@@ -199,7 +199,8 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     arrows from the node last pressed. A permanent `tabindex` on body made the body the
     focusable ancestor of every word, so the click focused it and those keys scrolled the
     root, which a full-height workspace keeps still: both panes stayed at 0. Leaf's own `d` and
-    `j` read only focus and did the same."""
+    `j` read only focus and did the same, and Go-to's `g g` and `g G` still glided only
+    the root once `d` and `u` followed the pane."""
     left_body = "#left-reading > :not(header, footer)"
     page = open_page(browser, serve(READING_REGIONS_PAGE))
     tops = """() => ['left-reading', 'right-reading'].map((id) =>
@@ -232,6 +233,18 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     assert page.evaluate(reading) == "left-reading"
     page.keyboard.press("u")
     page.wait_for_function(f"() => ({tops})()[0] < {left}")
+    # The edges move the pane `u` moved, and leave the other where `d` left it.
+    right = page.evaluate(tops)[1]
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+g")
+    page.wait_for_function(f"""() => {{
+      const body = document.querySelector('{left_body}');
+      return body.scrollHeight - body.clientHeight - body.scrollTop <= 2;
+    }}""")
+    page.keyboard.press("g")
+    page.keyboard.press("g")
+    page.wait_for_function(f"() => ({tops})()[0] === 0")
+    assert page.evaluate(tops)[1] == right
 
 
 @pytest.mark.parametrize("commented", [False, True], ids=["empty", "commented"])

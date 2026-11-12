@@ -931,10 +931,12 @@
       --lf-end-room: var(--lf-foot-room);
       margin-block-end: 0;
     }
+    /* The body is the one region between header and footer, so a body short of
+     * main's end has the footer after it. */
     html[data-lf-live][data-lf-layout~="workspace"]
       body
-      > main.layout-workspace:has(> footer)
-      > :not(header, footer) {
+      > main.layout-workspace
+      > :not(header, footer, :last-child) {
       --lf-end-room: 0px;
     }
     html[data-lf-live][data-lf-layout~="workspace"]

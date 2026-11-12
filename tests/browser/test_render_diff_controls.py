@@ -436,16 +436,16 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
         expect(folds.last).not_to_be_visible()
         expect(row).to_have_attribute("aria-selected", "true")
         expect(other).to_have_attribute("aria-selected", "false")
-        # Reading new evidence does not take ownership of a selection made while
-        # that read is in flight. Hold one boundary to make the ordering exact.
+        # Preparing new evidence does not take ownership of a selection made while
+        # that preparation is in flight. Hold one boundary to make the ordering exact.
         page.evaluate("""() => {
           const diff = document.getElementById('patch');
-          const readEntry = diff.readEntry.bind(diff);
+          const prepareEntry = diff.prepareEntry.bind(diff);
           const held = new Promise(resolve => window.releaseEvidence = resolve);
-          diff.readEntry = async (...args) => {
+          diff.prepareEntry = async (...args) => {
             window.evidenceHeld = true;
             await held;
-            return readEntry(...args);
+            return prepareEntry(...args);
           };
         }""")
         data_model.cmd_data_set(

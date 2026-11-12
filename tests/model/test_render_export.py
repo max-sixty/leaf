@@ -123,8 +123,8 @@ def test_export_draft_refuses_invalid_source_and_version_selection(page_dir, tmp
 
 
 def test_an_export_holds_each_data_value_once_outside_its_documents(serve, tmp_path):
-    """A source's value and each deferred field are one gzipped body apiece, so no
-    value rides the composed document through its parsers or reaches the file twice."""
+    """Each source's value is one gzipped body, so no value rides the composed
+    document through its parsers or reaches the file twice."""
     serve(
         leaf_page(
             "Data once",

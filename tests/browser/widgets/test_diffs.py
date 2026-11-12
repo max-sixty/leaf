@@ -1109,6 +1109,68 @@ def test_a_diff_refresh_leaves_an_inline_reply_to_its_thread_owner(
     assert current.evaluate(reading) == before
 
 
+def test_a_file_opened_while_a_newer_source_draws_shows_the_newer_lines(browser, serve):
+    """A closed file opened while a newer revision prepares shows that revision.
+
+    Opening it waits for that revision's drawing. A rendering of the file's older
+    lines started at once would carry the same rendering number as the newer
+    revision, and landing after it, would put the older lines back.
+    """
+
+    def patch(path, word):
+        return (
+            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+            f"@@ -1 +1 @@\n-old\n+{word}\n"
+        )
+
+    def value(word):
+        return patch_manifest(patch("a.py", word) + patch("b.py", word))
+
+    url = serve(MANIFEST_DIFF_PAGE)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value("first"))
+    page = open_page(browser, url)
+    a, b = (page.locator("lf-diff summary").nth(index) for index in (0, 1))
+    a.click()
+    expect(page.locator('lf-diff [data-lf-datum=\'["a.py","new",1]\']')).to_have_text(
+        "first"
+    )
+    # Hold the newer revision's preparation of the open file, and any preparation of
+    # the closed file's older lines until that revision has committed. The second
+    # toggle listener runs after the widget's own has started the file's load.
+    page.evaluate("""() => {
+      const diff = document.getElementById('patch');
+      const prepare = diff.prepareEntry;
+      const older = new Set(diff.fileEntries.map(({source}) => source));
+      window.__leafHeld = {};
+      diff.fileEntries[1].details.addEventListener('toggle', () => {
+        window.__leafHeld.opened = true;
+      });
+      diff.prepareEntry = async function(source, renderKey) {
+        if (!older.has(source) && source.path === 'a.py')
+          await new Promise(resolve => { window.__leafHeld.newer = resolve; });
+        if (older.has(source) && source.path === 'b.py')
+          await new Promise(resolve => { window.__leafHeld.older = resolve; });
+        return prepare.call(this, source, renderKey);
+      };
+    }""")
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value("latest"))
+    page.wait_for_function("Boolean(window.__leafHeld.newer)")
+    b.click()
+    page.wait_for_function("window.__leafHeld.opened === true")
+    page.evaluate("""async () => {
+      const diff = document.getElementById('patch');
+      const b = diff.fileEntries.find(({record}) => record.path === 'b.py');
+      const older = b.loading?.promise;
+      window.__leafHeld.newer();
+      await diff.updateComplete;
+      window.__leafHeld.older?.();
+      await older;
+    }""")
+    expect(page.locator('lf-diff [data-lf-datum=\'["b.py","new",1]\']')).to_have_text(
+        "latest"
+    )
+
+
 # The line is one row split across syntax spans inside a shadow root, so the range is built
 # over its text nodes rather than dragged: a pointer drag cannot reach words that are off
 # the box in the state this starts in.

@@ -134,7 +134,7 @@
           "type": ["string", "null"]
         },
         "data": {
-          "description": "The page's data sources, each with its whole value (`data.read_data`). An answer to a tab that names this `version` in `Leaf-Data-Version` leaves out `sources`, which the tab restores from the reading it holds.",
+          "description": "The page's data sources, each with its value (`data.read_data`). An answer to a tab that names this `version` in `Leaf-Data-Version` leaves out `sources`, which the tab restores from the reading it holds.",
           "type": "object",
           "properties": {
             "version": { "type": "string" },

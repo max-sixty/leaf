@@ -3874,15 +3874,16 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
     [
         ([], "should be non-empty"),
         (
-            [{"path": "a.py"}] * 2,
-            "record keys must be unique",
+            [{"path": path} for path in ["a,b", "a", "b", "a,b", "a", "b"]],
+            'record keys must be unique; repeated ["a", "a,b", "b"]',
         ),
     ],
 )
 def test_data_set_refuses_a_diff_manifest_the_widget_cannot_list(
     page_dir, files, refusal
 ):
-    """A manifest needs a nonempty list of unique file keys."""
+    """A manifest needs a nonempty list of unique file keys, and a refusal names each
+    repeated key once, whatever characters it holds."""
     (page_dir / "index.html").write_text(
         before_choice(
             PAGE,
@@ -3896,7 +3897,7 @@ def test_data_set_refuses_a_diff_manifest_the_widget_cannot_list(
         input=json.dumps({"files": [{**file, "patch": patch} for file in files]}),
     )
     assert written.exit_code == 1
-    assert refusal in written.output
+    assert refusal in json.loads(written.output)["error"]
 
 
 def test_a_state_read_walks_an_unchanged_revision_once(page_dir, monkeypatch):

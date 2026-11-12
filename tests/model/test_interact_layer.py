@@ -2866,10 +2866,9 @@ def test_reading_a_page_composes_only_its_layers_vocabulary(
 
 
 def test_requests_arriving_together_compose_the_pages_layer_once(page_dir, monkeypatch):
-    """A cold server meets its page's requests together, such as a diff page's
-    deferred load for each file, and each needs the page's layer. The first composes
-    it and the rest wait for it; composing it once per request, all at once, kept a
-    visitor's first comment on leaf.page waiting behind 46 of them."""
+    """Requests that reach a cold server together each need the page's layer. The
+    first composes it and the rest wait for it, rather than each composing it at once
+    and sharing the CPU with every request behind them."""
     record = registry_storage.layer_record(page_dir)
     assert record is not None
     layer_model._vocabularies.clear()

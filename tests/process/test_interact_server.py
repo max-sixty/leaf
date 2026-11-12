@@ -1330,69 +1330,6 @@ def test_api_state_carries_each_sources_current_value(server, page_dir):
     )
 
 
-def test_keyed_records_refuse_a_repeated_key_and_arrive_whole(server, page_dir):
-    schema = {
-        "type": "object",
-        "properties": {
-            "files": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "key": {"type": "string"},
-                        "path": {"type": "string"},
-                        "patch": {"type": "string"},
-                    },
-                    "required": ["key", "path", "patch"],
-                    "additionalProperties": False,
-                },
-            }
-        },
-        "required": ["files"],
-        "additionalProperties": False,
-    }
-    declare_data_input(
-        page_dir, "review-patch", schema, contract="diff-files", activate=False
-    )
-    declare_on_page(
-        page_dir,
-        lambda registry: registry["$data"]["contracts"]["diff-files"].update(
-            records={"items": "files", "key": "key"}
-        ),
-    )
-    activated = revisioning_model.activate_source(page_dir)
-    assert activated.error is None
-    with pytest.raises(
-        data_model.DataError, match="record keys must be unique"
-    ) as repeated:
-        data_model.cmd_data_set(
-            page_dir,
-            "review-patch",
-            {
-                "files": [
-                    {"key": key, "path": "file", "patch": "diff"}
-                    for key in ["a,b", "a", "b", "a,b", "a", "b"]
-                ]
-            },
-        )
-    assert 'repeated ["a", "a,b", "b"]' in str(repeated.value)
-    value = {
-        "files": [
-            {
-                "key": key,
-                "path": key,
-                "patch": f"diff --git a/{key} b/{key}\n",
-            }
-            for key in ["src/a.py", "src/b.py"]
-        ]
-    }
-    data_model.cmd_data_set(page_dir, "review-patch", value)
-
-    status, body = fetch(f"{server}/api/state")
-    assert status == 200
-    assert json.loads(body)["data"]["sources"]["review-patch"]["value"] == value
-
-
 def test_a_historical_state_read_keeps_its_layer_and_reads_current_data(
     server, page_dir
 ):

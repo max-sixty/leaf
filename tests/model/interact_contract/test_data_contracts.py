@@ -1,5 +1,5 @@
 """Data contracts and widget data inputs: what the registry door refuses, run receipts,
-and bindings and deferred content across revisions and re-vendors."""
+and bindings across revisions and re-vendors."""
 
 import json
 from copy import deepcopy
@@ -363,18 +363,20 @@ def test_page_owned_data_contracts_can_change_after_publication(page_dir, change
 
     activation = revisioning_model.activate_source(page_dir)
     assert activation.error is None and activation.created
-    data_model.cmd_data_set(
-        page_dir,
-        "files",
-        {"files": [{"key": "app.py", "patch": "next", "body": "other"}]},
-    )
+    value = {"files": [{"key": "app.py", "patch": "next", "body": "other"}]}
+    if change == "records":
+        # Rows the new key tells apart and the old one doesn't.
+        value["files"].append({"key": "app.py", "patch": "next", "body": "more"})
+    data_model.cmd_data_set(page_dir, "files", value)
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code == 0, revendored.output
-    for registry in (old_registry, registry_storage.require_registry(page_dir)):
-        reading = data_model.read_data(page_dir, registry)["sources"]["files"]
-        assert reading["value"] == {
-            "files": [{"key": "app.py", "patch": "next", "body": "other"}]
-        }
+    current = registry_storage.require_registry(page_dir)
+    assert data_model.read_data(page_dir, current)["sources"]["files"]["value"] == value
+    old = data_model.read_data(page_dir, old_registry)["sources"]["files"]
+    if change == "records":
+        assert 'repeated ["app.py"]' in old["error"]
+    else:
+        assert old["value"] == value
 
 
 def test_data_binding_inventory_keeps_each_documents_captured_registry(

@@ -87,31 +87,22 @@ const allocation = (name) => /** @type {any} */ (document.body.getAttribute(name
 export const annotationMode = allocation("data-annotations") ?? "overlay";
 
 export const offlineInteractive = offlinePayload !== null;
-// An export holds each source's value outside its reading, as one gzipped JSON body
-// (`exporting.py`), a span of one embedded file at the address the payload names. The
-// state read decodes each value from a buffer of that file, which it then lets go.
-// Each read decodes its own copy, as each answer from a server is one, so the runtime
-// holds no decoded copy beside the reading it accepted.
-/** @param {ArrayBuffer} file @param {[number, number]} span */
-const decodeSpan = (file, [start, length]) =>
-  new Response(
-    /** @type {ReadableStream<BufferSource>} */ (
-      new Response(new Uint8Array(file, start, length)).body
-    ).pipeThrough(new globalThis.DecompressionStream("gzip")),
-  ).json();
 // The captured reading with its sources' values, as a served page's state answer
-// brings them.
+// brings them. An export holds the values outside its reading, as one gzipped JSON
+// object keyed by source (`exporting.py`) at the address the payload names. Each read
+// decodes its own copy, as each answer from a server is one, so the runtime holds no
+// decoded copy beside the reading it accepted.
 export const offlineState = async () => {
   if (!offlineInteractive) return null;
   const state = structuredClone(offlinePayload.state);
-  const file = await fetch(offlinePayload.data).then((response) =>
-    response.arrayBuffer(),
-  );
-  await Promise.all(
-    Object.entries(offlinePayload.values).map(async ([source, span]) => {
-      state.data.sources[source].value = await decodeSpan(file, span);
-    }),
-  );
+  const { body } = await fetch(offlinePayload.data);
+  const values = await new Response(
+    /** @type {ReadableStream<BufferSource>} */ (body).pipeThrough(
+      new globalThis.DecompressionStream("gzip"),
+    ),
+  ).json();
+  for (const [source, value] of Object.entries(values))
+    state.data.sources[source].value = value;
   return state;
 };
 /** @param {string} path */

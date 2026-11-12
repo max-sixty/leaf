@@ -29,8 +29,8 @@ embedded in full, including recordings: no size cap silently removes content, an
 the reported output byte count includes the base64 expansion.
 
 Data is embedded beside media, not in the reading the composed document carries:
-each source's value is one gzipped JSON body, a span of one embedded file, so the
-values cost startup one object URL. The runtime decodes them when it reads the page's
+the sources' values are one gzipped JSON object, embedded as one file, so they cost
+startup one object URL. The runtime decodes them when it reads the page's
 state, as a served page's first state answer brings them (`runtime/context.js`). A
 value inside the composed document would cross the package's JSON, the HTML parser
 and the reading's JSON before any widget read it, escaped again at each JSON layer.
@@ -87,25 +87,17 @@ def _data_url(resource: Resource) -> str:
     return f"data:{resource.mime};base64,{base64.b64encode(resource.data).decode()}"
 
 
-class _DataFile:
-    """The one embedded file holding every data body (the module header), each a span
-    the runtime reads (`offlineState` in `runtime/context.js`): a value's JSON,
-    gzipped. Nothing compresses a file opened from disk or sent as an attachment, and
-    gzip puts prose and code in the file at about 40% of their size, base64 included,
-    where uncompressed base64 takes 133%. Level 6 packs within 1% of gzip's default 9
-    in a third to a half of the time."""
-
-    def __init__(self) -> None:
-        self.data = bytearray()
-
-    def span(self, value) -> list[int]:
-        """Append one value's body, and return its offset and length."""
-        body = gzip.compress(
-            json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode(),
-            compresslevel=6,
-        )
-        self.data.extend(body)
-        return [len(self.data) - len(body), len(body)]
+def _data_body(values: dict) -> bytes:
+    """The one embedded file holding every source's value (the module header), which
+    the runtime reads (`offlineState` in `runtime/context.js`): a JSON object keyed by
+    source, gzipped. Nothing compresses a file opened from disk or sent as an
+    attachment, and gzip puts prose and code in the file at about 40% of their size,
+    base64 included, where uncompressed base64 takes 133%. Level 6 packs within 1% of
+    gzip's default 9 in a third to a half of the time."""
+    return gzip.compress(
+        json.dumps(values, ensure_ascii=False, separators=(",", ":")).encode(),
+        compresslevel=6,
+    )
 
 
 @dataclass
@@ -370,7 +362,7 @@ def export_document(
     against the embedded authoritative reading, so the file opens offline wherever the
     page itself names no other server.
     """
-    # The reading names each value's body rather than holding it (the module header).
+    # The reading leaves out the values, which the data file holds (the module header).
     values = {
         source: reading["value"]
         for source, reading in state["data"]["sources"].items()
@@ -410,13 +402,10 @@ def export_document(
     }
     embedded_resources["/shadow.css"] = inliner.address("/shadow.css")
     embedded_resources["/registry.json"] = inliner.address("/registry.json")
-    data_file = _DataFile()
-    values = {source: data_file.span(value) for source, value in values.items()}
     payload = json_script(
         {
             "state": state,
-            "data": inliner.embed(Resource(bytes(data_file.data), "application/gzip")),
-            "values": values,
+            "data": inliner.embed(Resource(_data_body(values), "application/gzip")),
             "resources": embedded_resources,
         }
     )

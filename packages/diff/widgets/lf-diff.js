@@ -17,8 +17,8 @@
  * renders only when it opens, whichever form supplied it; the alternative, a second
  * pipeline for patch text that rendered every file eagerly, drifted from the manifest's
  * on every fix. A source's evidence commits together after open files load. Lazy
- * disclosure joins the pending source render before reading its evidence, and a closed file shows
- * none of the previous revision while it loads current evidence. Line conversations
+ * disclosure joins the pending source render before rendering its file, and a closed file shows
+ * none of the previous revision while it renders the current one. Line conversations
  * follow the visible reader width while source lines may scroll horizontally. The
  * browser sizes those conversations from the reader container. Each source row owns
  * its gutter control; ordinary block flow places conversations between rows. Passage reveal
@@ -96,17 +96,16 @@ import { pierre, markSyntax } from "/widgets/pierre.js";
 /** @typedef {import("@pierre/diffs").FileDiffMetadata} NativeFile */
 /** @typedef {{path: string, previousPath?: string, operation: "copy" | "rename" | "add" | "delete" | "modify", hunkCount: number, binary: boolean, oldMode?: string, newMode?: string, additions: number, deletions: number}} FileRecord */
 /** @typedef {NativeFile & {record: FileRecord}} ParsedFile */
-/** @typedef {FileSummary & ({parsed: ParsedFile} | {patch: string})} SourceRecord */
+/** @typedef {{path: string} & ({file: ParsedFile} | {error: unknown})} SourceRecord */
 /** @typedef {{path: string, hunk: number} & ({side: "both", oldLine: number, newLine: number} | {side: "old", oldLine: number, newLine?: never} | {side: "new", newLine: number, oldLine?: never})} SourceLine */
 /** @typedef {SourceLine & {node: HTMLElement, row: HTMLDivElement, content: string}} RenderedLine */
 /** @typedef {Pick<FileRecord, "path"> & Partial<Omit<FileRecord, "path">>} FileSummary */
 /** @typedef {{outlet: HTMLElement, row: Element | null, active: boolean}} ThreadSeat */
 /** @typedef {{kind: "text", row: HTMLDetailsElement, details: HTMLDetailsElement, header: HTMLElement} | {kind: "metadata", row: HTMLDivElement, details: null, header: HTMLDivElement}} FilePresentation */
-/** @typedef {{node: HTMLDivElement, actions: HTMLDivElement, record: FileSummary, source: SourceRecord, file: ParsedFile | undefined, rendered: Awaited<ReturnType<typeof renderFile>> | null, filtered: boolean, loaded: boolean, refused: boolean, renderKey: string | null, loading: {rendering: number, promise: Promise<void>} | null, disclosure: {node: HTMLDetailsElement, open: boolean, changed: () => void} | null} & FilePresentation} FileEntry */
+/** @typedef {{node: HTMLDivElement, actions: HTMLDivElement, record: FileSummary, source: SourceRecord, rendered: Awaited<ReturnType<typeof renderFile>> | null, filtered: boolean, loaded: boolean, refused: boolean, renderKey: string | null, loading: {rendering: number, promise: Promise<void>} | null, disclosure: {node: HTMLDetailsElement, open: boolean, changed: () => void} | null} & FilePresentation} FileEntry */
 /** @typedef {FileEntry & {kind: "text"}} TextEntry */
 /** @typedef {FilePresentation & {kind: "text"}} TextPresentation */
 /** @typedef {{error: unknown} | {file: ParsedFile, renderKey: string | null, rendered: Awaited<ReturnType<typeof renderFile>> | null}} EntryPreparation */
-/** @typedef {{error: unknown} | {file: ParsedFile}} EntryEvidence */
 /** @type {Promise<typeof import("/vendor/pierre-parser.esm.js")> | null} */
 let parser = null;
 const parse = () => (parser ??= import("/vendor/pierre-parser.esm.js"));
@@ -121,17 +120,27 @@ const OPTIONS = Object.freeze({
   lineDiffType: "word-alt",
 });
 
-// The records every source form renders from, in the shape of the contract's file
-// manifest. A patch text is parsed once, strictly, so a malformed hunk never becomes
-// incomplete evidence, and each record carries its parsed file; a manifest's record
-// carries its own patch, which `readEntry` parses alone. The path keys a record in
-// either form; the contract refuses a manifest that repeats one, and this refuses a
-// patch text that does.
+// The records every source form renders from, one per file, each holding its parsed
+// file or the error that refused it. A patch text is parsed once, strictly, so a
+// malformed hunk never becomes incomplete evidence, and a failure refuses the whole
+// source. A manifest's patches are parsed one by one, so a patch this widget cannot
+// draw refuses only its own file; `applyEntry` reports it to the agent that stored
+// it, since the manifest's producer leaves judging a patch to this widget. The path
+// keys a record in either form; the contract refuses a manifest that repeats one, and
+// `parsedFiles` refuses a patch text that does.
 /** @param {import("../../../browser/types/contract.js").DataUnifiedDiff} source @returns {Promise<readonly SourceRecord[]>} */
 async function sourceRecords(source) {
-  if (typeof source !== "string")
-    return source.files.map(({ path, patch }) => ({ path, patch }));
-  return (await parsedFiles(source)).map((file) => ({ path: file.name, parsed: file }));
+  if (typeof source === "string")
+    return (await parsedFiles(source)).map((file) => ({ path: file.name, file }));
+  return Promise.all(
+    source.files.map(async ({ path, patch }) => {
+      try {
+        return { path, file: await recordFile(patch, path) };
+      } catch (error) {
+        return { path, error };
+      }
+    }),
+  );
 }
 
 // A manifest's patch must describe its keyed logical file, including both native
@@ -476,8 +485,8 @@ function summaryNode(record, open, verified = true) {
 // while its rows go past, and the press sticks with it only as a box in the flow ahead
 // of the disclosure, since a box placed against the file's top would stay there and
 // drift off the header it belongs to.
-/** @param {FilePresentation} view @param {SourceRecord} record @returns {FileEntry} */
-function fileEntry(view, record) {
+/** @param {FilePresentation} view @param {FileSummary} record @param {SourceRecord} source @returns {FileEntry} */
+function fileEntry(view, record, source) {
   const node = document.createElement("div");
   node.className = "lf-diff-file";
   const actions = offer("div", "lf-diff-file-actions");
@@ -487,8 +496,7 @@ function fileEntry(view, record) {
     node,
     actions,
     record,
-    source: record,
-    file: undefined,
+    source,
     loaded: false,
     refused: false,
     renderKey: null,
@@ -964,8 +972,8 @@ function joinChangeRuns(file) {
 }
 
 // The box takes the place of the file's lines, so core's composer leaves their outlets
-// first: a user writing about one of them stays in it, and the hold below finds them
-// outside the file and lands on the file's header.
+// first: a user writing about one of them stays in it. Focus left inside the file
+// moves to its header.
 /** @param {TextPresentation} view @param {unknown} error */
 function fileError(view, error) {
   const { details, header } = view;
@@ -1223,21 +1231,13 @@ customElements.define(
           (this.fileEntries ?? []).map((entry) => [entry.record.path, entry]),
         );
         const open = !this.hasAttribute("collapsed");
-        /** @type {{record: SourceRecord, evidence: EntryEvidence, previous: FileEntry | undefined, prepared: EntryPreparation | null}[]} */
-        const plans = await Promise.all(
-          records.map(async (record) => {
-            const evidence = await this.readEntry(record);
-            return {
-              record: {
-                ...record,
-                ...("file" in evidence ? evidence.file.record : {}),
-              },
-              evidence,
-              previous: prior.get(record.path),
-              prepared: "error" in evidence ? evidence : null,
-            };
-          }),
-        );
+        /** @type {{record: FileSummary, evidence: SourceRecord, previous: FileEntry | undefined, prepared: EntryPreparation | null}[]} */
+        const plans = records.map((evidence) => ({
+          record: "file" in evidence ? evidence.file.record : { path: evidence.path },
+          evidence,
+          previous: prior.get(evidence.path),
+          prepared: "error" in evidence ? evidence : null,
+        }));
         // Every row's evidence is judged before its metadata commits. Only open files
         // need the textual renderer; closed files retain their one parsed reading.
         // Open evidence is prepared without changing the current entries or their native
@@ -1257,9 +1257,8 @@ customElements.define(
           await Promise.all(
             pending.map(async (plan) => {
               plan.prepared = await this.prepareEntry(
-                plan.record,
-                plan.previous?.details ? plan.previous.renderKey : null,
                 plan.evidence,
+                plan.previous?.details ? plan.previous.renderKey : null,
               );
             }),
           );
@@ -1295,14 +1294,13 @@ customElements.define(
                 restores.push(replaceFileRendering(previous, view));
                 return previous;
               }
-              const entry = fileEntry(view, record);
+              const entry = fileEntry(view, record, evidence);
               fresh.push(entry);
               return entry;
             })();
             Object.assign(entry, {
               record,
-              source: record,
-              file: "file" in evidence ? evidence.file : undefined,
+              source: evidence,
               loaded: entry.kind === "metadata",
               refused: false,
               loading: null,
@@ -1401,25 +1399,11 @@ customElements.define(
       );
     }
 
-    // `applyEntry` reports a manifest's patch this widget cannot draw to the agent,
-    // which stored it, once the current rendering shows it: the manifest's producer
-    // leaves judging a patch to this widget.
-    /** @param {SourceRecord} record @returns {Promise<EntryEvidence>} */
-    async readEntry(record) {
-      if ("parsed" in record) return { file: record.parsed };
+    /** @param {SourceRecord} source @param {string | null | undefined} renderKey @returns {Promise<EntryPreparation>} */
+    async prepareEntry(source, renderKey) {
+      if ("error" in source) return source;
       try {
-        return { file: await recordFile(record.patch, record.path) };
-      } catch (error) {
-        return { error };
-      }
-    }
-
-    /** @param {SourceRecord} record @param {string | null | undefined} renderKey @param {EntryEvidence} [evidence] @returns {Promise<EntryPreparation>} */
-    async prepareEntry(record, renderKey, evidence) {
-      const reading = evidence ?? (await this.readEntry(record));
-      if ("error" in reading) return reading;
-      try {
-        const { file } = reading;
+        const { file } = source;
         const overflow = overflowFor(file.name, this.getAttribute("overflow"));
         const nextKey = JSON.stringify([file, overflow]);
         const rendered =
@@ -1596,11 +1580,7 @@ customElements.define(
       if (entry.loading?.rendering === this.rendering) return entry.loading.promise;
       const rendering = this.rendering;
       const promise = (async () => {
-        const prepared = await this.prepareEntry(
-          entry.source,
-          entry.renderKey,
-          entry.file ? { file: entry.file } : undefined,
-        );
+        const prepared = await this.prepareEntry(entry.source, entry.renderKey);
         if (rendering !== this.rendering || !this.isConnected) return;
         await this.commitLoaded(entry, prepared, rendering);
       })();
@@ -1663,7 +1643,6 @@ customElements.define(
         return null;
       }
       const { file, renderKey, rendered } = prepared;
-      entry.file = file;
       entry.record = file.record;
       paintSummary(entry, entry.record);
       if (entry.record.hunkCount === 0) {
@@ -1988,7 +1967,7 @@ customElements.define(
     // ones after it, so a closed file is opened only once the step has actually reached
     // it: a user on the last hunk of the third file loads the fourth and stops, rather
     // than every remaining file to discover there is nothing past them.
-    // Opening a file may wait on the network, and the user may have moved on by then:
+    // Opening a file waits on its rendering, and the user may have moved on by then:
     // both walks capture the pressing gesture's intent first and land only while it stands.
     /** @param {boolean} back */
     async stepHunk(back) {

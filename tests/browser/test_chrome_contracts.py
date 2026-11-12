@@ -51,7 +51,7 @@ from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.media import store_uploaded_media
-from leaf.render_checks import rendered
+from leaf.render_checks import rendered, wait_for_probe
 
 
 def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve):
@@ -188,11 +188,7 @@ def test_a_compact_comment_keeps_no_room_for_send_under_a_mouse(browser, serve):
         # Layout already has its final width while Send still rides the box's
         # growth (box-motion.js). Compare their geometry only once it rests.
         rendered(page)
-        page.wait_for_function(
-            """() => !document.querySelector('.lf-fab-bar')
-              .getAnimations({subtree: true}).some(motion =>
-                Number.isFinite(motion.effect?.getComputedTiming().endTime))"""
-        )
+        wait_for_probe(page, "restingIn", ".lf-fab-bar")
         return field.bounding_box()
 
     page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")

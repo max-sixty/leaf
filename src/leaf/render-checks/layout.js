@@ -12,7 +12,7 @@ import {
 } from "/runtime/check-api.js";
 import { laidOutItems } from "./framing.js";
 import { at as element, place } from "./locate.js";
-import { openRoots } from "./open-roots.js";
+import { drawnPage, openRoots } from "./open-roots.js";
 import { clippedControls, sealedAxes } from "./reachability.js";
 import { scrollbarClearance } from "./scrollbars.js";
 import { coveredWords, shrunkLabelReading } from "./words.js";
@@ -35,13 +35,14 @@ const breaksOut = (el) =>
 // to the caller, so a sample neither advances the page nor waits for a different layout.
 /** @param {string[]} open */
 export function geometryReading(open) {
+  const drawn = drawnPage();
   return {
     overflow: rootOverflow(),
     misplaced: misplacedBoxes(),
     contained: containedSpace(),
-    scrollbars: scrollbarClearance(),
+    scrollbars: scrollbarClearance(drawn),
     arrangement: arrangedBoxes(open),
-    labels: shrunkLabelReading(),
+    labels: shrunkLabelReading(drawn),
     clipped: clippedControls(),
     covered: coveredWords(),
     squeezed: squeezedBoxes(),

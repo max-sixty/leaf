@@ -390,9 +390,21 @@ def test_o_gives_marked_words_their_own_colours_back(request, serve, engine):
             events=[
                 _comment_on(PASSAGES["mark"], id="c-link", text="Why this link?"),
                 _comment_on(PASSAGES["reaction"], token="keep"),
-                _comment_on(
-                    ("doc", 'message = "resend now"'), id="c-doc", text="Why now?"
-                ),
+                # Words in a text document are anchored on its one datum, as capture
+                # writes them.
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "anchor": {
+                        "section": "doc",
+                        "datum": "document",
+                        "identity": "document",
+                        "quote": 'message = "resend now"',
+                    },
+                    "id": "c-doc",
+                    "text": "Why now?",
+                },
             ],
         ),
     )

@@ -540,6 +540,16 @@
      hairline, and this tint is the disc or ground that rises under it on hover, or that
      a reaction the user added rests on. */
   --accent-tint: color-mix(in srgb, var(--accent) 12%, var(--card));
+  /* The ground of a field editing content where it stands, such as a message's rewrite
+     (response.css, `.lf-msg-editor`): a pale accent, in the hue of the field's focus
+     ring. It states its lightness and chroma rather than mixing the accent into the
+     card, since a few percent of the default accent's blue in the card's cream comes
+     out grey (chroma 0.003), which reads as a disabled field. Its chroma is at most the
+     accent's, so a grey accent, which has no hue, gives a grey ground. */
+  --edit-ground: light-dark(
+    oklch(from var(--accent) 0.955 min(c, 0.02) h),
+    oklch(from var(--accent) 0.29 min(c, 0.03) h)
+  );
   /* Status marker, text and ground are independent theme inputs. In particular,
      a warning dot's color need not provide readable small text on its ground.
 

@@ -377,6 +377,57 @@ def test_generated_hints_spread_around_crowded_targets(browser, serve):
     page.wait_for_url(re.compile(r"#s1$"))
 
 
+def test_narrowing_the_map_leaves_every_kept_chip_where_it_stood(browser, serve):
+    """A kind filter and a typed letter only hide the chips they rule out. Reseated
+    alone, a filtered column of folds stood on its rows' corners, half over the links
+    between them, and a typed letter swapped its rows' chips between columns."""
+    rows = "".join(
+        f'<li><a href="#top">link {at}</a></li>'
+        if at % 2 == 0
+        else f"<li><details><summary>fold {at}</summary>more</details></li>"
+        for at in range(24)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Dense rows",
+                '<h1 id="top">Dense rows</h1><ul id="rows">' + rows + "</ul>",
+                head="<style>#rows{list-style:none;padding:0;margin:0}"
+                "#rows li,#rows a,#rows details,#rows summary{all:unset;display:block;"
+                "font:12px/14px monospace}</style>",
+            )
+        ),
+    )
+    resized(page, 1280, 800)
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS)).to_have_count(24)
+    rendered(page)
+    seats = """() => Object.fromEntries([...document.querySelectorAll(
+        '.lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]')]
+      .filter((chip) => chip.checkVisibility({visibilityProperty: true}))
+      .map((chip) => {
+        const r = chip.getBoundingClientRect();
+        return [chip.dataset.lfHintCode, [r.left, r.top]];
+      }))"""
+    whole = page.evaluate(seats)
+    assert len(whole) == 24, whole
+
+    letter = next(code for code in whole if len(code) == 2)[0]
+    page.keyboard.press(letter)
+    rendered(page)
+    typed = page.evaluate(seats)
+    assert typed and all(code.startswith(letter) for code in typed), typed
+    assert {code: whole[code] for code in typed} == typed
+
+    page.keyboard.press("Escape")
+    page.keyboard.press("f")
+    rendered(page)
+    folds = page.evaluate(seats)
+    assert len(folds) == 12, folds
+    assert {code: whole[code] for code in folds} == folds
+
+
 def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
     """A map that blanked while the page moved would take the codes off the screen the
     user is reading them from, though every one of them still works: membership is

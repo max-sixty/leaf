@@ -1421,7 +1421,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     obligation_key = next(key for key in mixed_codes if key != "reading:threadList")
 
     page.keyboard.press("m")
-    filtered = page.locator(CHIPS)
+    filtered = page.locator(f"{CHIPS}:visible")
     expect(filtered).to_have_count(2)
     assert address_codes(page) == list(mixed_codes.values())
     page.keyboard.press("Escape")
@@ -1484,7 +1484,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     page.evaluate("() => document.activeElement?.blur()")
     page.keyboard.press("g")
     page.keyboard.press("h")
-    expect(page.locator(CHIPS)).to_have_count(0)
+    expect(page.locator(f"{CHIPS}:visible")).to_have_count(0)
     expect(page.locator(".lf-live")).to_have_text("No visible hyperlinks.")
     expect_panel_says(page, "No visible hyperlinks.")
     page.evaluate(
@@ -1514,7 +1514,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     resized(page, 1200, 800)
     expect_panel_says(page, "No visible hyperlinks.")
-    expect(page.locator(CHIPS)).to_have_count(0)
+    expect(page.locator(f"{CHIPS}:visible")).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator(CHIPS).first).to_be_visible()
     expect(page.locator(".lf-live")).to_have_text("All go-to targets.")
@@ -1538,10 +1538,14 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     page.keyboard.press("h")
     links = page.locator(f'{CHIPS}[data-lf-go-to-kind="Link"]')
     expect(links).to_have_count(3)
-    expect(page.locator(f'{CHIPS}:not([data-lf-go-to-kind="Link"])')).to_have_count(0)
+    expect(
+        page.locator(f'{CHIPS}:visible:not([data-lf-go-to-kind="Link"])')
+    ).to_have_count(0)
     resized(page, 1180, 800)
     expect(links).to_have_count(3)
-    expect(page.locator(f'{CHIPS}:not([data-lf-go-to-kind="Link"])')).to_have_count(0)
+    expect(
+        page.locator(f'{CHIPS}:visible:not([data-lf-go-to-kind="Link"])')
+    ).to_have_count(0)
     page.keyboard.type(address_code(page, "Link", "lk2"))
     page.wait_for_url(re.compile(r"#p2$"))
     expect(page.locator("#p2")).to_be_focused()

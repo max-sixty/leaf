@@ -7,8 +7,9 @@
    activation, and the paint — and this owner declares what the scene holds, what a chip
    says, and what taking one does. The lowercase kind mnemonics are separate commands
    that filter the map: `g h` shows hyperlinks, `g f` folds, `g m` margin targets, `g t`
-   Thread controls. A filtered map keeps each member's code from
-   the complete map, which is why codes are assigned here rather than by the session.
+   Thread controls. A filter narrows the complete map, as a typed letter does
+   (hints.js, `kept`), so each member keeps its code and its chip's seat; codes are
+   assigned here, over the complete map, rather than by the session.
 
    Lowercase `g`, `j`, `k`, and `p` retain their structural meanings, while `f`, `h`, `m`,
    and `t` name filters; `i` resumes writing, `v` restores selection and `z` aligns the current item at the top; these are excluded from the generated alphabet. `g g` and
@@ -319,8 +320,7 @@ export function createGoToSequence({
           .join(" ")
       : "";
 
-  /** @param {TargetFilter | null} [filter] */
-  function visibleCandidates(filter = null) {
+  function visibleCandidates() {
     const placement = keyBadgePlacement();
     /** @type {Set<Element>} */
     const seen = new Set();
@@ -355,8 +355,7 @@ export function createGoToSequence({
         left.rect.left - right.rect.left ||
         left.order - right.order,
     );
-    const coded = codedHints(found, GO_TO_HINT_KEYS.join(""));
-    return filter ? coded.filter(filter.matches) : coded;
+    return codedHints(found, GO_TO_HINT_KEYS.join(""));
   }
 
   // Every complete route starts with the same stable prefix. A partial generated hint is
@@ -419,7 +418,8 @@ export function createGoToSequence({
   const hintOptions = {
     layer: goToHintLayer,
     walk: "go-to-target",
-    read: () => visibleCandidates(targetFilter),
+    read: visibleCandidates,
+    kept: (candidate) => !targetFilter || targetFilter.matches(candidate),
     identity: (candidate) => candidate.member,
     scene: keyBadgePlacement,
     layout: (candidates, { current, reading }) =>
@@ -484,13 +484,12 @@ export function createGoToSequence({
     const chosen = TARGET_FILTERS.find(({ key }) => key === binding);
     if (!chosen) return;
     targetFilter = chosen;
-    const found = hints.refresh();
+    const found = hints.narrow();
     const message = found.length
       ? `${found.length} visible ${chosen.word}; type a hint or press Tab to hear them.`
       : `No visible ${chosen.word}.`;
     if (found.length) notice(message);
     else announce(message);
-    repaint();
   }
 
   // An empty active filter is useful state, not a four-second event. The candidate map is
@@ -680,7 +679,7 @@ export function createGoToSequence({
           if (hints.backOneLetter()) return;
           if (targetFilter) {
             targetFilter = null;
-            hints.invalidate();
+            hints.narrow();
             announce("All go-to targets.");
             return;
           }

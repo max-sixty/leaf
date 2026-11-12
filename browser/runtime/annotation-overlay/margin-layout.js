@@ -67,6 +67,7 @@
    target has no rendered part to offer. */
 import { LENT_REACH_STOP, TAB_STOP } from "../control-selectors.js";
 import { blockControlBoxes } from "../block-controls.js";
+import { contentsRects } from "../shown-box.js";
 import { afterScript, cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import {
   clippedContents,
@@ -977,9 +978,7 @@ function childIndex() {
       order += 1;
       if (node instanceof Text) {
         if (!node.data.trim()) continue;
-        const words = document.createRange();
-        words.selectNodeContents(node);
-        const lines = [...words.getClientRects()];
+        const lines = contentsRects(node);
         const box = union(lines);
         if (box) sized.push({ node, order, box, lines, span: box });
         continue;

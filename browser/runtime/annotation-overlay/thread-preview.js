@@ -185,7 +185,7 @@ import { keepThreadLanding, showReturnTurn } from "../thread/reply-landing.js";
  * focusPending: {holding: Element | null} | null, withheldFocus: ReturnType<typeof holdFocus>,
  * transcript: HTMLElement | null, settled: (() => void) | null, answering: (() => boolean) | null,
  * placesEnd: ((before: import("../scrolling.js").BoxExtent) => boolean) | null,
- * stopRegion: (() => void) | null, stopEnd: (() => void) | null, side: ReturnType<typeof commentPlacement>,
+ * stopRegion: (() => void) | null, end: import("../scrolling.js").EndKeeper | null, side: ReturnType<typeof commentPlacement>,
  * reading: {input: number, scroll: number} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
  * @typedef {{latest: boolean, scroll: number, keepTop: boolean, transcript: HTMLElement}} Reading
  */
@@ -442,8 +442,8 @@ export function createThreadPreview({
     // `followEnd`). The end is another's to place while the card arrives on its opening
     // turn (`showArrival`), and where the thread places an answer to the user's turn
     // (thread-card.js, `placesEnd`).
-    session.stopEnd?.();
-    session.stopEnd = transcript
+    session.end?.stop();
+    session.end = transcript
       ? followEnd(
           transcript,
           (before) => session.arriving || Boolean(session.placesEnd?.(before)),
@@ -563,7 +563,7 @@ export function createThreadPreview({
     cancelRender(session.positionFrame);
     placementDriver.supersede();
     session.stopRegion?.();
-    session.stopEnd?.();
+    session.end?.stop();
     preview.style.removeProperty("visibility");
     previewSession = null;
     tick(cardRevision);
@@ -979,7 +979,7 @@ export function createThreadPreview({
       placesEnd: null,
       reading: null,
       stopRegion: null,
-      stopEnd: null,
+      end: null,
       side: commentPlacement(),
       // The width the card stands at for this selection, in client pixels: the box's
       // Send replaced, so the two are one rectangle, else the one it first stood at, or
@@ -1124,6 +1124,9 @@ export function createThreadPreview({
       // The card caps its transcript, which scrolls the thread's messages.
       scroller: (transcript) => transcript,
       endNewsMoves: () => endNewsMoves(session),
+      // Whether the reader stands at the end the transcript's keeper follows
+      // (scrolling.js, `followEnd`).
+      standsAtEnd: () => Boolean(session.end?.standsAtEnd()),
       // The card stands for the thread on the page, where taking back a settlement made
       // in it opens the thread again.
       reader: "page",

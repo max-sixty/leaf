@@ -967,7 +967,9 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
             assert cue["height"] == 0, cue
 
     # Follow the outgoing header as the next author pushes it off the top, then
-    # follow the transcript edge through the gap. Neither position fades a name.
+    # follow the transcript edge through the gap. Neither position fades a name. The
+    # edge is the slot where heads stick (`--lf-top`), past the room the transcript
+    # keeps above it.
     for handoff in ("pushed", "gap"):
         transcript.evaluate(
             """(box, handoff) => {
@@ -978,7 +980,9 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
               const target = handoff === 'pushed'
                 ? first.bottom - head.height / 2
                 : (first.bottom + next.top) / 2;
-              box.scrollTop += target - box.getBoundingClientRect().top - box.clientTop;
+              const slot = box.getBoundingClientRect().top + box.clientTop
+                + parseFloat(getComputedStyle(box).getPropertyValue('--lf-top'));
+              box.scrollTop += target - slot;
             }""",
             handoff,
         )

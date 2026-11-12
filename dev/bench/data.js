@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794397377491,
+  "lastUpdate": 1794483385083,
   "repoUrl": "https://github.com/max-sixty/leaf",
   "entries": {
     "Bench at 64 sections": [
@@ -2281,6 +2281,433 @@ window.BENCHMARK_DATA = {
           {
             "name": "threads: resolve shown",
             "value": 101.4,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Maximilian Roos",
+            "username": "max-sixty",
+            "email": "5635139+max-sixty@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "e5559a2b614ee6a9b68a9b5f3475703b643cd61f",
+          "message": "Find a selection's copies by string search, and search the page a part at a time (#5875)\n\nOn #4781's page (30 tabs, each a 4 MB text document, one comment), a\ntriple click on a line of the open document held the main thread 450–580\nms in Chromium and 0.9–1.5 s in Firefox, and a page search held it for\nthe whole search: 2.6–2.7 s in Chromium and 4–4.3 s in Firefox for a\nword the page doesn't hold, and for a common word typed a key at a time,\n6–11 s a key in Firefox and minutes in Chromium. Now a triple click\nholds it 185–270 ms in Chromium and 210–380 ms in Firefox, and each of\nthe search's own tasks reads at most one document: under 200 ms in\nChromium and under 380 ms in Firefox, for a word the page doesn't hold\nor a common word typed. Find returns the same matches in the same order,\na walk through them steps as main's does, and a stored anchor resolves\nor detaches as before.\n\nTwo costs on Find's path are not the search and stay, both on main too:\nopening the search field the first time restyles the whole page in\nFirefox (6 s here), and landing on a match in a closed tab reveals it\n(1.4 s in Chromium, 1.6–5 s in Firefox). See \"Left as it was\".\n\n## The triple click\n\nA selection's anchor is checked unique in its datum's words (root\n`AGENTS.md`, \"Validate once and share readings\"). Profiles in both\nengines showed most of the gesture was that check reading the 4 MB\ndocument again, several times:\n\n- **Finding the quote's copies.** One JavaScript pass of an automaton\nover every character, 85–125 ms over the document in either engine, once\nfor the word the double click selects and once for the line. A reading's\nletters (its characters less whitespace and edges) are now kept with it\n(`spell`), taken out by the platform's own replace and marked every 32\nletters, 15–30 ms once a reading. A few quotes are found in them by the\nplatform's string search, under 1 ms a quote; a batch of more than 32\nstill takes one automaton pass, so placing many comments stays linear in\nthe page and the quotes (`eachPlace`, which `findEach` uses too). Each\nplace is held to its quote's spaces where it stands in raw (`copyAt`),\nas before.\n- **Telling a common word's 17,000 copies apart.** `holds` read the\nwords around every copy. It now compares a side's letters outward\nthrough raw first and refutes at the first letter that differs,\nrecording that span as what it read, so the index still re-places a\nquote when a change there could complete its context. Only a copy whose\nletters all match has its words read.\n- **Checking each copy stands under the datum.** Two binary searches and\ntwo climbs of the tree per copy, 0.7 s in Firefox for the word. A copy\nin an element's own reading stands under it, unless a slot of the\nelement's own tree shows it words from outside.\n- **Asking again.** The comment button's placement, the command bar's\navailability, the response target and the remembered selection each\nasked for the anchor, so the check ran up to eight times a gesture.\n`findQuote` keeps its answer with the reading it answered for; a change\nmakes a new reading. It still asks the quote's copies first each time,\nsince that is what brings a quote the index has come to keep into it, so\na change to a quote first answered for a selection is heard once its\ndraft is placed.\n\nWhat a triple click still pays beyond its cost on the same page with 40\nKB documents (89–110 ms in Chromium, 74–99 ms in Firefox): the datum's\nindexed reading on its first capture (14 ms in Chromium, 30–50 ms in\nFirefox), its letters (15–30 ms), the list of the word's 17,000 copies,\nwhich anchor placement keeps for the draft's quote, and the garbage\nthose leave. In Firefox the three clicks run as two tasks; the second\nholds 120–250 ms on this branch and 180–230 ms on main.\n\n## Page search\n\n`pageMatches` (was `pageFind`) is a generator: it reads a part when the\nsearch reaches it, and yields null before each part and for each match\nthe page hides. The target picker takes matches 8 ms at a time, the\nfirst slice in the input's own task and each later one in a task of its\nown, so a search waits on at most one document's reading. Matches arrive\nin reading order, and the search lands where it did: the first match at\nor below the top of the window, else the first; after a page change,\nwhere it stood. Until it lands, the count slot shows an ellipsis; after,\nthe count grows where it stands. The status is busy (`aria-busy`) while\nthe search runs, so a screen reader says the count once, as it ends,\nrather than at each slice (\"Searching\" and \"Match 3 of 120 so far\" are\nits name meanwhile).\n\nMain searched once, as the query was typed (and again before a step\nafter the page changed), so a step after that took 20–48 ms. Here a step\nor a choice (Tab, Shift+Tab, Enter, `n`) waits only when its target\nhasn't arrived: it takes matches at once until the search has landed,\nwhere it stood if the page changed under it, and the match the step goes\nto has arrived, or the search has ended (`settle`). That matters most\nafter a match in a closed tab: bringing it into sight opens the tab,\nwhich changes the page, so the next step searches again from where it\nstood. A step back past the first match is the one step whose match\ncomes last, so while the search runs it stays put and says \"Searching\"\nrather than wait for all of it. Once Enter has closed the field, a\nsearch still finding stops at the first page change rather than start\nagain, and `n` searches again from there; only the open field searches\nagain where it stood after a change, as a reveal makes.\n\n## Measurements\n\n#4781's page, served by `leaf server run --lifetime temporary` with a\nthrowaway state home: main at b3387f111, the merge base, against this\nbranch, each arm a snapshot of its tree. One browser per engine and\nround, warmed 15 s; each gesture on a fresh load, 5 s after the\ncomment's mark stood and every document drew, with the page's view\nchecks stubbed in both arms. The longest task is the longest gap in a\nchain of zero timeouts, which only main-thread work holds back. Arms\nalternate within each round; load average 3–13. The branch arm is this\nPR before its last change, the busy status, which redraws the count each\nslice as the first push did. Chromium 156 headless and Firefox 157\nthrough Playwright. Milliseconds, one per round.\n\n| Longest task | Chromium, main | Chromium, branch | Firefox, main |\nFirefox, branch |\n|---|---|---|---|---|\n| Triple click, first gesture | 548, 575, 552 | 253, 270, 254 | 1,179,\n1,157, 1,112 | 376, 222, 332 |\n| Triple click, after a click | 448, 455, 446 | 185, 187, 192 | 1,022,\n1,474, 901 | 210, 210, 224 |\n| Find, a word nowhere on the page | 2,654, 2,731, 2,595 | 181, 196, 192\n| 4,116, 3,953, 4,318 | 323, 373, 321 |\n| Find, `heap` typed | not run | 98, 78, 100 | 11,144, 6,387, 6,702 |\n364, 219, 321 |\n\nEach Find opens and closes the search once before its window, so\nFirefox's first-open restyle stays out of it, then pastes or types its\nword. \"Nowhere\" reads every document; `heap` matches 530,000 times. In\nChromium the typed search is still running 12 s later: whether a match\nshows is read from its styles, and a match in a run of a text document\nthe browser hasn't drawn makes it style that run to answer, 26 ms a run\nhere, in 15,900 runs. The page stays live meanwhile; main's arm isn't\nrun, since `pageFind(\"widget asks\")` had not returned after 14 minutes.\nOn the first push, at load 12–30, a word in a closed tab held 4.1 s in\nChromium and 8.7–15 s in Firefox on main; on the branch its search tasks\nheld at most 206 ms and 349 ms, and the reveal on landing 1.4 s and\n4.3–5 s. Walking `FINDTOP`'s 30 matches, one a document, Tab goes 1 to 6\nin both engines, and `n` after Enter selects the next.\n\nSteps right after typing `heap` in Firefox, while the branch's search\nstill runs (main's has ended, since it searched as the key was typed):\neach key's time from its keydown to the next paint, by Event Timing,\nthree rounds per arm, alternating, load 13–31.\n\n| Keydown to next paint | Firefox, main | Firefox, branch |\n|---|---|---|\n| Longest key typing `heap` | 11,912, 10,752, 11,040 | 56, 88, 80 |\n| Tab | 48, 64, 72 | 32, 72, 48 |\n| Shift+Tab | 48, 48, 40 | 32, 56, 48 |\n| Shift+Tab from the first match | 5,696, 5,368, 6,400 | 32, 24, 24 |\n\nMain's wrap lands on the last of the 529,957 matches, in a closed tab,\nand reveals it; the branch's stays on the first and says \"Searching\".\n\nProfiles: Chromium through CDP's profiler, Firefox through the Gecko\nprofiler (`MOZ_PROFILER_STARTUP`), for each arm's triple click and\nsearch.\n\n## Left as it was\n\n- **Firefox's first open of the search field** restyles the whole page\nas focus enters it: 6.0 s here on main, 58 ms on the 40 KB page, 41 ms\nthe second time. In single runs, disabling the theme's sheet brought it\nto 0.9 s and deleting every `:has()` and focus rule only to 2.7 s, so I\ndidn't find the rule. #5844 fixed focus restyles in Chromium.\n- **Revealing a closed tab that holds a large document**, as landing on\na match there does: 1.4 s in Chromium, 0.9 s of it `claimPaintedRoots`\n(`keyboard/scopes.js`) walking every element of the revealed document;\n1.6–5 s in Firefox, mostly the tab's activation. A click on the tab pays\nthe same.\n- **A common word in Chromium** runs for minutes behind the page, as\nabove. Reading only the style of the box that skips a run (`skipper`)\nwould end it in seconds but find words CSS hides inside a run or closed\ntab the browser hasn't drawn; capping the count, as Firefox's find bar\ndoes at 1,000, would too. Either changes Find's results, so it's yours\nto choose. The text document's line-number counters make each run's\nforced style 26 ms rather than 4 ms.\n\n## Calls you may reverse\n\n- **32 quotes** as the line between string search and one automaton\npass. I kept the automaton so many comments on one large document stay\nlinear in the page and the quotes; one mechanism would drop either that\nor the 1 ms single-quote search.\n- **A step waits for its match, and a wrap back stays put.** A step past\nthe last match found takes matches at once until the next has arrived or\nthe search has ended, as main's search did up front; Shift+Tab from the\nfirst match while the search runs stays and says \"Searching\". Tab and\nEnter in the field before the first match has arrived do what they do\nwith no match, as on main for a query with none.\n- **The count slot's ellipsis** before the search lands, and the count\ngrowing under a busy status after. The slot is 7 characters wide, so a\nword wouldn't fit; a count over \"99 of 99\" was already cut by its\nellipsis on main.\n\n## Tests\n\n-\n`test_a_walk_through_search_matches_in_closed_tabs_reaches_each_in_turn`\n(both engines): Tab walks four matches in closed tabs and Shift+Tab back\none, with the page's clock run fast so each of the search's slices takes\none step; then Enter selects the match and `n` the next. It fails on the\nfirst push of this PR.\n-\n`test_a_step_back_past_the_first_search_match_stays_while_the_search_runs`\n(both engines): with the page's zero-delay timers held, so the search\nstands unfinished, Shift+Tab from the first match stays and says\n\"Searching\", and Tab goes on to the next. It fails on the second push.\n- `tests/runtime/passage-boundaries.test.mjs`, \"a quote first answered\nbefore the index kept it is heard when its words are redrawn\": fails\nwith the kept answer asked before the copies.\n- `tests/runtime/datum-quotes.test.mjs`: capturing a word a datum\nrepeats 2,000 times reads only the words beside the selected copy (fails\nwithout the letter check, reading every line), and a datum's quote\ncounts no copy among the words its slot shows from outside it (fails\nwithout the slot guard).\n-\n`test_a_search_finds_each_match_in_prose_and_every_part_in_reading_order`\nalso holds a search to reading no part ahead of the matches taken (fails\nwhen the search reads every part first).\n- The shared quote cases cover the letters and the letter check\n(reversing the letter order or dropping the spaces check fails them).\nBoth sides of the 32-quote line run in the existing tests: `findEach`'s\ncases, and 42 quotes in \"a line rewritten in a part changes only the\nquotes standing on it\".\n\nRan: `pnpm run test:runtime` (951 passed), `pnpm run check:browser`,\npre-commit on the changed files, and browser selections `-k \"search or\nfind or match\"` (62 passed) and `-k \"quote or capture or selection or\nselect or repeated or twice or datum or comment_on\"` (87 passed, 3\nfailed) over `test_render_anchors`, `test_render_semantic_selection`,\n`test_render_floating_panel`, `test_render_aim`, `test_reading_pieces`,\n`test_command_reference`, `test_render_diff_controls`,\n`test_render_gate`, `test_code_review` and `test_code_and_documents`.\nThe 3 failures fail the same with main's runtime files at the merge\nbase:\n`test_a_text_document_update_keeps_a_selection_it_carries_into_another_run[browser]`,\n`test_dense_selection_hints_stay_short_and_reach_an_atomic_visual` and\n`test_target_hints_name_only_addressable_elements_shown_by_a_disclosure`.\nNot run: the whole suite (CI), journeys, Safari.\n\n#5843 (open) adds the same `COLLAPSE_CHARS` export and builds the same\nclass of gaps, whitespace and edges, in `findText`'s pattern that this\nbuilds as `GAPS`. Whichever lands second should take the other's:\n`findText` can join its words with `GAPS.source`, or `GAPS` can move\nbeside `COLLAPSE` in `kernel-facts.js`.\n\nPart of #5194.",
+          "timestamp": "2026-11-12T10:25:02Z",
+          "url": "https://github.com/max-sixty/leaf/commit/e5559a2b614ee6a9b68a9b5f3475703b643cd61f"
+        },
+        "date": 1794483384450,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "asks: load cpu",
+            "value": 1234.32,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: click cpu",
+            "value": 42.42,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: key cpu",
+            "value": 9.29,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: leave cpu",
+            "value": 37.72,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: tab cpu",
+            "value": 40.31,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: scroll cpu",
+            "value": 6.28,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: revision cpu",
+            "value": 299.59,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: stamp cpu",
+            "value": 314.59,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: select cpu",
+            "value": 60.5,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: open cpu",
+            "value": 138.13,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: comment cpu",
+            "value": 172.51,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: resolve cpu",
+            "value": 88.59,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: reply cpu",
+            "value": 75.18,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: status cpu",
+            "value": 24.59,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: click shown",
+            "value": 59.15,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: comment shown",
+            "value": 177.7,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: resolve shown",
+            "value": 78.3,
+            "unit": "ms"
+          },
+          {
+            "name": "document: load cpu",
+            "value": 517.3,
+            "unit": "ms"
+          },
+          {
+            "name": "document: click cpu",
+            "value": 48.13,
+            "unit": "ms"
+          },
+          {
+            "name": "document: key cpu",
+            "value": 13.41,
+            "unit": "ms"
+          },
+          {
+            "name": "document: leave cpu",
+            "value": 37.6,
+            "unit": "ms"
+          },
+          {
+            "name": "document: tab cpu",
+            "value": 45.13,
+            "unit": "ms"
+          },
+          {
+            "name": "document: scroll cpu",
+            "value": 8.29,
+            "unit": "ms"
+          },
+          {
+            "name": "document: revision cpu",
+            "value": 111.31,
+            "unit": "ms"
+          },
+          {
+            "name": "document: stamp cpu",
+            "value": 108.38,
+            "unit": "ms"
+          },
+          {
+            "name": "document: select cpu",
+            "value": 66.09,
+            "unit": "ms"
+          },
+          {
+            "name": "document: comment cpu",
+            "value": 265.89,
+            "unit": "ms"
+          },
+          {
+            "name": "document: resolve cpu",
+            "value": 110.63,
+            "unit": "ms"
+          },
+          {
+            "name": "document: reply cpu",
+            "value": 111.04,
+            "unit": "ms"
+          },
+          {
+            "name": "document: status cpu",
+            "value": 49.06,
+            "unit": "ms"
+          },
+          {
+            "name": "document: click shown",
+            "value": 38.5,
+            "unit": "ms"
+          },
+          {
+            "name": "document: comment shown",
+            "value": 176.9,
+            "unit": "ms"
+          },
+          {
+            "name": "document: resolve shown",
+            "value": 75.5,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: load cpu",
+            "value": 390.31,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: click cpu",
+            "value": 26.49,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: key cpu",
+            "value": 8.9,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: leave cpu",
+            "value": 22.03,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: tab cpu",
+            "value": 29.61,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: scroll cpu",
+            "value": 2.81,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: revision cpu",
+            "value": 62.2,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: stamp cpu",
+            "value": 53.75,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: select cpu",
+            "value": 50.91,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: comment cpu",
+            "value": 180.9,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: resolve cpu",
+            "value": 68.74,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: reply cpu",
+            "value": 55.69,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: status cpu",
+            "value": 19.96,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: click shown",
+            "value": 32.3,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: comment shown",
+            "value": 153.5,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: resolve shown",
+            "value": 61.6,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: load cpu",
+            "value": 425.96,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: click cpu",
+            "value": 24.35,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: key cpu",
+            "value": 8.64,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: leave cpu",
+            "value": 34.4,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: tab cpu",
+            "value": 51.69,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: scroll cpu",
+            "value": 4.64,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: revision cpu",
+            "value": 83.4,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: stamp cpu",
+            "value": 67.01,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: select cpu",
+            "value": 50.9,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: comment cpu",
+            "value": 196.48,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: resolve cpu",
+            "value": 94.22,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: reply cpu",
+            "value": 55.1,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: status cpu",
+            "value": 17.65,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: click shown",
+            "value": 32.15,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: comment shown",
+            "value": 173.8,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: resolve shown",
+            "value": 95.5,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: load cpu",
+            "value": 563.86,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: click cpu",
+            "value": 46.63,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: key cpu",
+            "value": 9.11,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: leave cpu",
+            "value": 18.64,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: tab cpu",
+            "value": 53.93,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: scroll cpu",
+            "value": 3.9,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: revision cpu",
+            "value": 94.51,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: stamp cpu",
+            "value": 100.31,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: select cpu",
+            "value": 56.85,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: comment cpu",
+            "value": 207.2,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: resolve cpu",
+            "value": 100.21,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: reply cpu",
+            "value": 86.27,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: status cpu",
+            "value": 27.66,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: click shown",
+            "value": 43,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: comment shown",
+            "value": 193.1,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: resolve shown",
+            "value": 96.5,
             "unit": "ms"
           }
         ]

@@ -3280,6 +3280,9 @@ const chosen = new WeakMap();
 /** @param {PageReading} text @param {string} quote @param {{prefix?: string, suffix?: string}} anchor @param {Element | null} [within] */
 export function findQuote(text, quote, anchor, within) {
   const [pre, post] = [anchor.prefix ?? "", anchor.suffix ?? ""];
+  // The copies first, every time: asking them is what brings a quote the index has
+  // come to keep into it (`copiesOf`), so a change to it is heard.
+  const entry = copiesOf(text, quote);
   // An anchor asked of a reading again has the answer it had, which is kept with the
   // reading: a selection's anchor is asked by everything that shows or acts on it.
   let asked = chosen.get(text);
@@ -3289,7 +3292,6 @@ export function findQuote(text, quote, anchor, within) {
   if (!answers) asked.set(question, (answers = new Map()));
   const known = answers.get(within ?? null);
   if (known !== undefined) return known ? spanOf(text, known.from, known.to) : [];
-  const entry = copiesOf(text, quote);
   if (!entry) {
     answers.set(within ?? null, null);
     return [];

@@ -6517,6 +6517,52 @@ def test_a_search_match_whose_end_shows_is_brought_to_its_start(engine, request,
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_walk_through_search_matches_in_closed_tabs_reaches_each_in_turn(
+    engine, request, serve
+):
+    """Tab walks a search's matches in order across documents in closed tabs. Bringing a
+    match into sight opens its tab, which changes the page, so the next step searches
+    again; it stands where it stood before stepping, however few matches each of the
+    search's slices takes, which the page's clock, run fast, keeps to one step a slice."""
+    tabs = "".join(
+        f'<lf-tab id="t{i}" label="Doc {i}">'
+        f'<lf-text-document id="d{i}" label="doc-{i}.md">'
+        f"<pre>A line before.\nneedle {i}\nA line after.\n</pre></lf-text-document></lf-tab>"
+        for i in range(4)
+    )
+    url = serve(
+        leaf_page("Closed tabs", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("needle")
+    status = page.locator(".lf-page-search-status")
+    expect(status).to_have_text("1 of 4")
+    page.evaluate(
+        """() => {
+          const now = performance.now.bind(performance);
+          let ahead = 0;
+          performance.now = () => now() + (ahead += 20);
+        }"""
+    )
+    for key, position in (("Tab", 2), ("Tab", 3), ("Tab", 4), ("Shift+Tab", 3)):
+        page.keyboard.press(key)
+        expect(status).to_have_text(re.compile(rf"^{position} of "))
+        expect(page.get_by_role("tab", name=f"Doc {position - 1}")).to_have_attribute(
+            "aria-selected", "true"
+        )
+    # Enter selects the match, and `n` goes on from it.
+    selected = (
+        "(id) => getSelection().anchorNode?.parentElement?.closest('lf-text-document')"
+        "?.id === id && String(getSelection()) === 'needle'"
+    )
+    page.keyboard.press("Enter")
+    page.wait_for_function(selected, arg="d2", timeout=10_000)
+    page.keyboard.press("n")
+    page.wait_for_function(selected, arg="d3", timeout=10_000)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_travel_to_a_thread_on_a_tall_passage_shows_where_it_starts(
     engine, request, serve
 ):

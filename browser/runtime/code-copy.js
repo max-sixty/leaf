@@ -48,11 +48,7 @@ import { focusDestination, onCurrentLocation } from "./focus.js";
 import { upFrom } from "./shadow.js";
 import { move } from "./dom-move.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
-import {
-  commandScope,
-  paintKeysWithin,
-  projectCommandScope,
-} from "./keyboard/scopes.js";
+import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
 
 /** @type {WeakMap<Element, ReturnType<typeof copyControl>>} */
 const controls = new WeakMap();
@@ -126,13 +122,9 @@ function prepareCodeBlock(pre, source, noun) {
 }
 
 // Declared on each arrival, since leaving withdraws it. A widget renders a new block
-// each time, and the register forgets one that leaves the document. Copy is live once
-// Web Awesome has drawn the control's button (`copyTrigger`). A control made in this
-// task draws it on its first update, after the projection below has read the row, so
-// the block's keys are read again once it has.
+// each time, and the register forgets one that leaves the document.
 /** @param {Element} pre @param {ReturnType<typeof copyControl>} copy @param {string} noun */
 function declareCopy(pre, copy, noun) {
-  if (!copyTrigger(copy)) void copy.updateComplete.then(() => paintKeysWithin(pre));
   projectCommandScope(
     pre,
     COPY_SCOPE,
@@ -141,8 +133,13 @@ function declareCopy(pre, copy, noun) {
         id: "code.copy",
         keys: ["Enter"],
         title: `copy ${noun}`,
-        when: () => Boolean(copyTrigger(copy)),
-        run: () => copyTrigger(copy)?.click(),
+        // A control made with its block has not drawn its button yet, as a heading
+        // link's has not (heading-links.js, `heading.link.copy`).
+        run: async () => {
+          await customElements.whenDefined(copy.localName);
+          await copy.updateComplete;
+          copyTrigger(copy)?.click();
+        },
       },
     ]),
   );

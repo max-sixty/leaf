@@ -1708,18 +1708,26 @@ def _scope_roots(sheet):
     )
 
 
-def test_an_untyped_has_leads_only_to_a_typed_subject():
-    """A `:has()` that is the whole of its compound, with no compound before it, names
-    no element. In Chromium, such a `:has()` that leads on to a subject naming no
-    element either, as `:has(> lf-toc) > :not(lf-toc)` does, or that stands as an
-    `@scope`'s root, makes the browser restyle the whole document after any write to an
-    element's text, or to an attribute another `:has()` reads, anywhere on the page.
-    The rule costs that without matching anything: toc.css's `@scope (:has(> lf-toc))`,
-    under a container query that a page without a sidebar never meets, made each of the
-    16 style recalcs in a Tab on a page of 64 questions restyle the whole page (938 ms
-    against 26 ms). Measured in Chromium 156 by a trace's restyled-element count:
-    naming an element on either side, as `.a :has(…) > *` and base.css's
-    `:has(…) > pre` do, keeps the restyle to the elements near a write to text.
+def test_a_has_leads_only_to_a_subject_naming_an_element():
+    """A `:has()` before a rule's subject requires a subject that names an element: a
+    type, class, id or attribute. In Chromium, one rule anywhere in a sheet whose
+    `:has()` leads on to a subject naming none, as `.a:has(> b) > :not(c)`,
+    `.a:has(> b) > *` and `.a:has(> b) :first-child` do, makes every write to an
+    attribute another `:has()` reads restyle everything under the element whose `:has()`
+    the write may change. Focus marks are such attributes, so every focus move
+    restyled the page, whether or not the rule matched anything there. A pseudo-element
+    Chromium draws in the element's own shadow tree, such as `::details-content`,
+    `::placeholder` or `::file-selector-button`, names no element either; `::before`,
+    `::after` and `::marker` stand for their element. Measured on 11 November 2026 by
+    toggling `data-lf-focus-within` on a paragraph of `pr-walkthrough`, with each probe
+    rule added alone to the two rules that read that mark: 16–20 ms a toggle with such
+    a rule, 0.3–1.4 ms with `> .q`, `> p` or `> :where(p, li)`, and four shipped rules
+    (base.css's pane end room, layouts.css's workspace end room, reading.css's sticky
+    row names, disclosure.css's instant keyboard closing) restyled the page's 7,276
+    elements on every focus move. The same holds for a `:has()` alone in its
+    compound: toc.css's `@scope (:has(> lf-toc))`, under a container query that a page
+    without a sidebar never meets, made each of the 16 style recalcs in a Tab on a page
+    of 64 questions restyle the whole page (938 ms against 26 ms).
 
     A scope's root names its element by a class, id or attribute, not by a type alone.
     Chromium tests the root's `:has()` on every element of that type, and adding or
@@ -1755,29 +1763,37 @@ def test_an_untyped_has_leads_only_to_a_typed_subject():
                     for compound in _split_top(selector, " >+~")
                 ):
                     found.append(f"{where}: @scope ({selector}), a type alone")
-            for _conditions, enclosing, selector, _declarations in _style_rules(sheet):
-                # Inside a scope, the scope's root stands before every compound.
-                if "scope" in enclosing:
-                    continue
-                compounds = _split_top(selector, " >+~")
-                lead = next(
-                    (
-                        at
-                        for at, compound in enumerate(compounds)
-                        if _only_has(compound)
-                    ),
-                    None,
-                )
-                if (
-                    lead is not None
-                    and lead < len(compounds) - 1
-                    and not any(map(_names_an_element, compounds[:lead]))
-                    and not _names_an_element(compounds[-1])
-                ):
+            for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
+                if _untyped_after_has(selector):
                     found.append(f"{where}: {selector}")
     assert not found, (
-        "name an element beside this `:has()` or in its subject, and a scope's root by "
+        "name an element in the subject after this `:has()`, and a scope's root by "
         "a class, id or attribute:\n" + "\n".join(found)
+    )
+
+
+# The pseudo-elements Chromium draws in their element's own shadow tree, which the
+# test above measured to name no element.
+SHADOW_PSEUDO = re.compile(r"::(details-content|placeholder|file-selector-button)\b")
+
+
+def _untyped_after_has(selector):
+    """Whether the selector, or a selector inside one of its `:is()`, `:where()` or
+    `:not()`, has a `:has()` before a subject that names no element or is a shadow
+    pseudo-element. Inside an `@scope` the rule holds as it does outside one."""
+    *before, subject = _split_top(selector, " >+~")
+    if any(":has(" in compound for compound in before) and not _names_an_element(
+        subject
+    ):
+        return True
+    if ":has(" in selector and SHADOW_PSEUDO.search(subject):
+        return True
+    return any(
+        _untyped_after_has(argument)
+        for compound in (*before, subject)
+        for part in _simple_selectors(compound)
+        if part.startswith((":is(", ":where(", ":not("))
+        for argument in _split_top(part[part.index("(") + 1 : -1], ",")
     )
 
 

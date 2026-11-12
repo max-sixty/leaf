@@ -1122,8 +1122,12 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   --lf-block-frame: 1;
 }
 
-/* Only the last region owns the clearance; a footer already stands below the body. */
-:where([data-lf-reading-role="pane"]):not(:has(> footer)) > :not(header, footer) {
+/* Only the last region owns the clearance; a footer already stands below the body. A
+ * pane holds one body with its footer after it (module-scroll-and-motion.md, "Reading
+ * regions"), so the body ends the pane exactly when no footer follows it. Asked as
+ * `:not(:has(> footer))` on the pane, the question made every focus move restyle the
+ * whole page in Chromium (test_a_has_leads_only_to_a_subject_naming_an_element). */
+:where([data-lf-reading-role="pane"]) > :not(header, footer):last-child {
   --lf-end-room: inherit;
 }
 @container not style(--lf-end-room: 0px) {

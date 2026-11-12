@@ -123,7 +123,7 @@ def test_export_draft_refuses_invalid_source_and_version_selection(page_dir, tmp
 
 
 def test_an_export_holds_each_data_value_once_outside_its_documents(serve, tmp_path):
-    """Each source's value is one gzipped body, so no value rides the composed
+    """The sources' values are one gzipped body, so no value rides the composed
     document through its parsers or reaches the file twice."""
     serve(
         leaf_page(
@@ -146,15 +146,14 @@ def test_an_export_holds_each_data_value_once_outside_its_documents(serve, tmp_p
     exported = out.read_text(encoding="utf-8")
     package = SourceDocument(exported).tree.select_one("script[data-lf-export]")
     assert package is not None
-    # gzip reads a run of gzipped bodies as one stream.
-    bodies = "".join(
+    [body] = [
         gzip.decompress(base64.b64decode(resource["base64"])).decode()
         for resource in json.loads(package.text)["resources"].values()
         if resource["mime"] == "application/gzip"
-    )
+    ]
     for sentinel in ("NOTES_SENTINEL", "PATCH_SENTINEL_NEW"):
         # Counted, so a failure doesn't make pytest diff a file of megabytes.
-        assert (exported.count(sentinel), bodies.count(sentinel)) == (0, 1)
+        assert (exported.count(sentinel), body.count(sentinel)) == (0, 1)
 
 
 def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_path):

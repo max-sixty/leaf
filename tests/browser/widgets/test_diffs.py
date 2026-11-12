@@ -1114,7 +1114,7 @@ def test_a_file_opened_while_a_newer_source_draws_shows_the_newer_lines(browser,
 
     Opening it waits for that revision's drawing. A rendering of the file's older
     lines started at once would carry the same rendering number as the newer
-    revision, and landing after it, would put the older lines back.
+    revision, and would put the older lines back if it landed after it.
     """
 
     def patch(path, word):

@@ -444,8 +444,8 @@ subjects name one), and a condition on the chrome root, `body` or `html` is
 re-evaluated on writes below it. A `:has(~ …)` asked of elements most selectors reach,
 such as every child of `main`, makes each focus move restyle every block before the
 focused one (`test_a_has_reads_no_sibling_of_an_element_most_selectors_reach`). Prefer
-a class that names the targets, or a condition its owner sets on the styled element,
-such as a property a style query reads, and measure with
+a class that names the targets, or a condition its owner sets on the styled element
+or its parent, such as a property a style query reads, and measure with
 `leaf-dev bench --read paint --profile`.
 
 A `:has()` on a compound that a combinator follows, as in

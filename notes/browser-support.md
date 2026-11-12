@@ -144,14 +144,13 @@ constant; focus marking `main` as the user landed on a passage did the same.
 It holds for a property that doesn't inherit too, where the element also states
 a length in container units: on 2026-11-11, with the column's room in
 non-inheriting `<length-percentage>` properties and its shell's width in `cqi`, a
-`:has()` asked again of `main` as focus moved restyled every element under it,
-6,189 at 1,024 sections, and 51 at 64 sections with the room registered `*`. So
-the column resolves the lengths in its room in registered `<length>` properties
-(`--lf-room-span`, `--lf-room-note`, `browser/layouts.css`) and states the room
-from them, percentage and all, in properties registered `*` (`--lf-room-start`,
-`--lf-room-end`, and the inheriting `--lf-free-start` and its kin). Firefox and
-WebKit were not checked. Recheck by registering `--lf-room-start`
-`<length-percentage>` again:
+`:has()` asked again of `main` as focus moved restyled every element under it:
+7,152 elements a move at 1,024 sections, and 1,014 with the room registered `*`.
+So the column resolves the lengths in its room in registered `<length>`
+properties (`--lf-room-length`, `--lf-room-note`, `browser/layouts.css`) and
+states the room from them, percentage and all, only in `--lf-free-start` and its
+kin, registered `*`. Firefox and WebKit were not checked. Recheck by registering
+`--lf-free-start` `<length-percentage>` again:
 `test_a_focus_move_near_a_long_pages_end_restyles_what_focus_marks` in
 `tests/browser/test_chrome_contracts.py` fails while the gap stands.
 

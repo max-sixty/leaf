@@ -109,16 +109,16 @@
    * the window's foot, and no band stands below them that belongs to neither.
    *
    * What the page writes before the parts is whatever `main` holds besides the parts'
-   * holder, which the authoring contract keeps to the title (page-layout.md, "A page of
-   * parts"). Each child of `main` asks `main` whether it holds the parts, by a style
-   * query on `--lf-holds-parts`, which `main` states and which doesn't inherit. Asked by
-   * a `:has()` on `main`, the question would restyle the whole document on every write;
-   * asked by each child of `main` of its later siblings, as `:has(~ …)`, it made
-   * Chromium walk every earlier sibling of the focused block on each focus move and
-   * restyle them (test_a_has_reads_no_sibling_of_an_element_most_selectors_reach). No
-   * class or tag narrows the subject, so the browser tests the rule against every
-   * element; `:where(main > *)` comes first so that an element outside `main` fails at
-   * once. */
+   * holder, which the authoring contract keeps to the page's header (page-layout.md,
+   * "A page of parts"). Each child of `main` asks `main` whether it holds the parts, by
+   * a style query on `--lf-holds-parts`, which `main` states and which doesn't inherit.
+   * Asked by a `:has()` on `main`, the question would restyle the whole document on
+   * every write; asked by each child of `main` of its later siblings, as `:has(~ …)`,
+   * it made Chromium walk every earlier sibling of the focused block on each focus
+   * move and restyle them
+   * (test_a_has_reads_no_sibling_of_an_element_most_selectors_reach). No class or tag
+   * narrows the subject, so the browser tests the rule against every element;
+   * `:where(main > *)` comes first so that an element outside `main` fails at once. */
   @property --lf-holds-parts {
     syntax: "<integer>";
     inherits: false;
@@ -329,10 +329,12 @@
    * after a resize (notes/browser-support.md).
    *
    * The column resolves every length in its room on itself, in registered `<length>`
-   * properties that don't inherit (`--lf-room-span`, `--lf-room-note`), so each unit
-   * resolves there: the shell's `cqi`, and a page's `--col` or `--col-pad` stated in
-   * `ch` or `em`, in the column's font. It states each side's room from them
-   * (`--lf-room-start`, `--lf-room-end`) and passes it down in `--lf-free-*`, all
+   * properties that don't inherit, so each unit resolves there: the shell's `cqi`, and
+   * a page's `--col` or `--col-pad` stated in `ch` or `em`, in the column's font.
+   * `--lf-room-length` is the column's slot for that length: the shell less the
+   * column's gutters for a centred column, and the room at its end beside a sidebar
+   * (below). `--lf-room-note` is the note's share of it where a note column stands
+   * beside the prose. The column states each side's room from them in `--lf-free-*`,
    * registered `*`, as an expression of lengths and a percentage that each reader
    * resolves against its own containing block. Registered `<length-percentage>`, a
    * room mixing a length with a percentage counted as changed on every restyle of the
@@ -345,23 +347,13 @@
     inherits: true;
     initial-value: 0px;
   }
-  @property --lf-room-span {
+  @property --lf-room-length {
     syntax: "<length>";
     inherits: false;
     initial-value: 0px;
   }
   @property --lf-room-note {
     syntax: "<length>";
-    inherits: false;
-    initial-value: 0px;
-  }
-  @property --lf-room-start {
-    syntax: "*";
-    inherits: false;
-    initial-value: 0px;
-  }
-  @property --lf-room-end {
-    syntax: "*";
     inherits: false;
     initial-value: 0px;
   }
@@ -412,13 +404,9 @@
     main > [data-lf-views="parts"] > * > *
   ).layout-column {
     --lf-shell-width: 100cqi;
-    /* The shell less the column's gutters, and the note's share of it where a note
-     * column stands beside the prose (below). */
-    --lf-room-span: calc(var(--lf-shell-width) - 2 * var(--col-pad));
-    --lf-room-start: max(0px, (var(--lf-room-span) - var(--lf-room-note) - 100%) / 2);
-    --lf-room-end: var(--lf-room-start);
-    --lf-free-start: var(--lf-room-start);
-    --lf-free-end: var(--lf-room-end);
+    --lf-room-length: calc(var(--lf-shell-width) - 2 * var(--col-pad));
+    --lf-free-start: max(0px, (var(--lf-room-length) - var(--lf-room-note) - 100%) / 2);
+    --lf-free-end: var(--lf-free-start);
     /* An authored note column centers the prose and note together when both fit.
      * Narrower columns keep centered prose and wrap the note. The author chooses
      * this axis on its owner; notes inside another column never choose it. */
@@ -440,7 +428,7 @@
         var(--note) *
           clamp(0, sign(100cqi - 2 * var(--col-pad) - var(--col) - var(--note)) + 1, 1)
       );
-      --lf-room-end: max(0px, var(--lf-room-span) - 100% - var(--lf-room-start));
+      --lf-free-end: max(0px, var(--lf-room-length) - 100% - var(--lf-free-start));
     }
   }
   .layout-flow {
@@ -789,14 +777,14 @@
     margin: 0;
     padding: 0;
     --lf-wide-page: 0;
-    /* A length throughout, resolved here as the column's room is (above). */
-    --lf-room-span: max(
+    /* A length throughout, resolved in the column's slot for it (above). */
+    --lf-room-length: max(
       0px,
       100cqi - var(--col) - (var(--aside) + var(--sp-4)) *
         clamp(0, sign(100cqi - var(--col) - var(--aside) - var(--sp-4)) + 1, 1)
     );
-    --lf-free-end: var(--lf-room-span);
-    padding-inline-end: var(--lf-room-span);
+    --lf-free-end: var(--lf-room-length);
+    padding-inline-end: var(--lf-room-length);
   }
   @property --lf-track-parent-width {
     syntax: "<length>";

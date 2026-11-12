@@ -600,6 +600,11 @@ export const browserScrolls = (box) => {
   const at = placed.get(box);
   return !at || at.top !== box.scrollTop || at.left !== box.scrollLeft;
 };
+// Whether the reader's input has set `box` scrolling: a sequence it started
+// (`startReaderScroll`), from the input, before the browser moves the box, until the
+// sequence ends. A sequence layout starts, as a clamp does, is not the reader's.
+/** @param {Element} box */
+export const readerScrolls = (box) => Boolean(sequences.get(box)?.reader);
 /** @param {(box: Element) => void} listener */
 export function watchScrollEnds(listener) {
   endListeners.add(listener);

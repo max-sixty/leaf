@@ -654,7 +654,7 @@ requires-dist = [
     { name = "tree-sitter-javascript", specifier = ">=0.25.0" },
     { name = "turbohtml", specifier = ">=1.7" },
     { name = "uvicorn", specifier = ">=0.31.1" },
-    { name = "watchdog", specifier = ">=7.0.0" },
+    { name = "watchdog", specifier = ">=7.1.0" },
     { name = "websockets", specifier = ">=15" },
 ]
 

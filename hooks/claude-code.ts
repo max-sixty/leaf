@@ -330,6 +330,12 @@ async function clerk($: EngineInterface, session: string) {
         const asked = await forkStep($, session, {});
         if (!asked) continue;
         const ran = await runFork($, asked);
+        // The main thread's request has just gone out, so its cache is warm, and a
+        // fork that wrote more of its prompt than it read met the rewrite. A thread's
+        // fork can't tell: an idle session's cache may have expired (`runFork`).
+        const usage = ran.usage as Record<string, unknown> | undefined;
+        const written = Number(usage?.cache_creation_input_tokens ?? 0);
+        if (written > Number(usage?.cache_read_input_tokens ?? 0)) rewrote = true;
         const applied = await forkStep($, session, { basis: asked.basis, ...ran });
         if (ran.answer === undefined) {
           $.ui.log(`Leaf: the clerk's fork gave no answer (${ran.failed})`, {
@@ -378,8 +384,8 @@ function request() {
   );
 }
 
-// Whether a fork of this session wrote more of its prompt to the cache than it
-// read, so later forks think at the session's own effort (`runFork`).
+// Whether a turn-end check of this session wrote more of its prompt to the cache
+// than it read, so later forks think at the session's own effort (`runFork`).
 let rewrote = false;
 
 /** Fork the conversation with the prompt and effort Leaf asked for, and what Leaf
@@ -394,10 +400,11 @@ let rewrote = false;
  * first reply on, a cache write billed where a read was expected (issue #5891:
  * through a proxy that rewrites mid-conversation system messages, on Vertex, or
  * with `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS`). Leaf can't tell those setups
- * apart from the module, so the fork's usage does: once a fork writes more of its
- * prompt than it reads, each later fork of the session thinks at the session's
- * effort, which the cache serves. A fork that found the cache cold falls back too,
- * which costs only the asked effort's speed. */
+ * apart from the module, so the turn-end check's usage does (`clerk`): it forks just
+ * after the main thread's request, while the cache is warm, so once one writes more
+ * of its prompt than it reads, each later fork of the session thinks at the
+ * session's effort, which the cache serves. A thread's fork can find the cache
+ * expired in an idle session at any effort, so its usage decides nothing. */
 async function runFork(
   $: EngineInterface,
   asked: { prompt: string; effort: ModelEffort },
@@ -411,11 +418,6 @@ async function runFork(
   let ran: Record<string, unknown>;
   try {
     const reply = await $.model.fork({ prompt: asked.prompt, effort });
-    if ("usage" in reply && reply.usage) {
-      const usage = reply.usage as Record<string, unknown>;
-      const written = Number(usage.cache_creation_input_tokens ?? 0);
-      if (written > Number(usage.cache_read_input_tokens ?? 0)) rewrote = true;
-    }
     ran = {
       ...(reply.isAnswered ? { answer: reply.text } : { failed: reply.reason }),
       ...("usage" in reply ? { usage: reply.usage } : {}),

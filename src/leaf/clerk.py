@@ -169,10 +169,10 @@ effort leaves the cache whole where Claude Code's per-message effort reaches the
 model: in the claude-code journey on 2026-11-04, with the session at xhigh, a low
 fork read 98% of the conversation from the cache, as one at the session's effort
 did. Where it doesn't reach the model, a low fork writes the conversation to the
-cache again (#5891), so once a fork of a session does, the hooks module makes each
-later one at the session's effort (`runFork` in `hooks/claude-code.ts`). On turns planted in that journey, which leave an ask in
-the chat, answer it there, make the page stale or set work running that no page
-shows, or leave nothing, the low fork named all 19 planted items and nothing at any
+cache again (#5891), so once a turn-end check of a session does, the hooks module
+makes each later fork at the session's effort (`runFork` in `hooks/claude-code.ts`).
+On turns planted in that journey, which leave an ask in the chat, answer it there,
+make the page stale or set work running that no page shows, or leave nothing, the low fork named all 19 planted items and nothing at any
 of the 13 quiet turns over five runs, as the session's effort did, with 0.45 times
 the output (95% interval 0.31–0.63, 32 turns matched across six runs) and 0.62 times
 the time.

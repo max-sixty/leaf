@@ -194,11 +194,12 @@ comment on but need not decide is not an obligation.
 
 In Claude Code, as each turn ends, an experimental check of Leaf's reads the
 conversation for decisions, answers or steps you left to the user that On Me doesn't
-hold. It asks each in a new thread as your message with `--obligation`, on the passage
-it concerns or the page, and tells you at your next step what it wrote. Where a few of
-a page's words have gone stale, it swaps in new ones and tells you the old and new
-words; change them back or rewrite them if they're wrong, and carry the change into
-any file you build the page from. It also tells you what else it found, such as a
+hold. It asks each as your message with `--obligation`, in a new thread on the
+passage it concerns or the page, or, for a question asked before, in that question's
+thread under its id, which reopens the thread if the user closed it. It tells you at
+your next step what it wrote. Where a few of a page's words have gone stale, it swaps
+in new ones and tells you the old and new words; change them back or rewrite them if
+they're wrong, and carry the change into any file you build the page from. It also tells you what else it found, such as a
 page that still says what has since changed, an On Me item the user settled
 elsewhere, or work you set running that no page shows, for you to act on where it
 still holds; `turn-end-check.md` is what it asks. That catches what slips; it doesn't

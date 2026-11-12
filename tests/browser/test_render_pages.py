@@ -44,6 +44,7 @@ from render_cases_widgets import (
     RAIL_BAND_PAGE,
     RAIL_BANDS,
     ROOM_GEOMETRY,
+    SCROLLING_DIAGRAM_PAGE,
     TWIN_V1,
     TWIN_V2,
     TYPED_PARTS_PAGE,
@@ -1110,7 +1111,7 @@ def test_a_diagram_taken_out_while_its_renderer_loads_draws_when_put_back(
 def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve):
     """A focused visual draws one ring, its own mark; entering its thread keeps the
     mark on the same target, one outline, rather than adding a second."""
-    url = serve(WIDE_DIAGRAM_PAGE)
+    url = serve(SCROLLING_DIAGRAM_PAGE)
     append_carried_log_record(
         serve.page_dir,
         {
@@ -2589,7 +2590,7 @@ def test_a_scroller_reclassifies_when_an_ancestor_changes_its_style(browser, ser
     source = leaf_page(
         "Inherited scrollport",
         '<div id="parent" style="--flow:auto">'
-        '<div id="box" class="scroll" '
+        '<div id="box" class="lf-scroll" '
         'style="width:200px;overflow-x:var(--flow);white-space:nowrap">'
         '<span style="display:inline-block;width:600px">Wide content</span>'
         "</div></div>",
@@ -3596,7 +3597,7 @@ def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(
     browser, serve
 ):
     """A bare button or field an author writes into the page reads in Leaf's type, as
-    `.button` and `.field` do; left to the browser it drew 13.33px Arial beside the
+    `.lf-btn` and `.lf-field` do; left to the browser it drew 13.33px Arial beside the
     page's own type (#2559). The default weighs nothing, so a page rule of element
     selectors alone still sets its type."""
     page = open_page(
@@ -3605,7 +3606,7 @@ def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(
             leaf_page(
                 "Authored controls",
                 """<h1>Authored controls</h1>
-<p><button id="classed" class="button" type="button">Classed</button>
+<p><button id="classed" class="lf-btn" type="button">Classed</button>
 <button id="bare" type="button">Bare</button>
 <input id="bare-field" type="text" aria-label="Bare field">
 </p>
@@ -3638,7 +3639,7 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
             leaf_page(
                 "Widget controls",
                 """<h1>Widget controls</h1>
-<p><button id="classed" class="button" type="button">Classed</button></p>
+<p><button id="classed" class="lf-btn" type="button">Classed</button></p>
 <lf-own-controls id="own"></lf-own-controls>""",
             ),
             layer_registry={"lf-own-controls": declaration},

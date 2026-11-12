@@ -15,6 +15,7 @@
 import { clamp, overlaps, overlapsAcross, shifted, union } from "../rect.js";
 
 /** @typedef {import("../rect.js").Box} Box */
+/** @typedef {(rect: Box) => Box | undefined} Blocked What a rect overlaps first, if anything. */
 /** @typedef {{before: readonly (Box | null)[], home: Box, after: readonly (Box | null)[]}} SeatSet */
 /** @typedef {{rect: Box, came?: number | undefined, held?: boolean | Box | null, pushed?: number | undefined}} Row */
 /** @typedef {{came?: number | undefined, held: Box | null, seats: SeatSet, floor: number,
@@ -41,6 +42,66 @@ export function rowPlacement({
   return blockRight - half > railInner ? "pin" : "rail";
 }
 
+// The final footprints already placed in the shared seating order, held in order of
+// their tops, so each question a row asks reads only the footprints level with the
+// rectangle it names. Every pass seats every row, so a row scanning every footprint
+// seated before it would make a pass grow with the square of the rows; read this way,
+// a pass grows with the rows times the logarithm of their number (root `AGENTS.md`,
+// "Responsiveness"). Footprints with the same top keep the order they were seated in.
+export class Footprints {
+  // Each footprint with its turn in the seating order, in order of their tops.
+  /** @type {{box: Box, seq: number}[]} */
+  #placed = [];
+  #tallest = 0;
+  /** @param {Iterable<Box>} [boxes] */
+  constructor(boxes = []) {
+    for (const box of boxes) this.add(box);
+  }
+  /** @param {Box} box */
+  add(box) {
+    const placed = this.#placed;
+    placed.splice(this.#after(box.top), 0, { box, seq: placed.length });
+    this.#tallest = Math.max(this.#tallest, box.bottom - box.top);
+  }
+  // The footprints in order of their tops, from the first whose bottom can reach below
+  // `top`: none before it stands lower than `top`.
+  /** @param {number} top */
+  *from(top) {
+    for (const { box } of this.#reaching(top)) yield box;
+  }
+  // Of the footprints `rect` overlaps, the one seated first, or undefined: the one a
+  // scan in the order they were seated meets first.
+  /** @param {Box} rect */
+  hit(rect) {
+    let first;
+    for (const footprint of this.#reaching(rect.top)) {
+      if (footprint.box.top >= rect.bottom) break;
+      if (overlaps(footprint.box, rect) && (!first || footprint.seq < first.seq))
+        first = footprint;
+    }
+    return first?.box;
+  }
+  /** @param {number} top */
+  *#reaching(top) {
+    const placed = this.#placed;
+    for (let at = this.#after(top - this.#tallest - 1); at < placed.length; at += 1)
+      yield /** @type {{box: Box, seq: number}} */ (placed[at]);
+  }
+  // The index after every footprint whose top is no lower than `top`.
+  /** @param {number} top */
+  #after(top) {
+    const placed = this.#placed;
+    let low = 0;
+    let high = placed.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (/** @type {{box: Box}} */ (placed[middle]).box.top <= top) low = middle + 1;
+      else high = middle;
+    }
+    return low;
+  }
+}
+
 // A rail row that would stand over an occupied footprint is pushed down. The layout
 // owns the shared seating order (`inSeatingOrder`); bands across the page do not
 // collide. Pins use `seatRow`: packing a chosen pin again could move it into words.
@@ -51,16 +112,17 @@ export function rowPlacement({
 // no push, `came` the layout pass it came at, and `pushed` the push it stands at now. A
 // held row is packed from where it stands, its rect pushed by `pushed`, so holding a row
 // that stands pushed leaves it there; every other row is packed from its rect, and comes
-// back up as the room above it frees. The answer is this row's push.
-/** @param {Pick<Row, "rect" | "held" | "pushed">} row @param {number} gap @param {readonly Box[]} occupied */
-export function packRow({ rect, held, pushed = 0 }, gap, occupied = []) {
+// back up as the room above it frees. The answer is this row's push. A push only ever
+// moves the row down, so the footprints from where it starts are read in order of their
+// tops until one stands wholly below it.
+/** @param {Pick<Row, "rect" | "held" | "pushed">} row @param {number} gap @param {Footprints} occupied */
+export function packRow({ rect, held, pushed = 0 }, gap, occupied) {
   const height = rect.bottom - rect.top;
   let top = rect.top + (held ? pushed : 0);
-  const across = occupied
-    .filter((box) => overlapsAcross(box, rect))
-    .toSorted((a, b) => a.top - b.top);
-  for (const box of across)
-    if (top < box.bottom + gap && top + height > box.top - gap) top = box.bottom + gap;
+  for (const box of occupied.from(top - gap)) {
+    if (box.top - gap >= top + height) break;
+    if (overlapsAcross(box, rect) && top < box.bottom + gap) top = box.bottom + gap;
+  }
   return top - rect.top;
 }
 
@@ -211,11 +273,15 @@ export function seatsBy(parts, home, inline, passage, { cover, beside }, size, g
 // whether it stands folded now, which a held pin keeps. `occupied` holds the final
 // footprints already placed, which every pin keeps off as it does a pin seated before it.
 // The answer is its seat, `{ rect, folded }`.
-/** @param {Pin} pin @param {{gap: number, occupied?: readonly Box[]}} options */
-export function seatRow(pin, { gap, occupied = [] }) {
+/** @param {Pin} pin @param {{gap: number, occupied: Footprints}} options */
+export function seatRow(pin, { gap, occupied }) {
+  // What a rect overlaps first: one of `own`, the pin's own room, else a footprint.
+  /** @param {readonly Box[]} own @returns {Blocked} */
+  const blocking = (own) => (rect) =>
+    own.find((box) => overlaps(box, rect)) ?? occupied.hit(rect);
   if (pin.level) {
     const home = boundedHome(pin.seats.home, pin.bounds);
-    const pressed = [...pin.controls, ...occupied];
+    const pressed = blocking(pin.controls);
     const rect =
       (pin.held && inside(pin.held, pin.bounds) ? pin.held : null) ??
       leastCovering([home], [], pressed, pin.bounds) ??
@@ -244,20 +310,20 @@ export function seatRow(pin, { gap, occupied = [] }) {
       : pin.held.left,
   };
   let rect = held && inside(held, posture.bounds) ? held : null;
-  const avoiding = [...pin.cover, ...occupied];
-  const pressed = [...pin.controls, ...occupied];
+  const avoiding = blocking(pin.cover);
+  const pressed = blocking(pin.controls);
   /** @param {SeatSet} seats */
   const lowered = (seats) => [
     ...seats.before,
     slid(seats.home, avoiding, gap, "down", pin.floor),
     ...seats.after,
   ];
-  /** @param {SeatSet} seats @param {Box} bounds @param {readonly Box[]} [past] */
+  /** @param {SeatSet} seats @param {Box} bounds @param {Blocked} [past] */
   const asideOf = (seats, bounds, past = pressed) =>
     slid(boundedHome(seats.home, bounds), past, gap, "left", bounds.left);
   /** @param {SeatSet} seats @param {Box} bounds */
   const clearAside = (seats, bounds) =>
-    pinSpot([asideOf(seats, bounds, avoiding)], [], bounds);
+    pinSpot([asideOf(seats, bounds, avoiding)], () => undefined, bounds);
   /** @param {typeof open} next @param {Box | null} seat */
   const take = (next, seat) => {
     if (!seat) return false;
@@ -332,9 +398,9 @@ function boundedHome(home, bounds) {
   return { left, right: left + width, top, bottom: top + height };
 }
 
-// Of the offered `seats` inside `bounds` that overlap none of `pressed`, the first of
-// those that cover the least area of `cover`, or null.
-/** @param {readonly (Box | null)[]} seats @param {readonly Box[]} cover @param {readonly Box[]} pressed @param {Box} bounds */
+// Of the offered `seats` inside `bounds` that `pressed` finds clear, the first of those
+// that cover the least area of `cover`, or null.
+/** @param {readonly (Box | null)[]} seats @param {readonly Box[]} cover @param {Blocked} pressed @param {Box} bounds */
 function leastCovering(seats, cover, pressed, bounds) {
   /** @param {Box} a @param {Box} b */
   const shared = (a, b) =>
@@ -344,20 +410,19 @@ function leastCovering(seats, cover, pressed, bounds) {
   let best = null;
   let least = Infinity;
   for (const seat of seats) {
-    if (!seat || !inside(seat, bounds) || pressed.some((box) => overlaps(box, seat)))
-      continue;
+    if (!seat || !inside(seat, bounds) || pressed(seat)) continue;
     const covered = cover.reduce((sum, box) => sum + shared(box, seat), 0);
     if (covered < least) [best, least] = [seat, covered];
   }
   return best;
 }
 
-// `seat` moved past each of `boxes` it overlaps, `left` or `down`, or null once it
-// passes `limit`: the left edge it may not cross, or the bottom it may not.
-/** @param {Box} seat @param {readonly Box[]} boxes @param {number} gap @param {"left" | "down"} way @param {number} limit */
-function slid(seat, boxes, gap, way, limit) {
+// `seat` moved past each box `blocked` finds it overlapping, `left` or `down`, or null
+// once it passes `limit`: the left edge it may not cross, or the bottom it may not.
+/** @param {Box} seat @param {Blocked} blocked @param {number} gap @param {"left" | "down"} way @param {number} limit */
+function slid(seat, blocked, gap, way, limit) {
   let rect = seat;
-  for (let hit; (hit = boxes.find((box) => overlaps(box, rect)));) {
+  for (let hit; (hit = blocked(rect));) {
     const width = rect.right - rect.left;
     const height = rect.bottom - rect.top;
     rect =
@@ -369,9 +434,7 @@ function slid(seat, boxes, gap, way, limit) {
   return rect;
 }
 
-// The first of a pin's `seats` inside `bounds` that overlaps none of `boxes`, or null.
-/** @param {readonly (Box | null)[]} seats @param {readonly Box[]} boxes @param {Box} bounds */
-export const pinSpot = (seats, boxes, bounds) =>
-  seats.find(
-    (seat) => seat && inside(seat, bounds) && !boxes.some((box) => overlaps(box, seat)),
-  ) ?? null;
+// The first of a pin's `seats` inside `bounds` that `blocked` finds clear, or null.
+/** @param {readonly (Box | null)[]} seats @param {Blocked} blocked @param {Box} bounds */
+const pinSpot = (seats, blocked, bounds) =>
+  seats.find((seat) => seat && inside(seat, bounds) && !blocked(seat)) ?? null;

@@ -1742,8 +1742,8 @@ def _each_test_composes_its_own_layers():
     (`layer.selected_layer`, `layer.selected_vocabulary`), and a test may rewrite
     a package at a path an earlier test's package held."""
     yield
-    layer_model._composed.cache_clear()
-    layer_model._vocabulary.cache_clear()
+    layer_model._compositions.clear()
+    layer_model._vocabularies.clear()
 
 
 def retire_bridge(lock):

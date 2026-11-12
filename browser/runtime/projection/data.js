@@ -46,8 +46,9 @@
    and keeps the old quote in the thread, where the quote was all of the datum's words;
    a passage within a datum, captured with words of it around the quote, stands nowhere
    on the page once its words are gone. A different source makes the placement
-   outdated; a duplicate key detaches rather than guessing. Selections crossing datum
-   boundaries remain ordinary quote anchors because they name a passage, not one fact.
+   outdated; a duplicate key detaches rather than guessing. A selection crossing a datum's
+   edge is kept as a detached quote (`{section, quote, detached: true}`): each datum is
+   fenced in the page's reading, so no search could find those words together.
 
    `data-lf-projection`, `data-lf-origin`, `data-lf-source`, `data-lf-source-revision`
    and `data-lf-gen` are written here alone, never authored in a version, and a datum is

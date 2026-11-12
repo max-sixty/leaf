@@ -441,14 +441,13 @@ dl.lf-facts dd {
        which keeps a table nested in a cell read for itself. The table of captures
        below asks the same way. An `@scope` rooted on the table also answers once, but a
        scope's root names a class, id or attribute, never a type alone
-       (test_an_untyped_has_leads_only_to_a_typed_subject).
-       A rule keyed on a mark the runtime moves, `data-lf-more-before` as the table
-       scrolls or `data-lf-focus-within` as focus moves, names its cells' types, in a
-       `:where()` that adds no weight. When such a rule's last compound names no type,
-       class, id or attribute, Chromium restyles every element under the one whose mark
-       changed. Focus marks every ancestor of the focused element, `main` included, so
-       with `:first-child::after` alone, resolving a thread from its card restyled every
-       element of the page as focus returned to the thread's passage
+       (test_a_has_leads_only_to_a_subject_naming_an_element).
+       Each rule below names its cells' types, in a `:where()` that adds no weight,
+       because its subject follows the table's `:has()`: when such a subject names no
+       type, class, id or attribute, Chromium restyles every element under any one whose
+       focus mark changes (test_a_has_leads_only_to_a_subject_naming_an_element). Focus
+       marks every ancestor of the focused element, `main` included, so with
+       `:first-child` alone every focus move restyled the page
        (test_resolving_a_thread_restyles_what_focus_marks). */
     table:has(th[scope="row"]:first-child):has(> * > tr > th[scope="row"]:first-child) {
       --lf-more-fade-start: 0px;
@@ -456,7 +455,7 @@ dl.lf-facts dd {
       &[data-lf-scroll-direction="rtl"] {
         --lf-names-clear-to: left;
       }
-      & > * > tr > :first-child {
+      & > * > tr > :where(th, td):first-child {
         position: sticky;
         inset-inline-start: 0;
       }
@@ -558,8 +557,10 @@ dl.lf-facts dd {
     figure {
       margin: var(--figure-margin-block) 0;
     }
+    /* A caption is a sentence read with its figure, so it stands one rung under the
+       prose rather than at the apparatus size beside a label or a chip. */
     figcaption {
-      font-size: var(--t-6);
+      font-size: var(--t-5);
       color: var(--muted);
       margin-top: 8px;
     }

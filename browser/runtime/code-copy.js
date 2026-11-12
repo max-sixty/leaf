@@ -133,8 +133,13 @@ function declareCopy(pre, copy, noun) {
         id: "code.copy",
         keys: ["Enter"],
         title: `copy ${noun}`,
-        when: () => Boolean(copyTrigger(copy)),
-        run: () => copyTrigger(copy)?.click(),
+        // A control made with its block has not drawn its button yet, as a heading
+        // link's has not (heading-links.js, `heading.link.copy`).
+        run: async () => {
+          await customElements.whenDefined(copy.localName);
+          await copy.updateComplete;
+          copyTrigger(copy)?.click();
+        },
       },
     ]),
   );

@@ -427,6 +427,7 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
                     "title": "The retry limit",
                     "text": "Should the retry limit be 3 or 5?",
                     "passage": "",
+                    "again": "",
                     "quote": "Should the retry limit be 3 or 5?",
                 }
             ],
@@ -475,6 +476,41 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
     # The note gives the effort the fork was sent at, not the session's in `request`.
     assert note["effort"] == clerk_model.EFFORT != RESENT["effort"], note
     assert note["usage"] == FORK_USAGE and note["elapsedMs"] >= 0, note
+    driven.quit()
+
+
+def test_a_fork_that_rewrote_the_cache_sends_later_forks_at_the_sessions_effort(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """Where Claude Code's per-message effort doesn't reach the model, a fork at
+    another effort than the session's writes the conversation to the cache again
+    (#5891). Once a fork's usage shows it wrote more of its prompt than it read, each
+    later fork of the session goes at the session's own effort, which the cache
+    serves."""
+    rewrote = {
+        **FORK_USAGE,
+        "cache_read_input_tokens": 50,
+        "cache_creation_input_tokens": 9000,
+    }
+    reply = json.dumps({"asks": [], "findings": []})
+    driven = ClaudeCode(
+        spawn, "cc-fork-rewrote", {"forkAnswer": reply, "forkUsage": rewrote}
+    )
+    holding_page(driven, page_dir, monkeypatch)
+    main_thread_request(driven)
+    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "reason": "answer"}
+    efforts = []
+    for turn in ("t1", "t2"):
+        driven.emit("turn.complete", {**ended, "turnId": turn})
+        efforts.append(driven.forks.get(timeout=STATED_TIMEOUT)["effort"])
+        wait_for(
+            lambda: driven.debug.get(timeout=STATED_TIMEOUT),
+            lambda line: line.startswith("Leaf: the clerk"),
+            failure=lambda: (
+                f"the clerk never reported: {list(driven.diagnostics.queue)}"
+            ),
+        )
+    assert efforts == [clerk_model.EFFORT, RESENT["effort"]], efforts
     driven.quit()
 
 

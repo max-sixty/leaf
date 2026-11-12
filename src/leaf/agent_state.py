@@ -332,7 +332,7 @@ def page_state(
     source_error: str | None = None,
     *,
     target: str | None = None,
-    after: int | None = 0,
+    after: int | None = None,
     limit: int | None = None,
 ) -> dict:
     """Where the page stands, as one JSON object — the agent-facing projection

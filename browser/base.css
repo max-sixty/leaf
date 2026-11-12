@@ -232,6 +232,17 @@
   inherits: false;
   initial-value: 0;
 }
+/* A control whose focus a box around it shows, as a choice rings its radio, names that
+ * box with a selector, and focus.js marks the nearest box around it that matches:
+ * `data-lf-control-focus` while the control holds focus, and
+ * `data-lf-control-focus-visible` while that focus is visible. The box's rules read
+ * those marks rather than asking with `:has()` where focus is, which made every focus
+ * move restyle the page in Chromium (`test_no_has_reads_where_focus_is`). It does not
+ * inherit, so only the control that names a box has one. */
+@property --lf-focus-box {
+  syntax: "*";
+  inherits: false;
+}
 /* Where a box's marks stand (:root, "Where it stands"). It has no initial value, so a
  * box that states none reads as stating none, which `outline-offset`'s initial 0 could
  * not say: a field's edge read as nothing stated, and a mark stood 3px out round a
@@ -1122,8 +1133,12 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   --lf-block-frame: 1;
 }
 
-/* Only the last region owns the clearance; a footer already stands below the body. */
-:where([data-lf-reading-role="pane"]):not(:has(> footer)) > :not(header, footer) {
+/* Only the last region owns the clearance; a footer already stands below the body. A
+ * pane holds one body with its footer after it (module-scroll-and-motion.md, "Reading
+ * regions"), so the body ends the pane exactly when no footer follows it. Asked as
+ * `:not(:has(> footer))` on the pane, the question made every focus move restyle the
+ * whole page in Chromium (test_a_has_leads_only_to_a_subject_naming_an_element). */
+:where([data-lf-reading-role="pane"]) > :not(header, footer):last-child {
   --lf-end-room: inherit;
 }
 @container not style(--lf-end-room: 0px) {

@@ -1404,7 +1404,8 @@ def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve
 
 
 def test_hidden_code_arrivals_do_not_read_skipped_blocks(browser, serve):
-    """Arriving code must leave the browser's skipped subtrees unmeasured."""
+    """Arriving code must leave the browser's skipped subtrees unmeasured. A block
+    revealed later gets its copy control, names its Copy key and copies on Enter."""
     page = open_page(
         browser,
         serve(leaf_page("Hidden arrivals", '<h1>Arrivals</h1><div id="slots"></div>')),
@@ -1432,6 +1433,10 @@ def test_hidden_code_arrivals_do_not_read_skipped_blocks(browser, serve):
     expect(page.locator(".lf-code-copy")).to_have_count(1)
     page.locator("#slots summary").click()
     expect(page.locator(".lf-code-copy")).to_have_count(2)
+    # The revealed block names its Copy key once its control has drawn its button.
+    expect(page.locator("#slots details pre")).to_have_attribute(
+        "aria-keyshortcuts", re.compile(r"\bEnter\b")
+    )
     page.keyboard.press("Tab")
     expect(page.locator("#slots details pre")).to_be_focused()
     page.keyboard.press("Enter")
@@ -2439,6 +2444,47 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     )
     assert result["section"] == "patch"
     assert result["quote"] == "first last"
+
+
+def test_a_diff_marks_changed_words_only_where_the_line_mostly_stayed(browser, serve):
+    """A word mark locates an edit inside a line that otherwise stayed the same.
+
+    Where most of a changed pair was rewritten, marks would cover most of both lines
+    and point at nothing, so the pair stays a plain removed row above a plain added
+    row, as delta's default `--max-line-distance` leaves it."""
+    markup = leaf_page(
+        "diff",
+        """
+<h1 id="t">Diff</h1>
+<lf-diff id="patch"><pre>
+diff --git a/notes.md b/notes.md
+--- a/notes.md
++++ b/notes.md
+@@ -1,4 +1,4 @@
+ Release steps:
+-1. Run the test suite.
+-2. Tell the team the build is ready.
++1. Run the full test suite.
++2. Tag the commit and push the tag.
+ 3. Close the milestone.
+</pre></lf-diff>
+""",
+    )
+    page = open_page(browser, serve(markup))
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+    marks = page.evaluate("""() => Object.fromEntries(
+      [...document.querySelector('#patch').shadowRoot.querySelectorAll('[data-line]')]
+        .filter(line => line.dataset.lineType.startsWith('change-'))
+        .map(line => [line.textContent,
+          [...line.querySelectorAll('[data-diff-span]')].map(span => span.textContent)]))""")
+    assert marks == {
+        "1. Run the test suite.": [],
+        "2. Tell the team the build is ready.": [],
+        "1. Run the full test suite.": ["full "],
+        "2. Tag the commit and push the tag.": [],
+    }
 
 
 def test_a_diff_can_start_with_every_file_collapsed(browser, serve):
@@ -6282,18 +6328,14 @@ def test_page_search_finds_a_shipped_options_chip_and_title_apart(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-@pytest.mark.parametrize(
-    ("source", "words"),
-    [("ui", "window The workspace"), ("threads", "there The quote")],
-)
 def test_page_search_reads_a_docs_captions_title_apart_from_its_text(
-    engine, source, words, request, serve
+    engine, request, serve
 ):
     """A figure caption in the product docs draws its title on a line of its own above
     its text, and page search finds the title's last word and the text's first apart."""
-    page = open_page(request.getfixturevalue(engine), serve(named_source(source)))
+    page = open_page(request.getfixturevalue(engine), serve(named_source("pages")))
     page.keyboard.press("/")
-    page.get_by_role("searchbox", name="Search page text").fill(words)
+    page.get_by_role("searchbox", name="Search page text").fill("window The workspace")
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
 
 

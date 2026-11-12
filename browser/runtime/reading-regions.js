@@ -52,7 +52,7 @@
    every other. Mechanical returns, programmatic arrivals and scrolling are not
    choices of another passage. Each consumer interprets that target in its own
    domain. */
-import { scrollersOf, installScrollerLookup } from "./scroll-containers.js";
+import { installScrollerLookup } from "./scroll-containers.js";
 export { scrollersOf } from "./scroll-containers.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { landingBand, shownRect, userScrollport } from "./geometry.js";
@@ -409,17 +409,6 @@ export const scrollerFor = (el) => {
 };
 
 installScrollerLookup(scrollerFor);
-
-// The boxes a scroll passes to once each inner one is spent, as native input chains it
-// at a box whose overscroll-behavior lets it go: `scrollersOf`'s, then the page's. A
-// fixed box ends `scrollersOf` because the page's scroll leaves it in place, but its
-// scroll still chains to the page, the box its containing block, the viewport, scrolls.
-/** @param {Element | null} node @returns {Generator<Element>} */
-export function* scrollChainOf(node) {
-  let last = null;
-  for (last of scrollersOf(node)) yield last;
-  if (last !== pageScroller) yield pageScroller;
-}
 
 /** @param {RegionTarget} regionOrNode */
 export function shownRegionBounds(regionOrNode) {

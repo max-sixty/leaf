@@ -97,8 +97,10 @@ export function chipSeats(root) {
       );
       const kept = new Set(seated.map(({ seat }) => seat));
       for (const [key, seat] of seats)
-        if (!kept.has(seat)) seats.delete(key);
-        else seat.style.removeProperty("visibility");
+        if (!kept.has(seat)) {
+          seats.delete(key);
+          seat.remove();
+        } else seat.style.removeProperty("visibility");
     },
     clear() {
       set.clear();

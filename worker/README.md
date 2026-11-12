@@ -535,8 +535,8 @@ forwarded HTTP 5xx responses by status, method, `source` and `retried`:
 `adapter` means the response carried Python's `Leaf-Release` stamp;
 `disconnected` means it matched one of the Containers SDK's proxy-failure
 responses; `unclassified` means neither was established. A `disconnected`
-`GET` or `HEAD` is sent once more (`retried: true`), and the visitor sees the
-second answer; a write is never resent. These records retain no URL or response
+`GET`, `HEAD` or `POST` to `api/user-view` is sent once more (`retried: true`),
+and the visitor sees the second answer; no other write is resent. These records retain no URL or response
 body. Use their native trace ID to join the request's invocation records. A
 `disconnected` response identifies the proxy boundary, not why its container
 connection was lost.
@@ -589,9 +589,11 @@ recovers a start that outlasts that window.
 ### Saved state and capacity
 
 Read-only visits do not prewarm a container. Focusing a text box does: the tab's
-interaction log reports the focus within a quarter second, and the Worker starts the
-session's container (`prewarmContainer` in `worker/src/agent.ts`), so its boot overlaps
-the visitor's typing. The existing session Durable Object
+interaction log reports the focus within a quarter second, and the Worker posts
+`/_leaf/agent/prewarm` to the session's container (`prewarmContainer` in
+`worker/src/agent.ts`). That starts the container and has it compose the page's layer,
+so both overlap the visitor's typing. Opening a thread focuses its comment box, so it
+prewarms too. The existing session Durable Object
 serves saved documents, comments, choices and private resources while compute is
 stopped. A write or a missing saved response starts Python, which restores the
 canonical page record before accepting requests. `leaf_website.storage` publishes

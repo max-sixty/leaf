@@ -2223,6 +2223,14 @@ def card_message_by_keyboard(page: Page) -> None:
     raise AssertionError("Next On Me never reached a card's message")
 
 
+def card_ask_by_keyboard(page: Page) -> None:
+    """The agent's ask in a margin card, reached by Next On Me (`m`), which focuses the
+    ask, so the location ring stands round it inside the card's transcript."""
+    page.keyboard.press("m")
+    expect(page.locator(".lf-margin-preview lf-ask")).to_be_focused()
+    settle(page)
+
+
 def element_thread_open(page: Page) -> None:
     """The same element while the user is in its thread, opened from its margin card:
     the contour that says which element the thread is about, beside the heading's
@@ -3407,6 +3415,12 @@ STATES = (
         window=WINDOWS["phone"],
     ),
     State("ship-thread", "ship-review", element_thread),
+    State(
+        "ship-card-ask-keyboard",
+        "ship-review",
+        card_ask_by_keyboard,
+        region=".lf-margin-preview",
+    ),
     State(
         "ship-card-message-keyboard",
         "ship-review",

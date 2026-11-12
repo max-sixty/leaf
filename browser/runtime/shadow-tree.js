@@ -12,7 +12,7 @@
 // rather than `instanceof ShadowRoot`, whose class belongs to one window: an iframe's
 // runtime climbs its parent document's elements out to the frame's place in the page.
 /** @param {Node | null | undefined} node @returns {node is ShadowRoot} */
-const isShadowRoot = (node) =>
+export const isShadowRoot = (node) =>
   node != null && node.nodeType === node.DOCUMENT_FRAGMENT_NODE && "host" in node;
 /** Native event origins can be nodes from another window; Window and other targets are not tree nodes.
  * @param {unknown} node @returns {node is Node} */
@@ -308,10 +308,10 @@ export function excludedByInert(node) {
 //
 // `skipper` names the box that skips `el`, so a reading over many elements under it,
 // such as a long text document's lines in one run, asks once and passes over the rest.
+/** @param {Element} box */
+export const drawn = (box) => box.checkVisibility({ contentVisibilityAuto: true });
 /** @param {Element} element @returns {Element | null} */
 export const skipper = (element) => {
-  const drawn = (/** @type {Element} */ box) =>
-    box.checkVisibility({ contentVisibilityAuto: true });
   if (drawn(element)) return null;
   let child = element;
   let box = renderedParent(element);
@@ -326,3 +326,61 @@ export const skipper = (element) => {
 };
 /** @param {Element} element */
 export const skipped = (element) => Boolean(skipper(element));
+
+// Every element the browser draws at or under `root`, through the open shadow trees of
+// the hosts it draws, each tree in its own order, which a reading of the page as drawn
+// walks (render-checks/open-roots.js, `drawnPage`). An element that draws no box of its
+// own, under `display: contents` or a slot, is left out and what it holds is walked. A
+// box under `content-visibility: hidden`, such as a folded tab panel, skips everything
+// it holds, so once `skipper` names it for one child the rest go unasked. An `auto` box
+// on screen draws the children beside one that draws no box, and a closed disclosure
+// draws its summary wherever it stands, so under either each child is asked whether it
+// is drawn, though nothing it holds is asked. On a page of thirty 4 MB documents in
+// tabs, the walk asks about the open document's 68,000 lines of two million elements,
+// in about 10 ms. A slotted child stands in its slot rather than beside its siblings,
+// so each asks for itself, and a host draws no child that no slot takes.
+//
+// One case goes unwalked: a `display: contents` child of an `auto` box on screen.
+// `skipper` names the box for any child of it that draws no box, on screen or not, and
+// telling such a child from a skipped line would mean asking each undrawn child its
+// `display`, which makes the browser style it: 21 s in Chromium on the page above.
+/** @param {Element} root @returns {Element[]} */
+export function drawnElements(root) {
+  /** @type {Element[]} */
+  const found = [];
+  /** @param {Element | null} child @param {boolean} hosted */
+  const within = (child, hosted) => {
+    // Whether `skipper` named a box for an earlier child. It names the same box for
+    // every later child the browser doesn't draw, since its climb starts from the
+    // parent they share.
+    let skipping = false;
+    for (; child; child = child.nextElementSibling) {
+      if (drawn(child)) {
+        found.push(child);
+        walk(child);
+        continue;
+      }
+      if (hosted && !child.assignedSlot) continue;
+      if (skipping && !child.assignedSlot) continue;
+      const box = skipper(child);
+      if (box) {
+        if (child.assignedSlot) continue;
+        if (getComputedStyle(box).contentVisibility === "hidden") return;
+        skipping = true;
+        continue;
+      }
+      if (getComputedStyle(child).display === "contents") walk(child);
+    }
+  };
+  /** @param {Element} parent */
+  const walk = (parent) => {
+    const shadow = parent.shadowRoot;
+    if (shadow) within(shadow.firstElementChild, false);
+    within(parent.firstElementChild, shadow !== null);
+  };
+  if (drawn(root)) {
+    found.push(root);
+    walk(root);
+  }
+  return found;
+}

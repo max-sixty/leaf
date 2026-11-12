@@ -11,64 +11,6 @@
       .catalog {
         margin-top: 56px;
       }
-      .developer-galleries {
-        margin-block: 96px 80px;
-        padding-top: 36px;
-        border-top: 1px solid var(--border-2);
-        --lf-block-frame: 1;
-      }
-      .developer-galleries-copy > p:last-of-type {
-        max-width: 62ch;
-      }
-      .developer-gallery-link {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: 24px;
-        align-items: center;
-        padding: 18px 0;
-        border-top: 1px solid var(--border-2);
-        color: inherit;
-        text-decoration: none;
-      }
-      .developer-gallery-link:first-of-type {
-        margin-top: 24px;
-      }
-      .developer-gallery-link:last-of-type {
-        border-bottom: 1px solid var(--border-2);
-      }
-      .developer-gallery-link strong,
-      .developer-gallery-description {
-        display: block;
-      }
-      .developer-gallery-link strong {
-        font: 600 var(--t-3) / 1.25 var(--serif);
-        letter-spacing: -0.008em;
-      }
-      .developer-gallery-description {
-        max-width: 52ch;
-        margin-top: 5px;
-        color: var(--ink-2);
-        font-size: var(--t-5);
-        line-height: 1.5;
-      }
-      .developer-gallery-open {
-        color: var(--accent);
-        font: 600 var(--t-6) / 1.4 var(--sans);
-        letter-spacing: 0.035em;
-        text-transform: uppercase;
-      }
-      .developer-gallery-open span {
-        display: inline-block;
-        margin-left: 2px;
-        transition: transform 160ms ease;
-      }
-      .developer-gallery-link:is(:hover, [data-lf-focus]) .developer-gallery-open span {
-        transform: translate(2px, -2px);
-      }
-      .developer-gallery-link[data-lf-focus-visible] {
-        outline: var(--focus-ring);
-        outline-offset: var(--focus-ring-gap);
-      }
       .example-catalog {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -127,6 +69,11 @@
         font-size: var(--t-5);
         line-height: 1.55;
       }
+      .example-packages {
+        margin-top: 7px;
+        color: var(--muted);
+        font: var(--t-6) / 1.4 var(--mono);
+      }
       .example-open {
         width: max-content;
         margin-top: 11px;
@@ -157,8 +104,7 @@
       }
       @media (prefers-reduced-motion: reduce) {
         .example-preview,
-        .example-open span,
-        .developer-gallery-open span {
+        .example-open span {
           transition: none;
         }
       }
@@ -211,6 +157,7 @@
                     >Review a plan</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -229,6 +176,7 @@
                     >Prioritize a board</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -247,6 +195,7 @@
                     >Choose ideas to implement</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -265,6 +214,7 @@
                     >Review edits</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -283,6 +233,7 @@
                     >Revise from feedback</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -301,6 +252,7 @@
                     >Resolve a review thread</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -319,6 +271,7 @@
                     >Compare options</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -337,6 +290,7 @@
                     >Stress-test a result</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -352,6 +306,7 @@
                     >Choose the animation</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -367,6 +322,7 @@
                     >Tune a shadow scale</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -403,6 +359,7 @@
                     >Tune alert thresholds</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -421,6 +378,7 @@
                     >Track a release</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -439,6 +397,7 @@
                     >Work through a queue</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -457,6 +416,7 @@
                     >Review a pull request</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -475,6 +435,7 @@
                     >Check a fix against its recordings</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -493,6 +454,7 @@
                     >Explain how wt merge works</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -511,6 +473,7 @@
                     >Explain Rust's 2016 merge sort</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -529,6 +492,7 @@
                     >Step through a race between two jobs</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -545,6 +509,7 @@
                     >From a request to a widget</span
                   >
                   <span class="example-description"></span>
+                  <span class="example-packages"></span>
                   <span class="example-open"
                     >Open full page <span aria-hidden="true">↗</span></span
                   >
@@ -566,6 +531,7 @@
                   >Command hub</span
                 >
                 <span class="example-description"></span>
+                  <span class="example-packages"></span>
                 <span class="example-open"
                   >Open full page <span aria-hidden="true">↗</span></span
                 >
@@ -573,55 +539,6 @@
             </a>
           </li>
           --></ul>
-        </section>
-
-        <section
-          class="developer-galleries layout-flow"
-          id="developer-galleries"
-          aria-labelledby="developer-galleries-title"
-        >
-          <div class="developer-galleries-copy">
-            <p class="eyebrow">developer tools</p>
-            <h2 id="developer-galleries-title">Inspect the product</h2>
-            <p>
-              These developer pages are for debugging Leaf itself. The core product
-              gallery keeps Leaf’s controls and its core interactions on one page;
-              optional widgets live with their working examples in the
-              <a href="/extending/#bundled">extension guide</a>.
-            </p>
-            <a
-              class="developer-gallery-link"
-              id="product-gallery"
-              href="/examples/feature-gallery/"
-            >
-              <span>
-                <strong>Core product gallery</strong>
-                <span class="developer-gallery-description"
-                  >Leaf chrome and every default-package widget on one synthetic page,
-                  with core interactions to try live.</span
-                >
-              </span>
-              <span class="developer-gallery-open"
-                >Open gallery <span aria-hidden="true">↗</span></span
-              >
-            </a>
-            <a
-              class="developer-gallery-link"
-              id="thread-panel-gallery"
-              href="/examples/thread-panel-gallery/"
-            >
-              <span>
-                <strong>Threads gallery</strong>
-                <span class="developer-gallery-description"
-                  >Four live panel views: open threads, On Me, resolved, and a
-                  summarized discussion.</span
-                >
-              </span>
-              <span class="developer-gallery-open"
-                >Open gallery <span aria-hidden="true">↗</span></span
-              >
-            </a>
-          </div>
         </section>
 
         <footer class="site-footer" id="colophon">

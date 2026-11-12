@@ -741,7 +741,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
         )
     before_box = page.locator(".lf-fab-bar").bounding_box()
     # These arrangements give the card no inline lane. It stands over the block
-    # in the document and under it in the pane, one comment gap away. The bar's
+    # in the document and under it in the pane, the subject gap away. The bar's
     # content determines its height, but neither its measured spot nor any return
     # reading supplies the expected position.
     side = "top" if region == "document" else "right" if region == "code" else "bottom"
@@ -750,11 +750,11 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
         == f"{side}-start"
     )
     expected_top = (
-        before_target["y"] - 8 - before_box["height"]
+        before_target["y"] - 16 - before_box["height"]
         if side == "top"
         else before_target["y"] - 8
         if side == "right"
-        else content_box["y"] + content_box["height"] + 8
+        else content_box["y"] + content_box["height"] + 16
     )
     assert abs(before_box["y"] - expected_top) <= 1, (before_target, before_box)
     # A thick outer marker distinguishes the target from pointed-state paint in
@@ -1794,11 +1794,11 @@ def test_send_grows_thread_around_the_words(
             page.keyboard.press("Enter")
             rendered(page)
             opening = card.evaluate("""async card => {
-              const {commentBoundary, COMMENT_GAP} =
+              const {commentBoundary, subjectGap} =
                 await window.__lfOverlayApi();
               const box = card.getBoundingClientRect();
               return {top:box.top, bottom:box.bottom,
-                boundary:commentBoundary().top, gap:COMMENT_GAP};
+                boundary:commentBoundary().top, gap:subjectGap()};
             }""")
             assert opening["top"] == pytest.approx(opening["boundary"], abs=1), opening
             assert on.line(page)["top"] - opening["bottom"] == pytest.approx(
@@ -1821,16 +1821,17 @@ def test_room_for_a_surface_uses_the_scrollports_visible_scale(browser, serve, s
     page = open_page(browser, serve(source))
     reading = page.evaluate(
         """async () => {
-          const {makeRoom} = await window.__lfOverlayApi();
+          const {makeRoom, subjectGap} = await window.__lfOverlayApi();
           const scroller = document.querySelector('#scroller');
           const target = document.querySelector('#target');
           const boundary = scroller.getBoundingClientRect();
           const before = target.getBoundingClientRect();
           const height = boundary.height * .6;
-          const overflow = before.bottom + 8 + height - boundary.bottom;
+          const gap = subjectGap();
+          const overflow = before.bottom + gap + height - boundary.bottom;
           const moved = makeRoom('bottom', before, before, height, boundary, scroller);
           const after = target.getBoundingClientRect();
-          return {moved, overflow, remaining:after.bottom + 8 + height - boundary.bottom,
+          return {moved, overflow, remaining:after.bottom + gap + height - boundary.bottom,
                   visible:after.top >= boundary.top && after.bottom <= boundary.bottom};
         }"""
     )

@@ -361,6 +361,39 @@ def open_thread(
     return append_admitted(page, event)[0]
 
 
+def ask_again(page: PageTransaction, question: str, body: str, identity: dict) -> dict:
+    """The agent's message asking `question`, a question an agent message asked in
+    words (`message:<id>`, or the bare id), again in its thread in `page`, an open
+    transaction, as `leaf thread reply <page> <message> --obligation <question>`
+    posts it: the question stands open on this message under its own id, and like
+    any spoken reply it reopens the thread if it was resolved. Refused where the
+    thread owes the user a reply, or `question` names no question asked there."""
+    message = question.removeprefix("message:")
+    addressed = _resolve_obligation(
+        page, {"parent": message}, REFUSE, identity["session"], False, None
+    )
+    assert addressed is not None
+    return _compose_and_append(
+        page,
+        addressed,
+        identity,
+        body,
+        "",
+        attempt=None,
+        failure=None,
+        validate_source=False,
+        todo=None,
+        asks_back=False,
+        explicit_obligation=[f"message:{message}"],
+        ephemeral=False,
+        quote="",
+        section="",
+        part="",
+        detach=False,
+        title=None,
+    )[0]
+
+
 def successful_replies(events: list[dict], responds: str) -> list[dict]:
     """Agent answers to this exact input (`events.is_answer`)."""
     return [

@@ -95,11 +95,15 @@ def links(name: str) -> set[tuple[str, str]]:
 
 def test_extension_references_follow_the_concepts_they_explain():
     extending = {href for href, _ in links("extending")}
-    assert {"/registry/", "/event-log/"} <= extending
-    assert {("/registry/", "registry"), ("/event-log/", "event log")} <= links(
+    assert {"#keys", "/how-it-works/#event-log"} <= extending
+    # The developer galleries are listed beside the bundled packages they show.
+    assert {
+        "/examples/feature-gallery/",
+        "/examples/thread-panel-gallery/",
+    } <= extending
+    assert {("/extending/#keys", "registry"), ("#event-log", "event log")} <= links(
         "how-it-works"
     )
-    assert "/extending/" in {href for href, _ in links("registry")}
 
 
 def test_package_catalog_routes_every_optional_package_to_inspectable_content():
@@ -131,7 +135,8 @@ def test_package_tutorial_registry_entry_is_valid(page_dir):
     validation_model.validate_registry_examples(registry, "package tutorial")
 
 
-EVENT_LOG = named_source("event-log")
+# The event log is How it works' "Event log" tab.
+EVENT_LOG = named_source("how-it-works")
 
 
 def code_block(page: SourceDocument, block_id: str) -> str:

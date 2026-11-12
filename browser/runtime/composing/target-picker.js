@@ -342,6 +342,9 @@ export function createTargetPicker({
     pending = null;
     landing = null;
   }
+  // Whether a step from match `at` goes back past the first while the search runs.
+  /** @param {number} at @param {import("../keyboard/bindings.js").Step} direction */
+  const stillFinding = (at, direction) => pending !== null && direction < 0 && at === 0;
   /** @param {boolean} on */
   function setPageSearch(on) {
     pickerMode.value = on ? "search" : "hints";
@@ -542,10 +545,13 @@ export function createTargetPicker({
   // Takes matches at once until a step or a choice can be answered as it would be with
   // every match in: the search has landed, where it lands, and `more` holds of what has
   // arrived, or it has ended. The page changing under the search starts it again, so a
-  // step after a match revealed a closed tab waits for the match it stood on.
+  // step after a match revealed a closed tab waits for the match it stood on. A step
+  // back past the first match is the one step whose match comes last, so while the
+  // search runs it stays put (`stillFinding`) rather than wait for all of it.
   /** @param {(found: Match[]) => boolean} [more] */
   function settle(more = () => true) {
-    refreshMatches();
+    if (pending && pageReadingVersion() !== matchesIn) restart();
+    else refreshMatches();
     /** @param {Match[]} found */
     const enough = (found) => (active >= 0 || !landing) && more(found);
     if (!pending || enough(matches.value)) return;
@@ -587,9 +593,13 @@ export function createTargetPicker({
 
   /** @param {import("../keyboard/bindings.js").Step} direction */
   function moveMatch(direction) {
-    settle((found) => (direction > 0 ? active + 1 < found.length : active > 0));
+    settle((found) => direction < 0 || active + 1 < found.length);
     const found = matches.value;
     if (!hasRows(found)) return presentSearchStatus();
+    if (stillFinding(active, direction)) {
+      presentSearchStatus();
+      return notice(searching);
+    }
     const selected = cycledRow(found, found[active], direction);
     active = found.indexOf(selected);
     presentSearchStatus();
@@ -659,9 +669,7 @@ export function createTargetPicker({
       find(repetition.query, null, index, false);
       landing = null;
     }
-    settle((found) =>
-      direction > 0 ? found.length > index + 1 : index > 0 && found.length > index,
-    );
+    settle((found) => found.length > index + (direction > 0 ? 1 : 0));
     const found = matches.value;
     if (!hasRows(found)) {
       repeatedSearch = null;
@@ -670,6 +678,7 @@ export function createTargetPicker({
       return repaint();
     }
     const from = Math.min(index, found.length - 1);
+    if (stillFinding(from, direction)) return notice(searching);
     const selected = cycledRow(found, found[from], direction);
     active = found.indexOf(selected);
     repetition.index = active;

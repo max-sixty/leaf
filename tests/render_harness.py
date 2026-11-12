@@ -43,7 +43,7 @@ import weakref
 from collections.abc import Iterable
 from contextlib import contextmanager
 from datetime import UTC, datetime
-from functools import cache
+from functools import cache, wraps
 from pathlib import Path
 from socket import gethostname
 from types import SimpleNamespace
@@ -65,7 +65,14 @@ from interact_support import (
 )
 from model_folds import leaf_page
 from PIL import Image
-from playwright.sync_api import BrowserContext, Frame, Page, expect
+from playwright.sync_api import (
+    BrowserContext,
+    Frame,
+    Locator,
+    Page,
+    Touchscreen,
+    expect,
+)
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -1897,11 +1904,47 @@ def panel_settled(page, open=True, view=None):
     )
 
 
-# Chromium counts a tap that lands near the page's previous one within about 400 ms
-# as the next in a run of taps (a click's `detail` above 1). This bound clears it.
+# Chromium counts a touch tap as the next in a run of taps (a click's `detail` above 1,
+# and a `dblclick`) when it lands within about 25 px of the page's previous tap and
+# less than about 400 ms after it, as measured on Playwright's Chromium.
 TAP_RUN_S = 0.5
-# When each page's latest tap ended, on the host's monotonic clock.
-_last_tap = weakref.WeakKeyDictionary()
+
+
+def fresh_taps():
+    """Make every tap Playwright sends a fresh press, never the next in a run of taps.
+
+    A person reads what one press did before making the next, and a mouse click
+    states its own count, but a touch tap takes Chromium's. So two taps a test sends
+    back to back near one spot are a double tap wherever the page answers fast
+    enough, and the floating panel presses nothing for a run's later press on a
+    control its first press drew there (floating-panel.js, `runOfClicks`): a test that
+    tapped the menu open and then the row that opened under the finger passed only on
+    a host slow enough to space them. So each tap through `Locator.tap` or
+    `Touchscreen.tap`, the suite's Playwright tap routes, waits until `TAP_RUN_S` has
+    passed since the page's previous tap, however far apart they land: Playwright
+    doesn't report where a locator's tap lands, and its target can move before or
+    after the tap. Touches sent as raw CDP events, as a finger hold is, go unspaced,
+    so a test of a double tap sends those. The session's Playwright fixture calls this
+    once, before any page exists.
+    """
+    # When each page's touchscreen last tapped, on the host's monotonic clock.
+    tapped = weakref.WeakKeyDictionary()
+
+    def fresh(tap, touchscreen):
+        @wraps(tap)
+        def fresh_tap(self, *args, **kwargs):
+            screen = touchscreen(self)
+            since = time.monotonic() - tapped.get(screen, -math.inf)
+            time.sleep(max(0, TAP_RUN_S - since))
+            try:
+                return tap(self, *args, **kwargs)
+            finally:
+                tapped[screen] = time.monotonic()
+
+        return fresh_tap
+
+    Locator.tap = fresh(Locator.tap, lambda locator: locator.page.touchscreen)
+    Touchscreen.tap = fresh(Touchscreen.tap, lambda screen: screen)
 
 
 def press_visible(page, control, *, touch=False):
@@ -1911,23 +1954,13 @@ def press_visible(page, control, *, touch=False):
     visible fixed control. Coordinates exercise the user's visible route directly.
     A frame's bounding box is already in its owning page's coordinates; input
     goes through that page while the control stays scoped to its document.
-
-    Each press is a fresh one, as a person's reading between presses makes it. A
-    mouse click states its own count; a tap takes Chromium's, so a tap waits out the
-    run the page's previous tap began. Otherwise a control a tap's view brought under
-    the finger would take the next tap as the run's second, which the floating panel
-    presses nothing for (floating-panel.js, `runOfClicks`).
     """
     expect(control).to_be_in_viewport()
     box = control.bounding_box()
     x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
     page = page.page if isinstance(page, Frame) else page
     if touch:
-        remaining = _last_tap.get(page, -TAP_RUN_S) + TAP_RUN_S - time.monotonic()
-        if remaining > 0:
-            time.sleep(remaining)
         page.touchscreen.tap(x, y)
-        _last_tap[page] = time.monotonic()
     else:
         page.mouse.click(x, y)
 

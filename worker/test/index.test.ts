@@ -2171,7 +2171,7 @@ describe("website page agent", () => {
     }
   });
 
-  it("reads again once when the container connection drops, but never resends a write", async () => {
+  it("resends a read or a view report once when the container connection drops, but no other write", async () => {
     const { storage, close } = sqliteStorage();
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
@@ -2231,6 +2231,31 @@ describe("website page agent", () => {
         status: 500,
         source: "disconnected",
         retried: false,
+      });
+
+      // A view report replaces only an older report of its session, so a resent
+      // copy changes nothing the first one stored.
+      forwardedContainerFetch.mockClear();
+      forwardedContainerFetch
+        .mockResolvedValueOnce(new Response(lost, { status: 500 }))
+        .mockResolvedValueOnce(new Response(null, { status: 204 }));
+      const view = await session.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/user-view", {
+          method: "POST",
+          body: '{"session":"s","sequence":3}',
+        }),
+      );
+      expect(view.status).toBe(204);
+      expect(forwardedContainerFetch).toHaveBeenCalledTimes(2);
+      const resent = forwardedContainerFetch.mock.calls[1][0] as Request;
+      expect(await resent.text()).toBe('{"session":"s","sequence":3}');
+      expect(log).toHaveBeenLastCalledWith({
+        component: "leaf-container",
+        event: "http_error",
+        method: "POST",
+        status: 500,
+        source: "disconnected",
+        retried: true,
       });
       expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|secret/);
     } finally {

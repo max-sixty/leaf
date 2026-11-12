@@ -6521,6 +6521,106 @@ def test_a_search_match_whose_end_shows_is_brought_to_its_start(engine, request,
     assert 0 <= start["top"] and start["bottom"] <= 600, start
 
 
+# A page of four documents in tabs, the first open, each holding "needle" once.
+def _needles_in_tabs(serve):
+    tabs = "".join(
+        f'<lf-tab id="t{i}" label="Doc {i}">'
+        f'<lf-text-document id="d{i}" label="doc-{i}.md">'
+        f"<pre>A line before.\nneedle {i}\nA line after.\n</pre></lf-text-document></lf-tab>"
+        for i in range(4)
+    )
+    return serve(
+        leaf_page("Closed tabs", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
+    )
+
+
+# The page's clock run fast, so each slice of a page search takes one step.
+FAST_CLOCK = """() => {
+  const now = performance.now.bind(performance);
+  let ahead = 0;
+  performance.now = () => now() + (ahead += 20);
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_walk_through_search_matches_in_closed_tabs_reaches_each_in_turn(
+    engine, request, serve
+):
+    """Tab walks a search's matches in order across documents in closed tabs. Bringing a
+    match into sight opens its tab, which changes the page, so the next step searches
+    again; it stands where it stood before stepping, however few matches each of the
+    search's slices takes (`FAST_CLOCK`)."""
+    page = open_page(request.getfixturevalue(engine), _needles_in_tabs(serve))
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("needle")
+    status = page.locator(".lf-page-search-status")
+    expect(status).to_have_text("1 of 4")
+    page.evaluate(FAST_CLOCK)
+    for key, position in (("Tab", 2), ("Tab", 3), ("Tab", 4), ("Shift+Tab", 3)):
+        page.keyboard.press(key)
+        expect(status).to_have_text(re.compile(rf"^{position} of "))
+        expect(page.get_by_role("tab", name=f"Doc {position - 1}")).to_have_attribute(
+            "aria-selected", "true"
+        )
+    # Enter selects the match, and `n` goes on from it.
+    selected = (
+        "(id) => getSelection().anchorNode?.parentElement?.closest('lf-text-document')"
+        "?.id === id && String(getSelection()) === 'needle'"
+    )
+    page.keyboard.press("Enter")
+    page.wait_for_function(selected, arg="d2")
+    page.keyboard.press("n")
+    page.wait_for_function(selected, arg="d3")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_step_back_past_the_first_search_match_stays_while_the_search_runs(
+    engine, request, serve
+):
+    """While a page search still runs, Shift+Tab from its first match would come round to
+    a last match the search hasn't found; it stays and says the search is still running,
+    rather than holding the page until the search ends, and Tab still goes on to the
+    next. Each slice takes one step (`FAST_CLOCK`), and the page's zero-delay timers are
+    held, so the search stands unfinished until they run."""
+    page = open_page(request.getfixturevalue(engine), _needles_in_tabs(serve))
+    page.keyboard.press("/")
+    page.evaluate(FAST_CLOCK)
+    page.evaluate(
+        """() => {
+          const run = (window.__run = window.setTimeout);
+          window.__held = [];
+          window.setTimeout = (f, ms, ...rest) =>
+            ms ? run(f, ms, ...rest) : (window.__held.push(() => f(...rest)), 0);
+        }"""
+    )
+    page.get_by_role("searchbox", name="Search page text").fill("needle")
+    status = page.locator(".lf-page-search-status")
+    # Run the held slices until the search lands on the first match.
+    page.evaluate(
+        """() => {
+          const status = document.querySelector(".lf-page-search-status");
+          while (!/ of /.test(status.textContent) && window.__held.length)
+            window.__held.shift()();
+        }"""
+    )
+    expect(status).to_have_text("1 of 1")
+    page.keyboard.press("Shift+Tab")
+    expect(status).to_have_text("1 of 1")
+    expect(page.locator(".lf-live")).to_have_text("Searching")
+    expect(page.get_by_role("tab", name="Doc 0")).to_have_attribute(
+        "aria-selected", "true"
+    )
+    page.keyboard.press("Tab")
+    expect(status).to_have_text("2 of 2")
+    page.evaluate(
+        """() => {
+          window.setTimeout = window.__run;
+          for (const run of window.__held.splice(0)) run();
+        }"""
+    )
+    expect(status).to_have_text("2 of 4")
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_travel_to_a_thread_on_a_tall_passage_shows_where_it_starts(
     engine, request, serve

@@ -61,7 +61,9 @@ def test_a_slot_moving_a_child_between_parts_changes_both(
     assert words["kept"] == words["fresh"]
 
 
-# A search over prose and two parts, by the page's own passages module.
+# A search over prose and two parts, by the page's own passages module: the words of each
+# match as it is taken, and whether the second part had been read by then, which asks
+# each element inside it where it stands.
 FIND = """async () => {
   const entry = new URL(document.querySelector("script[data-lf-entry]").dataset.lfEntry, location.href);
   const P = await import(new URL("runtime/passages.js", entry).href);
@@ -72,19 +74,35 @@ FIND = """async () => {
     "<p>needle between</p>" + datum("b", "<p>b needle in b</p><p>needle again in b</p>") +
     "<p>last needle</p>";
   document.querySelector("#outro").before(box);
-  return P.pageFind("needle").map((match) => match[0].node.data);
+  const b = document.getElementById("b");
+  const { matches } = Element.prototype;
+  let asked = 0;
+  Element.prototype.matches = function (selector) {
+    if (this !== b && b.contains(this)) asked += 1;
+    return matches.call(this, selector);
+  };
+  const taken = [];
+  try {
+    for (const match of P.pageMatches("needle"))
+      if (match) taken.push([match[0].node.data, asked > 0]);
+    return taken;
+  } finally {
+    Element.prototype.matches = matches;
+  }
 }"""
 
 
 def test_a_search_finds_each_match_in_prose_and_every_part_in_reading_order(
     browser, serve
 ):
+    """A search reads a part only once it reaches it, so whoever takes its matches a few at
+    a time reads no part ahead of them."""
     page = open_page(browser, live_url(serve(PAGE)))
     assert page.evaluate(FIND) == [
-        "needle in the intro",
-        "a needle in a",
-        "needle between",
-        "b needle in b",
-        "needle again in b",
-        "last needle",
+        ["needle in the intro", False],
+        ["a needle in a", False],
+        ["needle between", False],
+        ["b needle in b", True],
+        ["needle again in b", True],
+        ["last needle", True],
     ]

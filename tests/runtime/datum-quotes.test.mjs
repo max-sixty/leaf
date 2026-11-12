@@ -12,7 +12,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { anchorForRange, resolveAnchor } from "/runtime/anchor-resolution.js";
+import { findQuote, pageText, readingPart } from "/runtime/passages.js";
 import { registry } from "/runtime/registry.js";
+import { shadowStage } from "/runtime/shadow-stage.js";
 
 /** @param {string} lines the datum's rows, as markup */
 const page = (lines, prose = "<p>Words before the data</p>") => {
@@ -142,4 +144,53 @@ test("a selection across a datum's edge is captured detached", () => {
   assert.equal(anchor?.datum, undefined);
   assert.equal(anchor?.detached, true);
   assert.match(anchor?.quote ?? "", /before the data.*Alpha/);
+});
+
+// A word a datum holds on every line is captured by the words beside the copy the user
+// selected, and the other copies are told apart by the letter beside each, read from the
+// datum's reading: no copy's neighbouring words are read unless its letters match, and
+// the selected copy's read the lines in the 4,096 characters around it. Read word by
+// word, the 2,000 copies read every line of the datum.
+test("capturing a word a datum repeats reads the words beside only the copies that could match", () => {
+  Object.assign(registry, { $layer: { generation: "datum-capture-copies" } });
+  const lines = Array.from({ length: 2000 }, (_, i) => `<p>x${i} needle y${i}</p>`);
+  const datum = page(lines.join(""));
+  pageText(datum);
+  const line = datum.querySelectorAll("p")[1000].firstChild;
+  const range = document.createRange();
+  range.setStart(line, line.data.indexOf("needle"));
+  range.setEnd(line, line.data.indexOf("needle") + "needle".length);
+  const read = readsOutside(document.createElement("div"), () => {
+    const anchor = anchorForRange(range);
+    assert.equal(anchor?.detached, undefined);
+    assert.equal(anchor?.quote, "needle");
+  });
+  assert.equal(resolveAnchor(anchorForRange(range))?.segments[0]?.node, line);
+  assert.ok(read < lines.length / 4, `${read} text nodes read for 2,000 copies`);
+});
+
+// A datum inside a widget's shadow tree reads the words its slot shows, which stand
+// outside it, the host's own children. A copy of its quote there is no copy in the datum,
+// so the datum's one copy is still the quote's.
+test("a datum's quote counts no copy among the words its slot shows from outside it", () => {
+  Object.assign(registry, {
+    "lf-slotted-datum": { "x-shadow": true },
+    $layer: { generation: "datum-quote-slot" },
+  });
+  document.body.innerHTML =
+    '<main><div id="w"><lf-slotted-datum><p>MARK two</p></lf-slotted-datum></div></main>';
+  const host = /** @type {HTMLElement} */ (document.querySelector("lf-slotted-datum"));
+  const tree = document.createElement("template");
+  tree.innerHTML =
+    '<div data-lf-projection="w" data-lf-datum="doc"><p>MARK one</p><slot></slot></div>';
+  const light = host.innerHTML;
+  shadowStage(host, [...tree.content.childNodes]);
+  host.innerHTML = light;
+  const datum = /** @type {Element} */ (
+    host.shadowRoot?.querySelector("[data-lf-datum]")
+  );
+  assert.equal(readingPart(datum), datum);
+  assert.match(pageText(datum).raw, /MARK one.*MARK two/s);
+  const [first] = findQuote(pageText(datum), "MARK", {}, datum);
+  assert.equal(first?.node, datum.querySelector("p")?.firstChild);
 });

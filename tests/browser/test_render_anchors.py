@@ -1404,7 +1404,8 @@ def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve
 
 
 def test_hidden_code_arrivals_do_not_read_skipped_blocks(browser, serve):
-    """Arriving code must leave the browser's skipped subtrees unmeasured."""
+    """Arriving code must leave the browser's skipped subtrees unmeasured. A block
+    revealed later gets its copy control, names its Copy key and copies on Enter."""
     page = open_page(
         browser,
         serve(leaf_page("Hidden arrivals", '<h1>Arrivals</h1><div id="slots"></div>')),
@@ -1432,6 +1433,10 @@ def test_hidden_code_arrivals_do_not_read_skipped_blocks(browser, serve):
     expect(page.locator(".lf-code-copy")).to_have_count(1)
     page.locator("#slots summary").click()
     expect(page.locator(".lf-code-copy")).to_have_count(2)
+    # The revealed block names its Copy key once its control has drawn its button.
+    expect(page.locator("#slots details pre")).to_have_attribute(
+        "aria-keyshortcuts", re.compile(r"\bEnter\b")
+    )
     page.keyboard.press("Tab")
     expect(page.locator("#slots details pre")).to_be_focused()
     page.keyboard.press("Enter")

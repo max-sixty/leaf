@@ -19,9 +19,10 @@
    Rows take their final places once, in one shared held-and-arrival order. Each posture's
    solver avoids the final rectangles and held labels already placed. A pin's chosen
    seat is its final place: no second packing pass can translate it into words or
-   controls. Every pass seats every row, and reads only what its change can have moved
-   (`seatings`): a change to the rows alone, such as a comment's new row, reads only the
-   rows it changes, and one that may have moved the page reads every row.
+   controls. Every pass seats every row, each against only the footprints level with
+   its seats (`Footprints`, margin-placement.js), and reads only what its change can have
+   moved (`seatings`): a change to the rows alone, such as a comment's new row, reads only
+   the rows it changes, and one that may have moved the page reads every row.
    Scrolling moves a row with its target in the frame that scrolls it, whether the
    document scrolls or a pane does, with no pass at all.
    Mutation checkpoints and resize deliveries settle placement before native paint;
@@ -94,6 +95,7 @@ import { hearScrollsIn, watchScrollEnds } from "../arrivals.js";
 import { closestAcross, layoutBox, pageDocument } from "../passages.js";
 import { pageHeads } from "../root-headers.js";
 import {
+  Footprints,
   arrivals,
   inSeatingOrder,
   packRow,
@@ -1419,7 +1421,7 @@ function pinSeating(rows, { bands, shell, pinInset, documentScrolls }) {
 // Seats `entry` among the footprints `occupied` holds, those of the rows seated before
 // it, and answers the footprint it takes. A rail row is pushed down past them; a pin
 // takes the first seat that suits it (`entry.pin`), which becomes its rect.
-/** @param {PlacedRow} entry @param {readonly Box[]} occupied @param {number} shell */
+/** @param {PlacedRow} entry @param {Footprints} occupied @param {number} shell */
 function seatEntry(entry, occupied, shell) {
   const { pin } = entry;
   if (!pin) {
@@ -1940,8 +1942,7 @@ function layoutMountedRows(layer) {
   // A record no row of this pass seats is dropped with its row's seat.
   const taken = new Set(placed.map(({ key }) => key));
   for (const row of seatings.keys()) if (!taken.has(row)) seatings.delete(row);
-  /** @type {Box[]} */
-  const occupied = [];
+  const occupied = new Footprints();
   // One held-and-arrival order owns both postures. A posture solver produces its final
   // rectangle once; later rows avoid it rather than translating an earlier clear seat.
   for (const entry of inSeatingOrder(placed)) {
@@ -1954,7 +1955,7 @@ function layoutMountedRows(layer) {
       entry.fold = seating.fold;
     }
     entry.home = entry.rect;
-    occupied.push(seatEntry(entry, occupied, shell));
+    occupied.add(seatEntry(entry, occupied, shell));
   }
   for (const read of reads) {
     if (!read.target || keeping.has(read.row)) continue;

@@ -341,7 +341,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     ).click()
 
     narrow = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert narrow["innerWidth"] - 8 - (narrow["wordsRight"] + 8) < narrow["minimum"], (
+    assert narrow["innerWidth"] - 8 - (narrow["wordsRight"] + 16) < narrow["minimum"], (
         narrow
     )
     assert narrow["minimum"] <= narrow["cardWidth"] <= narrow["preferred"], narrow
@@ -378,7 +378,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     assert wide["minimum"] <= wide["cardWidth"] <= wide["preferred"], wide
     assert wide["replyWidth"] >= 160, wide
     assert wide["cardLeft"] == pytest.approx(editor_start, abs=0.5), wide
-    assert wide["cardLeft"] == pytest.approx(wide["wordsRight"] + 8, abs=0.5), wide
+    assert wide["cardLeft"] == pytest.approx(wide["wordsRight"] + 16, abs=0.5), wide
     assert wide["cardLeft"] < wide["controlsRight"], wide
 
 

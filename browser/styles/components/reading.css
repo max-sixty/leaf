@@ -558,8 +558,10 @@ dl.lf-facts dd {
     figure {
       margin: var(--figure-margin-block) 0;
     }
+    /* A caption is a sentence read with its figure, so it stands one rung under the
+       prose rather than at the apparatus size beside a label or a chip. */
     figcaption {
-      font-size: var(--t-6);
+      font-size: var(--t-5);
       color: var(--muted);
       margin-top: 8px;
     }

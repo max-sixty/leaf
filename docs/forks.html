@@ -592,11 +592,10 @@ flowchart TD
             such a command would act as the main thread, and a mark spliced into it
             could land inside quoted text. The rule reads words rather than Bash's
             grammar, so it also denies a call that only names <code>leaf</code>, as a
-            search or a reply's text naming a <code>leaf</code> command does; the denial
-            says to write such text to a file and pass <code>--file</code>, and to
-            search with the Grep tool. Only a here-document with a quoted delimiter,
-            which Bash never expands, passes, and a script that runs <code>leaf</code>
-            is out of its reach.
+            search, an inline <code>python -c</code> or a reply's text naming a
+            <code>leaf</code> command does; the denial says to write such text or code
+            to a file with the Write tool and pass the file, and to search with the Grep
+            tool. A script that runs <code>leaf</code> is out of its reach.
           </p>
           <p id="acting-module">
             The marking lives in <code>hooks.json</code> rather than Leaf's hooks

@@ -1292,11 +1292,11 @@ def test_a_forks_leaf_command_must_lead_its_bash_call(claimed, lane, capsys):
     mark spliced in elsewhere could land in quoted text. A known fork's call with
     `leaf` anywhere else may act as the main thread's, so the hook denies it, saying
     to run each `leaf` command on its own: after another command or a keyword, in a
-    command substitution however it starts, quoted, in a string `bash -c` runs or an
-    unquoted here-document, and where the word only names `leaf`, as a reply's text
-    or a search may. A call whose only `leaf` leads it is marked; one with no `leaf`
-    word, or with one only in a quoted here-document, goes on as it came, and so
-    does any call of a subagent the session ran no turn for."""
+    command substitution however it starts, quoted, run by a relative path, in a
+    string `bash -c` runs or in a here-document, and where the word only names
+    `leaf`, as a reply's text or a search may. A call whose only `leaf` leads it is
+    marked; one with no `leaf` word goes on as it came, and so does any call of a
+    subagent the session ran no turn for."""
     asked, taken = taken_by_a_fork(claimed, "Does the autocomplete service cache?")
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
@@ -1312,7 +1312,9 @@ def test_a_forks_leaf_command_must_lead_its_bash_call(claimed, lane, capsys):
             f"timeout 30 {reply}",
             "'leaf' page state p",
             "bash -c 'leaf page state p'",
+            "cd bin && ./leaf page state p",
             "cat <<EOF\n$(leaf page state p)\nEOF",
+            "bash <<'EOF'\nleaf page state p\nEOF",
             reply.replace("--text Yes", '--text "Run \\`leaf page state\\` to see"'),
             "grep leaf notes.md",
         )
@@ -1327,7 +1329,6 @@ def test_a_forks_leaf_command_must_lead_its_bash_call(claimed, lane, capsys):
             "cat ~/.local/state/leaf/pages/p/index.html",
             "uv run leaf-dev timeline p",
             'echo "Leaf\'s page"',
-            "cat > reply.md <<'EOF'\nRun `leaf page state` to see it.\nEOF",
         )
     ):
         assert hook_answer(capsys, command, "agent-1", f"passed-{index}") is None, (

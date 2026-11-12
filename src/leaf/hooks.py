@@ -208,25 +208,20 @@ def cmd_hook(harness: str, payload: dict) -> None:
 
 # A command that begins with `leaf`, by name or by a path to the launcher.
 LEADING_LEAF = re.compile(r"\s*(?:\S*/)?leaf(?=\s|$)")
-# The word `leaf`, alone or as the launcher's path, `…/bin/leaf`, as against
-# `leaf-dev`, `leaf.py`, a directory such as `src/leaf` or the proper noun `Leaf`.
-LEAF_WORD = re.compile(r"(?:(?<=bin/)|(?<![\w./-]))leaf(?![\w./-])")
-# The body of a here-document whose delimiter is quoted, which Bash reads as text.
-LITERAL_HERE_DOCUMENT = re.compile(
-    r"(<<-?[ \t]*(['\"])(\w+)\2[^\n]*)\n.*?\n[ \t]*\3[ \t]*(?=\n|$)", re.S
-)
+# The word `leaf`, alone or as a path to the launcher (`…/bin/leaf`, `./leaf`), as
+# against `leaf-dev`, `leaf.py`, a directory such as `src/leaf` or the noun `Leaf`.
+LEAF_WORD = re.compile(r"(?:(?<=bin/)|(?<=\./)|(?<![\w./-]))leaf(?![\w./-])")
 
 
 def leaf_words(command: str) -> list[int]:
     """Where the word `leaf` stands in the Bash command line `command`, by
     character offset, wherever Bash might run it from: after another command or a
-    keyword such as `then`, in a command substitution, quoted, or in a string that
-    `bash -c` or `eval` runs. It reads words, not Bash's grammar, so it also finds
-    one Bash would only pass as text, as in `grep leaf` or a reply's `--text` that
-    names a `leaf` command. Only a here-document with a quoted delimiter is skipped,
-    being text Bash never expands; a `leaf` that a script runs is out of reach."""
-    text = LITERAL_HERE_DOCUMENT.sub(r"\1", command)
-    return [found.start() for found in LEAF_WORD.finditer(text)]
+    keyword such as `then`, in a command substitution, quoted, in a here-document,
+    or in a string that `bash -c` or `eval` runs. It reads words, not Bash's
+    grammar, so it also finds one Bash would only pass as text, as in `grep leaf`,
+    `python -c 'from leaf import …'` or a reply's `--text` that names a `leaf`
+    command. A `leaf` that a script runs is out of its reach."""
+    return [found.start() for found in LEAF_WORD.finditer(command)]
 
 
 def agent_command(sid: str, payload: dict) -> dict | None:
@@ -286,8 +281,9 @@ def agent_command(sid: str, payload: dict) -> dict | None:
             "Run each `leaf` command as a Bash call of its own, beginning with "
             "`leaf`, with no other `leaf` anywhere in the call: Leaf marks only a "
             "leading `leaf` as this agent's, and any other may act as the main "
-            "thread's. To post text that names a `leaf` command, write it to a file "
-            "first and pass `--file`; to search for the word, use the Grep tool."
+            "thread's. To post text, or run code, that names `leaf`, write it to a "
+            "file with the Write tool and pass that file; to search for the word, "
+            "use the Grep tool."
         )
     command = (
         given["command"][: leading.end()]

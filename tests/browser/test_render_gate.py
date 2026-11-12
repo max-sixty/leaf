@@ -18,6 +18,7 @@ from interact_support import (
     add_test_widget,
     element_declaration,
     running_http_server,
+    wait_for,
 )
 from known_widget_findings import KNOWN, PACKAGES
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -106,6 +107,7 @@ from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import service as service_model
+from leaf import user_views as user_views_model
 from leaf.findings import Finding
 from leaf.registry.contract import is_element_name
 from leaf.render_checks import rendered, wait_until_ready
@@ -401,6 +403,101 @@ def test_user_view_checks_read_current_geometry_without_changing_the_page(
     assert later["at"] == "<div id=later-arrangement>"
     assert later["rows"] == "2"
     assert page.locator(later["path"]).get_attribute("id") == "later-arrangement"
+
+
+def test_user_view_checks_ask_nothing_inside_what_the_browser_skips(browser, serve):
+    """The reading of the user's view walks what the browser draws: of a folded panel,
+    a closed disclosure and a box out of view under `content-visibility: auto`, it asks
+    no more than a child whether it is drawn. Asking about what they hold would make the
+    browser style it first, and a page of long documents in tabs is almost all such
+    content (open-roots.js, `drawnElements`)."""
+    held = "".join(f"<div><p>Row {n}</p><p>More {n}</p></div>" for n in range(20))
+    source = leaf_page(
+        "Skipped content",
+        '<h1 id="t">Skipped content</h1>'
+        f'<div id="folded" hidden="until-found">{held}</div>'
+        f'<details id="shut"><summary>More</summary>{held}</details>'
+        f'<div id="away" style="content-visibility: auto; margin-top: 4000px">{held}</div>',
+    )
+    page = open_page(browser, serve(source))
+    reading = page.evaluate(
+        """async () => {
+          const {readViewChecks} = await import('/checks/view.js');
+          const boxes = ['folded', 'shut', 'away'].map(id => document.getElementById(id));
+          const skipped = boxes.every(box =>
+            !box.querySelector('p').checkVisibility({contentVisibilityAuto: true}));
+          const asked = new Set();
+          const watch = (owner, name, subject) => {
+            const original = owner[name];
+            owner[name] = function (...args) {
+              asked.add(subject(this, args));
+              return original.apply(this, args);
+            };
+            return () => { owner[name] = original; };
+          };
+          const restores = [
+            ...['checkVisibility', 'getBoundingClientRect', 'getClientRects'].map(name =>
+              watch(Element.prototype, name, (self) => self)),
+            watch(window, 'getComputedStyle', (_, [element]) => element),
+          ];
+          try { readViewChecks([]); } finally { restores.forEach(restore => restore()); }
+          return {skipped, inside: boxes.flatMap(box =>
+            [...box.querySelectorAll(':scope > * *')].some(el => asked.has(el)) ? [box.id] : [])};
+        }"""
+    )
+    assert reading["skipped"], "a box drew what it holds, so the reading proves nothing"
+    assert reading["inside"] == [], reading
+
+
+def test_a_heartbeat_reads_the_view_checks_again_only_after_the_page_changes(
+    browser, serve
+):
+    """A heartbeat renews the agent's view of a page nobody changes with the checks it
+    already holds, rather than walking the page again (user-view.js); a disclosure the
+    user opens reaches the checks at a heartbeat after it."""
+    source = DRAWN_LABELS_PAGE.replace(
+        "<h1>Rollout</h1>",
+        "<h1>Rollout</h1><details><summary>Later</summary>"
+        '<div id="later-arrangement" style="display:flex; gap:16px">'
+        "<p>Europe</p><p>Asia</p></div></details>",
+    )
+    page = open_page(primed(browser, lambda page: page.clock.install()), serve(source))
+
+    def heartbeats(until, failure):
+        """Run the page's clock a heartbeat at a time until its view's record
+        satisfies `until`."""
+
+        def read():
+            page.clock.run_for(10_000)
+            views = user_views_model.read_user_views(serve.page_dir, 1)["sessions"]
+            return views[0] if views else None
+
+        return wait_for(
+            read, lambda view: view is not None and until(view), failure=failure
+        )
+
+    # Whatever the page changed as it settled is read by the heartbeat after it.
+    first = heartbeats(lambda view: view["checks"] is not None, "no checks arrived")
+    settled = heartbeats(
+        lambda view: view["sequence"] >= first["sequence"] + 2,
+        "the heartbeat sent no report",
+    )
+    quiet = heartbeats(
+        lambda view: view["sequence"] >= settled["sequence"] + 3,
+        "the heartbeat sent no report",
+    )
+    assert quiet["checks"]["sequence"] == settled["checks"]["sequence"], (
+        "a heartbeat read the checks of a page nothing changed"
+    )
+
+    page.get_by_text("Later", exact=True).click()
+    opened = heartbeats(
+        lambda view: view["checks"]["sequence"] > settled["checks"]["sequence"],
+        "the opened disclosure never reached the checks",
+    )
+    assert "<div id=later-arrangement>" in {
+        box["at"] for box in opened["checks"]["reading"]["layout"]["arrangement"]
+    }
 
 
 # A widget whose module draws a 120px box, where its authored markup holds nothing.

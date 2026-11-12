@@ -17,11 +17,11 @@
  * true counts at the next frame: each time is an upper bound, at most a frame above
  * the paint that first showed its goal. That holds only for a goal that stays met
  * once met, since a later callback in the same frame could otherwise undo it after it
- * was read. `message`, `card` and `delivered`'s event stay once there, and
- * `delivered` and `revision` also ask that presentation has finished, which a later
- * reading can only delay. `status` stays only while nothing else sets the page's
- * status, as in bench's runs. `met` reads one goal's fact once, without sampling,
- * for a reader that only waits for the result.
+ * was read. `message`, `card`, `composer` and `delivered`'s event stay once there,
+ * and `delivered` and `revision` also ask that presentation has finished, which a
+ * later reading can only delay. `status` stays only while nothing else sets the
+ * page's status, as in bench's runs. `met` reads one goal's fact once, without
+ * sampling, for a reader that only waits for the result.
  */
 (() => {
   if (window !== window.top || location.protocol === "about:") return;
@@ -75,6 +75,13 @@
       semantic
         .readApplication()
         .authoritative?.events.some((event) => event.attempt === attempt),
+    // The comment box open in `host`'s shadow tree with the caret in it, as once a
+    // diff line's comment control opens it.
+    composer: (host) => {
+      const root = document.getElementById(host)?.shadowRoot;
+      const bar = root?.querySelector(".lf-fab-bar");
+      return shown(bar) && bar.contains(root.activeElement);
+    },
     card: ({ card, to }) => {
       const node = document.getElementById(card);
       return (

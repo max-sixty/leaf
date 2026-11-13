@@ -815,8 +815,13 @@ def _compose_and_append(
         if detach
         else None
     )
-    if detach and (current_thread is None or current_thread["anchor"] is None):
+    if detach and current_thread is None:
         raise Rejected([Finding("no-anchor", values={"thread": thread_id})])
+    if detach and current_thread["anchor"] is None:
+        # Already where --detach would put it: activating the edit that removed the
+        # passage, which any tab's poll may do first, detached it. The reply lands
+        # without a transition, so the thread keeps the anchor it left.
+        detach = relocating = False
     reply_revision = None
     prospective_anchor = None
     source_events = events

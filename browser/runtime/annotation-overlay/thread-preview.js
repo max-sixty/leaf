@@ -185,7 +185,7 @@ import { keepThreadLanding, showReturnTurn } from "../thread/reply-landing.js";
  * focusPending: {holding: Element | null} | null, withheldFocus: ReturnType<typeof holdFocus>,
  * transcript: HTMLElement | null, settled: (() => void) | null, answering: (() => boolean) | null,
  * placesEnd: ((before: import("../scrolling.js").BoxExtent) => boolean) | null,
- * stopRegion: (() => void) | null, end: import("../scrolling.js").EndKeeper | null, side: ReturnType<typeof commentPlacement>,
+ * stopRegion: (() => void) | null, stopDraw: (() => void) | null, end: import("../scrolling.js").EndKeeper | null, side: ReturnType<typeof commentPlacement>,
  * reading: {input: number, scroll: number} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
  * @typedef {{latest: boolean, scroll: number, keepTop: boolean, transcript: HTMLElement}} Reading
  */
@@ -201,7 +201,7 @@ const CUT_EDGES = [
 ];
 
 /** @param {{inventory: ReturnType<typeof import("../annotation-inventory.js").createAnnotationInventory>,
- * renderMarginThread: (host: HTMLElement, thread: ThreadRecord, outlets: import("../thread/thread-card.js").ViewOutlets) => ReturnType<typeof import("../thread/inline.js").renderMarginThread>,
+ * renderMarginThread: (host: HTMLElement, thread: ThreadRecord, outlets: import("../thread/thread-card.js").ViewOutlets) => {drawn: ReturnType<typeof import("../thread/inline.js").renderMarginThread>, stop: () => void},
  * placedAt: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["placedAt"],
  * scrollThreadIntoView: typeof import("../thread/reply-landing.js").scrollThreadIntoView,
  * scrollToElement: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToElement"],
@@ -563,6 +563,7 @@ export function createThreadPreview({
     cancelRender(session.positionFrame);
     placementDriver.supersede();
     session.stopRegion?.();
+    session.stopDraw?.();
     session.end?.stop();
     preview.style.removeProperty("visibility");
     previewSession = null;
@@ -979,6 +980,7 @@ export function createThreadPreview({
       placesEnd: null,
       reading: null,
       stopRegion: null,
+      stopDraw: null,
       end: null,
       side: commentPlacement(),
       // The width the card stands at for this selection, in client pixels: the box's
@@ -1106,7 +1108,10 @@ export function createThreadPreview({
       dismiss();
       openInPanel(shownThread.id);
     };
-    const rendered = renderMarginThread(body, shownThread, {
+    // The draw follows what it reads until the card draws again or closes, so the
+    // follows of the cards a user opens and closes don't pile up.
+    session.stopDraw?.();
+    const { drawn: rendered, stop } = renderMarginThread(body, shownThread, {
       line: (apart) => {
         setChildren(previewActions, [
           apart.news,
@@ -1153,6 +1158,7 @@ export function createThreadPreview({
         };
       },
     });
+    session.stopDraw = stop;
     keeps(node, "data-lf-margin-entry", item.id);
     for (const reading of rendered) syncPreviewTranscript(session, reading);
     return view;

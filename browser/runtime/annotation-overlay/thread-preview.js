@@ -119,7 +119,7 @@ import {
 } from "../scrolling.js";
 import { signal } from "/runtime/framework.js";
 import { tick } from "../version-signal.js";
-import { cancelRender, nextRender } from "../rendering.js";
+import { afterScript, cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
 import { THREAD_CARD } from "./margin-layout.js";
@@ -1323,16 +1323,24 @@ export function createThreadPreview({
     previewClose.onclick = onDismiss;
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);
-    onCurrentLocation((node, cause, left) => {
-      // Focus in the transcript lifts the fade over its top (annotation-chrome.css), so
-      // the fade never lies over a focused message's ring.
+    // Focus in the transcript lifts the fade over its top (annotation-chrome.css), so
+    // the fade never lies over a focused message's ring. Like focus paint (focus.js), the
+    // mark follows where the script leaves the user: a script that moves them out of the
+    // transcript and back marks nothing.
+    /** @type {Element | null} */
+    let transcriptFocus = null;
+    const markTranscriptFocus = () => {
       const transcript = previewSession?.transcript;
       if (transcript?.parentElement)
         keeps(
           transcript.parentElement,
           "data-lf-transcript-focus",
-          node && under(node, transcript) ? "" : null,
+          transcriptFocus && under(transcriptFocus, transcript) ? "" : null,
         );
+    };
+    onCurrentLocation((node, cause, left) => {
+      transcriptFocus = node;
+      afterScript(markTranscriptFocus);
       if (
         node &&
         under(node, preview) &&

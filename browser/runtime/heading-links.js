@@ -50,7 +50,7 @@ import {
   watchNear,
   writeInsets,
 } from "./block-controls.js";
-import { copyControl, copyTrigger } from "./copy-control.js";
+import { copyControl, pressCopy } from "./copy-control.js";
 import { anchorReading, headerLevels, nameAnchor } from "./css-anchors.js";
 import { focusDestination, focused, onCurrentLocation } from "./focus.js";
 import { inlineStyle, keeps, keepsHidden, layoutPx } from "./keeps.js";
@@ -325,13 +325,9 @@ export function watchHeadingLinks() {
         title: "copy link to section",
         // The link's own control beside the heading takes a finger.
         touch: false,
-        // A control made by this press has not drawn its button yet.
         run: async () => {
           const link = stand(headingOn(focused()));
-          if (!link) return;
-          await customElements.whenDefined(link.control.localName);
-          await link.control.updateComplete;
-          copyTrigger(link.control)?.click();
+          if (link) await pressCopy(link.control);
         },
       },
     ],

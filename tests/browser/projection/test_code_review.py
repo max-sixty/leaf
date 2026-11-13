@@ -1098,10 +1098,15 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     rendered(page)
     # Reopening is a fresh placement on the document's current full-width box. The
     # document scrolls inside its box, so the card may open over that box or under it.
+    # Under it, the card stands a mark's room and a gap clear (`place-clear`).
     reopened = card.bounding_box()
+    clear = 8 + page.evaluate(
+        "() => parseFloat(getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--focus-region-room'))"
+    )
     assert datum["x"] < reopened["x"] + reopened["width"]
     assert reopened["x"] < datum["x"] + datum["width"]
-    assert datum["y"] < reopened["y"] < datum["y"] + datum["height"] + 10
+    assert datum["y"] < reopened["y"] < datum["y"] + datum["height"] + clear + 2
     # A comment on the whole document follows it, so its head has nothing to say.
     status = open_panel_thread(page, comment["id"]).locator(".lf-anchor-status")
     expect(status).to_have_count(0)

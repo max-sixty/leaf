@@ -334,7 +334,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
     threads, the head keeps "Me" and its time whole. On a card at its least width
     under a finger, whose three controls, the notice and the head's Edit each take a
     finger's width, the head keeps "Me" whole and gives up its time, as any narrow
-    head does before its name; a touch screen as wide as 1400 stands that card beside
+    head does before its name; a touch screen as wide as 1408 stands that card beside
     its words. The notice says one count, "2 new", on either. Drawn whole, the notice
     stood over the head."""
     url = serve(PANEL_PAGE)
@@ -354,7 +354,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
     first = append_agent_reply(serve.page_dir, root, "The status line can drop one.")
     if finger:
         context = browser.new_context(
-            viewport={"width": 1400, "height": 844}, has_touch=True, is_mobile=True
+            viewport={"width": 1408, "height": 844}, has_touch=True, is_mobile=True
         )
         page = open_page(browser, url, context=context)
     else:

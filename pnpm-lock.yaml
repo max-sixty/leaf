@@ -9,6 +9,7 @@ overrides:
   lit-html: 3.3.0
   get-uri>basic-ftp: 6.2.1
   minimatch@<11.0.1: ^11.0.4
+  '@hono/node-server@<2.1.6': ^2.1.6
 
 patchedDependencies:
   '@awesome.me/webawesome@3.14.0':
@@ -943,8 +944,8 @@ packages:
     resolution: {integrity: sha512-Bbr0hW9hhDhBf3Jp0EyDlkCbFgbr0z2jd3BMKYOYW+fOkPM4Nx195GMXyCtRCGEgoNn6i09FabXrSkNFm2ONzg==}
     engines: {node: '>=20.0.0'}
 
-  '@hono/node-server@2.1.5':
-    resolution: {integrity: sha512-MgP/I06GdvsilDspMk/qmRzpk8LOUStP6jFAbSRi40W09DhoyUn+Mj7eyKICPqeYKybOjVFLVIAQzvu1bfIa7Q==}
+  '@hono/node-server@2.1.8':
+    resolution: {integrity: sha512-jdf7FHh6A1lzjpHHQUgxsg2GeER2vMetnAOfeActzcoli6jamlK+NAwL6Dsr5Fl3BS3tYUQzCdtZjU8Qxv7bEA==}
     engines: {node: '>=20'}
     peerDependencies:
       hono: ^4 || ^5.0.0-0
@@ -6066,7 +6067,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@hono/node-server@2.1.5(hono@4.13.12)':
+  '@hono/node-server@2.1.8(hono@4.13.12)':
     dependencies:
       hono: 4.13.12
 
@@ -6414,7 +6415,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.32.2(zod@4.6.7)':
     dependencies:
-      '@hono/node-server': 2.1.5(hono@4.13.12)
+      '@hono/node-server': 2.1.8(hono@4.13.12)
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       content-type: 1.0.5
@@ -9103,7 +9104,7 @@ snapshots:
     dependencies:
       '@anthropic-ai/sdk': 0.133.0(zod@4.6.7)
       '@apidevtools/json-schema-ref-parser': 16.0.5(@types/json-schema@7.0.15)
-      '@hono/node-server': 2.1.5(hono@4.13.12)
+      '@hono/node-server': 2.1.8(hono@4.13.12)
       '@inquirer/checkbox': 5.2.7(@types/node@26.6.5)
       '@inquirer/confirm': 6.3.4(@types/node@26.6.5)
       '@inquirer/core': 12.0.5(@types/node@26.6.5)

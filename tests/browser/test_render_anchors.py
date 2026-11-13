@@ -6621,6 +6621,58 @@ def test_a_step_back_past_the_first_search_match_stays_while_the_search_runs(
     expect(status).to_have_text("2 of 4")
 
 
+def test_a_step_back_after_the_page_changed_keeps_the_match_it_stood_on(browser, serve):
+    """After Enter closes the search and the page changes, Shift+n searches again from
+    the match it selected. While that search still runs, a step back from the first
+    match stays and says "Searching", and the search's first slice landing on the first
+    match in the window moves nothing: once the search ends, Shift+n comes round from
+    the first match to the last. The page's zero-delay timers are held so the search
+    stands unfinished, and its first slice takes a dozen steps (`__steps`)."""
+    lines = "\n".join(f"Line {n}." for n in range(60))
+    documents = "".join(
+        f'<lf-text-document id="d{i}" label="doc-{i}.md">'
+        f"<pre>needle {i}\n{lines}\n</pre></lf-text-document>"
+        for i in range(10)
+    )
+    page = open_page(browser, serve(leaf_page("Documents", documents)))
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("needle")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 10")
+    page.keyboard.press("Enter")
+    selected = (
+        "(id) => getSelection().anchorNode?.parentElement?.closest('lf-text-document')"
+        "?.id === id && String(getSelection()) === 'needle'"
+    )
+    page.wait_for_function(selected, arg="d0")
+    page.evaluate(
+        """() => {
+          document.getElementById("d1").scrollIntoView({ block: "start" });
+          const now = performance.now.bind(performance);
+          performance.now = () =>
+            window.__steps === undefined || window.__steps-- > 0 ? now() : now() + 1e9;
+          const run = (window.__run = window.setTimeout);
+          window.__held = [];
+          window.setTimeout = (f, ms, ...rest) =>
+            ms ? run(f, ms, ...rest) : (window.__held.push(() => f(...rest)), 0);
+          const note = document.createElement("p");
+          note.textContent = "A paragraph the agent added.";
+          document.querySelector("main").append(note);
+          window.__steps = 12;
+        }"""
+    )
+    page.keyboard.press("Shift+n")
+    expect(page.locator(".lf-live")).to_have_text("Searching")
+    page.evaluate(
+        """() => {
+          window.setTimeout = window.__run;
+          delete window.__steps;
+          for (const run of window.__held.splice(0)) run();
+        }"""
+    )
+    page.keyboard.press("Shift+n")
+    page.wait_for_function(selected, arg="d9")
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_travel_to_a_thread_on_a_tall_passage_shows_where_it_starts(
     engine, request, serve

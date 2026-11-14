@@ -5,15 +5,13 @@ from jsonschema.exceptions import SchemaError
 from leaf.schema import ATTRIBUTE_KEYS, EXTENSION_SCHEMA
 
 from .contract import (
-    MODULES,
     deciding_outcomes,
     deciding_verb,
-    element_declarations,
     gathering,
     reference_relation_problem,
     registry_error,
+    require_module,
     state_specs,
-    upgraded,
 )
 from .schema import check_schema, json_validator, schema_reading
 from .state import (
@@ -109,40 +107,6 @@ def _validate_widget_relations(
     validate_widget_retirement(tag, entry, declarations, path)
     _validate_shown_answers(tag, entry, declarations, path)
     validate_answered_conditions(tag, entry, data, declarations, path)
-
-
-def validate_modules(registry: dict, path) -> None:
-    """Refuse each declaration of what only a module provides whose tag has none
-    (`contract.MODULES`), the first finding in each. Validation asks it of every
-    declaration, and a composition that reuses an earlier validation asks it again
-    (`registry.page.compose_page_registry`): the declarations it validated can stand
-    unchanged while a module file goes."""
-    with gathering() as unit:
-        for tag, entry in element_declarations(registry).items():
-            with unit():
-                _require_module(tag, entry, registry, path)
-
-
-def _require_module(tag: str, entry: dict, registry: dict, path) -> None:
-    # A declaration of one of these without its module is a widget that reads as
-    # working and does nothing. Declarations validated apart from the files they
-    # compose with carry no `MODULES`, and there nothing can say.
-    needs_module = [
-        key
-        for key in (
-            "x-state",
-            "x-verbatim",
-            "x-shadow",
-            "x-thread-seat",
-            "x-history",
-            "x-patch",
-        )
-        if entry.get(key)
-    ] + (["x-visual"] if isinstance(entry.get("x-visual"), dict) else [])
-    if needs_module and MODULES in registry and not upgraded(registry, tag):
-        raise registry_error(
-            "needs-module", path, tag, keys=needs_module, module=f"widgets/{tag}.js"
-        )
 
 
 def _typed(properties: dict, attr: str, kind: str) -> bool:
@@ -397,7 +361,7 @@ def _validate_widget_interactions(
         deciding_verb(entry) not in answered or blanket not in deciding_outcomes(entry)
     ):
         raise registry_error("awaits-blanket", path, tag, outcome=blanket)
-    _require_module(tag, entry, registry, path)
+    require_module(tag, entry, registry, path)
     # A version overrules a report in force with `overruled` on the element,
     # so a widget with an agent-written verb that doesn't declare the attribute
     # is one whose every report contradiction is unpublishable.

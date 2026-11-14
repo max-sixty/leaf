@@ -696,3 +696,38 @@ def stamp_decisions(registry: dict) -> dict:
         if is_element_name(tag) and (verb := deciding_verb(entry)) is not None
     }
     return registry
+
+
+def validate_modules(registry: dict, path) -> None:
+    """Refuse each declaration of what only a module provides whose tag has none
+    (`contract.MODULES`), the first finding in each. Validation asks it of every
+    declaration, and a composition that reuses an earlier validation asks it again
+    (`registry.page.compose_page_registry`): the declarations it validated can stand
+    unchanged while a module file goes. It lives here, beside `MODULES`, because that
+    reuse runs in a harness hook, which loads no schema validator."""
+    with gathering() as unit:
+        for tag, entry in element_declarations(registry).items():
+            with unit():
+                require_module(tag, entry, registry, path)
+
+
+def require_module(tag: str, entry: dict, registry: dict, path) -> None:
+    # A declaration of one of these without its module is a widget that reads as
+    # working and does nothing. Declarations validated apart from the files they
+    # compose with carry no `MODULES`, and there nothing can say.
+    needs_module = [
+        key
+        for key in (
+            "x-state",
+            "x-verbatim",
+            "x-shadow",
+            "x-thread-seat",
+            "x-history",
+            "x-patch",
+        )
+        if entry.get(key)
+    ] + (["x-visual"] if isinstance(entry.get("x-visual"), dict) else [])
+    if needs_module and MODULES in registry and not upgraded(registry, tag):
+        raise registry_error(
+            "needs-module", path, tag, keys=needs_module, module=f"widgets/{tag}.js"
+        )

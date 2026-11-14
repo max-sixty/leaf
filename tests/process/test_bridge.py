@@ -1,18 +1,35 @@
 """Claude Code's sandboxed commands, run outside its sandbox by Leaf's bridge."""
 
+import io
+import json
 import os
 import shutil
 import socket
 import subprocess
+import sys
 
 import pytest
+from conftest import LEAF_COMMAND
 from interact_support import ROOT, STATED_TIMEOUT
 
 from leaf import bridge as bridge_model
 from leaf import hooks as hooks_model
 from leaf import service as service_model
+from leaf import state as state_model
 
 LAUNCHER = str(ROOT / "bin" / "leaf")
+
+
+def before_leaf_command(monkeypatch, session: str) -> None:
+    """Run Claude Code's hook before a `leaf` command in `session`."""
+    payload = {
+        "hook_event_name": "PreToolUse",
+        "session_id": session,
+        "tool_name": "Bash",
+        "tool_input": {"command": "leaf page claim page"},
+    }
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(payload)))
+    hooks_model.main("claude-code")
 
 
 @pytest.fixture
@@ -20,15 +37,7 @@ def bridged(monkeypatch):
     """A Claude Code session whose hook before a `leaf` command ran and whose
     shell is sandboxed."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "bridged")
-    hooks_model.cmd_hook(
-        "claude-code",
-        {
-            "hook_event_name": "PreToolUse",
-            "session_id": "bridged",
-            "tool_name": "Bash",
-            "tool_input": {"command": "leaf page claim page"},
-        },
-    )
+    before_leaf_command(monkeypatch, "bridged")
     monkeypatch.setenv("SANDBOX_RUNTIME", "1")
     # The bridge is reached directly here, not through a proxy the host may name.
     for name in ("HTTP_PROXY", "http_proxy"):
@@ -137,12 +146,85 @@ def test_a_background_job_keeps_the_bridge_while_the_job_stands(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "bg-job")
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
-    hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "PreToolUse", "session_id": "bg-job"}
-    )
+    before_leaf_command(monkeypatch, "bg-job")
     assert bridge_model.live_sessions()
     (job / "state.json").unlink()
     assert not bridge_model.live_sessions()
+
+
+def test_a_hook_starts_the_bridge_before_handing_itself_on(tmp_path):
+    """A session's hooks hand themselves to the Leaf delivering for it, a copy
+    installed since or a checkout (`session_runtime.py`), while its sandboxed bare
+    `leaf` runs the bridge client of the copy Claude Code loaded. So the copy the
+    hook ran in registers the session before handing the hook on, whatever the
+    Leaf it hands to does."""
+    from leaf.session_runtime import select_launcher
+
+    session = os.environ["CLAUDE_CODE_SESSION_ID"]
+    selected = tmp_path / "selected" / "bin" / "leaf"
+    selected.parent.mkdir(parents=True)
+    selected.write_text("#!/bin/sh\necho handed\n")
+    selected.chmod(0o755)
+    state_model.ensure_session(session, {"pid": os.getpid()})
+    select_launcher(session, selected)
+    hooked = subprocess.run(
+        [*LEAF_COMMAND, "hook", "--harness", "claude-code"],
+        input=json.dumps({"hook_event_name": "PreToolUse", "session_id": session}),
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert (hooked.returncode, hooked.stdout) == (0, "handed\n"), hooked.stderr
+    assert bridge_model.live_sessions()
+
+
+def test_every_copy_that_ships_this_bridge_reaches_the_same_one(tmp_path):
+    """Claude Code installs each plugin update as a new copy, and a running session
+    keeps the copy it loaded, so a bridge keyed by its copy would start again with
+    every update and serve each session for its whole lifetime. A copy elsewhere
+    with this `bridge.py` addresses this checkout's bridge."""
+    copy = tmp_path / "copy" / "leaf"
+    copy.mkdir(parents=True)
+    shutil.copy(bridge_model.__file__, copy / "bridge.py")
+    # The copy's own `bridge.py`, beside this checkout's other modules.
+    (copy / "__init__.py").write_text(
+        f"__path__.append({str(ROOT / 'src' / 'leaf')!r})\n"
+    )
+    addressed = subprocess.run(
+        [sys.executable, "-c", "import leaf.bridge as b; print(b.__file__, b.KEY)"],
+        cwd=copy.parent,
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert addressed.returncode == 0, addressed.stderr
+    assert addressed.stdout == f"{copy / 'bridge.py'} {bridge_model.KEY}\n"
+
+
+@pytest.mark.usefixtures("bridged")
+def test_a_bridged_command_runs_on_the_interpreter_of_the_copy_that_sent_it(
+    tmp_path, monkeypatch, capfd
+):
+    """Every copy that ships the same bridge reaches one bridge, the newer copy a
+    plugin update installs and a checkout run by path alike, and each command
+    runs as the Leaf of the copy whose client sent it."""
+    interpreter = tmp_path / "python"
+    interpreter.write_text('#!/bin/sh\necho "$0 $*"\nexit 3\n')
+    interpreter.chmod(0o755)
+    monkeypatch.setattr("sys.executable", str(interpreter))
+    assert bridge_model.run(["--version"]) == 3
+    assert capfd.readouterr().out == f"{interpreter} -I -m leaf --version\n"
+
+
+def test_each_process_of_a_session_keeps_the_bridge(dead_pid):
+    """Two processes can carry one session's id, as a session resumed while it
+    still runs elsewhere does, and each lives as its own pid. The one that ends
+    leaves the bridge to the one still running."""
+    bridge_model.ensure("resumed", {"pid": os.getpid()})
+    bridge_model.ensure("resumed", {"pid": dead_pid})
+    assert bridge_model.live_sessions()
 
 
 def test_a_session_that_runs_no_leaf_command_starts_no_bridge():

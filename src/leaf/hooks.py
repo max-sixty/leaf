@@ -31,7 +31,7 @@ but PreToolUse. Codex's other hooks record the provider turn a later claim rests
 on, so they always run. Claude Code's PreToolUse runs before each `leaf`
 command, and in such a session opens the turn the skipped prompt hook would have,
 so a claim that command makes joins it; of its runs for one tool call, one per
-registration the command matches, only the first does its work
+registration the command matches, only the first does the turn's work
 (`leases.first_hook_for_tool`). Hooks
 that do run with no retained claim avoid page reading, and import the harness
 declarations only once the payload names a session. Page-owning prompt and Stop
@@ -110,10 +110,6 @@ def cmd_hook(harness: str, payload: dict) -> None:
     payload = hooked.hook_payload(payload)
     turn_id = payload.get("turn_id")
     if event == "PreToolUse":
-        # Hooks run outside the harness's sandbox and shell commands inside it.
-        # Claude Code's registration runs this only before a command naming
-        # `leaf`, so a session that never runs one opens no road out.
-        hooked.escape_sandbox()
         if not held_claims(sid):
             # The launcher skipped this turn's prompt hook (`bin/leaf`),
             # so the turn a claim joins opens here, before the command.
@@ -456,7 +452,17 @@ def main(
         raise Refused(
             f"hook expects the harness's JSON payload on stdin ({error.msg})"
         ) from error
-    launcher = delivering_launcher(payload.get("session_id") or "")
+    sid = payload.get("session_id") or ""
+    if payload.get("hook_event_name") == "PreToolUse" and sid:
+        # Hooks run outside the harness's sandbox and shell commands inside it.
+        # Claude Code's registration runs this only before a command naming
+        # `leaf`, so a session that never runs one opens no road out. Each Leaf
+        # the hook passes through opens it before handing the hook on, the copy
+        # the harness loaded among them (`bridge.py`).
+        from .harness import hook_harness
+
+        hook_harness(harness, sid).escape_sandbox()
+    launcher = delivering_launcher(sid)
     if launcher != own_launcher():
         # Delegate the whole hook before publishing lifecycle or pickup. Keeping
         # the stdin as a file avoids a pipe-size limit on large tool payloads;

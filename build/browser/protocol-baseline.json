@@ -39,7 +39,7 @@
     },
     "bridge": {
       "since": 13,
-      "schema": {"description":"Where an installed tree's running bridge listens, in the state home's `bridge/<key>.json`.","type":"object","properties":{"port":{"description":"The loopback port it listens on.","type":"integer"},"token":{"description":"The token a request carries.","type":"string"},"pid":{"description":"The bridge's process.","type":"integer"}},"required":["port","token","pid"]}
+      "schema": {"description":"Where the running bridge of one version of `bridge.py` listens, in the state home's `bridge/<key>.json`.","type":"object","properties":{"port":{"description":"The loopback port it listens on.","type":"integer"},"token":{"description":"The token a request carries.","type":"string"},"pid":{"description":"The bridge's process.","type":"integer"}},"required":["port","token","pid"]}
     },
     "bridge-session": {
       "since": 13,

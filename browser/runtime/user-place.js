@@ -61,10 +61,11 @@
    every render in, for a 400-line module and its corrections of the browser's own.
 
    The module also owns the one rule for where the user is: focus while they can see it
-   (`focusPlace`), else what is on screen (reading-place.js, `pageReadingBlock`). A key
-   pressed while focus is not where they are lets go of it first (keyboard/controller.js),
-   so every key acts from what they see, and a revision reading where they are asks the
-   same (reading-place.js, `capturePlace`; version.js). */
+   where the glides under way leave it (`focusPlace`), else what is on screen
+   (reading-place.js, `pageReadingBlock`). A key pressed while focus is not where they
+   are lets go of it first (keyboard/controller.js), so every key acts from what they
+   see, and a revision reading where they are asks the same (reading-place.js,
+   `capturePlace`; version.js). */
 import {
   clippedPlace,
   inFront,
@@ -78,10 +79,10 @@ import { chosenSince, pageScroller, placeKept, scrollChoices } from "./scrolling
 import {
   carriersOf,
   edgeAt,
-  glideGap,
   holderOf,
   returnTo,
   scrollersOf,
+  seenAhead,
 } from "./scroll-containers.js";
 import { inChrome, renderedParent, under } from "./shadow-tree.js";
 import {
@@ -116,22 +117,26 @@ const boxStoodAt = (node) => {
 };
 
 // The focused node while it is where the user is: while any of it, or the box it stands
-// at (`standsAt`), is in front of them (geometry.js, `seenRect`), or while a motion under
-// way is still carrying them to it, since a walk focuses its stop before gliding there
-// and a key pressed on the way is meant for the stop, as a key a board's card moves on
-// is meant for the card while it slides from where it stood, clipped meanwhile by a
-// board that shrank. A glide carries them to the node while it carries the node toward
-// the window or into it (scroll-containers.js, `glideGap`), so a glide carrying focus
-// out of view, as `g g` does from a control mid-page, lets go of it once it has left,
-// and a `c` pressed as the page nears its top acts there. Toward, not into: the box of
-// a card the walk is gliding in trails its placement, and read where the glide would
-// carry it, it could stand a pixel past the window the walk is bringing it into. Rejected: counting every glide that
-// carries focus, which took the page back down to comment on the control. A user who scrolled away from the control they stand on is reading
+// at (`standsAt`), is in front of them where the glides under way leave it
+// (scroll-containers.js, `seenAhead`), or while a slide under way is still carrying
+// them to it, as a key a board's card moves on is meant for the card while it slides
+// from where it stood, clipped meanwhile by a board that shrank. A key pressed while a
+// glide runs acts as though the glide had landed, as a step pressed then steps from
+// where the glide is headed (navigation.js). A walk focuses its stop before gliding
+// there, so a key pressed on the way is meant for the stop. `g g` carries a control
+// mid-page away, so `c` or Tab pressed as it sets off lets go of the control though it
+// is still on screen, and acts from where `g g` lands (reading-place.js,
+// `landingPlace`). The user chose this on 2026-11-14. Rejected: judging a node still on
+// screen as the place, which opened a comment box on the control and let the glide
+// carry it off screen with focus in it, and moved Tab on from the control as though
+// the glide had not run; and counting every glide that carries focus, which took the
+// page back down to comment on the control. A user who scrolled away from the control they stand on is reading
 // something else, though the control keeps focus, so a key they press there lets go of
 // it first, and scrolling back to it doesn't make it theirs again until they click or
 // Tab there: the user chose this on 2026-11-04. A control in a stuck box, as the floating
 // panel's row is, is in front of them, so a key acts there, though it rides along with
-// every scroll and marks no place in what it stands over (geometry.js, `stuckBox`). Its
+// every scroll, a glide's too, and marks no place in what it stands over (geometry.js,
+// `stuckBox`). Its
 // box is asked of what clips it out to that stuck box, then the window and the chrome,
 // since a sticky header reads as under the slot it stands in itself (`seenRect`,
 // `headerInset`). A row
@@ -143,10 +148,10 @@ export function focusPlace() {
   const node = focused();
   if (!node || node === document.body) return null;
   const box = boxStoodAt(node);
-  if (box && seenRect(box, new Map())) return node;
+  if (box && seenAhead(box)) return node;
   const [list] = scrollersOf(node);
   const shown = list && list !== pageScroller && inChrome(list) ? list : node;
-  if (seenRect(shown, new Map()) || glidesToward(node) || slides(node)) return node;
+  if (seenAhead(shown) || slides(node)) return node;
   const stuck = stuckBox(node);
   const left =
     stuck &&
@@ -166,12 +171,6 @@ watchScrollEnds(() => {
   const node = focused();
   if (node && node !== document.body) repaint();
 });
-// Whether a glide under way carries `node` toward the window or into it.
-/** @param {Element} node */
-const glidesToward = (node) => {
-  const gap = glideGap(node);
-  return Boolean(gap && (gap.after === 0 || gap.after < gap.now));
-};
 // Whether a finite animation moves a box holding `node`, as the slide a moved card makes
 // from where it stood to where layout put it. The sheen's endless one, a fade, one held
 // paused and one on a box's pseudo-element bring the user nowhere.

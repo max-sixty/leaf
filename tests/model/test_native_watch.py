@@ -7,6 +7,8 @@ import errno
 import json
 import os
 import shutil
+import subprocess
+import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -834,3 +836,26 @@ def test_any_other_native_watcher_failure_reaches_its_owner(
     monkeypatch.setattr(native, "_schedule", broken)
     with pytest.raises(RuntimeError, match="broken"):
         file_changes.FileChanges({tmp_path: False}, lambda _path: True)
+
+
+def test_a_watching_process_prints_none_of_watchdogs_records(tmp_path):
+    """A process that watches and configures no logging prints none of watchdog's
+    records on stderr, where a command prints only JSON. The record here is the one
+    a sweep provokes on Linux (`file_changes`)."""
+    program = f"""
+import logging
+from pathlib import Path
+from leaf.file_changes import FileChanges
+
+FileChanges({{Path({str(tmp_path)!r}): False}}, bool).close()
+logging.getLogger("watchdog.observers.inotify").error(
+    "InotifyEmitter.queue_events() called when the thread is inactive"
+)
+"""
+    done = subprocess.run(
+        [sys.executable, "-c", program],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+    )
+    assert (done.returncode, done.stderr) == (0, "")

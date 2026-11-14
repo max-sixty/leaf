@@ -57,6 +57,20 @@ The kernel's inotify limits are per user and shared with every program the user
 runs, so Leaf can't count on a native watch however few it holds. When the kernel
 refuses one because a limit ran out, that directory is polled instead, and a note
 names the limit, so the process notices its changes later rather than exiting.
+
+watchdog logs through `logging` and adds no handler to its logger, so in a process
+that configures no logging, logging's last-resort handler prints watchdog's warnings
+and errors on stderr, where a command prints only JSON (`cli`). Its Linux emitter
+logs an error when a directory leaves the observer just as an event for that
+directory arrives. A sweep does that in ordinary use whenever it unschedules a
+directory that is being written, and no subscription wanted the event. So watchdog's
+logger holds a NullHandler, the do-nothing handler Python's logging guide suggests a
+library attach to its own logger. A process that configures logging, as pytest does,
+still receives watchdog's records, and one that doesn't prints none. That also hides
+watchdog's warning that the kernel's inotify queue overflowed and dropped events. A
+NullHandler on the root logger at Leaf's entry would quiet every library at once,
+but it would also hide their reports of real failures, and it would load `logging`
+into every hook, where nothing else loads it.
 """
 
 import errno
@@ -273,15 +287,19 @@ class _Native:
         return self._schedule(path, recursive, polling=True)
 
     def _schedule(self, path: Path, recursive: bool, *, polling: bool):
+        import logging
+
         from watchdog import events
 
+        if self.handler is None:
+            # Before any watchdog thread runs (the module header says why).
+            logging.getLogger("watchdog").handlers = [logging.NullHandler()]
+            self.handler = _handler(self)
         observer = self.observers.get(polling)
         if observer is None:
             observer = _polling_observer() if polling else _native_observer()
             observer.start()
             self.observers[polling] = observer
-        if self.handler is None:
-            self.handler = _handler(self)
         watch = observer.schedule(
             self.handler,
             str(path),

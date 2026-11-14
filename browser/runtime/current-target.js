@@ -58,7 +58,7 @@ import {
   onLetGo,
   onUserInput,
 } from "./focus.js";
-import { seenRect } from "./geometry.js";
+import { seenAhead } from "./scroll-containers.js";
 import { closestAcross, inChrome } from "./passages.js";
 import { THREAD } from "./thread/selectors.js";
 import { readObligations } from "./obligations/model.js";
@@ -252,7 +252,7 @@ function* locations() {
 let letGone = null;
 onLetGo((node) => {
   const place = placeOf(node);
-  letGone = place && seenRect(place, new Map()) ? new WeakRef(node) : null;
+  letGone = place && seenAhead(place) ? new WeakRef(node) : null;
 });
 onCurrentLocation((node) => {
   if (node && placeOf(node)) letGone = null;
@@ -264,16 +264,16 @@ onUserInput((event) => {
 });
 
 // Where a walk starts: the user's current location, else what they let go of while
-// they still see it, else what the viewport shows. Only a current location can be on a
-// stop; the others are `at` one.
+// they still see it, else what the viewport shows, each read where the glides under way
+// leave it (scroll-containers.js, `seenAhead`; reading-place.js, `readingBlock`). Only a
+// current location can be on a stop; the others are `at` one.
 /** @returns {WalkOrigin} */
 export function walkOrigin() {
   const here = currentLocationOrigin();
   if (here) return here;
   const node = letGone?.deref();
   const left = node?.isConnected ? placeOf(node) : null;
-  if (node && left && seenRect(left, new Map()))
-    return { node, place: left, kind: "at" };
+  if (node && left && seenAhead(left)) return { node, place: left, kind: "at" };
   const block = pageReadingBlock();
   return { node: block, place: block, kind: "at" };
 }

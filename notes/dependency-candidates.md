@@ -58,15 +58,15 @@ Practices pattern. Read, and probed in Chromium, on 2026-11-12.
   Each component's entry measures 13–53 KB gzipped on its own, by the repository's
   `size-budget.json`.
 - **`checkPattern`** (`@ui-sdk/core/testing`, marked experimental). Run on eight
-  examples through `leaf-dev probe --journey` (`/developing-leaf`, "External UI
-  skills", has the command), it found four defects in controls Leaf draws: `lf-tabs`
-  gave its tablist no accessible name; the margin's `role="toolbar"` held up to 15 tab
-  stops, and ArrowRight, ArrowDown, Home and End from its first entry moved nothing;
-  the playground's choice cards put Enlarge buttons inside a `radiogroup`; and Pierre's
-  file tree puts its search field inside `role="tree"`, which axe-core reports as
-  `aria-required-children` on `@pierre/trees` 1.0.0. The first three are fixed (#5948).
-  It also reported problems
-  that weren't there. It presses keys with synthetic events, which don't move focus
+  examples through `leaf-dev probe --journey` (`/developing-leaf`'s
+  `references/external-ui-skills.md` has the command), it found four defects in
+  controls Leaf draws: `lf-tabs` gave its tablist no accessible name; the margin's
+  `role="toolbar"` held up to 15 tab stops, and ArrowRight, ArrowDown, Home and End
+  from its first entry moved nothing; the playground's choice cards put Enlarge buttons
+  inside a `radiogroup`; and Pierre's file tree puts its search field inside
+  `role="tree"`, which axe-core reports as `aria-required-children` on `@pierre/trees`
+  1.0.0. The first three are fixed (#5948). It also reported problems that weren't
+  there. It presses keys with synthetic events, which don't move focus
   between native radios; it reads `aria-controls` as an attribute and misses a
   reference set through `ariaControlsElements`; and it reads focus from
   `document.activeElement`, which stops at a shadow host. A role on an element in a

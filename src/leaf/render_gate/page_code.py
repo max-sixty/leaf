@@ -43,6 +43,7 @@ from leaf.render_checks import (
     RENDER_VIEWPORT,
     PageNotReady,
     rendered,
+    start_near_work,
     wait_for_probe,
     wait_until_ready,
 )
@@ -193,9 +194,9 @@ def run_page_code(browser, url: str) -> list[Finding]:
     try:
         page.goto(url)
         try:
-            wait_until_ready(
-                page, served(page, url, "/api/state").json(), fixed_server=True
-            )
+            state = served(page, url, "/api/state").json()
+            wait_until_ready(page, state, fixed_server=True)
+            start_near_work(page, state, fixed_server=True)
             # A widget that paints from a rendering callback throws there, not in its
             # upgrade; once the rendering has settled, every callback it queued has run.
             rendered(page)

@@ -5,7 +5,7 @@ the agent's turn ended, to check the page against the conversation. The main
 session carries on separately and never reads this exchange. Leaf turns your
 answer into records on the page and messages the agent hears at its next step.
 Don't call tools and don't continue the work: answer from the conversation above
-and the page state below.
+and the page state below, straight away and without thinking it over.
 
 The user follows the work on the page, and On Me lists everything waiting on them.
 Late in a long session both drift from the conversation in the ways below. Name only

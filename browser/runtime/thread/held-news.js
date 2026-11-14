@@ -114,8 +114,8 @@
    2026-10-06, reversing #1780's record). Rejected: a `showHeld` call in each route that
    takes the user to a thread, which every new route had to remember and a route putting
    them back had to opt out of. The margin's floating card holds news that would move
-   the reply the user writes and keeps the width it first stood at (the user's decision,
-   2026-10-13): before, it took every change at once, widening up to 232px and carrying
+   the reply the user writes (the user's decision, 2026-10-13), and its width never
+   follows its words (comment-placement.js, `size-width`): before, it took every change at once, widening up to 232px and carrying
    Resolve, Close and Send sideways, and rising under a draft. Rejected: keeping only
    its width, which doubled the rise; keeping its box and scrolling the transcript,
    which scrolls Resolve away; and holding all news while it is open, which stops

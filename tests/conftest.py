@@ -554,10 +554,12 @@ def isolated_session(tmp_path_factory, monkeypatch):
     # --render` reads the fixed window unless a test unsets this.
     monkeypatch.setenv(render_command_model.PIN_VARIABLE, "fixed")
     monkeypatch.setenv(handover_pass_model.VARIABLE, "off")
-    # A Claude Code session whose harness runs Leaf's hooks, as the plugin installs
-    # them, supplying capability evidence to hook transport and turn activity.
+    # A Claude Code session whose harness runs Leaf's hooks and its module in this
+    # worker's process, as the plugin installs them, supplying capability evidence
+    # to hook transport and turn activity.
     for session in HOOKED_SESSIONS:
         leases_model.mark_hooks(session)
+        leases_model.mark_module(session, os.getpid())
     return cleanup_model.state_home()
 
 

@@ -1,7 +1,7 @@
 <!doctype html>
 <!--
-  Each guide has one reader. Using: the person working on a page. Pages: its
-  author. How it works: the mechanism. Extending: package authors.
+  Each guide has one reader. Using: the person working on a page. How it works:
+  the mechanism. Extending: whoever builds pages and packages.
 -->
 <html lang="en">
   <head>
@@ -333,13 +333,6 @@ flowchart TD
                   </td>
                 </tr>
                 <tr>
-                  <th scope="row"><a href="/pages/">Pages</a></th>
-                  <td>
-                    A page's author: its contents and widgets, its theme, and its
-                    layout.
-                  </td>
-                </tr>
-                <tr>
                   <th scope="row"><a href="/how-it-works/">How it works</a></th>
                   <td>
                     Anyone who wants the mechanism: the
@@ -355,8 +348,9 @@ flowchart TD
                 <tr>
                   <th scope="row"><a href="/extending/">Extending</a></th>
                   <td>
-                    A package author: who owns what, the package interfaces, a worked
-                    package, CSS contracts, the bundled packages and the registry keys.
+                    Whoever builds on Leaf: a page's contents, themes and layouts, then
+                    who owns what, the package interfaces, a worked package, CSS
+                    contracts, the bundled packages and the registry keys.
                   </td>
                 </tr>
               </tbody>
@@ -405,7 +399,7 @@ flowchart TD
                 selection. The Leaf serving the page supplies its runtime and composes
                 the <a href="/extending/#layer">selected packages</a>. The agent authors
                 its content using the HTML and Leaf elements described in
-                <a href="/pages/#contents">Pages</a>.
+                <a href="/extending/#pages">Extending</a>.
               </p>
               <p id="handoff-serving">
                 <code>leaf server start</code> starts the page’s HTTP server and claims
@@ -4277,8 +4271,7 @@ flowchart LR
       <footer class="site-footer" id="colophon">
         <p id="links">
           <a href="/">Home</a> · <a href="/examples/">Examples</a> ·
-          <a href="/using/">Using</a> · <a href="/pages/">Pages</a> ·
-          <a href="/how-it-works/">How it works</a> ·
+          <a href="/using/">Using</a> · <a href="/how-it-works/">How it works</a> ·
           <a href="/extending/">Extending</a> ·
           <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
           <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>

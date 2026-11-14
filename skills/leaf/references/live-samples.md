@@ -35,7 +35,10 @@ Put only the demonstrated page inside the template; labels, your own controls an
 instructions for using the sample go outside it.
 
 The sample uses the parent's layer and has its own event log, so its decisions and
-comments never reach the parent's log or On Me. When the sample is
+comments never reach the parent's log or On Me. Its page starts as the sample nears
+the window, so a page can hold many samples and load only those the user reaches; one
+in a shut tab or a closed disclosure starts as it opens. Until then its frame stands
+empty, and the browser's Find can't reach its text. When the sample is
 about the window itself, such as Leaf's panel and its views, add the boolean `window`
 attribute to show a whole Leaf window at a fixed height. The user can click or Tab into
 the sample and use it fully; Escape returns to the parent, and Reset starts it fresh
@@ -96,9 +99,10 @@ and neither page can read the other's DOM, storage or functions. A page module d
 sample through the element's API:
 
 - `await sample.ready` resolves once the sample is usable, and rejects if it can't load.
-  The parent doesn't wait for samples off screen, so await `ready` rather than the
-  page's presentation.
-- `await sample.reset()` replaces the sample with a fresh copy.
+  It waits while the sample hasn't started, and the parent doesn't wait for samples
+  off screen, so await `ready` rather than the page's presentation.
+- `await sample.reset()` replaces the sample with a fresh copy, or starts one that
+  hasn't started.
 - The bubbling `lf-sample-ready` event, with `detail.sample`, fires after every load,
   including Reset and reloads; reapply any view your controls chose there.
 - `await sample.showThread(id)` shows a thread by its root event id, as its marker

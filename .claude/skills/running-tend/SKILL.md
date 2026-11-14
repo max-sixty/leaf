@@ -271,8 +271,9 @@ Each nightly run, scan the
 [Claude Platform release notes](https://platform.claude.com/docs/en/release-notes/overview),
 [OpenAI API changelog](https://developers.openai.com/api/docs/changelog),
 [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md),
-[Codex releases](https://github.com/openai/codex/releases), and
-[Codex product changelog](https://developers.openai.com/codex/changelog/).
+[Codex releases](https://github.com/openai/codex/releases),
+[Codex product changelog](https://developers.openai.com/codex/changelog/), and
+[Pi releases](https://github.com/earendil-works/pi/releases).
 Read entries since the last successful `tend-nightly` run, with a day's overlap;
 on the first run, read the past week. Report a source that cannot be read in the
 run summary rather than treating it as having no changes. Search open and closed

@@ -12,15 +12,12 @@ room, where a diff's file filter keeps 6. The margin is on the node holding focu
 their ring stands on a box that reaches further: the select's combobox around its input,
 and the slider's thumb 7px below its rail. No bundled widget uses either control.
 
-Two written rules disagree about this. The choice between them waits on the user
-(#4125), who judged focus rings too central for another per-case patch (2026-10-25).
-
-- The `browser/runtime/chrome.css` header says every scroll region a ringed box can land
-  in pads its edges by the room of the widest ring it holds. A sidebar page's `.layout-track`
-  (`browser/layouts.css`) does, with `--focus-region-room` on every side.
-- `browser/styles/tokens.css`, "Where it stands", says a box that clips a mark standing
-  outside its target cuts it. `browser/AGENTS.md` says no rule pads or widens a block to
-  make room for what Leaf draws over it. A bounded block does as these two say.
+On 2026-11-14 the user chose to keep the cut ring for now. Leaf pads nothing, as
+`browser/styles/tokens.css` ("Where it stands") and `browser/AGENTS.md` say, and the
+layout reference (`skills/leaf/references/page-layout.md`, "Bounds and widths") asks an
+author to pad a bounded block that holds a control. The user judged the cut a real
+weakness, too central for another per-case patch (2026-10-25), and #4125 stays open to
+consider the alternatives below.
 
 ## Cases
 
@@ -32,14 +29,16 @@ negative means cut.
 | --------------------------------------------- | ----------------- | --------------- |
 | A link that starts a line                     | −5px              | clear           |
 | A summary, which fills its line               | −5px              | −5px            |
-| A native `input.field` that starts a line     | −2px              | clear           |
+| A native `input.lf-field` that starts a line  | −2px              | clear           |
 | A diff's file filter (`wa-input`), filling it | −3px              | −3px            |
 | A package's `wa-select`, filling it           | −3px              | −3px            |
 
 ## Candidates
 
 Each candidate was laid over this tree as a sheet and read in both engines, and each is
-titled by what the user sees.
+titled by what the user sees. No CSS lets a scroller's own contents paint past its clip:
+a box that scrolls on one axis clips both, and `overflow-clip-margin` applies only to
+`overflow: clip`, so Firefox 159 and Chromium 158 ignore it on a scroller.
 
 - **Every ring in a bounded block is whole, and its words stay on the column.** The
   block reaches 8px past its column on each side and pads by as much. Its box is 16px
@@ -56,11 +55,15 @@ titled by what the user sees.
 - **Every ring in a bounded block is whole, and its words stand 8px in.** The block pads
   its sides inside the column, so every bounded block's words stand 8px in from the
   column's, whether or not a ring is showing. It pads a block for a ring, which
-  `browser/AGENTS.md` rules out.
+  `browser/AGENTS.md` rules out. Placed in the `lf-reset` layer, a block's own padding
+  wins, so a framed block or a log keeps its own and doesn't move. Leaf's activity feed
+  scrolls an inner box (`.lf-activity-list`), which needs the same rule.
 
   ```css
-  [data-lf-bound] {
-    padding-inline: var(--focus-region-room);
+  @layer lf-reset {
+    [data-lf-bound] {
+      padding-inline: var(--focus-region-room);
+    }
   }
   ```
 
@@ -73,13 +76,45 @@ titled by what the user sees.
   wa-select::part(combobox lf-focus-visible-within) {
     outline-offset: var(--focus-ring-inset);
   }
-  input.field {
+  input.lf-field {
     --lf-ring-at: var(--focus-ring-inset);
   }
   ```
 
-- **Nothing moves, and a ring against a bounded block's side stays cut.** The
-  `browser/runtime/chrome.css` header narrows to the scrollers that keep the room.
+- **Every ring in a bounded block is whole, and nothing moves.** A box outside the
+  block, which the block doesn't clip, is laid over the focused control with anchor
+  positioning and draws the ring. In Firefox 159 and Chromium 158 the ring is a
+  rectangle over the control's box: it encloses both lines of a wrapped link and the
+  words beside them, stands whole past the block's edge while the control is half
+  scrolled out, and draws over a sticky header the control has scrolled under. It can't
+  read where a control places its ring (`--lf-ring-at`, set by 39 rules in 20
+  stylesheets). A control's own `::after`, placed the same way, also draws a whole ring
+  over a sticky header, and a native field has no `::after`. The user ruled out a
+  separate drawing (2026-11-14).
+
+  ```css
+  [data-lf-bound] [data-lf-focus-visible] {
+    anchor-name: --lf-ring;
+    outline: none;
+  }
+  /* One box per page, after the content, outside every scroller. */
+  .ring-box {
+    position: absolute;
+    position-anchor: --lf-ring;
+    top: anchor(top);
+    right: anchor(right);
+    bottom: anchor(bottom);
+    left: anchor(left);
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-gap);
+    position-visibility: var(--lf-anchor-visible);
+    pointer-events: none;
+  }
+  ```
+
+- **Nothing moves, and a ring against a bounded block's side stays cut.** Chosen for
+  now: the `browser/runtime/chrome.css` header covers only the chrome's scroll regions,
+  and the layout reference asks an author to pad a bounded block that holds a control.
 
 ## Reproduction
 

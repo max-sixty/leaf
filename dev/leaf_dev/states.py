@@ -704,18 +704,21 @@ def link_preview(page: Page) -> None:
     settle(page)
 
 
-def open_card(page: Page, marker: Locator) -> None:
-    """The margin card `marker` opens, by a click on it. The margin is fixed to the
-    window and anchored to the page, so Playwright's scroll into view leaves a marker
-    below the window where it is: the page scrolls it up instead."""
+def open_card(page: Page, marker: Locator) -> float:
+    """The margin card `marker` opens, by a click on it, returning the page's scroll
+    just before the click. The margin is fixed to the window and anchored to the page,
+    so Playwright's scroll into view leaves a marker below the window where it is: the
+    page scrolls it up instead."""
     marker.evaluate(
         "m => { const box = m.getBoundingClientRect();"
         " if (box.top < 0 || box.bottom > innerHeight)"
         " scrollBy(0, box.top - innerHeight / 3); }"
     )
     settle(page)
+    before = page.evaluate("scrollY")
     marker.click()
     page.wait_for_function(OPEN_CARD)
+    return before
 
 
 def thread_by_marker(page: Page) -> None:
@@ -2600,10 +2603,16 @@ def live_sample_embedded(page: Page) -> None:
     """The arrived practice page at its embedded content height."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     sample = page.locator("#bg-live-sample")
+    # As a reader scrolling toward it brings it, half a window below the window, where
+    # its page starts and takes its height before they reach it.
+    sample.evaluate(
+        "sample => scrollBy(0, sample.getBoundingClientRect().top - 1.5 * innerHeight)"
+    )
+    sample.evaluate("sample => sample.ready")
+    sample.scroll_into_view_if_needed()
     expect(
         sample.frame_locator("iframe").locator("#bg-live-sample-copy")
     ).to_be_visible()
-    sample.scroll_into_view_if_needed()
 
 
 def interactive_sample(page: Page) -> None:

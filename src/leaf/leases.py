@@ -24,6 +24,7 @@ from leaf.registry.kernel import kernel_protocol
 from leaf.schema import WAITER_LOCK
 from leaf.state import (
     HOOKS_SUFFIX,
+    MODULE_SUFFIX,
     TOOLS_SUFFIX,
     flocked,
     flocked_descriptor,
@@ -239,6 +240,20 @@ def mark_hooks(session_id: str) -> None:
     """Record that the harness ran a Leaf hook for this session. The mark stands for
     the session's life, and its SessionEnd hook removes it."""
     session_file(session_id, HOOKS_SUFFIX).touch()
+
+
+def mark_module(session_id: str, pid: int) -> None:
+    """Record `pid` as the harness process in which the session's Leaf module last
+    ran, or whose user Leaf told it didn't (`Harness.unloaded_module`)."""
+    session_file(session_id, MODULE_SUFFIX).write_text(str(pid))
+
+
+def module_process(session_id: str) -> int | None:
+    """The process `mark_module` last recorded for the session, if any."""
+    try:
+        return int(session_file(session_id, MODULE_SUFFIX).read_text())
+    except (FileNotFoundError, ValueError):
+        return None
 
 
 def first_hook_for_tool(session_id: str, tool_use_id: str | None) -> bool:

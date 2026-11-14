@@ -531,9 +531,9 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
     assert card["right"] <= boundary["right"] + 1
 
 
-def test_send_and_reopen_keep_the_card_minimum_and_attachment(browser, serve):
-    """Send keeps the comment frame's width, already at least the card minimum. Reopening
-    chooses its width afresh for the thread's contents, at the same attachment."""
+def test_send_and_reopen_keep_the_card_width_and_attachment(browser, serve):
+    """The comment frame opens at the card's width, the measure or its room, which Send
+    keeps. Reopening stands the card in the same rectangle, whatever its words hold."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
     )
@@ -562,8 +562,7 @@ def test_send_and_reopen_keep_the_card_minimum_and_attachment(browser, serve):
     expect(card).to_have_css("opacity", "1")
     rendered(page)
     reopened = page.evaluate(RECT, ".lf-margin-preview")
-    assert reopened["right"] - reopened["left"] >= minimum - 0.5, (reopened, minimum)
-    edges = ("left", "top", "bottom")
+    edges = ("left", "right", "top", "bottom")
     assert {edge: sent[edge] for edge in edges} == pytest.approx(
         {edge: reopened[edge] for edge in edges}, abs=0.5
     ), (sent, reopened)

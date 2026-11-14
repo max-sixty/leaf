@@ -185,7 +185,9 @@ the axis, `--lf-axis-at` on the element, in a box as wide as the axis: each tick
 `span.lf-axis-tick` inside an `.lf-axis-ruler`, with `data-lf-major` and `data-lf-flip`
 as the tick says; a `span.lf-axis-gridline` for each major tick, with its
 `data-lf-flip`, inside an `.lf-axis-grid` you place over the drawing below the ruler;
-and your own marks, labels and playhead with the class `lf-on-axis`.
+and your own marks, labels and playhead with the class `lf-on-axis`. Each of these
+stands at `--lf-axis-x`, its offset from the box's start, which a label can read to
+fit the room on either side of it.
 `AXIS_TICK_SPACING`, `AXIS_LABEL_CHROME` and `AXIS_LABEL_GAP` are the least room
 between major ticks, what a mark's label adds to its words, and the least room between
 two labels in one row. `seconds(ms, digits)` writes a time as seconds, with `digits`

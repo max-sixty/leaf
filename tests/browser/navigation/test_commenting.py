@@ -735,12 +735,49 @@ def test_c_pressed_as_a_walk_glides_to_a_card_replies_in_it(browser, serve):
     """The thread walk focuses the card it reaches, then glides the page to the words
     the card stands by. `c` pressed on the way is meant for that card, so it writes in
     the card's reply rather than letting go of the card and commenting on the words at
-    the window's top."""
+    the window's top, and the page lands where the walk lands it alone: bringing the
+    card back as it arrived stopped the page short of that landing."""
+    alone = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
+    alone.keyboard.press("t")
+    expect(alone.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    scroll_settled(alone)
+    landing = alone.evaluate("scrollY")
+
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
     card = page.locator(".lf-margin-preview .lf-page-thread")
     page.keyboard.press("t")
     page.keyboard.press("c")
     expect(card.locator("leaf-text")).to_be_focused()
+    scroll_settled(page)
+    assert page.evaluate("scrollY") == pytest.approx(landing, abs=2)
+
+
+def test_c_pressed_as_g_g_carries_focus_away_comments_where_g_g_lands(browser, serve):
+    """`g g` glides the page to its top, carrying the control the user stood on out of
+    view. A `c` pressed once it has left acts from what the user sees, as it does once
+    the glide has landed, so it opens the panel's comment at the top, rather than
+    taking the page back down to comment on the control the glide left."""
+    page = open_page(
+        browser,
+        serve(
+            LONG_PAGE.replace(
+                "<p id='p41'>Paragraph 41.",
+                "<p id='p41'>Paragraph 41. <a href='#p41'>A link</a>",
+            )
+        ),
+    )
+    link = page.locator("#p41 a")
+    link.focus()
+    scroll_settled(page)
+    page.keyboard.press("g")
+    page.keyboard.press("g")
+    page.wait_for_function(
+        "document.querySelector('#p41 a').getBoundingClientRect().top > innerHeight"
+    )
+    page.keyboard.press("c")
+    expect(page.locator('.lf-fp-field leaf-text[name="comment"]')).to_be_focused()
+    scroll_settled(page)
+    assert page.evaluate("scrollY") == pytest.approx(0, abs=2)
 
 
 def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):

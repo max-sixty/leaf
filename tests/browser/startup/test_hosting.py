@@ -33,7 +33,7 @@ def test_a_live_page_embeds_at_its_own_origin_and_cannot_run_its_data(browser, s
     source = leaf_page(
         "Boundaries",
         """<h1 id="h">Boundaries</h1>
-<lf-ask id="decision"><h2>Proceed?</h2><lf-options id="pick" choose>
+<lf-ask id="decision"><h2>Proceed?</h2><lf-options id="pick" required>
 <lf-option id="yes">Proceed</lf-option><lf-option id="no">Wait</lf-option>
 </lf-options></lf-ask>""",
         head="""<script type="module">
@@ -79,7 +79,7 @@ window.authoredModuleRan = true;
     expect(frame.locator("body")).to_have_attribute("data-lf-presented", "1")
     frame.locator("#yes").click()
     page.wait_for_function(
-        "() => document.querySelector('#yes')?.hasAttribute('chosen')"
+        "() => document.querySelector('#yes')?.hasAttribute('selected')"
     )
     assert any(
         event.get("kind") == "action"
@@ -734,7 +734,7 @@ def test_a_sample_counts_each_document_its_frame_loads(browser, serve):
 
 
 # A choice whose press shows at once on a page that has come up.
-CHOICE = """<lf-ask id="decision"><h2>Proceed?</h2><lf-options id="pick" choose>
+CHOICE = """<lf-ask id="decision"><h2>Proceed?</h2><lf-options id="pick" required>
 <lf-option id="yes">Proceed</lf-option><lf-option id="no">Wait</lf-option>
 </lf-options></lf-ask>"""
 
@@ -781,7 +781,7 @@ def test_a_sample_waits_out_a_release_still_rolling_out(browser, serve):
     expect(status).to_have_text("Loading sample…")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     page.locator("#yes").click()
-    expect(page.locator("#yes")).to_have_attribute("chosen", "")
+    expect(page.locator("#yes")).to_have_attribute("selected", "")
     frame = page.locator("#s iframe")
     height = "frame => frame.getBoundingClientRect().height"
     waiting_height = frame.evaluate(height)
@@ -841,7 +841,7 @@ def test_a_sample_queued_behind_a_rollout_leaves_the_page_live(browser, serve):
     holding(page, asked, 3, "the three allocations a page makes at once")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     page.locator("#yes").click()
-    expect(page.locator("#yes")).to_have_attribute("chosen", "")
+    expect(page.locator("#yes")).to_have_attribute("selected", "")
     expect(page.locator(".lf-sample-status")).to_have_text(["Loading sample…"] * 4)
     # Whichever sample mounted last is the one queued.
     assert len({template for _, template in asked}) == 3

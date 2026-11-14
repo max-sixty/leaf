@@ -139,7 +139,7 @@ export const missingThreads = (declarations) =>
 // the static lint holds an authored document to it. What no source reading can see is the
 // other writer: a module, which upgrades the element and may leave anything it likes on
 // it. So a module writes in that namespace only where the registry declares the
-// attribute as a verb's record form (`chosen`, `status`), which is what makes the write
+// attribute as a verb's record form (`selected`, `status`), which is what makes the write
 // a statement the log's fold, the state gate and construction-linked inspection can all read.
 // Everything else it needs to mark goes where the module's own words go — the chrome it
 // built, in the platform's vocabulary (aria-*, role, hidden, tabindex) or under data-*,

@@ -141,7 +141,7 @@ Could we move up to the larger room? We're at 46 confirmed, so 50 seats would be
 Thanks,
 Max</pre>
                   </lf-draft>
-                  <lf-options id="venue-choice" choose>
+                  <lf-options id="venue-choice" required>
                     <lf-option id="venue-send"
                       ><strong>Send</strong> Sends the draft as it reads now.</lf-option
                     >
@@ -183,7 +183,7 @@ Max</pre>
                     <pre>
 Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
                   </lf-draft>
-                  <lf-options id="numbers-choice" choose>
+                  <lf-options id="numbers-choice" required>
                     <lf-option id="numbers-send"
                       ><strong>Send to the team</strong></lf-option
                     >
@@ -204,7 +204,7 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
                     One commit broke <code>test_parser</code>. Nothing else landed after
                     it.
                   </p>
-                  <lf-options id="ci-choice" choose>
+                  <lf-options id="ci-choice" required>
                     <lf-option id="ci-revert"
                       ><strong>Revert it</strong> Opens a revert PR now.</lf-option
                     >
@@ -363,7 +363,7 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
               from and where you read them. They compose: a feed page from A would
               become one source in B's list.
             </p>
-            <lf-options id="first-build" choose>
+            <lf-options id="first-build" required>
               <lf-option id="build-today-page">
                 <small class="tag">Leaf code: almost none</small
                 ><small class="tag">proactive: yes</small
@@ -483,7 +483,7 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
               <code>conversation-loop.md</code>, scored with <code>evals/</code>. The
               risk is over-asking, which the same research found destroys the signal.
             </p>
-            <lf-options id="offers-choice" choose>
+            <lf-options id="offers-choice" required>
               <lf-option id="offers-yes"
                 ><strong>Yes, try it with an eval</strong></lf-option
               >

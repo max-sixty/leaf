@@ -83,7 +83,7 @@ QUICK_KEYS_PAGE = leaf_page(
 <h1 id="title">Field day</h1>
 <lf-ask id="map-ask">
   <h3>Which map should the sample team carry?</h3>
-  <lf-options id="map" choose>
+  <lf-options id="map" required>
     <lf-option id="map-street">Street map</lf-option>
     <lf-option id="map-trail">Trail map</lf-option>
   </lf-options>
@@ -182,16 +182,16 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
     page = open_page(browser, first)
     expect_obligations_answered(page, "2/2")
-    expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
-    expect(page.locator("#review-billing-legacy")).to_have_attribute("chosen", "")
+    expect(page.locator("#review-cache-auto")).to_have_attribute("selected", "")
+    expect(page.locator("#review-billing-legacy")).to_have_attribute("selected", "")
     page.close()
 
     newest = serve(example, seed_log=False)
     first = newest.replace("/versions/v2.html", "/versions/v1.html")
     page = open_page(browser, first)
     expect_obligations_answered(page, "0/2")
-    expect(page.locator("#review-cache-auto")).not_to_have_attribute("chosen", "")
-    expect(page.locator("#review-billing-legacy")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#review-cache-auto")).not_to_have_attribute("selected", "")
+    expect(page.locator("#review-billing-legacy")).not_to_have_attribute("selected", "")
     expect(page.locator("#review-cache")).to_contain_text(
         "A failed copy leaves the old keys authoritative"
     )
@@ -208,7 +208,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     expect(page.locator("#review-cache-decision")).to_be_focused()
     with sending(page, "the cache rollback decision"):
         page.keyboard.press("1")
-    expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
+    expect(page.locator("#review-cache-auto")).to_have_attribute("selected", "")
 
     page.keyboard.press("m")
     expect(page.locator("#review-billing-decision")).to_be_focused()
@@ -220,8 +220,8 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     page.goto(live_url(newest))
     rendered(page)
     expect_showing(page, 2)
-    expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
-    expect(page.locator("#review-billing-legacy")).to_have_attribute("chosen", "")
+    expect(page.locator("#review-cache-auto")).to_have_attribute("selected", "")
+    expect(page.locator("#review-billing-legacy")).to_have_attribute("selected", "")
     expect(page.locator("#review-cache")).to_contain_text(
         "returns readers to the old keys automatically"
     )
@@ -594,12 +594,12 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     )
     page.keyboard.press("1")
     rendered(page)
-    expect(street).not_to_have_attribute("chosen", "")
+    expect(street).not_to_have_attribute("selected", "")
     street.locator(".lf-pick").focus()
     page.keyboard.press("ArrowDown")
     expect(trail.locator(".lf-pick")).to_be_focused()
     page.keyboard.press("Space")
-    expect(trail).to_have_attribute("chosen", "")
+    expect(trail).to_have_attribute("selected", "")
     button.focus()
     button.press("Enter")
     expect(note).to_be_focused()
@@ -622,7 +622,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
         "aria-keyshortcuts", re.compile(r"(?:^| )1(?: |$)")
     )
     page.keyboard.press("1")
-    expect(street).to_have_attribute("chosen", "")
+    expect(street).to_have_attribute("selected", "")
     sample.focus()
     expect(button).to_have_attribute("aria-keyshortcuts", "1")
     page.keyboard.press("1")
@@ -1831,7 +1831,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     )
     assert pick_code, "the pick mark the widget built got no Go-to hint"
     page.keyboard.type(pick_code)
-    expect(page.locator("#opt-a")).to_have_attribute("chosen", "")
+    expect(page.locator("#opt-a")).to_have_attribute("selected", "")
 
     # The two completions that take no digit: an edge of the page is one place, so the
     # second key completes the route — G glides to the bottom, g to the top.

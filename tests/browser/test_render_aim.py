@@ -1145,7 +1145,7 @@ TALL_OBLIGATION_PAGE = leaf_page(
     + "".join(
         f"<p>Consideration {n} about the route, at length.</p>" for n in range(30)
     )
-    + '<lf-options id="route" choose><lf-option id="north">North</lf-option>'
+    + '<lf-options id="route" required><lf-option id="north">North</lf-option>'
     '<lf-option id="south">South</lf-option></lf-options></lf-ask><p>After.</p>',
 )
 # Every margin row by what it stands for: the rows about `target`, each as its top
@@ -1416,7 +1416,7 @@ POINTED_WITHIN = {
     # it joins that row, an obligation's marker's, rather than standing pushed below it.
     "first line": (
         (
-            '<lf-ask id="within"><h2>Which way?</h2><lf-options id="route" choose>'
+            '<lf-ask id="within"><h2>Which way?</h2><lf-options id="route" required>'
             '<lf-option id="north">North</lf-option><lf-option id="south">South'
             "</lf-option></lf-options></lf-ask>"
         ),
@@ -1789,7 +1789,7 @@ def test_a_margin_preview_stands_clear_of_the_target_trace(browser, serve, monke
     """A margin marker's preview is about its target, so it stands clear of the target
     and of the trace it summons around it, rather than painting over that trace."""
     single = OBLIGATION_PAGE.replace(
-        '<lf-options id="jobs" choose multiple>', '<lf-options id="jobs" choose>'
+        '<lf-options id="jobs" required multiple>', '<lf-options id="jobs" required>'
     )
     page = open_page(browser, live_url(serve(single)))
     page_dir = serve.page_dir
@@ -1839,7 +1839,7 @@ def test_an_aim_at_a_seam_promises_the_element_its_press_takes(
     The outline hit-tests the pointer record the runtime keeps, and the press takes the
     target the browser resolved for it. `mousemove` carries the pointer's place rounded to
     a whole pixel, so a record kept from one is an answer about a place the pointer is
-    not, and within a pixel of a seam that place is a different item: ⌥ over a choose
+    not, and within a pixel of a seam that place is a different item: ⌥ over a `required`
     group outlined the option above the seam and the press commented on the one below it.
     So the aim is put within a quarter pixel of a seam, where the true point and its
     rounded twin name different items, and the item it is held to is read off the point,
@@ -2046,7 +2046,7 @@ def test_a_key_still_reaches_its_control_after_an_aimed_press(browser, serve):
     page.locator("#opt-shim .lf-pick").focus()
     with sending(page, "the pick"):
         page.keyboard.press(" ")
-    expect(page.locator("#approach > lf-option[chosen]")).to_have_count(1)
+    expect(page.locator("#approach > lf-option[selected]")).to_have_count(1)
     assert [
         e["action"] for e in events_model.read_events(serve.page_dir) if "action" in e
     ] == ["choose"]
@@ -2169,7 +2169,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     )
     # The press did nothing to the page: not a pick, not a focus, nothing in the markup
     # but the composer's own outline on the element it is about.
-    expect(page.locator("#approach > lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#approach > lf-option[selected]")).to_have_count(0)
     assert (
         page.evaluate(PAGE_MARKUP).replace(' class="lf-mark-el lf-pending"', "")
         == before
@@ -3707,7 +3707,7 @@ def test_the_aim_stands_where_its_targets_own_marks_do(browser, serve, subtests)
                 "Cramped targets",
                 """<h1 id="h">Cramped targets</h1>
 <p><label for="name">Name</label> <input id="name" class="lf-field" type="text" value="Ada"></p>
-<lf-options id="ship" choose>
+<lf-options id="ship" required>
   <lf-option id="ship-monday"><strong>Ship Monday</strong> soon</lf-option>
   <lf-option id="ship-thursday"><strong>Ship Thursday</strong> later</lf-option>
 </lf-options>""",

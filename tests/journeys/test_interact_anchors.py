@@ -538,7 +538,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             "--text",
             "Pick:",
             "--markup",
-            '<lf-ask id="q1-decision"><h3>Pick one</h3><lf-options id="q1" choose>'
+            '<lf-ask id="q1-decision"><h3>Pick one</h3><lf-options id="q1" required>'
             '<lf-option id="q1-a"><strong>A</strong>'
             '<span id="thread-label">Label</span></lf-option></lf-options></lf-ask>',
         ).exit_code

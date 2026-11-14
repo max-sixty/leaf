@@ -964,7 +964,7 @@ FRAMED_WIDE_PAGE = leaf_page(
   </lf-board>
 </lf-sample>
 <lf-ask id="pick-decision"><h2>Should the option include evidence?</h2>
-<lf-options id="pick" choose>
+<lf-options id="pick" required>
   <lf-option id="opt-a"><strong>With evidence</strong>
     <lf-diagram id="in-card"><pre>
 graph LR
@@ -975,7 +975,7 @@ graph LR
   <lf-option id="opt-b"><strong>Without</strong></lf-option>
 </lf-options></lf-ask>
 <lf-ask id="row-pick-decision"><h2>Where should the cable run?</h2>
-<lf-options id="row-pick" choose>
+<lf-options id="row-pick" required>
   <lf-option id="row-a">Along the fence line
     <lf-diagram id="in-row"><pre>
 graph LR
@@ -1261,14 +1261,14 @@ WHERE_I_STAND_PAGE = leaf_page(
 <p id="p1">A first passage, with a <a href="https://example.invalid/spec">link into the
 spec</a> so the walk has somewhere to stand that is not a decision.</p>
 <lf-ask id="shape-decision"><h2>Which material?</h2>
-<lf-options id="shape" choose>
+<lf-options id="shape" required>
   <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, and the
   <a href="https://example.invalid/steel">spec for it</a> is short.</lf-option>
   <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
 </lf-options></lf-ask>
 <lf-ask id="settled-decision"><h2>Should we keep it?</h2>
-<lf-options id="settled" choose settled>
-  <lf-option id="st-keep" chosen><strong>Keep it</strong> Decided last week, with the
+<lf-options id="settled" required settled>
+  <lf-option id="st-keep" selected><strong>Keep it</strong> Decided last week, with the
   <a href="https://example.invalid/keep">note behind it</a>.</lf-option>
   <lf-option id="st-drop"><strong>Drop it</strong> The alternative.</lf-option>
 </lf-options></lf-ask>

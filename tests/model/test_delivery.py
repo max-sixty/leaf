@@ -318,7 +318,7 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     page_dir,
 ):
     source = PAGE.replace(
-        "<lf-options>", '<lf-options id="choice" choose multiple>'
+        "<lf-options>", '<lf-options id="choice" required multiple>'
     ).replace(
         "</section>", '<lf-draft id="draft"><pre>Blue room.</pre></lf-draft></section>'
     )
@@ -496,7 +496,7 @@ def test_recordless_requests_wake_without_user_obligations(
 def test_widget_actions_withdrawals_reports_and_errors_remain_deliverable(page_dir):
     source = PAGE.replace(
         "</section>",
-        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
+        '<lf-options id="permit" required><lf-option id="publish">Publish</lf-option>'
         '<lf-option id="hold">Keep it private</lf-option></lf-options></section>',
     )
     source = source.replace(
@@ -702,7 +702,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "author": "agent",
             "revision": 1,
             "text": "And which region first?",
-            "markup": '<lf-options id="rg" choose>'
+            "markup": '<lf-options id="rg" required>'
             '<lf-option id="r-eu"><strong>EU</strong></lf-option>'
             "</lf-options>",
         },
@@ -714,7 +714,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "author": "agent",
             "revision": 1,
             "text": "Which mitigations should I carry into the patch?",
-            "markup": '<lf-options id="gm" choose>'
+            "markup": '<lf-options id="gm" required>'
             '<lf-option id="m-cap"><small class="tag">recommended</small>'
             "<strong>Cap retries</strong> Bound retry load.</lf-option>"
             '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
@@ -790,7 +790,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     says that pick, as the choice worded it, not every word of the group (#5620),
     and an undo says what it takes back."""
     asked = PAGE.replace(
-        "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
+        "<lf-options>", '<lf-options id="plan-choice" required multiple>', 1
     )
     (page_dir / "index.html").write_text(asked)
     publish(page_dir)
@@ -862,7 +862,9 @@ def test_done_on_an_empty_pick_says_nothing(page_dir, capsys):
     """Done with nothing picked completes the answer with no option, so it quotes
     none of the group's words (#5620)."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
+        PAGE.replace(
+            "<lf-options>", '<lf-options id="plan-choice" required multiple>', 1
+        )
     )
     publish(page_dir)
     serving(page_dir, 1)
@@ -993,7 +995,7 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
         }
         if index == 2:
             message["markup"] = (
-                '<lf-options id="thread-commands" choose>'
+                '<lf-options id="thread-commands" required>'
                 '<lf-option id="restart"><strong>Restart</strong></lf-option>'
                 '<lf-option id="park"><strong>Park</strong></lf-option>'
                 "</lf-options>"
@@ -1130,7 +1132,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             "author": "agent",
             "parent": root["id"],
             "text": "Which mitigations?",
-            "markup": '<lf-options id="gm" choose multiple>'
+            "markup": '<lf-options id="gm" required multiple>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
             "</lf-options>",
         },
@@ -1307,7 +1309,7 @@ def test_a_pick_carries_the_questions_still_waiting_about_its_decision(page_dir)
     source = PAGE.replace(
         "</section>",
         '</section><section id="ship-ask"><h2>Ship on Friday?</h2>'
-        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
+        '<lf-options id="permit" required><lf-option id="publish">Publish</lf-option>'
         '<lf-option id="hold">Keep it private</lf-option></lf-options></section>'
         '<p id="aside">An aside.</p>',
     )

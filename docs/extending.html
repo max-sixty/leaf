@@ -498,7 +498,7 @@
                 interactive
               >
                 <p>Start with canary clients; expand after the error rate settles.</p>
-                <lf-options id="spec-options" choose>
+                <lf-options id="spec-options" required>
                   <lf-option id="so-rewrite"
                     ><small class="tag ok">recommended</small>
                     <strong>Canary clients</strong> Start with a small group and compare
@@ -514,7 +514,7 @@
                   >
                 </lf-options>
                 <h3>Which job should start first?</h3>
-                <lf-options id="spec-jobs" choose>
+                <lf-options id="spec-jobs" required>
                   <lf-option id="sj-backfill">Prepare the rollback flag</lf-option>
                   <lf-option id="sj-contract">Add a concurrency test</lf-option>
                   <lf-option id="sj-fallback"

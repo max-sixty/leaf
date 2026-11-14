@@ -8,7 +8,7 @@ const status = section.querySelector("#bg-generated-sample-status");
 const preview = section.querySelector("#bg-generated-sample-preview");
 const source = `<!doctype html><html lang="en"><head><title>Generated delivery choice</title></head>
 <body><main class="layout-column"><h1>Delivery</h1>
-<lf-options id="delivery" choose>
+<lf-options id="delivery" required>
   <lf-option id="standard">Standard delivery</lf-option>
   <lf-option id="express">Express delivery</lf-option>
 </lf-options></main></body></html>`;

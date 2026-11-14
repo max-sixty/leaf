@@ -10,7 +10,7 @@
    .lf-ui, since an invisible word is apparatus the anchor pass must not offer — a
    quote resolved into a clipped box would paint a mark nobody can see. Out of flow,
    so it holds no room, and unpadded, since a holder that pads every child, as a
-   `choose` group pads its cells, would make it a box that cuts off its own words;
+   `required` group pads its cells, would make it a box that cuts off its own words;
    the covered-words gate skips this class.
 
    And out of the selection, which the clip does not do on its own: a word standing

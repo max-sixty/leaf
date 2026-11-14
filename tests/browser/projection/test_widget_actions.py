@@ -1018,7 +1018,7 @@ def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
         "Carried decision",
         """<h1>Plan</h1>
 <lf-ask id="cz-ask"><h2>Which comes first?</h2>
-  <lf-options id="cz-options" choose>
+  <lf-options id="cz-options" required>
     <lf-option id="cz-flag">Flag</lf-option>
     <lf-option id="cz-backfill">Backfill</lf-option>
   </lf-options>
@@ -1027,7 +1027,7 @@ def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
     page = open_page(browser, live_url(serve(first)))
     page.locator("#cz-flag .lf-pick").click()
     round_trip(page)
-    expect(page.locator("#cz-flag")).to_have_attribute("chosen", "")
+    expect(page.locator("#cz-flag")).to_have_attribute("selected", "")
 
     stamp_page(
         serve.page_dir,
@@ -1035,8 +1035,8 @@ def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
         "add context",
     )
     wait_for_revision(page, 2)
-    expect(page.locator("#cz-flag")).to_have_attribute("chosen", "")
+    expect(page.locator("#cz-flag")).to_have_attribute("selected", "")
 
     undo(page)
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
-    expect(page.locator("#cz-options lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#cz-options lf-option[selected]")).to_have_count(0)

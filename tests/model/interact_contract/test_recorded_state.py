@@ -75,7 +75,7 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
     """Each effect admits its fixed fields and refuses aliases, extras and wrong types."""
     registry = vocabulary(page_dir)
     source = (
-        '<lf-options id="picks" choose><lf-option id="first">First</lf-option></lf-options>'
+        '<lf-options id="picks" required><lf-option id="first">First</lf-option></lf-options>'
         '<lf-draft id="draft"><pre>Initial words</pre></lf-draft>'
         '<lf-board id="board"><lf-column id="todo" label="Todo">'
         '<lf-card id="card">Card</lf-card></lf-column>'
@@ -161,10 +161,10 @@ def test_attribute_records_admit_only_sets_of_owned_members(page_dir, writer):
         options["x-state"]["choose"]["writer"] = "agent"
     registry_validation.validate_registry(registry, "test registry")
     page = ModelPage(
-        '<lf-options id="owned" choose multiple>'
+        '<lf-options id="owned" required multiple>'
         '<lf-option id="first">First</lf-option>'
         '<lf-option id="second">Second</lf-option></lf-options>'
-        '<lf-options id="elsewhere" choose>'
+        '<lf-options id="elsewhere" required>'
         '<lf-option id="foreign">Foreign</lf-option></lf-options>',
         registry=registry,
     )
@@ -338,7 +338,7 @@ def test_every_fold_verb_declares_its_coordinate(page_dir, tag, verb, field):
         ("lf-draft", "edit", "body", None),
         ("lf-board", "move", "position", None),
         ("lf-test-task", "status", "value", "status"),
-        ("lf-options", "choose", "attribute", "chosen"),
+        ("lf-options", "choose", "attribute", "selected"),
     ],
 )
 def test_distinct_verbs_cannot_claim_one_physical_record_slot(

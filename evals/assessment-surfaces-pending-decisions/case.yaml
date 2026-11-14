@@ -279,7 +279,7 @@ variants:
           <p>Tapping a discussion should select it even when an older message still has
           focus. I recommend this independent fix next; extraction and verification are
           my work, and choosing a scope does not authorize landing it.</p>
-          <lf-options id="next-touch" choose>
+          <lf-options id="next-touch" required>
             <lf-option id="next-touch-keep" value="keep-priority">Keep the current priorities</lf-option>
             <lf-option id="next-touch-next" value="next-scope">Make #59 the next extraction scope</lf-option>
           </lf-options>

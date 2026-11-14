@@ -58,9 +58,9 @@ ACROSS_OBLIGATION = """
       <tbody><tr><td>Hot</td><td class="num">40</td></tr>
         <tr><td>Warm</td><td class="num">120</td></tr></tbody>
     </table></figure>
-    <lf-options id="{id}-choice" choose{across}{width}>
+    <lf-options id="{id}-choice" required{across}{width}>
       <lf-option id="{id}-7"><strong>7 days</strong> The cheapest.
-        <lf-options id="{id}-nested" choose>
+        <lf-options id="{id}-nested" required>
           <lf-option id="{id}-hot"><strong>Hot only</strong> Drop warm at once.</lf-option>
           <lf-option id="{id}-both"><strong>Both tiers</strong> Keep warm a week.</lf-option>
         </lf-options>
@@ -93,7 +93,7 @@ ACROSS_WIDE_OPTIONS_PAGE = leaf_page(
 PICTURED_OBLIGATION = """
   <lf-ask id="{id}">
     <h3>Should each item say where it sits in the plan?</h3>
-    <lf-options id="{id}-choice" choose{width}>
+    <lf-options id="{id}-choice" required{width}>
       <lf-option id="{id}-yes"><strong>Show the goal and step</strong> A line over each item.
         <p><a href="#{id}-yes-picture"><svg id="{id}-yes-picture" class="drawing"
           viewBox="0 0 480 240" width="480" height="240" role="img"
@@ -149,19 +149,19 @@ PICTURED_OBLIGATION_PAGE = leaf_page(
     + PICTURED_OBLIGATION.format(id="pictured", width="")
     + PICTURED_OBLIGATION.format(id="widened", width=' data-width="wide"')
     + PICTURED_OBLIGATION.format(id="across", width=' data-width="wide" across')
-    + '<lf-ask id="plated"><h3>Which latency?</h3><lf-options id="plated-choice" choose>'
+    + '<lf-ask id="plated"><h3>Which latency?</h3><lf-options id="plated-choice" required>'
     + PLATED_OPTION.format(side="yes", title="Backend")
     + PLATED_OPTION.format(side="no", title="Frontend")
     + "</lf-options></lf-ask>"
-    + '<lf-ask id="captured"><h3>Which panel?</h3><lf-options id="captured-choice" choose>'
+    + '<lf-ask id="captured"><h3>Which panel?</h3><lf-options id="captured-choice" required>'
     + CAPTURED_OPTION.format(side="yes", title="Both lines", src=SHOT_SRC["before"])
     + CAPTURED_OPTION.format(side="no", title="One line", src=SHOT_SRC["after"])
     + "</lf-options></lf-ask>"
-    + '<lf-ask id="rowed"><h3>Which route?</h3><lf-options id="rowed-choice" choose>'
+    + '<lf-ask id="rowed"><h3>Which route?</h3><lf-options id="rowed-choice" required>'
     + ROWED_OPTION.format(side="yes", title="Along the fence")
     + ROWED_OPTION.format(side="no", title="Under the lawn")
     + "</lf-options></lf-ask>"
-    + '<lf-ask id="worded"><h3>Which order?</h3><lf-options id="worded-choice" choose>'
+    + '<lf-ask id="worded"><h3>Which order?</h3><lf-options id="worded-choice" required>'
     + '<lf-option id="worded-yes"><strong>By owner</strong> Grouped.</lf-option>'
     + '<lf-option id="worded-no"><strong>By age</strong> As today.</lf-option>'
     + "</lf-options></lf-ask>",
@@ -224,7 +224,7 @@ def test_options_holding_pictures_stand_apart(browser, serve):
     # a cell, so it reads among pictures as plainly as among words.
     for id in ("pictured", "worded"):
         page.locator(f"#{id}-yes > strong").click()
-        expect(page.locator(f"#{id}-yes")).to_have_attribute("chosen", "")
+        expect(page.locator(f"#{id}-yes")).to_have_attribute("selected", "")
     page.mouse.move(0, 0)
     face = """el => { const s = getComputedStyle(el);
                       return [s.backgroundColor, s.boxShadow]; }"""
@@ -287,7 +287,7 @@ def chipped_obligation(id, cards):
         f'<lf-ask id="{id}"><h3>Which fix first?</h3>'
         '<svg class="drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
         '<rect width="480" height="60" fill="none" stroke="currentColor" /></svg>'
-        f'<lf-options id="{id}-choice" choose across>{options}</lf-options></lf-ask>'
+        f'<lf-options id="{id}-choice" required across>{options}</lf-options></lf-ask>'
     )
 
 
@@ -299,7 +299,7 @@ CHIPPED_CARDS_PAGE = leaf_page(
         [
             (["recommended"], "Seal the hatch", ""),
             ([], "Glaze the bay", ""),
-            (["risky"], "Insulate the floor", " chosen"),
+            (["risky"], "Insulate the floor", " selected"),
         ],
     )
     + chipped_obligation(
@@ -382,10 +382,10 @@ def test_ideas_shortlist_survives_revision_and_can_reopen(browser, serve):
     first.focus()
     page.keyboard.press("1")
     round_trip(page)
-    expect(page.locator("#idea-shared-filters")).to_have_attribute("chosen", "")
+    expect(page.locator("#idea-shared-filters")).to_have_attribute("selected", "")
     choices.get_by_text("Export the filtered table", exact=True).tap()
     round_trip(page)
-    expect(page.locator("#idea-csv-export")).to_have_attribute("chosen", "")
+    expect(page.locator("#idea-csv-export")).to_have_attribute("selected", "")
 
     done = choices.get_by_role(
         "button", name="Done: these picks are complete", exact=True
@@ -398,8 +398,8 @@ def test_ideas_shortlist_survives_revision_and_can_reopen(browser, serve):
     wait_for_revision(
         page, stamp_page(serve.page_dir, revised, "Clarify export scope")["revision"]
     )
-    expect(page.locator("#idea-shared-filters")).to_have_attribute("chosen", "")
-    expect(page.locator("#idea-csv-export")).to_have_attribute("chosen", "")
+    expect(page.locator("#idea-shared-filters")).to_have_attribute("selected", "")
+    expect(page.locator("#idea-csv-export")).to_have_attribute("selected", "")
 
     choices.get_by_role(
         "button", name="Take back Done: reopen these options", exact=True
@@ -408,10 +408,10 @@ def test_ideas_shortlist_survives_revision_and_can_reopen(browser, serve):
     expect_obligations_answered(page, "0/1")
     choices.get_by_text("Export the filtered table", exact=True).tap()
     round_trip(page)
-    expect(page.locator("#idea-csv-export")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#idea-csv-export")).not_to_have_attribute("selected", "")
     undo(page)
     round_trip(page)
-    expect(page.locator("#idea-csv-export")).to_have_attribute("chosen", "")
+    expect(page.locator("#idea-csv-export")).to_have_attribute("selected", "")
     done.tap()
     round_trip(page)
     expect_obligations_answered(page, "1/1")
@@ -423,7 +423,7 @@ def test_clearing_an_answer_reopens_its_obligation(browser, serve):
         "obligation after a cleared pick",
         """
 <lf-ask id="release-decision"><h1>Ship this release?</h1>
-  <lf-options id="release-options" choose>
+  <lf-options id="release-options" required>
     <lf-option id="release-ship">Ship it</lf-option>
     <lf-option id="release-hold">Hold it</lf-option>
   </lf-options>
@@ -443,7 +443,7 @@ def test_clearing_an_answer_reopens_its_obligation(browser, serve):
     holding(page, held, 1, "the cleared selection")
     # The pick clears under the user at once; whether that leaves the obligation unanswered
     # is the log's reading.
-    expect(page.locator("#release-ship")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#release-ship")).not_to_have_attribute("selected", "")
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -464,7 +464,7 @@ def test_the_obligation_reading_counts_completed_obligations_against_the_active_
     questions nested in tasks.
 
     The rest of the page is every way of not being one, and each was a way of getting
-    it wrong: a group whose pick the version already carries (`chosen`, with nothing in
+    it wrong: a group whose pick the version already carries (`selected`, with nothing in
     the log — a fold-only reading counts it as open on every shipped example), one the
     author has settled, one that takes no picks at all, an exhibited decision inside a
     lf-sample, and a milestone at `blocked`, which is the same word on a widget whose
@@ -742,7 +742,7 @@ def test_the_obligation_itself_binds_each_contributed_action(browser, serve):
     ).to_have_text(["1", "2"])
 
     page.keyboard.press("2")
-    expect(page.locator("#lq-token")).to_have_attribute("chosen", "")
+    expect(page.locator("#lq-token")).to_have_attribute("selected", "")
     round_trip(page)
     expect_obligations_answered(page, "2/5")
 

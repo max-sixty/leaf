@@ -1678,7 +1678,9 @@ def test_a_published_decision_survives_reload(served_example, browser):
     decisions = page.locator(".lf-fp-on-user")
     expect_obligations_answered(page, "0/1")
     expect(decisions).to_be_visible()
-    chosen = "() => [...document.querySelectorAll('lf-option[chosen]')].map(o => o.id)"
+    chosen = (
+        "() => [...document.querySelectorAll('lf-option[selected]')].map(o => o.id)"
+    )
     with sending(page, "the published option pick"):
         page.locator("#heat-opt-floor .lf-pick").click()
     expect(page.locator("#heat-first")).to_have_attribute("data-lf-user-override", "1")

@@ -72,7 +72,7 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
         page_dir,
     )
     source = PAGE.replace(
-        "<lf-options>", '<lf-options id="plan-options" choose>'
+        "<lf-options>", '<lf-options id="plan-options" required>'
     ).replace(
         "<h2>Plan</h2>",
         '<h2>Plan</h2><lf-risk-note id="risk">Custom package works.</lf-risk-note>',

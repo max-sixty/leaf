@@ -1079,7 +1079,7 @@ def test_a_start_on_a_widget_todo_holds_the_moves_delivered_before_it(page_dir):
     made there reads Working and lets the turn that started it end over it. A move
     made after the start is not in hand."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
+        PAGE.replace("<lf-options>", '<lf-options id="choice" required>', 1)
     )
     publish(page_dir)
     pick = append_command(
@@ -1141,7 +1141,7 @@ def test_a_start_line_is_one_sentence(page_dir):
 def asking(page_dir):
     """Publish the fixture page with its obligation's widget named, so the obligation is open."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
+        PAGE.replace("<lf-options>", '<lf-options id="choice" required>', 1)
     )
     publish(page_dir)
 
@@ -1511,7 +1511,7 @@ def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
             "--text",
             "Which store should own sessions?",
             "--markup",
-            '<lf-options id="store" choose>'
+            '<lf-options id="store" required>'
             '<lf-option id="store-account"><strong>Account store</strong></lf-option>'
             '<lf-option id="store-own"><strong>Their own store</strong></lf-option>'
             "</lf-options>",
@@ -1611,7 +1611,7 @@ def test_a_start_on_a_page_move_holds_that_move_and_not_a_later_one(page_dir):
     which supersedes it, is not in hand until the agent starts it."""
     version = page_dir / "index.html"
     version.write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
+        PAGE.replace("<lf-options>", '<lf-options id="choice" required>', 1)
     )
     publish(page_dir)
     chosen = append_command(
@@ -1805,7 +1805,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     start with it.
     """
     work_page = PAGE.replace(
-        "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
+        "<lf-options>", '<lf-options id="plan-choice" required multiple>', 1
     )
     (page_dir / "index.html").write_text(work_page)
     publish(page_dir)

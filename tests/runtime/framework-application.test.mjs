@@ -1710,7 +1710,7 @@ test("empty completed answer and wrapper changes preserve obligation identity", 
   const choose = {
     unit: "widget",
     writer: "user",
-    record: { kind: "attribute", attr: "chosen" },
+    record: { kind: "attribute", attr: "selected" },
   };
   const declared = {
     ...descriptor,
@@ -1755,7 +1755,7 @@ test("empty completed answer and wrapper changes preserve obligation identity", 
 
 test("pending undo removes completed empty obligation values and refusal restores them", () => {
   for (const [record, value] of [
-    [{ kind: "attribute", attr: "chosen" }, []],
+    [{ kind: "attribute", attr: "selected" }, []],
     [{ kind: "body" }, ""],
   ]) {
     const choose = { unit: "widget", writer: "user", record };
@@ -1977,7 +1977,7 @@ test("parent memberships include flat creations until undone", () => {
   const choose = {
     unit: "widget",
     writer: "user",
-    record: { kind: "attribute", attr: "chosen" },
+    record: { kind: "attribute", attr: "selected" },
   };
   const tray = {
     ...descriptor,
@@ -2016,7 +2016,7 @@ test("parent memberships include flat creations until undone", () => {
     },
     "now",
   );
-  assert.deepEqual(selected.read().memberships.chosen, ["elm"]);
+  assert.deepEqual(selected.read().memberships.selected, ["elm"]);
   app.enqueue({ kind: "undo", undoes: created.localId, attempt: "undo-sow" }, "now");
-  assert.deepEqual(selected.read().memberships.chosen, []);
+  assert.deepEqual(selected.read().memberships.selected, []);
 });

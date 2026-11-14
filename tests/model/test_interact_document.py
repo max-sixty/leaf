@@ -1194,7 +1194,7 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
     markup = PAGE.replace(
         "</main>",
         OPTIONS.format(
-            a=" chosen", b="", chip="", shim="Keep the shim.", stage="Stage it."
+            a=" selected", b="", chip="", shim="Keep the shim.", stage="Stage it."
         )
         + '<lf-draft id="summary"><pre>Ship on Friday.</pre></lf-draft>'
         + _board([X, Y], [])
@@ -1374,7 +1374,7 @@ def test_thread_read_reads_frozen_construction(page_dir):
             "author": "agent",
             "revision": 1,
             "text": "Choose a route.",
-            "markup": 'Before <lf-options id="frozen" choose><lf-option id="first">First</lf-option><lf-option id="second">Second</lf-option></lf-options> after.',
+            "markup": 'Before <lf-options id="frozen" required><lf-option id="first">First</lf-option><lf-option id="second">Second</lf-option></lf-options> after.',
         },
     )
     append_command(
@@ -1398,7 +1398,7 @@ def test_thread_read_reads_frozen_construction(page_dir):
     assert message["content"][0] == "Before "
     assert message["content"][-1] == " after."
     frozen = construction_nodes(message["content"])
-    assert "chosen" in frozen["second"]["attrs"]
+    assert "selected" in frozen["second"]["attrs"]
     assert frozen["frozen"]["edit"] == {
         "kind": "thread",
         "thread": root["id"],
@@ -1816,7 +1816,7 @@ def test_resolves_names_a_thread_for_every_declared_answering_widget(page_dir, w
         )
         if widget == "lf-suggestion"
         else PAGE.replace(
-            "<lf-options>", '<lf-options id="answer" choose resolves="plan">'
+            "<lf-options>", '<lf-options id="answer" required resolves="plan">'
         )
     )
     (page_dir / "index.html").write_text(source)
@@ -1839,7 +1839,7 @@ def test_message_widget_thread_references_use_the_same_namespace(page_dir):
     registry = copy.deepcopy(load_registry(page_dir))
     registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
     markup = (
-        '<lf-options id="answer" choose resolves="plan">'
+        '<lf-options id="answer" required resolves="plan">'
         '<lf-option id="approve"><strong>Approve</strong></lf-option></lf-options>'
     )
     page = structure_model.SourceDocument(PAGE)
@@ -2247,7 +2247,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "--text",
             "Which store?",
             "--markup",
-            '<lf-ask id="t-ask"><h3>Store?</h3><lf-options id="t-store" choose>'
+            '<lf-ask id="t-ask"><h3>Store?</h3><lf-options id="t-store" required>'
             '<lf-option id="t-sqlite"><strong>sqlite</strong></lf-option>'
             "</lf-options></lf-ask>",
         ).output.splitlines()
@@ -2435,7 +2435,7 @@ def test_a_save_goes_live_during_a_stamps_check_and_the_stamp_names_it(
     it, and a user's action can land meanwhile (`publishing` header). The stamp
     then checks again against the log and revisions it publishes onto: it names
     the revision the read activated rather than publishing the source twice."""
-    html = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    html = PAGE.replace("<lf-options>", '<lf-options id="choice" required>')
     (page_dir / "index.html").write_text(html)
     publish(page_dir)
     (page_dir / "index.html").write_text(
@@ -2538,7 +2538,7 @@ def test_stamp_checks_events_that_arrive_as_it_reads_the_log(monkeypatch, page_d
 def test_a_stamp_lands_on_a_page_that_moves_during_every_check(monkeypatch, page_dir):
     """A page written faster than the stamp checks it outside the transaction
     still gets its stamp: the last check runs under the transaction."""
-    html = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    html = PAGE.replace("<lf-options>", '<lf-options id="choice" required>')
     (page_dir / "index.html").write_text(html)
     publish(page_dir)
     (page_dir / "index.html").write_text(
@@ -2597,7 +2597,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     }.items() <= state["source"].items()
     assert state["data"] == {"dir": "data", "errors": []}
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
-    # The one asking group: PAGE's own bare <lf-options> takes no `choose`. The obligation
+    # The one asking group: PAGE's own bare <lf-options> takes no `required`. The obligation
     # names the region the user is sent to and the group that answers it.
     assert obligations_on_user(state) == [
         {
@@ -3076,7 +3076,7 @@ def test_page_state_names_the_obligation_region_but_keeps_state_on_its_request(
 ):
     """An obligation retains its source identity under an authored context wrapper.
     The nested widget remains the canonical answer owner."""
-    opts = """<lf-options id="g1" choose>
+    opts = """<lf-options id="g1" required>
       <lf-option id="o-shim"><strong>Shim it</strong> Fastest to ship.</lf-option>
       <lf-option id="o-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
     </lf-options>"""
@@ -3118,7 +3118,7 @@ def test_page_state_names_the_obligation_region_but_keeps_state_on_its_request(
 def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
     """A version that honors a pick in its markup reads as answered with no log
     at all — the shipped examples arrive that way."""
-    opts = OPTIONS.format(a=" chosen", b="", chip="", shim="s.", stage="t.")
+    opts = OPTIONS.format(a=" selected", b="", chip="", shim="s.", stage="t.")
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
@@ -3376,7 +3376,7 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "revision": 1,
             "text": "Which mitigations?",
             "markup": '<lf-ask id="gm-decision"><h2>Which mitigations?</h2>'
-            '<lf-options id="gm" choose multiple>'
+            '<lf-options id="gm" required multiple>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
             '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
             "</lf-options></lf-ask>",
@@ -3431,14 +3431,14 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
       <lf-test-task id="copy" status="review"><strong>Copy review</strong></lf-test-task>
       <lf-test-task id="future" status="active"><strong>Future review</strong>
         <lf-ask id="future-decision"><h3>Review it now?</h3>
-          <lf-options id="future-review" choose>
+          <lf-options id="future-review" required>
             <lf-option id="future-yes">Yes</lf-option><lf-option id="future-no">No</lf-option>
           </lf-options>
         </lf-ask>
       </lf-test-task>
       <lf-test-task id="decision" status="blocked"><strong>User decision</strong>
         <lf-ask id="decision-decision"><h3>Which way out?</h3>
-          <lf-options id="decision-options" choose>
+          <lf-options id="decision-options" required>
             <lf-option id="decision-a">A</lf-option><lf-option id="decision-b">B</lf-option>
           </lf-options>
         </lf-ask>
@@ -3613,11 +3613,11 @@ def test_a_quoted_obligation_does_not_hide_a_real_request_in_the_same_goal(page_
     markup = (
         '<lf-test-plan id="hub">'
         '<lf-test-task id="goal" status="blocked"><strong>Blocked goal</strong>'
-        '<lf-sample id="sample"><lf-options id="example" choose>'
+        '<lf-sample id="sample"><lf-options id="example" required>'
         '<lf-option id="example-a"><strong>Example only</strong></lf-option>'
         "</lf-options></lf-sample>"
         '<lf-ask id="real-decision"><h3>What next?</h3>'
-        '<lf-options id="real" choose><lf-option id="real-a">A</lf-option>'
+        '<lf-options id="real" required><lf-option id="real-a">A</lf-option>'
         '<lf-option id="real-b">B</lf-option></lf-options></lf-ask>'
         "</lf-test-task></lf-test-plan>"
     )
@@ -3643,7 +3643,7 @@ def test_an_interactive_sample_records_a_pick_without_asking_for_it(page_dir):
     markup = (
         '<lf-sample id="practice" interactive>'
         '<lf-ask id="practice-ask"><h3>Which queue policy?</h3>'
-        '<lf-options id="practice-policy" choose>'
+        '<lf-options id="practice-policy" required>'
         '<lf-option id="practice-a">A</lf-option>'
         '<lf-option id="practice-b">B</lf-option></lf-options></lf-ask>'
         "</lf-sample>"
@@ -3672,8 +3672,8 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
     """A draft uses the ordinary x-awaits fold: its edit discharges the decision,
     and an honoring version can clear the authored condition without reviving it."""
 
-    def command(status, needed, body):
-        flag = " needed" if needed else ""
+    def command(status, required, body):
+        flag = " required" if required else ""
         return (
             '<lf-test-plan id="hub">'
             f'<lf-test-task id="goal" status="{status}"><strong>Import</strong>'
@@ -4036,10 +4036,10 @@ def test_a_cold_page_state_reads_only_the_element_index_of_history(
     builds its element index as it is read and the rest on first use, so here only
     the candidate and the active revision are read whole. The withdrawn obligation is the
     control: it is known only from the revision that asked."""
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    source = PAGE.replace("<lf-options>", '<lf-options id="choice" required>')
     for edit in range(4):
         (page_dir / "index.html").write_text(
-            (source if edit == 0 else source.replace(" choose", "")).replace(
+            (source if edit == 0 else source.replace(" required", "")).replace(
                 "</main>", f"<p>edit {edit}</p></main>"
             )
         )
@@ -4071,10 +4071,10 @@ def test_obligation_history_survives_parse_eviction_and_new_revisions(
     """
     from leaf.work_reading import WorkReading
 
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    source = PAGE.replace("<lf-options>", '<lf-options id="choice" required>')
     for edit in range(4):
         (page_dir / "index.html").write_text(
-            (source if edit == 0 else source.replace(" choose", "")).replace(
+            (source if edit == 0 else source.replace(" required", "")).replace(
                 "</main>", f"<p>edit {edit}</p></main>"
             )
         )
@@ -4114,7 +4114,7 @@ def test_obligation_history_survives_parse_eviction_and_new_revisions(
         assert read() == initial
         assert len(parsed) <= 1  # the active revision may have been evicted
         (page_dir / "index.html").write_text(
-            source.replace(" choose", "").replace("</main>", "<p>new</p></main>")
+            source.replace(" required", "").replace("</main>", "<p>new</p></main>")
         )
         activated = revisioning_model.activate_source(page_dir)
         assert activated.error is None, activated.error
@@ -4518,7 +4518,7 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
     edited = live.replace(
         "Fastest to ship.",
         'A revised recommendation. <small class="tag">Recommended</small>',
-    ).replace('id="o-stage"', 'id="o-stage" chosen')
+    ).replace('id="o-stage"', 'id="o-stage" selected')
     source.write_text(PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + edited))
     assert stamp(page_dir, "revise recommendation").exit_code == 0
     [current] = [

@@ -106,7 +106,7 @@ export class OptionAddition {
   }
 
   #picked() {
-    return new Set(this.#host.querySelectorAll(":scope > lf-option[chosen]"));
+    return new Set(this.#host.querySelectorAll(":scope > lf-option[selected]"));
   }
 
   /** @param {Iterable<Element>} picked */

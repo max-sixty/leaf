@@ -100,7 +100,7 @@ def test_a_turn_that_completes_without_an_answer_is_still_receipted(
 
 def _page_pick(page_dir: Path) -> dict:
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+        PAGE.replace("<lf-options>", '<lf-options id="choice" required>')
     )
     publish(page_dir)
     return append_command(
@@ -230,7 +230,7 @@ def test_a_harness_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
             "author": "agent",
             "revision": 1,
             "text": "Which region?",
-            "markup": '<lf-options id="region" choose>'
+            "markup": '<lf-options id="region" required>'
             '<lf-option id="east"><strong>East</strong></lf-option>'
             "</lf-options>",
         },
@@ -289,7 +289,7 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
             "revision": 1,
             "text": "Which region?",
             "markup": '<lf-ask id="region-ask"><h3>Which region?</h3>'
-            '<lf-options id="region" choose>'
+            '<lf-options id="region" required>'
             '<lf-option id="east"><strong>East</strong></lf-option>'
             '<lf-option id="west"><strong>West</strong></lf-option>'
             "</lf-options></lf-ask>",

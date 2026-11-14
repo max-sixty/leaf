@@ -104,7 +104,7 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
 
     # Model a tab whose latest projection has not reached its neighbour yet. The draft
     # is born here, so this selection is the state the generation records.
-    first.locator("#job-mounts").evaluate("el => el.setAttribute('chosen', '')")
+    first.locator("#job-mounts").evaluate("el => el.setAttribute('selected', '')")
     text = "Use a heated camera sleeve"
     write(first.locator("#jobs > .lf-another leaf-text"), text)
     expect(second.locator("#jobs > .lf-another leaf-text")).to_have_js_property(

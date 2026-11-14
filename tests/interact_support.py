@@ -796,9 +796,9 @@ def let_a_pick_settle_a_thread(page_dir, thread):
         source.read_text()
         .replace(
             '<lf-options id="picks">',
-            f'<lf-options id="picks" choose resolves="{thread}">',
+            f'<lf-options id="picks" required resolves="{thread}">',
         )
-        .replace('<lf-option id="flag-first">', '<lf-option id="flag-first" chosen>')
+        .replace('<lf-option id="flag-first">', '<lf-option id="flag-first" selected>')
     )
 
 
@@ -1197,7 +1197,7 @@ X = ("card-x", "", "Guard the delete")
 Y = ("card-y", "", "Wire the importer")
 OPTIONS = """<lf-ask id="g1-decision">
   <h3>Which migration should lead?</h3>
-  <lf-options id="g1" choose>
+  <lf-options id="g1" required>
     <lf-option id="o-shim"{a}>{chip}<strong>Shim it</strong> {shim}</lf-option>
     <lf-option id="o-stage"{b}><strong>Migrate in stages</strong> {stage}</lf-option>
   </lf-options>

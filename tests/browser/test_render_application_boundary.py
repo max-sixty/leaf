@@ -479,7 +479,7 @@ ACTIVATION_READING = f"""\
 <p id="live-reading">{LIVE_READING}</p>
 <button id="focused-control" type="button">Inspect continuity</button>
 <lf-ask id="activation-decision"><h2>Activate the revision?</h2>
-<lf-options id="activation-choice" choose>
+<lf-options id="activation-choice" required>
   <lf-option id="activation-go">Continue</lf-option>
   <lf-option id="activation-wait">Wait</lf-option>
 </lf-options></lf-ask>
@@ -621,7 +621,7 @@ OBLIGATION_PAGE = leaf_page(
     "obligations wait for admission",
     """
 <lf-ask id="release-decision"><h1>Ship this release?</h1>
-  <lf-options id="release-options" choose>
+  <lf-options id="release-options" required>
     <lf-option id="release-ship">Ship it</lf-option>
     <lf-option id="release-hold">Hold it</lf-option>
   </lf-options>
@@ -680,7 +680,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         '<h1 id="live-title">Live first</h1>',
         '<h1 id="live-title">Live first</h1>'
         '<lf-ask id="package-ask"><h2>Package choice</h2>'
-        '<lf-options id="package-options" choose>'
+        '<lf-options id="package-options" required>'
         '<lf-option id="package-a">A</lf-option>'
         '<lf-option id="package-b">B</lf-option>'
         "</lf-options></lf-ask>",
@@ -1423,7 +1423,7 @@ def test_compact_reader_draws_the_native_interactive_message(browser, serve, sur
             "revision": 1,
             "parent": "native-thread",
             "text": "Choose a channel.",
-            "markup": '<lf-options id="native-channel" choose><lf-option id="native-email">Email</lf-option></lf-options>',
+            "markup": '<lf-options id="native-channel" required><lf-option id="native-email">Email</lf-option></lf-options>',
         },
     ]:
         append_carried_log_record(serve.page_dir, event)
@@ -1490,7 +1490,7 @@ def test_frozen_obligation_reveals_its_exact_message_in_a_selective_primary(
         }
         if message == "middle":
             event["markup"] = (
-                '<lf-options id="channel" choose>'
+                '<lf-options id="channel" required>'
                 '<lf-option id="email">Email</lf-option></lf-options>'
             )
         append_carried_log_record(serve.page_dir, event)
@@ -1522,7 +1522,7 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
             "author": "agent",
             "revision": 1,
             "text": "Which extras?",
-            "markup": '<lf-options id="extras" choose multiple><lf-option id="extra-chat" chosen>Chat</lf-option></lf-options>',
+            "markup": '<lf-options id="extras" required multiple><lf-option id="extra-chat" selected>Chat</lf-option></lf-options>',
         },
     )
     page = open_page(browser, url)
@@ -1796,7 +1796,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
             "revision": 1,
             "parent": "question",
             "text": "Choose a direction.",
-            "markup": '<lf-options id="direction" choose><lf-option id="north">North</lf-option><lf-option id="south">South</lf-option></lf-options>',
+            "markup": '<lf-options id="direction" required><lf-option id="north">North</lf-option><lf-option id="south">South</lf-option></lf-options>',
         },
     ]:
         append_carried_log_record(serve.page_dir, event)
@@ -2135,7 +2135,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
             "author": "agent",
             "revision": 1,
             "text": "Which channel?",
-            "markup": '<lf-ask id="channel-ask"><h3>Channel</h3><lf-options id="channel-options" choose><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
+            "markup": '<lf-ask id="channel-ask"><h3>Channel</h3><lf-options id="channel-options" required><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
         },
     )
     page = open_page(browser, url)

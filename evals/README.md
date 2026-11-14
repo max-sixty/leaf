@@ -295,7 +295,7 @@ flowchart TD
         ></lf-eval-cite>
         <lf-ask id="keyboard-review">
           <h4>Keep the keyboard change?</h4>
-          <lf-options id="keyboard" choose>
+          <lf-options id="keyboard" required>
             <lf-option id="keyboard-approve"><strong>Approve change</strong></lf-option>
             <lf-option id="keyboard-revisit"><strong>Revisit change</strong></lf-option>
           </lf-options>

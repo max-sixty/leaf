@@ -27,7 +27,7 @@ def _source():
         '</section><lf-activity id="feed"></lf-activity>'
         '<p><lf-tally id="left" for="queue" next></lf-tally></p>'
         '<section id="queue"><lf-ask id="decision"><h2>Ship it?</h2>'
-        '<lf-options id="choice" choose><lf-option id="yes">Ship it</lf-option>'
+        '<lf-options id="choice" required><lf-option id="yes">Ship it</lf-option>'
         "</lf-options></lf-ask></section>",
     )
 
@@ -116,7 +116,7 @@ def test_source_capture_precedes_authored_scripts_while_registry_loads(browser, 
     script = """<script>
       window.captureProbeRuns = (window.captureProbeRuns || 0) + 1;
       window.captureOption = document.getElementById('yes');
-      window.captureOption.setAttribute('chosen', '');
+      window.captureOption.setAttribute('selected', '');
     </script>"""
     source = _source().replace("</body>", script + "</body>")
     try:
@@ -140,7 +140,7 @@ def test_source_capture_precedes_authored_scripts_while_registry_loads(browser, 
         held.clear()
         page.unroute("**/registry.json")
         expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
-        expect(page.locator("#yes")).not_to_have_attribute("chosen", "")
+        expect(page.locator("#yes")).not_to_have_attribute("selected", "")
         expect(page.locator("main")).to_be_visible()
         assert (
             page.evaluate(
@@ -160,7 +160,7 @@ def test_source_capture_precedes_authored_scripts_while_registry_loads(browser, 
             "window.captureProbeRuns === 1 && "
             "window.captureOption === document.getElementById('yes')"
         )
-        expect(page.locator("#yes")).not_to_have_attribute("chosen", "")
+        expect(page.locator("#yes")).not_to_have_attribute("selected", "")
         consume_browser_errors(page, "Nonfatal authored capture probe")
     finally:
         for route in held:

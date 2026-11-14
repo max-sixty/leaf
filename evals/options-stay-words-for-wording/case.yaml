@@ -63,7 +63,7 @@ assert:
       title when it shows that distinction.
       Labels need not duplicate information already supplied by titles, nor appear in
       a fixed order. Only the detailed, actionable wording has a recommended small.tag.
-      Neither option has chosen, since the user has not picked.
+      Neither option has `selected`, since the user has not picked.
   - type: llm-rubric
     metric: reason-beside-options
     value: |

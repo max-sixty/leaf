@@ -153,7 +153,7 @@ def test_board_moves_preserve_live_sample_and_control_state(browser, serve, rout
         "frame => frame.contentDocument === window.originalSampleDocument"
     )
     expect(editor).to_have_js_property("value", "Edited sample draft")
-    expect(live.locator("#sample-beta")).to_have_attribute("chosen", "")
+    expect(live.locator("#sample-beta")).to_have_attribute("selected", "")
     card.click(position={"x": 10, "y": 10})
     undo(page)
     expect(page.locator("#col-todo > #card-heater")).to_have_count(1)

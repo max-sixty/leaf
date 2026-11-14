@@ -510,7 +510,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
             "--markup",
             (
                 '<lf-ask id="store-decision"><h3>Which store?</h3>'
-                '<lf-options id="store-pick" choose>'
+                '<lf-options id="store-pick" required>'
                 '<lf-option id="store-redis"><strong>Redis</strong></lf-option>'
                 '<lf-option id="store-cookie"><strong>A signed cookie</strong>'
                 "</lf-option></lf-options></lf-ask>"

@@ -129,11 +129,13 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
 ):
     declare_on_page(
         page_dir,
-        lambda registry: registry["lf-options"]["properties"].update(choose=subschema),
+        lambda registry: registry["lf-options"]["properties"].update(
+            required=subschema
+        ),
     )
     version = page_dir / "index.html"
     version.write_text(
-        version.read_text().replace("<lf-options>", '<lf-options id="opts" choose>')
+        version.read_text().replace("<lf-options>", '<lf-options id="opts" required>')
     )
 
     result = check(page_dir)
@@ -520,7 +522,7 @@ def test_sample_fixture_anchors_are_captured_in_the_child_reading(
             "kind": "comment",
             "author": "agent",
             "text": "A widget example",
-            "markup": '<lf-ask id="message-ask"><h2>Route</h2><lf-options id="message-widget" choose><lf-option id="message-option">Existing</lf-option></lf-options></lf-ask>',
+            "markup": '<lf-ask id="message-ask"><h2>Route</h2><lf-options id="message-widget" required><lf-option id="message-option">Existing</lf-option></lf-options></lf-ask>',
         },
         {
             "kind": "comment",

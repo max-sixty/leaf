@@ -121,7 +121,7 @@ DELIVERED = """() => {
 
 # Controls no worked example shows, by package directory: a `multiple` group's Done.
 STATES = {
-    "default": """<lf-options id="pressed-many" choose multiple>
+    "default": """<lf-options id="pressed-many" required multiple>
   <lf-option id="pressed-first"><strong>Cache the parsed config</strong></lf-option>
   <lf-option id="pressed-second"><strong>Parse it lazily</strong></lf-option>
 </lf-options>""",

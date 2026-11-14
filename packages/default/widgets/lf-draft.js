@@ -14,7 +14,7 @@
  * Copy keeps the last seat, and Discard opens where Edit stood, so a second press on
  * the pencil gives the box back unchanged. A pointer sees the toolbar while over the
  * box or a key stands in it, and the open editor, a draft that asks for an edit and a
- * finger always, since a pencil that shows only under the pointer left a needed draft
+ * finger always, since a pencil that shows only under the pointer left a `required` draft
  * with no sign of how to answer it; clicking the prose still opens the editor at that spot. Rejected: a resting row under the prose
  * holding only Edit, which doubled a one-line box, and marks set into the box's
  * corner, which either covered the first line's last words or took room from them

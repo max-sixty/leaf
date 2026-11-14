@@ -455,7 +455,7 @@ words, which the user can comment on. A version comparison reads each version's 
 rather than the page, so they never read as a change. To set apart words the widget
 writes, such as a count after an authored sentence or a generated control's label, mark
 their element with `generatedElement(node, {says})`. Set `says: true` where the words
-are the page speaking, as a pick mark reading "chosen" does, `false` for an action
+are the page speaking, as a pick mark reading "selected" does, `false` for an action
 word, and `"echo"` for a copy of words the page shows elsewhere, such as a worker's
 name; in a template, write `<h2 ${generated({ says: true })}>`. `wrote()` then leaves them out,
 and a comment's quote doesn't run across them into the author's words. Don't write the

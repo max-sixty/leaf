@@ -22,7 +22,7 @@ from leaf.work_reading import WorkReading
 OPTIONS = '<lf-options id="choice" {attrs}><lf-option id="a">A</lf-option><lf-option id="b">B</lf-option></lf-options>'
 
 
-def page(attrs="choose", context=None):
+def page(attrs="required", context=None):
     content = OPTIONS.format(attrs=attrs)
     if context:
         content = f'<lf-ask id="{context}"><h2>Which route?</h2>{content}</lf-ask>'
@@ -65,10 +65,10 @@ def test_a_decision_is_independent_and_survives_revision_until_restated():
     """A permission is an ordinary decision: it answers its own request, and a
     completion stamp does not ask again."""
     permit = (
-        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
+        '<lf-options id="permit" required><lf-option id="publish">Publish</lf-option>'
         '<lf-option id="hold">Keep it private</lf-option></lf-options>'
     )
-    document = model.leaf_page("Permission", permit + OPTIONS.format(attrs="choose"))
+    document = model.leaf_page("Permission", permit + OPTIONS.format(attrs="required"))
     approved = {
         "kind": "action",
         "id": "approval",
@@ -88,7 +88,7 @@ def test_a_decision_is_independent_and_survives_revision_until_restated():
 
     # The stamp that records the pick in the markup settles the agent's update.
     revised = document.replace("Permission", "Permission and progress").replace(
-        '<lf-option id="publish">', '<lf-option id="publish" chosen>'
+        '<lf-option id="publish">', '<lf-option id="publish" selected>'
     )
     stamp = {
         "kind": "note",
@@ -107,7 +107,7 @@ def test_a_decision_is_independent_and_survives_revision_until_restated():
     assert items["widget:permit"]["status"] == "open"
 
     # Restating asks again, so the new version carries no pick.
-    changed = document.replace('id="permit" choose', 'id="permit" choose restated')
+    changed = document.replace('id="permit" required', 'id="permit" required restated')
     state = model.reading(
         {1: document, 2: changed}, [approved, {**stamp, "restated": ["permit"]}]
     )
@@ -130,7 +130,7 @@ def test_obligations_name_their_exact_owning_message_without_conflating_thread_i
             "id": "thread",
             "author": "agent",
             "text": "Choose the first route.",
-            "markup": OPTIONS.format(attrs="choose").replace('id="', 'id="root-'),
+            "markup": OPTIONS.format(attrs="required").replace('id="', 'id="root-'),
         },
         {
             "kind": "reply",
@@ -138,7 +138,7 @@ def test_obligations_name_their_exact_owning_message_without_conflating_thread_i
             "author": "agent",
             "parent": "thread",
             "text": "Choose the later route too.",
-            "markup": OPTIONS.format(attrs="choose").replace('id="', 'id="later-'),
+            "markup": OPTIONS.format(attrs="required").replace('id="', 'id="later-'),
         },
         {
             "kind": "comment",
@@ -162,7 +162,7 @@ def test_obligations_name_their_exact_owning_message_without_conflating_thread_i
 
 
 def test_partial_and_completed_empty_values_are_distinct_from_no_answer_and_undo_reopens():
-    document = page("choose multiple")
+    document = page("required multiple")
     events: list[dict] = [
         {
             "kind": "action",
@@ -204,7 +204,7 @@ def test_pinned_document_uses_unrequested_intermediate_history_for_registration(
     registry = model.model_layer()
     readings = {
         index: SourceReading(
-            SourceDocument(page("choose" if index == 2 else "")), registry
+            SourceDocument(page("required" if index == 2 else "")), registry
         )
         for index in range(1, 5)
     }
@@ -374,7 +374,7 @@ def test_changed_partial_value_does_not_reuse_an_earlier_completion_event():
             "detail": {"value": ["b"]},
         },
     ]
-    state = model.reading(page("choose multiple"), events)
+    state = model.reading(page("required multiple"), events)
     [item] = page_obligations(state)["all"]
     assert item["answer"] == {"value": ["b"], "event": None}
 
@@ -543,7 +543,7 @@ def test_on_me_lists_one_row_for_each_place_the_user_answers_at():
     document = model.leaf_page(
         "Questions",
         '<p id="intro">Context.</p><section id="case"><h2>Which route?</h2>'
-        + OPTIONS.format(attrs="choose")
+        + OPTIONS.format(attrs="required")
         + "</section>",
     )
 
@@ -599,9 +599,9 @@ FRAMED = model.leaf_page(
     "Questions",
     '<p id="intro">Context.</p><section id="case">'
     '<lf-ask id="frame"><h2 id="head">Two routes</h2><div id="first">'
-    + OPTIONS.format(attrs="choose")
+    + OPTIONS.format(attrs="required")
     + "</div>"
-    + OPTIONS.format(attrs="choose").replace('id="', 'id="y-')
+    + OPTIONS.format(attrs="required").replace('id="', 'id="y-')
     + OPTIONS.format(attrs="").replace('id="', 'id="shown-')
     + "</lf-ask></section>",
 )
@@ -674,7 +674,7 @@ def test_a_reply_after_a_thread_obligation_is_the_agents_turn_until_the_agent_re
         "author": "agent",
         "parent": "t",
         "text": "Which route?",
-        "markup": OPTIONS.format(attrs="choose").replace('id="', 'id="t-'),
+        "markup": OPTIONS.format(attrs="required").replace('id="', 'id="t-'),
     }
     opened = {"kind": "comment", "id": "t", "author": "user", "text": "Help me pick."}
     later = {"kind": "reply", "id": "r", "author": "user", "parent": "t", "text": "C?"}
@@ -942,7 +942,7 @@ def test_historical_conditional_registration_reuses_work_and_tracks_event_change
 
 def test_settled_request_repicks_keep_the_new_user_gesture_as_provenance():
     state = model.reading(
-        {1: page(), 2: page("choose settled")},
+        {1: page(), 2: page("required settled")},
         [
             {
                 "kind": "action",
@@ -1008,8 +1008,8 @@ def test_repicking_a_withdrawn_request_records_provenance_without_reclosing_thre
     registry = deepcopy(model.model_layer())
     registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
     documents = {
-        1: page('choose resolves="thread"'),
-        2: page('choose settled resolves="thread"'),
+        1: page('required resolves="thread"'),
+        2: page('required settled resolves="thread"'),
     }
     events: list[dict] = [
         {"kind": "comment", "id": "thread", "text": "Which choice resolves this?"},
@@ -1224,8 +1224,8 @@ def test_data_record_feedback_hands_only_its_obligation_to_the_agent():
 def test_data_record_requests_keep_conditional_registration_and_framed_arrival():
     registry = deepcopy(model.model_layer("visual-review"))
     entry = registry["lf-visual-review"]
-    entry["properties"]["choose"] = {"type": "boolean"}
-    entry["x-awaits"]["when"] = {"choose": [True]}
+    entry["properties"]["required"] = {"type": "boolean"}
+    entry["x-awaits"]["when"] = {"required": [True]}
     source = json.loads(
         (
             Path(__file__).parents[2]
@@ -1259,11 +1259,11 @@ def test_data_record_requests_keep_conditional_registration_and_framed_arrival()
         == []
     )
     [asked] = page_obligations(
-        model.reading(document("choose"), registry=registry, data=data)
+        model.reading(document("required"), registry=registry, data=data)
     )["all"]
     assert asked["prompt"]["target"] == "frame"
     state = model.reading(
-        {1: document("choose"), 2: document("")}, registry=registry, data=data
+        {1: document("required"), 2: document("")}, registry=registry, data=data
     )
     [withdrawn] = page_obligations(state, 2)["all"]
     assert withdrawn["id"] == asked["id"]

@@ -195,7 +195,7 @@ def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     html = (
         '<main><p id="visible">Visible words.</p>'
         '<template id="practice" data-sample><lf-ask id="nested-ask">'
-        '<h2>Hidden question</h2><lf-options id="nested-options" choose>'
+        '<h2>Hidden question</h2><lf-options id="nested-options" required>'
         '<lf-option id="nested-choice">Hidden answer</lf-option>'
         "</lf-options></lf-ask></template></main>"
     )

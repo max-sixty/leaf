@@ -796,7 +796,7 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
             '<a id="external" href="https://example.com/">External</a>'
             f'<p id="quoted">The original address was {urls[handoff]}</p>'
             '<lf-ask id="question"><h2>Keep this decision?</h2>'
-            '<lf-options id="answer" choose><lf-option id="keep">Keep</lf-option>'
+            '<lf-options id="answer" required><lf-option id="keep">Keep</lf-option>'
             "</lf-options></lf-ask></main></body></html>"
         )
         with headless_shell() as browser, tab(browser) as view:

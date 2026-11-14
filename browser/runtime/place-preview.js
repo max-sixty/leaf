@@ -404,7 +404,7 @@ const widgetStates = readPart((root) => root.effective.widgets);
 // The members a widget's answer picks, as the widget reads its own state: the value of
 // its `x-awaits` verb where that verb records a pick on the members it names (`x-state`),
 // folded from the authored initial values and every action in force since, so a group
-// authored settled with its pick `chosen` marks that pick as the widget does.
+// authored settled with its pick `selected` marks that pick as the widget does.
 /** @param {Element} widget @returns {ReadonlySet<unknown>} */
 function picked(widget) {
   const verb = declarationFor(widget, "x-awaits")?.value;

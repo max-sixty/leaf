@@ -1631,7 +1631,7 @@ def test_saved_state_verifier_fixture_returns_the_admitted_event_ids(
 ):
     """Run the exact container fixture through its real admission API."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="heat-first" choose>').replace(
+        PAGE.replace("<lf-options>", '<lf-options id="heat-first" required>').replace(
             'id="backfill-first"', 'id="heat-opt-window"'
         )
     )

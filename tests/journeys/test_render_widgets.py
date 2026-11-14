@@ -67,7 +67,7 @@ MOTION_SAMPLE_CONTENT = """
   <template id="card-sample-page" data-sample>
     <h2>Painted sample</h2>
     <lf-ask id="sample-choice-ask"><h3>Choose a sample</h3>
-      <lf-options id="sample-choice" choose>
+      <lf-options id="sample-choice" required>
         <lf-option id="sample-alpha"><strong>Alpha</strong></lf-option>
         <lf-option id="sample-beta"><strong>Beta</strong></lf-option>
       </lf-options>
@@ -105,7 +105,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 <lf-tab id="t-{key}" label="Ticket {key}" summary="sev {key} · suggested fix">
   <p id="p-{key}">What went wrong with {key}.</p>{BOARD if key == "a" else ""}
   <lf-ask id="ask-{key}"><h3 id="q-{key}">What happens to {key}?</h3>
-    <lf-options id="o-{key}" choose>
+    <lf-options id="o-{key}" required>
       <lf-option id="o-{key}-fix"><strong>Fix</strong> Ship the patch.</lf-option>
       <lf-option id="o-{key}-close"><strong>Close</strong> Explain and close.</lf-option>
     </lf-options>
@@ -225,9 +225,9 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     round_trip(page)
     expect(answer).to_have_text("Fix")
     settled = source.replace(
-        '<lf-options id="o-a" choose>', '<lf-options id="o-a" choose settled>'
-    ).replace('<lf-option id="o-a-fix">', '<lf-option id="o-a-fix" chosen>')
-    assert settled.count("settled") == 1 and settled.count("chosen") == 1
+        '<lf-options id="o-a" required>', '<lf-options id="o-a" required settled>'
+    ).replace('<lf-option id="o-a-fix">', '<lf-option id="o-a-fix" selected>')
+    assert settled.count("settled") == 1 and settled.count(" selected>") == 1
     wait_for_revision(page, stamp_page(serve.page_dir, settled, "Settle a")["revision"])
     expect(page.locator("#o-a .lf-settled")).to_be_visible()
     expect(answer).to_be_visible()
@@ -293,7 +293,7 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
         """<h1>Session-store follow-ups</h1>
 <lf-ask id="session-triage-decision">
   <h2>Which follow-ups should we keep?</h2>
-  <lf-options id="session-triage" choose multiple>
+  <lf-options id="session-triage" required multiple>
     <lf-option id="rolling-expiry">Rolling expiry</lf-option>
     <lf-option id="bounded-fallback">Bounded fallback</lf-option>
   </lf-options>

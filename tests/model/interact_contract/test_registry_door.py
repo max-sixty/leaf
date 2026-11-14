@@ -185,7 +185,7 @@ def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
     ("key", "value"),
     [
         ("x-awaits", []),
-        ("x-awaits", {"when": {"choose": True}}),
+        ("x-awaits", {"when": {"required": True}}),
         ("x-thread-seat", False),
         ("x-content", "words"),
         ("x-owners", []),
@@ -635,9 +635,9 @@ def test_a_deciding_verb_without_outcomes_is_reported_by_each_reader(page_dir):
         (
             "lf-options",
             "x-awaits",
-            {"when": {"choose": ["yes"]}},
+            {"when": {"required": ["yes"]}},
             "predicate-schema",
-            {"key": "x-awaits", "attr": "choose", "value": "yes"},
+            {"key": "x-awaits", "attr": "required", "value": "yes"},
         ),
         (
             "lf-options",
@@ -684,7 +684,7 @@ def test_a_deciding_verb_without_outcomes_is_reported_by_each_reader(page_dir):
         (
             "lf-options",
             "x-awaits",
-            {"when": {"choose": [True]}, "retired": "settled"},
+            {"when": {"required": [True]}, "retired": "settled"},
             "awaits-retired",
             {"flag": "settled"},
         ),

@@ -176,7 +176,7 @@ def test_a_drag_across_an_obligation_in_a_reply_is_not_a_passage_of_the_page(
             "text": "Depends what you want to keep:",
             "markup": (
                 '<lf-ask id="ps-decision-region"><h3>Which store should I write up?</h3>'
-                '<lf-options id="ps-decision" choose>'
+                '<lf-options id="ps-decision" required>'
                 '<lf-option id="ps-redis">Redis</lf-option>'
                 '<lf-option id="ps-cookie">A signed cookie</lf-option>'
                 "</lf-options></lf-ask>"
@@ -303,7 +303,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
             "text": "The north bracket fit.",
             "anchor": {"section": "cd-q"},
             "markup": (
-                '<lf-options id="edited-message-choice" choose>'
+                '<lf-options id="edited-message-choice" required>'
                 '<lf-option id="edited-message-now">Fit it now</lf-option>'
                 "</lf-options>"
             ),
@@ -397,7 +397,7 @@ def thread_on_a_sent_widget(serve):
             "text": "Depends what you want to keep:",
             "markup": (
                 '<lf-ask id="ps-decision-region"><h3>Which store should I write up?</h3>'
-                '<lf-options id="ps-decision" choose>'
+                '<lf-options id="ps-decision" required>'
                 '<lf-option id="ps-redis">Redis</lf-option>'
                 '<lf-option id="ps-cookie">A signed cookie</lf-option>'
                 "</lf-options></lf-ask>"

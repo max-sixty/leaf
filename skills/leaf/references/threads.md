@@ -181,13 +181,13 @@ what choosing it does and mark the one you advise (`authoring-on-me.md`, "What a
 question holds"):
 
 ```bash
-leaf thread reply <answer.ref> --text "Which store should own sessions? I'd keep the account store, which already expires them." --markup '<lf-options id="session-store" choose><lf-option id="session-store-account"><small class="tag ok">recommended</small> <strong>Keep the account store</strong></lf-option><lf-option id="session-store-own"><strong>Give sessions their own store</strong> One more service to run.</lf-option></lf-options>'
+leaf thread reply <answer.ref> --text "Which store should own sessions? I'd keep the account store, which already expires them." --markup '<lf-options id="session-store" required><lf-option id="session-store-account"><small class="tag ok">recommended</small> <strong>Keep the account store</strong></lf-option><lf-option id="session-store-own"><strong>Give sessions their own store</strong> One more service to run.</lf-option></lf-options>'
 ```
 
 If the user answers in words instead, end the question with
 `leaf task end <page> widget:<id> done --text "<where they answered>"`; the delivery
 of their reply lists it in `waiting`. Another widget that asks works the same way, such
-as an `lf-draft` marked `needed` for wording the user edits. A decision the page
+as an `lf-draft` marked `required` for wording the user edits. A decision the page
 records, or one whose evidence needs the column, goes on the page beside its subject
 (`authoring-on-me.md`), linked from the reply.
 

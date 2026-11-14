@@ -464,7 +464,7 @@ leaf server start ./review</code></pre>
                 </p>
                 <lf-ask id="queue-question">
                   <h3>When the queue fills, what should happen?</h3>
-                  <lf-options id="queue-policy" choose>
+                  <lf-options id="queue-policy" required>
                     <lf-option id="block-producer"
                       ><strong>Pause the producer</strong> Keep every queued record;
                       wait for space before accepting more.</lf-option
@@ -509,15 +509,15 @@ leaf thread create ./review --obligation --text "Does the revised policy match t
                 <summary>Example: answer a page choice</summary>
                 <p id="decision-example-reading">
                   The page asks which queue policy to use with
-                  <code>lf-options id="queue-policy" choose</code>. When the user
+                  <code>lf-options id="queue-policy" required</code>. When the user
                   chooses Drop the oldest record, Leaf delivers that choice to the
                   agent. The agent starts the choice event, reads the current choice,
                   and revises the HTML to show the selected option:
                 </p>
                 <pre
                   id="decision-markup"
-                ><code class="language-html">&lt;lf-options id="queue-policy" choose&gt;
-  &lt;lf-option id="drop-oldest" chosen&gt;Drop the oldest record&lt;/lf-option&gt;
+                ><code class="language-html">&lt;lf-options id="queue-policy" required&gt;
+  &lt;lf-option id="drop-oldest" selected&gt;Drop the oldest record&lt;/lf-option&gt;
   &lt;lf-option id="block-producer"&gt;Pause the producer&lt;/lf-option&gt;
 &lt;/lf-options&gt;</code></pre>
                 <p id="decision-stamp-reading">
@@ -529,7 +529,7 @@ leaf thread create ./review --obligation --text "Does the revised policy match t
                   id="decision-commands"
                 ><code class="language-bash">leaf task start ./review &lt;event-id&gt; --text "Recording the chosen queue policy"
 leaf page state ./review
-# Add chosen to the picked option in ./review/index.html; check and review.
+# Add selected to the picked option in ./review/index.html; check and review.
 leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></pre>
               </details>
               <details id="delivery-example">
@@ -1839,7 +1839,7 @@ flowchart TD
             <lf-sample id="try-sample" label="release question" interactive>
               <lf-ask id="ship-ask">
                 <h2>When should this ship?</h2>
-                <lf-options id="ship" choose>
+                <lf-options id="ship" required>
                   <lf-option id="ship-now"
                     ><strong>Now</strong> Today, behind the flag.</lf-option
                   >
@@ -1862,7 +1862,7 @@ flowchart TD
 "x-state": {
   "choose": {
     "unit": "widget",
-    "record": {"kind": "attribute", "attr": "chosen"}
+    "record": {"kind": "attribute", "attr": "selected"}
   },
   "add": {
     "detail": {"type": "object",
@@ -1891,7 +1891,7 @@ flowchart TD
                 and a later pick replaces an earlier one.</lf-note
               >
               <lf-note at="4"
-                >How the current selection appears in markup: <code>chosen</code> on
+                >How the current selection appears in markup: <code>selected</code> on
                 each picked option. This effect also determines the payload:
                 <code>detail.value</code>
                 must be an array of owned option ids. The agent writes the pick into the
@@ -2035,7 +2035,7 @@ flowchart TD
    "state": {"origin": "lf-options",
      "decides": false,
      "unit": "widget",
-     "record": {"kind": "attribute", "attr": "chosen"},
+     "record": {"kind": "attribute", "attr": "selected"},
      "creates": null,
      "detail": {"type": "object",
        "properties": {"value": {"type": "array",
@@ -2055,7 +2055,7 @@ flowchart TD
    "state": {"origin": "lf-options",
      "decides": false,
      "unit": "widget",
-     "record": {"kind": "attribute", "attr": "chosen"},
+     "record": {"kind": "attribute", "attr": "selected"},
      "creates": null,
      "detail": {"type": "object",
        "properties": {"value": {"type": "array",
@@ -2256,7 +2256,7 @@ flowchart TD
               <lf-ask id="sample-publish-report-decision">
                 <h2>Publish the sample report?</h2>
                 <p>The park survey would go to the sample team's shared workspace.</p>
-                <lf-options id="sample-publish-report" choose>
+                <lf-options id="sample-publish-report" required>
                   <lf-option id="sample-publish-report-keep"
                     ><strong>Keep it private</strong></lf-option
                   >

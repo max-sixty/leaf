@@ -51,12 +51,12 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
 
     with sending(page, "the pick"):
         page.locator("#opt-a").tap()
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-a")
     expect_panel_offers(page, "command:history.undo")
     with sending(page, "the withdrawal"):
         panel_control(page, "command:history.undo").tap()
     expect(host).not_to_have_attribute("data-lf-open", re.compile("."))
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-b")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-b")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
 
     # A mode offers no step of its own: a stroke's undo is on its drawing's composer, so

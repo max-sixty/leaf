@@ -235,7 +235,7 @@ def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, 
     seed_reply(
         serve.page_dir,
         '<lf-ask id="tv-decision-region"><h3>Which store should I write up?</h3>'
-        '<lf-options id="tv-decision" choose>'
+        '<lf-options id="tv-decision" required>'
         '<lf-option id="tv-redis">Redis</lf-option>'
         "</lf-options></lf-ask>",
         "tv-decision",
@@ -450,7 +450,7 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, se
     seed_reply(
         serve.page_dir,
         '<lf-options id="tv-decision">'
-        '<lf-option id="tv-redis" chosen>Redis</lf-option>'
+        '<lf-option id="tv-redis" selected>Redis</lf-option>'
         "</lf-options>",
         "tv-decision",
     )

@@ -360,7 +360,7 @@ def test_page_annotation_view_seats_obligations_and_contributed_controls(
             """
       <h1 id="title">Review</h1>
       <lf-ask id="choice-question"><h2>Which route?</h2>
-        <lf-options id="routes" choose><lf-option id="route-a">Route A</lf-option>
+        <lf-options id="routes" required><lf-option id="route-a">Route A</lf-option>
         <lf-option id="route-b">Route B</lf-option></lf-options>
       </lf-ask>
       <p id="subject">The export keeps one file per tenant.</p>
@@ -411,14 +411,14 @@ def test_page_annotation_view_seats_obligations_and_contributed_controls(
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.locator("#route-a .lf-pick").click()
-    expect(page.locator("#route-a")).to_have_attribute("chosen", "")
+    expect(page.locator("#route-a")).to_have_attribute("selected", "")
     expect(question).to_be_visible()
     holding(page, held, 1, "the optimistic choice")
     held[0].continue_()
     page.unroute("**/api/event")
     expect(question).to_have_count(0)
     undo(page)
-    expect(page.locator("#route-a")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#route-a")).not_to_have_attribute("selected", "")
     expect(question).to_be_visible()
 
 

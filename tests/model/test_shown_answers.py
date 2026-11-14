@@ -18,10 +18,10 @@ NOW = "2026-10-25T12:00:00+00:00"
 def section(group: str, chosen: str | None = None, extra: str = "") -> str:
     options = "".join(
         f'<lf-option id="{group}-{value}" value="{value}"'
-        f"{' chosen' if value == chosen else ''}>{value.title()}</lf-option>"
+        f"{' selected' if value == chosen else ''}>{value.title()}</lf-option>"
         for value in ("next", "later", "drop")
     )
-    return f'<lf-options id="{group}" choose>{options}{extra}</lf-options>'
+    return f'<lf-options id="{group}" required>{options}{extra}</lf-options>'
 
 
 def board(columns: dict[str, list[str]], open_column: bool = True) -> str:

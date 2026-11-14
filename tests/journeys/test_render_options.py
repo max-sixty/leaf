@@ -90,7 +90,7 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     page.keyboard.press("Enter")
     expect(mark).to_be_focused()
     expect(box).not_to_be_focused()
-    expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#storage-options > lf-option[selected]")).to_have_count(0)
 
     # The controls remain in document order: the other mark, then the text box.
     # An option title is one line: Shift+Enter leaves it intact; Enter submits it.
@@ -117,7 +117,7 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     mark = page.locator("#storage-evict .lf-pick")
     expect(mark).to_be_focused()
     page.keyboard.press("2")
-    expect(page.locator("#storage-stop")).to_have_attribute("chosen", "")
+    expect(page.locator("#storage-stop")).to_have_attribute("selected", "")
     chosen = page.locator("#storage-stop .lf-pick")
     # The digit acts within the obligation without turning binding selection into focus
     # navigation; the user remains on the control they tabbed to.

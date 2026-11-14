@@ -298,13 +298,13 @@ def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
   <lf-tab id="focus-second" label="Second">Second panel.</lf-tab>
 </lf-tabs>
 <lf-ask id="focus-decision"><h2>Which option?</h2>
-<lf-options id="focus-options" choose>
+<lf-options id="focus-options" required>
   <lf-option id="focus-choice" for="focus-heading">Keep this option.</lf-option>
   <lf-option id="focus-peer" for="focus-heading">Keep another option.</lf-option>
 </lf-options></lf-ask>
 <lf-shadow-focus id="focus-shadow"><button class="lf-btn" type="button">Shadow button</button></lf-shadow-focus>
 <lf-ask id="focus-open-decision"><h2>Which other option?</h2>
-<lf-options id="focus-open-options" choose>
+<lf-options id="focus-open-options" required>
   <lf-option id="focus-open-choice">Keep this one.</lf-option>
   <lf-option id="focus-open-peer">Keep that one.</lf-option>
 </lf-options></lf-ask>
@@ -649,9 +649,9 @@ def test_a_contour_stands_inside_a_target_its_clip_leaves_no_room_around(
             """
 <h1>Contours</h1>
 <p id="said">A paragraph with room around it.</p>
-<lf-options id="pick" choose>
+<lf-options id="pick" required>
   <lf-option id="keep"><strong>Keep</strong> the words alone.</lf-option>
-  <lf-option id="place" chosen><strong>Place</strong> them in the line.</lf-option>
+  <lf-option id="place" selected><strong>Place</strong> them in the line.</lf-option>
 </lf-options>
 """,
         )
@@ -1336,7 +1336,7 @@ def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, ser
                 """
       <lf-ask id="decision"><h2>Ready?</h2>
         <p>Review the evidence before choosing.</p>
-        <lf-options id="answer" choose>
+        <lf-options id="answer" required>
           <lf-option id="yes">Approve</lf-option>
           <lf-option id="no">Hold</lf-option>
         </lf-options>

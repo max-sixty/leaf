@@ -396,7 +396,7 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
         '<h1 id="h">Review</h1><p id="subject">Work under discussion.</p>',
     )
     question = (
-        '<lf-ask id="question"><h2>Decision?</h2><lf-options id="options" choose>'
+        '<lf-ask id="question"><h2>Decision?</h2><lf-options id="options" required>'
         '<lf-option id="yes">Yes</lf-option></lf-options></lf-ask>'
     )
     second = first.replace("</main>", question + "</main>")
@@ -569,7 +569,7 @@ def test_a_widget_current_location_out_of_place_is_a_page_the_gate_reports(
 )
 def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided):
     """An input action discharges the request live; the honoring version removes its
-    authored `needed` condition and its obligation, so incorporating its state into source
+    authored `required` condition and its obligation, so incorporating its state into source
     cannot turn the input back into a decision."""
     url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
@@ -594,13 +594,13 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     )
 
     honoring = re.sub(
-        r'<lf-draft id="ledger-cargo" needed>.*?</lf-draft>',
+        r'<lf-draft id="ledger-cargo" required>.*?</lf-draft>',
         # The authoring contract adds only the opening LF consumed by HTML.
         f'<lf-draft id="ledger-cargo"><pre>\n{provided}</pre></lf-draft>',
         COMMAND_HUB_PAGE,
         flags=re.DOTALL,
     )
-    # A draft without `needed` is optional editing, not an obligation framed by an `lf-ask`.
+    # A draft without `required` is optional editing, not an obligation framed by an `lf-ask`.
     honoring = honoring.replace(
         '<lf-ask id="decision-ledger-fixture-region">',
         '<div id="decision-ledger-fixture-region">',
@@ -612,12 +612,12 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
     # The saved answer remains in the reviewable obligation inventory after the source
-    # drops `needed`; it is completed, not newly owed to the user.
+    # drops `required`; it is completed, not newly owed to the user.
     expect_obligations_answered(page, "1/5")
     expect(page.locator(".lf-fp-on-user")).to_have_attribute(
         "aria-label", re.compile(r"^On Me: [1-9]")
     )
-    expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
+    expect(page.locator("#ledger-cargo")).not_to_have_attribute("required")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")
     expect(page.locator("#ledger-fixture")).to_be_visible()
     draft_control(page, "edit", "ledger-cargo").click()
@@ -714,7 +714,7 @@ def test_activity_held_targets_follow_the_current_document(browser, serve, fresh
         ).replace("</head>", executable + "</head>")
 
     route = """<lf-ask id="route-ask"><h2>Which route?</h2>
-      <lf-options id="route" choose>
+      <lf-options id="route" required>
         <lf-option id="route-fast">Fast path</lf-option>
         <lf-option id="route-slow">Slow path</lf-option>
       </lf-options></lf-ask>"""

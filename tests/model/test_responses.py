@@ -55,7 +55,7 @@ class ResponseOptions(TypedDict, total=False):
 
 
 QUESTION = (
-    '<lf-options id="question" choose><lf-option id="question-a"><strong>A</strong>'
+    '<lf-options id="question" required><lf-option id="question-a"><strong>A</strong>'
     "</lf-option></lf-options>"
 )
 
@@ -114,7 +114,7 @@ def test_an_undeclared_answer_names_what_lets_its_widget_ask(page_dir):
     asked = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Which one?"}
     )
-    shown = QUESTION.replace(" choose", "")
+    shown = QUESTION.replace(" required", "")
     refused = CliRunner().invoke(
         cli_model.cli,
         ["thread", "reply", response_reference(page_dir, asked), "--text", "Which?"]
@@ -124,7 +124,7 @@ def test_an_undeclared_answer_names_what_lets_its_widget_ask(page_dir):
     assert refused_on(refused.stderr).values == {
         "tag": "lf-options",
         "id": "question",
-        "needs": "`choose`",
+        "needs": "`required`",
     }
 
 
@@ -327,7 +327,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     assert not any(
         event["kind"] == "thread_title" for event in events_model.read_events(page_dir)
     )
-    markup = '<lf-options id="response-options" choose><lf-option id="response-yes"><strong>Yes</strong></lf-option></lf-options>'
+    markup = '<lf-options id="response-options" required><lf-option id="response-yes"><strong>Yes</strong></lf-option></lf-options>'
     posted = CliRunner().invoke(
         cli_model.cli,
         [
@@ -724,7 +724,7 @@ def test_provider_response_commits_full_content_before_reconnect(
         "message_identity",
         lambda: {"session": author, "agent": "Worker"},
     )
-    markup = '<lf-options id="provider-choice" choose><lf-option id="provider-yes"><strong>Yes</strong></lf-option></lf-options>'
+    markup = '<lf-options id="provider-choice" required><lf-option id="provider-yes"><strong>Yes</strong></lf-option></lf-options>'
     flags = {
         "question": [
             "--markup",
@@ -1013,7 +1013,7 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
 
 def test_bound_thread_refusal_routes_rich_content_to_addressed_reply(page_dir):
     comment, target, _delivery_id, stream = _reserved_author_response(page_dir)
-    markup = '<lf-options id="corrected-choice" choose><lf-option id="corrected-yes">Yes</lf-option></lf-options>'
+    markup = '<lf-options id="corrected-choice" required><lf-option id="corrected-yes">Yes</lf-option></lf-options>'
     runner = CliRunner()
     refused = runner.invoke(
         cli_model.cli,
@@ -1089,7 +1089,7 @@ def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, inval
 
 def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_dir):
     source = PAGE.replace(
-        "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
+        "<lf-options>", '<lf-options id="plan-choice" required multiple>', 1
     )
     (page_dir / "index.html").write_text(source)
     publish(page_dir)

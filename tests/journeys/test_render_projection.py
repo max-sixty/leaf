@@ -388,7 +388,7 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
     # A version that honors either decision, or says nothing of one, is the weaker
     # case of the same rule.
     contradicted = REPLAYED_PAGE.replace(
-        'id="opt-stage"', 'id="opt-stage" chosen'
+        'id="opt-stage"', 'id="opt-stage" selected'
     ).replace(IMPORTER_CARD, "")
     contradicted = contradicted.replace(
         "</lf-card></lf-column>", f"</lf-card>{IMPORTER_CARD}</lf-column>"
@@ -401,8 +401,8 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
         assert render_gate_model.render_version(browser, at).failures == []
     stamp_page(d, contradicted, "t")
     page = open_page(browser, url.replace("v1.html", "v2.html"))
-    expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
-    expect(page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#opt-shim")).to_have_attribute("selected", "")
+    expect(page.locator("#opt-stage")).not_to_have_attribute("selected", "")
 
 
 def test_the_render_gate_applies_every_action_in_force_a_second_time(
@@ -978,7 +978,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(reply).to_have_attribute("name", "reply")
-    expect(page.locator("#tq-one > lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#tq-one > lf-option[selected]")).to_have_count(0)
     # The box hands the user back to the thread it belongs to, which is the
     # container it is part of rather than the pick they pressed Enter from.
     page.keyboard.press("Escape")
@@ -1025,7 +1025,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     )
 
     page.locator("#tq-logs").click()
-    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
+    expect(page.locator("#tq-logs")).to_have_attribute("selected", "")
     expect_obligations_answered(page, "1/2")
     with sending(page, "the answer"):
         page.locator("#tq-set .lf-done").click()
@@ -1075,7 +1075,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     with page.expect_request("**/api/event"):
         page.keyboard.press("z")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "false")
-    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
+    expect(page.locator("#tq-logs")).to_have_attribute("selected", "")
     expect(page.locator("#tq-set-decision > h3")).to_have_text("Which extras apply?")
     expect_obligations_answered(page, "2/2")
     holding(page, held, 1, "the thread answer's withdrawal")

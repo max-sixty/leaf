@@ -217,9 +217,8 @@ export { landInThread } from "./application.js";
 export { threadInput } from "./thread/landing.js";
 // What the page calls its agent, as On <agent> names it, for `lf-tally`'s words.
 export { agentName } from "./semantic-state.js";
-// A region's open obligations by whose turn each is, in the words `lf-tally` and
-// `lf-deck` both show.
+// A region's open obligations by whose turn each is, in the words `lf-tally` shows.
 export { tally, tallyWords } from "./obligations/tally.js";
 // The page node the user's current location stands for, through a margin entry or a
-// thread card, as `lf-deck` asks whether the user is on its open card.
+// thread card, as a widget asks whether the user is on its content.
 export { placeOf } from "./current-target.js";

@@ -112,7 +112,6 @@
       "/vendor/*": [
         "../vendor/*",
         "../../packages/code-review/vendor/*",
-        "../../packages/deck/vendor/*",
         "../../packages/default/vendor/*",
         "../../packages/detail/vendor/*",
         "../../packages/diagram/vendor/*",
@@ -129,7 +128,6 @@
       "/widgets/*": [
         "../widgets/*",
         "../../packages/code-review/widgets/*",
-        "../../packages/deck/widgets/*",
         "../../packages/default/widgets/*",
         "../../packages/detail/widgets/*",
         "../../packages/diagram/widgets/*",

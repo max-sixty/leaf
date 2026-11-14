@@ -1,6 +1,5 @@
 /* How many of a set of obligations are still open and whose turn each is, in the words
-   `lf-tally` shows and `lf-deck`'s bar repeats, so the two never count one queue
-   differently.
+   `lf-tally` shows.
 
    The open ones split by the server's next actor. Those waiting on the user, which Next
    On Me walks (`readObligations().user`), are "left to answer". Those whose next actor is
@@ -12,7 +11,7 @@
    counts on neither side, and a set of only such ones reads "1 open". An earlier tally
    counted every open obligation as to answer and read "1 of 8 to answer" beside a
    disabled Next On Me once the last one went to the agent. The words name no total:
-   "4 of 5 to answer" beside the deck's cards read as the fifth card's position. */
+   "4 of 5 to answer" beside a row of cards read as the fifth card's position. */
 
 /** @param {readonly import("../framework/application.js").ObligationRecord[]} held */
 export function tally(held) {

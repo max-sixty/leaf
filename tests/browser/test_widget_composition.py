@@ -19,7 +19,7 @@ import re
 
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import leaf_page, open_page, sending, told
+from render_harness import leaf_page, open_page, sending, told, undo
 from smoke.test_plain_page import ROOT, host_page, install
 
 from leaf import event_log
@@ -89,8 +89,7 @@ def test_a_second_package_edits_the_owner_s_answer_across_undo_and_a_revision(
     ]
 
     # Undo takes back that one action, wherever it was pressed, and both widgets follow.
-    with sending(page, "the undo"):
-        page.keyboard.press("z")
+    undo(page)
     expect(pick("Ada Lovelace")).to_have_attribute("aria-pressed", "true")
     expect(drop("Ada Lovelace")).to_be_visible()
 

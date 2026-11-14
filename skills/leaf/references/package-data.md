@@ -47,7 +47,8 @@ this.addEventListener("command", (event) => {
 
 A custom command's name starts with `--`; HTML's own, such as `show-modal` and
 `toggle-popover`, act on dialogs and popovers. An argument rides on the button's
-`value`. The target's `description` says which commands it takes and what each
+`value`, and `type="button"` keeps a button inside a form from submitting it
+instead. The target's `description` says which commands it takes and what each
 value means, since nothing else tells a page's author. `page check` refuses an
 authored button whose `commandfor` names no element, or whose `command` is neither
 kind; a custom command the target doesn't handle does nothing, with no error.

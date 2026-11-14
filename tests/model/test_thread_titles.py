@@ -451,6 +451,35 @@ def test_a_claude_code_completion_that_gets_no_answer_says_why(page_dir, monkeyp
     assert list(requests.parent.glob(requests.name)) == []
 
 
+def test_an_app_server_that_never_answers_fails_the_request_at_its_deadline(
+    page_dir, monkeypatch
+):
+    """App Server answers each request however long it takes, so inference's time
+    limit, which caps what one request may cost, bounds every request it makes on
+    the way to the answer, from the connection's first."""
+    import pytest
+
+    class Silent:
+        """An App Server that never answers, as one stuck on a request does."""
+
+        def send(self, _data):
+            pass
+
+        def recv(self, timeout=None):
+            assert timeout is not None, "a request waited past inference's deadline"
+            assert timeout <= inference.TIMEOUT
+            raise TimeoutError
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(inference, "app_server_connect", lambda _endpoint: Silent())
+    with pytest.raises(TimeoutError):
+        inference.app_server_generate("unix:///app-server.sock")(
+            "Pick", page_dir, schema=thread_titles.OUTPUT_SCHEMA, instructions=""
+        )
+
+
 def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
     page_dir, app_server, monkeypatch
 ):

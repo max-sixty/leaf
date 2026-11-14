@@ -815,7 +815,7 @@ def claim_and_start(
         # it prepares delivery (`session_runtime.select_checkout`), as a detached
         # preview's launcher did before preparing the claim it hands over.
         select_checkout(harness.session)
-        delivery = harness.preparing_delivery()
+        delivery = harness.preparing_delivery(deadline)
     with delivery:
         try:
             with _starting_server(

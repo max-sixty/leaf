@@ -45,13 +45,13 @@ def serve_again(harness: Harness, started: float) -> list[Finding]:
     """Serve each page `harness`'s session still means to serve whose ownership or
     server is down, and say what kept any of them from serving.
 
-    The starts share the hook's one deadline, `CONFIRM_WITHIN` after `started`, its
-    `time.monotonic()` as it began. A start takes about a second, or several on a
-    loaded machine, and one not ready and confirmed by the deadline is refused, so
-    the hook exits inside its timeout; a start that took the time the hook had to
-    hand over input inline leaves that input to a pointer instead
-    (`hook_transport`). A port another process holds refuses at once
-    (`hosting.listening_socket`)."""
+    The starts, a Codex task's delivery adapter's included, share the hook's one
+    deadline, `CONFIRM_WITHIN` after `started`, its `time.monotonic()` as it began.
+    A start takes about a second, or several on a loaded machine, and one not ready
+    and confirmed by the deadline is refused, so the hook exits inside its timeout;
+    a start that took the time the hook had to hand over input inline leaves that
+    input to a pointer instead (`hook_transport`). A port another process holds
+    refuses at once (`hosting.listening_socket`)."""
     pages = to_serve(harness)
     if not pages:
         # Most prompts, which load no page servers.
@@ -70,7 +70,7 @@ def serve_again(harness: Harness, started: float) -> list[Finding]:
                 raise Refused("the prompt had no time left to start it")
             prepared = prepare_claim(harness, page_dir)
             with (
-                harness.preparing_delivery(),
+                harness.preparing_delivery(deadline),
                 claim_and_start(page_dir, prepared_claim=prepared, deadline=deadline),
             ):
                 pass

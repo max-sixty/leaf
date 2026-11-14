@@ -174,15 +174,19 @@ def claude_code_generator(session_id: str) -> Callable[..., dict]:
     return generate
 
 
-def open_thread(socket, page_dir: Path, instructions: str) -> str:
+def open_thread(socket, page_dir: Path, instructions: str, deadline: float) -> str:
     """Open the ephemeral thread one request is asked on, on Luna, over
-    a new connection to an App Server, run in the page directory, and return its
-    id."""
-    app_server_handshake(socket, 0, "leaf-inference", "Leaf inference")
+    a new connection to an App Server, run in the page directory, by `deadline`
+    (`time.monotonic`), and return its id."""
+    app_server_handshake(
+        socket, 0, "leaf-inference", "Leaf inference", deadline=deadline
+    )
     # A thread starts every MCP server the user configured, its project's included,
     # and an override replacing the table leaves them configured, so each is turned
     # off by name, read from the directory the thread runs in.
-    configured = app_server_request(socket, "config/read", 1, {"cwd": str(page_dir)})
+    configured = app_server_request(
+        socket, "config/read", 1, {"cwd": str(page_dir)}, deadline=deadline
+    )
     servers = configured["config"].get("mcp_servers") or {}
     thread = app_server_request(
         socket,
@@ -203,16 +207,15 @@ def open_thread(socket, page_dir: Path, instructions: str) -> str:
                 "mcp_servers": {name: {"enabled": False} for name in servers},
             },
         },
+        deadline=deadline,
     )
     return thread["thread"]["id"]
 
 
 def ask(socket, thread_id: str, request: str, schema: dict, deadline: float) -> dict:
     """Ask for structured JSON in one turn on the thread `open_thread` opened, and read
-    the answer by `deadline` (`time.monotonic`)."""
-    # A thread that took longer to open than the request waits asks nothing.
-    if time.monotonic() >= deadline:
-        raise TimeoutError(f"no structured answer within {TIMEOUT} s")
+    the answer by `deadline` (`time.monotonic`). A thread that took longer to open
+    than the request waits asks nothing (`app_server_request`)."""
     app_server_request(
         socket,
         "turn/start",
@@ -223,6 +226,7 @@ def ask(socket, thread_id: str, request: str, schema: dict, deadline: float) -> 
             "effort": APP_SERVER_EFFORT,
             "outputSchema": schema,
         },
+        deadline=deadline,
     )
     answer = None
     usage = None
@@ -274,10 +278,11 @@ def app_server_generate(endpoint: str) -> Callable[..., dict]:
         instructions: str,
     ) -> dict:
         started = time.monotonic()
+        deadline = started + TIMEOUT
         socket = app_server_connect(endpoint)
         try:
-            thread_id = open_thread(socket, page_dir, instructions)
-            reading = ask(socket, thread_id, request, schema, started + TIMEOUT)
+            thread_id = open_thread(socket, page_dir, instructions, deadline)
+            reading = ask(socket, thread_id, request, schema, deadline)
         finally:
             socket.close()
         return {

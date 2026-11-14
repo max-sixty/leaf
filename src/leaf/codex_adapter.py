@@ -71,7 +71,6 @@ from types import EllipsisType
 from . import codex
 from .codex import (
     APP_SERVER_ENV,
-    START_TIMEOUT,
     AppServerDeliveryUncertain,
     TurnFold,
     accept_codex_delivery,
@@ -296,12 +295,10 @@ class TaskConnection:
         )
 
     def start(self) -> None:
+        """Wait for the first connection to resume the task and read its history, or
+        to fail, however long the task's history takes to read."""
         self.thread.start()
-        try:
-            outcome = self.ready.get(timeout=START_TIMEOUT)
-        except queue.Empty as error:
-            self.stop()
-            raise Refused("Codex App Server did not answer") from error
+        outcome = self.ready.get()
         if outcome is not None:
             self.stop()
             raise Refused(f"Codex App Server connection failed: {outcome}")
@@ -1055,7 +1052,7 @@ def run_adapter(
 
 
 @contextmanager
-def preparing_adapter(harness: CodexHarness):
+def preparing_adapter(harness: CodexHarness, deadline: float | None = None):
     """Retain a ready adapter for `harness`'s task until the caller commits page
     ownership.
 
@@ -1063,6 +1060,17 @@ def preparing_adapter(harness: CodexHarness):
     Holding it across the caller's publication lets delivery prepare before any
     claim exists, without an adapter retiring in that gap. A new adapter captures
     the launching harness's canonical session generation before subscribing to turns.
+
+    Preparation waits for events, not a clock. An adapter running from a Leaf the
+    session no longer selects releases its lease as it exits. A new one announces
+    itself once its transport answers, which over App Server means once it has read
+    the task's history, or ends its handshake by exiting. Either can take tens of
+    seconds on a loaded machine: the former adapter may be between retries, and a
+    long history takes that long to read. A concurrent preparation holds the start
+    lock through both. Only a caller with a deadline of its own, a
+    `time.monotonic()` reading, bounds these waits, as a hook does, whose harness
+    kills it at its timeout (`reconnect.serve_again`); preparation still waiting
+    then is refused, and the next prompt tries again.
     """
     executable = shutil.which("codex")
     if executable is None:
@@ -1076,9 +1084,13 @@ def preparing_adapter(harness: CodexHarness):
     with ExitStack() as preparation:
         from .session_runtime import selected_launcher
 
-        deadline = time.monotonic() + START_TIMEOUT
         while True:
-            preparation.enter_context(flocked(launch_lock))
+            try:
+                preparation.enter_context(flocked(launch_lock, deadline=deadline))
+            except TimeoutError:
+                raise Refused(
+                    "another start of this task's Leaf delivery was still running"
+                ) from None
             launcher = selected_launcher(session_id)
             record = running_adapter(session_id)
             if (
@@ -1087,11 +1099,11 @@ def preparing_adapter(harness: CodexHarness):
                 or record.get("launcher") == str(launcher)
             ):
                 break
-            # The former adapter observes the selection on its next bounded
+            # The former adapter observes the selection at the top of its next
             # pass. Let it take the start lock on its way out too, then retry
             # preparation under that lock rather than racing a third start.
             preparation.pop_all().close()
-            if time.monotonic() >= deadline:
+            if deadline is not None and time.monotonic() >= deadline:
                 raise Refused(
                     "the former Leaf delivery adapter did not release its session"
                 )
@@ -1126,7 +1138,7 @@ def preparing_adapter(harness: CodexHarness):
             what="Codex delivery",
             log=adapter_log_path(session_id),
             cwd=state_home(),
-            deadline=time.monotonic() + START_TIMEOUT,
+            deadline=deadline,
             launcher=launcher,
         ):
             pass

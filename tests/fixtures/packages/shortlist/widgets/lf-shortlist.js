@@ -7,7 +7,7 @@
 // the list and its picks as its `shortlist` output and says `change`, which is all
 // another widget reads.
 
-import { LeafElement, nothing } from "/runtime/portable-api.js";
+import { LeafElement, keeps, nothing } from "/runtime/portable-api.js";
 
 customElements.define(
   "lf-shortlist",
@@ -60,7 +60,7 @@ customElements.define(
     updated(changed) {
       super.updated(changed);
       for (const [index, button] of this.buttons.entries())
-        button.setAttribute("aria-pressed", String(this.candidates[index].picked));
+        keeps(button, "aria-pressed", String(this.candidates[index].picked));
       this.shortlist = { candidates: this.candidates };
       this.dispatchEvent(new Event("change"));
     }

@@ -1177,14 +1177,13 @@ def start(page_dir: Path, host: str | None, lifetime: str) -> dict:
     itself keeps running in a session of its own. `leaf server stop` takes one
     down, and a session server goes down with the session that claimed it
     besides. A page already served reconnects delivery and prints that server's
-    URL. A persistent server claims no page and prepares no agent delivery. Beside
-    the URL it prints the server's lifetime, the page's layer and the Leaf serving
-    it.
+    URL, after restarting it at that URL where another Leaf started it. A
+    persistent server claims no page and prepares no agent delivery. Beside the URL
+    it prints the server's lifetime, the page's layer and the Leaf serving it.
     """
-    from leaf.hosting import claim_and_start, started_server
+    from leaf.hosting import start_page, started_server
 
-    with claim_and_start(page_dir, host, lifetime == "persistent") as started:
-        pass
+    started = start_page(page_dir, host, lifetime == "persistent")
     return started_server(page_dir, started.url)
 
 

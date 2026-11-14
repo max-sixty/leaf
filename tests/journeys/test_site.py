@@ -744,6 +744,17 @@ def test_the_published_notification_example_runs_its_authored_module(
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(4)
 
 
+def test_published_trace_evidence_loads_from_its_page(served_example, browser):
+    """Typed media paths resolve under the same page as authored media."""
+    _, url = served_example("playwright-trace-gallery")
+    page = open_page(browser, url)
+    images = page.locator(
+        ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
+    )
+    expect(images.first).to_have_js_property("complete", True)
+    assert images.first.evaluate("image => image.naturalWidth") > 0
+
+
 def test_a_replaced_private_server_keeps_the_active_tab(served_example, browser):
     """Durable content keeps the current document when its serving process changes."""
     _, url = served_example("triage-board")

@@ -1815,15 +1815,10 @@ def test_a_recorded_move_is_announced_and_shown_only_where_it_was_made(browser, 
 def test_each_control_archetype_holds_its_neighbours_still(browser, serve, archetype):
     """Each row mechanism holds its other controls still across its causal transition."""
     # The synthetic page composes every mechanism a page can author, and carries the
-    # existing comment the margin entry's row is made of. An archetype naming another
-    # source is one whose causal state cannot coexist with that composed page, or whose
-    # mechanism lives only in a shipped gallery or under a page-wide opt-in.
-    source = archetype.get("source")
+    # existing comment the margin entry's row is made of.
     page = open_page(
         browser,
-        serve(source)
-        if source
-        else serve(
+        serve(
             CONTROL_STABILITY_PAGE,
             media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
             events=[

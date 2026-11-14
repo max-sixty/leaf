@@ -365,3 +365,51 @@ def test_timeline_revision_keeps_position_and_updates_labels_steps_and_routes(
     expect(page.locator("#arriving .lf-timeline-position")).to_have_text(
         "Step 1 of 1 · 0 s"
     )
+
+
+def test_a_timeline_s_unavailable_arrow_reaches_no_command_around_it(browser, serve):
+    """Next at the last step is unavailable, and its arrow stays the timeline's: a
+    command around it, on the same key, does not run."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Command around a timeline",
+                """<h1>Command around a timeline</h1>
+<div id="around">
+  <button id="beside" type="button">Beside</button>
+  <lf-timeline id="tl" aria-label="Two steps">
+    <lf-lane label="Build">
+      <lf-event id="e1" at="0" label="Compile"></lf-event>
+      <lf-event id="e2" at="1000" label="Ship"></lf-event>
+    </lf-lane>
+  </lf-timeline>
+</div>""",
+            ),
+            packages=("timeline",),
+        ),
+    )
+    page.evaluate("""async () => {
+      const {commandsChanged} = await window.__lfWidgetApi();
+      const around = document.getElementById('around');
+      window.aroundRan = 0;
+      around.lfCommands = {title: 'Around the timeline', rows: [{
+        id: 'around.next', title: 'Next card', keys: ['ArrowRight'],
+        run: () => { window.aroundRan++; },
+      }]};
+      commandsChanged(around);
+    }""")
+    # Control: the command does run from the page around the timeline.
+    page.locator("#beside").focus()
+    page.keyboard.press("ArrowRight")
+    page.wait_for_function("window.aroundRan === 1")
+    rows = page.locator("#tl .lf-timeline-step")
+    rows.last.click()
+    expect(rows.last).to_have_attribute("aria-current", "step")
+    expect(page.locator("#tl .lf-timeline-next")).to_have_attribute(
+        "aria-disabled", "true"
+    )
+    page.keyboard.press("ArrowRight")
+    expect(rows.last).to_be_focused()
+    page.evaluate(NEXT_FRAME)
+    assert page.evaluate("window.aroundRan") == 1

@@ -1,5 +1,6 @@
 """Diff controls share canonical fields and preserve the compact source reader."""
 
+import json
 import re
 from html import escape
 from itertools import pairwise
@@ -8,8 +9,12 @@ import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
+    DATUM_LINK,
+    DATUM_LINK_WIDGETS,
+    LINK,
     before_landing_frame,
     consume_browser_errors,
+    go_to_datum,
     holding,
     leaf_page,
     open_page,
@@ -22,34 +27,6 @@ from render_harness import (
 from leaf import data as data_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev.example_data import patch_manifest
-
-# What a navigator does to a diff, without the navigator: a referrer that travels to a
-# datum of the widget its `for` names.
-DATUM_LINK = {
-    "lf-datum-link": {
-        "description": "A referrer that travels to one datum of the widget it names.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}, "for": {"type": "string"}},
-        "required": ["id", "for"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-upgrade": False,
-        "x-refers": {"for": {}},
-        "x-example": '<lf-datum-link id="files" for="patch"></lf-datum-link>',
-    }
-}
-LINK = '<lf-datum-link id="files" for="patch"></lf-datum-link>'
-
-
-def go_to_datum(page, key):
-    """Travel from `#files` to `key` of the diff it refers to."""
-    return page.evaluate(
-        """async key => {
-          const {navigateToDatum} = await window.__lfWidgetApi();
-          return navigateToDatum(document.querySelector('#files'), 'for', key);
-        }""",
-        key,
-    )
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
@@ -219,6 +196,7 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
                 ),
                 packages=("diff",),
                 layer_registry=DATUM_LINK,
+                layer_widgets=DATUM_LINK_WIDGETS,
             )
         ),
     )
@@ -345,6 +323,7 @@ def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
             '<p style="min-height:2000px">Context</p><p id="far">Far thread.</p>',
         ),
         layer_registry=DATUM_LINK,
+        layer_widgets=DATUM_LINK_WIDGETS,
         anchored=[("far", "Far thread.")],
     )
     page = open_page(browser, url)
@@ -389,6 +368,7 @@ def test_reloading_a_picked_file_reopens_it_in_a_one_file_view(browser, serve):
                 f'<lf-diff id="patch" view="file"><pre>{escape(patch)}</pre></lf-diff>',
             ),
             layer_registry=DATUM_LINK,
+            layer_widgets=DATUM_LINK_WIDGETS,
         ),
     )
     lines = page.locator("#patch [data-line]")
@@ -401,6 +381,214 @@ def test_reloading_a_picked_file_reopens_it_in_a_one_file_view(browser, serve):
     page.reload()
     expect(picked).to_be_visible()
     expect(lines.filter(has_text="app.py new")).to_be_hidden()
+
+
+def file_key(path):
+    return json.dumps([path, "file"], separators=(",", ":"))
+
+
+@pytest.mark.parametrize("view", ["patch", "file"])
+def test_datum_travel_opens_current_diff_files_and_keeps_a_selection_made_while_evidence_prepares(
+    browser, serve, view
+):
+    """A referrer's datum route opens a file, again after it is closed, and in a
+    one-file view the file keys move the selection, including one made while newer
+    evidence is still preparing."""
+
+    def patch(path, value):
+        return (
+            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+            f"@@ -1 +1 @@\n-old\n+{value}\n"
+        )
+
+    url = serve(
+        leaf_page(
+            "Browse patch files",
+            f"<h1>Review the importer</h1>{LINK}"
+            f'<lf-diff id="patch" source="change" view="{view}" collapsed></lf-diff>',
+        ),
+        layer_registry=DATUM_LINK,
+        layer_widgets=DATUM_LINK_WIDGETS,
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "change",
+        patch_manifest(
+            patch("src/importer.py", "keep_names = True")
+            + patch("tests/importer.py", "assert keep_names")
+        ),
+    )
+    page = open_page(browser, url)
+    folds = page.locator("#patch .lf-diff-fold")
+    expect(folds).to_have_count(2)
+    if view == "patch":
+        expect(folds.first).not_to_have_attribute("open", "")
+    else:
+        expect(page.locator("#patch .lf-diff-search")).to_have_count(0)
+        expect(folds.first).to_have_attribute("open", "")
+    go_to_datum(page, file_key("src/importer.py"))
+    expect(folds.first).to_have_attribute("open", "")
+    expect(folds.first.locator("pre")).to_contain_text("keep_names = True")
+    # The same file still has a route after its patch closes.
+    folds.first.locator("summary").click()
+    go_to_datum(page, file_key("src/importer.py"))
+    expect(folds.first).to_have_attribute("open", "")
+    go_to_datum(page, file_key("tests/importer.py"))
+    expect(folds.last).to_have_attribute("open", "")
+    expect(folds.last.locator("pre")).to_contain_text("assert keep_names")
+    if view == "file":
+        expect(folds.first).not_to_be_visible()
+        expect(folds.last).to_be_visible()
+        folds.last.locator("summary").press("{")
+        expect(folds.first).to_be_visible()
+        expect(folds.last).not_to_be_visible()
+        # Preparing new evidence does not take ownership of a selection made while
+        # that preparation is in flight. Hold one boundary to make the ordering exact.
+        page.evaluate("""() => {
+          const diff = document.getElementById('patch');
+          const prepareEntry = diff.prepareEntry.bind(diff);
+          const held = new Promise(resolve => window.releaseEvidence = resolve);
+          diff.prepareEntry = async (...args) => {
+            window.evidenceHeld = true;
+            await held;
+            return prepareEntry(...args);
+          };
+        }""")
+        data_model.cmd_data_set(
+            serve.page_dir,
+            "change",
+            patch_manifest(
+                patch("src/importer.py", "new_names = True")
+                + patch("tests/importer.py", "assert new_names")
+            ),
+        )
+        page.wait_for_function("window.evidenceHeld === true")
+        folds.first.locator("summary").press("}")
+        page.evaluate("window.releaseEvidence()")
+        expect(folds.last.locator("pre")).to_contain_text("assert new_names")
+        expect(folds.last).to_be_visible()
+        expect(folds.first).not_to_be_visible()
+    # A source update replaces the files the diff holds.
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "change",
+        patch_manifest(patch("src/reader.py", "preserve_case = True")),
+    )
+    expect(folds).to_have_count(1)
+    go_to_datum(page, file_key("src/reader.py"))
+    expect(page.locator("#patch pre")).to_contain_text("preserve_case = True")
+
+
+@pytest.mark.parametrize("scroller", ["pane", "document"])
+def test_datum_travel_lands_at_the_file_start_after_reading_down(
+    browser, serve, scroller
+):
+    """Travelling to a file reveals its first line in document and nested scrollports,
+    including a return to the current file after reading further down."""
+
+    def patch(path, lines=100):
+        return (
+            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+            f"@@ -1,{lines} +1,{lines} @@\n"
+            + "".join(f"-old line {line}\n+new line {line}\n" for line in range(lines))
+        )
+
+    pane = scroller == "pane"
+    evidence_markup = (
+        '<div id="evidence"><p>Inspect the changes in each file.</p>'
+        '<lf-diff id="patch" source="change" view="file"></lf-diff>'
+        "</div>"
+    )
+    regions = (
+        f'<lf-pane id="files-pane" label="Files"><header>Files</header>{LINK}</lf-pane>'
+        '<lf-pane id="patch-pane" label="Patch"><header>Patch</header>'
+        + evidence_markup
+        + "</lf-pane>"
+        if pane
+        else f'<aside id="files-pane">{LINK}</aside>' + evidence_markup
+    )
+    url = serve(
+        leaf_page(
+            "Navigate a long patch",
+            '<header><h1>Review files</h1></header><div id="regions">'
+            + regions
+            + "</div>"
+            + ("" if pane else '<p style="min-height:1200px">Review context</p>'),
+            head="""<style>
+              #regions { display:grid; grid-template-columns:240px minmax(0,1fr); }
+              #files { --lf-pane-top:0px; margin:0; padding:0; display:block; }
+              #patch { margin:0; }
+              aside#files-pane { position:sticky; top:var(--lf-top); align-self:start; }
+            </style>""",
+            layout="workspace" if pane else "column",
+        ),
+        layer_registry=DATUM_LINK,
+        layer_widgets=DATUM_LINK_WIDGETS,
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "change",
+        patch_manifest(
+            patch("first.md")
+            + patch("second.md")
+            + patch("third.md", 3)
+            + "diff --git a/z-mode.sh b/z-mode.sh\nold mode 100644\nnew mode 100755\n"
+        ),
+    )
+    context = browser.new_context(viewport={"width": 810, "height": 990})
+    page = open_page(browser, url, context=context)
+    evidence = page.locator("#evidence")
+    visible = page.locator("#patch .lf-diff-fold:visible")
+    expect(visible).to_contain_text("first.md")
+
+    def scroll_into_file():
+        evidence.hover()
+        page.mouse.wheel(0, 900)
+        page.wait_for_function(
+            "document.getElementById('evidence').scrollTop > 400"
+            if pane
+            else "scrollY > 400"
+        )
+        scroll_settled(page)
+
+    def starts_below_header():
+        page.wait_for_function("""() => {
+          const body = document.getElementById('evidence');
+          const fold = [...document.getElementById('patch').shadowRoot
+            .querySelectorAll('.lf-diff-fold')].find(node => node.checkVisibility());
+          const summary = fold?.querySelector('summary');
+          const firstLine = fold?.querySelector('.lf-diff-line > [data-line]');
+          if (!summary || !firstLine?.textContent.includes('old line 0')) return false;
+          const top = summary.getBoundingClientRect().top;
+          const pane = body.closest('lf-pane');
+          const edge = pane ? body.getBoundingClientRect().top + body.clientTop : 0;
+          const bottom = pane ? body.getBoundingClientRect().bottom : innerHeight;
+          const line = firstLine.getBoundingClientRect();
+          return top >= edge - 1
+            && line.top >= summary.getBoundingClientRect().bottom - 1
+            && line.bottom <= bottom;
+        }""")
+
+    scroll_into_file()
+    go_to_datum(page, file_key("second.md"))
+    expect(visible).to_contain_text("second.md")
+    starts_below_header()
+    # A file already selected still has a route back to the start after reading down.
+    scroll_into_file()
+    go_to_datum(page, file_key("second.md"))
+    starts_below_header()
+    # A much shorter file must reveal its first line too; its pinned heading alone is
+    # not evidence that the beginning is visible.
+    scroll_into_file()
+    go_to_datum(page, file_key("third.md"))
+    expect(visible).to_contain_text("third.md")
+    starts_below_header()
+    # A mode-only file has a commentable metadata row, without a textual body.
+    go_to_datum(page, file_key("z-mode.sh"))
+    metadata = page.locator("#patch .lf-diff-metadata:visible")
+    expect(metadata).to_contain_text("z-mode.sh")
+    expect(metadata).to_be_in_viewport(ratio=1)
+    expect(visible).to_have_count(0)
 
 
 @pytest.mark.parametrize("bound", [False, True], ids=["inline", "bound"])

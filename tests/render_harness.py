@@ -3501,3 +3501,49 @@ def at_rest(page):
             *(f"{animation} runs without end{where}" for animation in rest["endless"]),
         ]
     return findings
+
+
+# What a navigator does to a diff, without the navigator: a referrer whose button
+# travels to the datum its `key` names, in the widget its `for` names.
+DATUM_LINK = {
+    "lf-datum-link": {
+        "description": "A button that travels to one datum of the widget it names.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "for": {"type": "string"},
+            "key": {"type": "string"},
+        },
+        "required": ["id", "for"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-refers": {"for": {}},
+        "x-example": '<lf-datum-link id="files" for="patch" key="a"></lf-datum-link>',
+    }
+}
+DATUM_LINK_WIDGETS = {
+    "lf-datum-link.js": """
+import {navigateToDatum, once} from '/runtime/widget-api.js';
+customElements.define('lf-datum-link', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const button = document.createElement('button');
+    button.textContent = 'Go to file';
+    button.addEventListener('click', () =>
+      navigateToDatum(this, 'for', this.getAttribute('key'), {focus: false}));
+    this.append(button);
+  }
+});
+"""
+}
+LINK = '<lf-datum-link id="files" for="patch"></lf-datum-link>'
+
+
+def go_to_datum(page, key):
+    """Press `#files`, a referrer that travels to `key` of the diff it names."""
+    page.locator("#files").evaluate(
+        "(node, key) => node.getAttribute('key') === key || node.setAttribute('key', key)",
+        key,
+    )
+    page.locator("#files button").click()

@@ -4705,6 +4705,36 @@ def test_review_evidence_packages_export_independently(
         assert 'diff="title" must name a $diff.widgets widget' in words(checked.output)
 
 
+def test_data_set_refuses_a_trace_url_the_browser_cannot_parse(tmp_path, monkeypatch):
+    """The viewer opens `viewerUrl` with the browser's URL parser, so `data set`
+    refuses one that parser refuses rather than storing a trace the widget cannot
+    show."""
+    monkeypatch.chdir(tmp_path)
+    gallery = ROOT / "examples/developer/playwright-trace-gallery"
+    page = tmp_path / "trace"
+    runner = CliRunner()
+    initialized = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "playwright", str(page)]
+    )
+    assert initialized.exit_code == 0, initialized.output
+    shutil.copy(gallery.with_suffix(".html"), page / "index.html")
+    trace = json.loads(gallery.with_suffix(".data.json").read_text())["release-journey"]
+
+    def data_set(value):
+        return runner.invoke(
+            cli_model.cli,
+            ["data", "set", str(page), "release-journey"],
+            input=json.dumps(value),
+        )
+
+    accepted = data_set(trace)
+    refused = data_set({**trace, "viewerUrl": "http://a.test:99999/"})
+
+    assert accepted.exit_code == 0, accepted.output
+    assert refused.exit_code == 1
+    assert "'http://a.test:99999/' is not a 'uri'" in refused.output
+
+
 def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     local = tmp_path / "diagram"

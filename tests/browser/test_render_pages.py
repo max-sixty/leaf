@@ -1,5 +1,6 @@
 """File-authored anchors, drawings, width, and handover tests."""
 
+import hashlib
 import io
 import json
 import math
@@ -25,6 +26,7 @@ from render_cases_layout import (
     SHOT_SRC,
     SHOTS,
     current_location_ring,
+    solid_png,
 )
 from render_cases_navigation import (
     composer_quote,
@@ -3786,3 +3788,51 @@ import pytest
 from render_harness import (
     leaf_page,
 )
+
+
+def test_a_shot_refuses_a_crop_outside_its_captures_and_recovers_when_it_is_corrected(
+    browser, serve
+):
+    """A host's focus rectangle has to fall inside both captures, at their pixel ratio,
+    and a pair has to share one width; each refusal draws as the shot's error, and the
+    shot draws again once the data is corrected."""
+    captures = {
+        name: solid_png(width, 200, (232, 226, 213))
+        for name, width in (("a", 320), ("b", 320), ("c", 150))
+    }
+    src = {
+        name: f"/media/{hashlib.sha256(data).hexdigest()[:16]}.png"
+        for name, data in captures.items()
+    }
+    media = {src[name]: data for name, data in captures.items()}
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Crop",
+                '<h1>Crop</h1><lf-shot id="pair" alt="pair" '
+                f'before="{src["a"]}" after="{src["b"]}"></lf-shot>',
+            ),
+            media=media,
+        ),
+    )
+    shot = page.locator("#pair")
+    expect(shot.locator("img")).to_have_count(2)
+    expect(shot.locator(".lf-error")).to_have_count(0)
+    shot.evaluate("n => n.inspect({focus: {x: 20, y: 30, width: 100, height: 50}})")
+    expect(shot.locator(".lf-error")).to_have_count(0)
+    outside = "n => n.inspect({focus: {x: 20, y: 180, width: 100, height: 50}})"
+    shot.evaluate(outside)
+    error = "focus 20,180 100×50 CSS px falls outside its captured images"
+    expect(shot.locator(".lf-error")).to_contain_text(error)
+    consume_browser_errors(page, error)
+    shot.evaluate("n => n.inspect({focus: {x: 20, y: 30, width: 100, height: 50}})")
+    expect(shot.locator(".lf-error")).to_have_count(0)
+    expect(shot.locator("img")).to_have_count(2)
+    shot.evaluate("(n, src) => n.setAttribute('after', src)", src["c"])
+    error = "before is 320px wide and after is 150px"
+    expect(shot.locator(".lf-error")).to_contain_text(error)
+    consume_browser_errors(page, error)
+    shot.evaluate("(n, src) => n.setAttribute('after', src)", src["b"])
+    expect(shot.locator(".lf-error")).to_have_count(0)
+    expect(shot.locator("img")).to_have_count(2)

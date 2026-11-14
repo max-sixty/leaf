@@ -1,19 +1,24 @@
 """Preview and offline export tests."""
 
+import hashlib
 import json
 import re
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 from interact_support import (
+    ROOT,
     append_carried_log_record,
 )
 from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, live_url
+from render_cases_layout import solid_png
 from render_cases_navigation import (
     source_revision,
 )
 from render_harness import (
+    example_media,
     leaf_page,
     open_page,
     round_trip,
@@ -341,6 +346,60 @@ def test_an_interactive_export_reads_each_source_offline(browser, serve, tmp_pat
             page.locator(f'lf-diff [data-lf-datum=\'["{name}","new",1]\']')
         ).to_contain_text(f"{name} new")
     assert external == []
+
+
+def test_an_export_keeps_data_owned_trace_images_and_the_shot_slider_offline(
+    browser, serve, tmp_path
+):
+    """Images a data source owns, one trace view's included, travel with the offline
+    export, an authored `lf-shot`'s slider still answers keys there, and nothing is
+    requested outside the file."""
+    record = json.loads(
+        (ROOT / "examples/developer/playwright-trace-gallery.data.json").read_text()
+    )["release-journey"]
+    media = {
+        image["url"]: (example_media() / Path(image["url"]).name).read_bytes()
+        for image in record["images"]
+    }
+    captures = [
+        solid_png(320, 200, color) for color in ((232, 226, 213), (214, 226, 235))
+    ]
+    before, after = (
+        f"/media/{hashlib.sha256(image).hexdigest()[:16]}.png" for image in captures
+    )
+    media.update(zip((before, after), captures, strict=True))
+    serve(
+        leaf_page(
+            "Offline evidence",
+            '<lf-trace id="trace" source="trace"></lf-trace>'
+            f'<lf-shot id="pair" alt="pair" before="{before}" after="{after}"></lf-shot>',
+        ),
+        packages=("playwright",),
+        media=media,
+    )
+    data_model.cmd_data_set(serve.page_dir, "trace", record)
+    out = tmp_path / "evidence.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    context = browser.new_context(offline=True, viewport={"width": 1200, "height": 900})
+    page = context.new_page()
+    requests = []
+    page.on("request", lambda request: requests.append(request.url))
+    page.goto(out.as_uri(), wait_until="load")
+    wait_until_ready(page)
+    image = page.locator("#trace img").first
+    expect(image).to_have_js_property("complete", True)
+    assert image.evaluate("node => node.decode().then(() => node.naturalWidth)") > 0
+    shot = page.locator("#pair")
+    shot.get_by_role("radio", name="Slider", exact=True).click()
+    comparison = shot.locator("wa-comparison")
+    handle = comparison.get_by_role("scrollbar")
+    handle.press("Home")
+    expect(comparison).to_have_js_property("position", 0)
+    handle.press("ArrowRight")
+    expect(comparison).to_have_js_property("position", 1)
+    assert [url for url in requests if not url.startswith(("blob:", "data:"))] == [
+        out.as_uri()
+    ]
 
 
 def test_an_export_keeps_utf8(browser, serve, tmp_path):

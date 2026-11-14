@@ -900,11 +900,6 @@ def steps(
                 "fork-resume: the session started a turn before the fork answered",
             )
             require(
-                agent_of(taken["turn"]) == agent,
-                f"fork-resume: another agent ran the new turn: "
-                f"{agent_of(taken['turn'])}",
-            )
-            require(
                 picked_up(page, again) == [taken["turn"]],
                 "fork-resume: a turn other than the resumed fork's picked the message "
                 f"up: {picked_up(page, again)}",

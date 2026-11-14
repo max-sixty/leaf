@@ -1,7 +1,7 @@
 """The `claude-code` journey: a real interactive Claude Code session with Leaf's
 plugin, and the steps a user takes at its terminal.
 
-    uv run leaf-dev journey claude-code [--forks]
+    uv run leaf-dev journey run claude-code [--forks]
 
 The suite stands in for Claude Code around Leaf's hooks (`hooks.json`, and
 `tests/claude_code_driver.mjs` for the hooks module); this runs Claude Code itself,
@@ -123,7 +123,7 @@ from leaf.service import page_claim
 from leaf.state import turn_open
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS, PageClient, claude_environment, claude_home
-from leaf_dev.commands.journey import (
+from leaf_dev.commands.journey.run import (
     Isolation,
     Terminal,
     User,
@@ -410,7 +410,7 @@ class ClaudeCode(Terminal):
     def close(self) -> None:
         self.tmux("kill-session", "-t", self.pane)
         # The session's home goes with the run, so its transcript and its
-        # subagents' join the evidence, where `leaf-dev timeline` reads them.
+        # subagents' join the evidence, where `leaf-dev logs timeline` reads them.
         kept = self.evidence / "claude"
         for found in (self.home / ".claude" / "projects").glob(f"*/{self.session}*"):
             kept.mkdir(exist_ok=True)

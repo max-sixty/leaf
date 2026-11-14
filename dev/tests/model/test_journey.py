@@ -23,7 +23,8 @@ from leaf.harness import NUDGE_WORDS
 from leaf.hook_transport import INLINE_OPENING
 from leaf.interaction_log import read_interactions
 from leaf_dev import ROOT, journey_claude_code, journey_pi
-from leaf_dev.commands import journey, journey_chart
+from leaf_dev.commands.journey import chart as journey_chart
+from leaf_dev.commands.journey import run as journey
 from leaf_dev.page_fixtures import record_run_context
 from leaf_dev.reply_phases import (
     LEAF_WAKE,

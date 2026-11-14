@@ -40,7 +40,7 @@ from leaf_dev.browser import (
     scroll_settled,
     settle,
 )
-from leaf_dev.commands.corpus import sources as corpus_sources
+from leaf_dev.commands.generate.corpus import sources as corpus_sources
 
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
 

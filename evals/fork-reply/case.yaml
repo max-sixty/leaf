@@ -1,7 +1,7 @@
 # The fork that writes the agent's working line on a held thread message before
 # Leaf hands the message to the session (`src/leaf/forks.py`), replayed on a short
 # conversation written for each kind of message. Run every case with `uv run
-# leaf-dev eval 'fork-reply*' --harness claude-code`; inputs and the rubric are in
+# leaf-dev eval run 'fork-reply*' --harness claude-code`; inputs and the rubric are in
 # workflows/fork_eval.yaml.
 description: Forked thread reply
 metadata:

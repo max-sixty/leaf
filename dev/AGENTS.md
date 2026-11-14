@@ -18,8 +18,10 @@ runs the matrix, repetitions, concurrency, assertions and result storage, and cu
 code covers only the agent and Leaf interactions being measured.
 
 When agents keep writing the same throwaway script, make it a command: a module in
-`leaf_dev/commands/` named after it (`journey_chart.py` for `leaf-dev journey-chart`),
-which the CLI finds by name. Tooling that CI, a hook or an alias runs is a command too,
+`leaf_dev/commands/` named after it, which the CLI finds by name (`cli.py`). A package
+there is a group (`journey/chart.py` for `leaf-dev journey chart`): it gathers the
+commands a developer reaches for together about one subject, while a command used
+across subjects, such as `probe`, stands at the top. Tooling that CI, a hook or an alias runs is a command too,
 so the repository has no directory of loose scripts. Code two tools need lives in one
 module
 here that the others import, never through `sys.path`, `PYTHONPATH` or a file path.
@@ -31,7 +33,7 @@ measured by `leaf-dev bench`, so a new page, input or reading belongs in
 
 ## Experiments
 
-`leaf-dev eval` runs the catalog, the cases that score Leaf's shipped instructions on
+`leaf-dev eval run` runs the catalog, the cases that score Leaf's shipped instructions on
 its arms; a new case is `evals/<task>/case.yaml` (`evals/README.md`). Any other
 question put to a model is an experiment. An experiment adds one folder under `evals/`,
 and a `pnpm run eval:<name>` script that runs its config:
@@ -46,7 +48,7 @@ and a `pnpm run eval:<name>` script that runs its config:
   Promptfoo applies its filters before `beforeAll` and takes no providers from it, so
   setup that produces the tests themselves runs before Promptfoo, in the script.
 - A new comparison is another provider in the config, since a `--condition` value or
-  option on `leaf-dev eval` would stay in the catalog's code after the experiment ends.
+  option on `leaf-dev eval run` would stay in the catalog's code after the experiment ends.
   Promptfoo's own options choose what a run takes: `--filter-providers`,
   `--filter-pattern`, `--repeat`.
 
@@ -90,16 +92,16 @@ pnpm run test:evals
 
 ## Commands with consequences outside `.tmp/`
 
-- `leaf-dev refresh-previews` (as `wt refresh-previews`), `record-demo` and
-  `publish-media` publish images to `max-sixty/leaf-assets`; in the tree they change
+- `leaf-dev site previews` (as `wt refresh-previews`), `site demo` and
+  `site media` publish images to `max-sixty/leaf-assets`; in the tree they change
   only the pin
   in `leaf-assets.json` and the README's image URLs.
-  `thread-snapshots` accepts reviewed images by moving `leaf-assets.json`'s
+  `journey snapshots` accepts reviewed images by moving `leaf-assets.json`'s
   `thread_snapshots_revision`.
 - `worker/deploy-dev.sh` (`pnpm run deploy:dev`) deploys the checkout to the
   `leaf-website-dev` environment. Production deploys only through
   `.github/workflows/publish-site.yaml`; `worker/README.md` owns diagnostics.
-- `leaf-dev journey` appends each sample to `$XDG_STATE_HOME/leaf-dev/journey.jsonl`. On
-  a harness target it uses the host's authenticated accounts, as `leaf-dev eval` does,
+- `leaf-dev journey run` appends each sample to `$XDG_STATE_HOME/leaf-dev/journey.jsonl`. On
+  a harness target it uses the host's authenticated accounts, as `leaf-dev eval run` does,
   so CI runs neither; `publish-site` runs the journey against each deployed release
   (`/developing-leaf`, "Run the agent journey" and "Score an instruction change").

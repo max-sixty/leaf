@@ -8,7 +8,7 @@ import pytest
 
 from leaf.structure import SourceDocument
 from leaf_dev import docs
-from leaf_dev.commands import record_demo
+from leaf_dev.commands.site import demo as record_demo
 from leaf_dev.example_data import catalog_sources, document_metadata, named_source
 
 

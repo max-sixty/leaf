@@ -1,7 +1,7 @@
 """Open a thread card in each configuration of `CASES`, and write a gallery of where
 each card stands and how it is shaped.
 
-    uv run leaf-dev placements [--case NAME]... [--base [REF]] [--browser ENGINE]
+    uv run leaf-dev placement cards [--case NAME]... [--base [REF]] [--browser ENGINE]
 
 A case is one configuration a reader meets: the subject the thread is on (words quoted
 in a block, or a whole block), the messages the thread holds, the route that opens its
@@ -277,7 +277,7 @@ def fixture() -> str:
 <html lang="en">
 <head>
 <title>Placement fixture</title>
-<meta name="description" content="The page leaf-dev placements opens thread cards on.">
+<meta name="description" content="The page leaf-dev placement cards opens thread cards on.">
 </head>
 <body>
 <main class="layout-column">
@@ -799,7 +799,7 @@ def page(sections: str, arms, engine: str) -> str:
 <html lang="en">
 <head>
 <title>Thread card placements</title>
-<meta name="description" content="Where Leaf stands a thread card, and how it shapes it, in each configuration of leaf-dev placements.">
+<meta name="description" content="Where Leaf stands a thread card, and how it shapes it, in each configuration of leaf-dev placement cards.">
 {STYLE}
 </head>
 <body>
@@ -807,8 +807,8 @@ def page(sections: str, arms, engine: str) -> str:
 <h1 id="title">Thread card placements</h1>
 <p id="lede">Each capture is a thread card as Leaf draws it in {engine.capitalize()} ({commits}), with
 the block it keeps clear of outlined in orange and its quoted words filled. Regenerate
-with <code>uv run leaf-dev placements</code>; add a case to <code>CASES</code> in
-<code>dev/leaf_dev/commands/placements.py</code>.</p>
+with <code>uv run leaf-dev placement cards</code>; add a case to <code>CASES</code> in
+<code>dev/leaf_dev/commands/placement/cards.py</code>.</p>
 {sections}
 </main>
 </body>
@@ -816,7 +816,7 @@ with <code>uv run leaf-dev placements</code>; add a case to <code>CASES</code> i
 """
 
 
-@click.command()
+@click.command("cards")
 @click.option(
     "--case",
     "names",

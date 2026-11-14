@@ -16,12 +16,12 @@ derived tree contains the immutable live shell Cloudflare serves before the cano
 server answers its API requests.
 
 Every `leaf` command a build runs comes from the Leaf its caller hands it. `leaf-dev
-site` hands it an installation prepared from this checkout (`leaf_dev.commands.distribution`)
+site build` hands it an installation prepared from this checkout (`leaf_dev.commands.site.distribution`)
 beside its output, so each page runs the compiled kernel, which the live shell
 publishes beside each revision. The website's container image installs the same tree,
 so a revision a hosted session writes captures the layer the published revisions were
 built from and runs the same runtime. The suite and
-`refresh-previews` serve the site with this checkout's adapter, which refuses pages
+`site previews` serve the site with this checkout's adapter, which refuses pages
 at another page protocol, so they build with the checkout's own Leaf; the suite's
 browser probes also import source modules a compiled kernel no longer has.
 
@@ -35,7 +35,7 @@ own source, and the build refuses a page missing either. The rest of the card co
 `site_metadata` in `leaf_website` (`worker/`). Each page's card image is named in the manifest:
 the demo's `session-card.png` for a product page and the catalog preview for an example.
 
-    uv run leaf-dev site
+    uv run leaf-dev site build
 
 `pnpm run site:dev` builds and then serves the result through `wrangler dev`.
 """
@@ -68,7 +68,7 @@ from leaf.schema import (
 from leaf.structure import FRAME_ANCESTORS_CSP
 from leaf_dev import LEAF_COMMAND, ROOT, docs
 from leaf_dev.arms import environment
-from leaf_dev.commands.distribution import prepare
+from leaf_dev.commands.site.distribution import prepare
 from leaf_dev.docs import catalog_preview, media_url, product_route, product_sources
 from leaf_dev.example_data import catalog_sources, document_metadata, published_sources
 from leaf_dev.leaf_assets import pinned_assets
@@ -91,7 +91,7 @@ OUT = ROOT / ".tmp" / "site"
 BUNDLE_RUNTIME = ROOT / "worker" / "bundle-runtime.mjs"
 
 # The card a link to a product page unfurls into, shot at the 1.91:1 an unfurler draws
-# by `leaf_dev.commands.record_demo`, relative to the asset tree. An example names its own
+# by `leaf_dev.commands.site.demo`, relative to the asset tree. An example names its own
 # catalog preview instead.
 SOCIAL_CARD = "demo/session-card.png"
 
@@ -234,7 +234,7 @@ def install_tree(out: Path) -> Path:
     """The website's sibling installation: a prepared Leaf and `leaf_website` beside it.
 
     The build runs its `leaf`, and the container image and the local adapter
-    (`leaf_dev.commands.verify_site`) install it as the website's server."""
+    (`leaf_dev.commands.site.verify`) install it as the website's server."""
     return out.with_name(f"{out.name}-install")
 
 
@@ -485,7 +485,7 @@ def bundle_published_runtime(out: Path) -> None:
     deduplicate_tree(asset_site(out))
 
 
-@click.command()
+@click.command("build")
 @click.option(
     "--output",
     type=click.Path(path_type=Path),

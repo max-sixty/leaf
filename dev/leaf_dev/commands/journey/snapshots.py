@@ -14,8 +14,8 @@ missing profile fails: browser upgrades require deliberately reviewed captures.
 `leaf-dev setup` warms that pin's cache with the media pin's.
 
     uv run pytest -n0 tests/*/test_render_thread_snapshots.py
-    uv run leaf-dev thread-snapshots capture
-    uv run leaf-dev thread-snapshots accept .tmp/thread-snapshots/captures/<run>
+    uv run leaf-dev journey snapshots capture
+    uv run leaf-dev journey snapshots accept .tmp/thread-snapshots/captures/<run>
 
 Capture runs the same journey and hard delivery assertions, writing all 48 PNG images and
 geometry readings to a new evidence folder. Review its actual images and observations,
@@ -290,7 +290,7 @@ def expected_store() -> Path:
     )
 
 
-@click.group()
+@click.group("snapshots")
 def thread_snapshots():
     """Capture, review and publish current Leaf's thread appearance."""
 
@@ -338,7 +338,7 @@ def capture():
         + "\n"
     )
     click.echo(
-        f"Review captures: {directory}\nAccept: uv run leaf-dev thread-snapshots accept {directory}"
+        f"Review captures: {directory}\nAccept: uv run leaf-dev journey snapshots accept {directory}"
     )
 
 

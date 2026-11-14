@@ -6,7 +6,7 @@ describes, so a theme change regenerates them rather than leaving them stale. Th
 four files are published under `demo/` in max-sixty/leaf-assets
 (`leaf_dev.leaf_assets`), which moves Leaf's pin and the README's image URLs.
 
-    uv run leaf-dev record-demo [--output DIR]
+    uv run leaf-dev site demo [--output DIR]
 
 `--output` writes the four files into DIR instead of publishing them.
 """
@@ -504,7 +504,7 @@ def demo_session(scratch: Path):
         os.environ.update(previous)
 
 
-@click.command()
+@click.command("demo")
 @click.option(
     "--output",
     type=click.Path(file_okay=False, path_type=Path),

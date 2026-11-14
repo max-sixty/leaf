@@ -169,7 +169,7 @@ def task_title(columns: dict) -> str:
 
 
 def run_names(sample: dict) -> str:
-    """The runs that hold a sample, by the directory names `eval-report` was given."""
+    """The runs that hold a sample, by the directory names `eval report` was given."""
     return " · ".join(run.name for run in sample["runs"])
 
 
@@ -1188,7 +1188,7 @@ def by_column(verdict: dict | None, columns: dict[str, str]) -> dict | None:
 
 
 def pair_records(runs: tuple[Path, ...]) -> list[tuple[Path, dict]]:
-    """Each saved pair's two presentation-order judgments from `eval --judge pair`
+    """Each saved pair's two presentation-order judgments from `eval run --judge pair`
     runs, with the results file holding them, once per Promptfoo repetition. A
     winner counts only where both completed orders name it."""
     pairs: dict[tuple, dict] = {}
@@ -1530,7 +1530,7 @@ def resolved(page: Path, review: str, samples: dict, output_url: str | None) -> 
     return review
 
 
-@click.command()
+@click.command("report")
 @click.argument("page", type=click.Path(file_okay=False, path_type=Path))
 @click.argument(
     "runs",
@@ -1552,7 +1552,7 @@ def eval_report(
     """Write PAGE, a Leaf page of the authored-task samples in RUNS.
 
     RUNS are run directories, such as those under `.tmp/eval/`, including any
-    `eval --from` runs that judged their samples. PAGE is created when absent, and its
+    `eval run --from` runs that judged their samples. PAGE is created when absent, and its
     `index.html` is rewritten otherwise. Serve it with `leaf server start PAGE`.
     Serve PAGE/evidence with a static server and pass its URL as --output-url
     to open saved pages and raw evidence from the report. Without that URL the

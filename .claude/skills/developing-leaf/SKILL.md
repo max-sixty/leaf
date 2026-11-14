@@ -227,7 +227,7 @@ Where no state reaches a surface the change touches, add one to `STATES`
 never one per scheme, size or pointer, which a run chooses with `--scheme`,
 `--viewport` and `--touch` (the `states.py` header says when a state keeps its own).
 
-For a change to thread-card placement, also run `uv run leaf-dev placements --base`,
+For a change to thread-card placement, also run `uv run leaf-dev placement cards --base`,
 a gallery of cards across subjects, messages, routes and windows, and add a case to its
 `CASES` for each new shape a reader meets.
 
@@ -276,7 +276,7 @@ Comments inside a live sample stay in that sample.
 
 ## Run the agent journey
 
-`uv run --project <root> leaf-dev journey TARGET` runs one user's journey against a
+`uv run --project <root> leaf-dev journey run TARGET` runs one user's journey against a
 real agent and times each step on the page server's clock. Its `--help` lists the
 targets and options, and each target's module header lists its steps and the promises
 it checks. A run spends the target's login. Add `--browser` when what the page shows
@@ -305,24 +305,24 @@ or container failure. Only the `publish-site` workflow's journey against the dep
 release reads production.
 
 To benchmark replies, run each harness's journey a few times, with and without
-`--case working`, and tabulate the samples with `leaf-dev journey-chart --replies`;
-`leaf-dev response-times` measures retained pages and sorts each pickup's wait
+`--case working`, and tabulate the samples with `leaf-dev journey chart --replies`;
+`leaf-dev logs response-times` measures retained pages and sorts each pickup's wait
 by what ended it, which shows the waits only long real sessions have
-(`dev/leaf_dev/commands/response_times.py`). The benchmark is the whole reply's time,
+(`dev/leaf_dev/commands/logs/response_times.py`). The benchmark is the whole reply's time,
 which `dev/leaf_dev/reply_phases.py` attributes to Leaf's delivery, commands and hooks,
 the harness, the model's wait and generation, and the agent's other tools. Model time
 varies widely from run to run, so compare a phase Leaf owns directly, and the whole
 reply over enough runs to see past that spread.
 
 To find out what happened to one message, on a real page or in a journey's evidence
-directory, run `leaf-dev timeline PAGE --message ID`: it lays the page's log and
+directory, run `leaf-dev logs timeline PAGE --message ID`: it lays the page's log and
 diagnostics beside the Claude Code session's transcript and debug log, so it shows
 whether a fork was held, asked and answered, when Leaf handed the message over, and
-what the session was doing meanwhile (`dev/leaf_dev/commands/timeline.py`).
+what the session was doing meanwhile (`dev/leaf_dev/commands/logs/timeline.py`).
 
 ## Compare checkout versions
 
-`uv run leaf-dev compare <example>` serves the merge-base runtime beside this checkout,
+`uv run leaf-dev preview <example> --base` serves the merge-base runtime beside this checkout,
 in the foreground as a preview runs ("Preview a page"); `--help` lists the flags. Keep
 the default shared source for a runtime change, pass `--authored` when the authored
 content changed, and pass `--user` only when the URLs go to the user.
@@ -412,7 +412,7 @@ A rule that fails only late in a long session needs a replay of that session.
 When a change adds or removes an example or changes its first screen, run
 `wt refresh-previews` from the repository root on macOS once the examples are ready,
 and again after merging `main` or any later fix that changes a first screen.
-`uv run leaf-dev record-demo` does the same for the README's recording and the site's
+`uv run leaf-dev site demo` does the same for the README's recording and the site's
 card (`dev/AGENTS.md`, "Commands with consequences outside `.tmp/`"). Run `wt setup` first in a new checkout; if
 Worktrunk asks to approve the project commands, ask the user to run
 `wt config approvals add`.

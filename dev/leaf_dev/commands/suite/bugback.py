@@ -1,6 +1,6 @@
 """Prove the branch's tests catch the bug its change removes.
 
-    uv run leaf-dev bugback NODEID...
+    uv run leaf-dev suite bugback NODEID...
 
 A test earns its place when it fails without the change it pins. This runs the named
 tests on the working tree as it stands, uncommitted edits included, as a control, then

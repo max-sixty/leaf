@@ -15,7 +15,8 @@ from render_harness import (
 )
 
 from leaf_dev import startup
-from leaf_dev.commands import journey, verify_site
+from leaf_dev.commands.journey import run as journey
+from leaf_dev.commands.site import verify as verify_site
 
 
 def shown_by(page, id):

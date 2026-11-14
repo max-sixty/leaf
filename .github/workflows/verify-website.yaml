@@ -15,9 +15,9 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - name: Build website
-        run: uv run leaf-dev site
+        run: uv run leaf-dev site build
       - name: Verify the bundled release locally
-        run: uv run leaf-dev verify-site website-worker
+        run: uv run leaf-dev site verify website-worker
       - name: Upload website verification evidence
         if: always()
         uses: actions/upload-artifact@v7

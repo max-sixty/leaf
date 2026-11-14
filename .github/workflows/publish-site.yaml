@@ -87,7 +87,7 @@ jobs:
         run: |
           release=$(printf '%s:%s:%s' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" | sha256sum | cut -d' ' -f1)
           echo "LEAF_SITE_RELEASE=$release" >> "$GITHUB_ENV"
-          LEAF_SITE_RELEASE="$release" uv run leaf-dev site
+          LEAF_SITE_RELEASE="$release" uv run leaf-dev site build
 
       - name: Check website worker
         run: pnpm run check:worker
@@ -95,7 +95,7 @@ jobs:
       # Exercise the bundled graph through the same Worker and container boundary
       # before a deployment can make it public.
       - name: Verify the bundled release locally in a browser
-        run: uv run leaf-dev verify-site website-worker
+        run: uv run leaf-dev site verify website-worker
 
       - name: Build and push the exact container image
         working-directory: worker
@@ -135,5 +135,5 @@ jobs:
           NODE_OPTIONS: --require=${{ github.workspace }}/dev/leaf_dev/http_transport.cjs
         run: |
           release=$(jq --raw-output .release .tmp/site/_leaf/site.json)
-          uv run leaf-dev verify-site --release "$release" --wait 900
-          uv run leaf-dev journey https://leaf.page --release "$release"
+          uv run leaf-dev site verify --release "$release" --wait 900
+          uv run leaf-dev journey run https://leaf.page --release "$release"

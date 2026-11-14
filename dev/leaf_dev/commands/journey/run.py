@@ -1,7 +1,7 @@
 """One user's journey through a Leaf page, run on any harness, each step timed from
 the page's own record and checked.
 
-    uv run leaf-dev journey TARGET [--browser | --http] [--release RELEASE]
+    uv run leaf-dev journey run TARGET [--browser | --http] [--release RELEASE]
                                    [--sandbox] [--preview] [--forks]
                                    [--case waiting|working]
 
@@ -63,7 +63,7 @@ them (`reading`), the browser alone reloading the page and timing what it shows.
 The timings come from where each step happened. The page server's log records when
 it admitted a comment, recorded its pickup, titled its thread and admitted the
 reply, and its revision files when it published the revision the answer stands on.
-A comment's `milestones` are those `leaf-dev response-times` reads for it
+A comment's `milestones` are those `leaf-dev logs response-times` reads for it
 (`response_times.page_timings`), in seconds from the comment's admission, so every
 target and either end is timed on one clock, the page server's. A website's page
 directory is out of the journey's reach, so there it reads the log the page serves,
@@ -94,7 +94,7 @@ A failure receipt ends the journey on the first ask
 (`worker/README.md` owns that contract).
 
 Each sample is also kept on the machine that ran it (`samples_path`), and
-`leaf-dev journey-chart` draws when each milestone came, from the kept samples of
+`leaf-dev journey chart` draws when each milestone came, from the kept samples of
 the latest version each target ran at each end, as an `lf-chart` element for a
 page.
 """
@@ -135,8 +135,8 @@ from leaf.thread import successful_replies
 from leaf_dev import ROOT
 from leaf_dev.arms import PAYLOAD, PageClient, extract_payload, run_directory, run_leaf
 from leaf_dev.browser import PANEL, WINDOWS, headless_shell
-from leaf_dev.commands.response_times import Records, page_timings
-from leaf_dev.commands.verify_site import (
+from leaf_dev.commands.logs.response_times import Records, page_timings
+from leaf_dev.commands.site.verify import (
     LocalWorker,
     agent_session,
     await_presentation,
@@ -307,7 +307,7 @@ def no_record(milestone: dict) -> None:
 def input_rows(
     page: Path, until: datetime, records: Records = no_record
 ) -> dict[str, dict]:
-    """Each input on `page` as `leaf-dev response-times` reads it
+    """Each input on `page` as `leaf-dev logs response-times` reads it
     (`response_times.page_timings`), by its id, from what the page held before
     `until` on its own clock: its milestones, and its reply's breakdown where
     `records` reads the answering session's record."""
@@ -612,7 +612,7 @@ def open_news(page: Page, thread: str) -> None:
 def shown_reply(page: Page, answer: dict) -> dict | None:
     """When the page first showed the user `answer`, and by which sign, as the page
     itself recorded it however the journey was occupied then
-    (`verify_site_browser.js`), or None where it has not."""
+    (`site/verify_browser.js`), or None where it has not."""
     return page.evaluate(
         "window.__leafVerifier.replyShownAt",
         {"thread": answer["parent"], "id": answer["id"]},
@@ -1642,7 +1642,7 @@ def target_session(
         )
 
 
-@click.command()
+@click.command("run")
 @click.argument("target")
 @click.option(
     "--release",

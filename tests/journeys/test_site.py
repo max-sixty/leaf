@@ -76,7 +76,7 @@ from leaf.revision_artifact import read_artifact
 from leaf.service import acknowledged
 from leaf.structure import SourceDocument
 from leaf_dev.browser import PANEL_THREAD, panel_tab, show_resolved
-from leaf_dev.commands import site as site_build
+from leaf_dev.commands.site import build as site_build
 from leaf_dev.docs import DOCS, product_sources
 from leaf_dev.example_data import (
     WORKED_EXAMPLES,

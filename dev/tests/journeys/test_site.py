@@ -20,7 +20,7 @@ from journeys.test_site import (
 )
 
 from leaf_dev import docs
-from leaf_dev.commands import site as site_build
+from leaf_dev.commands.site import build as site_build
 
 
 def test_a_link_a_host_would_404_stops_the_build(staged_site, hosted, site):

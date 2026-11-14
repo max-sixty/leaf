@@ -60,7 +60,7 @@ record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if
   developer run context. It never enters page state or acknowledgement and is never
   served. `interaction_log.py` owns admission and reading, `browser/runtime/interaction-log.js`
   what a tab sends and sheds, `interaction-batch.schema.json` a browser batch, and
-  `leaf-dev response-times` the timing query over it.
+  `leaf-dev logs response-times` the timing query over it.
 
 - `user-views.json` — replaceable observations of the user's browser views, and when a
   document last showed the page (`user_views.py`). They are context for the author, not

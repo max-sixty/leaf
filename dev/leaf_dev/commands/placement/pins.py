@@ -1,6 +1,6 @@
 """Seat comment pins on a catalogue of targets and show where each one stands.
 
-    uv run leaf-dev pins [--base [REF]]
+    uv run leaf-dev placement pins [--base [REF]]
 
 A case is a small piece of page, ordinary or pathological, with comments anchored in it
 (`CASES`). The catalogue is small, and its cases are the shapes that came to mind for a

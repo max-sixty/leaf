@@ -1,6 +1,6 @@
 """Where the Python suite's time goes: recorded during a run, read back after it.
 
-Loaded as a pytest plugin (`-p leaf_dev.commands.suite_profile`, as CI's `test` job loads it),
+Loaded as a pytest plugin (`-p leaf_dev.commands.suite.profile`, as CI's `test` job loads it),
 it gives every test one junit property, `profile`: JSON holding the seconds each
 phase took (`setup`, `call`, `teardown`), under `cpu` the CPU seconds the worker and
 every process it started used meanwhile, under `cases` the subtests it ran, if any,
@@ -27,7 +27,7 @@ has no cgroups, tests carry no `cpu` and the report ranks by worker time. Summin
 worker's process tree instead lost or recounted a process's CPU whenever it exited,
 since only a parent that reaps a child takes over its CPU.
 
-`leaf-dev suite-profile DIR` reads one run's results from DIR and prints where its
+`leaf-dev suite profile DIR` reads one run's results from DIR and prints where its
 CPU and worker time went: the junit report's phases, CPU, files and Playwright calls; py-spy's
 sampled stacks (`stacks.txt`), for the suite's own Python by function; and `sa`'s
 table of CPU by command (`cpu-by-command.txt`), for the browsers and servers no
@@ -192,7 +192,7 @@ def pytest_runtest_makereport(item, call):
     return report
 
 
-@click.command()
+@click.command("profile")
 @click.argument(
     "directory", type=click.Path(exists=True, file_okay=False, path_type=Path)
 )

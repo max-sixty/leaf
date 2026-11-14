@@ -21,7 +21,7 @@ is not a regression requirement.
 The suite's cost is CPU time, which every run pays and CI bills. Extra workers fill a
 test's waiting only while CPU is spare, so remove a fixed delay rather than relying on
 parallelism. Each CI `test` job's summary says where its CPU and time went, and
-`leaf-dev suite-profile` reads the same from the job's `pytest-results-*`
+`leaf-dev suite profile` reads the same from the job's `pytest-results-*`
 artifact. When a browser test is slow, or fails on timing or geometry outside its
 contract, repair its setup or move its contract to a lower boundary.
 
@@ -68,7 +68,7 @@ runs it (`TIERS` in `conftest.py`):
   sweeps, multi-page journeys and the site build. The daily run and manual dispatch.
 
 A test in `model/` or `process/` takes under three seconds on CI's runner, and one in
-`browser/` under eight (`BUDGETS` in `leaf_dev/commands/suite_profile.py`). Put a new test in
+`browser/` under eight (`BUDGETS` in `leaf_dev/commands/suite/profile.py`). Put a new test in
 the directory of the boundary it crosses, or in `journeys/` when it is over budget or
 needs the external network, which it also marks `network`. To move a test to an earlier
 tier, make it cheaper.
@@ -358,7 +358,7 @@ Control or advance the clock that decides an age, lease, grace period or timer; 
 `Date.now()` doesn't stop timers, animation frames, paint or observer delivery. Bound
 each operation that could hang with a real deadline at least ten times the longest that
 operation takes on CI's runner, where a `test` job's junit results record each test's
-time (`leaf-dev suite-profile`), and on expiry report which completion is still missing.
+time (`leaf-dev suite profile`), and on expiry report which completion is still missing.
 A time limit must never turn unfinished work into a pass. To test a race,
 hold and release the request, callback, frame or lock explicitly, check that the
 outcome holds with completion delayed tenfold, and keep a control that still fails.
@@ -410,7 +410,7 @@ scroll started.
 ## Races
 
 If a race appears only under load, order it with `page.route` rather than repeating the
-test. `leaf-dev flake` reproduces it, prints each failing copy's message, and then
+test. `leaf-dev suite flake` reproduces it, prints each failing copy's message, and then
 confirms the route holds. Register the
 route before the gesture it catches, or through `primed` or `held_events` for the first
 navigation; raw and `browser.unwatched` pages aren't set up for later routes. Where
@@ -420,7 +420,7 @@ browser's record (`opened_tab`).
 A watch finding that CI reports and this machine doesn't is usually a frame that lands
 later on CI's slower runner, after the input window that credits it has closed. Load
 alone rarely shows it; a slower CPU does. `--cpu-throttle RATE`, given to pytest or
-`leaf-dev flake`, slows every Chromium page the `browser` fixture watches. Past findings
+`leaf-dev suite flake`, slows every Chromium page the `browser` fixture watches. Past findings
 reproduced at rates from 6 to 20, and one rate can miss a finding another reproduces,
 so try more than one. Run the merge base under the same rate to learn whether the
 change caused it. A test whose subject is a slow CPU slows its own page

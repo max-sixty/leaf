@@ -19,27 +19,27 @@ None of these is a gate. Read the outputs as well as the pass counts.
 ```bash
 # Timed journeys, one harness at a time; each run adds a sample to journey.jsonl.
 # --case working sends the release ask while the user's own turn runs.
-uv run leaf-dev journey claude-code [--case working]
-uv run leaf-dev journey codex-app-server [--case working]
-uv run leaf-dev journey codex-queue [--case working]
-uv run leaf-dev journey pi [--case working]
-uv run leaf-dev journey website-adapter
-uv run leaf-dev journey-chart
+uv run leaf-dev journey run claude-code [--case working]
+uv run leaf-dev journey run codex-app-server [--case working]
+uv run leaf-dev journey run codex-queue [--case working]
+uv run leaf-dev journey run pi [--case working]
+uv run leaf-dev journey run website-adapter
+uv run leaf-dev journey chart
 # Where each reply's time went, waiting and working, by harness.
-uv run leaf-dev journey-chart --replies [--since ISO]
+uv run leaf-dev journey chart --replies [--since ISO]
 # In-tab feedback.
 uv run leaf-dev bench triage-board corpus --read paint --rounds 3
 # Status evaluations.
-uv run leaf-dev eval plan-shows-multi-step-work plan-skips-quick-work \
+uv run leaf-dev eval run plan-shows-multi-step-work plan-skips-quick-work \
   parent-keeps-leaf-responsive 'parent-keeps-leaf-responsive/known-answer' \
   'parent-keeps-leaf-responsive/no-subagents' --harness claude-code --repeat 3
-uv run leaf-dev eval plan-shows-multi-step-work parent-keeps-leaf-responsive \
+uv run leaf-dev eval run plan-shows-multi-step-work parent-keeps-leaf-responsive \
   --harness codex --repeat 2
-uv run leaf-dev eval 'document/idle' 'document/mid-turn' \
+uv run leaf-dev eval run 'document/idle' 'document/mid-turn' \
   --harness claude-code --repeat 2 -j 1
-uv run leaf-dev eval 'parent-keeps-leaf-responsive/during-work' \
+uv run leaf-dev eval run 'parent-keeps-leaf-responsive/during-work' \
   --harness claude-code -j 1
-uv run leaf-dev eval website-replies 'website-replies/follow-up' \
+uv run leaf-dev eval run website-replies 'website-replies/follow-up' \
   --harness codex --repeat 2 -j 1
 ```
 
@@ -54,7 +54,7 @@ the newer queued count while the observer can still prove the delegate is live.
 
 Read deterministic sequence and state at their owners: projection tests for
 sent/queued/opened/active/stale/settled evidence; real gestures for local results;
-agent traces for claim ordering. `leaf-dev journey` is the vertical test: it times a
+agent traces for claim ordering. `leaf-dev journey run` is the vertical test: it times a
 real request on any harness from the page's own log, and on each harness target also
 times the comments of its later steps and attributes each reply's time to Leaf, the
 harness and the model (`dev/leaf_dev/reply_phases.py`). Each run
@@ -205,7 +205,7 @@ Each harness's record gives a different part of that exactly:
 | Pi               | The first stream event of each response and its output tokens, heard on Pi's stdout.                                                                                | No request time: Pi's dispatch, and the prompt hook Leaf's extension runs at each turn boundary, fall in the wait. Reasoning is hidden.    |
 | Codex App Server | Each tool item, each response's token usage, and each of Leaf's hooks with its duration.                                                                            | No request or stream start, and reasoning is hidden, so the model's time is unsplit; it includes the wait, the reasoning and the dispatch. |
 
-`uv run leaf-dev journey-chart --replies --since 2026-10-22T13:43-07:00` tabulates
+`uv run leaf-dev journey chart --replies --since 2026-10-22T13:43-07:00` tabulates
 the batch: three journeys per harness and case on this Mac between 13:43 and 14:12 PT
 on 2026-10-22, at `cef6a5bc2` with this note's change, the comments posted over HTTP
 and the load average between 21 and 29 on 18 cores. Each column's parts add up to its
@@ -344,7 +344,7 @@ process: an earlier batch at a load average near 27 read 1.0–3.7 s.
   session, where rewording rarely helps. The delivery at the next tool boundary
   could say how long its input waited for the call that just ended, while that
   call is in view. It needs its precision and recall measured on real sessions
-  first (`leaf-dev response-times`).
+  first (`leaf-dev logs response-times`).
 - **Cheap claims:** test a typed harness operation against the CLI path before adding
   another interface. The [Codex brief](codex-integration.md#typed-operations) owns
   that experiment.

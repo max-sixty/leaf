@@ -17,7 +17,7 @@ from leaf_dev.arms import environment
 @pytest.mark.parametrize(
     ("user", "harness"), [(False, "claude-code"), (True, "claude-code"), (True, None)]
 )
-def test_compare_follows_shared_source_and_stops_both_arms(
+def test_preview_base_follows_shared_source_and_stops_both_arms(
     tmp_path, spawn, user, harness
 ):
     source = tmp_path / "comparison.html"
@@ -39,11 +39,11 @@ def test_compare_follows_shared_source_and_stops_both_arms(
             [
                 sys.executable,
                 "-m",
-                "leaf_dev.commands.compare",
-                "--base",
-                "HEAD",
+                "leaf_dev.commands.preview",
                 "--source",
                 str(source),
+                "--base",
+                "HEAD",
                 *(["--user"] if user else []),
             ],
             stdout=stream,

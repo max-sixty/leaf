@@ -6,7 +6,7 @@
 # is the correction the paragraph is for; `promised-result` and `delivered-update`
 # are the two cases it keeps as new replies. Scores threads.md, "Progress messages",
 # its paragraph on correcting a message.
-# Not yet run through `leaf-dev eval`: the CI session that added it couldn't sign in
+# Not yet run through `leaf-dev eval run`: the CI session that added it couldn't sign in
 # a nested Claude Code. Fresh Opus 5.5 subagents given these prompts and only base's
 # or head's `skills/leaf`, graded by hand against these rubrics: the default context
 # base 0/3 (each posted a new reply, two also editing) and head 3/3; the other two

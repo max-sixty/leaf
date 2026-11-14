@@ -10,8 +10,8 @@ import pytest
 from playwright.sync_api import Error, sync_playwright
 
 from leaf_dev import ROOT
-from leaf_dev.commands import verify_site
-from leaf_dev.commands.verify_site import read_state
+from leaf_dev.commands.site import verify as verify_site
+from leaf_dev.commands.site.verify import read_state
 
 
 @pytest.mark.parametrize("failure", ["single_reset", "repeated_reset", "http500"])

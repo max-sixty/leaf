@@ -208,7 +208,7 @@ wrote a median 283 output tokens in 5.6 s, against 1,140 in 11.5 s at xhigh. The
 fork runs off the turn's path, but the sooner it answers, the less often a turn
 opened meanwhile drops its asks (`basis`).
 
-`leaf-dev eval 'turn-end-check*' --harness claude-code --base` scores a change to
+`leaf-dev eval run 'turn-end-check*' --harness claude-code --base` scores a change to
 what the fork is asked, how hard it thinks or how Leaf takes its answer, on a short
 constructed
 conversation for each decision the prompt asks about (`dev/leaf_dev/fork_eval.py`).

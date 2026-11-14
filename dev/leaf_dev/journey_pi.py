@@ -1,7 +1,7 @@
 """The `pi` journey: a real Pi session with Leaf's extension, and the steps a user
 takes at its terminal.
 
-    uv run leaf-dev journey pi
+    uv run leaf-dev journey run pi
 
 The suite drives Leaf's Pi extension (`hooks/pi.ts`) with a stand-in for Pi
 (`tests/pi_driver.mjs`); this drives it with Pi itself, the version the root
@@ -45,7 +45,7 @@ import click
 
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS, environment, now, pi_home
-from leaf_dev.commands.journey import (
+from leaf_dev.commands.journey.run import (
     STEP_LIMIT,
     Isolation,
     Terminal,

@@ -13,7 +13,7 @@ from leaf_dev.leaf_assets import clone, publish
 from leaf_dev.page_fixtures import DEFAULT_PACKAGES
 
 
-@click.command()
+@click.command("media")
 @click.argument(
     "files", nargs=-1, required=True, type=click.Path(exists=True, dir_okay=False)
 )

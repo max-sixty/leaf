@@ -21,11 +21,17 @@ When agents keep writing the same throwaway script, make it a command: a module 
 `leaf_dev/commands/` named after it (`journey_chart.py` for `leaf-dev journey-chart`),
 which the CLI finds by name. Tooling that CI, a hook or an alias runs is a command too,
 so the repository has no directory of loose scripts. Code two tools need lives in one
-module
-here that the others import, never through `sys.path`, `PYTHONPATH` or a file path.
-Before writing a mechanism, read the headers of the modules beside `cli.py`: `arms.py`
-builds arms and isolated harness sessions, `page_fixtures.py` page directories, and
-`browser.py` the browser every command drives. What a page or an input costs is
+module here that the others import, never through `sys.path`, `PYTHONPATH` or a file
+path. A mechanism only one tool uses stays in that tool's file, and a command is named
+for what it examines rather than for the mechanisms inside it, so the code a new tool
+needs may sit in a command whose name doesn't suggest it. Before writing a mechanism,
+or turning a script of your own into a command, search `dev/`, `evals/` and `src/leaf/`
+for code that already does the job, by the calls it has to make (the widget whose markup it writes,
+the library it draws or measures with) rather than by name, as `/developing-leaf`'s
+**What it repeats** says. Move what you find into a module here that both tools
+import. The modules beside `cli.py` hold what several tools share already, such as
+the arms and harness sessions in `arms.py`, page directories in `page_fixtures.py`
+and the browser in `browser.py`. What a page or an input costs is
 measured by `leaf-dev bench`, so a new page, input or reading belongs in
 `commands/bench.py` (`COLLECTIONS`, `INPUTS`), whose header names what it reads.
 

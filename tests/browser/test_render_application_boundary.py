@@ -1972,9 +1972,17 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     assert first.evaluate("node => node.updates") > first_before
     assert removed.evaluate("node => node.updates") == stopped_at
 
-    thread_id = first.evaluate(
-        "node => node.collection.threads.find(thread => thread.root.body.text.trim() === 'Delta').id"
-    )
+    # The widget draws the thread under its pending id first; the server's reading,
+    # adopted after the send's answer, gives it the id the panel's view names.
+    thread_id = page.wait_for_function(
+        """node => {
+          const id = node.collection.threads.find(
+            (thread) => thread.root.body.text.trim() === 'Delta'
+          )?.id;
+          return id && !id.startsWith('pending:') ? id : null;
+        }""",
+        arg=first.element_handle(),
+    ).json_value()
     # The widget's route through core opens the thread's view in the panel.
     first.locator("button", has_text="Delta").click()
     expect(

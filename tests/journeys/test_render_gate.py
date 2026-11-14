@@ -1394,7 +1394,7 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
     Words no mark can be shown on: an element with `display: contents` generates no
     box, and the runtime hangs a mark on the boxes it shows through instead. `#veiled`
     has one; `#ghost` has none, which reached a user as `d` appearing to do nothing.
-    TINY_BOXES cannot take this reading, since checkVisibility() is false for an
+    `tinyBoxes` cannot take this reading, since checkVisibility() is false for an
     element with no box.
 
     A scrolled box, which the runtime scrolls to bring an anchor into view, is read

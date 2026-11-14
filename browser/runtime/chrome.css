@@ -969,8 +969,9 @@ html[data-lf-region-capture]
     transform: translate(-50%, -50%);
   }
   /* The Target picker and Go-to sequence both give visible targets generated, prefix-free
-     names while their interaction stands. Every hint remains visible: the face is
-     the route itself, not a reminder of a predictable ordinal. */
+     names while their interaction stands. The face is the route itself, not a reminder
+     of a predictable ordinal, so it stands only where it reads as its own target's
+     (hints.js, `seatHints`). */
   :is(.lf-target-picker-hints, .lf-go-to-hints) .lf-key-hint {
     min-width: 0;
     height: auto;

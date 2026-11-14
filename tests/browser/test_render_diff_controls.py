@@ -1437,6 +1437,49 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
     expect(search).to_have_value("")
 
 
+def test_file_tree_keeps_the_folders_the_reader_closed_when_its_paths_change(
+    browser, serve
+):
+    """A folder the reader closed stays closed when the file list gains a path, and
+    a folder the update adds opens as every folder does at first."""
+    url = serve(
+        leaf_page(
+            "Explore project files",
+            '<lf-file-tree id="project-files" source="project"></lf-file-tree>',
+        ),
+        packages=("file-tree",),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "project",
+        {"files": [{"path": "src/main.py"}, {"path": "tests/test_main.py"}]},
+    )
+    page = open_page(browser, url)
+    tree = page.locator("#project-files")
+    src = tree.get_by_role("treeitem", name="src", exact=True)
+    expect(src).to_have_attribute("aria-expanded", "true")
+    src.click()
+    expect(src).to_have_attribute("aria-expanded", "false")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "project",
+        {
+            "files": [
+                {"path": "docs/guide.md"},
+                {"path": "src/main.py"},
+                {"path": "src/util.py"},
+                {"path": "tests/test_main.py"},
+            ]
+        },
+    )
+    docs = tree.get_by_role("treeitem", name="docs", exact=True)
+    expect(docs).to_have_attribute("aria-expanded", "true")
+    expect(src).to_have_attribute("aria-expanded", "false")
+    expect(tree.get_by_role("treeitem", name="tests", exact=True)).to_have_attribute(
+        "aria-expanded", "true"
+    )
+
+
 @pytest.mark.shifts_unsurveyed  # The test explicitly scrubs native CSS transitions.
 @pytest.mark.parametrize("kind", ["call", "file"])
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

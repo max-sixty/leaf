@@ -59,7 +59,7 @@ assert:
     metric: shared-control-face
     value: |
       Pass only if page-local case and inspection controls wear a deliberate face:
-      Leaf's shared control classes (.field on a native select or text field,
-      .button on native buttons, .choice on a radio or checkbox label), or page CSS
+      Leaf's shared control classes (.lf-field on a native select or text field,
+      .lf-btn on native buttons, .lf-choice on a radio or checkbox label), or page CSS
       that styles them for the page's design from the theme's tokens. Fail if native
       controls are left with the browser's default face beside Leaf's themed ones.

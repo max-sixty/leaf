@@ -475,8 +475,7 @@ and a comment's quote doesn't run across them into the author's words. Don't wri
 `data-lf-gen`, `data-lf-said` or `data-lf-echo` attributes yourself.
 
 A module writes `data-lf-room` where a page writes `data-room` (`page-layout.md`,
-"Space for changing text"), and `lf-choice` where it writes `choice`, so the page's
-CSS for them reaches only its own controls.
+"Space for changing text"), so the page's CSS for it reaches only its own controls.
 
 A widget can upgrade inside a shut panel where every box measures zero, so take
 measurements inside `measure(element, take)`, which runs `take` once the element has a

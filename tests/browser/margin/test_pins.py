@@ -857,7 +857,7 @@ def test_a_pin_by_a_card_full_of_controls_stands_on_it_clear_of_them(browser, se
         f'<section id="card{i}" style="border:1px solid var(--rule);'
         'background:var(--card);margin:0;height:44px">'
         '<div style="background:var(--chip);height:44px">'
-        f'<button id="action{i}" class="button" style="float:right" '
+        f'<button id="action{i}" class="lf-btn" style="float:right" '
         "onclick=\"this.textContent='Opened'\">Action</button></div></section>"
         for i in range(12)
     )

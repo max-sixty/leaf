@@ -1404,7 +1404,8 @@ def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve
 
 
 def test_hidden_code_arrivals_do_not_read_skipped_blocks(browser, serve):
-    """Arriving code must leave the browser's skipped subtrees unmeasured."""
+    """Arriving code must leave the browser's skipped subtrees unmeasured. A block
+    revealed later gets its copy control, names its Copy key and copies on Enter."""
     page = open_page(
         browser,
         serve(leaf_page("Hidden arrivals", '<h1>Arrivals</h1><div id="slots"></div>')),
@@ -1432,6 +1433,10 @@ def test_hidden_code_arrivals_do_not_read_skipped_blocks(browser, serve):
     expect(page.locator(".lf-code-copy")).to_have_count(1)
     page.locator("#slots summary").click()
     expect(page.locator(".lf-code-copy")).to_have_count(2)
+    # The revealed block names its Copy key once its control has drawn its button.
+    expect(page.locator("#slots details pre")).to_have_attribute(
+        "aria-keyshortcuts", re.compile(r"\bEnter\b")
+    )
     page.keyboard.press("Tab")
     expect(page.locator("#slots details pre")).to_be_focused()
     page.keyboard.press("Enter")
@@ -6514,6 +6519,158 @@ def test_a_search_match_whose_end_shows_is_brought_to_its_start(engine, request,
         }"""
     )
     assert 0 <= start["top"] and start["bottom"] <= 600, start
+
+
+# A page of four documents in tabs, the first open, each holding "needle" once.
+def _needles_in_tabs(serve):
+    tabs = "".join(
+        f'<lf-tab id="t{i}" label="Doc {i}">'
+        f'<lf-text-document id="d{i}" label="doc-{i}.md">'
+        f"<pre>A line before.\nneedle {i}\nA line after.\n</pre></lf-text-document></lf-tab>"
+        for i in range(4)
+    )
+    return serve(
+        leaf_page("Closed tabs", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
+    )
+
+
+# The page's clock run fast, so each slice of a page search takes one step.
+FAST_CLOCK = """() => {
+  const now = performance.now.bind(performance);
+  let ahead = 0;
+  performance.now = () => now() + (ahead += 20);
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_walk_through_search_matches_in_closed_tabs_reaches_each_in_turn(
+    engine, request, serve
+):
+    """Tab walks a search's matches in order across documents in closed tabs. Bringing a
+    match into sight opens its tab, which changes the page, so the next step searches
+    again; it stands where it stood before stepping, however few matches each of the
+    search's slices takes (`FAST_CLOCK`)."""
+    page = open_page(request.getfixturevalue(engine), _needles_in_tabs(serve))
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("needle")
+    status = page.locator(".lf-page-search-status")
+    expect(status).to_have_text("1 of 4")
+    page.evaluate(FAST_CLOCK)
+    for key, position in (("Tab", 2), ("Tab", 3), ("Tab", 4), ("Shift+Tab", 3)):
+        page.keyboard.press(key)
+        expect(status).to_have_text(re.compile(rf"^{position} of "))
+        expect(page.get_by_role("tab", name=f"Doc {position - 1}")).to_have_attribute(
+            "aria-selected", "true"
+        )
+    # Enter selects the match, and `n` goes on from it.
+    selected = (
+        "(id) => getSelection().anchorNode?.parentElement?.closest('lf-text-document')"
+        "?.id === id && String(getSelection()) === 'needle'"
+    )
+    page.keyboard.press("Enter")
+    page.wait_for_function(selected, arg="d2")
+    page.keyboard.press("n")
+    page.wait_for_function(selected, arg="d3")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_step_back_past_the_first_search_match_stays_while_the_search_runs(
+    engine, request, serve
+):
+    """While a page search still runs, Shift+Tab from its first match would come round to
+    a last match the search hasn't found; it stays and says the search is still running,
+    rather than holding the page until the search ends, and Tab still goes on to the
+    next. Each slice takes one step (`FAST_CLOCK`), and the page's zero-delay timers are
+    held, so the search stands unfinished until they run."""
+    page = open_page(request.getfixturevalue(engine), _needles_in_tabs(serve))
+    page.keyboard.press("/")
+    page.evaluate(FAST_CLOCK)
+    page.evaluate(
+        """() => {
+          const run = (window.__run = window.setTimeout);
+          window.__held = [];
+          window.setTimeout = (f, ms, ...rest) =>
+            ms ? run(f, ms, ...rest) : (window.__held.push(() => f(...rest)), 0);
+        }"""
+    )
+    page.get_by_role("searchbox", name="Search page text").fill("needle")
+    status = page.locator(".lf-page-search-status")
+    # Run the held slices until the search lands on the first match.
+    page.evaluate(
+        """() => {
+          const status = document.querySelector(".lf-page-search-status");
+          while (!/ of /.test(status.textContent) && window.__held.length)
+            window.__held.shift()();
+        }"""
+    )
+    expect(status).to_have_text("1 of 1")
+    page.keyboard.press("Shift+Tab")
+    expect(status).to_have_text("1 of 1")
+    expect(page.locator(".lf-live")).to_have_text("Searching")
+    expect(page.get_by_role("tab", name="Doc 0")).to_have_attribute(
+        "aria-selected", "true"
+    )
+    page.keyboard.press("Tab")
+    expect(status).to_have_text("2 of 2")
+    page.evaluate(
+        """() => {
+          window.setTimeout = window.__run;
+          for (const run of window.__held.splice(0)) run();
+        }"""
+    )
+    expect(status).to_have_text("2 of 4")
+
+
+def test_a_step_back_after_the_page_changed_keeps_the_match_it_stood_on(browser, serve):
+    """After Enter closes the search and the page changes, Shift+n searches again from
+    the match it selected. While that search still runs, a step back from the first
+    match stays and says "Searching", and the search's first slice landing on the first
+    match in the window moves nothing: once the search ends, Shift+n comes round from
+    the first match to the last. The page's zero-delay timers are held so the search
+    stands unfinished, and its first slice takes a dozen steps (`__steps`)."""
+    lines = "\n".join(f"Line {n}." for n in range(60))
+    documents = "".join(
+        f'<lf-text-document id="d{i}" label="doc-{i}.md">'
+        f"<pre>needle {i}\n{lines}\n</pre></lf-text-document>"
+        for i in range(10)
+    )
+    page = open_page(browser, serve(leaf_page("Documents", documents)))
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("needle")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 10")
+    page.keyboard.press("Enter")
+    selected = (
+        "(id) => getSelection().anchorNode?.parentElement?.closest('lf-text-document')"
+        "?.id === id && String(getSelection()) === 'needle'"
+    )
+    page.wait_for_function(selected, arg="d0")
+    page.evaluate(
+        """() => {
+          document.getElementById("d1").scrollIntoView({ block: "start" });
+          const now = performance.now.bind(performance);
+          performance.now = () =>
+            window.__steps === undefined || window.__steps-- > 0 ? now() : now() + 1e9;
+          const run = (window.__run = window.setTimeout);
+          window.__held = [];
+          window.setTimeout = (f, ms, ...rest) =>
+            ms ? run(f, ms, ...rest) : (window.__held.push(() => f(...rest)), 0);
+          const note = document.createElement("p");
+          note.textContent = "A paragraph the agent added.";
+          document.querySelector("main").append(note);
+          window.__steps = 12;
+        }"""
+    )
+    page.keyboard.press("Shift+n")
+    expect(page.locator(".lf-live")).to_have_text("Searching")
+    page.evaluate(
+        """() => {
+          window.setTimeout = window.__run;
+          delete window.__steps;
+          for (const run of window.__held.splice(0)) run();
+        }"""
+    )
+    page.keyboard.press("Shift+n")
+    page.wait_for_function(selected, arg="d9")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

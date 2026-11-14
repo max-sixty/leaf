@@ -100,7 +100,7 @@ Save the page as `.tmp/bound.html`:
           <summary id="fold">A summary</summary>
           <p>Inside.</p>
         </details>
-        <p><input id="native" class="field" aria-label="A field" /></p>
+        <p><input id="native" class="lf-field" aria-label="A field" /></p>
         <lf-diff id="patch">
           <pre>
 diff --git a/one.py b/one.py

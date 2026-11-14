@@ -11,7 +11,11 @@
  * Written once, because it is one claim about the page and two copies of it are two
  * things to keep level. Every probe that crosses a shadow boundary imports it rather
  * than restating it, for the same reason UNMARKABLE_ITEMS imports its two readings
- * from the runtime: what one probe walks and what another walks cannot come apart. */
+ * from the runtime: what one probe walks and what another walks cannot come apart. A
+ * reading of the page as the user sees it walks `drawnPage` instead, which passes over
+ * what the browser skips. */
+import { drawnElements, pageDocument } from "/runtime/check-api.js";
+
 /** @template {Document | ShadowRoot | Element} Root
  * @param {Root} root @returns {(Root | ShadowRoot)[]} */
 export const openRoots = (root) => [
@@ -21,3 +25,10 @@ export const openRoots = (root) => [
     el.shadowRoot ? openRoots(el.shadowRoot) : [],
   ),
 ];
+
+// What the browser draws of the page (`drawnElements` in runtime/shadow-tree.js). Two
+// readings can share one walk, as each reading of the view and each geometry sample do.
+export const drawnPage = () => {
+  const page = pageDocument();
+  return page ? drawnElements(page) : [];
+};

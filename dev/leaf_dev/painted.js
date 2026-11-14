@@ -4,24 +4,24 @@
  * Installed before each document. The goals stay in sessionStorage so a revision
  * that reloads the page is sampled by the document that replaces it. Sampling
  * records the first painted frame that meets each goal, read as the frame renders
- * and recorded once it has painted; the trips the runtime's ledger counted from
- * arming through settlement; and, where `main_thread.js` is installed too, the long
- * animation frames this document ran since arming, with the scripts that ran in
- * each. The input a gesture's time counts from is its last Enter or pointer click.
- * Python drives the gestures and agent writes in the top tab, and reads the requests
- * from the browser. Embedded examples have their own semantic document and share no
- * measurement.
+ * and timed as it is laid out, just before its paint; the trips the runtime's
+ * ledger counted from arming through settlement; and, where `main_thread.js` is
+ * installed too, the long animation frames this document ran since arming, with the
+ * scripts that ran in each. The input a gesture's time counts from is its last Enter
+ * or pointer click. Python drives the gestures and agent writes in the top tab, and
+ * reads the requests from the browser. Embedded examples have their own semantic
+ * document and share no measurement.
  *
  * A goal is read in the probe's animation callback, before the frame's later
  * callbacks, their microtasks and ResizeObserver delivery, so a goal that those make
- * true counts at the next frame: each time is an upper bound, at most a frame above
- * the paint that first showed its goal. That holds only for a goal that stays met
+ * true counts at the next frame: each time is at most a frame above the moment the
+ * frame that first showed it was laid out. That holds only for a goal that stays met
  * once met, since a later callback in the same frame could otherwise undo it after it
- * was read. `message`, `card` and `delivered`'s event stay once there, and
- * `delivered` and `revision` also ask that presentation has finished, which a later
- * reading can only delay. `status` stays only while nothing else sets the page's
- * status, as in bench's runs. `met` reads one goal's fact once, without sampling,
- * for a reader that only waits for the result.
+ * was read. `message`, `card`, `composer` and `delivered`'s event stay once there,
+ * and `delivered` and `revision` also ask that presentation has finished, which a
+ * later reading can only delay. `status` stays only while nothing else sets the
+ * page's status, as in bench's runs. `met` reads one goal's fact once, without
+ * sampling, for a reader that only waits for the result.
  */
 (() => {
   if (window !== window.top || location.protocol === "about:") return;
@@ -75,6 +75,13 @@
       semantic
         .readApplication()
         .authoritative?.events.some((event) => event.attempt === attempt),
+    // The comment box open in `host`'s shadow tree with the caret in it, as once a
+    // diff line's comment control opens it.
+    composer: (host) => {
+      const root = document.getElementById(host)?.shadowRoot;
+      const bar = root?.querySelector(".lf-fab-bar");
+      return shown(bar) && bar.contains(root.activeElement);
+    },
     card: ({ card, to }) => {
       const node = document.getElementById(card);
       return (
@@ -122,18 +129,32 @@
             )
             .map((goal) => goal.name),
         );
+        // When this frame is laid out, ready to paint: a size observation made now is
+        // delivered in this frame, after every animation callback and its layout. The
+        // first task after the frame comes later than its paint by whatever tasks were
+        // queued before it, such as the server's answer that arrived during a long
+        // input, which would count that answer's work as the input's paint.
+        let laidOut = null;
+        // Where a trace of the page finds this frame (`bench --profile`).
+        const mark = () => {
+          for (const name of painting) performance.mark(`lf-bench:${name}`);
+          return clock();
+        };
+        if (painting.size) {
+          const observer = new ResizeObserver(() => {
+            observer.disconnect();
+            laidOut = mark();
+          });
+          observer.observe(document.documentElement);
+        }
         const channel = new MessageChannel();
         // The first task after the frame, once it has painted.
         channel.port1.onmessage = () => {
           const watch = watched();
           if (!watch) return (sampling = false);
-          const at = clock();
-          for (const goal of watch.goals) {
-            if (goal.at !== null || !painting.has(goal.name)) continue;
-            goal.at = at;
-            // Where a trace of the page finds this frame (`bench --profile`).
-            performance.mark(`lf-bench:${goal.name}`);
-          }
+          const at = laidOut ?? (painting.size ? mark() : clock());
+          for (const goal of watch.goals)
+            if (goal.at === null && painting.has(goal.name)) goal.at = at;
           sessionStorage.setItem(WATCH, JSON.stringify(watch));
           if (watch.goals.some((goal) => goal.at === null)) frame();
           else sampling = false;

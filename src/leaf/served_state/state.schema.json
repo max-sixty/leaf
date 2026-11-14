@@ -121,7 +121,7 @@
           }
         },
         "revision_labels": {
-          "description": "Each revision's public name, `vN` or a draft's, by revision number (`files.revision_label`).",
+          "description": "Each revision's public name, `vN` or a draft's, by revision number (`files.revision_labels`).",
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
@@ -401,7 +401,7 @@
         },
         "url": { "description": "The revision's address.", "type": "string" },
         "label": {
-          "description": "Its public name, `vN` or a draft's (`files.revision_label`).",
+          "description": "Its public name, `vN` or a draft's (`files.revision_labels`).",
           "type": "string"
         },
         "executable": {

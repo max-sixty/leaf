@@ -37,7 +37,7 @@ export {
   stackLevel,
   shownParts,
 } from "./geometry.js";
-export { skipped } from "./shadow-tree.js";
+export { drawnElements, skipped } from "./shadow-tree.js";
 export { windowHoldsRail } from "./content-layout.js";
 export { renderedParent, uiInside, upFrom } from "./shadow.js";
 export { authoredBody } from "./widget-elements.js";
@@ -68,7 +68,7 @@ export {
   textNodesUnder,
 } from "./passages.js";
 export { shallowSigs } from "./projection/presentation.js";
-export { commandDeclarationsWithin } from "./keyboard/scopes.js";
+export { commandDeclarationsWithin, paintKeys } from "./keyboard/scopes.js";
 export {
   commandRoutes,
   allBindings,

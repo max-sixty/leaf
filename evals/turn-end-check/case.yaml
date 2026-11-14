@@ -19,7 +19,11 @@ variants:
   ask-step:
     metadata:
       scenario: ask-step
-      purpose: A command the agent asked the user to run goes On Me as a step.
+      purpose: A command the agent asked the user to run goes On Me as a step, in a new thread beside a closed ask on another subject.
+  ask-follow-up:
+    metadata:
+      scenario: ask-follow-up
+      purpose: A step the agent asks again after the user closed its thread goes in that thread.
   ask-step-done:
     metadata:
       scenario: ask-step-done

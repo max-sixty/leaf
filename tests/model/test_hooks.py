@@ -1930,15 +1930,12 @@ def test_a_prompt_reminds_of_debt_on_a_page_its_leaf_cannot_write(claimed, capsy
 
 
 def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_input(
-    claimed, capsys, monkeypatch
+    claimed, capsys
 ):
     """A plugin update that bumps the page protocol leaves the session's page on the
     older Leaf's layer. The first prompt under the new Leaf re-vendors it, keeping its
     log, and hands over the input waiting there, so the user's comment reaches the
-    turn with nothing asked of the agent first. The re-vendor runs inside the hook's
-    time, which a loaded host can stretch past CONFIRM_WITHIN; that bound has its
-    own tests."""
-    monkeypatch.setattr(hook_transport_model, "CONFIRM_WITHIN", 600.0)
+    turn with nothing asked of the agent first."""
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
     )

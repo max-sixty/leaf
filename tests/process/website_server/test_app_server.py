@@ -435,7 +435,9 @@ address = sys.argv[sys.argv.index("--listen") + 1].removeprefix("unix://")
 listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 listener.bind(address)
 listener.listen()
-Path({str(listening)!r}).write_text(str(os.getpid()))
+written = Path({str(listening)!r} + ".partial")
+written.write_text(str(os.getpid()))
+written.rename({str(listening)!r})
 while True:
     time.sleep(3600)
 """

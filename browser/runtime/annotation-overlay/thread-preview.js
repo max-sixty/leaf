@@ -119,7 +119,7 @@ import {
 } from "../scrolling.js";
 import { signal } from "/runtime/framework.js";
 import { tick } from "../version-signal.js";
-import { cancelRender, nextRender } from "../rendering.js";
+import { afterScript, cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
 import { THREAD_CARD } from "./margin-layout.js";
@@ -185,7 +185,7 @@ import { keepThreadLanding, showReturnTurn } from "../thread/reply-landing.js";
  * focusPending: {holding: Element | null} | null, withheldFocus: ReturnType<typeof holdFocus>,
  * transcript: HTMLElement | null, settled: (() => void) | null, answering: (() => boolean) | null,
  * placesEnd: ((before: import("../scrolling.js").BoxExtent) => boolean) | null,
- * stopRegion: (() => void) | null, end: import("../scrolling.js").EndKeeper | null, side: ReturnType<typeof commentPlacement>,
+ * gutter: (() => void) | null, stopRegion: (() => void) | null, stopDraw: (() => void) | null, end: import("../scrolling.js").EndKeeper | null, side: ReturnType<typeof commentPlacement>,
  * reading: {input: number, scroll: number} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, scroller: Element, followed: boolean}} Session
  * @typedef {{latest: boolean, scroll: number, keepTop: boolean, transcript: HTMLElement}} Reading
  */
@@ -201,7 +201,7 @@ const CUT_EDGES = [
 ];
 
 /** @param {{inventory: ReturnType<typeof import("../annotation-inventory.js").createAnnotationInventory>,
- * renderMarginThread: (host: HTMLElement, thread: ThreadRecord, outlets: import("../thread/thread-card.js").ViewOutlets) => ReturnType<typeof import("../thread/inline.js").renderMarginThread>,
+ * renderMarginThread: (host: HTMLElement, thread: ThreadRecord, outlets: import("../thread/thread-card.js").ViewOutlets) => {drawn: ReturnType<typeof import("../thread/inline.js").renderMarginThread>, stop: () => void},
  * placedAt: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["placedAt"],
  * scrollThreadIntoView: typeof import("../thread/reply-landing.js").scrollThreadIntoView,
  * scrollToElement: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["scrollToElement"],
@@ -449,9 +449,35 @@ export function createThreadPreview({
           (before) => session.arriving || Boolean(session.placesEnd?.(before)),
         )
       : null;
+    session.gutter = null;
     if (previewRegionMounted && transcript) {
+      // Once its turns overflow, the transcript holds its scrollbar's gutter
+      // (`data-lf-overflows`, annotation-chrome.css) until its width or the number of
+      // turns it shows changes. The gutter narrows the turns, and a narrowed picture is
+      // shorter, so turns can overflow without the gutter and fit with it: dropping the
+      // gutter whenever they fit brought it back the next frame, and so on every frame.
+      // A transcript that stops overflowing otherwise, as when the window grows taller
+      // or the reply box empties, keeps its words the gutter's width narrower until
+      // then. A send's ride draws the turns below where they stand, which the browser
+      // counts as overflow, so the decision reads where layout stands them
+      // (`scrollLimit`).
+      // The gutter resizes the transcript's box, so the card's fit decides it in the
+      // script that changes the card's room (`measureThreadCard`), before the size
+      // delivery that reports the transcript; the paint below decides it for a change
+      // no fit answers.
       // The transcript's width and shown turns when its gutter was last decided.
       let decided = "";
+      const gutter = () => {
+        const shown = [...transcript.querySelectorAll(":scope > .lf-msg")].filter(
+          (message) => !(/** @type {HTMLElement} */ (message).hidden),
+        ).length;
+        const overflows = scrollLimit(transcript) > 0;
+        const shape = `${transcript.offsetWidth} ${shown}`;
+        if (overflows || shape !== decided)
+          keeps(transcript, "data-lf-overflows", overflows ? "" : null);
+        decided = shape;
+      };
+      session.gutter = gutter;
       session.stopRegion = registerReadingRegion({
         id: THREAD_CARD,
         host: preview,
@@ -464,21 +490,8 @@ export function createThreadPreview({
           // (`data-lf-scrolled`, annotation-chrome.css).
           let edge = 0;
           let height = above ? 12 : 0;
-          // Once its turns overflow, the transcript holds its scrollbar's gutter
-          // (`data-lf-overflows`, annotation-chrome.css) until its width or the
-          // number of turns it shows changes. The gutter narrows the turns, and a
-          // narrowed picture is shorter, so turns can overflow without the gutter and
-          // fit with it: dropping the gutter whenever they fit brought it back the
-          // next frame, and so on every frame. A transcript that stops overflowing
-          // otherwise, as when the window grows taller or the reply box empties,
-          // keeps its words the gutter's width narrower until then. A send's ride
-          // draws the turns below where they stand, which the browser counts as
-          // overflow, so the decision reads where layout stands them (`scrollLimit`).
           /** @type {NodeListOf<HTMLElement>} */
           const messages = transcript.querySelectorAll(":scope > .lf-msg");
-          const overflows = scrollLimit(transcript) > 0;
-          const shown = [...messages].filter((message) => !message.hidden).length;
-          const shape = `${transcript.offsetWidth} ${shown}`;
           const room = slotTop(transcript);
           const top =
             transcript.getBoundingClientRect().top + transcript.clientTop + room;
@@ -512,9 +525,7 @@ export function createThreadPreview({
           card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
           card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
           keeps(card, "data-lf-scrolled", above ? "" : null);
-          if (overflows || shape !== decided)
-            keeps(transcript, "data-lf-overflows", overflows ? "" : null);
-          decided = shape;
+          gutter();
         },
       });
     }
@@ -563,6 +574,7 @@ export function createThreadPreview({
     cancelRender(session.positionFrame);
     placementDriver.supersede();
     session.stopRegion?.();
+    session.stopDraw?.();
     session.end?.stop();
     preview.style.removeProperty("visibility");
     previewSession = null;
@@ -644,6 +656,7 @@ export function createThreadPreview({
     ].some((box) => box && box.scrollHeight > box.clientHeight + 0.5);
     if (!(worn >= 0) || cap < height - 0.5 || (overflow && cap > height + 0.5))
       preview.style.setProperty("max-height", layoutPx(cap));
+    session.gutter?.();
     // A reader at the end stays there through this fit by the transcript's own keeper
     // (`syncPreviewTranscript`).
     if (reading?.latest) showArrival(session, reading.transcript);
@@ -978,7 +991,9 @@ export function createThreadPreview({
       answering: null,
       placesEnd: null,
       reading: null,
+      gutter: null,
       stopRegion: null,
+      stopDraw: null,
       end: null,
       side: commentPlacement(),
       // The width the card stands at for this selection, in client pixels: the box's
@@ -1106,7 +1121,10 @@ export function createThreadPreview({
       dismiss();
       openInPanel(shownThread.id);
     };
-    const rendered = renderMarginThread(body, shownThread, {
+    // The draw follows what it reads until the card draws again or closes, so the
+    // follows of the cards a user opens and closes don't pile up.
+    session.stopDraw?.();
+    const { drawn: rendered, stop } = renderMarginThread(body, shownThread, {
       line: (apart) => {
         setChildren(previewActions, [
           apart.news,
@@ -1153,6 +1171,7 @@ export function createThreadPreview({
         };
       },
     });
+    session.stopDraw = stop;
     keeps(node, "data-lf-margin-entry", item.id);
     for (const reading of rendered) syncPreviewTranscript(session, reading);
     return view;
@@ -1323,16 +1342,24 @@ export function createThreadPreview({
     previewClose.onclick = onDismiss;
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);
-    onCurrentLocation((node, cause, left) => {
-      // Focus in the transcript lifts the fade over its top (annotation-chrome.css), so
-      // the fade never lies over a focused message's ring.
+    // Focus in the transcript lifts the fade over its top (annotation-chrome.css), so
+    // the fade never lies over a focused message's ring. Like focus paint (focus.js), the
+    // mark follows where the script leaves the user: a script that moves them out of the
+    // transcript and back marks nothing.
+    /** @type {Element | null} */
+    let transcriptFocus = null;
+    const markTranscriptFocus = () => {
       const transcript = previewSession?.transcript;
       if (transcript?.parentElement)
         keeps(
           transcript.parentElement,
           "data-lf-transcript-focus",
-          node && under(node, transcript) ? "" : null,
+          transcriptFocus && under(transcriptFocus, transcript) ? "" : null,
         );
+    };
+    onCurrentLocation((node, cause, left) => {
+      transcriptFocus = node;
+      afterScript(markTranscriptFocus);
       if (
         node &&
         under(node, preview) &&

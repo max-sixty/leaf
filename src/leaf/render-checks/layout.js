@@ -267,7 +267,7 @@ export function overflowingRegions() {
 // because everything inside one inherits its box and would name the same fault a
 // dozen times over.
 // What stands in the page's margin by its own declaration — placed absolutely or fixed,
-// or floated clear of the column — for MISPLACED_BOXES, deciding whether a wide widget
+// or floated clear of the column — for `misplacedBoxes`, deciding whether a wide widget
 // was drawn over one. Margin content is whatever answered for itself out there, so a
 // project hanging its own furniture in the margin is covered without declaring anything.
 

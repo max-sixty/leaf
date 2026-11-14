@@ -473,14 +473,15 @@ export function createTargetPicker({
     };
   }
 
-  // Starts a search for `query`, landing as `landing` says, and takes its first slice.
-  /** @param {string} query @param {Match | null} was @param {number} index @param {boolean} show
+  // Starts a search for `query`, landing as `to` says, or nowhere without it, and takes
+  // its first slice.
+  /** @param {string} query @param {{ was: Match | null, index: number, show: boolean } | null} to
    * @returns {void} */
-  function find(query, was, index, show) {
+  function find(query, to) {
     matchesIn = pageReadingVersion();
     matchesFor = query;
     pending = query ? pageMatches(query) : null;
-    landing = query ? { was, index, show } : null;
+    landing = query ? to : null;
     matches.value = [];
     active = -1;
     findMore(true);
@@ -488,8 +489,14 @@ export function createTargetPicker({
 
   // The search again, standing where it stood, after the page changed under it.
   function restart() {
-    if (landing) find(matchesFor, landing.was, landing.index, landing.show);
-    else find(matchesFor, matches.value[active] ?? null, Math.max(active, 0), false);
+    find(
+      matchesFor,
+      landing ?? {
+        was: matches.value[active] ?? null,
+        index: Math.max(active, 0),
+        show: false,
+      },
+    );
   }
 
   // One slice of the standing search, and the next asked for while it stands. The count
@@ -577,7 +584,7 @@ export function createTargetPicker({
     const current = matches.value[active];
     if (!pageSearchOpen() || !query || !current || pageReadingVersion() === matchesIn)
       return false;
-    find(query, current, active, false);
+    find(query, { was: current, index: active, show: false });
     return true;
   }
 
@@ -591,7 +598,7 @@ export function createTargetPicker({
   }
 
   function search() {
-    find(searchQuery(), null, 0, true);
+    find(searchQuery(), { was: null, index: 0, show: true });
   }
 
   // A match out of sight is brought into it where its words start (anchor-travel.js,
@@ -676,10 +683,9 @@ export function createTargetPicker({
     const repetition = repeatedSearch;
     if (!repetition) return;
     const { index } = repetition;
-    if (matchesFor !== repetition.query || pageReadingVersion() !== matchesIn) {
-      find(repetition.query, null, index, false);
-      landing = null;
-    }
+    // It steps from where it stood, so the search it starts again lands nowhere.
+    if (matchesFor !== repetition.query || pageReadingVersion() !== matchesIn)
+      find(repetition.query, null);
     settle((found) => found.length > index + (direction > 0 ? 1 : 0));
     const found = matches.value;
     if (!hasRows(found)) {

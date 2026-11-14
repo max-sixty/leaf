@@ -430,7 +430,14 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
 
     A sheet's filename sets its role. defaults.css holds a package's defaults in
     lf-base, below Layouts: a widget's own, and a theme's element rules and idioms,
-    such as the bundled `reading` look. widget-shadow.css holds rules for both trees, in lf-base in the
+    such as the bundled `reading` look. A thread's transcript holds layer markup
+    wherever it is drawn, and a widget can seat one in its shadow tree, such as a
+    diff's line threads, so every shadow tree also takes defaults.css within
+    `@scope (.lf-thread-transcript)`, in lf-shadow after the package's
+    widget-shadow.css, the order and tier it holds against the shared sheets in the
+    document: a message's markup wears its packages' look there as in the document,
+    and the tree's own elements take none of it.
+    widget-shadow.css holds rules for both trees, in lf-base in the
     document and lf-shadow in every declared shadow tree. Leaf adds no scope around
     either, so each names the widgets it styles: by tag in the document, and by
     `:host(tag)` in a shadow tree, where a rule reaches everything the tree holds,
@@ -471,6 +478,11 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
         place(theme, "lf-base", root, "widget-shadow.css")
         place(shadow, "lf-shadow", root, "widget-shadow.css")
         place(theme, "lf-base", root, "defaults.css")
+        if (source := root / "defaults.css").is_file():
+            shadow.append(
+                f"@layer lf-shadow {{\n@scope (.lf-thread-transcript) {{\n"
+                f"{stylesheet(source, root)}}}\n}}\n"
+            )
         place(theme, "lf-overrides", root, "overrides.css")
         if (source := root / "chrome.css").is_file():
             chrome.append(chrome_restyle(stylesheet(source, root), source))

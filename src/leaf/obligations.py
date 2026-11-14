@@ -479,12 +479,16 @@ def thread_topics(threads: dict, records: list[dict], within: dict) -> dict[str,
 
 
 def waiting_about(
-    widget: str, records: list[dict], threads: dict, within: dict
-) -> list[dict]:
+    records: list[dict], threads: dict, within: dict
+) -> Callable[[str], list[dict]]:
     """The records among `records` that still wait on the user's words in a thread
-    about an obligation of `widget` (`thread_topics`): the questions the agent asked
-    there, which an answer to that obligation may or may not settle. Each is its `id`
-    and the words that asked it (`prompt.text`)."""
+    about an obligation of a given widget (`thread_topics`), as a function of the
+    widget: the questions the agent asked there, which an answer to that obligation
+    may or may not settle. Each is its `id` and the words that asked it
+    (`prompt.text`).
+
+    The questions and their threads' topics are read once, so a batch asking for
+    each of its actions reads the records once rather than once per action."""
     page = [
         record
         for record in records
@@ -501,11 +505,17 @@ def waiting_about(
     topics = thread_topics(
         {record["thread"]: threads[record["thread"]] for record in asked}, page, within
     )
-    return [
-        {"id": record["id"], "text": record["prompt"]["text"]}
-        for record in asked
-        if any(about["source"]["id"] == widget for about in topics[record["thread"]])
-    ]
+    by_widget: dict[str, list[dict]] = {}
+    for record in asked:
+        for widget in {about["source"]["id"] for about in topics[record["thread"]]}:
+            by_widget.setdefault(widget, []).append(
+                {"id": record["id"], "text": record["prompt"]["text"]}
+            )
+
+    def about(widget: str) -> list[dict]:
+        return list(by_widget.get(widget, ()))
+
+    return about
 
 
 def discussed(records: list[dict], anchors: list[dict], within: dict) -> None:
@@ -1206,21 +1216,36 @@ def asked_in_a_message(record: dict) -> bool:
 
 
 def waiting_in_thread(
-    thread: str, before: int, records: list[dict], threads: dict
-) -> list[dict]:
-    """The agent's questions frozen as widgets in `thread`, asked before seq
-    `before`, that still wait on the user's pick: the user's words there may or may
-    not answer them. Each is its `id` and the words that asked it: the widget's
-    framing heading, else the message holding it."""
-    messages = {message["id"]: message for message in threads[thread]["msgs"]}
-    return [
-        {
-            "id": record["id"],
-            "text": record["prompt"]["text"] or messages[record["message"]]["text"],
-        }
-        for record in records
-        if record["thread"] == thread
-        and record["source"]["kind"] == "widget"
-        and record["status"] == "open"
-        and messages[record["message"]]["seq"] < before
-    ]
+    records: list[dict], threads: dict
+) -> Callable[[str, int], list[dict]]:
+    """The agent's questions frozen as widgets in a thread, asked before a seq, that
+    still wait on the user's pick, as a function of the thread and that seq: the
+    user's words there may or may not answer them. Each is its `id` and the words
+    that asked it: the widget's framing heading, else the message holding it.
+
+    The open questions are grouped by thread once, so a batch asking for each of
+    the user's words reads the records once rather than once per message."""
+    asked: dict[str, list[tuple[int, dict]]] = {}
+    messages: dict[str, dict[str, dict]] = {}
+    for record in records:
+        if record["source"]["kind"] != "widget" or record["status"] != "open":
+            continue
+        if (thread := record["thread"]) is None:
+            continue
+        if thread not in messages:
+            messages[thread] = {m["id"]: m for m in threads[thread]["msgs"]}
+        message = messages[thread][record["message"]]
+        asked.setdefault(thread, []).append(
+            (
+                message["seq"],
+                {
+                    "id": record["id"],
+                    "text": record["prompt"]["text"] or message["text"],
+                },
+            )
+        )
+
+    def waiting(thread: str, before: int) -> list[dict]:
+        return [question for seq, question in asked.get(thread, ()) if seq < before]
+
+    return waiting

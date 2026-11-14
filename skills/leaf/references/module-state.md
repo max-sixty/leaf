@@ -153,10 +153,6 @@ producer publishes in the turn that commits the matching rendering, and publishe
 `null` rather than keep stale records after a failed replacement. Leaf doesn't check a
 published value against its contract, so publish only values that fit it.
 
-Rows whose contract declares a `deferred` field arrive without it. Fetch one row's field
-with `loadDeferred(value, key)`, passing the value Leaf delivered that the row came
-from; it throws if the source changed in the meantime.
-
 ### Marking drawn data
 
 Mark which nodes show data with plain attributes, so comments on them anchor to the

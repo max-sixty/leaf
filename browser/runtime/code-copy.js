@@ -28,7 +28,7 @@
    room, since room made for it would move the page's content (`../AGENTS.md`,
    "Nothing Leaf draws moves the page's content"). */
 import { capitalized } from "./words.js";
-import { copyControl, copyTrigger } from "./copy-control.js";
+import { copyControl, pressCopy } from "./copy-control.js";
 import { watchArrivals } from "./arrivals.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import {
@@ -133,13 +133,7 @@ function declareCopy(pre, copy, noun) {
         id: "code.copy",
         keys: ["Enter"],
         title: `copy ${noun}`,
-        // A control made with its block has not drawn its button yet, as a heading
-        // link's has not (heading-links.js, `heading.link.copy`).
-        run: async () => {
-          await customElements.whenDefined(copy.localName);
-          await copy.updateComplete;
-          copyTrigger(copy)?.click();
-        },
+        run: () => pressCopy(copy),
       },
     ]),
   );

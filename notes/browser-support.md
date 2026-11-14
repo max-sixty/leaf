@@ -185,14 +185,78 @@ the pin with no input. Playwright Chromium 156.0.8078.4 (build 1248) and WebKit 
 
 ### Highlight style inheritance
 
-Playwright Firefox 155 accepted `:root::highlight()` and `:host::highlight()`
-on 2026-10-22 but painted no highlight on nested syntax spans in either light
-or shadow DOM. Universal highlight rules paint those ranges correctly; retain
-them in `browser/runtime/annotation-overlay/annotation-marks.css` and
-`browser/runtime/marks.css`. Revisit root-scoped rules when
-`test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme` in
-`tests/browser/navigation/test_comment_marks.py` passes with them in supported
-engines. Chromium 153.0.8010.12 passed both forms in that check.
+Firefox and shipping Safari have no highlight inheritance (css-pseudo-4, "Cascading
+and Per-Element Highlight Styles"). Firefox resolves a `::highlight()` style as it
+paints a run of text, only from the rules that match the run's own element
+(`nsIFrame::ComputeHighlightSelectionStyle`), and
+[bug 1999628](https://bugzilla.mozilla.org/show_bug.cgi?id=1999628) is open for it,
+unassigned. On 2026-11-11, Playwright Firefox 159.0 (build 1572) and release Firefox
+160.0 on macOS painted nothing from a rule on `:root` or `:host`, in the document or
+a shadow tree, and `getComputedStyle(element, "::highlight(name)")` read the
+rule's background as transparent on every element below the root. On 2026-11-12,
+Safari 26.1 on the iOS simulator answered the same way to the probe below. Playwright
+Chromium 158.0.8127.18 (build 1254) and Playwright's WebKit 27.2 (build 2388) painted
+the rule on every element below the root and read it there, shadow trees included.
+
+The comment marks' rules (`browser/runtime/annotation-overlay/annotation-marks.css`)
+name the root and each shadow host, since Chromium resolves a highlight's style for
+every element a rule matches. `prepaint.js` asks whether a root highlight style
+reaches the head, and where it doesn't, `stylesheets.js` (`markSheet`) widens the
+rules to every element. So the saving reaches Chromium today, and Safari once it
+ships the inheritance Playwright's WebKit has. Firefox resolves the widened rules
+only where it paints, so its load costs the same as with no mark rules. The engines
+then differ in where a mark reads its colours. Where the rules are widened, each
+element reads its own tokens and `color-scheme`. Where they inherit, a mark reads
+them on the root or the shadow host above it: a `--mark` set on a section of the
+page is ignored, and words marked in a region with its own `color-scheme`, such as
+a dark panel on a light page, wear the root scheme's ink and wash. No shipped page,
+theme or widget sets a mark token below the root or gives text a scheme of its own;
+of about 10,300 page sources on the maintainer's machine on 2026-11-12, two design
+explorations set a scheme below the root. Recheck in Firefox and in iOS Safari with
+`uv run leaf-dev probe review-a-plan --browser firefox --js window.lfHighlightsInherit`
+and the same with `--browser ios`; each reads `false` today. Delete the widening and
+the probe only once every engine Leaf supports reads `true`.
+
+### A highlight's `light-dark()` colour in a dark region in Chromium
+
+Chromium paints the light half of a `light-dark()` highlight colour inside an element
+whose `color-scheme` is dark when the `::highlight()` rule names no element, though
+`getComputedStyle` reports the dark half. On a light page, words Leaf marks inside a
+`color-scheme: dark` panel then wear the light scheme's violet ink and wash on the
+panel's dark ground, which is hard to read. With the comment marks on `:root` and
+`:host` (`browser/runtime/annotation-overlay/annotation-marks.css`, "Highlight style
+inheritance" above), every engine with highlight inheritance paints the same, since
+the marks there inherit the root scheme's colours; Firefox and Safari 26, whose rules
+are widened to every element, paint each region's own half.
+Recorded rather than corrected: no shipped page, theme or widget gives text a scheme
+of its own.
+
+On 2026-11-14, Playwright Chromium 158.0.8127.18 (build 1254) painted this red and
+read it blue; WebKit 27.2 (build 2388) and Firefox 159.0 (build 1572) painted it
+blue. Naming an element, as `p::highlight(m)` or `.dark::highlight(m)`, painted blue in
+Chromium too.
+
+```html
+<style>
+  .dark {
+    color-scheme: dark;
+    background: black;
+    color: white;
+  }
+  ::highlight(m) {
+    background-color: light-dark(red, blue);
+  }
+</style>
+<p class="dark" id="p">marked words</p>
+<script>
+  const r = new Range();
+  r.selectNodeContents(p);
+  CSS.highlights.set("m", new Highlight(r));
+</script>
+```
+
+Recheck by loading that page in Chromium: the gap has closed once the words paint
+blue.
 
 ### Font style in syntax highlights
 

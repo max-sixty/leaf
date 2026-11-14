@@ -57,8 +57,8 @@ Practices pattern. Read, and probed in Chromium, on 2026-11-12.
   Each component's entry measures 13–53 KB gzipped on its own, by the repository's
   `size-budget.json`.
 - **`checkPattern`** (`@ui-sdk/core/testing`, marked experimental). Run on eight
-  examples through `leaf-dev probe --journey` (`/developing-leaf`, "External UI
-  skills", has the command), it found four defects in controls Leaf draws: `lf-tabs` gives its tablist no
+  examples through `leaf-dev probe --journey` (`/developing-leaf`'s
+  `references/external-ui-skills.md` has the command), it found four defects in controls Leaf draws: `lf-tabs` gives its tablist no
   accessible name; the margin's `role="toolbar"` holds up to 15 tab stops, and
   ArrowRight, ArrowDown, Home and End from its first entry moved nothing; the
   playground's choice cards put Enlarge buttons inside a `radiogroup`; and Pierre's

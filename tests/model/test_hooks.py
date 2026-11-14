@@ -1632,7 +1632,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     snapshot.check(
         yaml_document(
             "Complete agent-facing outputs through real hooks, wait and thread reply commands.\n"
-            "Only page paths, event/delivery/attempt and claim identities, and timestamps are normalized.\n"
+            "Only page paths, event/delivery/attempt, turn and claim identities, and timestamps are normalized.\n"
             "A null hook output means the turn can end without a reminder.",
             _interaction_prompt_evidence(
                 page,

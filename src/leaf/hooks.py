@@ -32,18 +32,20 @@ on, so they always run. Claude Code's PreToolUse runs before each `leaf`
 command, and in such a session opens the turn the skipped prompt hook would have,
 so a claim that command makes joins it; of its runs for one tool call, one per
 registration the command matches, only the first does its work
-(`leases.first_hook_for_tool`). Hooks
+(`leases.first_hook_for_tool`). For an agent running a turn of the session's own, such
+as a fork that took a thread's work, that work includes marking the command with the
+agent's id, so it acts in that turn (`agent_command`). Hooks
 that do run with no retained claim avoid page reading, and import the harness
 declarations only once the payload names a session. Page-owning prompt and Stop
 hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
 records in `codex`. Claude Code's background Stop hook and Pi's extension watch
 between turns (`cmd_watch`), and Leaf's Claude Code hooks module follows the
 session's pages (`cmd_pages`) to draw them beside the prompt and to fork for each
-thread Leaf holds and to make each completion a page server asks of it, and at each
-turn's end asks the clerk what to fork the conversation with; `--fork` asks for each
-fork's prompt and hands back its answer (`clerk.cmd_fork`, `forks.cmd_reply`), or a
-completion's (`completions.cmd_reply`). The follower records the process it runs
-in, so a Stop can tell the user where Claude Code didn't load the module
+thread Leaf keeps back and to make each completion a page server asks of it, and at
+each turn's end asks the clerk what to fork the conversation with; `--fork` asks for
+each fork's prompt and hands back its answer (`clerk.cmd_fork`, `forks.cmd_fork`),
+or a completion's (`completions.cmd_reply`). The follower records the process it
+runs in, so a Stop can tell the user where Claude Code didn't load the module
 (`Harness.unloaded_module`). `leaf hook` (`cli.hook`) dispatches here.
 
 Claude Code's PostToolBatch carries pending input before the next model call,
@@ -68,6 +70,8 @@ developer-selected session runtime (`session_runtime`) owns the entire hook;
 
 import json
 import os
+import re
+import shlex
 import time
 
 from .leases import first_hook_for_tool, mark_hooks
@@ -75,6 +79,8 @@ from .refusals import Refused
 from .service import owned_pages
 from .state import (
     advance_turn,
+    agent_known,
+    agent_turn_of,
     close_session_turn,
     flocked,
     held_claims,
@@ -100,6 +106,14 @@ def cmd_hook(harness: str, payload: dict) -> None:
     if not sid:
         return
     assert isinstance(event, str)
+    if event == "PostToolBatch" and (agent := payload.get("agent_id")):
+        # A boundary of an agent running a turn of the session's own
+        # (`state.worker_tool_batch`), which carries only that turn's input.
+        from .harness import hook_harness
+        from .hook_transport import carry_agent_turn
+
+        carry_agent_turn(hook_harness(harness, sid), sid, agent, started=started)
+        return
     if event == "PreToolUse" and not first_hook_for_tool(
         sid, payload.get("tool_use_id")
     ):
@@ -118,10 +132,13 @@ def cmd_hook(harness: str, payload: dict) -> None:
             # The launcher skipped this turn's prompt hook (`bin/leaf`),
             # so the turn a claim joins opens here, before the command.
             prompt_turn(sid, turn_id)
-        elif not hooked.commits_hook_context:
+            return
+        if not hooked.commits_hook_context:
             from .delivery import confirm_entered
 
             confirm_entered(hooked, payload)
+        if harness == "claude-code" and (marked := agent_command(sid, payload)):
+            print(json.dumps(marked), flush=True)
         return
     # What kept a page the session still means to serve from serving again.
     unserved = []
@@ -194,6 +211,136 @@ def cmd_hook(harness: str, payload: dict) -> None:
             print(json.dumps(notice), flush=True)
 
 
+# A command that begins with `leaf`, by name or by a path to the launcher.
+LEADING_LEAF = re.compile(r"\s*(?:\S*/)?leaf(?=\s|$)")
+# The word `leaf`, alone or as a path to the launcher (`…/bin/leaf`, `./leaf`), as
+# against `leaf-dev`, `leaf.py`, a directory such as `src/leaf` or the noun `Leaf`.
+LEAF_WORD = re.compile(r"(?:(?<=bin/)|(?<=\./)|(?<![\w./-]))leaf(?![\w./-])")
+
+
+def leaf_words(command: str) -> list[int]:
+    """Where the word `leaf` stands in the Bash command line `command`, by
+    character offset, wherever Bash might run it from: after another command or a
+    keyword such as `then`, in a command substitution, quoted, in a here-document,
+    or in a string that `bash -c` or `eval` runs. It reads words, not Bash's
+    grammar, so it also finds one Bash would only pass as text, as in `grep leaf`,
+    `python -c 'from leaf import …'` or a reply's `--text` that names a `leaf`
+    command. A `leaf` that a script runs is out of its reach."""
+    return [found.start() for found in LEAF_WORD.finditer(command)]
+
+
+def agent_command(sid: str, payload: dict) -> dict | None:
+    """What Claude Code's PreToolUse hook answers for a command that begins with
+    `leaf` from an agent the session has run a turn of its own for, such as a fork
+    that took a thread's work (`state.agent_known`): the command with `--agent-id`
+    and the agent's id after its leading `leaf`, so it acts in that agent's open
+    turn, or is refused once that turn has ended (`state.acting_agent_turn`). The
+    mark follows the agent, not its turn, so a fork resumed or running late after
+    its turn ended can't act with the main thread's authority. Any other command,
+    such as one of the main thread's own workers, which the record doesn't name,
+    runs as it came, as the session's. A subagent's command runs in the session's
+    environment with nothing naming the agent, and only the hook's payload names it
+    (`agent_id`).
+
+    The command still begins with `leaf`, so a permission rule allowing `leaf`
+    commands still matches it; a marker of any other form, such as an `export`
+    before it, is a command of its own that Claude Code asks about (measured at
+    2.1.322). The answer names no decision, so the call goes on through the
+    permission flow. Leaf's hooks module can't mark the command: Claude Code runs
+    none of a plugin's hooks for the calls of an agent that plugin spawned
+    (measured at 2.1.322), while `hooks.json`'s run for every agent.
+
+    Such an agent's command that has `leaf` anywhere but as its leading word, as
+    `cd x && leaf …`, `if …; then leaf …` or `$(leaf …)` does (`leaf_words`), may
+    act as the main thread's, and a mark spliced into it could land inside quoted
+    text, so the answer denies it and tells the agent to run each `leaf` command on
+    its own, beginning with `leaf`. The rule reads words rather than Bash's grammar,
+    so it also denies a call that only names `leaf`, and the denial says how to post
+    text that names a `leaf` command and how to search for the word.
+
+    A new fork runs before Leaf learns its agent id: the turn Leaf opened for it
+    stays unnamed until the module, once `$.agent.spawn` returns, says which agent
+    runs it (`forks.started`), and the payload names neither the spawn's name nor
+    the turn. So while an agent turn of the session awaits its agent
+    (`state.unnamed_agent_turns`), the `leaf` command of any agent running no open
+    turn is denied with the instruction to run it again, as Leaf can't yet tell a
+    starting fork's command, which would act as the main thread's, from a worker's.
+    A resumed fork's turn is named as Leaf opens it (`forks._take`). A turn left
+    unnamed stops counting once it lapses, as every reader of agent turns believes
+    it (`activity.running_agent_turns`)."""
+    agent, given = payload.get("agent_id"), payload.get("tool_input")
+    if not agent or not isinstance(given, dict) or "command" not in given:
+        return None
+    leading = LEADING_LEAF.match(given["command"])
+    words = leaf_words(given["command"])
+    if leading is None and not words:
+        return None
+    if agent_turn_of(sid, agent) is None and _awaits_agent(sid):
+        return _denied(
+            sid,
+            agent,
+            given["command"],
+            "Leaf is starting a turn for an agent of this session and can't yet tell "
+            "whether this command is that agent's; run the same command again.",
+        )
+    if not agent_known(sid, agent):
+        return None
+    if leading is None or words != [leading.end() - len("leaf")]:
+        return _denied(
+            sid,
+            agent,
+            given["command"],
+            "Run each `leaf` command as a Bash call of its own, beginning with "
+            "`leaf`, with no other `leaf` anywhere in the call: Leaf marks only a "
+            "leading `leaf` as this agent's, and any other may act as the main "
+            "thread's. To post text, or run code, that names `leaf`, write it to a "
+            "file with the Write tool and pass that file; to search for the word, "
+            "use the Grep tool.",
+        )
+    command = (
+        given["command"][: leading.end()]
+        + f" --agent-id {shlex.quote(agent)}"
+        + given["command"][leading.end() :]
+    )
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "updatedInput": {**given, "command": command},
+        }
+    }
+
+
+def _denied(sid: str, agent: str, command: str, reason: str) -> dict:
+    """Claude Code's PreToolUse answer that denies `agent`'s call of `command`, with
+    `reason`, which the agent reads. The command never runs, so it leaves no
+    `leaf_command` record; the denial is noted in each page the session holds
+    instead (`interaction_log.record_denial`)."""
+    from .interaction_log import record_denial
+
+    record_denial(owned_pages(sid), sid, agent, command, reason)
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
+        }
+    }
+
+
+def _awaits_agent(sid: str) -> bool:
+    """Whether an agent turn of the session awaits the agent its harness is
+    starting for it, and still counts (`agent_command`)."""
+    from datetime import datetime
+
+    from .activity import running_agent_turns
+    from .state import unnamed_agent_turns
+
+    unnamed = unnamed_agent_turns(sid)
+    return bool(
+        unnamed and running_agent_turns(unnamed, True, datetime.now().astimezone())
+    )
+
+
 def reload_skill(session_id: str) -> str | None:
     """What a compaction tells an agent holding pages: to read the leaf skill again,
     which the compaction may have dropped from its context.
@@ -262,15 +409,17 @@ def cmd_pages(payload: dict) -> None:
     native notifications cannot replace this timer. It waits on the session's
     requests (`completions.watch`), so it lists one as it is written.
 
-    A payload asking for `forks` makes the follower the session's forks lane
-    (`forks.take_lane`) while it runs, and gives each page its held threads, each as
-    the `thread` and `inputs` the module forks with, handing to the session those
-    whose bound has passed (`forks.look`). Between presence reads it waits on each
+    A payload asking for `forks`, from a hooks module this Leaf ships (its `module`,
+    the digest of the module's source as it loaded, `session_runtime.module_current`),
+    makes the follower the session's forks lane
+    (`forks.take_lane`) while it runs, and gives each page the threads Leaf keeps back
+    (`kept_back`), each as the `thread` and `inputs` the module asks a line fork about,
+    handing to the session those whose bound has passed (`forks.look`). Between presence reads it waits on each
     page's subscription (`file_changes.page_changes`) and on the lane's name, so it
     looks again as a message is admitted, as a later follower takes the lane, or as
-    the earliest hold runs out. It reads a page again only once its reading has
-    moved or a hold has run out, since a thread's hold starts as its message is
-    admitted.
+    the earliest bound runs out. It reads a page again only once its reading has
+    moved or a bound has run out, since Leaf starts keeping a thread back as its
+    message is admitted.
 
     It exits with `EX_TEMPFAIL`, without a last line, once the session's delivery
     runs another Leaf than its own (`_moved_on`), and the module starts it again,
@@ -278,9 +427,24 @@ def cmd_pages(payload: dict) -> None:
     hooks hand themselves at each call to the Leaf delivering for it: a newer copy
     Claude Code installed, a checkout the session selected, or the same checkout
     moved past a protocol bump. That newer Leaf reads an older follower's lane as no
-    one's. On 8 November one follower, four days old, kept holding messages that the
-    fork's step, under the newer Leaf, refused as not held, so each waited out its
-    hold with no line."""
+    one's. On 8 November one follower, four days old, kept back messages that the
+    line fork's step, under the newer Leaf, refused as not kept back, so each waited
+    out its bound with no line.
+
+    The module that reads the list stays the one the session loaded until
+    `/reload-plugins`, so a follower under a newer Leaf may print it to a module
+    that reads kept-back threads by an older contract. From 10 to 11 November a
+    session running a checkout's Leaf under the installed copy's module, which read
+    them under another name, kept back every thread message for the whole bound with
+    no line fork asked. So a follower whose module isn't this Leaf's keeps nothing
+    back, and the session's messages reach it as they would without forks.
+
+    The follower notes its verdict once in each page it holds
+    (`interaction_log.record_follower`): whether the module asked for forks, the
+    module's digest, and whether that module is this Leaf's. So a message admission
+    found with no lane (`forks.kept_from_main_at_admission`) says whether forks were
+    off, the module stale, or the follower that held the lane gone
+    (`leaf-dev timeline`)."""
     sid = payload.get("session_id") or ""
     from .harness import ClaudeCodeHarness
     from .leases import mark_module
@@ -295,10 +459,15 @@ def cmd_pages(payload: dict) -> None:
 
     from .completions import pending, watch
     from .file_changes import FileChanges, wait
+    from .interaction_log import record_follower
     from .presence import PRESENCE_CACHE_S, live_leaves
+    from .session_runtime import module_current
 
     queued = watch(sid)
-    forking = bool(payload.get("forks"))
+    asked, current = bool(payload.get("forks")), module_current(payload.get("module"))
+    forking = asked and current
+    # The pages this follower has noted its verdict in, each once.
+    noted: set = set()
     if forking:
         from .file_changes import page_changes
         from .forks import lane_path, take_lane
@@ -317,6 +486,14 @@ def cmd_pages(payload: dict) -> None:
                 # EX_TEMPFAIL: the module starts it again, under that Leaf.
                 raise SystemExit(os.EX_TEMPFAIL)
             held = {page.resolve() for page in owned_pages(sid)}
+            record_follower(
+                sorted(held - noted),
+                sid,
+                module=payload.get("module"),
+                forks=asked,
+                current=current,
+            )
+            noted |= held
             leaves = live_leaves(held) if held else []
             # Each page's subscription lives in its memory, which the process
             # keeps only for its most recent pages unless held.
@@ -335,14 +512,14 @@ def cmd_pages(payload: dict) -> None:
                 ]
                 if forking and not still_named(lane.fileno(), named):
                     # A later follower took the lane, which let go what this one
-                    # held, and forks what this one would.
+                    # kept back, and forks what this one would.
                     forking = False
                     renamed.close()
                     _let_go(sid, looked)
-                # Every page the session holds keeps its holds' bounds, listed or
-                # not, as one whose server stopped is not.
-                forks = (
-                    {page: _forks(sid, page, looked) for page in held}
+                # Every page the session holds keeps its bounds, listed or not, as
+                # one whose server stopped is not.
+                kept = (
+                    {page: _kept_back(sid, page, looked) for page in held}
                     if forking
                     else {}
                 )
@@ -351,7 +528,7 @@ def cmd_pages(payload: dict) -> None:
                         "pages": [
                             {
                                 **{field: leaf[field] for field in SHOWN_FIELDS},
-                                **({"forks": forks[page]} if forking else {}),
+                                **({"kept_back": kept[page]} if forking else {}),
                             }
                             for page, leaf in leaves
                         ],
@@ -402,21 +579,21 @@ def _moved_on(sid: str) -> bool:
 
 
 def _let_go(sid: str, looked: dict) -> None:
-    """Nudge what a lane this follower gave up held, as a watch giving up its lease
-    nudges what it held back (`session.nudge_pending`): only where the follower last
-    listed a held thread, since a nudge as a Stop hook's watch starts would wake the
-    session a second time."""
+    """Nudge what a lane this follower gave up kept back, as a watch giving up its
+    lease nudges what it held back (`session.nudge_pending`): only where the follower
+    last listed a kept-back thread, since a nudge as a Stop hook's watch starts would
+    wake the session a second time."""
     from .session import nudge_pending
 
-    holding = any(requests for _stamp, _until, requests in looked.values())
+    keeping = any(requests for _stamp, _until, requests in looked.values())
     looked.clear()
-    if holding:
+    if keeping:
         nudge_pending(sid)
 
 
-def _forks(sid: str, page_dir, looked: dict) -> list[dict]:
-    """The page's held threads (`forks.look`), read again only once the page's
-    reading has moved or the earliest hold `looked` kept for it has run out."""
+def _kept_back(sid: str, page_dir, looked: dict) -> list[dict]:
+    """The page's kept-back threads (`forks.look`), read again only once the page's
+    reading has moved or the earliest bound `looked` kept for it has run out."""
     from .forks import look
     from .served_state.reading import page_reading
 
@@ -427,7 +604,7 @@ def _forks(sid: str, page_dir, looked: dict) -> list[dict]:
             return kept[2]
         threads = look(sid, page_dir)
     except FileNotFoundError:
-        # A page that is gone holds nothing, and keeps no bound to wake for.
+        # A page that is gone keeps nothing back, and no bound to wake for.
         looked.pop(page_dir, None)
         return []
     requests = [thread.basis(page_dir) for thread in threads]
@@ -484,12 +661,12 @@ def main(
         cmd_pages(payload)
         return
     if fork:
-        # A completion's reply (`completions`), a held thread's fork (`forks`), or
-        # else the clerk's.
+        # A completion's reply (`completions`), a kept-back thread's forks or the
+        # end of an agent's run (`forks`), or else the clerk's.
         if "completion" in payload:
             from .completions import cmd_reply as cmd_fork
-        elif "thread" in payload:
-            from .forks import cmd_reply as cmd_fork
+        elif "thread" in payload or "ended" in payload:
+            from .forks import cmd_fork
         else:
             from .clerk import cmd_fork
 

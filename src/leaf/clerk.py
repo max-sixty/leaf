@@ -148,6 +148,11 @@ lines: the questions stay On Me and `leaf page state` lists them, but the agent 
 told. Confirming the lines from the transcript, as `delivery.confirm_entered` does
 for input, would close that gap.
 
+A line queued with `wake` tells the session of work it now owes, such as a to-do a
+fork opened (`forks.ended`). Until a hook has printed it, the watch between turns
+wakes the session for it once the turn has closed (`waking`,
+`session.watch_between_turns`). None of the clerk's own lines wakes the session.
+
 Each fork's outcome goes to the diagnostics of every page the session holds
 (`interaction_log`, type `turn_end_check`), as a fork reply's does (`forks.py`): what
 the fork named on that page, verbatim, what Leaf wrote, changed and told for it, or
@@ -345,11 +350,25 @@ QUEUED = Record(
     described(
         "The lines Leaf queued for a session's next step, in the state home's "
         "`sessions/<digest>.clerk` (`state.session_file`): one for each record the "
-        "clerk wrote and each finding it passes on (`clerk`), and one for each reply "
-        "a fork of the conversation posted (`forks`).",
-        object_schema({"lines": {"type": "array", "items": STRING}}),
+        "clerk wrote and each finding it passes on (`clerk`), and one as each fork "
+        "of the conversation takes a thread and as its run ends (`forks`). Each says "
+        "whether it wakes the session (`wake`): a line that tells it of work it now "
+        "owes wakes it while it is idle, until a hook has printed the line. A line "
+        "that tells of an agent's running turn names it (`turn`), and leaves the "
+        "queue unheard once that turn ends (`unqueue`).",
+        object_schema(
+            {
+                "lines": {
+                    "type": "array",
+                    "items": object_schema(
+                        {"line": STRING, "wake": {"type": "boolean"}},
+                        {"turn": STRING},
+                    ),
+                }
+            }
+        ),
     ),
-    since=36,
+    since=44,
 )
 
 # The words that open the fork's question, which the replay and the transcript carry.
@@ -494,9 +513,10 @@ def fork_prompt(pages: list[dict]) -> str:
     )
 
 
-def read_answer(text: str) -> dict:
-    """A fork's reply as an answer `ANSWER` takes, or `Refused` saying why not. A
-    fenced or prefaced object is read from its first `{` to its last `}`."""
+def read_answer(text: str, schema: dict = ANSWER) -> dict:
+    """A fork's reply as an answer `schema` takes, the clerk's `ANSWER` unless
+    another fork's, or `Refused` saying why not. A fenced or prefaced object is read
+    from its first `{` to its last `}`."""
     from .refusals import Refused
     from .registry.schema import json_validator
 
@@ -507,7 +527,7 @@ def read_answer(text: str) -> dict:
         answer = json.loads(text[start : end + 1])
     except json.JSONDecodeError as error:
         raise Refused(f"the fork's answer is not JSON ({error.msg})") from error
-    errors = sorted(json_validator(ANSWER).iter_errors(answer), key=str)
+    errors = sorted(json_validator(schema).iter_errors(answer), key=str)
     if errors:
         raise Refused(f"the fork's answer doesn't fit its schema: {errors[0].message}")
     return answer
@@ -1025,13 +1045,46 @@ def _changed(words: str, put: str) -> tuple[int, int, str]:
     return start, end, put[start : len(put) - (len(words) - end)].strip()
 
 
-def _append(session_id: str, lines: list[str]) -> None:
-    """Queue `lines` for the session's next step (`queued`), for a caller holding
-    the session's lock."""
+def queue(
+    session_id: str, lines: list[str], *, wake: bool = False, turn: str | None = None
+) -> None:
+    """Queue `lines` for the session's next step (`queued`), lines that wake an idle
+    session where they tell it of work it now owes (`wake`, `waking`); lines that
+    tell of the agent turn `turn` while it runs leave the queue unheard once it
+    ends (`unqueue`)."""
+    if lines:
+        with flocked(session_lock_path(session_id)):
+            _append(session_id, lines, wake=wake, turn=turn)
+
+
+def _append(
+    session_id: str, lines: list[str], *, wake: bool = False, turn: str | None = None
+) -> None:
+    """`queue`, for a caller already holding the session's lock."""
     if lines:
         path = session_file(session_id, QUEUED.kind)
         held = QUEUED.read(path) or {"lines": []}
-        QUEUED.write(path, {"lines": [*held["lines"], *lines]})
+        added = [
+            {"line": line, "wake": wake, **({"turn": turn} if turn else {})}
+            for line in lines
+        ]
+        QUEUED.write(path, {"lines": [*held["lines"], *added]})
+
+
+def unqueue(session_id: str, turns: set[str]) -> None:
+    """Take off the queue, unheard, the lines that tell of the agent turns `turns`,
+    which have ended: a fork's take, which tells the session to leave the thread to
+    the fork, no longer holds once the fork's end is the line it hears."""
+    path = session_file(session_id, QUEUED.kind)
+    with flocked(session_lock_path(session_id)):
+        held = QUEUED.read(path) or {"lines": []}
+        kept = [entry for entry in held["lines"] if entry.get("turn") not in turns]
+        if len(kept) == len(held["lines"]):
+            return
+        if kept:
+            QUEUED.write(path, {"lines": kept})
+        else:
+            path.unlink(missing_ok=True)
 
 
 def _put(page_dir, page, title, text, identity, passage) -> dict:
@@ -1079,25 +1132,39 @@ def _told(path: str, title: str, text: str, passage: str, record: dict) -> str:
     )
 
 
-def queued(session_id: str) -> list[str]:
-    """What the session's next step hears from the clerk."""
+def _held(session_id: str) -> list[dict]:
     held = QUEUED.read(session_file(session_id, QUEUED.kind))
     return held["lines"] if held else []
 
 
+def queued(session_id: str) -> list[str]:
+    """What the session's next step hears from the clerk and from forks that took a
+    thread's work."""
+    return [held["line"] for held in _held(session_id)]
+
+
+def waking(session_id: str) -> list[str]:
+    """The queued lines that tell the session of work it now owes, which wake it
+    while it is idle (`queue`'s `wake`)."""
+    return [held["line"] for held in _held(session_id) if held["wake"]]
+
+
 def heard(session_id: str, lines: list[str]) -> None:
-    """Take `lines`, which a hook handed the agent, off the queue; lines queued since
-    stay for the next step."""
+    """Take `lines`, which a hook handed the agent, off the queue, each once; lines
+    queued since stay for the next step, and a line taken off meanwhile
+    (`unqueue`) is no longer there to take."""
     if not lines:
         return
     path = session_file(session_id, QUEUED.kind)
     with flocked(session_lock_path(session_id)):
         held = QUEUED.read(path) or {"lines": []}
-        rest = (
-            held["lines"][len(lines) :]
-            if held["lines"][: len(lines)] == lines
-            else held["lines"]
-        )
+        rest = list(held["lines"])
+        for line in lines:
+            at = next(
+                (i for i, entry in enumerate(rest) if entry["line"] == line), None
+            )
+            if at is not None:
+                del rest[at]
         if rest:
             QUEUED.write(path, {"lines": rest})
         else:

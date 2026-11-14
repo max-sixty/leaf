@@ -1,7 +1,7 @@
 /* Keyboard reachability, containment, the sticky-header slot, and continuation paint for
    scrollable page and shadow content. */
 
-import { isElement, skipped } from "./shadow-tree.js";
+import { isElement, skipped, under } from "./shadow-tree.js";
 import { watchArrivals, watchScrolls } from "./arrivals.js";
 import { tabStops, wearsLentStop } from "./focus.js";
 import { LENT_REACH_STOP, TEXT_BOX } from "./control-selectors.js";
@@ -165,6 +165,21 @@ export function reachReadingScroller(el, paintContinuation) {
   };
 }
 
+// A composition change, such as a tab set switching, puts each reading region's place
+// back only when the change ends (reading-regions.js, `preserveReadingRegions`), so a
+// cue painted while it runs reads a scroll the restore is about to move, and paints
+// again after it. A body under an owner whose change is open waits for that end.
+/** @type {Set<Element>} */
+const changing = new Set();
+/** @param {Element} owner */
+export function holdReach(owner) {
+  changing.add(owner);
+  return () => {
+    changing.delete(owner);
+    for (const el of downwards.keys()) if (under(el, owner)) paintReadingReach(el);
+  };
+}
+
 /** @type {Set<Element>} */
 const readingPaints = new Set();
 /** @param {Element} el */
@@ -180,6 +195,7 @@ function paintReadingReachNow() {
   readingPaints.clear();
   for (const el of pending) {
     if (!downwards.has(el) || unpainted(el)) continue;
+    if ([...changing].some((owner) => under(el, owner))) continue;
     const style = getComputedStyle(el);
     const scrolling = userScrollport(style.overflowY);
     // A region with covering chrome paints its upper continuation at the chrome's

@@ -751,8 +751,9 @@ export function createTargetPicker({
           }),
           target: rect,
           placement: target.controlElement ? "above" : "before",
-          // Control keys sit just outside their own upper-left corner. Owner keys
-          // stay before the owner; neither route writes a key into its target.
+          // A control's key tries just above its upper-left corner, then before it;
+          // an owner's tries before it, then above; failing both, it stands on the
+          // corner `left` and `top` name (keyboard/hints.js, `seatHints`).
           left: rect.left,
           top: Math.max(0, rect.top),
         };

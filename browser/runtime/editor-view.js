@@ -1,6 +1,6 @@
 /* Leaf's CodeMirror adapter owns focus admission and document-local reveals.
  *
- * Runtime composers and package file editors share this view. Native focus never
+ * Runtime composers and package editors share this view. Native focus never
  * reveals an enclosing frame, and editor reveal requests use Leaf's scroll owner
  * before CodeMirror can invoke its native mobile-viewport fallback. That fallback
  * also runs on desktop when a classic horizontal scrollbar reduces visualViewport.

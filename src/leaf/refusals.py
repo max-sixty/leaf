@@ -1,7 +1,7 @@
 """The one way domain code turns a request down, and the reason it carries.
 
 Code that refuses raises `Refused`, or a subclass a boundary dispatches on, such as
-`EventRefused` or `StaleFileError`. Only a process or transport boundary turns one
+`EventRefused`. Only a process or transport boundary turns one
 into an outcome: `LeafGroup` and `__main__` print it and exit 1, the HTTP server
 answers it with a status or records it as a fault, a detached child's `Handshake`
 hands it to its parent, and a long-lived caller (the Codex adapter, the website)

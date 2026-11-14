@@ -986,34 +986,6 @@ def thread_summarize(
     )
 
 
-@cli.group(short_help="Manage a page's access to local files.")
-def file() -> None:
-    """Grant or withdraw access to explicitly chosen local text files."""
-
-
-@file.command("bind", short_help="Grant a page read/write access to one file.")
-@page_argument(renew=True)
-@click.argument("binding", metavar="ID")
-@click.argument("path", type=click.Path(path_type=Path), metavar="PATH")
-def file_bind(page_dir: Path, binding: str, path: Path) -> dict:
-    """Use ID in <lf-file-editor binding=\"ID\"> to edit PATH. Prints the binding,
-    the file it grants, and its size in bytes."""
-    from leaf.file_bindings import bind_file
-
-    return bind_file(page_dir, binding, path)
-
-
-@file.command("unbind", short_help="Withdraw a page's access to one bound file.")
-@page_argument(renew=True)
-@click.argument("binding", metavar="ID")
-def file_unbind(page_dir: Path, binding: str) -> dict:
-    """Remove ID's grant. The file and its saved edits stay intact; later reads
-    find no file and saves are refused, including from already-open editors."""
-    from leaf.file_bindings import unbind_file
-
-    return unbind_file(page_dir, binding)
-
-
 def json_body(text: str | None, body_file: TextIO | None):
     """The JSON value a command's body holds (`read_body`)."""
     text = read_body(text, body_file)

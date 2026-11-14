@@ -113,9 +113,9 @@ def _render_version_attempt(
     thread: a widget can lay itself out by the window it first met, and a page's own
     rules can lay it out differently in the dark scheme. The light phone render then
     sweeps down from 540px at its own 720px height, which the desktop's need not
-    share, since a widget can size by the window's height (a file editor clips its body
-    at 60vh, a trace stage fills the window): a short window can cut off what a tall
-    one shows, and a page's own rules can do the reverse.
+    share, since a widget can size by the window's height (a trace stage fills the
+    window): a short window can cut off what a tall one shows, and a page's own rules
+    can do the reverse.
 
     One implementation with two callers — `page check --render` on the page an agent
     just wrote, and the render suite on the shipped examples

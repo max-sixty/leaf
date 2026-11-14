@@ -84,7 +84,6 @@ def read_served_page(
         ),
         "source_error": source_error,
         "data": context.data,
-        "files": context.bound_files(),
         **context.presence,
         "activity": {
             **{

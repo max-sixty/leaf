@@ -1300,7 +1300,10 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
 
 
 def test_print_wraps_diff_lines_and_keeps_file_headers_in_place(browser, serve):
-    """Paper shows the complete long lines a reader reaches on screen by scrolling."""
+    """Paper shows the complete long lines a reader reaches on screen by scrolling.
+    The diff draws in a shadow tree, and the print rule every offer meets (state.css)
+    reads there too: a line's number stays, being words, and a file's comment press
+    goes."""
     page = _bound_diff(
         browser,
         serve,
@@ -1328,7 +1331,18 @@ def test_print_wraps_diff_lines_and_keeps_file_headers_in_place(browser, serve):
         0,
         0,
     ), f"a file's row does not start where its wrapper does: {placed}"
+    presses = page.locator("lf-diff .lf-diff-file-comment")
+    shown = """presses => presses.map(press =>
+      [press.getRootNode() instanceof ShadowRoot, press.checkVisibility()])"""
+    on_screen = presses.evaluate_all(shown)
+    assert on_screen and all(press == [True, True] for press in on_screen), (
+        f"no comment press shows in the diff's shadow tree, so paper has none to "
+        f"drop: {on_screen}"
+    )
     page.emulate_media(media="print")
+    assert presses.evaluate_all(shown) == [[True, False]] * len(on_screen), (
+        "paper kept a press from the diff's shadow tree"
+    )
     printed = page.evaluate(DIFF_CLIPPING)
     on_paper = page.evaluate(DIFF_ROW_PLACEMENT)
     numbers = page.locator("lf-diff .lf-diff-line-comment").evaluate_all(

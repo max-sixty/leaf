@@ -159,7 +159,7 @@ function scrollMargin(where, side = "Top") {
 // where that fits the room a landing has, and otherwise `where` itself, since a ring
 // box longer than its room never shows whole and the user must still see the control
 // they stand on. Every walk out to the scrollers that move starts there, so a scroller
-// between the control and that box, such as a file editor's, is never moved to show it.
+// between the control and that box is never moved to show it.
 /** @param {Destination} where @returns {Destination} */
 function shownFor(where) {
   const ring = ringBox(where);

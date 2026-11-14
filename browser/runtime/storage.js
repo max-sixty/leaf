@@ -25,8 +25,7 @@ export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 // typed or drew into a composition the log settles (a comment, a reply, an `lf-draft`)
 // and hasn't sent. The agent reads none of it, because sending is when the user says it.
 // It outlives the tab, because closing one is the ordinary end of a tab here, and
-// every tab shows one live copy of it (see the draft section below). An edit to a bound
-// file is not one: the file on disk is what tabs share, so its buffer stays in its tab.
+// every tab shows one live copy of it (see the draft section below).
 // `userStore` is this user's lasting preference across pages, which is the chrome
 // they arrange and expect to find arranged. The stores reach this tab or this browser.
 // What another browser or the agent must read is none of the three: it goes in the log,

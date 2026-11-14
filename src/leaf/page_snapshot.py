@@ -241,7 +241,6 @@ def capture_page_snapshot(
             stored_layer=lambda: layer,
             serve_layer=lambda metadata: layers[_layer_key(metadata)],
             stored_data=lambda: data,
-            bound_files=dict,
             versions=versions,
             presence=copy.deepcopy(present),
             live_stream=copy.deepcopy(live_stream),

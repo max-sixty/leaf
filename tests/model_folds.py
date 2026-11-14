@@ -258,7 +258,6 @@ def _fold(
         # The fixture selects no package, so no page directory resolves one.
         serve_layer=lambda metadata: served_layer(metadata, Path()),
         stored_data=lambda: data,
-        bound_files=dict,
         versions=tuple(version_descriptors(log, parsed)),
         presence=presence or UNCLAIMED,
         live_stream=None,

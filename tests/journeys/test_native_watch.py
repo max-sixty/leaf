@@ -15,7 +15,7 @@ from leaf import state as cleanup_model
 
 @pytest.mark.parametrize("owner", ["page", "session"])
 def test_a_page_subscription_hears_every_input_its_reading_reads(
-    page_dir, tmp_path, monkeypatch, owner
+    page_dir, monkeypatch, owner
 ):
     """A page's subscription watches only the directories its reading reads
     (`reading.page_roots`), none with its tree, so the history beneath
@@ -26,14 +26,11 @@ def test_a_page_subscription_hears_every_input_its_reading_reads(
     reading. A write beneath a revision, to a diagnostic or to a staging file does
     neither."""
     from leaf import files
-    from leaf.file_bindings import bind_file
     from leaf.served_state import reading
+    from leaf.service import claim_path
 
     record_claim(page_dir, id="reading-owner")
     cleanup_model.ensure_session("reading-owner", {"pid": os.getpid()})
-    bound = tmp_path / "notes.txt"
-    bound.write_text("hello\n")
-    bind_file(page_dir, "notes", bound)
     for tree in reading.TREES:
         (page_dir / tree / "nested").mkdir(parents=True, exist_ok=True)
         (page_dir / tree / "nested" / "input.txt").write_text("authored")
@@ -54,7 +51,7 @@ def test_a_page_subscription_hears_every_input_its_reading_reads(
         stamps.setattr(reading, "file_stamp", recording)
         reading.page_reading(page_dir)
     inputs = sorted({path for path in stamped if path.exists()})
-    assert bound in inputs and page_dir / "revisions" in inputs
+    assert claim_path(page_dir) in inputs and page_dir / "revisions" in inputs
 
     def moving(path):
         # A directory's stamp moves when an entry arrives; a file's when it is

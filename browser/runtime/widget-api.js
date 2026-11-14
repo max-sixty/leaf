@@ -142,7 +142,6 @@ export { alignText, MAX_EDIT_LENGTH } from "./text-alignment.js";
 export { says, wrote } from "./passages.js";
 export { ago, agePreview, clockValue, quietSince, shortAgo } from "./presence.js";
 export { revisionLabel } from "./context.js";
-export { boundFile } from "./file-api.js";
 export { RequestError } from "./layer-client.js";
 export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";

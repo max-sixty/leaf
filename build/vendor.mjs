@@ -373,15 +373,9 @@ const bundles = {
     },
   }),
 
-  // One CodeMirror 6 core for runtime composers and optional file editors.
-  //
-  // One bundle holds the editor core and the GFM Markdown language, exporting the
-  // names composers and the file-editor adapter import. Optional autocomplete and
-  // merge live in the file-editor package and import this same state/view/language
-  // implementation. The runtime owns the live-preview decorations and reads a draft
-  // with markdown-it alone; only the file editor highlights with the language. It
-  // comes without `markdown()`, whose HTML-block support would carry the HTML, CSS
-  // and JavaScript grammars into the bundle for syntax a file never highlights.
+  // The CodeMirror 6 core for runtime composers, exporting the names they import.
+  // The runtime owns the live-preview decorations and reads a draft with markdown-it
+  // alone, so the bundle holds no Markdown grammar.
   codemirror: () => ({
     out: `${assets}/vendor/codemirror.esm.js`,
     entryPoints: [input("entries/codemirror/entry.mjs")],
@@ -425,23 +419,6 @@ const bundles = {
           );
         },
       },
-    ],
-  }),
-
-  // File editing extensions sharing the runtime's CodeMirror implementation. Merge
-  // and autocomplete live in this optional package; their state/view/language
-  // imports bind to the core Leaf's composers use, so extensions never mix
-  // CodeMirror identities.
-  "file-editor": () => ({
-    out: `${packageVendor("file-editor")}/extensions.esm.js`,
-    entryPoints: [input("entries/file-editor/entry.mjs")],
-    platform: "browser",
-    target: "es2022",
-    plugins: [
-      bindTo(
-        /^(?:@codemirror\/(?:state|view|language)|@lezer\/highlight)$/,
-        "/vendor/codemirror.esm.js",
-      ),
     ],
   }),
 

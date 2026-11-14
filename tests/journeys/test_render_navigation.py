@@ -764,7 +764,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     assert reading["id"] == "widget:bg-choice"
     assert reading["source"]["id"] == "bg-choice"
     assert reading["prompt"]["target"] == "bg-choice-ask"
-    assert reading["status"] == "open"
+    assert (reading["state"], reading["next_actor"]) == ("waiting", "user")
 
     gallery_tab("tab", name="Threads").click()
     open_threads(page)

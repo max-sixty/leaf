@@ -748,7 +748,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     agent.stdin.write(b"done\n")
     agent.stdin.flush()
     agent.wait(timeout=STATED_TIMEOUT)
-    await_row(lambda row: row["activity"]["kind"] == "unheld")
+    await_row(lambda row: row["activity"]["presence"] == "gone")
     assert server_model.running_server(neighbor)
     hosting_model.cmd_stop(neighbor)
     assert rows() == []
@@ -812,8 +812,8 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     assert rows["scratch"]["url"] == claimed_url
     assert rows["The other page"]["url"] == live_url
     assert rows["The other page"]["session_cwd"] == "/work/api"
-    assert rows["The other page"]["activity"]["kind"] == "away"
-    assert rows["Malformed stream"]["activity"]["kind"] == "away"
+    assert rows["The other page"]["activity"]["presence"] == "away"
+    assert rows["Malformed stream"]["activity"]["presence"] == "away"
     assert all("obligations" not in row["activity"] for row in rows.values())
 
 
@@ -929,7 +929,7 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
         lambda rows: len(rows) == 1 and rows[0]["activity"]["detail"] == "repaired",
         failure="the revived service did not regenerate its row",
     )
-    assert row["activity"]["kind"] == "working"
+    assert row["activity"]["state"] == "running"
 
 
 def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):

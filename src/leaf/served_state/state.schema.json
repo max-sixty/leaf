@@ -38,13 +38,13 @@
           "activity": {
             "type": "object",
             "properties": {
-              "kind": { "$ref": "#/$defs/Activity/properties/kind" },
-              "held": { "$ref": "#/$defs/Activity/properties/held" },
-              "dropped": { "$ref": "#/$defs/Activity/properties/dropped" },
+              "presence": { "$ref": "#/$defs/Activity/properties/presence" },
+              "state": { "$ref": "#/$defs/Activity/properties/state" },
+              "reason": { "$ref": "#/$defs/Activity/properties/reason" },
+              "next_actor": { "$ref": "#/$defs/Activity/properties/next_actor" },
               "detail": { "$ref": "#/$defs/Activity/properties/detail" },
               "observed": { "$ref": "#/$defs/Activity/properties/observed" },
               "observed_kind": { "$ref": "#/$defs/Activity/properties/observed_kind" },
-              "awaiting": { "$ref": "#/$defs/Activity/properties/awaiting" },
               "counts": { "$ref": "#/$defs/Activity/properties/counts" },
               "ts": { "$ref": "#/$defs/Activity/properties/ts" },
               "next_transition_at": {
@@ -52,13 +52,13 @@
               }
             },
             "required": [
-              "kind",
-              "held",
-              "dropped",
+              "presence",
+              "state",
+              "reason",
+              "next_actor",
               "detail",
               "observed",
               "observed_kind",
-              "awaiting",
               "counts",
               "ts",
               "next_transition_at"
@@ -433,15 +433,44 @@
         }
       ]
     },
+    "WorkState": {
+      "description": "Where a piece of work stands (`standing.py`): `waiting` on its next actor, `running` while the agent is observed at work on it, `blocked` while it is owed and nothing moves it, or `done`. The log alone says `waiting` or `done`; `activity.py` is the one producer of the other two.",
+      "enum": ["waiting", "running", "blocked", "done"]
+    },
+    "WorkReason": {
+      "description": "What a state leaves out (`standing.py`). Under `running`: `replying`, the answer is streaming in. Under `blocked`: `terminal`, the agent's turn waits on the user in its own window; `stopped`, the turn that had it was seen to end before answering, or was `interrupted`; `quiet`, nothing has renewed it within the working grace; `undelivered`, no turn has taken it in past the pickup grace; `failed`, the harness gave up and handed it back.",
+      "enum": [
+        "replying",
+        "terminal",
+        "stopped",
+        "interrupted",
+        "quiet",
+        "undelivered",
+        "failed",
+        null
+      ]
+    },
+    "Outcome": {
+      "description": "How a `done` piece of work ended, or null while it is open.",
+      "enum": ["done", "failed", "dropped", null]
+    },
     "Activity": {
-      "description": "The page's one reading of agent activity (`activity.canonical_activity`), without its workflows and to-dos, which the state serves on their own.",
+      "description": "The page's one reading of where the agent's side of its work stands (`activity.canonical_activity`), without its workflows and records, which the state serves on their own.",
       "type": "object",
       "properties": {
-        "kind": {
-          "enum": ["away", "closed", "unheld", "working", "stalled", "listening"]
+        "presence": {
+          "description": "Whether anyone is there to take input: `here`, `away` between turns, `gone` when no session holds the page, or `closed` once the agent declared it done with the page.",
+          "enum": ["here", "away", "gone", "closed"]
         },
-        "held": { "type": "boolean" },
-        "dropped": { "type": "boolean" },
+        "state": {
+          "description": "`running` while the agent's turn is at work, `blocked` when what it had in hand stopped or went quiet or its turn waits on the user in its own window, `waiting` while it owes something nobody is on, `done` when it owes nothing.",
+          "$ref": "#/$defs/WorkState"
+        },
+        "reason": { "$ref": "#/$defs/WorkReason" },
+        "next_actor": {
+          "description": "Whose move changes the reading: the user's for a dialog in the agent's own window and for an update only their nudge will move; null when the agent owes nothing.",
+          "enum": ["user", "agent", null]
+        },
         "detail": { "type": "string" },
         "detail_source": {
           "anyOf": [
@@ -461,27 +490,16 @@
         "observed_kind": {
           "anyOf": [{ "$ref": "#/$defs/WorkKind" }, { "type": "null" }]
         },
-        "awaiting": { "type": "boolean" },
         "counts": {
+          "description": "The answers the agent owes, by where their update stands, and of them all the `unseen` ones no turn has taken in.",
           "type": "object",
           "properties": {
-            "active": { "type": "integer" },
-            "handling": { "type": "integer" },
-            "queued": { "type": "integer" },
-            "picked_up": { "type": "integer" },
-            "pending": { "type": "integer" },
-            "overdue": { "type": "integer" },
-            "total": { "type": "integer" }
+            "running": { "type": "integer" },
+            "waiting": { "type": "integer" },
+            "blocked": { "type": "integer" },
+            "unseen": { "type": "integer" }
           },
-          "required": [
-            "active",
-            "handling",
-            "queued",
-            "picked_up",
-            "pending",
-            "overdue",
-            "total"
-          ],
+          "required": ["running", "waiting", "blocked", "unseen"],
           "additionalProperties": false
         },
         "ts": { "type": ["string", "null"] },
@@ -493,14 +511,14 @@
         }
       },
       "required": [
-        "kind",
-        "held",
-        "dropped",
+        "presence",
+        "state",
+        "reason",
+        "next_actor",
         "detail",
         "detail_source",
         "observed",
         "observed_kind",
-        "awaiting",
         "counts",
         "ts",
         "next_transition_at",
@@ -553,7 +571,7 @@
     },
     "Workflow": {
       "$ref": "#/$defs/WorkflowLine",
-      "description": "One update the user handed over that has not settled (`workflows.py`).",
+      "description": "One update the user handed over that has not settled, as its delivery (`workflows.py`), standing where `activity.py` reads it.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -570,7 +588,12 @@
           "description": "The id of the obligation record this update serves (`workflows.handed_over`): its own, or for an older input in a run of turns the newest's; null for an update that owes nothing.",
           "type": ["string", "null"]
         },
-        "stage": { "$ref": "#/$defs/Stage" },
+        "state": { "$ref": "#/$defs/WorkState" },
+        "reason": { "$ref": "#/$defs/WorkReason" },
+        "seen": {
+          "description": "Whether a turn of the agent's has taken it in: a harness opened it into one, or the agent started or began answering it.",
+          "type": "boolean"
+        },
         "ts": { "type": ["string", "null"] },
         "delivery_seq": { "type": ["integer", "null"] },
         "delivery_session": { "type": ["string", "null"] },
@@ -582,35 +605,6 @@
         },
         "agent": { "type": ["string", "null"] },
         "session": { "type": ["string", "null"] },
-        "activity": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "kind": { "enum": ["working", "replying", "response"] },
-              "detail": { "type": ["string", "null"] },
-              "ts": { "type": ["string", "null"] },
-              "session": { "type": ["string", "null"] },
-              "turn": { "type": ["string", "null"] }
-            },
-            "required": ["kind", "detail", "ts", "session", "turn"],
-            "additionalProperties": false
-          }
-        },
-        "condition": {
-          "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "kind": { "enum": ["ended", "interrupted", "stale", "failed"] },
-                "operation": { "enum": ["delivery", "work", "response"] }
-              },
-              "required": ["kind", "operation"],
-              "additionalProperties": false
-            },
-            { "type": "null" }
-          ]
-        },
         "response": {
           "anyOf": [
             {
@@ -643,10 +637,6 @@
             "additionalProperties": false
           }
         },
-        "at_work": {
-          "description": "Whether the agent is at work on it, whatever its condition: at `working` or `replying`, or a fork of its conversation has taken its input on (`forks.forked`).",
-          "type": "boolean"
-        },
         "thread": {
           "description": "The thread it stands in: a thread input's own, a widget frozen into a message's thread, or null for a page widget.",
           "type": ["string", "null"]
@@ -661,7 +651,9 @@
         "subject",
         "coordinate",
         "obligation",
-        "stage",
+        "state",
+        "reason",
+        "seen",
         "ts",
         "delivery_seq",
         "delivery_session",
@@ -670,11 +662,8 @@
         "detail_seq",
         "agent",
         "session",
-        "activity",
-        "condition",
         "response",
         "started_by",
-        "at_work",
         "thread"
       ],
       "additionalProperties": false,
@@ -709,7 +698,7 @@
       ]
     },
     "Start": {
-      "description": "The start running on a to-do (`todos.running`).",
+      "description": "A start in force on an item (`todos.running`): the line the agent said of it, when, by whom, and the turn it holds the item for.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -724,65 +713,15 @@
       "required": ["id", "item", "text", "seq", "ts", "agent", "session", "turn"],
       "additionalProperties": false
     },
-    "Todo": {
-      "description": "One to-do, open or ended (`work_reading.WorkReading.page_todos`). The start that holds an open one is `running`; one gone quiet holds nothing.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "subject": { "$ref": "#/$defs/Subject" },
-        "title": { "type": "string" },
-        "state": { "enum": ["open", "done", "failed", "dropped"] },
-        "seq": { "type": "integer" },
-        "ts": { "type": "string" },
-        "agent": { "type": ["string", "null"] },
-        "session": { "type": ["string", "null"] },
-        "revision": { "type": ["integer", "null"] },
-        "running": { "anyOf": [{ "$ref": "#/$defs/Start" }, { "type": "null" }] },
-        "outcome": {
-          "description": "How it ended: the `todo_end` in force, or the stamped version that completed it.",
-          "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "id": { "type": "string" },
-                "seq": { "type": "integer" },
-                "ts": { "type": "string" },
-                "detail": { "type": ["string", "null"] },
-                "author": { "type": "string" },
-                "agent": { "type": ["string", "null"] },
-                "session": { "type": ["string", "null"] }
-              },
-              "required": ["id", "seq", "ts", "detail", "author", "agent", "session"],
-              "additionalProperties": false
-            },
-            { "type": "null" }
-          ]
-        },
-        "thread": { "type": ["string", "null"] }
-      },
-      "required": [
-        "id",
-        "subject",
-        "title",
-        "state",
-        "seq",
-        "ts",
-        "agent",
-        "session",
-        "revision",
-        "running",
-        "outcome",
-        "thread"
-      ],
-      "additionalProperties": false
-    },
     "PlanStep": {
-      "description": "One step of the plan (`plans.plan_reading`): plain, or naming a to-do or obligation whose title, owner and state it shows; `done` of `total` counts its children, dropped ones left out.",
+      "description": "One step of the plan (`plans.plan_reading`): plain, or naming an obligation, a to-do among them, whose title and standing it shows; `done` of `total` counts its children that ended done, dropped ones left out.",
       "type": "object",
       "properties": {
         "title": { "type": ["string", "null"] },
-        "state": { "enum": ["open", "working", "done", "failed", "dropped"] },
-        "owner": { "enum": ["agent", "user"] },
+        "next_actor": { "enum": ["user", "agent", null] },
+        "state": { "$ref": "#/$defs/WorkState" },
+        "reason": { "$ref": "#/$defs/WorkReason" },
+        "outcome": { "$ref": "#/$defs/Outcome" },
         "item": {
           "anyOf": [
             {
@@ -805,8 +744,10 @@
       },
       "required": [
         "title",
+        "next_actor",
         "state",
-        "owner",
+        "reason",
+        "outcome",
         "item",
         "running",
         "since",
@@ -939,13 +880,8 @@
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/View" }
         },
-        "todos": {
-          "description": "Every to-do, open and ended, the one record the browser reads each from.",
-          "type": "array",
-          "items": { "$ref": "#/$defs/Todo" }
-        },
         "plan": {
-          "description": "The agent's outline of the work, its steps naming to-dos and obligations by id (`plans.plan_reading`), or null.",
+          "description": "The agent's outline of the work, its steps naming obligations by id (`plans.plan_reading`), or null.",
           "anyOf": [
             {
               "type": "object",
@@ -973,14 +909,7 @@
           "additionalProperties": { "type": "string" }
         }
       },
-      "required": [
-        "basis",
-        "views",
-        "todos",
-        "plan",
-        "thread_memberships",
-        "version_notes"
-      ],
+      "required": ["basis", "views", "plan", "thread_memberships", "version_notes"],
       "additionalProperties": false
     },
     "View": {
@@ -1073,12 +1002,12 @@
         },
         "published_at": { "type": ["string", "null"] },
         "queues": {
-          "description": "On Me and On <agent> and what each has finished (`served_state.queues`).",
+          "description": "On Me and On <agent> and what each has finished, newest first (`served_state.queues`).",
           "type": "object",
           "properties": {
             "on_user": { "type": "array", "items": { "$ref": "#/$defs/QueueRow" } },
             "on_agent": { "type": "array", "items": { "$ref": "#/$defs/QueueRow" } },
-            "done": { "type": "array", "items": { "$ref": "#/$defs/DoneRow" } }
+            "done": { "type": "array", "items": { "$ref": "#/$defs/QueueRow" } }
           },
           "required": ["on_user", "on_agent", "done"],
           "additionalProperties": false
@@ -1198,6 +1127,17 @@
       "required": ["kind", "id"],
       "additionalProperties": false
     },
+    "TodoObligationSource": {
+      "description": "A to-do the agent opened: `id` is its opening event, `subject` what it stands on.",
+      "type": "object",
+      "properties": {
+        "kind": { "const": "todo" },
+        "id": { "type": "string" },
+        "subject": { "$ref": "#/$defs/Subject" }
+      },
+      "required": ["kind", "id", "subject"],
+      "additionalProperties": false
+    },
     "ObligationPrompt": {
       "type": "object",
       "properties": {
@@ -1211,7 +1151,7 @@
       "additionalProperties": false
     },
     "Obligation": {
-      "description": "One request and its contained answer (`obligations.py`, which owns the statuses): what a message or widget waits on the user for, or what a user update is owed (`workflows.handed_over`). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide.",
+      "description": "One thing owed, the record every list, thread and plan step reads (`obligations.py`): what a message or widget waits on the user for, what a user update is owed (`workflows.handed_over`), or a to-do the agent opened (`todos.py`). It says where it stands in the fields every record does (`standing.py`). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide, but a to-do's, which is its opening event's.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -1219,7 +1159,8 @@
           "anyOf": [
             { "$ref": "#/$defs/WidgetObligationSource" },
             { "$ref": "#/$defs/UpdateObligationSource" },
-            { "$ref": "#/$defs/MessageObligationSource" }
+            { "$ref": "#/$defs/MessageObligationSource" },
+            { "$ref": "#/$defs/TodoObligationSource" }
           ]
         },
         "thread": { "type": ["string", "null"] },
@@ -1228,16 +1169,15 @@
         "answer": {
           "anyOf": [{ "$ref": "#/$defs/ObligationAnswer" }, { "type": "null" }]
         },
-        "status": { "enum": ["open", "answered", "answered_elsewhere", "withdrawn"] },
         "end": {
-          "description": "The agent's `leaf task end` that retired a question answered in words: where the answer is, or why the obligation no longer applies.",
+          "description": "How the agent ended it: its `leaf task end` on a question answered elsewhere or no longer asked, or on a to-do, or the stamped version that completed a to-do; where the result is, or why there is none.",
           "anyOf": [
             {
               "type": "object",
               "properties": {
                 "detail": { "type": ["string", "null"] },
                 "event": {
-                  "description": "The ending's reference, which names no kind: every ending is a `todo_end`.",
+                  "description": "The ending's reference, which names no kind.",
                   "type": "object",
                   "properties": {
                     "id": { "type": "string" },
@@ -1255,7 +1195,31 @@
             { "type": "null" }
           ]
         },
-        "next_actor": { "enum": ["user", "agent", null] }
+        "next_actor": { "enum": ["user", "agent", null] },
+        "state": { "$ref": "#/$defs/WorkState" },
+        "reason": { "$ref": "#/$defs/WorkReason" },
+        "outcome": { "$ref": "#/$defs/Outcome" },
+        "answered": {
+          "description": "Whether the answer its source takes stands on it (`standing.answered`): the user's own answer to a question, or the reply to an update, and not an end the agent recorded.",
+          "type": "boolean"
+        },
+        "seen": {
+          "description": "On an update: whether a turn of the agent's has taken it in.",
+          "type": "boolean"
+        },
+        "workflow": {
+          "description": "On an update: the id of the workflow it stands by, the strongest serving it, or null once nothing does.",
+          "type": ["string", "null"]
+        },
+        "line": {
+          "description": "On a to-do: the start in force on it, whose text is the line the agent last said of it, or null.",
+          "anyOf": [{ "$ref": "#/$defs/Start" }, { "type": "null" }]
+        },
+        "seq": { "type": "integer" },
+        "ts": { "type": "string" },
+        "agent": { "type": ["string", "null"] },
+        "session": { "type": ["string", "null"] },
+        "revision": { "type": ["integer", "null"] }
       },
       "required": [
         "id",
@@ -1264,9 +1228,12 @@
         "message",
         "prompt",
         "answer",
-        "status",
         "end",
-        "next_actor"
+        "next_actor",
+        "state",
+        "reason",
+        "outcome",
+        "answered"
       ],
       "additionalProperties": false,
       "anyOf": [
@@ -1312,7 +1279,8 @@
                 { "type": "null" }
               ]
             }
-          }
+          },
+          "required": ["seen", "workflow"]
         },
         {
           "properties": {
@@ -1339,15 +1307,21 @@
               ]
             }
           }
+        },
+        {
+          "properties": {
+            "source": { "$ref": "#/$defs/TodoObligationSource" },
+            "message": { "type": "null" },
+            "answer": { "type": "null" }
+          },
+          "required": ["line", "seq", "ts", "agent", "session", "revision"]
         }
       ]
     },
     "QueueRow": {
-      "description": "One row of On Me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A record's row names its obligation by `id`, whose record is the view's `obligations` entry, and a to-do row names its record in the page's `todos` entry.",
-      "anyOf": [
-        { "$ref": "#/$defs/ObligationRow", "unevaluatedProperties": false },
-        { "$ref": "#/$defs/TodoRow", "unevaluatedProperties": false }
-      ]
+      "description": "One row of On Me, On <agent> or Done (`served_state.queues`); `owner` names its list. It names its obligation by `id`, whose record is the view's `obligations` entry.",
+      "$ref": "#/$defs/ObligationRow",
+      "unevaluatedProperties": false
     },
     "ObligationRow": {
       "anyOf": [
@@ -1357,21 +1331,22 @@
             "owner": { "const": "user" }
           }
         },
-        { "properties": { "kind": { "const": "update" } } }
+        { "properties": { "kind": { "const": "update" } } },
+        { "properties": { "kind": { "const": "todo" }, "owner": { "const": "agent" } } }
       ],
-      "description": "An obligation record's row in On Me or On <agent> (`served_state.queues`).",
+      "description": "An obligation record's row in On Me, On <agent> or Done (`served_state.queues`). The record says where it stands, whether the agent has it in hand and how a done one ended.",
       "type": "object",
       "properties": {
         "kind": {
           "description": "The record's `source.kind`.",
-          "enum": ["widget", "update", "message"]
+          "enum": ["widget", "update", "message", "todo"]
         },
         "id": {
           "description": "The obligation, whose record is the view's `obligations` entry.",
           "type": "string"
         },
         "owner": {
-          "description": "The list the row stands on.",
+          "description": "The list the row stands on, or stood on before Done.",
           "enum": ["user", "agent"]
         },
         "subject": { "$ref": "#/$defs/Subject" },
@@ -1383,49 +1358,9 @@
           "description": "The other obligations the user answers at the same place, each a view's `obligations` entry: the further records a thread's reply answers, and on an obligation's row those of a thread about it.",
           "type": "array",
           "items": { "type": "string" }
-        },
-        "live": {
-          "description": "Whether the agent has it in hand now: an update it is at work on whose work has not gone quiet or stopped.",
-          "type": "boolean"
         }
       },
-      "required": ["kind", "id", "owner", "subject", "thread", "also", "live"]
-    },
-    "TodoRow": {
-      "description": "A to-do's row in On <agent> (`served_state.queues`).",
-      "type": "object",
-      "properties": {
-        "kind": { "const": "todo" },
-        "id": {
-          "description": "The to-do, whose record is the page's `todos` entry.",
-          "type": "string"
-        },
-        "owner": {
-          "description": "The list the row stands on.",
-          "const": "agent"
-        },
-        "subject": { "$ref": "#/$defs/Subject" },
-        "thread": {
-          "description": "The thread it stands in, or null.",
-          "type": ["string", "null"]
-        },
-        "live": {
-          "description": "Whether a start holds the to-do now.",
-          "type": "boolean"
-        }
-      },
-      "required": ["kind", "id", "owner", "subject", "thread", "live"]
-    },
-    "DoneRow": {
-      "description": "A row that left its list, in the Done of the list `owner` names: how it ended (`state`), when (`ended`, null going last), and the outcome's detail.",
-      "anyOf": [{ "$ref": "#/$defs/ObligationRow" }, { "$ref": "#/$defs/TodoRow" }],
-      "properties": {
-        "state": { "enum": ["done", "failed", "dropped"] },
-        "ended": { "type": ["string", "null"] },
-        "detail": { "type": ["string", "null"] }
-      },
-      "required": ["state", "ended", "detail"],
-      "unevaluatedProperties": false
+      "required": ["kind", "id", "owner", "subject", "thread", "also"]
     },
     "Anchor": {
       "description": "Where a thread stands on the page, as a comment, reply or reanchor names it, or null.",
@@ -1531,46 +1466,6 @@
       "required": ["message", "version"],
       "additionalProperties": false
     },
-    "Attention": {
-      "description": "Whose turn a thread is (`served_state.browser._thread_attention`), read from the open obligation records in it: a widget's or an update's handed back on the user, else one on the agent, whose strongest serving workflow it names; or null for nobody's.",
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "kind": { "const": "needs_user" },
-            "reason": { "enum": ["obligation", "resend"] },
-            "workflow": { "type": ["string", "null"] }
-          },
-          "required": ["kind", "reason", "workflow"],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": { "const": "waiting" },
-            "reason": { "enum": ["uncertain", "workflow"] },
-            "workflow": { "type": "string" }
-          },
-          "required": ["kind", "reason", "workflow"],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": { "const": "waiting" },
-            "reason": { "const": "todo" },
-            "workflow": { "type": "null" },
-            "todo": {
-              "description": "The id of the to-do the thread waits on, whose record is the page's `todos` entry.",
-              "type": "string"
-            }
-          },
-          "required": ["kind", "reason", "workflow", "todo"],
-          "additionalProperties": false
-        },
-        { "type": "null" }
-      ]
-    },
     "Thread": {
       "description": "One thread, keyed by the comment that opened it (`events.build_threads`), as `served_state.thread.browser_thread` serves it.",
       "type": "object",
@@ -1644,7 +1539,10 @@
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
-        "attention": { "$ref": "#/$defs/Attention" }
+        "attention": {
+          "description": "Whose turn the thread is and where it stands: the id of the open obligation record that speaks for it (`standing.leading`), in the view's `obligations`, or null for nobody's (`served_state.browser._apply_thread_attention`).",
+          "type": ["string", "null"]
+        }
       },
       "required": [
         "id",
@@ -1663,10 +1561,6 @@
         "attention"
       ],
       "additionalProperties": false
-    },
-    "Stage": {
-      "description": "How far an update has reached the agent; `answered` is only ever a retained failed response.",
-      "enum": ["sent", "queued", "picked_up", "working", "replying", "answered"]
     },
     "ViewDocument": {
       "description": "A revision's document as a view serves it: its widget state's projection under the registry it captured (`served_state.document.browser_document`).",

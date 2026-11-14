@@ -299,7 +299,7 @@ def wait_for_listening(page: Page, client: PageClient) -> dict:
     """Wait until the server reads the demo's agent as listening and the page has
     applied that reading, and return it."""
     deadline = time.monotonic() + 30
-    while (state := client.state())["activity"]["kind"] != "listening":
+    while (state := client.state())["activity"]["presence"] != "here":
         if time.monotonic() > deadline:
             raise click.ClickException(
                 f"the page never listened; its activity is {state['activity']!r}"

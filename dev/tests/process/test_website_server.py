@@ -192,7 +192,7 @@ class _FailedTurn:
         ]
         return {
             "active": {"revision": 1, "url": "revisions/1.html"},
-            "activity": {"kind": "away", "obligations": []},
+            "activity": {"presence": "away", "state": "done", "obligations": []},
             "events": events,
         }
 
@@ -671,7 +671,7 @@ def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
     stalled = journey.TurnReading(
         {
             "active": {"revision": 1},
-            "activity": {"kind": "answering"},
+            "activity": {"state": "blocked", "reason": "stopped"},
             "source_error": None,
         },
         None,
@@ -689,13 +689,13 @@ def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
     assert str(stopped.value) == (
         "https://leaf.page/examples/triage-board/ agent did not publish a revision "
         "naming ‘446b8fe9’; it reached revision 1 from 1 "
-        "with the page reading answering and did not reply; source validation: no error"
+        "with the page reading blocked and did not reply; source validation: no error"
     )
 
     answered = journey.TurnReading(
         {
             "active": {"revision": 2},
-            "activity": {"kind": "listening"},
+            "activity": {"presence": "here", "state": "done"},
             "source_error": None,
         },
         {"revision": 2},
@@ -747,7 +747,7 @@ def test_a_missing_publication_reports_the_real_source_validation_reading(
     assert str(stopped.value) == (
         "https://leaf.page/examples/triage-board/ agent did not publish a revision "
         f"naming ‘446b8fe9’; it reached revision {revision} from {revision} "
-        f"with the page reading {state['activity']['kind']}; it replied: deployment verified"
+        f"with the page reading {state['activity']['state']}; it replied: deployment verified"
         f"; source validation: {state['source_error'] or 'no error'}"
     )
 
@@ -873,7 +873,7 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
     accept_in_turn("hosted-thread")
 
     handling = page_state(page_dir)
-    assert handling["activity"]["kind"] == "working"
+    assert handling["activity"]["state"] == "running"
     assert journey.still_answering(handling, comment["id"])
     # Another page's comment is not this gate's turn, whatever this page is doing.
     assert not journey.still_answering(handling, "another-event")
@@ -897,11 +897,17 @@ def test_the_deploy_gate_stops_waiting_on_a_page_with_no_agent_on_the_comment():
     behind it. Extending the wait there would spend the step's whole budget to raise
     the failure it could already raise.
     """
-    for kind in ("away", "unheld", "stalled", "closed", "listening"):
-        state = {"activity": {"kind": kind, "obligations": ["update:comment-id"]}}
-        assert not journey.still_answering(state, "comment-id")
-    working = {"activity": {"kind": "working", "obligations": ["update:comment-id"]}}
-    assert journey.still_answering(working, "comment-id")
+    owed = ["update:comment-id"]
+    for standing in (("waiting", None), ("blocked", "stopped"), ("blocked", "quiet")):
+        state = dict(zip(("state", "reason"), standing, strict=True))
+        assert not journey.still_answering(
+            {"activity": {**state, "obligations": owed}}, "comment-id"
+        )
+    for standing in (("running", None), ("blocked", "terminal")):
+        state = dict(zip(("state", "reason"), standing, strict=True))
+        assert journey.still_answering(
+            {"activity": {**state, "obligations": owed}}, "comment-id"
+        )
     assert not journey.still_answering({}, "comment-id")
 
 
@@ -1036,7 +1042,12 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
     comment = {"id": "comment-id"}
     working = {
         "active": {"revision": 1, "url": "revisions/1.html"},
-        "activity": {"kind": "working", "obligations": ["update:comment-id"]},
+        "activity": {
+            "presence": "here",
+            "state": "running",
+            "reason": None,
+            "obligations": ["update:comment-id"],
+        },
         "events": [
             {
                 "kind": "reply",
@@ -1379,7 +1390,11 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             journey.TurnReading(
                 {
                     "active": {"revision": 2},
-                    "activity": {"kind": "away", "obligations": []},
+                    "activity": {
+                        "presence": "away",
+                        "state": "done",
+                        "obligations": [],
+                    },
                     "source_error": None,
                     "events": TURN_LOG,
                     "browser": {
@@ -1467,13 +1482,13 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             },
             "responseShownBy": "message",
             "activity": [
-                {"atMs": 250.0, "kind": "queued", "detail": ""},
+                {"atMs": 250.0, "state": "waiting", "detail": ""},
                 {
                     "atMs": 1000.0,
-                    "kind": "working",
+                    "state": "running",
                     "detail": "Editing the page",
                 },
-                {"atMs": 12500.0, "kind": "away", "detail": ""},
+                {"atMs": 12500.0, "state": "done", "detail": ""},
             ],
         },
         "change": {
@@ -1559,7 +1574,11 @@ def test_a_reload_that_never_heard_its_server_is_told_apart_from_a_stale_answer(
             journey.TurnReading(
                 {
                     "active": {"revision": 2},
-                    "activity": {"kind": "away", "obligations": []},
+                    "activity": {
+                        "presence": "away",
+                        "state": "done",
+                        "obligations": [],
+                    },
                     "source_error": None,
                     "events": TURN_LOG,
                     "browser": {

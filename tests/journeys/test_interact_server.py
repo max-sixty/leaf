@@ -699,7 +699,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
             failure="the invisible page's canonical row did not refresh",
         )[0]
 
-    row = await_row(lambda row: row["activity"]["kind"] == "working")
+    row = await_row(lambda row: row["activity"]["state"] == "running")
     assert row["session_cwd"] == "/work/invisible"
     source = neighbor / "index.html"
     source.write_text(
@@ -713,7 +713,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     await_row(
         lambda row: (
             row["title"] == "Revised unseen"
-            and row["activity"]["counts"]["pending"] == 1
+            and row["activity"]["counts"]["unseen"] == 1
         )
     )
     end_work(neighbor)
@@ -721,7 +721,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     session = cleanup_model.session_record("invisible")
     assert session is not None
     cleanup_model.write_session({**session, "turn_closed": cleanup_model.now_iso()})
-    await_row(lambda row: row["activity"]["kind"] == "away")
+    await_row(lambda row: row["activity"]["presence"] == "away")
     # The harness's dialog changes outside the page, with no lifecycle rewrite.
     harness_record = harness_model.claude_code_sessions() / f"{agent.pid}.json"
     harness_record.parent.mkdir(parents=True, exist_ok=True)
@@ -736,15 +736,15 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     )
     await_row(lambda row: row["activity"]["observed_kind"] == "awaiting_user")
     harness_record.unlink()
-    await_row(lambda row: row["activity"]["kind"] == "away")
+    await_row(lambda row: row["activity"]["presence"] == "away")
     lease_path = leases_model.waiter_lease_path(neighbor, "invisible")
     assert lease_path is not None
     waiter = leases_model.take_wait_lease(lease_path)
     try:
-        await_row(lambda row: row["activity"]["kind"] == "listening")
+        await_row(lambda row: row["activity"]["presence"] == "here")
     finally:
         leases_model.release_lease(waiter)
-    await_row(lambda row: row["activity"]["kind"] == "away")
+    await_row(lambda row: row["activity"]["presence"] == "away")
     agent.stdin.write(b"done\n")
     agent.stdin.flush()
     agent.wait(timeout=STATED_TIMEOUT)

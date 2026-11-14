@@ -46,9 +46,7 @@ ACTIVITY_FIELDS = frozenset(
         "properties"
     ]["others"]["items"]["properties"]["activity"]["required"]
 )
-COUNT_FIELDS = frozenset(
-    {"active", "handling", "queued", "picked_up", "pending", "overdue", "total"}
-)
+COUNT_FIELDS = frozenset({"running", "waiting", "blocked", "unseen"})
 
 
 def compact_activity(activity: dict) -> dict:
@@ -111,7 +109,7 @@ ROW = Record(
             }
         ),
     ),
-    since=16,
+    since=43,
 )
 
 

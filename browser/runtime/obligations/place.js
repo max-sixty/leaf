@@ -79,7 +79,7 @@ export const subjectPlace = (subject) =>
  * @param {readonly import("../framework/application.js").ObligationRecord[]} items */
 export function obligationsIn(region, items = readObligations().all) {
   return items.filter((item) => {
-    if (item.status === "withdrawn") return false;
+    if (item.outcome === "dropped") return false;
     const { source } = obligationPlace(item, items);
     return Boolean(source && under(source, region));
   });

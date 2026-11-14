@@ -47,6 +47,7 @@ from interact_support import (
     lock_contention,
     model_layer,
     obligations_on_user,
+    open_todos,
     publish,
     read_page_data,
     refused_on,
@@ -2278,8 +2279,8 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         "thread", "reply", "t-ask", "--text", "Weighing it.", "--todo", "Weigh"
     )
     assert promised.exit_code == 0, promised.output
-    [task] = json.loads(run("page", "state").output)["todos"]
-    assert (task["id"], task["subject"]) == (
+    [task] = open_todos(json.loads(run("page", "state").output))
+    assert (task["id"], task["source"]["subject"]) == (
         json.loads(promised.output)["id"],
         {"kind": "thread", "id": opened["id"]},
     )
@@ -3159,11 +3160,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
             "resolved": None,
             "unread": [answered["id"]],
             # The reply names no `responds`, so the comment is still owed an answer.
-            "attention": {
-                "kind": "waiting",
-                "reason": "workflow",
-                "workflow": opened["id"],
-            },
+            "attention": f"update:{opened['id']}",
         }
     ]
     history = CliRunner().invoke(
@@ -4056,7 +4053,9 @@ def test_a_cold_page_state_reads_only_the_element_index_of_history(
     )
     with fresh_process():
         state = agent_state_model.cmd_page_state(page_dir)
-    assert [item["status"] for item in state["obligations"]] == ["withdrawn"]
+    assert [(item["state"], item["outcome"]) for item in state["obligations"]] == [
+        ("done", "dropped")
+    ]
     assert set(authored) == {active.read_text()}
 
 
@@ -4108,7 +4107,7 @@ def test_obligation_history_survives_parse_eviction_and_new_revisions(
     with fresh_process():
         initial = read()
         assert len(parsed) == 4
-        assert initial["all"][0]["status"] == "withdrawn"
+        assert initial["all"][0]["outcome"] == "dropped"
         parsed.clear()
         assert read() == initial
         assert len(parsed) <= 1  # the active revision may have been evicted
@@ -4574,7 +4573,7 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
     [item] = [
         item for item in reading["obligations"] if item["source"]["kind"] == "widget"
     ]
-    assert item["status"] == "answered"
+    assert (item["state"], item["outcome"], item["end"]) == ("done", "done", None)
     assert item["answer"]["event"]["id"] == picked["id"]
 
 

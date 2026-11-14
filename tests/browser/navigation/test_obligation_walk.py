@@ -678,7 +678,7 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
     page.keyboard.press("1")
     round_trip(page)
     first, second = questions()
-    assert first["status"] == "answered"
+    assert (first["state"], first["outcome"]) == ("done", "done")
     assert first["answer"]["value"] == ["first-a"]
     assert second["answer"] is None
     page.keyboard.press("m")

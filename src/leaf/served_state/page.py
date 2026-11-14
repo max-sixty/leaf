@@ -90,7 +90,7 @@ def read_served_page(
             **{
                 key: value
                 for key, value in work.activity.items()
-                if key not in {"workflows", "todos", "obligations"}
+                if key not in {"workflows", "todos", "records", "obligations"}
             },
             # The records of the updates the agent owes an answer, by id; their
             # workflows are `workflows`, and the records each view's `obligations`.

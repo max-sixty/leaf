@@ -91,9 +91,11 @@ test("the obligation at a node costs as much on a page of 64 obligations as of 8
       message: null,
       prompt: { text: `Choose ${id}.`, target: id },
       answer: null,
-      status: "open",
       end: null,
       next_actor: "user",
+      state: "waiting",
+      reason: null,
+      outcome: null,
     }));
     applicationState.adopt(servedState({ browser: { views: { 1: { obligations } } } }));
     const button = document.querySelector("#w3 button");
@@ -121,21 +123,25 @@ test("the obligation at a node costs as much on a page of 64 obligations as of 8
 test("a region holds the live widget obligations whose source is it or stands under it", () => {
   document.body.innerHTML =
     '<section id="queue"><div id="item"><div id="first"></div><div id="gone"></div></div></section><div id="outside"></div>';
-  const item = (id, status = "open", kind = "widget") => ({
+  // Where each stands (`standing.py`): open, withdrawn, or answered.
+  const OPEN = { state: "waiting", outcome: null };
+  const WITHDRAWN = { state: "done", outcome: "dropped" };
+  const ANSWERED = { state: "done", outcome: "done" };
+  const item = (id, standing = OPEN, kind = "widget") => ({
     id: `${kind}:${id}`,
     thread: null,
     message: null,
-    status,
+    ...standing,
     source: { kind, id },
     prompt: { target: id },
   });
   const items = [
     item("first"),
-    item("gone", "withdrawn"),
-    item("outside", "answered"),
+    item("gone", WITHDRAWN),
+    item("outside", ANSWERED),
     item("missing"),
-    item("item", "answered"),
-    item("first", "open", "reply"),
+    item("item", ANSWERED),
+    item("first", OPEN, "reply"),
   ];
   const ids = (region) =>
     obligationsIn(document.getElementById(region), items).map((held) => held.id);

@@ -1128,7 +1128,7 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
     [workflow] = state["workflows"]
     [record] = served_updates(state["browser"])
     assert (workflow["obligation"], record["next_actor"]) == (record["id"], "user")
-    assert workflow["condition"]["kind"] == "failed"
+    assert (workflow["state"], workflow["reason"]) == ("blocked", "failed")
     assert owed_answers(page_dir) == []
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(page_dir)

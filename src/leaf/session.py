@@ -119,7 +119,9 @@ def cmd_idle(page_dir: Path) -> dict:
         # A to-do is work the agent still owes, which closing the page would leave
         # open on a page nobody holds.
         if todos := work.durable.log.owed:
-            named = "; ".join(f"{todo['id']} ({todo['title']})" for todo in todos)
+            named = "; ".join(
+                f"{todo['id']} ({todo['prompt']['text']})" for todo in todos
+            )
             raise Refused(
                 f"{len(todos)} open to-do{'s' if len(todos) != 1 else ''}: {named}. "
                 "End each before closing with "

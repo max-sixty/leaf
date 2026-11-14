@@ -1552,7 +1552,7 @@ def test_an_observed_queue_pointer_leaves_its_reply_to_leaf_reply(page_dir):
     )
     assert client.turns["queued-turn"].reply_stream is None
     [workflow] = owed_answers(page_dir)
-    assert workflow["stage"] == "picked_up"
+    assert (workflow["state"], workflow["seen"]) == ("waiting", True)
     assert workflow["answer"] == {
         "kind": "reply",
         "parent": comment["id"],
@@ -2282,7 +2282,7 @@ def test_the_prompt_hook_and_the_observer_open_one_codex_turn(page_dir, capsys):
     assert claim_record_2 is not None
     assert claim_record_2["turn"] == "codex-turn"
     [owed] = _obligations(page_dir)
-    assert (owed["stage"], owed["condition"]) == ("picked_up", None)
+    assert (owed["state"], owed["reason"], owed["seen"]) == ("waiting", None, True)
 
 
 def test_reconnect_closes_a_completed_stream_reservation(page_dir):

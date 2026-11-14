@@ -2928,7 +2928,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     assert row["activity"] == expected
     assert "detail_source" not in row["activity"]
     assert "obligations" not in row["activity"]
-    assert row["activity"]["counts"]["pending"] == 1
+    assert row["activity"]["counts"]["unseen"] == 1
     assert row["session_cwd"] == "/work/neighbor"
     assert reads == [neighbor / "service.json"]
     declare(neighbor, "idle")
@@ -3054,7 +3054,7 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
     try:
         publisher.refresh()
         first = json.loads(publisher.path.read_text())["row"]
-        assert first["activity"]["kind"] == "working"
+        assert first["activity"]["state"] == "running"
         assert (
             first["activity"]["next_transition_at"]
             == (now + timedelta(seconds=1)).isoformat()
@@ -3072,7 +3072,11 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
         now += timedelta(seconds=2)
         publisher.refresh()
         aged = json.loads(publisher.path.read_text())["row"]
-        assert aged["activity"]["kind"] == "stalled"
+        assert (
+            aged["activity"]["presence"],
+            aged["activity"]["state"],
+            aged["activity"]["reason"],
+        ) == ("here", "blocked", "quiet")
         assert aged["activity"]["next_transition_at"] is None
         publisher.path.unlink()
         publisher.refresh()

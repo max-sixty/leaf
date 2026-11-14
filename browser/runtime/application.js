@@ -772,7 +772,7 @@ function createApplication(dependencies) {
     openObligation(id) {
       const item = readObligations().byId.get(id);
       if (!item) return Promise.resolve(false);
-      if (hasObligationSource(item, "update"))
+      if (hasObligationSource(item, "update") || hasObligationSource(item, "todo"))
         return queueActions.open(JSON.stringify([item.source.kind, item.id]));
       if (item.thread !== null && answeredInWords(item)) {
         showHeld(item.thread);

@@ -418,10 +418,10 @@ export class TabSet extends LeafElement {
     const hasAnswer = this.#side && elementsDeclaring(panel, "x-awaits").length > 0;
     const items = hasAnswer ? obligationsIn(panel) : [];
     // Withdrawn items are already left out; an answer given elsewhere ends one too.
-    const done = items.filter((item) => item.status !== "open");
+    const done = items.filter((item) => item.state === "done");
     const answered = items.length > 0 && done.length === items.length;
     const only = items.length === 1 ? items[0] : null;
-    const open = items.filter((item) => item.status === "open");
+    const open = items.filter((item) => item.state !== "done");
     const onUser = open.some((item) => item.next_actor === "user");
     const turn = onUser
       ? "To answer"

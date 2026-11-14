@@ -33,13 +33,15 @@ function wireSample({ sample, key, control, disclosure }) {
     );
     presentContributionReceipts(
       control,
-      sample.workflowStage
+      sample.workflowState
         ? {
             id: key,
             subject: { kind: "widget", id: key },
-            stage: sample.workflowStage,
-            // The server stamps whether the agent is at work on it (served_state/work.py).
-            at_work: sample.workflowStage === "working",
+            // Where the server says the update stands (activity.py): a turn took it
+            // in, or the agent is at work on it.
+            state: sample.workflowState,
+            reason: null,
+            seen: true,
             detail: "",
           }
         : null,

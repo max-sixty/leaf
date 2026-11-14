@@ -26,10 +26,10 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Response** | Work owed to user input of unknown kind: “2 responses owed” |
 | **Answer** | The current value of an obligation, or the response that satisfies a user update; there is no separate Answer record |
 | **Reply** | A message in a conversation, including an answer or an unprompted message |
-| **Delivery** | How far an update has got toward the agent: **Queued for Claude** until a harness has queued it (**Up next**, stage `queued`) or handed it into the agent's turn (**Delivered**, stage `picked_up`), all in Leaf's italic voice. Delivered doesn't mean work has begun |
-| **Queued for Claude** | An update no harness has queued or opened into a turn (stages `sending` and `sent`), whether or not the log has accepted it, in Leaf's italic voice with the agent's name; past the pickup grace it reads **Still queued for Claude** |
-| **Starting the agent** | On leaf.page, an update sent while the page's agent has no running container, until the server has it (stage `sending`), in Leaf's italic voice. The agent's container starts for that update, which waits seconds; updates sent after it reach the running container |
-| **On it** | The agent has explicitly started this update or to-do (stage `working`), or a fork of its conversation has taken the update on (`at_work`); page activity alone doesn't mean it has |
+| **Delivery** | How far an update has got toward the agent: **Queued for Claude** until a harness has handed it into the agent's turn (**Delivered**, a `waiting` update a turn has `seen`), both in Leaf's italic voice. Delivered doesn't mean work has begun |
+| **Queued for Claude** | An update no turn has taken in (`waiting` and not `seen`), whether or not the log has accepted it or a harness queue holds it, in Leaf's italic voice with the agent's name; past the pickup grace it reads **Still queued for Claude** |
+| **Starting the agent** | On leaf.page, an update sent while the page's agent has no running container, until the server has it (a `local` send that is `launching`), in Leaf's italic voice. The agent's container starts for that update, which waits seconds; updates sent after it reach the running container |
+| **On it** | The agent has explicitly started this update or to-do, or a fork of its conversation has taken the update on (state `running`); page activity alone doesn't mean it has |
 | **Undo** | Taking back the user's latest update that can be taken back, leaving the user at what it changed (`undo.js`) |
 | **Threads** | The mark in Leaf's panel and the view it opens, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
@@ -47,7 +47,7 @@ command or its reply's stream shows it: **On it** once it or a fork of it took a
 for a to-do it opened, **Answered**, **Replied** or **Edited** once it did, and how it
 ended a to-do of its own (**Done**, **Dropped**). Everything else is Leaf's: what it
 infers from the harness or the clock, such as an update on its way (“Queued for
-Claude”, “Up next”, “Delivered”), what became of it
+Claude”, “Delivered”), what became of it
 (“Stopped”, “Gone quiet”, “Not answered”), a turn that stopped (“Stopped 3m ago”), a
 step the harness reports (“Using a tool”), a dialog waiting in the agent's window
 (“Approval needed in the terminal”) or an instruction about the agent (“Not answering —
@@ -219,7 +219,8 @@ its link's preview counts them.
 | **Target picker** | The `s` interaction that shows addressable elements and ends when the user picks one or closes it |
 | **Page search** | The `/` interaction that filters or steps through text matches for a query |
 | **Walk** | Stepping in order through one kind of destination: open threads (`t`), the user's On Me list (`m`), the changes a version comparison marks, each a run of changed blocks (`h`), a list's rows. A press steps off the stop the user is on, in its destination, and arrives at one they are only at, such as one they just left with Escape (`current-target.js`) |
-| **Obligation** | What a widget or an agent's message waits on the user for, or what an update the user handed over is owed (`obligations.py`, `readObligations()`): its prompt, its answer once given, its status and its next actor, under an id that never changes (`widget:<id>`, `message:<message>`, `update:<event-id>`). On the page, only its source answers it, through the widget's own actions or a reply in the thread; the agent records an answer given elsewhere. A thread is never one |
+| **Obligation** | What a widget or an agent's message waits on the user for, what an update the user handed over is owed, or a to-do the agent opened (`obligations.py`, `readObligations()`): its prompt, its answer once given, its next actor and where it stands, under an id that never changes (`widget:<id>`, `message:<message>`, `update:<event-id>`, or a to-do's own). On the page, only its source answers it, through the widget's own actions or a reply in the thread; the agent records an answer given elsewhere. A thread is never one |
+| **Standing** | Where a piece of work stands, in the one vocabulary every record and surface reads (`standing.py`): whose move it is (`next_actor`), its `state` (`waiting`, `running`, `blocked` or `done`), the `reason` a state leaves out, and how a done one ended (`outcome`). An obligation, an update's delivery, a plan step, a thread and the page each say it the same way, so *waiting* always names whose move is awaited: say **waiting on me** or **waiting on Claude**, never a bare *waiting* |
 | **On Me** | The user's list of everything waiting on them (`queues.on_user`): the open obligations whose next actor is the user. `m` walks it. A label that leads into the list, such as **Next On Me** or **New On Me**, writes its name in title case, as **On Claude** is. A phrase about what waits on the user keeps *me* in lower case, as in **Waiting on me** and **Nothing waiting on me**, beside the agent's **Waiting on Claude**. A row names its obligation by the widget's word (`x-word`) |
 | **On *agent*** | The agent's list of everything waiting on it (`queues.on_agent`), named for the agent, such as **On Claude**: the obligations whose next actor is the agent and its own to-dos. Prose about no particular agent writes `On <agent>` |
 | **To-do** | Work the agent owes until it ends (`todo` in the protocol) |

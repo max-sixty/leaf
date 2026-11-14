@@ -130,6 +130,7 @@ import { answeredInWords } from "../obligations/model.js";
 import { SAY_BOX, wholeThread } from "./selectors.js";
 import {
   threadAttention,
+  inHand,
   todoWord,
   workflowWord,
   hasWorkflowLine,
@@ -227,7 +228,7 @@ function quoteReading(thread, anchors) {
 // original log position (`workingPlace`): as the face of the progress run
 // it follows, or as a face of its own (transcript.js). An answer already
 // streaming at the thread's end replaces the working message and pending progress.
-const STOPPED = new Set(["ended", "stale", "interrupted"]);
+const STOPPED = new Set(["stopped", "quiet", "interrupted"]);
 // A progress run's face (transcript.js), the working message among them, standing for
 // the work under way where a thread reads the answer to the user's turn (`#fitAnswer`);
 // and the key each is drawn under there, by the run it faces.
@@ -250,19 +251,22 @@ function workingMessage(thread, messages) {
   );
   const lastProgress = pending.at(-1);
   const workflows = thread.workflows;
-  const running = workflows.find((workflow) => !workflow.condition && workflow.at_work);
+  const running = workflows.find(inHand);
   const runningLine = running && hasWorkflowLine(running) ? running : null;
   const stopped = workflows.find(
     /** @returns {workflow is Extract<import("../framework/application.js").Workflow, {detail: string}>} */
     (workflow) =>
-      workflow.condition !== null &&
-      STOPPED.has(workflow.condition.kind) &&
+      workflow.state === "blocked" &&
+      workflow.reason !== null &&
+      STOPPED.has(workflow.reason) &&
       Boolean(workflow.detail),
   );
-  const todo = thread.todos.find(
-    /** @returns {todo is import("../../types/contract.js").ServedTodo & {running: NonNullable<import("../../types/contract.js").ServedTodo["running"]>}} */
-    (todo) => todo.running !== null,
-  );
+  // The line of the start on a to-do of the agent's on the thread: one running, else
+  // one that stopped or went quiet, which keeps the line it last said.
+  const todos = thread.obligations.filter((item) => item.source.kind === "todo");
+  const todo = todos.find(inHand)?.line ?? null;
+  const stoppedTodo =
+    todos.find((item) => item.state === "blocked" && item.line) ?? null;
   /** @typedef {{words: string, position: number, live: boolean,
    * condition: import("../voice.js").Said | null, agent: string | null | undefined}} Step */
   /** @type {Step | null} */
@@ -288,8 +292,8 @@ function workingMessage(thread, messages) {
       ? progressStep
       : todo
         ? {
-            words: todo.running.text,
-            position: todo.running.seq,
+            words: todo.text,
+            position: todo.seq,
             live: true,
             condition: null,
             agent: null,
@@ -302,7 +306,15 @@ function workingMessage(thread, messages) {
               condition: workflowWord(stopped, agentName()),
               agent: stopped.agent,
             }
-          : progressStep;
+          : stoppedTodo?.line
+            ? {
+                words: stoppedTodo.line.text,
+                position: stoppedTodo.line.seq,
+                live: false,
+                condition: todoWord(stoppedTodo),
+                agent: null,
+              }
+            : progressStep;
   if (!step || !step.words || (!pending.length && !step.live && !step.condition))
     return null;
   const { words, position, live, condition, agent } = step;
@@ -310,7 +322,8 @@ function workingMessage(thread, messages) {
   // A workflow's detail is explicit agent work text linked to its exact input. A
   // to-do's line can be user-authored, so it supplies no reply visibility evidence.
   const work = runningLine?.detail ? runningLine : !running && !todo ? stopped : null;
-  const progress = !work && (running || (!todo && !stopped)) ? pending.at(-1) : null;
+  const progress =
+    !work && (running || (!todo && !stopped && !stoppedTodo)) ? pending.at(-1) : null;
   // Date the words being shown, rather than another message or the workflow's
   // liveness condition. A to-do line has no dated source in the thread reading.
   const timestamp = work?.ts ?? progress?.timestamp ?? null;
@@ -361,13 +374,17 @@ export function threadReading(thread, surface, commands) {
       .filter((item) => item.next_actor === "user" && answeredInWords(item))
       .map((item) => item.message),
   );
-  const openTodos = new Set(thread.todos.map(({ id }) => id));
+  const openTodos = new Set(
+    thread.obligations
+      .filter((item) => item.source.kind === "todo" && item.state !== "done")
+      .map(({ id }) => id),
+  );
   /** @param {ThreadRecord["msgs"][number]} message */
   const leaves = (message) =>
     asking.has(message.id)
       ? leafSays("Waiting on me")
       : message.todo && openTodos.has(message.id)
-        ? todoWord(null)
+        ? todoWord({ state: "waiting", reason: null })
         : null;
   // Completion comes from the server, including the provisional answer. A held
   // reading keeps progress until its completing reply is among the messages shown.

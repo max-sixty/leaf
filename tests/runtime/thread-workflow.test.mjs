@@ -17,8 +17,6 @@ import { isTurnEvent, turnMessage } from "../../browser/runtime/pending/model.js
 import { threadReading } from "../../browser/runtime/thread/thread-card.js";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
-// No thread has a to-do attached.
-
 // The user's turns, which `events.exchange` and `events.turn_message` read off the log
 // by the same cases (`tests/turn_cases.json`).
 const TURN_CASES = JSON.parse(
@@ -33,9 +31,20 @@ for (const { id, events, turns } of TURN_CASES)
     );
   });
 
+// Where a workflow stands (`standing.py`) at each step of its update's way: no turn has
+// taken it in, one has, the agent is at work on it or streaming its reply, it is
+// answered, or the harness gave up on it and handed it back.
+const SENT = { state: "waiting", reason: null, seen: false };
+const DELIVERED = { state: "waiting", reason: null, seen: true };
+const WORKING = { state: "running", reason: null, seen: true };
+const REPLYING = { state: "running", reason: "replying", seen: true };
+const ANSWERED = { state: "done", reason: null, seen: true };
+const HANDED_BACK = { state: "blocked", reason: "failed", seen: true };
+const blocked = (reason) => ({ state: "blocked", reason, seen: true });
+
 // A workflow for an input in the thread `root` opened, which serves the record of the
 // reply the agent owes it.
-const workflow = (id, stage, changes = {}) =>
+const workflow = (id, standing, changes = {}) =>
   servedWorkflow({
     id,
     seq: 1,
@@ -45,9 +54,43 @@ const workflow = (id, stage, changes = {}) =>
     thread: "root",
     coordinate: ["thread", "root"],
     obligation: `update:${id}`,
-    stage,
+    ...standing,
     ...changes,
   });
+// A send this tab has not delivered (`application.js`, `localWorkflow`), or with
+// `refused` one the server refused.
+const local = (id, { refused = false, ...changes } = {}) => ({
+  ...workflow(id, refused ? { ...HANDED_BACK, seen: false } : SENT, changes),
+  local: true,
+});
+
+// The records the server publishes for what an update of the user's is owed and for
+// a question the agent asked, so a record made from them carries every field the
+// server sends.
+const OWED = servedReading("queues on both sides").browser.views["1"].obligations.find(
+  ({ source, next_actor }) => source.kind === "update" && next_actor === "agent",
+);
+const ASKED = servedReading("question").browser.views["1"].obligations[0];
+const owed = (workflowAt, changes = {}) => ({
+  ...OWED,
+  id: workflowAt.obligation,
+  source: { kind: "update", id: workflowAt.input, subject: workflowAt.subject },
+  thread: workflowAt.thread,
+  message: workflowAt.message,
+  prompt: { text: null, target: workflowAt.input },
+  workflow: workflowAt.id,
+  ...changes,
+});
+// A record of another kind the thread `root` holds, on `next_actor`.
+const record = (kind, next_actor, changes = {}) => ({
+  ...ASKED,
+  id: `${kind}:r`,
+  source: { kind, id: "r" },
+  thread: "root",
+  message: null,
+  next_actor,
+  ...changes,
+});
 
 // The document a thread's frozen board is captured into: the reply `e2` in thread
 // `e1` holds the board `feeder-board`.
@@ -74,25 +117,25 @@ const said = (workflowAt) => {
   return word && [word.text, word.voice];
 };
 
-test("workflow words retain exact input progress and positive conditions", () => {
-  assert.deepEqual(said(workflow("a", "replying")), ["Replying", "agent"]);
-  assert.deepEqual(said(workflow("b", "queued")), ["Up next", "leaf"]);
-  assert.deepEqual(
-    said(workflow("ended", "picked_up", { condition: { kind: "ended" } })),
-    ["Stopped", "leaf"],
-  );
-  assert.deepEqual(
-    said(workflow("stale", "working", { condition: { kind: "stale" } })),
-    ["Gone quiet", "leaf"],
-  );
-  assert.deepEqual(
-    said(
-      workflow("failed-response", "answered", {
-        condition: { kind: "failed", operation: "response" },
-      }),
-    ),
-    ["Not answered", "leaf"],
-  );
+test("workflow words say each step of an input and why it is blocked", () => {
+  assert.deepEqual(said(workflow("a", REPLYING)), ["Replying", "agent"]);
+  assert.deepEqual(said(workflow("ended", blocked("stopped"))), ["Stopped", "leaf"]);
+  assert.deepEqual(said(workflow("stale", blocked("quiet"))), ["Gone quiet", "leaf"]);
+  assert.deepEqual(said(workflow("cut", blocked("interrupted"))), [
+    "Interrupted",
+    "leaf",
+  ]);
+  assert.deepEqual(said(workflow("dialog", blocked("terminal"))), [
+    "Waiting in the terminal",
+    "leaf",
+  ]);
+  // A harness that gave up hands the update back unanswered; a send the server
+  // refused this tab only failed.
+  assert.deepEqual(said(workflow("failed-response", HANDED_BACK)), [
+    "Not answered",
+    "leaf",
+  ]);
+  assert.deepEqual(said(local("rejected:send", { refused: true })), ["Failed", "leaf"]);
 });
 
 // Until the agent has an update it can say nothing of it, so Leaf says the update waits
@@ -100,28 +143,28 @@ test("workflow words retain exact input progress and positive conditions", () =>
 // it observes of the update's way, in its own voice; the agent's voice relays what it
 // reliably did: starting the update, streaming its reply and answering it.
 test("Leaf says what it observes of an update, and the agent only what it did", () => {
-  const late = workflow("late", "sent", {
-    condition: { kind: "stale", operation: "delivery" },
-  });
+  const late = workflow("late", { ...blocked("undelivered"), seen: false });
   const words = Object.fromEntries(
-    ["sending", "sent", "queued", "picked_up", "working", "replying"].map((stage) => [
-      stage,
-      said(workflow(stage, stage)),
-    ]),
+    Object.entries({
+      sending: local("pending:send"),
+      sent: workflow("sent", SENT),
+      delivered: workflow("delivered", DELIVERED),
+      working: workflow("working", WORKING),
+      replying: workflow("replying", REPLYING),
+    }).map(([step, at]) => [step, said(at)]),
   );
   assert.deepEqual(words, {
     sending: ["Queued for Claude", "leaf"],
     sent: ["Queued for Claude", "leaf"],
-    queued: ["Up next", "leaf"],
-    picked_up: ["Delivered", "leaf"],
+    delivered: ["Delivered", "leaf"],
     working: ["On it", "agent"],
     replying: ["Replying", "agent"],
   });
   // An answer says nothing on its message, which already shows it, but names its word
   // where it is asked for, as a title does.
-  assert.equal(said(workflow("answered", "answered")), null);
+  assert.equal(said(workflow("answered", ANSWERED)), null);
   assert.deepEqual(
-    workflowWord(workflow("answered", "answered"), "Claude", { answered: true }),
+    workflowWord(workflow("answered", ANSWERED), "Claude", { answered: true }),
     { text: "Answered", voice: "agent" },
   );
   assert.deepEqual(said(late), ["Still queued for Claude", "leaf"]);
@@ -130,37 +173,31 @@ test("Leaf says what it observes of an update, and the agent only what it did", 
 // On leaf.page a send to a page whose agent isn't running waits while its container
 // starts, and says so until the server has the update.
 test("a send that launches the agent says so until the server has it", () => {
-  assert.deepEqual(said({ ...workflow("first", "sending"), launching: true }), [
+  assert.deepEqual(said({ ...local("pending:first"), launching: true }), [
     "Starting the agent",
     "leaf",
   ]);
-  assert.deepEqual(said({ ...workflow("next", "sending"), launching: false }), [
+  assert.deepEqual(said({ ...local("pending:next"), launching: false }), [
     "Queued for Claude",
     "leaf",
   ]);
 });
 
 // A fork of the agent's conversation taking an update on is the agent's act, so the
-// update reads On it on its way to the session, with the working face; the session's
-// own stages and every condition still say what they say.
-test("an update a fork has taken on reads On it until the session's own stage", () => {
-  const forked = (stage, changes = {}) =>
-    workflow(stage, stage, { at_work: true, ...changes });
-  for (const stage of ["sent", "queued", "picked_up"]) {
-    assert.deepEqual(said(forked(stage)), ["On it", "agent"], stage);
-    assert.equal(progressFace(forked(stage)), "working", stage);
+// server reads the update running before any turn of the session's has taken it in
+// (`activity.py`): it reads On it, with the working face, and a blocked one says why
+// with no face.
+test("an update the agent is at work on reads On it whether or not a turn took it in", () => {
+  for (const seen of [false, true]) {
+    const forked = workflow("forked", { ...WORKING, seen });
+    assert.deepEqual(said(forked), ["On it", "agent"], `seen ${seen}`);
+    assert.equal(progressFace(forked), "working", `seen ${seen}`);
   }
-  assert.deepEqual(said(forked("replying")), ["Replying", "agent"]);
-  assert.deepEqual(
-    said(forked("sent", { condition: { kind: "stale", operation: "delivery" } })),
-    ["Still queued for Claude", "leaf"],
-  );
-  assert.equal(
-    progressFace(
-      forked("sent", { condition: { kind: "stale", operation: "delivery" } }),
-    ),
-    null,
-  );
+  assert.equal(progressFace(workflow("delivered", DELIVERED)), "delivered");
+  assert.equal(progressFace(workflow("sent", SENT)), null);
+  const late = workflow("late", { ...blocked("undelivered"), seen: false });
+  assert.deepEqual(said(late), ["Still queued for Claude", "leaf"]);
+  assert.equal(progressFace(late), null);
 });
 
 // The fork's line is the agent's step under that word, live as the session's own
@@ -182,62 +219,122 @@ test("a fork's working line is the thread's live step while its update reads On 
     ts: "2026-11-05T10:00:03Z",
     ephemeral: true,
   };
+  const forked = workflow("root", { ...WORKING, seen: false });
   const [record] = readThreadRecords(
-    [
-      servedThread([root, line], {
-        attention: { kind: "waiting", reason: "workflow", workflow: "root" },
-      }),
-    ],
+    [servedThread([root, line], { attention: forked.obligation })],
     FROZEN_BOARD,
     new Map(),
-    [workflow("root", "sent", { at_work: true })],
+    [forked],
+    [owed(forked, { state: "running" })],
   );
   const { working } = threadReading(record, "margin", {});
   assert.equal(working?.words, "Looking at the build");
   assert.equal(working?.live, true);
 });
 
+// A to-do whose start stopped keeps the line it last said (`activity.py`), which its
+// thread shows under the word for why, as it does the line of an update a turn left.
+test("a to-do whose start stopped keeps its last line on the thread, no longer live", () => {
+  const root = {
+    id: "root",
+    kind: "comment",
+    author: "user",
+    text: "Rebuild the chart",
+    ts: "2026-11-05T10:00:00Z",
+  };
+  const served = servedReading("queues on both sides").browser.views[
+    "1"
+  ].obligations.find(({ source }) => source.kind === "todo");
+  const working = (standing) => {
+    const todo = {
+      ...served,
+      thread: "root",
+      source: { ...served.source, subject: { kind: "thread", id: "root" } },
+      ...standing,
+    };
+    const [record] = readThreadRecords(
+      [servedThread([root], { attention: todo.id })],
+      FROZEN_BOARD,
+      new Map(),
+      [],
+      [todo],
+    );
+    return threadReading(record, "margin", {}).working;
+  };
+  const running = working({ state: "running", reason: null });
+  assert.deepEqual(
+    [running.words, running.live, running.condition],
+    [served.line.text, true, null],
+  );
+  const stopped = working({ state: "blocked", reason: "stopped" });
+  assert.deepEqual(
+    [stopped.words, stopped.live, stopped.condition],
+    [served.line.text, false, { text: "Stopped", voice: "leaf" }],
+  );
+});
+
 test("thread attention gives an open user obligation precedence over agent work", () => {
-  const work = workflow("a", "working");
-  const recovery = workflow("recovery", "sent", {
-    condition: { kind: "failed" },
-  });
+  const work = workflow("a", WORKING);
+  const question = record("message", "user");
   const thread = {
     resolved: null,
-    workflows: [recovery, work],
-    // The record the agent's work serves, which it still owes.
-    obligations: [{ id: "update:a", source: { kind: "update" }, next_actor: "agent" }],
-    attention: { kind: "needs_user", reason: "obligation", workflow: "recovery" },
+    workflows: [work],
+    // The record the agent's work serves, which it still owes, beside the question
+    // the server names as speaking for the thread.
+    obligations: [owed(work, { state: "running" }), question],
+    attention: question,
   };
   assert.deepEqual(threadAttention(thread, "Claude"), {
-    kind: "needs_user",
+    turn: "user",
+    state: "waiting",
     word: { text: "Your turn", voice: "agent" },
-    workflow: recovery,
+    workflow: null,
   });
 });
 
-test("a thread an open to-do holds waits on the agent under the to-do's title", () => {
+test("a thread an open to-do holds waits on the agent in the to-do's words", () => {
   // The server's reading once the reply settled the comment and the to-do stood.
-  const thread = {
-    resolved: null,
-    workflows: [],
-    attention: { kind: "waiting", reason: "todo", workflow: null, todo: "t1" },
-    todos: [{ id: "t1", title: "Rebuild the banner quieter", running: null }],
-  };
-  assert.deepEqual(threadAttention(thread, "Claude"), {
-    kind: "waiting",
+  const todo = (changes) =>
+    record("todo", "agent", {
+      prompt: { text: "Rebuild the banner quieter" },
+      ...changes,
+    });
+  const attention = (held) =>
+    threadAttention(
+      { resolved: null, workflows: [], obligations: [held], attention: held },
+      "Claude",
+    );
+  assert.deepEqual(attention(todo({ state: "waiting" })), {
+    turn: "agent",
+    state: "waiting",
     word: { text: "Still to do", voice: "agent" },
     workflow: null,
+  });
+  assert.deepEqual(attention(todo({ state: "running" })).word, {
+    text: "On it",
+    voice: "agent",
+  });
+  // A start that went quiet says so in Leaf's voice, as an update's does.
+  assert.deepEqual(attention(todo({ state: "blocked", reason: "quiet" })).word, {
+    text: "Gone quiet",
+    voice: "leaf",
   });
 });
 
 test("a frozen move that owes nothing leaves an owed thread on the user alone", () => {
   // The server's reading: the agent asked over a board it sent, and the user moved a
   // card without answering. The move stands in the thread but does not hold it.
-  const { threads, workflows } = servedReading("frozen move owes nothing");
-  const [record] = readThreadRecords(threads, FROZEN_BOARD, new Map(), workflows);
-  assert.deepEqual(threadAttention(record, "Claude"), {
-    kind: "needs_user",
+  const { threads, workflows, obligations } = servedReading("frozen move owes nothing");
+  const [held] = readThreadRecords(
+    threads,
+    FROZEN_BOARD,
+    new Map(),
+    workflows,
+    obligations,
+  );
+  assert.deepEqual(threadAttention(held, "Claude"), {
+    turn: "user",
+    state: "waiting",
     word: { text: "Your turn", voice: "agent" },
     workflow: null,
   });
@@ -245,16 +342,11 @@ test("a frozen move that owes nothing leaves an owed thread on the user alone", 
 
 test("a send this tab has not delivered ranks below the served workflows of its next actor", () => {
   // Served strongest first; the server's order is taken as given.
-  const recovery = workflow("recovery", "answered", {
-    condition: { kind: "failed", operation: "response" },
-  });
-  const older = workflow("older", "sent", { seq: 1 });
-  const newer = workflow("newer", "sent", { seq: 2 });
-  const pending = workflow("pending:reply", "sending", { seq: 3 });
-  const refused = workflow("rejected:retry", "sending", {
-    seq: 4,
-    condition: { kind: "failed", operation: "delivery" },
-  });
+  const recovery = workflow("recovery", HANDED_BACK);
+  const older = workflow("older", SENT, { seq: 1 });
+  const newer = workflow("newer", SENT, { seq: 2 });
+  const pending = local("pending:reply", { seq: 3 });
+  const refused = local("rejected:retry", { refused: true, seq: 4 });
   assert.equal(strongestWorkflow([recovery, older, pending, refused]), recovery);
   assert.equal(strongestWorkflow([newer, older, pending, refused]), refused);
   assert.equal(strongestWorkflow([newer, older, pending]), newer);
@@ -264,7 +356,7 @@ test("a send this tab has not delivered ranks below the served workflows of its 
 });
 
 test("page widget workflows are revision-bounded independently of frozen widgets", () => {
-  const widget = workflow("widget", "working", {
+  const widget = workflow("widget", WORKING, {
     revision: 2,
     subject: { kind: "widget", id: "choice" },
     thread: null,
@@ -277,7 +369,7 @@ test("page widget workflows are revision-bounded independently of frozen widgets
 });
 
 test("a thread the user is still sending waits on that send", () => {
-  const sending = workflow("pending:send", "sending", {
+  const sending = local("pending:send", {
     subject: { kind: "thread", id: "pending:send" },
     thread: "pending:send",
   });
@@ -289,23 +381,37 @@ test("a thread the user is still sending waits on that send", () => {
     ts: "2026-09-22T10:00:00Z",
   };
   const [thread] = foldThreads([], [root]);
-  const [record] = readThreadRecords(
+  // The fold names the record the send publishes (`application.js`, `localUpdates`),
+  // which the thread's reading then stands by.
+  assert.equal(thread.attention, sending.obligation);
+  const publishes = owed(sending);
+  const [held] = readThreadRecords(
     [{ ...thread, unread: {} }],
     { revision: 1, registry: {}, descriptors: new Map(), messageBodies: new Map() },
     new Map(),
     [sending],
+    [publishes],
   );
-  assert.deepEqual(record.attention, {
-    kind: "waiting",
-    reason: "workflow",
-    workflow: sending.id,
+  assert.equal(held.attention, publishes);
+  assert.deepEqual(threadAttention(held, "Claude"), {
+    turn: "agent",
+    state: "waiting",
+    word: { text: "Queued for Claude", voice: "leaf" },
+    workflow: sending,
   });
 });
 
 test("a pending reply shows on its message and leaves whose turn it is to the log", () => {
+  const failed = workflow("failed", HANDED_BACK);
+  // The update the harness handed back, which the user sends again.
+  const resend = owed(failed, {
+    next_actor: "user",
+    state: "blocked",
+    reason: "failed",
+  });
   const thread = servedThread(
     [{ id: "root", kind: "comment", author: "agent", text: "Which one?", ts: "now" }],
-    { attention: { kind: "needs_user", reason: "resend", workflow: "failed" } },
+    { attention: resend.id },
   );
   const reply = {
     id: "pending:retry",
@@ -322,12 +428,8 @@ test("a pending reply shows on its message and leaves whose turn it is to the lo
     [folded],
     { revision: 1, registry: {}, descriptors: new Map(), messageBodies: new Map() },
     new Map(),
-    [
-      workflow("failed", "answered", {
-        condition: { kind: "failed", operation: "response" },
-      }),
-      workflow("pending:retry", "sending"),
-    ],
+    [failed, local("pending:retry")],
+    [resend],
   );
   assert.deepEqual(
     record.msgs.map((message) => [message.id, message.workflows.map(({ id }) => id)]),
@@ -336,7 +438,7 @@ test("a pending reply shows on its message and leaves whose turn it is to the lo
       ["pending:retry", ["pending:retry"]],
     ],
   );
-  assert.deepEqual(record.attention, thread.attention);
+  assert.equal(record.attention, resend);
 });
 
 test("taking back a rewrite draws its message as the log's answer will", () => {
@@ -484,7 +586,7 @@ test("a local rewrite shows on its message and reopens a closed thread", () => {
     [folded],
     { revision: 1, registry: {}, descriptors: new Map(), messageBodies: new Map() },
     new Map(),
-    [workflow("pending:rewrite", "sending", { message: "root" })],
+    [local("pending:rewrite", { message: "root" })],
   );
   assert.deepEqual(
     record.msgs.map((message) => [message.body.text, Boolean(message.edited)]),
@@ -526,14 +628,14 @@ test("pending thread gestures fold in the order the user made them, as the log w
   const undo = { id: "pending:undo", kind: "undo", author: "user", undoes: "kept" };
   const resolve = { kind: "resolve", parent: "root", author: "user" };
   const unresolve = { ...resolve, kind: "unresolve" };
-  const owed = { kind: "needs_user", reason: "obligation", workflow: null };
+  const asks = "message:question";
   const fold = (changes, ...gestures) =>
     foldThreads([servedThread([asked, question], changes)], gestures)[0];
 
   // Whose turn the thread is stays as the server read it, whatever the user sends,
   // until the log answers.
   for (const gesture of [reply, rewrite, keep, undo, resolve, unresolve])
-    assert.deepEqual(fold({ attention: owed }, gesture).attention, owed, gesture.id);
+    assert.equal(fold({ attention: asks }, gesture).attention, asks, gesture.id);
   // A resolve after a turn closes the thread the turn reopened, and a turn after a
   // resolve reopens it; a reaction is no turn, so it leaves a resolve in force.
   const closed = { author: "user", pending: true };

@@ -1,11 +1,12 @@
-"""Agent-facing page state: the On Me and On <agent> lists, and the obligations and to-dos
-they select from.
+"""Agent-facing page state: the On Me and On <agent> lists, and the obligations they
+select from.
 
 The reading uses one transaction and holds the two lists the active view serves
 (`served_state.queues`): On Me (`on_user`) holds the open obligations on the user, the
 updates handed back to them among them; On <agent>
 (`on_agent`) holds the updates the agent owes an answer and its to-dos. The obligation
-inventory (`obligations`) also retains finished records, whatever their `status`.
+inventory (`obligations`) holds every record, the agent's to-dos and finished ones
+included, each saying where it stands (`standing`).
 `activity.obligations` names each answer the agent owes: its update's record `id` and,
 as `answer`, the operation that answers it with the reference its delivery gave, so an
 agent recovers what it owes without the delivery. `source` states whether a document
@@ -142,12 +143,10 @@ def _base_state(
         ),
         "measurement_lag": [],
         # What is on the user (On Me) and what is on the agent (On <agent>), each item
-        # naming its kind and subject (`served_state.queues`); the to-dos on either
-        # side; the agent's plan, which arranges them (`plans`); and the complete
-        # canonical obligation inventory those lists select from, whose records an obligation's
-        # row names by `id`.
+        # naming its kind and subject (`served_state.queues`); the agent's plan, which
+        # arranges them (`plans`); and the complete canonical obligation inventory
+        # those lists select from, whose records a row names by `id`.
         "queues": {"on_user": [], "on_agent": []},
-        "todos": [],
         "plan": None,
         "obligations": [],
         # Current semantic facts only. A thread's history belongs to
@@ -262,8 +261,8 @@ def _apply_thread_state(
 def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> dict:
     """The page reading narrowed to one widget on the page and what it holds: its
     element, the actions and reports in force on it or on anything inside it, the
-    workflows there, the reports aimed at them, the to-dos open on them, and the
-    obligations sourced by them."""
+    workflows there, the reports aimed at them, and the obligations sourced by them,
+    the to-dos opened on them included."""
 
     def inside(element: str | None) -> bool:
         return element is not None and widget in enclosing.get(element, ())
@@ -311,17 +310,11 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
                     )
                 )
                 or (
-                    item["source"]["kind"] == "update"
+                    item["source"]["kind"] in {"update", "todo"}
                     and item["source"]["subject"]["kind"] == "widget"
                     and inside(item["source"]["subject"]["id"])
                 )
             )
-        ],
-        "todos": [
-            todo
-            for todo in state["todos"]
-            if todo["thread"] is None
-            and (todo["subject"]["kind"] == "widget" and inside(todo["subject"]["id"]))
         ],
     }
 
@@ -342,9 +335,9 @@ def page_state(
     the user's current state and the reports in force on the agent channel,
     authored measurements whose live source has run again
     (`measurement_lag_entries`), each comment thread's current state, attention, and
-    the agent messages in it the user has not read, every open to-do on either side,
-    the obligations, the two lists, On Me and On <agent>, that they and the workflows add up
-    to (`served_state.queues`, the panel's own counts), and presence beside what
+    the agent messages in it the user has not read, the obligations, the agent's
+    to-dos among them, the two lists, On Me and On <agent>, that they and the workflows
+    add up to (`served_state.queues`, the panel's own counts), and presence beside what
     answers for it. It is a
     selection from the reading /api/state serves (`read_served_page`), computed on
     demand from the log, revision, registry, and source store — no derived reading is
@@ -406,7 +399,7 @@ def page_state(
         ],
     }
     # Each answer owed names its update's record, in `obligations`; the workflows that
-    # name the same record (`obligation`) carry its delivery stage and subject, and
+    # name the same record (`obligation`) carry each input's delivery and subject, and
     # `response` the provisional response progress.
     state["workflows"] = served["workflows"]
     state["user_views"] = read_user_views(
@@ -437,7 +430,6 @@ def page_state(
             thread["unread"] = list(served_threads[thread["id"]]["unread"])
             thread["attention"] = served_threads[thread["id"]]["attention"]
         state["obligations"] = view["obligations"]
-        state["todos"] = [todo for todo in browser["todos"] if todo["state"] == "open"]
         state["plan"] = browser["plan"]
         served_queues = view["queues"]
         state["queues"] = {
@@ -586,7 +578,6 @@ def page_state(
                 ],
             },
             "workflows": workflows,
-            "todos": [todo for todo in state["todos"] if todo["thread"] == thread_id],
             "obligations": [
                 item for item in state["obligations"] if item["thread"] == thread_id
             ],

@@ -1314,7 +1314,7 @@ def on_agent(page: Page) -> None:
     """The On view turned to the agent's tab."""
     on_me(page)
     page.locator(".lf-fp-filters button").filter(
-        has_text=re.compile(r"^\s*On (?!me)")
+        has_text=re.compile(r"^\s*On (?!Me\b)")
     ).first.click()
     expect(page.locator(panel_view("queue"))).to_be_visible()
 
@@ -2339,9 +2339,10 @@ def all_pages(page: Page) -> None:
                 "session_cwd": f"/workspace/tend.{place}",
                 "activity": {
                     **state["activity"],
-                    "kind": "working",
-                    "dropped": None,
-                    "awaiting": None,
+                    "presence": "here",
+                    "state": "running",
+                    "reason": None,
+                    "next_actor": "agent",
                     "detail": "Running the sandbox suite against both harnesses",
                 },
             }

@@ -245,7 +245,7 @@ Read the lists before a handoff, before waiting for the user, and after taking i
 answer:
 
 ```bash
-leaf page state <page> | jq '{source, obligations, todos, queues}'
+leaf page state <page> | jq '{source, obligations, queues}'
 ```
 
 `queues.on_user` is On Me. `queues.on_agent` is your list: the updates you owe a
@@ -253,9 +253,12 @@ reply or a version, and your to-dos. Read them as given rather than rebuilding t
 from events. A row names its obligation or to-do by `id`, and in `also` the other
 obligations the user answers at the same place: an answer of yours in a thread about a
 widget's question rides on that widget's row. An obligation's record in
-`obligations` holds its `prompt`, its `answer` once given, its `status` and its
-`next_actor`, and a widget's obligation takes its answer from the widget's state; a
-to-do's record in `todos` holds its `title` and the start `running` on it.
+`obligations` holds its `prompt`, its `answer` once given, its `next_actor` and where
+it stands: `state` is `waiting`, `running`, `blocked` or `done`, `reason` says why a
+blocked one is, such as `stopped` once the turn that had it ended, and `outcome` how a
+done one ended. A widget's obligation takes its answer from the widget's state. A to-do
+is a record there too (`source.kind` `todo`), its title as `prompt.text` and the start
+in force on it as `line`.
 `activity.obligations` lists each answer you owe as its record's `id` beside the
 `answer` that settles it: the reply to write, with the `ref` its delivery gave where
 you can still use it, or the action a stamped version must record. Recover what you

@@ -16,7 +16,7 @@
 
 /** @param {readonly import("../framework/application.js").ObligationRecord[]} held */
 export function tally(held) {
-  const open = held.filter((item) => item.status === "open");
+  const open = held.filter((item) => item.state !== "done");
   return {
     onUser: open.filter((item) => item.next_actor === "user").length,
     onAgent: open.filter((item) => item.next_actor === "agent").length,

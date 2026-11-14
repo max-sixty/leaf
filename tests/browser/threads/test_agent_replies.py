@@ -1391,7 +1391,7 @@ def test_an_older_answer_keeps_newer_work_visible_without_its_progress_history(
         }""",
         root,
     )
-    assert any(workflow["stage"] == "working" for workflow in workflows), workflows
+    assert any(workflow["state"] == "running" for workflow in workflows), workflows
     thread = open_panel_thread(page, root)
     expect(thread.locator(f'.lf-msg[data-lf-event="{answer["id"]}"]')).to_be_visible()
     expect(thread.locator(".lf-thread-working")).to_contain_text(

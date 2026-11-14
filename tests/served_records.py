@@ -10,14 +10,15 @@ reading the browser holds, each beside that reading and the whole answer;
 `obligation_values` holds typed values
 folded by Python for comparison with the browser; `state_definitions` holds the
 operation definitions Python records, for the browser's comparison of them; `readings`
-holds whole served readings whose premise is the case under test. `served.mjs` reads this output directly, so its
+holds served readings whose premise is the case under test, each its threads, workflows
+and obligation records. `served.mjs` reads this output directly, so its
 assertions always consume this checkout's server rather than a recorded copy.
 """
 
 import json
 from pathlib import Path
 
-from interact_support import model_layer, served_thread
+from interact_support import model_layer
 from model_folds import NOW, UNCLAIMED, leaf_page, served_answer, served_reading
 
 from leaf.event_log import EventRefused
@@ -36,10 +37,14 @@ PAGE = leaf_page("Served records", '<h1 id="h">Steps</h1><p id="p">Two steps.</p
 
 
 def _served(events: tuple[dict, ...]) -> dict:
+    """The threads, workflows and obligation records one log's reading serves, so a
+    thread's `attention`, the id of the record that speaks for it, joins its record."""
     state = served_reading(PAGE, events)
+    [view] = state["browser"]["views"].values()
     return {
-        "threads": served_thread(state["browser"])["threads"],
+        "threads": view["thread"]["threads"],
         "workflows": state["workflows"],
+        "obligations": view["obligations"],
     }
 
 

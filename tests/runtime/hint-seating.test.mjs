@@ -119,6 +119,17 @@ test("a crowded column at the window's edge withholds every other row's chip, th
   );
 });
 
+test("a crowded row's chip steps out no further than a target beside the column", () => {
+  // Stepped out past the narrow target beside the second row, its chip would stand
+  // before that target and read as its.
+  const rows = [box(100, 100, 300, 14), box(100, 114, 300, 14), box(60, 114, 30, 14)];
+  const seated = seatHints(
+    rows.map((target) => ({ start: chip(target.left - 10, target.top - 8), target })),
+    { band: 2, viewport },
+  );
+  assert.equal(seated[1].box, null);
+});
+
 test("a walk onto a crowded row moves no chip where every row's chip stands", () => {
   const rows = Array.from({ length: 8 }, (_, at) => box(100, 100 + 14 * at, 300, 14));
   const faces = rows.map((target) => ({ start: chip(90, target.top - 8), target }));

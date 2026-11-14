@@ -126,9 +126,10 @@ const sameBoxes = (some, others) =>
     return other !== undefined && sameBox(box, other);
   });
 
-// The open top nearest `preferred` that `admits`, and what decided it: the window's
-// edge, a barrier the seat stands clear of, or nothing where the preferred top is open.
-// None where no open top is admitted.
+// Of the preferred top, the window's edges and the tops just clear of each barrier, the
+// open one nearest `preferred` that `admits`, and what decided it: the window's edge, a
+// barrier the seat stands clear of, or nothing where the preferred top is open. None
+// where none of those is admitted.
 /** @param {HintBox} box @param {number} preferred @param {HintBarrier[]} barriers @param {number} top @param {number} bottom @param {number} gap @param {(top: number) => boolean} admits */
 function nearestOpenTop(box, preferred, barriers, top, bottom, gap, admits) {
   const last = Math.max(top, bottom - box.height);
@@ -299,16 +300,17 @@ export function seatHints(
   /** @param {HintFace} face */
   const beforeLeft = ({ start, target }) => target.left - start.width - clear;
   // Whether a chip at `seat` reads as its own target's, the one test every seat a chip
-  // takes passes. A chip whose middle stands on another target and not on its own reads
-  // as that one's, as a seat before a button does on the button to its left. Otherwise
-  // it reads as the target whose rows are nearest its middle among those in its column
-  // or its own target's, as in a list or a stack of controls; ties stand, as where a
-  // corner chip straddles two rows. A target around its own competes with neither, since
-  // its chip stands a step out (`nestOutsets`). So a chip in the gutter between two
-  // cards, level with its own target's first line, reads as its own though the other
-  // card's edge is nearer its middle. Nor may it stand further above or below its target
-  // than one more chip would fill, as the third of three footnote markers' chips does,
-  // stacked on the other two.
+  // takes passes. Off its own target, a chip reads as any other target that stands
+  // between its middle and its own target, its middle included, as a seat before a
+  // button does on the button to its left, or one stepped out of a column does on a
+  // target beside the column. And it reads as the target whose rows are nearest its
+  // middle among those in its column or its own target's, as in a list or a stack of
+  // controls; ties stand, as where a corner chip straddles two rows or footnote markers
+  // share an edge. A target around its own competes with neither, since its chip stands
+  // a step out (`nestOutsets`). So a chip in the gutter between two cards, level with its
+  // own target's first line, reads as its own though the other card's edge is nearer its
+  // middle. Nor may it stand further above or below its target than one more chip would
+  // fill, as the third of three footnote markers' chips does, stacked on the other two.
   /** @param {HintBox} seat @param {HintFace} face */
   const readsAs = (seat, face) => {
     const own = face.target;
@@ -318,14 +320,20 @@ export function seatHints(
     const y = (seat.top + seat.bottom) / 2;
     /** @param {import("../rect.js").Box} rows */
     const off = (rows) => Math.max(rows.top - y, y - rows.bottom, 0);
+    // The stretch from the chip's middle to the nearest point of its own target.
+    const near = { x: clamp(x, own.left, own.right), y: clamp(y, own.top, own.bottom) };
     /** @param {import("../rect.js").Box} box */
-    const on = (box) =>
-      box.left <= x && x <= box.right && box.top <= y && y <= box.bottom;
+    const between = (box) =>
+      box.left < Math.max(x, near.x) &&
+      box.right > Math.min(x, near.x) &&
+      box.top < Math.max(y, near.y) &&
+      box.bottom > Math.min(y, near.y);
+    const onOwn = near.x === x && near.y === y;
     return targets.every(
       (target) =>
         sameBox(target, own) ||
         encloses(target, own) ||
-        ((on(own) || !on(target)) &&
+        ((onOwn || !between(target)) &&
           (!(overlapsAcross(target, own) || overlapsAcross(target, seat)) ||
             off(target) >= off(own))),
     );
@@ -379,7 +387,7 @@ export function seatHints(
   // control's stands above, and before it where the seat above is a neighbour's. Both
   // seats stand outside the target, so one the window pushes onto its own target is
   // neither. Where neither reads as its own, as in a grid of buttons, the chip stands on
-  // its target's corner, as every Go-to chip does, its middle on its own target.
+  // its target's corner, as every Go-to chip does.
   const measured = nestOutsets(faces, (face) => beforeLeft(face) - edgeLeft).map(
     ({ face, outset }) => {
       const { start, target } = face;

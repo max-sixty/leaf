@@ -14,6 +14,14 @@ catalog caption. Each page writes its own sentences around the gestures it share
 other pages (`skills/leaf/references/authoring-evidence.md`, "Interactive and visual
 evidence").
 
+When a change adds or removes an example or changes its first screen, run
+`wt refresh-previews` from the repository root on macOS once the examples are ready,
+and again after merging `main` or any later fix that changes a first screen.
+`uv run leaf-dev record-demo` does the same for the README's recording and the site's
+card (`dev/AGENTS.md`, "Commands with consequences outside `.tmp/`"). Run `wt setup`
+first in a new checkout; if Worktrunk asks to approve the project commands, ask the
+user to run `wt config approvals add`.
+
 ## Developer pages and regression fixtures
 
 `developer/feature-gallery.html` is the one home of synthetic scenarios for core

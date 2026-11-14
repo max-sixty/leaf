@@ -68,10 +68,9 @@ if TYPE_CHECKING:
     from .server import PageAddress
 
 # The side that closes a TCP connection first keeps its address in TIME_WAIT, for
-# 60 s on Linux and 30 s on macOS. A server is that side for the keep-alive
-# connections it closes or exits with, so its fixed address can stay in use after
-# it stops. Wait out what address reuse cannot pass, without waiting forever for an
-# address another live process holds.
+# 30 s on macOS. A server is that side for the keep-alive connections it closes or
+# exits with, so a wildcard address there, which address reuse cannot rebind, stays
+# in use for that long after it stops (`listening_socket`).
 PORT_WAIT_SECONDS = 90
 
 # How long a stopping server lets its clients finish before it drops their
@@ -90,9 +89,14 @@ def listening_socket(bind: str, port: int) -> socket.socket:
     """Open an exclusive listener, rebinding a fixed address over its own TIME_WAIT.
 
     A new service asks the OS for a port with zero; a recorded address binds its
-    port again, retrying EADDRINUSE for up to PORT_WAIT_SECONDS. Other failures keep
-    their original error. The kernel's bind checks keep two Leaf listeners, in any
-    processes, off overlapping addresses; no port lease or record stands beside them.
+    port again. The kernel's bind checks keep two Leaf listeners, in any processes,
+    off overlapping addresses; no port lease or record stands beside them. A bind
+    that sets SO_REUSEADDR passes TIME_WAIT, so EADDRINUSE there means a live
+    listener holds the port, and it raises at once: a previous Leaf server closes
+    its listener before it releases the lease a restart waits on (`cmd_stop`), so
+    the holder is a process waiting would not move. Only a bind without the option
+    retries EADDRINUSE, for up to PORT_WAIT_SECONDS. Other failures keep their
+    original error.
 
     SO_REUSEADDR lets a restart pass the TIME_WAIT connections the previous server
     left on its port, and it is set wherever it keeps the exclusion. On Linux every
@@ -114,10 +118,13 @@ def listening_socket(bind: str, port: int) -> socket.socket:
     is unavailable; a literal IPv6 address never widens to every interface.
     """
 
-    def bound(family: int, host: str) -> socket.socket:
-        reuse = REUSE_EXCLUDES_LISTENERS or (
+    def reuses(host: str) -> bool:
+        return REUSE_EXCLUDES_LISTENERS or (
             bool(port) and not ipaddress.ip_address(host).is_unspecified
         )
+
+    def bound(family: int, host: str) -> socket.socket:
+        reuse = reuses(host)
         sock = socket.socket(family, socket.SOCK_STREAM)
         try:
             if reuse:
@@ -133,6 +140,8 @@ def listening_socket(bind: str, port: int) -> socket.socket:
             raise
         return sock
 
+    # `::` falls back to `0.0.0.0`, which reuses exactly when `::` does.
+    waits = bool(port) and not reuses(bind)
     deadline = time.monotonic() + PORT_WAIT_SECONDS
     while True:
         try:
@@ -146,7 +155,7 @@ def listening_socket(bind: str, port: int) -> socket.socket:
                 return bound(socket.AF_INET, "0.0.0.0")
         except OSError as error:
             if (
-                not port
+                not waits
                 or error.errno != errno.EADDRINUSE
                 or time.monotonic() >= deadline
             ):
@@ -727,10 +736,10 @@ def _starting_server(
     harness: Harness | None,
     acquire: bool = False,
     claim: dict | None = None,
-    timeout: float | None = None,
+    deadline: float | None = None,
 ):
     """Prepare a private serving resource and expose its owner before accepting,
-    refusing a start that is not ready within `timeout`."""
+    refusing a start that is not ready by `deadline`, a `time.monotonic()` reading."""
     with starting_detached(
         [
             "server",
@@ -747,7 +756,7 @@ def _starting_server(
         ],
         harness=harness,
         what=f"the server for {page_dir}",
-        timeout=timeout,
+        deadline=deadline,
     ) as ready:
         yield PageStart(ready["url"], ready["claim"], page_dir)
 
@@ -781,7 +790,7 @@ def claim_and_start(
     persistent: bool = False,
     *,
     prepared_claim: dict | None = None,
-    timeout: float | None = None,
+    deadline: float | None = None,
 ):
     """Prepare delivery and serving, expose their acquisition, then commit.
 
@@ -794,10 +803,8 @@ def claim_and_start(
     claim it prepared, and holds delivery preparation through this commit: a
     detached preview's launcher, whose child uses the captured lifetime and cwd
     rather than discovering its own ancestry, and a prompt hook, whose payload names
-    the session (`reconnect`). Neither selects a checkout here. The hook also bounds
-    the wait with `timeout`, since a server binding a port another process holds
-    retries for PORT_WAIT_SECONDS, past the hook's own timeout; a start not ready by
-    then is refused.
+    the session (`reconnect`). Neither selects a checkout here. The hook also passes
+    its own `deadline`; a start not ready and confirmed by then is refused.
     """
     harness = claim_harness(prepared_claim) if prepared_claim else session_harness()
     claim = prepared_claim
@@ -818,7 +825,7 @@ def claim_and_start(
                 harness=harness,
                 acquire=True,
                 claim=claim,
-                timeout=timeout,
+                deadline=deadline,
             ) as ready:
                 yield ready
         except BaseException:

@@ -4549,16 +4549,27 @@ def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
 
 
 def test_server_bind_failure_preserves_the_real_socket_error(page_dir, monkeypatch):
-    """An occupied address refuses after the wait budget, retaining EADDRINUSE."""
-    monkeypatch.setattr(hosting_model, "PORT_WAIT_SECONDS", 0.01)
+    """An address another listener holds refuses at its first bind, retaining
+    EADDRINUSE: the bind passes TIME_WAIT, so only a live listener refuses it, and
+    waiting would not move that listener."""
+    attempts = []
+    native_bind = socket.socket.bind
+
+    def counted_bind(sock, address):
+        attempts.append(address)
+        return native_bind(sock, address)
+
     with socket.socket() as occupied:
         occupied.bind(("127.0.0.1", 0))
         occupied.listen()
+        address = occupied.getsockname()
+        monkeypatch.setattr(socket.socket, "bind", counted_bind)
         with pytest.raises(OSError) as refused:
             hosting_model.LeafHTTPServer(
-                occupied.getsockname(), http_model.page_endpoint(page_dir, TOKEN)
+                address, http_model.page_endpoint(page_dir, TOKEN)
             )
     assert refused.value.errno == errno.EADDRINUSE
+    assert attempts == [address]
 
 
 @pytest.mark.parametrize(
@@ -4610,11 +4621,15 @@ else:
         first.server_close()
 
 
-def test_a_fixed_url_waits_for_its_port_to_become_available(page_dir, monkeypatch):
-    """Both preview lifetimes use native port availability, without changing URLs.
+def test_a_wildcard_restart_waits_for_its_port_on_a_bsd_kernel(page_dir, monkeypatch):
+    """A BSD kernel refuses a wildcard bind over the TIME_WAIT its previous server
+    left, since address reuse there would also admit it beside a specific listener,
+    so a `--host` restart waits for its port rather than changing its URL.
 
-    A held listener arranges EADDRINUSE, which address reuse never passes.
+    A held wildcard listener arranges the same EADDRINUSE without the cooldown.
     """
+    if hosting_model.REUSE_EXCLUDES_LISTENERS:
+        pytest.skip("Linux rebinds every address over TIME_WAIT, so nothing waits")
     refused = threading.Event()
     native_bind = socket.socket.bind
 
@@ -4627,13 +4642,16 @@ def test_a_fixed_url_waits_for_its_port_to_become_available(page_dir, monkeypatc
             raise
 
     monkeypatch.setattr(socket.socket, "bind", observed_bind)
-    occupied = socket.socket()
-    occupied.bind(("127.0.0.1", 0))
+    occupied = socket.socket(socket.AF_INET6)
+    occupied.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+    occupied.bind(("::", 0))
     occupied.listen()
     port = occupied.getsockname()[1]
     with ThreadPoolExecutor(max_workers=1) as workers:
         restarting = workers.submit(
-            hosting_model.TemporaryPageServer, page_dir, token=TOKEN, port=port
+            hosting_model.LeafHTTPServer,
+            ("::", port),
+            http_model.page_endpoint(page_dir, TOKEN),
         )
         try:
             assert refused.wait(STATED_TIMEOUT), (
@@ -4642,9 +4660,10 @@ def test_a_fixed_url_waits_for_its_port_to_become_available(page_dir, monkeypatc
             assert not restarting.done()
         finally:
             occupied.close()
-        with restarting.result(timeout=STATED_TIMEOUT) as server:
-            assert server.url == f"http://127.0.0.1:{port}/?t={TOKEN}"
-            assert fetch(f"{server.origin}/api/state")[0] == 200
+        httpd = restarting.result(timeout=STATED_TIMEOUT)
+    with running_http_server(httpd):
+        assert httpd.server_address[1] == port
+        assert fetch(f"http://127.0.0.1:{port}/api/state?t={TOKEN}")[0] == 200
 
 
 @pytest.mark.parametrize("bind", ["127.0.0.1", "::"])

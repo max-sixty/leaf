@@ -482,10 +482,12 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
             continue
 
 
-# How long after it starts a hook may still hand a delivery over inline and wait
-# for the locks that record it; the hook itself takes about 0.4 s. The other half
-# of its timeout covers what this clock does not see: uv's start and the
-# interpreter's imports before it, and the receipt's writes and exit after it.
+# How long after it starts a hook may still start its session's servers again
+# (`reconnect.serve_again`), hand a delivery over inline and wait for the locks
+# that record it; the hook itself takes about 0.4 s, and a server's start about a
+# second. The other half of its timeout covers what this clock does not see: uv's
+# start and the interpreter's imports before it, and the receipt's writes and exit
+# after it.
 CONFIRM_WITHIN = HOOK_TIMEOUT_S / 2
 
 

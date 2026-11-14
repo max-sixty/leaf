@@ -22,6 +22,7 @@ import os
 import socket
 import subprocess
 import sys
+import time
 import traceback
 from collections.abc import Callable
 from contextlib import contextmanager
@@ -49,15 +50,16 @@ def starting_detached(
     what: str,
     log: Path | None = None,
     cwd: Path | None = None,
-    timeout: float | None = None,
+    deadline: float | None = None,
     module: str = "leaf",
     launcher: Path | None = None,
 ):
     """Spawn `python -m MODULE ARGUMENTS --handshake FD` in a session of its own, and
     yield its announcement, then accept and confirm on context exit.
 
-    Raises `StartRefused` with the child's reason when it refuses, exits, or does not
-    answer within `timeout`; a child that has not answered by then is terminated.
+    Raises `StartRefused` with the child's reason when it refuses, exits, or has not
+    answered by `deadline`, a `time.monotonic()` reading, which also bounds the wait
+    for its confirmation; a child that has not answered by then is terminated.
     `what` names the child in a refusal that carries no reason of its own.
     sys.executable is the resolved uv environment, so this skips uv. A selected
     session runtime supplies its launcher when starting delivery; the handshake
@@ -85,9 +87,16 @@ def starting_detached(
                 pass_fds=(child.fileno(),),
             )
         child.close()
-        caller.settimeout(timeout)
+
+        def answer_line() -> bytes:
+            if deadline is not None:
+                if (remaining := deadline - time.monotonic()) <= 0:
+                    raise TimeoutError
+                caller.settimeout(remaining)
+            return caller.makefile("rb").readline()
+
         try:
-            line = caller.makefile("rb").readline()
+            line = answer_line()
         except TimeoutError:
             process.terminate()
             raise StartRefused(f"{what} did not become ready") from None
@@ -97,7 +106,7 @@ def starting_detached(
         yield answer
         caller.sendall(b"\n")
         try:
-            confirmed = caller.makefile("rb").readline()
+            confirmed = answer_line()
         except TimeoutError:
             raise StartUnconfirmed(
                 f"{what} was accepted but did not confirm publication"

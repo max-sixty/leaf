@@ -1330,6 +1330,42 @@ def test_api_state_carries_each_sources_current_value(server, page_dir):
     )
 
 
+def test_a_tab_holding_a_reading_is_sent_only_the_source_a_write_changed(
+    server, page_dir
+):
+    """A tab naming the reading it holds, and the data version it holds, is sent after
+    one of the page's sources is rewritten that source alone, though the answer it
+    holds left its sources out (`http.sent`, `served_state.tail`)."""
+    declare_data_input(page_dir, "builds", {"type": "string"}, activate=False)
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            "</main>",
+            '<lf-test-data id="notes-data" source="notes"></lf-test-data>\n</main>',
+        )
+    )
+    assert revisioning_model.activate_source(page_dir).error is None
+    data_model.cmd_data_set(page_dir, "builds", "green")
+    data_model.cmd_data_set(page_dir, "notes", "Unmoved.\n" * 1000)
+    version = json.loads(fetch(f"{server}/api/state")[1])["data"]["version"]
+    holding = {"Leaf-Data-Version": version}
+    held = json.loads(fetch(f"{server}/api/state", headers=holding)[1])
+    assert held["data"] == {"version": version}
+
+    data_model.cmd_data_set(page_dir, "builds", "red")
+    holding["Leaf-Held-Basis"] = held["browser"]["basis"]["key"]
+    tail = json.loads(fetch(f"{server}/api/state", headers=holding)[1])
+
+    assert tail["since"] == {"key": holding["Leaf-Held-Basis"]}
+    assert "data" not in tail
+    data = {tuple(change["at"]): change for change in tail["patch"]}
+    assert {at[:3] for at in data if at[0] == "data"} == {
+        ("data", "version"),
+        ("data", "sources", "builds"),
+    }
+    assert data[("data", "sources", "builds", "value")]["value"] == "red"
+
+
 def test_a_historical_state_read_keeps_its_layer_and_reads_current_data(
     server, page_dir
 ):

@@ -27,6 +27,7 @@ A full run takes about 10s, and 20s with `--base`.
 """
 
 import json
+import os
 import shutil
 import tempfile
 from dataclasses import dataclass, field
@@ -43,10 +44,10 @@ from leaf_dev.arms import base_option, choose_arms, run_directory, serving_sourc
 from leaf_dev.browser import (
     WINDOWS,
     headless_shell,
+    linux_font_environment,
     load,
     screenshot,
     tab,
-    use_linux_fonts,
 )
 
 OUT = ROOT / ".tmp" / "pins"
@@ -757,7 +758,7 @@ add its shape here as a case.</p>
 @base_option()
 def pins(base) -> None:
     """Seat every pin case on this working tree, and write a Leaf page of crops."""
-    use_linux_fonts()
+    os.environ.update(linux_font_environment())
     OUT.mkdir(parents=True, exist_ok=True)
     out = run_directory(OUT)
     with tempfile.TemporaryDirectory(prefix="leaf-pins-") as built:

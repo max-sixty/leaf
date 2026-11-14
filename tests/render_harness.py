@@ -761,13 +761,13 @@ class Traffic:
     second send. `pending` is the outbox's own list of attempts with
     no delivery outcome yet, so a failed request stays pending while the outbox retries
     it, and a definitive refusal or a response naming the accepted attempt clears it.
-    That is delivery. Whether the page then applied the returned state is a separate
-    product fact asserted on the surface that needs it.
+    That is delivery. `received` and `applied` count the states those answers and the
+    page's reads carried, as the page takes each in hand and finishes applying it.
 
     The count is the document's: a navigation starts it over with the page that carries
     it, and a page that has not booted reads as nothing sent."""
 
-    KEYS = ("sends", "acked", "asked", "heard", "pending")
+    KEYS = ("sends", "acked", "asked", "heard", "received", "applied", "pending")
 
     def __init__(self, page):
         self.page = page
@@ -795,7 +795,8 @@ class Traffic:
     def describe(reading):
         return (
             f"sends={reading.sends} acked={reading.acked} "
-            f"pending={len(reading.pending)} asked={reading.asked} heard={reading.heard}"
+            f"pending={len(reading.pending)} asked={reading.asked} heard={reading.heard} "
+            f"received={reading.received} applied={reading.applied}"
         )
 
     def __str__(self):
@@ -846,23 +847,31 @@ def _until(page, fact, wanted):
             continue
 
 
-# A browser trip is over when every post the page issued has ended and the outbox holds
-# no attempt without an outcome. Each half misses what the other names. A gesture's
-# request failure ends its post but not its delivery, because the outbox keeps the same
-# attempt and retries; `acked` alone would return on that ambiguous edge. A post that
-# skips the outbox — a bookkeeping event such as `read` (delivery.js), the page's own
-# `error` report, a media upload (layer-client.js) — leaves `pending` empty while it is
-# still on the wire; `pending` alone returns before the server has it. A test that
-# holds requests on a route must release every one, that report included.
-# Neither says whether the runtime then applied the response state; tests assert that
-# on the affected page surface.
+# A browser trip is over when every post the page issued has ended, the outbox holds no
+# attempt without an outcome, and the page has applied every state an answer carried.
+# Each part misses what the others name. A gesture's request failure ends its post but
+# not its delivery, because the outbox keeps the same attempt and retries; `acked` alone
+# would return on that ambiguous edge. A post that skips the outbox — a bookkeeping
+# event such as `read` (delivery.js), the page's own `error` report, a media upload
+# (layer-client.js) — leaves `pending` empty while it is still on the wire; `pending`
+# alone returns before the server has it. And the page adopts the server's reading of a
+# gesture after its attempt leaves `pending`, once the frame painting the gesture has
+# drawn (state-application.js), so a read straight after delivery alone finds the
+# tab's own copy: a pending thread id, an Undo not yet offered. A test that holds
+# requests on a route must release every one, that report included.
 def heard_back(reading):
-    """Whether one ledger reading says what the page sent has all come back."""
-    return reading.acked == reading.sends and not reading.pending
+    """Whether one ledger reading says what the page sent has all come back, and the
+    page has applied the state it brought."""
+    return (
+        reading.acked == reading.sends
+        and not reading.pending
+        and reading.applied == reading.received
+    )
 
 
 def round_trip(page):
-    """Wait for what this page has sent to have come back to it."""
+    """Wait for what this page has sent to have come back to it, and for the page to
+    have applied the server's reading the answers carried."""
     _until(page, heard_back, "heard back what it sent")
 
 

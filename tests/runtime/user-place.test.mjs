@@ -85,6 +85,11 @@ test("focus is where the user is while they see it or a glide carries them to it
   assert.equal(focusPlace(), first, "a glide to focus didn't carry the user there");
   stopGlide(scroller);
   assert.equal(focusPlace(), null);
+  // A glide carrying focus out of view, as `g g` does, lets go of it once it has left.
+  scrollTo(1500);
+  glideTo(scroller, 4000);
+  assert.equal(focusPlace(), null, "a glide carrying focus away kept it the place");
+  stopGlide(scroller);
   // Nor is a key pressed while a card it moved slides from where it stood, though a box
   // clips it meanwhile; an endless animation, as the sheen's, a fade, a slide held paused
   // and one on a pseudo-element bring the user nowhere.

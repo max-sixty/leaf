@@ -25,13 +25,20 @@
    waiting hidden for room to stand says so (`away`), since its hidden box measures
    wherever it was left. A surface half under the panel is as unseen there as one
    scrolled off altogether. What a scroller inside the surface hides is the browser's
-   to reveal, so the control is measured within the surface's own box.
+   to reveal, so the control is measured within the surface's own box. A surface the
+   user doesn't see is left to a glide that will bring it into the window
+   (scroll-containers.js, `glideGap`), as though it had landed, and one that stops short
+   of the window or carries it past is brought back: a `c` pressed while
+   `t` glides the page to the card it focused writes in the card and lets it arrive,
+   where bringing the card back stopped the page over 350 px short of the walk's
+   landing.
 
    A surface hears no keys of its own. A key reaches it only as what the keyboard makes
    of it, so a page key such as `g` or `j` acts around a surface the user is still
    in, and one that lands in it or edits in it brings it back by doing so. What does not
    act there, a scroll or a turn arriving, leaves the surface where the page put it. */
 import { seenRect } from "./geometry.js";
+import { glideGap } from "./scroll-containers.js";
 import { scrollBehavior } from "./motion.js";
 import { under } from "./shadow.js";
 import { onCurrentLocation } from "./focus.js";
@@ -49,9 +56,10 @@ const unseen = (node, surface) => {
   const bounds = surface.getBoundingClientRect();
   const seen = seenRect(surface, new Map());
   return (
-    !seen ||
-    Math.max(box.top, bounds.top) < seen.top - 1 ||
-    Math.min(box.bottom, bounds.bottom) > seen.bottom + 1
+    (!seen ||
+      Math.max(box.top, bounds.top) < seen.top - 1 ||
+      Math.min(box.bottom, bounds.bottom) > seen.bottom + 1) &&
+    glideGap(surface)?.after !== 0
   );
 };
 

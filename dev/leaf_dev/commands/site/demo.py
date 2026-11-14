@@ -48,6 +48,7 @@ from leaf.vendoring import cmd_init
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.arms import PageClient
 from leaf_dev.browser import (
+    QUOTE_RANGE,
     Window,
     headless_shell,
     open_threads,
@@ -216,21 +217,13 @@ new version as the checks finish.</p>
 
 def select_text(page: Page, selector: str, text: str) -> None:
     selected = page.evaluate(
-        """([selector, text]) => {
-            const walker = document.createTreeWalker(
-                document.querySelector(selector), NodeFilter.SHOW_TEXT);
-            for (let node; (node = walker.nextNode()); ) {
-                const at = node.data.indexOf(text);
-                if (at < 0) continue;
-                const range = document.createRange();
-                range.setStart(node, at);
-                range.setEnd(node, at + text.length);
-                getSelection().removeAllRanges();
-                getSelection().addRange(range);
-                return getSelection().toString();
-            }
-            return null;
-        }""",
+        f"""([selector, text]) => {{
+            const range = ({QUOTE_RANGE})(document.querySelector(selector), text);
+            if (!range) return null;
+            getSelection().removeAllRanges();
+            getSelection().addRange(range);
+            return getSelection().toString();
+        }}""",
         [selector, text],
     )
     if selected != text:

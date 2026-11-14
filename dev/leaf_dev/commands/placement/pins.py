@@ -39,6 +39,7 @@ import click
 from leaf_dev import ROOT, gallery
 from leaf_dev.arms import base_option, choose_arms, run_directory, serving_source
 from leaf_dev.browser import (
+    QUOTE_RANGE,
     WINDOWS,
     headless_shell,
     load,
@@ -410,24 +411,7 @@ READING = """async (anchors) => {
     return right - left > 2 && bottom - top > 2 ? {left, top, right, bottom} : null;
   };
   const boxes = (el, rects) => [...rects].map((r) => clipped(el, r)).filter(Boolean);
-  const quoted = (root, quote) => {
-    const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    const nodes = [];
-    let text = '';
-    for (let node = walk.nextNode(); node; node = walk.nextNode()) {
-      nodes.push([node, text.length]);
-      text += node.data;
-    }
-    const start = text.indexOf(quote);
-    const at = (offset) => {
-      const [node, base] = nodes.findLast(([, base]) => base <= offset);
-      return [node, offset - base];
-    };
-    const range = document.createRange();
-    range.setStart(...at(start));
-    range.setEnd(...at(start + quote.length));
-    return range;
-  };
+  const quoted = QUOTE_RANGE;
   const target = document.getElementById(anchors[0].section);
   const box = target.closest('.pin-case');
   // Near the window's top, with room above the case for a pin seated over it; a case taller
@@ -491,7 +475,7 @@ READING = """async (anchors) => {
     targets,
     pins,
   };
-}"""
+}""".replace("QUOTE_RANGE", QUOTE_RANGE)
 
 
 def read(page, case: Case) -> dict:

@@ -349,6 +349,29 @@ def settle(page: Page) -> None:
         settle(page)
 
 
+# The range of the first run of `words` in the text under `root`, across text nodes
+# as a passage may run, or null where the text holds none: a JavaScript function's
+# source, which a page script embeds as `({QUOTE_RANGE})(root, words)`.
+QUOTE_RANGE = """(root, words) => {
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  let text = "";
+  for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+    nodes.push([node, text.length]);
+    text += node.data;
+  }
+  const start = text.indexOf(words);
+  if (start < 0) return null;
+  const at = (offset) => {
+    const [node, base] = nodes.findLast(([, base]) => base <= offset);
+    return [node, offset - base];
+  };
+  const range = document.createRange();
+  range.setStart(...at(start));
+  range.setEnd(...at(start + words.length));
+  return range;
+}"""
+
 # Where a mouse was last over a `tab`'s document, in its viewport, and which of its
 # buttons it held. A native drag sends no `pointerup`; it ends in `dragend` where it
 # drops, with no button held. On 2026-11-04 its `pointercancel` read (0, 0) in Chromium

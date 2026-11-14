@@ -66,6 +66,7 @@ from leaf_dev.arms import (
     served_page,
 )
 from leaf_dev.browser import (
+    QUOTE_RANGE,
     WINDOWS,
     Window,
     engine_option,
@@ -332,20 +333,13 @@ def log_lines(case: Case) -> list[dict]:
 
 
 # Where the reader aims: the case's block, and a range over its quoted words.
-AIM = """([subject, quote]) => {
+AIM = f"""([subject, quote]) => {{
   const block = document.getElementById(subject);
-  if (!quote) return {block, range: null};
-  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    const at = node.data.indexOf(quote);
-    if (at < 0) continue;
-    const range = document.createRange();
-    range.setStart(node, at);
-    range.setEnd(node, at + quote.length);
-    return {block, range};
-  }
-  throw new Error(`“${quote}” is in no text node of #${subject}`);
-}"""
+  if (!quote) return {{block, range: null}};
+  const range = ({QUOTE_RANGE})(block, quote);
+  if (!range) throw new Error(`“${{quote}}” is not in #${{subject}}`);
+  return {{block, range}};
+}}"""
 
 # What the tab shows once the card has opened, read with Leaf's own modules: the block
 # Leaf resolves the thread to and the rectangles of its quoted words, the card, and

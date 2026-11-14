@@ -6191,10 +6191,10 @@ def test_send_stands_in_the_mark_s_place_while_the_field_holds_a_draft(browser, 
 
 def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     """Asking to write reaches the panel's field from any state it stands in: `c`
-    unfolds a panel folded to the leaf and rings the panel, which then holds only the
-    comment being written, as an anchored comment box is ringed, so the move shows; and
-    Resume writing comes back to a reply left unsent in a thread the user has since
-    closed, in the same field."""
+    unfolds a panel folded to the leaf and gives the field an anchored comment box's
+    face, its ring and a ground lighter than the panel's, so the move shows; and Resume
+    writing comes back to a reply left unsent in a thread the user has since closed, in
+    the same field."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
@@ -6206,10 +6206,12 @@ def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     page.keyboard.press("c")
     expect(panel).to_have_attribute("data-lf-rest", "row")
     expect(field(page)).to_be_focused()
-    ring = page.locator(".lf-fp-card").evaluate(
-        "box => [getComputedStyle(box).outlineStyle, getComputedStyle(box).outlineWidth]"
+    face = page.locator(".lf-fp-field .lf-compose-field").evaluate(
+        """box => [getComputedStyle(box).outlineStyle, getComputedStyle(box).outlineWidth,
+          getComputedStyle(box).backgroundColor
+            !== getComputedStyle(document.querySelector('.lf-fp-card')).backgroundColor]"""
     )
-    assert ring == ["solid", "2px"], f"the panel holding the caret wears {ring}"
+    assert face == ["solid", "2px", True], f"the field holding the caret wears {face}"
     page.keyboard.press("Escape")
 
     page.locator("body").focus()
@@ -6225,14 +6227,6 @@ def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     expect(page.locator(panel_view("thread"))).to_be_visible()
     expect(field(page)).to_be_focused()
     expect(field(page)).to_have_js_property("value", "Make it the weekend.")
-    # With the thread's messages in the panel, the field alone wears the ring.
-    rings = page.evaluate(
-        """() => ['.lf-fp-card', '.lf-fp-field .lf-compose-field'].map(sel => {
-          const style = getComputedStyle(document.querySelector(sel));
-          return style.outlineStyle === 'none' ? null : style.outlineWidth;
-        })"""
-    )
-    assert rings == [None, "2px"], f"the panel and the field wear {rings}"
     # The resume has drawn whatever it decided, an error included.
     rendered(page)
     expect(page.get_by_text("That writing place is unavailable")).to_have_count(0)

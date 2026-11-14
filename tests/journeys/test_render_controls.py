@@ -288,7 +288,7 @@ RING_CASES = (
                 (".lf-grip", FLOOR_RING),
                 (".lf-fp-leaf", FLOOR_RING),
                 (".lf-fp-on-user", FLOOR_RING),
-                (".lf-fp-field leaf-text", ".lf-fp-card:has("),
+                (".lf-fp-field leaf-text", ".lf-fp-field .lf-compose-field"),
             ),
             "feature-gallery": (
                 (".lf-tab-btn", ".lf-tab-btn"),

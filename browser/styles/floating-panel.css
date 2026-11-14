@@ -396,27 +396,22 @@
     margin: 0;
     box-shadow: none;
   }
-  /* The caret in the field shows where the words will go, as an anchored comment box's
-     ring does (response.css), so a key that moves it there, `c` among them, shows it
-     too. The ring goes round the smallest box holding only what the user is writing:
-     the whole panel while no view stands over the row, when the panel holds the leaf,
-     the field and Send alone, so the panel reads as one comment box with one contour,
-     as the anchored one does; and the field while a view's messages share the panel,
-     where a ring round the panel would mark the messages too. The field's own ring,
-     inside the panel's hairline, read as a part of a toolbar at the window's foot
-     beside the anchored box, though it stood larger than that box. The box wearing the
-     ring declares it (`--lf-wears-ring`, focus.js `ringBox`), and box-motion.js draws a
-     ring the card wears as the card moves. */
-  .lf-floating-panel:not([data-lf-open])
-    .lf-fp-card:has(.lf-fp-field .lf-compose-field > leaf-text[data-lf-focus-visible]) {
-    outline: var(--focus-ring);
-    --lf-wears-ring: 1;
-  }
-  .lf-floating-panel[data-lf-open]
-    .lf-fp-field
-    .lf-compose-field:has(> leaf-text[data-lf-focus-visible]) {
+  /* The caret in the field gives it an anchored comment box's face
+     (annotation-chrome.css): the ring, and inside it the card's ground, lighter than
+     the panel's, so a key that moves it there, `c` among them, shows where the words
+     will go. The field's words stand as far in as that box's, at rest too, so the caret
+     arriving moves none of them. The user chose this on 14 November 2026, after finding
+     the field drew less attention than the anchored box, which wears the same face and
+     ring but stood out by its ground and inset: the field's words stood 6px inside its
+     ring on the panel's own ground. Rejected: the ring round the whole panel, a single
+     contour as the anchored box has, which stood the leaf inside the box being written
+     in; and the panel's hairline and shadow giving way while the user writes, which in
+     the light scheme left page text under the panel ending at an edge nobody sees. */
+  .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus-visible]) {
     outline: var(--focus-ring);
     border-radius: var(--r);
+    background: var(--card);
+    --lf-field-ground: var(--card);
     --lf-wears-ring: 1;
   }
   /* What the field's draft carries, its attached images, hangs off the box rather
@@ -471,6 +466,7 @@
     background: none;
     box-shadow: none;
     padding: calc((var(--lf-line) - 1lh) / 2) 6px;
+    padding-inline-start: var(--lf-thread-text-inset);
     min-height: var(--lf-line);
     /* Half the window: a long comment reads whole before the field scrolls. */
     max-height: 50dvh;
@@ -584,7 +580,8 @@
   }
   .lf-fp-field .lf-compose-error {
     padding: calc((var(--lf-line) - 1lh) / 2) 6px;
-    background: var(--lf-fp-surface);
+    padding-inline-start: var(--lf-thread-text-inset);
+    background: var(--lf-field-ground);
     white-space: nowrap;
   }
   .lf-fp-field .lf-compose-error > span {

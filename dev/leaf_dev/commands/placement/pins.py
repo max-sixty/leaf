@@ -564,7 +564,6 @@ def unaccepted(case: Case, reading: dict, viewport: str) -> list[tuple[str, str]
 def frame(readings: list[dict]) -> tuple[int, int, int, int]:
     """The rectangle around a case and its pins in every reading of it, so each arm's
     crop of one case at one viewport covers the same place on the page."""
-    pad = 16
     rects = [
         rect
         for reading in readings
@@ -573,12 +572,10 @@ def frame(readings: list[dict]) -> tuple[int, int, int, int]:
             *(entry for pin in reading["pins"] for entry in pin["entries"]),
         )
     ]
-    return (
-        int(max(0, min(r["left"] for r in rects) - pad)),
-        int(max(0, min(r["top"] for r in rects) - pad)),
-        int(min(readings[0]["width"], max(r["right"] for r in rects) + pad)),
-        int(min(readings[0]["height"], max(r["bottom"] for r in rects) + pad)),
+    left, top, right, bottom = gallery.frame(
+        rects, 16, readings[0]["width"], readings[0]["height"]
     )
+    return int(left), int(top), int(right), int(bottom)
 
 
 def crop(seen: dict, rect: tuple[int, int, int, int], out: Path) -> Path:

@@ -21,7 +21,7 @@ Each case is visited in each window on each arm through `leaf_dev.visits`, the l
 page, the thread's words and the reader's input. `--base` adds the merge base with
 `main`, or REF, beside this working tree.
 
-Each run writes, under `.tmp/placements/run-*/`, `index.html`, a Leaf page source of
+Each run writes, under `.tmp/cards/run-*/`, `index.html`, a Leaf page source of
 the gallery, with its captures in `media/` under the names a page's media take
 (`leaf page media` adds them to another page under the same names); `gallery.html`,
 its sections alone, for a page that shows them among its own with `STYLE`;
@@ -43,7 +43,7 @@ measured in the tab:
 - how far the page scrolled from the input that opened the card, except where `m`
   travelled from the page's top.
 
-    uv run leaf-dev preview --source .tmp/placements/run-XXXX/index.html
+    uv run leaf-dev preview --source .tmp/cards/run-XXXX/index.html
 """
 
 import html
@@ -78,7 +78,7 @@ from leaf_dev.browser import (
 from leaf_dev.states import OPEN_CARD, State, open_card
 from leaf_dev.visits import said, visits
 
-OUT = ROOT / ".tmp" / "placements"
+OUT = ROOT / ".tmp" / "cards"
 
 WIDE = Window((1728, 999), description="a 1728px by 999px window")
 MIDDLE = WINDOWS["macbook"]
@@ -272,15 +272,10 @@ def fixture() -> str:
         f"<td>{n * 3}% of traffic, with an error budget of {n % 5 + 1} minutes a week.</td></tr>\n"
         for n in range(1, 41)
     )
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-<title>Placement fixture</title>
-<meta name="description" content="The page leaf-dev placement cards opens thread cards on.">
-</head>
-<body>
-<main class="layout-column">
-<h1 id="title">Moving to the new cluster</h1>
+    return gallery.page(
+        "Placement fixture",
+        "The page leaf-dev placement cards opens thread cards on.",
+        f"""<h1 id="title">Moving to the new cluster</h1>
 {before}<p id="p-short">The rollout starts on Monday.</p>
 <p id="p-medium">The migration moves each region's traffic to the new cluster in three
 steps. First we mirror reads and compare the answers; then we send a tenth of writes and
@@ -308,10 +303,8 @@ cost.</lf-option>
 {rows}</tbody>
 </table>
 </section>
-{after}</main>
-</body>
-</html>
-"""
+{after}""",
+    )
 
 
 def log_lines(case: Case) -> list[dict]:

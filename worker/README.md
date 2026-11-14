@@ -91,8 +91,8 @@ uv run leaf-dev site verify website-worker
 uv run leaf-dev journey run website-worker
 ```
 
-`verify-site website-worker` checks the release `leaf-dev site build` built, as
-`publish-site` does before it deploys, and `journey website-worker` runs the agent
+`site verify website-worker` checks the release `leaf-dev site build` built, as
+`publish-site` does before it deploys, and `journey run website-worker` runs the agent
 journey that `publish-site` runs against <https://leaf.page/> after it deploys. Neither
 builds the site, so rerun `leaf-dev site build` after a change.
 

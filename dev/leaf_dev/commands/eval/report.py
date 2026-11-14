@@ -1669,21 +1669,15 @@ def eval_report(
         end = close.start_offset if close else end
         browser = f'<lf-tab id="all-results" label="Outputs">{browser}</lf-tab>'
     (page / "index.html").write_text(
-        f"""<!doctype html>
-<html lang="en">
-<head>
-<title>{escape(heading.text)}</title>
-<meta name="description" content="Saved authored pages side by side, with their original review conditions, costs and judgments.">
-<style>{STYLE}</style>
-</head>
-<body>
-<main class="layout-workspace density-working">
-<header>{written[:at]}</header>
-{written[at:end]}{browser}{written[end:]}
-</main>
-</body>
-</html>
-"""
+        gallery.page(
+            heading.text,
+            "Saved authored pages side by side, with their original review conditions,"
+            " costs and judgments.",
+            f"<header>{written[:at]}</header>\n"
+            f"{written[at:end]}{browser}{written[end:]}",
+            head=f"<style>{STYLE}</style>",
+            layout="layout-workspace density-working",
+        )
     )
     click.echo(page / "index.html")
     click.echo(f"Saved outputs: {page / 'evidence'}")

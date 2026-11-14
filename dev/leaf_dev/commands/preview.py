@@ -1,4 +1,5 @@
-"""Serve an example or developer fixture as a live page, or export it as one file.
+"""Serve an example or developer fixture as a live page, beside a base's with
+`--base`, or export it as one file.
 
 An example is authored content, not a page directory; opened from disk it is a dead
 page, since Chrome refuses ES modules from file://. This builds the page directory
@@ -35,7 +36,7 @@ with `main`, or the commit it names (`leaf_dev.arms.choose_arms`). The head prev
 follows runtime edits as any preview does. Both read the head's authored source,
 following its edits, unless `--authored` has the base read its own copy
 (`leaf_dev.arms.own_source`). Each invocation owns fresh preview slots, named after the
-source and the run. User previews keep their base under `.tmp/compare` after startup,
+source and the run. User previews keep their base under `.tmp/preview-base` after startup,
 because detached watchers still need its files. Foreground previews end together.
 
 The preview serves the selected checkout in place, with its runtime's source modules,
@@ -1205,7 +1206,7 @@ def serve_versions(source: Path, base: str, authored: bool, user: bool) -> None:
 
     if authored and not source.is_relative_to(ROOT):
         raise click.UsageError("--authored needs a source inside this checkout")
-    directory = run_directory(ROOT / ".tmp" / "compare")
+    directory = run_directory(ROOT / ".tmp" / "preview-base")
     arms = choose_arms(base, directory)
     prefix = f"{source.stem}-{directory.name}"
     harness = session_harness() if user else None

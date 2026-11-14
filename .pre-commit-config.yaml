@@ -43,7 +43,7 @@ repos:
         language: system
         entry: uv run leaf-dev generate record-types --check
         pass_filenames: false
-        files: '^(src/leaf/|dev/leaf_dev/commands/record_types\.py$|pyproject\.toml$|uv\.lock$)'
+        files: '^(src/leaf/|dev/leaf_dev/commands/generate/record_types\.py$|pyproject\.toml$|uv\.lock$)'
       - id: ty
         name: ty
         language: system

@@ -2,7 +2,8 @@
 
 Each module in the commands package is a command named after it (`bench.py` for
 `leaf-dev bench`), and each package in it is a group of the commands its own modules
-are (`suite/flake.py` for `leaf-dev suite flake`). Help finds the names without
+are (`suite/flake.py` for `leaf-dev suite flake`), apart from a module whose name
+starts with `_`, which is its package's own helper. Help finds the names without
 importing a module, and describes each command or group by the first paragraph of its
 module's or package's docstring, read from source; a group's line names its commands.
 A command module defines the Click command or group of its command's name, which owns
@@ -47,6 +48,7 @@ class DeveloperCommands(click.Group):
         return {
             module.name.replace("_", "-"): module.ispkg
             for module in iter_modules(self.package.__path__)
+            if not module.name.startswith("_")
         }
 
     def list_commands(self, ctx):
@@ -69,13 +71,18 @@ class DeveloperCommands(click.Group):
             stem = Path(self.package.__path__[0], name.replace("-", "_"))
             if not self.entries()[name]:
                 return summary(stem.with_suffix(".py"))
-            members = [module.name.replace("_", "-") for module in iter_modules([stem])]
-            return f"{summary(stem / '__init__.py')} ({', '.join(sorted(members))})"
+            members = DeveloperCommands(
+                import_module(f"{self.package.__name__}.{name.replace('-', '_')}")
+            ).list_commands(ctx)
+            return f"{summary(stem / '__init__.py')} ({', '.join(members)})"
 
-        with formatter.section("Commands"):
-            formatter.write_dl(
-                (name, described(name)) for name in self.list_commands(ctx)
-            )
+        names = self.list_commands(ctx)
+        groups = self.entries()
+        for title, chosen in (("Commands", False), ("Groups", True)):
+            rows = [(name, described(name)) for name in names if groups[name] == chosen]
+            if rows:
+                with formatter.section(title):
+                    formatter.write_dl(rows)
 
 
 @click.group(cls=DeveloperCommands)

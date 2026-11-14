@@ -2,11 +2,13 @@
 one: `leaf-dev placement pins` and `placement cards`, and `leaf-dev eval report`'s
 before and after.
 
-A capture marks what a case is about (`marked`) before it reaches the page. The page
+A capture is cut to the box around what a case is about (`frame`), the same box
+on every arm so a pair lines up, and marks it (`marked`) before it reaches the page. The page
 holds it under its content name (`media`), as `leaf page media` would, so a page built
 from one run and copied into another keeps its images. Two arms' captures of one case
 are an `lf-shot` pair, and one arm's an image (`shot`). The page around them is a
-reading column (`page`), which a command's own styles widen where its tiles need it.
+reading column (`page`), or another Layout, which a command's own styles widen where
+its tiles need it.
 """
 
 from collections.abc import Iterable
@@ -37,8 +39,33 @@ def shot(id: str, alt: str, before: str | None, after: str) -> str:
     )
 
 
+def frame(
+    boxes: Iterable[dict], pad: float, width: float, height: float
+) -> tuple[float, float, float, float]:
+    """The `(left, top, right, bottom)` box around `boxes`, each given as `{left, top,
+    right, bottom}`, grown by `pad` on every side and kept inside a capture `width`
+    by `height`."""
+    boxes = list(boxes)
+    return (
+        max(0, min(box["left"] for box in boxes) - pad),
+        max(0, min(box["top"] for box in boxes) - pad),
+        min(width, max(box["right"] for box in boxes) + pad),
+        min(height, max(box["bottom"] for box in boxes) + pad),
+    )
+
+
+def edges(rect: dict) -> dict:
+    """A browser's `{x, y, width, height}` rectangle as `{left, top, right, bottom}`."""
+    return {
+        "left": rect["x"],
+        "top": rect["y"],
+        "right": rect["x"] + rect["width"],
+        "bottom": rect["y"] + rect["height"],
+    }
+
+
 def marked(
-    capture: Path,
+    capture: Path | Image.Image,
     color: tuple[int, int, int],
     *,
     outlined: Iterable[dict],
@@ -48,7 +75,9 @@ def marked(
     """The capture with each box of `outlined` ringed and each of `filled` tinted in
     `color`, boxes given in CSS pixels as `{left, top, right, bottom}` at `scale`
     device pixels to a CSS pixel."""
-    image = Image.open(capture).convert("RGBA")
+    image = (
+        capture if isinstance(capture, Image.Image) else Image.open(capture)
+    ).convert("RGBA")
     layer = Image.new("RGBA", image.size)
     draw = ImageDraw.Draw(layer)
     for box in filled:
@@ -76,9 +105,16 @@ def marked(
     return Image.alpha_composite(image, layer).convert("RGB")
 
 
-def page(title: str, description: str, body: str, *, head: str = "") -> str:
-    """A Leaf page titled `title` whose reading column holds `body`, with `head`, such
-    as a command's styles, in its head."""
+def page(
+    title: str,
+    description: str,
+    body: str,
+    *,
+    head: str = "",
+    layout: str = "layout-column",
+) -> str:
+    """A Leaf page titled `title` whose `main`, in `layout`'s classes, holds `body`,
+    with `head`, such as a command's styles, in its head."""
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -87,7 +123,7 @@ def page(title: str, description: str, body: str, *, head: str = "") -> str:
 {head}
 </head>
 <body>
-<main class="layout-column">
+<main class="{layout}">
 {body}
 </main>
 </body>

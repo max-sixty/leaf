@@ -1793,7 +1793,7 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
     assert not Path(other["home"]).exists()
     assert not Path(other["site"]).exists()
     assert (
-        len(list((root / ".tmp" / "verify-site").glob("run-*/website-adapter.log")))
+        len(list((root / ".tmp" / "site-verify").glob("run-*/website-adapter.log")))
         == 2
     )
     assert (host_home / "auth.json").read_text() == '{"test": "refreshed"}'

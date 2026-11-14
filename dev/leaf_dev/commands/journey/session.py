@@ -33,7 +33,7 @@ from leaf_dev.journey_claude_code import ClaudeCode, claude_code_environment
 from leaf_dev.review_scenario import prepare
 
 # Where the running session is recorded, for the next run and `--stop`.
-RECORD = ROOT / ".tmp" / "claude-code-session.json"
+RECORD = ROOT / ".tmp" / "journey-session.json"
 
 
 def stop() -> None:
@@ -64,7 +64,7 @@ def claude_code_session(stopping: bool) -> None:
     os.environ.clear()
     os.environ.update(env)
     prepare(ROOT, place.state, place.page)
-    cc = ClaudeCode(place, env, model=MODELS["claude-code-session"])
+    cc = ClaudeCode(place, env, model=MODELS["journey-session"])
     RECORD.parent.mkdir(exist_ok=True)
     RECORD.write_text(
         json.dumps({"pane": cc.pane, "root": str(root), "state": str(place.state)})

@@ -52,7 +52,7 @@ jobs:
   deploy-site:
     if: github.repository_owner == 'max-sixty'
     runs-on: ubuntu-24.04
-    # The verification step at the end owns most of this budget: verify-site's
+    # The verification step at the end owns most of this budget: `site verify`'s
     # `--wait` spends up to 900 seconds, and the agent journey after it adds a page
     # verification, `agent_session`'s 180 seconds, the turn's `TURN_LIMIT`, and the
     # reload and its `TURN_PRESENTATION` wait — roughly 34 minutes, behind the
@@ -78,7 +78,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # verify-site and the journey drive the headless shell matching the locked
+      # `site verify` and the journey drive the headless shell matching the locked
       # Playwright (`leaf_dev.browser`), not the runner's installed Chrome.
       - name: Install Chromium headless shell
         run: uv run playwright install --with-deps chromium --only-shell
@@ -124,7 +124,7 @@ jobs:
       # Worker activation and container rollout are separate Cloudflare operations. A
       # real browser must see the requested build in the document, module graph, edge
       # projection, and a newly allocated container before this deployment is green.
-      # verify-site's `--wait` owns that wait — rollout drains one container allocation
+      # `site verify`'s `--wait` owns that wait — rollout drains one container allocation
       # at a time, so a coherent sample is what ends it — and the agent journey that
       # follows runs the deployed turn alone rather than re-sampling readings the wait
       # settled.

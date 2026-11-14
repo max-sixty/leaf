@@ -750,7 +750,7 @@ def local_adapter() -> Generator[tuple[str, str]]:
 
     Its isolated Codex home and normal Leaf plugin installation are removed with
     the adapter's pages and task history."""
-    out = run_directory(ROOT / ".tmp" / "verify-site")
+    out = run_directory(ROOT / ".tmp" / "site-verify")
     log = out / "website-adapter.log"
     with (
         tempfile.TemporaryDirectory(prefix="leaf-site-agent.") as temporary,
@@ -1094,7 +1094,7 @@ def local_worker() -> Generator[LocalWorker]:
     `proxy-everything` sidecar running when it exits, so the run serves under a Worker
     name of its own and removes the containers carrying it on the way out.
     """
-    out = run_directory(ROOT / ".tmp" / "verify-site")
+    out = run_directory(ROOT / ".tmp" / "site-verify")
     # Temporary directory suffixes may begin with `_`, which cannot follow a
     # hyphen in a Docker image name. Hex keeps the run identity and uses only
     # characters accepted by both Docker and Wrangler.

@@ -29,12 +29,7 @@
    has not moved. The style serializer keeps six significant digits, so the property
    reads back the same while the set still rewrites the style attribute. A custom
    property keeps its text verbatim instead, so the same drift there is a write of
-   different text; a measured length written to one goes through `layoutPx` too.
-   Under a CSS zoom, layout resolves the zoomed length, so the 1/64px is the zoomed
-   pixel's: a box's width read off it and rounded at 1/64 of a local pixel lays out
-   1/64px off that width (for 41% of widths in Chromium and 18% in Firefox at a zoom
-   of 1.25), so a thread card pinned to the width it stood at resized itself in its
-   own resize delivery. `layoutPx` takes the box's zoom and rounds there. */
+   different text; a measured length written to one goes through `layoutPx` too. */
 
 import { isStyledElement } from "./shadow-tree.js";
 
@@ -76,9 +71,8 @@ export function keepsOnOne(name) {
 /** @param {number} length */
 export const atLayoutPrecision = (length) => Math.round(length * 64) / 64;
 
-/** @param {number} length @param {number} [zoom] the box's `currentCSSZoom` */
-export const layoutPx = (length, zoom = 1) =>
-  `${atLayoutPrecision(length * zoom) / zoom}px`;
+/** @param {number} length */
+export const layoutPx = (length) => `${atLayoutPrecision(length)}px`;
 
 // A room a box must fit in, at layout precision and never past it: rounding a room
 // up would leave its box a fraction too large for the space it was measured from.

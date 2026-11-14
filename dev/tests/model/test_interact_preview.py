@@ -665,6 +665,16 @@ def test_a_preview_follows_a_nearer_media_directory_when_one_appears(tmp_path):
     assert after.roots == before.roots
 
 
+def test_a_page_directory_source_takes_its_layer_records_packages(tmp_path):
+    page = tmp_path / "page"
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "diagram", str(page)]
+    )
+    assert result.exit_code == 0, result.output
+
+    assert preview.source_packages(page / "index.html") == ["diagram"]
+
+
 def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path):
     source = tmp_path / "project" / "docs" / "page.html"
     source.parent.mkdir(parents=True)

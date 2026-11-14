@@ -96,15 +96,13 @@ def test_color_cues_fade_to_the_live_surface(request, serve, engine):
     assert fills["end"] == fills["rest"], fills
 
 
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
     request, serve, engine
 ):
-    """Native ranges paint nested syntax with the widget's local palette.
-
-    Root-only highlight selectors lose this paint in Firefox, which accepts
-    the rules but does not inherit highlight styles into descendants.
-    """
+    """Native ranges paint nested syntax in a shadow widget with the palette set on its
+    host: inherited from the host in Chromium and WebKit, and from the rules widened to
+    every element in Firefox, which inherits no highlight style."""
     page = open_page(request.getfixturevalue(engine), serve(DIFF_PAGE))
     widget = page.locator("#patch")
     row = widget.locator("[data-line]").first

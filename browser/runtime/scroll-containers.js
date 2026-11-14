@@ -3,19 +3,27 @@
    reading regions without changing the landing arithmetic or fixed-box boundary. An
    edge is read and put back across that ancestry (`edgeAt`, `returnTo`), for a hold
    and a landing alike. Native input chains its scroll along it (`scrollChainOf`), so
-   the box an input scrolls is read here too (`inputScroller`). */
+   the box an input scrolls is read here too (`inputScroller`). A box Leaf anchors also
+   moves with every scroll that moves its anchor, which a reading of the motions under
+   way counts (`carriersOf`), and the distance the glides under way have still to
+   scroll across both is read here too (`glideTravel`, `glideGap`). */
 import { inputs } from "./inputs.js";
-import { renderedParent } from "./shadow-tree.js";
+import { isElement, renderedParent } from "./shadow-tree.js";
+import { anchorHolder, anchorNamed } from "./css-anchors.js";
+import { scrollAxes } from "./element-axes.js";
 import {
   aimedTop,
   aimScroll,
   moveScrollerBy,
   pageScroller,
   SCROLL_SLACK,
+  scrollGoal,
   scrollLimit,
   scrollsFor,
 } from "./scrolling.js";
-import { fixedInWindow, userScrollport } from "./geometry.js";
+import { fixedInWindow, shownWindow, userScrollport } from "./geometry.js";
+
+/** @typedef {import("./css-anchors.js").Anchor} Anchor */
 
 /** @type {(node: Node | null | undefined) => Element} */
 let lookup = (node) => {
@@ -34,13 +42,25 @@ export function installScrollerLookup(read) {
   lookup = read;
 }
 
-// Every box whose scroll moves a node, innermost first: its region's scroller, then the
-// box scrolling that one, out to the page. A move the inner box cannot take whole is
-// the next one's to finish: a bounded block not yet full grows in the page rather than
-// scrolling, and a region scrolled to its end moves no further. A box fixed in the
-// window between a node and a scroller stands still while that scroller moves, so the
-// walk ends there; one a transformed box holds rides with it (geometry.js,
-// `fixedInWindow`).
+// Every box that scrolls a node as part of its content, innermost first: its region's
+// scroller, then the box scrolling that one, out to the page. A move the inner box
+// cannot take whole is the next one's to finish: a bounded block not yet full grows in
+// the page rather than scrolling, and a region scrolled to its end moves no further.
+// The walk ends at a box fixed in the window, which no box around it scrolls as
+// content; one a transformed box holds rides with it (geometry.js, `fixedInWindow`).
+//
+// A fixed box Leaf anchors, such as the thread card, rides the scrolls that carry its
+// anchor (`carriersOf`) and still ends this walk, so a landing or hold on what the box
+// holds never scrolls the page to move it. The box's placement decides where it stands,
+// and a surface carried out of view comes back by a landing on what it stands by
+// (off-flow.js). Rejected: following the anchor here, for every caller. A scroll moves
+// an anchored box only at the browser's next rendering update, in Chromium, Firefox and
+// WebKit alike, and the card's placement solves again after it, holding the card at the
+// window's edge once its words come in (floating.js). A landing therefore aimed the page
+// at where the card no longer stood: `t` then Tab, pressed before the walk's glide
+// ended, left the card wholly above the window, with focus on a control in it.
+// A wheel spent in the card also passes to the window's scroller, not to the one
+// carrying its anchor (`scrollChainOf`).
 /** @param {Element | null} node @returns {Generator<Element>} */
 export function* scrollersOf(node) {
   for (let box = lookup(node); ; box = lookup(renderedParent(box))) {
@@ -52,10 +72,34 @@ export function* scrollersOf(node) {
   }
 }
 
+// Every box whose scroll moves `node`, innermost first: `scrollersOf`'s, then, where
+// that walk ends at a fixed box Leaf anchors (css-anchors.js), as the thread card, the
+// comment box and the margin's rows are, every box whose scroll moves that anchor. A
+// scroller's own scroll carries the start of its content, but not the scroller's own
+// box, which a box held at a reading region's edge is anchored to. A reading of the
+// motions under way that carry the node walks these; a landing or hold on the node
+// moves only `scrollersOf`'s.
+/** @param {Element | null} node @returns {Generator<Element>} */
+export function* carriersOf(node) {
+  /** @type {Node | null} */
+  let fixed = node;
+  for (const box of scrollersOf(node)) {
+    yield box;
+    fixed = box;
+  }
+  if (fixed === pageScroller) return;
+  while (fixed instanceof Element && !fixedInWindow(fixed))
+    fixed = renderedParent(fixed);
+  const anchor =
+    fixed instanceof Element && anchorNamed(getComputedStyle(fixed).positionAnchor);
+  if (!anchor) return;
+  for (const box of carriersOf(anchorHolder(anchor))) if (box !== anchor) yield box;
+}
+
 // The boxes a scroll passes to once each inner one is spent, as native input chains it
 // at a box whose overscroll-behavior lets it go: `scrollersOf`'s, then the page's. A
-// fixed box ends `scrollersOf` because the page's scroll leaves it in place, but its
-// scroll still chains to the page, the box its containing block, the viewport, scrolls.
+// fixed box ends `scrollersOf`, but its scroll still chains to the page, the box its
+// containing block, the viewport, scrolls, wherever its anchor stands.
 /** @param {Element | null} node @returns {Generator<Element>} */
 export function* scrollChainOf(node) {
   let last = null;
@@ -103,6 +147,53 @@ inputs.observe((event) => {
 /** @param {Element | Range} node */
 export const holderOf = (node) =>
   node instanceof Range ? node.startContainer.parentElement : node;
+
+// The distance the glides under way have still to scroll the boxes that carry `node`
+// (`carriersOf`), each from where it stands to its glide's goal (scrolling.js,
+// `scrollGoal`), summed as a vector in client pixels through each box's transforms
+// (element-axes.js, `scrollAxes`), with the outermost box that glides; null where no
+// glide carries it. An element's own scroll moves what it holds and not its box. A
+// scroll the browser runs, as a wheel's, has no goal Leaf knows, so it adds nothing.
+// Where a box Leaf anchors will stand also depends on its placement, which solves again
+// after a scroll (floating.js), and this reads only the scrolls.
+/** @param {Element | Range | Anchor} node */
+export function glideTravel(node) {
+  const holder =
+    node instanceof Range ? holderOf(node) : isElement(node) ? node : node.scroller;
+  let x = 0;
+  let y = 0;
+  /** @type {Element | null} */
+  let outer = null;
+  for (const box of carriersOf(holder)) {
+    if (box === node) continue;
+    const left = scrollGoal(box) - box.scrollTop;
+    if (!left) continue;
+    const axis = scrollAxes(box).y;
+    x -= left * axis.x;
+    y -= left * axis.y;
+    outer = box;
+  }
+  return outer && { x, y, outer };
+}
+
+// How far `node`'s box stands outside the part of the window the page shows
+// (geometry.js, `shownWindow`), now (`now`) and once moved by the glides under way
+// (`glideTravel`, `after`), summed across the two axes, 0 where it is in it; null where
+// no glide carries it. It reads the window alone, not what the scrollers between will
+// show, and the box as it stands now, which for a box Leaf anchors can trail its
+// placement (css-anchors.js).
+/** @param {Element | Range} node */
+export function glideGap(node) {
+  const travel = glideTravel(node);
+  if (!travel) return null;
+  const box = node.getBoundingClientRect();
+  const view = shownWindow();
+  /** @param {number} x @param {number} y */
+  const gap = (x, y) =>
+    Math.max(view.top - box.bottom - y, box.top + y - view.bottom, 0) +
+    Math.max(view.left - box.right - x, box.left + x - view.right, 0);
+  return { now: gap(0, 0), after: gap(travel.x, travel.y) };
+}
 
 // Where `node`'s `edge` stands on screen, read as though each box scrolling it stood
 // where Leaf last aimed it (scrolling.js, `aimedTop`): a hold read after a hold then

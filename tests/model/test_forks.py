@@ -410,7 +410,9 @@ def test_the_pages_follower_holds_the_lane_and_lists_held_threads(
     with pytest.raises(Stopped):
         hooks_model.cmd_pages({"session_id": "s1", "forks": True})
     assert forks_model.lane_since("s1") is None
-    listed = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    listed = [
+        json.loads(line)["pages"] for line in capsys.readouterr().out.splitlines()
+    ]
     assert listed[0][0]["forks"] == []
     assert listed[1][0]["forks"] == [
         {
@@ -465,7 +467,9 @@ def test_the_follower_ends_once_the_sessions_delivery_runs_another_leaf(
         hooks_model.cmd_pages({"session_id": "s1", "forks": True})
     assert ended.value.code == os.EX_TEMPFAIL
     assert forks_model.lane_since("s1") is None
-    [listed] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    [listed] = [
+        json.loads(line)["pages"] for line in capsys.readouterr().out.splitlines()
+    ]
     assert listed[0]["forks"] == []
 
 
@@ -560,7 +564,7 @@ def test_the_follower_keeps_the_bound_of_a_page_it_does_not_list(
     monkeypatch.setattr(file_changes_model, "wait", wait)
     with pytest.raises(Stopped):
         hooks_model.cmd_pages({"session_id": "s1", "forks": True})
-    assert capsys.readouterr().out.splitlines() == ["[]"]
+    assert json.loads(capsys.readouterr().out) == {"pages": [], "completions": []}
     assert forks_model.handed_inputs("s1", claimed) == {asked[0]["id"]}
     assert nudged == []
 

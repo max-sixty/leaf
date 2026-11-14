@@ -201,9 +201,11 @@ page script is the worked example (the playground package's author instructions,
 "Stateful previews").
 
 Run a heavy renderer that can wait until the user has the page through
-`afterPresentation(() => …)`. Pass work that starts now but need not delay
+`afterPresentation(() => …)`, or until they come near its element through
+`whenNear(element, () => …)`, which returns the step that stops waiting. Pass work that starts now but need not delay
 presentation, such as a slow load whose result moves nothing visible, to
-`deferredArrival(promise)`. Checks and tests that wait for the page wait for both.
+`deferredArrival(promise)`. Checks and tests that wait for the page wait for the work
+each has started; `page check --render` starts what `whenNear` holds.
 Before deferring work that resizes the widget, ask `growthIsSeen(element)`: if growing
 now would move what the user sees, pass the work to the widget controller's
 `present(promise)` instead, so it lands before presentation.
@@ -363,9 +365,7 @@ whole document. `keeps(node, name, value)` writes an attribute only when it woul
 back differently; pass booleans and counts as they are, and `null` to remove it.
 `keepsText(node, text)` and `keepsHidden(node, hidden)` do the same for words and
 `hidden`. Write a measured length into a style as `layoutPx(length)`, which rounds to
-layout's 1/64px, or `layoutPx(length, box.currentCSSZoom)` for a box's own size, which
-a CSS zoom lays out in zoomed pixels; `atLayoutPrecision(length)` returns the rounded
-number.
+layout's 1/64px; `atLayoutPrecision(length)` returns the rounded number.
 
 ## Contained examples and scoped appearance
 

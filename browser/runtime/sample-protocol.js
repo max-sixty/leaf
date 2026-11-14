@@ -11,7 +11,8 @@
  * "restore-current-location": {detail: NoDetail, result: boolean},
  * image: {detail: SampleCrop, result: import("./composing/page-image.js").PageImage},
  * window: {detail: {window: boolean}, result: SampleSize},
- * thread: {detail: {id: string, surface?: "page" | "panel"}, result: boolean}
+ * thread: {detail: {id: string, surface?: "page" | "panel"}, result: boolean},
+ * "near-work": {detail: NoDetail, result: null}
  * }} SampleCommands
  * @typedef {keyof SampleCommands} SampleMethod
  * @typedef {SampleCommands[SampleMethod]["result"]} SampleResult

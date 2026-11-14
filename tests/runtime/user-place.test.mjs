@@ -6,15 +6,16 @@
    back where it stood, or its stand-in where the change hid it, paying only for what
    the browser's own anchoring left. The user's place across a reading is the first the
    change moved of those they named, a field they type in before a resting pointer and
-   the pointer only on a control, and its keep yields to a scroll since and to the user's
-   own press or key, but not to typing into the field it holds. */
+   the pointer only on a control, and its keep yields to a scroll since in a box scrolling
+   the place and to the user's own press or key, but not to typing into the field it
+   holds. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import { recentPlaceInput } from "/runtime/focus.js";
 import { pointerAt } from "/runtime/pointer.js";
-import { glideTo, stopGlide } from "/runtime/scrolling.js";
+import { glideTo, startScroll, stopGlide } from "/runtime/scrolling.js";
 import { focusPlace, holdPlace, holdUserPlace } from "/runtime/user-place.js";
 
 // A scroller whose boxes are stated: each node's viewport top is its content top less
@@ -84,6 +85,11 @@ test("focus is where the user is while they see it or a glide carries them to it
   assert.equal(focusPlace(), first, "a glide to focus didn't carry the user there");
   stopGlide(scroller);
   assert.equal(focusPlace(), null);
+  // A glide carrying focus out of view, as `g g` does, lets go of it once it has left.
+  scrollTo(1500);
+  glideTo(scroller, 4000);
+  assert.equal(focusPlace(), null, "a glide carrying focus away kept it the place");
+  stopGlide(scroller);
   // Nor is a key pressed while a card it moved slides from where it stood, though a box
   // clips it meanwhile; an endless animation, as the sheen's, a fade, a slide held paused
   // and one on a pseudo-element bring the user nowhere.
@@ -313,6 +319,27 @@ test("the keep yields to a scroll or the user's own act, and typing leaves it ke
     keep();
     assert.equal(scrolled(), kept, act.name);
     scroller.remove();
+  }
+});
+
+test("the keep yields to a choice in a box scrolling its place, not in another", () => {
+  for (const [where, kept] of [
+    ["another box", 1226],
+    ["its own box", 1100],
+  ]) {
+    const page = laidOut();
+    const other = laidOut();
+    const read = page.item("read", 1150);
+    page.scroller.append(read);
+    page.scrollTo(1100);
+    read.tabIndex = 0;
+    read.focus();
+    const keep = holdUserPlace();
+    page.at.set(read, 1276);
+    startScroll(where === "its own box" ? page.scroller : other.scroller);
+    keep();
+    assert.equal(page.scrolled(), kept, where);
+    [page.scroller, other.scroller].forEach((node) => node.remove());
   }
 });
 

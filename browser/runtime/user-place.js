@@ -67,7 +67,6 @@
    same (reading-place.js, `capturePlace`; version.js). */
 import {
   clippedPlace,
-  fixedInWindow,
   inFront,
   layoutWindow,
   seenRect,
@@ -75,10 +74,16 @@ import {
   shownWindow,
   stuckBox,
 } from "./geometry.js";
-import { pageScroller, placeKept, scrollChoices, scrollGoal } from "./scrolling.js";
-import { edgeAt, holderOf, returnTo, scrollersOf } from "./scroll-containers.js";
-import { anchorNamed } from "./css-anchors.js";
-import { inChrome, isElement, renderedParent, under } from "./shadow-tree.js";
+import { chosenSince, pageScroller, placeKept, scrollChoices } from "./scrolling.js";
+import {
+  carriersOf,
+  edgeAt,
+  glideGap,
+  holderOf,
+  returnTo,
+  scrollersOf,
+} from "./scroll-containers.js";
+import { inChrome, renderedParent, under } from "./shadow-tree.js";
 import {
   declareFocusPlace,
   focused,
@@ -111,37 +116,18 @@ const boxStoodAt = (node) => {
   return null;
 };
 
-// The boxes whose scroll moves `node`, innermost first. The walk up through the boxes
-// scrolling it stops at a box fixed in the window (`scrollersOf`), but a fixed box
-// anchored by Leaf, as the thread card, the comment box and the margin's rows are
-// (css-anchors.js), rides every scroll that carries its anchor, so the walk goes on
-// from there. A scroller's own scroll carries the start of its content, but not the
-// scroller's own box, which a box in a reading region is anchored to.
-/** @param {Element} node @returns {Element[]} */
-const carriers = (node) => {
-  const boxes = [...scrollersOf(node)];
-  /** @type {Node | null} */
-  let fixed = boxes.at(-1) ?? node;
-  if (fixed === pageScroller) return boxes;
-  while (fixed instanceof Element && !fixedInWindow(fixed))
-    fixed = renderedParent(fixed);
-  const anchor =
-    fixed instanceof Element && anchorNamed(getComputedStyle(fixed).positionAnchor);
-  if (!anchor) return boxes;
-  return [
-    ...boxes,
-    ...(isElement(anchor)
-      ? carriers(anchor).filter((box) => box !== anchor)
-      : carriers(anchor.scroller)),
-  ];
-};
-
 // The focused node while it is where the user is: while any of it, or the box it stands
 // at (`standsAt`), is in front of them (geometry.js, `seenRect`), or while a motion under
-// way is still carrying them to it (`carried`), since a walk focuses its stop before
-// gliding there and a key pressed on the way is meant for the stop, as a key a board's
-// card moves on is meant for the card while it slides from where it stood, clipped
-// meanwhile by a board that shrank. A user who scrolled away from the control they stand on is reading
+// way is still carrying them to it, since a walk focuses its stop before gliding there
+// and a key pressed on the way is meant for the stop, as a key a board's card moves on
+// is meant for the card while it slides from where it stood, clipped meanwhile by a
+// board that shrank. A glide carries them to the node while it carries the node toward
+// the window or into it (scroll-containers.js, `glideGap`), so a glide carrying focus
+// out of view, as `g g` does from a control mid-page, lets go of it once it has left,
+// and a `c` pressed as the page nears its top acts there. Toward, not into: the box of
+// a card the walk is gliding in trails its placement, and read where the glide would
+// carry it, it could stand a pixel past the window the walk is bringing it into. Rejected: counting every glide that
+// carries focus, which took the page back down to comment on the control. A user who scrolled away from the control they stand on is reading
 // something else, though the control keeps focus, so a key they press there lets go of
 // it first, and scrolling back to it doesn't make it theirs again until they click or
 // Tab there: the user chose this on 2026-11-04. A control in a stuck box, as the floating
@@ -159,10 +145,9 @@ export function focusPlace() {
   if (!node || node === document.body) return null;
   const box = boxStoodAt(node);
   if (box && seenRect(box, new Map())) return node;
-  const boxes = carriers(node);
-  const [list] = boxes;
+  const [list] = scrollersOf(node);
   const shown = list && list !== pageScroller && inChrome(list) ? list : node;
-  if (seenRect(shown, new Map()) || carried(node, boxes)) return node;
+  if (seenRect(shown, new Map()) || glidesToward(node) || slides(node)) return node;
   const stuck = stuckBox(node);
   const left =
     stuck &&
@@ -182,16 +167,20 @@ watchScrollEnds(() => {
   const node = focused();
   if (node && node !== document.body) repaint();
 });
-// Whether a motion under way carries `node`: a glide in one of the `boxes` scrolling it
-// (scrolling.js, `scrollGoal`), or a finite animation moving a box holding it, as the
-// slide a moved card makes from where it stood, or a floating box's part box-motion.js
+// Whether a glide under way carries `node` toward the window or into it.
+/** @param {Element} node */
+const glidesToward = (node) => {
+  const gap = glideGap(node);
+  return Boolean(gap && (gap.after === 0 || gap.after < gap.now));
+};
+// Whether a finite animation moves a box holding `node`, as the slide a moved card makes
+// from where it stood to where layout put it, or a floating box's part box-motion.js
 // carries from where it was drawn (`CARRY`), as the thread card's list travels from the
 // passage a walk left to the one it reached, drawn below the window meanwhile. The
 // sheen's endless one, a fade, a cut, one held paused and one on a box's pseudo-element
 // bring the user nowhere.
-/** @param {Element} node @param {Element[]} boxes */
-const carried = (node, boxes) =>
-  boxes.some((box) => scrollGoal(box) !== box.scrollTop) ||
+/** @param {Element} node */
+const slides = (node) =>
   document.getAnimations().some((animation) => {
     const effect = /** @type {KeyframeEffect | null} */ (animation.effect);
     return (
@@ -310,10 +299,14 @@ export function holdPlace(node, standIn = () => null) {
 // line's Comment, stands where its own layout put it, and is kept like any other. A
 // control the change replaced, or one focus left, has nothing to keep.
 //
-// The keep yields to any scroll since the reading: a scroll the user or a landing chose
-// and ended (scrolling.js, `scrollChoices`), one the browser is still running, as a
-// smooth scroll or a wheel's glide, or has yet to start for the reader's input
-// (arrivals.js, `browserScrolls`), so it never overrides a scroll under way. It yields
+// The keep yields to any scroll since the reading in a box whose scroll moves the
+// place, the page included for a place in a box Leaf anchors to its words
+// (`carriersOf`): a scroll the user or a landing chose and ended (scrolling.js,
+// `chosenSince`), one the browser is still running, as a smooth scroll or a wheel's
+// glide, or has yet to start for the reader's input (arrivals.js, `browserScrolls`), so
+// it never overrides a scroll under way. A scroll in another box leaves the place to be
+// kept: a landing in another pane made the keep give up a focused control the change
+// then moved. It yields
 // to the user's own act since too, a press or a key anywhere but in the field held
 // (focus.js, `onUserInput`), whose result is its own to place: a disclosure the user
 // opened while a diff waited on its syntax grammar moved 140px when the keep put the
@@ -405,14 +398,17 @@ export function holdUserPlace() {
   }));
   return () => {
     unwatch();
-    if (acted || scrollChoices() !== choices) return;
+    if (acted) return;
     const still = new Set();
     for (const { place, focus, hold } of holds) {
-      const boxes = [...scrollersOf(holderOf(place))];
-      if (boxes.some(browserScrolls)) return;
-      if ((focus && focused() !== node) || still.has(boxes[0])) continue;
+      const holder = holderOf(place);
+      const carriers = [...carriersOf(holder)];
+      if (carriers.some((box) => browserScrolls(box) || chosenSince(box, choices)))
+        return;
+      const [scroller] = scrollersOf(holder);
+      if ((focus && focused() !== node) || still.has(scroller)) continue;
       if (hold()) return;
-      still.add(boxes[0]);
+      still.add(scroller);
     }
   };
 }

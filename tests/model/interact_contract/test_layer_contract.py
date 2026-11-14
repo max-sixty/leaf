@@ -1,5 +1,6 @@
-"""The layer's `$` contract: how layers merge its members, the event handling and routes
-each delivery tells the agent, and the docs held to it."""
+"""The layer's `$` contract: how layers merge its members, the work roles a layer maps
+its tags onto, the event handling and routes each delivery tells the agent, and the
+docs held to it."""
 
 import itertools
 import json
@@ -12,6 +13,8 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from interact_support import (
+    ROOT,
+    SHIPPED_PACKAGES,
     Json,
     Prose,
     command_findings,
@@ -40,6 +43,7 @@ from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
+from leaf.validation import composition as validation_composition
 from leaf_dev.page_fixtures import package_selection_args
 from model.interact_contract import vocabulary
 
@@ -135,6 +139,109 @@ def test_one_check_names_each_missing_layer_fact():
         "'$languages' is a required property",
         "'$tones' is a required property",
     ]
+
+
+_GOAL = {"role": "goal", "state": "status", "done": ["done"], "stopped": ["blocked"]}
+_WORKER = {
+    "role": "worker",
+    "state": "state",
+    "running": ["working"],
+    "retired": ["done"],
+    "on": "on",
+}
+
+
+@pytest.mark.parametrize(
+    ("tag", "entry", "code", "at", "values"),
+    [
+        (
+            "lf-test-worker",
+            {**{k: v for k, v in _WORKER.items() if k != "on"}, "On": "on"},
+            "layer-facts",
+            "",
+            {
+                "keyword": "additionalProperties",
+                "path": ["$work", "widgets", "lf-test-worker"],
+            },
+        ),
+        (
+            "lf-test-tree",
+            {"role": "readings"},
+            "layer-facts",
+            "",
+            {"keyword": "enum", "path": ["$work", "widgets", "lf-test-tree", "role"]},
+        ),
+        (
+            "lf-test-task",
+            {k: v for k, v in _GOAL.items() if k != "done"},
+            "layer-facts",
+            "",
+            {"keyword": "required", "path": ["$work", "widgets", "lf-test-task"]},
+        ),
+        (
+            "lf-ghost",
+            {"role": "scope"},
+            "unknown-declarations",
+            "",
+            {"key": "$work.widgets", "names": ["lf-ghost"]},
+        ),
+        (
+            "lf-test-task",
+            {**_GOAL, "stoppedAt": "halted-at"},
+            "undeclared-attributes",
+            "<lf-test-task>",
+            {"key": "$work.widgets.lf-test-task.stoppedAt", "names": ["halted-at"]},
+        ),
+        (
+            "lf-test-worker",
+            {**_WORKER, "on": "overruled"},
+            "work-reference",
+            "<lf-test-worker>",
+            {"attr": "overruled"},
+        ),
+        (
+            "lf-test-task",
+            {**_GOAL, "state": "owner"},
+            "work-state",
+            "<lf-test-task>",
+            {"attr": "owner"},
+        ),
+        (
+            "lf-test-task",
+            {**_GOAL, "done": ["finished"]},
+            "work-value",
+            "<lf-test-task>",
+            {"key": "done", "attr": "status", "values": ["finished"]},
+        ),
+    ],
+)
+def test_composition_holds_each_work_role_to_its_tags_declaration(
+    page_dir, tag, entry, code, at, values
+):
+    """`runtime/work.js` reads `$work.widgets` as given, so composition refuses an
+    entry it would misread, naming the tag and the key: one its role doesn't take or
+    needs, a tag the layer doesn't declare, an attribute the tag lacks, an assignment
+    that isn't a reference, a state no single widget value verb records, and a value
+    the state can't take. The work fixture's own map holds."""
+    registry = vocabulary(page_dir)
+    registry_validation.validate_registry(registry, "test registry")
+    registry["$work"]["widgets"][tag] = entry
+
+    finding = registry_refusal(
+        lambda: registry_validation.validate_registry(registry, "test registry")
+    )
+    assert found([finding], code, at, **values), finding
+
+
+def test_the_command_hub_example_maps_its_tags_onto_work_roles():
+    """The worked example of `$work.widgets` composes over the shipped layer."""
+    registry = validation_composition.incoming_registry(SHIPPED_PACKAGES)
+    declarations = ROOT / "examples" / "command-hub.page" / "registry.json"
+    registry_layer.merge_layer_declarations(
+        registry, json.loads(declarations.read_text())
+    )
+    registry_validation.validate_registry(registry, declarations)
+    assert registry["$work"]["widgets"]["lf-atlas-worker"]["role"] == "worker"
 
 
 @pytest.mark.parametrize("section", ["$events", "$languages", "$tones"])

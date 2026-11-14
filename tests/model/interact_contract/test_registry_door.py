@@ -785,40 +785,37 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
     ("reference", "code", "values"),
     [
         (
-            {"via": "$missing.widgets", "where": {"role": "goal"}},
-            "refers-unknown-map",
-            {"via": "$missing.widgets"},
-        ),
-        (
-            {"via": "$work.widgets", "where": {"role": "imaginary"}},
-            "refers-unmatched",
-            {"via": "$work.widgets", "where": {"role": "imaginary"}},
-        ),
-        (
             {"tag": "lf-ghost", "key": "name"},
             "refers-unknown-member",
-            {"member": "lf-ghost"},
+            {"attr": "for", "member": "lf-ghost"},
         ),
         (
             {"tag": "lf-option", "key": "id"},
             "refers-unkeyed",
-            {"member": "lf-option", "key": "id"},
+            {"attr": "for", "member": "lf-option", "key": "id"},
         ),
+        # A reference names any element or a keyed member, and nothing more.
+        (
+            {"via": "$work.widgets", "where": {"role": "goal"}},
+            "invalid-extensions",
+            {"keyword": "additionalProperties"},
+        ),
+        ({"owns": True}, "invalid-extensions", {"keyword": "additionalProperties"}),
     ],
 )
-def test_a_typed_reference_names_a_reachable_package_role(
+def test_a_reference_names_any_element_or_a_keyed_member(
     page_dir, reference, code, values
 ):
-    """A bad package relation fails at the registry door, not on every instance. A
-    keyed relation names its member by a key the member declares unique, so one
-    reference never stands for two members."""
+    """A bad relation fails at the registry door, not on every instance. A keyed
+    relation names its member by a key the member declares unique, so one reference
+    never stands for two members."""
     registry = vocabulary(page_dir)
     registry["lf-option"]["x-refers"]["for"] = reference
 
     finding = registry_refusal(
         lambda: registry_validation.validate_registry(registry, "test registry")
     )
-    assert found([finding], code, "<lf-option>", attr="for", **values)
+    assert found([finding], code, "<lf-option>", **values), finding
 
 
 def test_an_obligation_role_declares_an_addressable_instance(page_dir):

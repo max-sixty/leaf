@@ -93,9 +93,7 @@ def validate_widget_relations(
 def _validate_widget_relations(
     tag: str, entry: dict, registry: dict, declarations: dict, data: dict, path
 ) -> None:
-    properties, said = _validate_widget_structure(
-        tag, entry, registry, declarations, data, path
-    )
+    properties, said = _validate_widget_structure(tag, entry, declarations, data, path)
     awaits = _validate_widget_predicates(tag, entry, properties, path)
     _validate_widget_interactions(tag, entry, properties, awaits, path)
     validate_widget_state_relations(tag, entry, declarations, path)
@@ -117,7 +115,7 @@ def _typed(properties: dict, attr: str, kind: str) -> bool:
 
 
 def _validate_widget_structure(
-    tag: str, entry: dict, registry: dict, declarations: dict, data: dict, path
+    tag: str, entry: dict, declarations: dict, data: dict, path
 ) -> tuple[dict, set]:
     for key, named in (
         ("x-owners", entry.get("x-owners", [])),
@@ -207,7 +205,7 @@ def _validate_widget_structure(
                 "undeclared-attributes", path, tag, key=key, names=unknown
             )
     for attribute, reference in entry.get("x-refers", {}).items():
-        if problem := reference_relation_problem(reference, registry, declarations):
+        if problem := reference_relation_problem(reference, declarations):
             code, values = problem
             raise registry_error(code, path, tag, attr=attribute, **values)
     if isinstance(entry.get("x-visual"), dict):

@@ -1,0 +1,13 @@
+lf-shortlist {
+  display: block;
+}
+lf-shortlist ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding: 0;
+  list-style: none;
+}
+lf-shortlist button[aria-pressed="true"] {
+  font-weight: 600;
+}

@@ -13,7 +13,6 @@ from leaf.registry.contract import (
     exhibits,
     is_element_name,
     matches_when,
-    registry_path,
     retirement_slots,
     state_specs,
 )
@@ -23,6 +22,19 @@ from leaf.shown_answers import shown_errors
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
 from .markup import found_at, structure_errors
+
+# The `command` keywords HTML gives an element itself. Chromium, Firefox and WebKit
+# reflect these and `--` names and nothing else (`button.command`), in any case.
+_NATIVE_COMMANDS = frozenset(
+    {
+        "close",
+        "hide-popover",
+        "request-close",
+        "show-modal",
+        "show-popover",
+        "toggle-popover",
+    }
+)
 
 _GLOBAL_ATTRIBUTE = re.compile(r"class|style|title|lang|dir|aria-[a-z]+|data-(?!lf-).+")
 
@@ -323,35 +335,6 @@ def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     return errors
 
 
-def relation_mismatch(
-    reference: dict, target_record: dict | None, registry: dict
-) -> dict | None:
-    """How one resolved target fails a package-declared relation, if it does: the
-    relation, its predicate, and what the target declares of it."""
-    via = reference.get("via")
-    if via is None:
-        return None
-    relation = registry_path(registry, via)
-    declaration = (
-        relation.get(target_record["tag"])
-        if isinstance(relation, dict) and target_record is not None
-        else None
-    )
-    predicate = reference["where"]
-    if isinstance(declaration, dict) and all(
-        declaration.get(key) == value for key, value in predicate.items()
-    ):
-        return None
-    return {
-        "via": via,
-        "where": predicate,
-        "target_tag": target_record["tag"] if target_record is not None else None,
-        "found": {key: declaration.get(key) for key in predicate}
-        if isinstance(declaration, dict)
-        else None,
-    }
-
-
 def enclosing(rec: dict, tag: str, registry: dict) -> dict | None:
     """The nearest member owner of `tag` within `rec`'s quotation, if any."""
     return next(
@@ -403,22 +386,20 @@ def reference_errors(
     A message widget may point into the page beside it, so its caller supplies the
     page's ids alongside the fragment's own.
 
-    An `owns` reference is narrower, since its referrer fills the target and the
-    browser looks for that target in the referrer's own document: each names an
-    element of `lf_elements`' own document, and each element there that the
-    contract's predicate selects is named by exactly one referrer, as each readings
-    seat is filled by one command.
-
     A keyed reference names a member rather than an id: the `tag` member, inside the
     referrer's own nearest owner of the tag its `key` is unique within (x-unique),
     whose `key` attribute holds the value, as a playground preset's setting names a
     control of the same playground.
 
+    A worker's assignment, the attribute its `$work.widgets` entry names in `on`,
+    names an element whose tag has the role goal there, since the work reading
+    (`runtime/work.js`) assigns the worker to nothing else.
+
     The reserved `resolves` attribute names a thread in the document's history,
     rather than a markup id, on any widget that declares the capability."""
     errors = []
     own = {rec["attrs"].get("id") for rec in lf_elements}
-    owners = {}
+    work = registry.get("$work", {}).get("widgets", {})
     keyed = None
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
@@ -457,67 +438,65 @@ def reference_errors(
                     )
             elif target not in ids:
                 errors.append(found_at("unknown-reference", rec, **reference_to))
-            elif mismatch := relation_mismatch(reference, by_id.get(target), registry):
+            elif (
+                attr == work.get(rec["tag"], {}).get("on")
+                and work.get(tag := by_id.get(target, {}).get("tag"), {}).get("role")
+                != "goal"
+            ):
                 errors.append(
-                    found_at("reference-contract", rec, **reference_to, **mismatch)
+                    found_at("work-assignment", rec, **reference_to, target_tag=tag)
                 )
-            elif reference.get("owns") and target not in own:
-                errors.append(found_at("outside-reference", rec, **reference_to))
             elif attr == entry.get("x-shows", {}).get("attr") and target not in own:
                 # A view and the answer it shows travel in one document, so a board
                 # in a reply shows widgets frozen in the same reply (`shown_answers`).
                 errors.append(found_at("shows-outside", rec, **reference_to))
-            elif reference.get("owns"):
-                owners.setdefault((rec["tag"], attr, target), []).append(rec)
         for input_name, spec in registry.get(rec["tag"], {}).get("x-data", {}).items():
             target = rec["attrs"].get(spec.get("reference"))
-            producer = by_id.get(target)
-            if not target or not producer:
+            if not target or target not in ids:
                 continue  # The ordinary relation check names a missing target.
-            output = (
-                registry.get(producer["tag"], {})
-                .get("x-output", {})
-                .get(spec["output"])
-            )
-            if output is None or output["contract"] != spec["contract"]:
+            producer = registry.get(by_id.get(target, {}).get("tag"), {})
+            matching = [
+                name
+                for name, output in producer.get("x-output", {}).items()
+                if output["contract"] == spec["contract"]
+            ]
+            if len(matching) != 1:
                 errors.append(
                     found_at(
                         "output-contract",
                         rec,
                         input=input_name,
                         target=target,
-                        output=spec["output"],
+                        outputs=matching,
                         contract=spec["contract"],
                     )
                 )
-    owned = [
-        (tag, attr, reference)
-        for tag, entry in registry.items()
-        if is_element_name(tag)
-        for attr, reference in entry.get("x-refers", {}).items()
-        if reference.get("owns")
-    ]
-    for rec in lf_elements:
-        for tag, attr, reference in owned:
-            if relation_mismatch(reference, rec, registry):
-                continue
-            target = rec["attrs"].get("id")
-            named = owners.get((tag, attr, target), [])
-            if not named:
-                errors.append(found_at("unowned", rec, referrer=tag, attr=attr))
-            if len(named) > 1:
-                first = named[0]
-                errors.extend(
-                    found_at(
-                        "owned-twice",
-                        extra,
-                        attr=attr,
-                        target=target,
-                        first=element_at(first["tag"], first["attrs"].get("id", "")),
-                        first_line=first["line"],
-                    )
-                    for extra in named[1:]
-                )
+    return errors
+
+
+def invoker_errors(parser: SourceDocument, ids: set) -> list[Finding]:
+    """Each authored `commandfor` the browser would leave doing nothing, with no error:
+    one naming no element, or whose `command` is neither one of HTML's own nor a custom
+    one, which starts with `--`. `ids` is the namespace `reference_errors` reads for
+    the same document. Whether the target handles a custom command is its module's to
+    say, in its description; no declaration lists them.
+
+    The browser finds a `commandfor` target in the button's own tree, the first element
+    with that id in tree order, where an `x-refers` reader looks in its message first and
+    then the page (`runtime/references.js`). A message stands in the page's tree, so a
+    button in one reaches the page's widgets, and the two readings agree on every id the
+    checks admit, since `ids-taken` and `ids-taken-by-messages` keep an id to one element
+    across the page and its messages. A live sample's document is its own tree, checked
+    here on its own ids."""
+    errors = []
+    for rec in parser.authoring.invokers:
+        target, command = rec["target"], rec["command"]
+        if target not in ids:
+            errors.append(
+                found_at("unknown-reference", rec, attr="commandfor", target=target)
+            )
+        elif not command.startswith("--") and command.lower() not in _NATIVE_COMMANDS:
+            errors.append(found_at("unknown-command", rec, command=command))
     return errors
 
 

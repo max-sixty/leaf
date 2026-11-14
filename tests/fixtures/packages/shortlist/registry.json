@@ -1,0 +1,79 @@
+{
+  "$data": {
+    "contracts": {
+      "shortlist": {
+        "description": "The candidates a shortlist holds, in its order, and which of them are picked.",
+        "instructions": {
+          "provider": "A widget holding a `shortlist` takes the invoker command `--toggle`: the button's `value` is a candidate's `key`, and the command picks that candidate, or drops it where it is picked. Hold the value again after every change, whoever asked for it."
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "candidates": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "picked": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["key", "name", "picked"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["candidates"],
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "lf-shortlist": {
+    "description": "A list of candidates the user picks from, each pick recorded on its own. It holds the list and its picks as its `shortlist` output, and a `--toggle` command picks or drops the candidate its button's value names.",
+    "x-instructions": "Write one <ul> with an <li> per candidate, each holding a <button type=\"button\" commandfor=\"THIS-ID\" command=\"--toggle\" value=\"KEY\"> whose words name the candidate.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      }
+    },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-content": "markup",
+    "x-output": {
+      "shortlist": {
+        "contract": "shortlist"
+      }
+    },
+    "x-state": {
+      "pick": {
+        "unit": "candidate",
+        "detail": {
+          "type": "object",
+          "properties": {
+            "candidate": {
+              "type": "string",
+              "minLength": 1
+            },
+            "picked": {
+              "type": "boolean"
+            }
+          },
+          "required": ["candidate", "picked"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "x-upgrade": true,
+    "x-example": "<lf-shortlist id=\"hires\"><ul><li><button type=\"button\" commandfor=\"hires\" command=\"--toggle\" value=\"ada\">Ada Lovelace</button></li><li><button type=\"button\" commandfor=\"hires\" command=\"--toggle\" value=\"grace\">Grace Hopper</button></li></ul></lf-shortlist>"
+  }
+}

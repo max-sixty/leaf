@@ -322,7 +322,8 @@ test("data readiness does not wait for an unrelated widget region", async () => 
   assert.equal(result, true);
 });
 
-// Mounted outputs use the same LeafElement reader and presentation region as sources.
+// A widget holds an output as a property and says `change`; its readers use the same
+// LeafElement reader and presentation region as sources.
 let outputScenes = 0;
 function outputScene(draw) {
   const suffix = ++outputScenes;
@@ -335,7 +336,7 @@ function outputScene(draw) {
     },
     [consumerTag]: {
       "x-data": {
-        rows: { reference: "for", output: "rows", contract: "rows", property: "value" },
+        rows: { reference: "for", contract: "rows", property: "value" },
       },
       "x-refers": { for: {} },
     },
@@ -360,10 +361,13 @@ function outputScene(draw) {
   return { producerTag, consumerTag };
 }
 const settleOutput = async () => new Promise((resolve) => setTimeout(resolve));
+const holdRows = (producer, rows) => {
+  producer.rows = rows;
+  producer.dispatchEvent(new Event("change"));
+};
 
-test("typed output readers retain authored scope and producer instance identity", async () => {
+test("an output's readers follow the element under their bound id, in their own document", async () => {
   const { dataReader } = await import("/runtime/data.js");
-  const { publishOutput } = await import("/runtime/widget-output.js");
   const readings = new Map();
   const { producerTag, consumerTag } = outputScene((element, value) => {
     const history = readings.get(element.id) ?? [];
@@ -376,35 +380,43 @@ test("typed output readers retain authored scope and producer instance identity"
   const pageConsumer = document.querySelector("#page");
   await settleOutput();
   const current = dataReader(pageConsumer, "rows");
-  assert.throws(
-    () => publishOutput(pageProducer, "undeclared", { rows: [] }),
-    /output is not declared/,
-  );
-  const unnamed = document.createElement(producerTag);
-  assert.throws(() => publishOutput(unnamed, "rows", null), /requires a widget id/);
   const pageValue = { rows: ["page"] };
-  publishOutput(pageProducer, "rows", pageValue);
-  pageValue.rows[0] = "mutated";
-  publishOutput(messageProducer, "rows", { rows: ["message"] });
+  holdRows(pageProducer, pageValue);
+  holdRows(messageProducer, { rows: ["message"] });
   await settleOutput();
   assert.deepEqual(readings.get("page"), [null, { rows: ["page"] }]);
   assert.deepEqual(readings.get("message").at(-1), { rows: ["message"] });
   assert.deepEqual(current().value, { rows: ["page"] });
-  publishOutput(pageProducer, "rows", { rows: ["page"] });
+  holdRows(pageProducer, { rows: ["page"] });
   await settleOutput();
-  assert.equal(readings.get("page").length, 2, "same complete value does not repaint");
+  assert.equal(readings.get("page").length, 2, "an equal value does not repaint");
   readings.get("page").at(-1).rows[0] = "consumer mutation";
   assert.deepEqual(
     current().value,
     { rows: ["page"] },
     "consumer copies are independent",
   );
+  // The producer's own object changed in place is heard once it says so.
+  pageValue.rows[0] = "edited";
+  await settleOutput();
+  assert.equal(readings.get("page").length, 2, "unsaid, a change is not read");
+  holdRows(pageProducer, pageValue);
+  await settleOutput();
+  assert.deepEqual(readings.get("page").at(-1), { rows: ["edited"] });
+  // A control inside the producer says `change` for itself, not for the producer.
+  const control = pageProducer.appendChild(document.createElement("input"));
+  pageValue.rows[0] = "unsaid";
+  control.dispatchEvent(new Event("change", { bubbles: true }));
+  await settleOutput();
+  assert.deepEqual(readings.get("page").at(-1), { rows: ["edited"] });
+  control.remove();
+  // Markup owns the binding, captured at the first read.
   const otherProducer = document.createElement(producerTag);
   otherProducer.id = "other";
   document.querySelector("main").append(otherProducer);
-  publishOutput(otherProducer, "rows", { rows: ["other"] });
+  holdRows(otherProducer, { rows: ["other"] });
   pageConsumer.setAttribute("for", "other");
-  publishOutput(pageProducer, "rows", { rows: ["changed first"] });
+  holdRows(pageProducer, { rows: ["changed first"] });
   await settleOutput();
   const captured = {
     contract: "rows",
@@ -413,10 +425,12 @@ test("typed output readers retain authored scope and producer instance identity"
   };
   assert.deepEqual(readings.get("page").at(-1), captured.value);
   assert.deepEqual(current(), captured);
+  // A replacement under the same id is read as it stands, with no `change` said to
+  // the reader: what it holds was set before it arrived.
   const replacement = document.createElement(producerTag);
   replacement.id = "feed";
+  replacement.rows = { rows: ["replacement"] };
   pageProducer.replaceWith(replacement);
-  publishOutput(replacement, "rows", { rows: ["replacement"] });
   await settleOutput();
   assert.deepEqual(readings.get("page").at(-1), { rows: ["replacement"] });
   replacement.remove();
@@ -425,15 +439,22 @@ test("typed output readers retain authored scope and producer instance identity"
   document.querySelector("main").append(replacement);
   await settleOutput();
   assert.deepEqual(readings.get("page").at(-1), { rows: ["replacement"] });
-  publishOutput(replacement, "rows", null);
+  holdRows(replacement, null);
   await settleOutput();
   assert.equal(readings.get("page").at(-1), null);
+  // A reader that arrives after its producer last said `change` reads what it holds.
+  holdRows(replacement, { rows: ["held"] });
+  const late = document.createElement(consumerTag);
+  late.id = "late";
+  late.setAttribute("for", "feed");
+  document.querySelector("main").append(late);
+  await settleOutput();
+  assert.deepEqual(readings.get("late").at(-1), { rows: ["held"] });
   document.body.replaceChildren();
   await settleOutput();
 });
 
 test("source readiness includes asynchronous LeafElement output consumers", async () => {
-  const { publishOutput } = await import("/runtime/widget-output.js");
   let release;
   let started;
   const begun = new Promise((resolve) => (started = resolve));
@@ -452,7 +473,7 @@ test("source readiness includes asynchronous LeafElement output consumers", asyn
       }
       updated(changed) {
         super.updated(changed);
-        publishOutput(this, "rows", this.value ?? null);
+        holdRows(this, this.value ?? null);
       }
     },
   );

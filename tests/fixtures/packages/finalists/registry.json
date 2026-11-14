@@ -1,0 +1,55 @@
+{
+  "$data": {
+    "description": "The shortlist contract, shared word for word with every package that provides or reads a shortlist.",
+    "contracts": {
+      "shortlist": {
+        "description": "The candidates a shortlist holds, in its order, and which of them are picked.",
+        "instructions": {
+          "provider": "A widget holding a `shortlist` takes the invoker command `--toggle`: the button's `value` is a candidate's `key`, and the command picks that candidate, or drops it where it is picked. Hold the value again after every change, whoever asked for it."
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "candidates": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": { "type": "string", "minLength": 1 },
+                  "name": { "type": "string", "minLength": 1 },
+                  "picked": { "type": "boolean" }
+                },
+                "required": ["key", "name", "picked"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["candidates"],
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "lf-finalists": {
+    "description": "The picked candidates of a shortlist another widget holds, by name, each with a control that drops it from that shortlist. Use it to keep the finalists in view beside or away from the full list.",
+    "type": "object",
+    "properties": {
+      "id": { "type": "string" },
+      "for": { "type": "string" }
+    },
+    "required": ["id", "for"],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-upgrade": true,
+    "x-refers": { "for": {} },
+    "x-data": {
+      "shortlist": {
+        "contract": "shortlist",
+        "reference": "for",
+        "property": "value"
+      }
+    },
+    "x-instructions": "Set `for` to the id of a widget that holds a `shortlist`. The finalists keep no picks of their own: each Drop asks that widget to drop the candidate.",
+    "x-example": "<lf-finalists id=\"finalists\" for=\"candidates\"></lf-finalists>"
+  }
+}

@@ -4,6 +4,7 @@
    check-api.js so core checks never load that renderer. */
 export { exceptionText } from "./exception.js";
 export { startNearWork } from "./presentation.js";
+export { declarationFor } from "./registry.js";
 export { validationWidgetStates } from "./validation.js";
 export { visualPartProblems } from "./visual-parts.js";
 export {
@@ -134,7 +135,6 @@ export { bringBackSurfaceOf } from "./off-flow.js";
 export { WORKS } from "./control-selectors.js";
 export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
 
-export { observeOutputs } from "./data.js";
 export { servedElements } from "./version.js";
 export { colourableAs, colouredAs } from "./syntax.js";
 

@@ -7,13 +7,19 @@ import {
   highlightBlocks,
   keepsHidden,
   keepsText,
-  publishOutput,
   quoted,
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
 import { stagePreview, stageLeafPreview } from "../preview.js";
 import * as catalog from "../catalog.js";
+
+// An `lf-generated-document` holds its text as its `document` output; `change` says
+// it moved, for the reader that names it.
+const holdDocument = (element, text) => {
+  element.document = text;
+  element.dispatchEvent(new Event("change"));
+};
 
 const htmlInstructions = `Build a small, polished interactive widget for the user's request.
 
@@ -72,8 +78,8 @@ customElements.define(
               empty = get("empty"),
               code = get("code"),
               request = get("request");
-            publishOutput(get("instructions"), "document", approach.instructions);
-            publishOutput(request, "document", "No generation yet.");
+            holdDocument(get("instructions"), approach.instructions);
+            holdDocument(request, "No generation yet.");
             let view = null,
               ticker;
             const showError = (error) => {
@@ -114,7 +120,7 @@ customElements.define(
               view = null;
               keepsHidden(empty, false);
               keepsHidden(errorBox, true);
-              publishOutput(request, "document", input);
+              holdDocument(request, input);
               for (const part of ["code", "css", "js"]) {
                 const listing = get(part);
                 if (!listing) continue;

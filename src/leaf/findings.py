@@ -323,24 +323,6 @@ def _seat(seat: dict) -> str:
     )
 
 
-def _reference_contract(at: str, v: dict) -> str:
-    expected = ", ".join(f"{key}={_json(value)}" for key, value in v["where"].items())
-    found = (
-        ", ".join(f"{key}={_json(value)}" for key, value in v["found"].items())
-        if v["found"] is not None
-        else "no declaration"
-    )
-    actual = (
-        f"<{v['target_tag']}> has {found}"
-        if v["target_tag"] is not None
-        else "the target is not a registered widget"
-    )
-    return (
-        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" must name a {v["via"]} widget'
-        f" where {expected}; {actual}"
-    )
-
-
 def _empty_question(at: str, v: dict) -> str:
     widgets = "; ".join(
         f"{_line(w['at'], w)} asks only where {_conditions(w['lacks'])}"
@@ -984,12 +966,22 @@ _TEXT = {
     "unknown-reference": lambda at, v: (
         f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names no element in this version'
     ),
-    "reference-contract": _reference_contract,
+    "work-assignment": lambda at, v: (
+        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" must name a goal, but '
+        + (f"<{v['target_tag']}>" if v["target_tag"] else "the element it names")
+        + " has no role goal in $work.widgets"
+    ),
     "ambiguous-data-binding": lambda at, v: (
         f"{_line(at, v)}: input {v['input']!r} binds both an external source and widget output"
     ),
     "output-contract": lambda at, v: (
-        f"{_line(at, v)}: input {v['input']!r} requires output {v['output']!r} of {v['target']!r} with contract {v['contract']!r}"
+        f"{_line(at, v)}: input {v['input']!r} reads the one output of {v['target']!r}"
+        f" with contract {v['contract']!r}, and it declares "
+        + (", ".join(repr(name) for name in v["outputs"]) or "none")
+    ),
+    "unknown-command": lambda at, v: (
+        f'{_line(at, v)}: command="{v["command"]}" is neither one of HTML\'s commands '
+        "nor a custom command, which starts with --, so the button would do nothing"
     ),
     "shows-outside": lambda at, v: (
         f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names a widget outside its own'
@@ -1019,17 +1011,6 @@ _TEXT = {
             if v["answer"]
             else f"no value; move it to a <{v['place']}> without `{v['value_attr']}`"
         )
-    ),
-    "outside-reference": lambda at, v: (
-        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names an element outside its'
-        " own document, which it fills"
-    ),
-    "unowned": lambda at, v: (
-        f"{_line(at, v)}: no <{v['referrer']}> names it in `{v['attr']}`"
-    ),
-    "owned-twice": lambda at, v: (
-        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" is already named by'
-        f" {v['first']} (line {v['first_line']}); only one element may name it"
     ),
     "nested-suggestion": lambda at, v: f"{_line(at, v)}: suggestions don't nest",
     "empty-suggestion": lambda at, v: (
@@ -1179,6 +1160,25 @@ _TEXT = {
             " must be self-contained"
         )
     ),
+    # Its work role, which `$work.widgets` maps the declaration onto.
+    "work-reference": _declared(
+        lambda v: (
+            f"$work worker assignment `{v['attr']}` must be declared in x-refers"
+            " as an id reference, such as {}"
+        )
+    ),
+    "work-state": _declared(
+        lambda v: (
+            f"$work state `{v['attr']}` must be recorded by an x-state verb with unit"
+            " widget and a value record on it"
+        )
+    ),
+    "work-value": _declared(
+        lambda v: (
+            f"$work {v['key']} lists {_json(v['values'])}, which state attribute"
+            f" `{v['attr']}` does not admit"
+        )
+    ),
     # An element declaration, on its own.
     "declaration-schema": _declared(
         lambda v: f"is not a valid JSON Schema: {v['reason']}"
@@ -1279,16 +1279,6 @@ _TEXT = {
         lambda v: (
             f"x-refers `{v['attr']}` names <{v['member']}> by `{v['key']}`,"
             f" which <{v['member']}> does not declare in x-unique"
-        )
-    ),
-    "refers-unknown-map": _declared(
-        lambda v: f"x-refers `{v['attr']}` names unknown registry map {v['via']!r}"
-    ),
-    "refers-unmatched": _declared(
-        lambda v: (
-            f"x-refers `{v['attr']}` requires {v['via']} where "
-            + ", ".join(f"{key}={_json(value)}" for key, value in v["where"].items())
-            + ", but no declared widget matches"
         )
     ),
     "visual-id": _declared(

@@ -14,6 +14,7 @@ from leaf.schema import (
     EXTENSION_SCHEMA,
     IDIOM_SCHEMA,
     LAYER_FACTS,
+    OPTIONAL_LAYER_FACTS,
     VERB_SCHEMA,
 )
 
@@ -24,6 +25,7 @@ from .contract import (
     is_element_name,
     registry_error,
     registry_finding,
+    state_specs,
 )
 from .kernel import answer_kinds
 from .schema import (
@@ -74,7 +76,8 @@ def _validate(registry: dict, path) -> None:
     """The layer facts' shape first, since every later check reads it. Then the
     layer's other facts beside the element declarations, which read nothing of
     each other, and only once every declaration holds alone does each meet the
-    others, so a declaration's relations never read another half-validated."""
+    others, so a declaration's relations never read another half-validated. The
+    work roles read the declarations they map last."""
     check_layer_facts(registry, path)
     declarations = element_declarations(registry)
     with gathering() as unit:
@@ -83,15 +86,18 @@ def _validate(registry: dict, path) -> None:
         with unit():
             validate_widget_schemas(declarations, path)
             validate_widget_relations(registry, declarations, registry["$data"], path)
+            validate_work_roles(registry, declarations, path)
 
 
 def check_layer_facts(registry: dict, path) -> None:
-    """Refuse a vocabulary whose shared layer facts depart from `LAYER_FACTS`,
-    naming where and how the first departure in each fact does. Each fact is held to
-    its own schema, so one that is missing or malformed is named beside every other."""
+    """Refuse a vocabulary whose shared layer facts depart from `LAYER_FACTS`, or
+    from `OPTIONAL_LAYER_FACTS` where it declares one, naming where and how the first
+    departure in each fact does. Each fact is held to its own schema, so one that is
+    missing or malformed is named beside every other."""
     findings = []
-    for fact, schema in LAYER_FACTS.items():
-        reader = json_validator({"properties": {fact: schema}, "required": [fact]})
+    for fact, schema in {**LAYER_FACTS, **OPTIONAL_LAYER_FACTS}.items():
+        required = [fact] if fact in LAYER_FACTS else []
+        reader = json_validator({"properties": {fact: schema}, "required": required})
         if error := min(reader.iter_errors(registry), key=str, default=None):
             findings.append(
                 registry_finding("layer-facts", path, **schema_reading(error))
@@ -217,3 +223,56 @@ def _validate_data_contract(contract: str, declaration: dict, path) -> None:
         raise registry_error(
             "contract-reference", path, contract=contract, reference=reference
         )
+
+
+def validate_work_roles(registry: dict, declarations: dict, path) -> None:
+    """Hold each `$work.widgets` entry, whose shape `check_layer_facts` holds, to
+    the declaration of the tag it maps, refusing with the first problem in each.
+    `runtime/work.js` reads the entries as given, so an attribute the tag lacks, or a
+    value its state can't take, would leave a goal never done or a worker without its
+    goal, with nothing saying why. A role's state is the one widget value record on
+    its attribute, which work.js also reads as the role's report verb, and a worker's
+    `on` names its goal by id."""
+    roles = registry.get("$work", {}).get("widgets", {})
+    if unknown := sorted(roles.keys() - declarations.keys()):
+        raise registry_error(
+            "unknown-declarations", path, key="$work.widgets", names=unknown
+        )
+    with gathering() as unit:
+        for tag, role in roles.items():
+            with unit():
+                _validate_work_role(tag, role, declarations[tag], path)
+
+
+def _validate_work_role(tag: str, role: dict, entry: dict, path) -> None:
+    properties = entry.get("properties", {})
+    for key in ("state", "on", "stoppedAt"):
+        if key in role and role[key] not in properties:
+            raise registry_error(
+                "undeclared-attributes",
+                path,
+                tag,
+                key=f"$work.widgets.{tag}.{key}",
+                names=[role[key]],
+            )
+    references = entry.get("x-refers", {})
+    if (on := role.get("on")) and (on not in references or "key" in references[on]):
+        raise registry_error("work-reference", path, tag, attr=on)
+    if "state" not in role:
+        return
+    state = role["state"]
+    # No two verbs record one slot (`validate_widget_state_relations`), so one does.
+    if not any(
+        spec["unit"] == "widget"
+        and spec.get("record") == {"kind": "value", "attr": state}
+        for _, spec in state_specs(entry)
+    ):
+        raise registry_error("work-state", path, tag, attr=state)
+    admitted = json_validator(properties[state])
+    for key in ("done", "stopped", "running", "retired"):
+        if refused := [
+            value for value in role.get(key, ()) if not admitted.is_valid(value)
+        ]:
+            raise registry_error(
+                "work-value", path, tag, key=key, attr=state, values=refused
+            )

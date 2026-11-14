@@ -373,39 +373,19 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
     )
 
 
-def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
-    """An existing id is insufficient when a typed reference names the wrong role."""
+def test_a_worker_is_assigned_only_to_a_goal(page_dir):
+    """The work reading assigns a worker only to the goal its `on` names, so an id of
+    an element with another role is refused, while a goal's passes."""
     registry = registry_storage.load_registry(page_dir)
     parser = SourceDocument(
-        '<lf-test-plan id="hub" readings="goal">'
+        '<lf-test-plan id="hub">'
         '<lf-test-task id="goal" status="active"><strong>Goal</strong>'
         '<lf-test-worker id="worker" state="waiting" on="tree"><strong>Worker</strong>'
         '<lf-test-tree id="tree" source="project-worktrees"></lf-test-tree>'
-        "</lf-test-worker></lf-test-task></lf-test-plan>"
-    )
-
-    errors = reference_errors(
-        parser.lf_elements, registry, parser.ids, parser.by_id, thread_ids=set()
-    )
-
-    assert [(e.code, e.values["via"], e.values["where"]) for e in errors] == [
-        ("reference-contract", "$work.widgets", {"role": "readings"}),
-        ("reference-contract", "$work.widgets", {"role": "goal"}),
-    ]
-
-
-def test_a_readings_seat_answers_to_one_command(page_dir):
-    """A command fills the seat it names, so each seat in a document is named by
-    exactly one command: a second command naming it is refused, and so is a seat no
-    command names, while each command naming its own seat passes."""
-    registry = registry_storage.load_registry(page_dir)
-    parser = SourceDocument(
-        '<lf-test-plan id="one" readings="seat"></lf-test-plan>'
-        '<lf-test-plan id="two" readings="seat"></lf-test-plan>'
-        '<lf-test-plan id="three" readings="other"></lf-test-plan>'
-        '<lf-test-summary id="seat"></lf-test-summary>'
-        '<lf-test-summary id="other"></lf-test-summary>'
-        '<lf-test-summary id="orphan"></lf-test-summary>'
+        "</lf-test-worker>"
+        '<lf-test-worker id="assigned" state="working" on="goal">'
+        "<strong>Assigned</strong></lf-test-worker>"
+        "</lf-test-task></lf-test-plan>"
     )
 
     errors = reference_errors(
@@ -414,21 +394,10 @@ def test_a_readings_seat_answers_to_one_command(page_dir):
 
     assert errors == [
         Finding(
-            "owned-twice",
-            "<lf-test-plan>",
-            {
-                "line": 1,
-                "attr": "readings",
-                "target": "seat",
-                "first": "<lf-test-plan id=one>",
-                "first_line": 1,
-            },
-        ),
-        Finding(
-            "unowned",
-            "<lf-test-summary>",
-            {"line": 1, "referrer": "lf-test-plan", "attr": "readings"},
-        ),
+            "work-assignment",
+            "<lf-test-worker>",
+            {"line": 1, "attr": "on", "target": "tree", "target_tag": "lf-test-tree"},
+        )
     ]
 
 
@@ -882,13 +851,12 @@ def test_a_reply_drawn_before_posting_runs_no_script_its_thread_would_not(page_d
     assert "inert-message-script" in events_model.read_events(page_dir)[-1]["markup"]
 
 
-def test_reply_validates_typed_references_against_the_page(page_dir):
-    """Reply markup naming a page element of the wrong role never freezes, nor does
-    a command naming the page's seat, which it would fill from another document."""
+def test_reply_assigns_a_worker_to_a_goal_on_the_page(page_dir):
+    """A worker in reply markup may work on a goal on the page beside it, and one
+    naming a page element that isn't a goal never freezes."""
     subjects = (
-        '<lf-test-plan id="hub" readings="seat"><lf-test-task id="goal" status="active">'
+        '<lf-test-plan id="hub"><lf-test-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-test-task></lf-test-plan>"
-        '<lf-test-summary id="seat"></lf-test-summary>'
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
@@ -898,7 +866,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "Act?"}
     )
 
-    def reply(markup):
+    def reply(on):
         return CliRunner().invoke(
             cli_model.cli,
             [
@@ -907,25 +875,20 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
                 "--done",
                 response_reference(page_dir, "c1"),
                 "--text",
-                "Choose:",
+                "Assigned:",
                 "--markup",
-                markup,
+                f'<lf-test-plan id="quoted"><lf-test-worker id="quoted-worker"'
+                f' state="working" on="{on}"><strong>Worker</strong>'
+                "</lf-test-worker></lf-test-plan>",
             ],
         )
 
-    swapped = reply('<lf-test-plan id="quoted" readings="goal"></lf-test-plan>')
-    assert swapped.exit_code != 0
-    assert 'where role="readings"' in words(swapped.output)
+    misassigned = reply("tree")
+    assert misassigned.exit_code != 0
+    assert 'on="tree" must name a goal' in words(misassigned.output)
 
-    borrowed = reply('<lf-test-plan id="quoted" readings="seat"></lf-test-plan>')
-    assert borrowed.exit_code != 0
-    assert "outside its own document" in borrowed.output
-
-    valid = reply(
-        '<lf-test-plan id="quoted" readings="quoted-seat"></lf-test-plan>'
-        '<lf-test-summary id="quoted-seat"></lf-test-summary>'
-    )
-    assert valid.exit_code == 0, valid.output
+    assigned = reply("goal")
+    assert assigned.exit_code == 0, assigned.output
 
 
 def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):

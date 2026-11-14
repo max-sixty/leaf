@@ -5,6 +5,10 @@ module owes.
 
 ## Commands and keyboard routes
 
+These are a widget's keyboard commands. A request from one element to another is an
+HTML invoker command instead ([package-data.md, "Asking another widget to
+act"](package-data.md#asking-another-widget-to-act)).
+
 A widget declares its commands as data on the element they apply in: set the element's
 `lfCommands` to the scope and call `commandsChanged(element)`. The scope holds `title`,
 the heading the command reference lists it under, and `rows` ("Command rows"). It may

@@ -2602,10 +2602,16 @@ def live_sample_embedded(page: Page) -> None:
     """The arrived practice page at its embedded content height."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     sample = page.locator("#bg-live-sample")
+    # As a reader scrolling toward it brings it, half a window below the window, where
+    # its page starts and takes its height before they reach it.
+    sample.evaluate(
+        "sample => scrollBy(0, sample.getBoundingClientRect().top - 1.5 * innerHeight)"
+    )
+    sample.evaluate("sample => sample.ready")
+    sample.scroll_into_view_if_needed()
     expect(
         sample.frame_locator("iframe").locator("#bg-live-sample-copy")
     ).to_be_visible()
-    sample.scroll_into_view_if_needed()
 
 
 def interactive_sample(page: Page) -> None:

@@ -597,7 +597,8 @@ class Authoring:
         self.inline_styles = []  # {tag, line, style} per style="" declaration list
         # {tag, line, target, command} per element with a commandfor attribute.
         self.invokers = []
-        # {tag, line, attr, value} per authored allocation (`AUTHORED_ALLOCATIONS`).
+        # {tag, id, line, attr, value, in_template, content} per authored allocation
+        # (`AUTHORED_ALLOCATIONS`).
         self.authored_allocations = []
         self.title = ""  # what <title> says, for the transcript's heading
         # {tag, line, under} per id-less pointable block, where under is the nearest
@@ -753,7 +754,19 @@ class Authoring:
                 and attr in PAGE_ALLOCATIONS
             ):
                 self.authored_allocations.append(
-                    {"tag": tag, "line": line, "attr": attr, "value": attrs[attr]}
+                    {
+                        "tag": tag,
+                        "id": attrs.get("id") or "",
+                        "line": line,
+                        "attr": attr,
+                        "value": attrs[attr],
+                        # Where delivery reads it: it skips a template and what it
+                        # holds, which is inert until cloned, and only a block in the
+                        # page's flow takes room (`registry.kernel.authored_inert`).
+                        "in_template": "template" in (tag, *ancestors),
+                        "content": tag not in {"html", "body", "main"}
+                        and "body" in ancestors,
+                    }
                 )
         markers = sorted(name for name in attrs if name.startswith("data-lf-"))
         markers += sorted(

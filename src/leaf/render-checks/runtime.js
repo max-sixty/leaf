@@ -8,6 +8,10 @@ import { readThreads, threadActions } from "/runtime/widget-api.js";
 import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
+// Work the page holds back until the reader nears its node, such as each live
+// sample's page, started at once (`start_near_work`).
+export { startNearWork } from "/runtime/check-api.js";
+
 // The runtime has started once its chrome, the floating panel, is in the page.
 export const runtimeStarted = () =>
   document.querySelector(".lf-floating-panel") !== null;

@@ -1617,6 +1617,61 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     ), moved
 
 
+def _far_sample(sample_id, after_id):
+    """A live sample whose page is shorter than the frame's placeholder, with a control
+    after it that its fit moves."""
+    return (
+        f'<lf-sample id="{sample_id}"><template id="{sample_id}-source" data-sample>'
+        f'<p>Practice</p><div style="height: 100px"></div></template></lf-sample>'
+        f'<p><button id="{after_id}">After the sample</button></p>'
+    )
+
+
+def test_a_jump_owns_the_fit_of_the_live_sample_it_brings_near(browser, serve):
+    """A link that jumps to a live sample far down starts its page there (`whenNear`),
+    and the frame fits that page as soon as it draws, carrying what follows it: the
+    jump owns that landing, however late it comes. It owns nothing after the landing,
+    so a control that moves once the frame has fitted is reported. A sample a script
+    brings near, with no input, fits as news, and its fit is reported too."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Fit on arrival",
+                '<p><a id="jump" href="#far">Jump to the sample</a></p>'
+                '<div style="height: 400vh"></div>'
+                + _far_sample("far", "after")
+                + '<div style="height: 400vh"></div>'
+                + _far_sample("scripted", "later")
+                + '<div style="height: 100vh"></div>',
+            )
+        ),
+    )
+    fitted = """sample => {
+        const frame = sample.querySelector('iframe');
+        return sample.ready.then(() => frame.clientHeight < 300);
+    }"""
+    page.locator("#jump").click()
+    page.wait_for_function(f"({fitted})(document.querySelector('#far'))")
+    rendered(page)
+    judge_watches()
+    assert page.lf_errors == []
+
+    page.locator("#after").evaluate("node => { node.style.marginTop = '40px'; }")
+    rendered(page)
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#after"))
+
+    page.locator("#scripted").evaluate(
+        "sample => sample.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    page.wait_for_function(f"({fitted})(document.querySelector('#scripted'))")
+    rendered(page)
+    judge_watches()
+    moved = consume_browser_errors(page, {"code": "moved-without-input"})
+    assert names_move(moved, "button#later"), moved
+
+
 @pytest.mark.parametrize("retired_at", ["click", "resolve-remove", "remove-resolve"])
 def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
     browser, serve, retired_at
@@ -2060,8 +2115,8 @@ def test_a_frame_off_screen_judges_existing_records_without_awaiting_paint(
     browser, when, opaque
 ):
     """A child frame its embedding page hides or scrolls out of the viewport paints
-    nothing on screen, and Chrome stops rendering an opaque one there, as it does the
-    feature gallery's samples below the fold. The frame learns it is off screen itself,
+    nothing on screen, and Chrome stops rendering an opaque one there, as it does a
+    live sample scrolled out of the window. The frame learns it is off screen itself,
     across origins, and its judgement ends on that fact rather than awaiting paint."""
     page = field_page(browser)
     page.set_viewport_size({"width": 900, "height": 600})

@@ -1083,40 +1083,107 @@ def test_a_widget_is_quoted_where_the_browser_fences_it(case):
     } == case["quoted"]
 
 
+def records_registry():
+    """The default layer plus a widget whose obligations are one per record of a
+    bound source, with no bundled package declaring one."""
+    registry = deepcopy(model.model_layer())
+    registry["$data"]["contracts"]["test-run"] = {
+        "description": "Records that each owe an answer.",
+        "instructions": {"producer": "Give each case a stable id and a title."},
+        "records": {"items": "cases", "key": "id"},
+        "schema": {
+            "type": "object",
+            "properties": {
+                "cases": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "string"},
+                            "title": {"type": "string"},
+                        },
+                        "required": ["id", "title"],
+                        "additionalProperties": False,
+                    },
+                }
+            },
+            "required": ["cases"],
+            "additionalProperties": False,
+        },
+    }
+    registry["lf-records-ask"] = {
+        "description": "A review that owes one answer per case.",
+        "x-word": "review",
+        "x-instructions": "Bind `source` to the run.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}, "source": {"type": "string"}},
+        "required": ["id", "source"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-data": {
+            "run": {"contract": "test-run", "source": "source", "property": "value"}
+        },
+        "x-awaits": {
+            "records": {"input": "run", "label": "title"},
+            "value": "review",
+            "answered": {"review": {"detail": {"approved": True}}},
+        },
+        "x-state": {
+            "review": {
+                "detail": {
+                    "type": "object",
+                    "properties": {
+                        "case": {"type": "string"},
+                        "approved": {"type": "boolean"},
+                    },
+                    "required": ["case", "approved"],
+                    "additionalProperties": False,
+                },
+                "unit": "case",
+            }
+        },
+        "x-example": '<lf-records-ask id="docs-review" source="docs-run"></lf-records-ask>',
+    }
+    return registry
+
+
+RECORDS_RUN = {
+    "cases": [
+        {"id": "first", "title": "First case"},
+        {"id": "second", "title": "Second case"},
+    ]
+}
+
+
+def records_data(value):
+    return {
+        "version": "test",
+        "sources": {
+            "records-run": {
+                "contract": "test-run",
+                "revision": "0" * 16,
+                "run": "test",
+                "updated": model.NOW,
+                "value": value,
+            }
+        },
+    }
+
+
+RECORDS_PAGE = '<lf-records-ask id="review" source="records-run"></lf-records-ask>'
+
+
 def test_data_record_obligations_follow_approval_undo_and_source_membership():
     """A review owes each current case, independent of ordering and sibling answers."""
-    registry = model.model_layer("visual-review")
-    source = json.loads(
-        (
-            Path(__file__).parents[2]
-            / "examples/developer/visual-review-gallery.data.json"
-        ).read_text()
-    )["gallery-visual-run"]
-    cases = source["cases"][:2]
-    source["cases"] = cases
-    document = model.leaf_page(
-        "Review",
-        '<lf-visual-review id="review" source="gallery-visual-run"></lf-visual-review>',
-    )
+    registry = records_registry()
+    cases = RECORDS_RUN["cases"]
+    document = model.leaf_page("Review", RECORDS_PAGE)
 
     def read(events=(), chosen=None):
-        value = {**source, "cases": cases if chosen is None else chosen}
+        value = {"cases": cases if chosen is None else chosen}
         return model.reading(
-            document,
-            events,
-            registry=registry,
-            data={
-                "version": "test",
-                "sources": {
-                    "gallery-visual-run": {
-                        "contract": "visual-run",
-                        "revision": "test",
-                        "run": "test",
-                        "updated": model.NOW,
-                        "value": value,
-                    }
-                },
-            },
+            document, events, registry=registry, data=records_data(value)
         )
 
     before = page_obligations(read())["all"]
@@ -1165,47 +1232,26 @@ def test_data_record_obligations_follow_approval_undo_and_source_membership():
 
 
 def test_data_record_feedback_hands_only_its_obligation_to_the_agent():
-    registry = model.model_layer("visual-review")
-    source = json.loads(
-        (
-            Path(__file__).parents[2]
-            / "examples/developer/visual-review-gallery.data.json"
-        ).read_text()
-    )["gallery-visual-run"]
-    cases = source["cases"][:2]
-    source["cases"] = cases
-    document = model.leaf_page(
-        "Review",
-        '<lf-visual-review id="review" source="gallery-visual-run"></lf-visual-review>',
-    )
-    data = {
-        "version": "test",
-        "sources": {
-            "gallery-visual-run": {
-                "contract": "visual-run",
-                "revision": "test",
-                "run": "test",
-                "updated": model.NOW,
-                "value": source,
-            }
-        },
-    }
+    registry = records_registry()
+    document = model.leaf_page("Review", RECORDS_PAGE)
     comment = {
         "kind": "comment",
         "id": "feedback",
         "text": "Please improve this case",
         "anchor": {
             "section": "review",
-            "datum": cases[0]["id"],
-            "identity": cases[0]["id"],
-            "source": "gallery-visual-run",
+            "datum": "first",
+            "identity": "first",
+            "source": "records-run",
             "source_revision": "0" * 16,
         },
     }
 
     def read(events):
         return page_obligations(
-            model.reading(document, events, registry=registry, data=data)
+            model.reading(
+                document, events, registry=registry, data=records_data(RECORDS_RUN)
+            )
         )["all"]
 
     items = read([comment])
@@ -1222,34 +1268,16 @@ def test_data_record_feedback_hands_only_its_obligation_to_the_agent():
 
 
 def test_data_record_requests_keep_conditional_registration_and_framed_arrival():
-    registry = deepcopy(model.model_layer("visual-review"))
-    entry = registry["lf-visual-review"]
+    registry = records_registry()
+    entry = registry["lf-records-ask"]
     entry["properties"]["choose"] = {"type": "boolean"}
     entry["x-awaits"]["when"] = {"choose": [True]}
-    source = json.loads(
-        (
-            Path(__file__).parents[2]
-            / "examples/developer/visual-review-gallery.data.json"
-        ).read_text()
-    )["gallery-visual-run"]
-    source["cases"] = source["cases"][:1]
-    data = {
-        "version": "test",
-        "sources": {
-            "gallery-visual-run": {
-                "contract": "visual-run",
-                "revision": "0" * 16,
-                "run": "test",
-                "updated": model.NOW,
-                "value": source,
-            }
-        },
-    }
+    data = records_data({"cases": RECORDS_RUN["cases"][:1]})
 
     def document(attrs):
         return model.leaf_page(
             "Review",
-            f'<lf-ask id="frame"><h2>Review this</h2><lf-visual-review id="review" source="gallery-visual-run" {attrs}></lf-visual-review></lf-ask>',
+            f'<lf-ask id="frame"><h2>Review this</h2><lf-records-ask id="review" source="records-run" {attrs}></lf-records-ask></lf-ask>',
         )
 
     assert (
@@ -1275,24 +1303,18 @@ def test_record_obligations_validate_input_and_label_at_their_boundaries():
     from leaf.registry.contract import RegistryError
     from leaf.registry.validation import validate_registry
 
-    registry = deepcopy(model.model_layer("visual-review"))
-    entry = registry["lf-visual-review"]
+    registry = records_registry()
+    entry = registry["lf-records-ask"]
     entry["x-awaits"]["records"]["input"] = "missing"
     with pytest.raises(RegistryError, match=r"x-awaits\.records"):
         validate_registry(registry, "test")
     entry["x-awaits"]["records"]["input"] = "run"
     entry["x-awaits"]["records"]["label"] = "missing"
-    source = json.loads(
-        (
-            Path(__file__).parents[2]
-            / "examples/developer/visual-review-gallery.data.json"
-        ).read_text()
-    )["gallery-visual-run"]
-    value_2 = payload_error("run", "visual-run", source, registry)
+    value_2 = payload_error("run", "test-run", RECORDS_RUN, registry)
     assert value_2 is not None
     assert "obligation label 'missing'" in value_2
     entry["x-awaits"]["records"]["label"] = "title"
-    assert payload_error("run", "visual-run", source, registry) is None
+    assert payload_error("run", "test-run", RECORDS_RUN, registry) is None
     entry["x-awaits"]["answered"]["review"]["detail"] = {"approved": "yes"}
     with pytest.raises(RegistryError, match="detail condition"):
         validate_registry(registry, "test")

@@ -115,9 +115,4 @@ export type DataPlaywrightTraceImage = { "id": string; "pageId": string; "stream
 export type DataPlaywrightTracePage = { "id": string; "stream": string; "pageId": string; };
 export type DataPlaywrightTraceStream = { "id": string; "origin": string; "playwrightVersion": string | null; "wallTime": number | null; "monotonicTime": number | null; };
 export type DataPlaywrightTrace = { "archive": { "sha256": string; "format": 9 | 10; }; "viewerUrl": string; "streams": ReadonlyArray<DataPlaywrightTraceStream>; "pages": ReadonlyArray<DataPlaywrightTracePage>; "actions": ReadonlyArray<DataPlaywrightTraceAction>; "images": ReadonlyArray<DataPlaywrightTraceImage>; };
-export type DataVisualRunTarget = { "revision": string; "url"?: string; };
-export type DataVisualRunCapture = { "observedAt": string; "browser": string; "browserVersion": string; "viewport": { "width": number; "height": number; }; "deviceScaleFactor": number; "colorScheme": "light" | "dark"; "locale": string; "timezone": string; };
-export type DataVisualRunFocus = { "x": number; "y": number; "width": number; "height": number; };
-export type DataVisualRunCase = { "id": string; "title": string; "path": string; "action": string; "result": string; "classification": "changed" | "clean"; "capture": DataVisualRunCapture; "focus"?: DataVisualRunFocus; "before": string; "after": string; "traceUrl"?: string; };
-export type DataVisualRun = { "title": string; "base": DataVisualRunTarget; "candidate": DataVisualRunTarget; "cases": ReadonlyArray<DataVisualRunCase>; };
-export interface DataContracts { "file-list": DataFileList; "measured-scalar": DataMeasuredScalar; "text-document": DataTextDocument; "unified-diff": DataUnifiedDiff; "calldiff": DataCalldiff; "playwright-trace": DataPlaywrightTrace; "visual-run": DataVisualRun; }
+export interface DataContracts { "file-list": DataFileList; "measured-scalar": DataMeasuredScalar; "text-document": DataTextDocument; "unified-diff": DataUnifiedDiff; "calldiff": DataCalldiff; "playwright-trace": DataPlaywrightTrace; }

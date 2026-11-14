@@ -744,24 +744,6 @@ def test_the_published_notification_example_runs_its_authored_module(
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(4)
 
 
-def test_published_visual_evidence_loads_from_its_page(served_example, browser):
-    """Typed media paths resolve under the same page as authored media."""
-    _, url = served_example("visual-review-gallery")
-    page = open_page(browser, url)
-    review = page.locator("#visual-review-run")
-    for case_id in ("open-mobile-package-catalog", "keep-mobile-destinations"):
-        review.locator(
-            f'.lf-vr-case-button[aria-controls="visual-review-run-{case_id}"]'
-        ).click()
-        comparison = review.locator(".lf-vr-case:not([hidden]) lf-shot")
-        expect(comparison).to_be_visible()
-        images = comparison.locator("img")
-        expect(images).to_have_count(2)
-        for image in images.all():
-            expect(image).to_have_js_property("complete", True)
-            assert image.evaluate("image => image.naturalWidth") > 0
-
-
 def test_a_replaced_private_server_keeps_the_active_tab(served_example, browser):
     """Durable content keeps the current document when its serving process changes."""
     _, url = served_example("triage-board")

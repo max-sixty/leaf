@@ -3,7 +3,7 @@ both. A playground can have just one choice: the candidate to build. Put each ca
 inside an `lf-playground-choice` in the preview, so the user selects the actual example
 rather than a second selector elsewhere. `lf-options` remains useful for a fixed choice
 that needs no playground controls or composed preview. To critique a document or
-source, use Leaf's comments, suggestions, `lf-diff` or `lf-visual-review` instead.
+source, use Leaf's comments, suggestions, or `lf-diff` instead.
 
 Frame the question with `lf-ask` when its context lives outside the playground. Keep
 behavior that one page uses in that page's module, which can define custom elements, add

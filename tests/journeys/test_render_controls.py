@@ -74,9 +74,6 @@ from leaf_dev.example_data import named_source
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-VISUAL_REVIEW_GALLERY = named_source("visual-review-gallery")
-
-
 # One practice page, for the journeys that need no second child to compare against:
 # each child is a whole page to load.
 LIVE_SAMPLE_PAGE = re.sub(
@@ -245,16 +242,6 @@ CONTROL_ARCHETYPES = (
         # Switching views must not move the buttons under the pointer.
         "name": "shot-view",
         "target": "#stable-shot .lf-shot-views wa-radio:nth-child(2)",
-    },
-    {
-        "name": "visual-review-inspection",
-        "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case:not([hidden]) .lf-shot-views wa-radio:nth-child(2)",
-    },
-    {
-        "name": "visual-review-approval",
-        "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case:not([hidden]) .lf-vr-approval",
     },
 )
 

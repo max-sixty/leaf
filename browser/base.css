@@ -1049,7 +1049,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * reads which box scrolls from the result.
  *
  * A widget that composes regions out of boxes it generates, such as a playground's
- * controls beside its preview or a visual review's evidence, marks them with the same
+ * controls beside its preview, marks them with the same
  * role and takes these same rules, so no package keeps a copy of them. They are the
  * kernel's rather than the default package's for that reason: a package's rules name
  * its own widgets, and these reach every package's.
@@ -1060,8 +1060,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * rather than here, where a widget's own root rule (`lf-board { … }`) could outrank
  * it. The look (frame, paper, padding, the
  * header's font) is a default inside :where(), so a package that draws its generated
- * pane another way, the visual review framing its evidence with the review's own
- * border, does so with one class rather than by outranking the attribute. */
+ * pane another way does so with one class rather than by outranking the attribute. */
 /* A pane's body is a keyboard stop of its own where it scrolls with nothing in it to
  * Tab to (reach.js), and the layer's ring stands outside the box it names. A held pane
  * stands flush with the scrollport of the workspace body holding it, so that ring lost

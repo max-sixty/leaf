@@ -235,7 +235,7 @@ does for a panel, so the browser's find reaches it too. A widget that switches v
 `hidden` on the view it leaves, a sibling of the one it opens, before its `beforematch`
 handler returns; Leaf reads that as a replaced view and places the target at once rather
 than scrolling from the old view's reading position. A widget that keeps the box of
-what it hides, as `lf-visual-review` stacks its cases in one cell, may set
+what it hides may set
 `content-visibility: visible` with `visibility: hidden` on it; the browser's find then
 skips it, but Leaf's travel still opens it. Leaf waits for the `updateComplete` of each
 Lit element holding what it revealed before placing the target, so a widget whose view

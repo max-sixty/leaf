@@ -114,7 +114,7 @@ one real agent turn against the adapter on this machine, without the Worker, con
 limits, credential proxy or Docker. It uses a temporary `CODEX_HOME` with the
 website's Codex config and shares the host's Codex login. It prints the container's
 records and keeps them, with the plugin install's output, under
-`.tmp/verify-site/run-*/` (`website-adapter.log`, `plugin-install.log`). In its JSON
+`.tmp/site-verify/run-*/` (`website-adapter.log`, `plugin-install.log`). In its JSON
 result, `sinceSendMs.responseVisible` is when the
 open Threads view first showed a non-empty agent reply; `milestones.answered` is
 when the container admitted that reply, not when the user could see it.

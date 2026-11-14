@@ -24,7 +24,7 @@ jobs:
         with:
           name: website-verification-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            .tmp/verify-site/run-*/wrangler-dev.log
-            .tmp/verify-site/run-*/startup.json
+            .tmp/site-verify/run-*/wrangler-dev.log
+            .tmp/site-verify/run-*/startup.json
           if-no-files-found: ignore
           retention-days: 30

@@ -13,8 +13,8 @@ such as the agent's answer arriving or a scroll, and the windows it opens in, th
 `fixture()`, whose blocks span the subjects pages hold: a one-line, a three-line and a
 sixteen-line paragraph, a heading, a list, a choice widget, and a section holding a
 table wider than the column. Add a case for a shape someone meets: a line in `CASES`,
-and a block in `fixture()` and `SUBJECTS` if its subject isn't there yet. A quote lies
-within one text node of its block.
+and a block in `fixture()` and `SUBJECTS` if its subject isn't there yet. A quote is
+the first run of its words in its block's text (`browser.QUOTE_RANGE`).
 
 Each case is visited in each window on each arm through `leaf_dev.visits`, the loop
 `leaf-dev probe` runs, so a case reads what Leaf draws on its own: it sets only the

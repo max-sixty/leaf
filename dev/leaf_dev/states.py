@@ -612,8 +612,8 @@ PREVIEW_DWELL_MS = 400
 
 
 def word_lines(page: Page, words: str) -> list[dict]:
-    """The boxes of the first `words` the page's text holds within one text node, one
-    for each line they lie on, with their paragraph scrolled to the window's middle."""
+    """The boxes of the first `words` the page's text holds, one for each line they
+    lie on, with the element their first word is in scrolled to the window's middle."""
     return page.evaluate(
         f"""(words) => {{
           const range = ({QUOTE_RANGE})(document.querySelector('main'), words);

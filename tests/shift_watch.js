@@ -93,11 +93,13 @@
 // cannot see; the gesture owns that preparation's landing, as a rendering from the
 // task that settles it until the loop settles again, and nothing while it waits. It
 // began one when its declaration carries that input's exact callback source, and when
-// the runtime declares one in an IntersectionObserver delivery while the input's
-// rendering is open and no news has landed: the delivery reports that rendering, which
-// brought the node near, as a tab, a link or a jump brings a live sample's frame near
-// the window and its page starts (presentation.js, `whenNear`). Its landing is the
-// frame fitting that page.
+// the runtime declares one in any IntersectionObserver delivery while the input's
+// rendering is open and no news has landed: the delivery reports that rendering. The
+// case it serves is a tab, a link or a jump bringing a live sample's frame near the
+// window, where the sample's page starts (presentation.js, `whenNear`) and its landing
+// is the frame fitting that page. Like any landing, it owns every move from the task
+// that settles it until the loop settles again, so a page script's move in the task
+// after the fit is the input's too; one after the landing settles is reported.
 // Native effects it began retain their sampled displacement within their subtree.
 // A native size animation also credits a later box when its size change travels
 // through the layout path to that box and matches its movement. Its continued

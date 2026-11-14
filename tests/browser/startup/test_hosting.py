@@ -793,6 +793,39 @@ def test_a_sample_waits_out_a_release_still_rolling_out(browser, serve):
     consume_browser_errors(page, http_error_console(503))
 
 
+def test_a_sample_brought_into_view_releases_the_page_while_its_server_waits(
+    browser, serve
+):
+    """A sample a jump brings into view holds the page's rendering until its frame fits
+    its page, as the landing of that jump, but not through a wait its server names, as
+    during a leaf.page deploy: once the allocation is refused with a wait, the page's
+    rendering settles while the sample reads as loading, and the sample arrives when
+    the rollout ends."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    asked, end = rolling_out(page)
+    page.goto(
+        serve(
+            leaf_page(
+                "Rollout jump",
+                '<p><a id="jump" href="#s">Jump to the sample</a></p>'
+                '<div style="height: 400vh"></div>' + live_sample("s"),
+            )
+        )
+    )
+    wait_until_ready(page)
+    assert asked == []
+    page.locator("#jump").click()
+    holding(page, asked, 1, "the sample's allocation")
+    expect(page.locator("#s .lf-sample-status")).to_have_text("Loading sample…")
+    rendered(page, facts=("preparationsSettled",))
+    end()
+    page.locator("#s").evaluate("sample => sample.ready")
+    wait_until_ready(page)
+    expect(page.locator("#s .lf-sample-status")).to_have_text("")
+    consume_browser_errors(page, http_error_console(503))
+
+
 def test_a_sample_queued_behind_a_rollout_leaves_the_page_live(browser, serve):
     """A page loads three samples at once, so a fourth waits for a slot and asks the
     server nothing while the rollout lasts. It hears that the loads ahead of it are

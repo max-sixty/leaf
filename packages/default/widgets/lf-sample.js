@@ -224,7 +224,8 @@ export class Sample extends HTMLElement {
 
   // Start the child. Its resize on arrival applies at once where the reader `asked`
   // for it, and otherwise waits while they see it (`#height`). Returns the frame's
-  // first fit to its child, or its readiness settling where it fits nothing then.
+  // first fit to its child, or its readiness settling where it fits nothing then, or
+  // the server's wait.
   /** @param {boolean} asked @returns {Promise<unknown>} */
   #start(asked, { present = false } = {}) {
     this.#mounting = true;
@@ -300,7 +301,9 @@ export class Sample extends HTMLElement {
     /** @type {PromiseWithResolvers<void>} */
     const { promise: fitted, resolve: fit } = Promise.withResolvers();
     this.#fitted = fit;
-    return Promise.race([fitted, shown]);
+    // A load its server makes wait arrives as news (`waiting`), so the fit is no
+    // longer the landing of what brought the frame near.
+    return Promise.race([fitted, shown, waiting]);
   }
 
   // Removal closes a modal Full view at once, so the view returns to its embedded

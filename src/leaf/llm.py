@@ -13,7 +13,6 @@ endpoint does not bound cumulative usage.
 """
 
 import json
-import subprocess
 from pathlib import Path
 
 from jsonschema.exceptions import SchemaError, ValidationError
@@ -76,7 +75,6 @@ def generate(page_dir: Path, request: dict) -> dict:
         WebSocketException,
         RuntimeError,
         TimeoutError,
-        subprocess.TimeoutExpired,
         ValueError,
         ValidationError,
         Unresolvable,

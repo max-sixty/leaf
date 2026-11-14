@@ -2567,6 +2567,48 @@ def test_a_card_says_new_reply_for_an_answer_past_its_transcript_s_foot(browser,
     expect(press).to_have_count(0)
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_wheel_up_a_card_as_its_answer_arrives_goes_where_it_takes_the_reader(
+    engine, request, serve
+):
+    """A reader at the card's end who wheels up its transcript as the answer to their
+    turn arrives goes where the wheel takes them, New reply standing for the answer
+    (thread-card.js, `#fitAnswer`). Firefox applies the wheel's scroll a frame or more
+    after the wheel, and the answer's placement, reading the reader at the end in
+    between, moved their turn into sight and cancelled the wheel."""
+    page, preview, transcript = open_long_thread(request.getfixturevalue(engine), serve)
+    press = preview.locator(".lf-new-reply")
+    preview.locator(".lf-thread-reply leaf-text").click()
+    page.keyboard.insert_text("And over the weekend?")
+    with sending(page, "the turn"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    rendered(page)
+    stood = transcript.evaluate("list => list.scrollTop")
+    assert transcript.evaluate("l => l.scrollHeight - l.clientHeight") - stood <= 2
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": LONG_THREAD_ROOT["id"],
+            "revision": 1,
+            "text": "It would. " + "Someone stays on call through Sunday. " * 60,
+        },
+    )
+    holding(page, held, 1, "the answer")
+    transcript.hover()
+    page.mouse.wheel(0, -300)
+    page.unroute("**/api/state*")
+    for route in held:
+        route.continue_()
+    expect(press).to_have_text("New reply")
+    scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
+    assert transcript.evaluate("list => list.scrollTop") < stood - 200
+
+
 @pytest.mark.parametrize("progress", [False, True])
 def test_an_answer_a_card_followed_says_new_reply_once_its_picture_outgrows_it(
     browser, serve, progress

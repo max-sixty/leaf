@@ -66,9 +66,11 @@
    follows the answer into sight. Otherwise New reply stands at the box's foot until a
    press on it, or the user scrolling there, shows the answer, or they send another turn,
    and a user who stood at the end keeps their turn wholly in sight above the press, its
-   head included. Until then the answer is this thread's to place (`answering`), and a
-   box that follows its end, as a card's transcript does (thread-preview.js), leaves it
-   be. An answer the end followed into sight that grows afterwards, as a picture in it
+   head included. A user whose wheel or key has the box scrolling as the answer arrives
+   stands wherever that scroll takes them, though the browser has yet to move the box
+   (arrivals.js, `readerScrolls`). Until then the answer is this thread's to place
+   (`answering`), and a box that follows its end, as a card's transcript does
+   (thread-preview.js), leaves it be. An answer the end followed into sight that grows afterwards, as a picture in it
    loads, is placed again by the same rule (`placesEnd`). The user chose New reply for
    the panel on 14 October 2026, and the rest of the floating panel's growth with it
    (floating-panel.js, which records it); the margin card gained it on 4 November, so
@@ -118,7 +120,7 @@ import {
   scrollLimit,
   scrollToEnd,
 } from "../scrolling.js";
-import { browserScrolls } from "../arrivals.js";
+import { browserScrolls, readerScrolls } from "../arrivals.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { renderedOrder } from "../shadow.js";
 import { iconTemplate } from "../icons.js";
@@ -1026,7 +1028,12 @@ export class ThreadView {
       this.#followed = answer;
       return;
     }
-    const atEnd = before.limit - scroller.scrollTop <= SCROLL_SLACK;
+    // A reader whose wheel or key has the box scrolling stands where it takes them
+    // (header), though the box hasn't moved yet: the browser applies that scroll a frame
+    // or more after the input, and a write of the box meanwhile cancels it. The delayed
+    // write below asks again, for an input made since.
+    const atEnd =
+      !readerScrolls(scroller) && before.limit - scroller.scrollTop <= SCROLL_SLACK;
     const pad = Number.parseFloat(getComputedStyle(scroller).paddingTop);
     const from = () =>
       turn.getBoundingClientRect().top - scroller.getBoundingClientRect().top - pad;
@@ -1053,7 +1060,7 @@ export class ThreadView {
     nextRender(() => {
       if (this.#waiting !== next) return;
       this.repaint();
-      if (waiting || !atEnd || !turn.isConnected) return;
+      if (waiting || !atEnd || !turn.isConnected || readerScrolls(scroller)) return;
       // The user's turn stands wholly in sight, between the box's top edge and New
       // reply's ground, its head first where it is taller than that.
       const foot = this.node.querySelector(".lf-awaited")?.getBoundingClientRect();

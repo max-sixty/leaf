@@ -5,20 +5,25 @@
    and a landing alike. Native input chains its scroll along it (`scrollChainOf`), so
    the box an input scrolls is read here too (`inputScroller`). A box Leaf anchors also
    moves with every scroll that moves its anchor, which a reading of the motions under
-   way counts (`carriersOf`). */
+   way counts (`carriersOf`), and the distance the glides under way have still to
+   scroll across both is read here too (`glideTravel`, `glideGap`). */
 import { inputs } from "./inputs.js";
-import { renderedParent } from "./shadow-tree.js";
+import { isElement, renderedParent } from "./shadow-tree.js";
 import { anchorHolder, anchorNamed } from "./css-anchors.js";
+import { scrollAxes } from "./element-axes.js";
 import {
   aimedTop,
   aimScroll,
   moveScrollerBy,
   pageScroller,
   SCROLL_SLACK,
+  scrollGoal,
   scrollLimit,
   scrollsFor,
 } from "./scrolling.js";
-import { fixedInWindow, userScrollport } from "./geometry.js";
+import { fixedInWindow, shownWindow, userScrollport } from "./geometry.js";
+
+/** @typedef {import("./css-anchors.js").Anchor} Anchor */
 
 /** @type {(node: Node | null | undefined) => Element} */
 let lookup = (node) => {
@@ -142,6 +147,53 @@ inputs.observe((event) => {
 /** @param {Element | Range} node */
 export const holderOf = (node) =>
   node instanceof Range ? node.startContainer.parentElement : node;
+
+// The distance the glides under way have still to scroll the boxes that carry `node`
+// (`carriersOf`), each from where it stands to its glide's goal (scrolling.js,
+// `scrollGoal`), summed as a vector in client pixels through each box's transforms
+// (element-axes.js, `scrollAxes`), with the outermost box that glides; null where no
+// glide carries it. An element's own scroll moves what it holds and not its box. A
+// scroll the browser runs, as a wheel's, has no goal Leaf knows, so it adds nothing.
+// Where a box Leaf anchors will stand also depends on its placement, which solves again
+// after a scroll (floating.js), and this reads only the scrolls.
+/** @param {Element | Range | Anchor} node */
+export function glideTravel(node) {
+  const holder =
+    node instanceof Range ? holderOf(node) : isElement(node) ? node : node.scroller;
+  let x = 0;
+  let y = 0;
+  /** @type {Element | null} */
+  let outer = null;
+  for (const box of carriersOf(holder)) {
+    if (box === node) continue;
+    const left = scrollGoal(box) - box.scrollTop;
+    if (!left) continue;
+    const axis = scrollAxes(box).y;
+    x -= left * axis.x;
+    y -= left * axis.y;
+    outer = box;
+  }
+  return outer && { x, y, outer };
+}
+
+// How far `node`'s box stands outside the part of the window the page shows
+// (geometry.js, `shownWindow`), now (`now`) and once moved by the glides under way
+// (`glideTravel`, `after`), summed across the two axes, 0 where it is in it; null where
+// no glide carries it. It reads the window alone, not what the scrollers between will
+// show, and the box as it stands now, which for a box Leaf anchors can trail its
+// placement (css-anchors.js).
+/** @param {Element | Range} node */
+export function glideGap(node) {
+  const travel = glideTravel(node);
+  if (!travel) return null;
+  const box = node.getBoundingClientRect();
+  const view = shownWindow();
+  /** @param {number} x @param {number} y */
+  const gap = (x, y) =>
+    Math.max(view.top - box.bottom - y, box.top + y - view.bottom, 0) +
+    Math.max(view.left - box.right - x, box.left + x - view.right, 0);
+  return { now: gap(0, 0), after: gap(travel.x, travel.y) };
+}
 
 // Where `node`'s `edge` stands on screen, read as though each box scrolling it stood
 // where Leaf last aimed it (scrolling.js, `aimedTop`): a hold read after a hold then

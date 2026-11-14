@@ -6066,6 +6066,20 @@ def test_page_search_finds_words_an_output_runs_into(engine, request, serve):
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
 
 
+def test_page_search_passes_a_long_run_of_whitespace_its_next_word_does_not_follow(
+    browser, serve
+):
+    """A query's words stand apart by any run of whitespace, so a long run after its
+    first word that the next word doesn't follow is one more place that doesn't match:
+    page search finds the copy further on, where a search that tried every split of the
+    run held the tab."""
+    url = serve(leaf_page("Runs", f"<p>card{' ' * 80}x</p><p>card It opens</p>"))
+    page = open_page(browser, url)
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("card It opens")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_page_search_reads_two_staged_widgets_side_by_side_apart(
     engine, request, serve
@@ -6141,14 +6155,18 @@ def test_page_search_finds_a_shipped_options_chip_and_title_apart(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize(
+    ("source", "words"),
+    [("extending", "window The workspace"), ("how-it-works", "there The quote")],
+)
 def test_page_search_reads_a_docs_captions_title_apart_from_its_text(
-    engine, request, serve
+    engine, source, words, request, serve
 ):
     """A figure caption in the product docs draws its title on a line of its own above
     its text, and page search finds the title's last word and the text's first apart."""
-    page = open_page(request.getfixturevalue(engine), serve(named_source("pages")))
+    page = open_page(request.getfixturevalue(engine), serve(named_source(source)))
     page.keyboard.press("/")
-    page.get_by_role("searchbox", name="Search page text").fill("window The workspace")
+    page.get_by_role("searchbox", name="Search page text").fill(words)
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
 
 

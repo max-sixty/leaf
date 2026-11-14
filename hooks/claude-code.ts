@@ -398,8 +398,8 @@ function request() {
 let route: Record<string, string> = {};
 
 /** Read the route's variables. Claude Code refuses to load a module whose
- * `$.env.get` names its variable other than by a literal (2.1.325), so each name is
- * spelled out at its call. */
+ * `$.env.get` names its variable other than by a literal, so that `claude plugin
+ * validate` can list what it reads, and so each name is spelled out at its call. */
 async function readRoute($: EngineInterface) {
   const read = {
     CLAUDE_CODE_USE_BEDROCK: $.env.get("CLAUDE_CODE_USE_BEDROCK"),

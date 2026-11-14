@@ -973,3 +973,21 @@ def test_one_pages_answers_leave_another_readings_remembered(monkeypatch):
     held = tail.answer(deepcopy(first), None, "page")["browser"]["basis"]["key"]
     tail.answer(deepcopy(later), None, "sample")
     assert "since" in tail.answer(deepcopy(later), held, "page")
+
+
+def test_revision_labels_name_each_draft_after_the_newest_earlier_stamp():
+    from leaf.files import revision_labels
+
+    events = [
+        {"kind": "note", "revision": 2, "version": 1},
+        {"kind": "note", "revision": 5, "version": 2},
+        {"kind": "activation", "revision": 6},
+    ]
+    assert revision_labels(events, range(1, 7)) == {
+        1: "Draft",
+        2: "v1",
+        3: "Draft after v1",
+        4: "Draft after v1",
+        5: "v2",
+        6: "Draft after v2",
+    }

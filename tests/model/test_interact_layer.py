@@ -1505,6 +1505,76 @@ def test_kernel_selectors_name_no_package_tag():
     assert leaks == [], leaks
 
 
+def test_the_kernel_styles_no_class_a_page_coins():
+    """The kernel reaches a page's element by a class only where that class is one of
+    Leaf's own names (browser/AGENTS.md, "Leaf's elements wear only Leaf's names"): an
+    `lf-` class, which a page writes only where a kernel idiom lets it, as `lf-btn`
+    does, or a Layout's. Before this check it styled a page's own `.button`, `.field`,
+    `.choice` and `.scroll`, so a plain page's `<label class="choice">` took Leaf's aim
+    floor and grew its form (tests/fixtures/plain/form.html). A kernel sheet's selectors and `@scope` preludes, and the
+    selectors the runtime hands a DOM query, name no other class but a library's on the
+    elements Leaf draws for it: PhotoSwipe's in the chrome's lightbox, and CodeMirror's
+    in a text field's closed tree."""
+    authored = ("lf-", "layout-", "density-")
+    libraries = ("pswp", "cm-")
+
+    def classes(tokens):
+        """The class selectors among `tokens`, in and out of `:is()`-like arguments."""
+        previous = None
+        for token in tokens:
+            if (
+                token.type == "ident"
+                and previous is not None
+                and previous.type == "literal"
+                and previous.value == "."
+            ):
+                yield token.value
+            if token.type in ("function", "() block"):
+                yield from classes(
+                    token.arguments if token.type == "function" else token.content
+                )
+            previous = token
+
+    def coined(selector):
+        return sorted(
+            name
+            for name in classes(tinycss2.parse_component_value_list(selector))
+            if not name.startswith(authored + libraries)
+        )
+
+    def preludes(rules):
+        for rule in rules:
+            if rule.type == "qualified-rule" or (
+                rule.type == "at-rule" and rule.lower_at_keyword == "scope"
+            ):
+                yield tinycss2.serialize(rule.prelude).strip()
+            if getattr(rule, "content", None) is not None:
+                yield from preludes(tinycss2.parse_blocks_contents(rule.content))
+
+    leaks = []
+    for sheet in sorted(schema_model.ASSETS.rglob("*.css")):
+        where = sheet.relative_to(schema_model.ASSETS)
+        if "vendor" in sheet.parts and where.name != "webawesome-native.css":
+            continue
+        rules = tinycss2.parse_stylesheet(sheet.read_text(), skip_comments=True)
+        leaks += [f"{where}: {coined(p)}" for p in preludes(rules) if coined(p)]
+    modules = [
+        module
+        for module in sorted(schema_model.ASSETS.rglob("*.js"))
+        if "vendor" not in module.parts
+    ]
+    queries = json.loads(js_facts("queries", modules))
+    assert any(queries.values()), "no DOM query was read — the reading is broken"
+    for module in modules:
+        where = module.relative_to(schema_model.ASSETS)
+        leaks += [
+            f"{where}: {coined(selector)}"
+            for selector in queries[str(module)]
+            if coined(selector)
+        ]
+    assert leaks == [], leaks
+
+
 def test_a_sheet_both_trees_take_names_the_widgets_it_styles():
     """A package's widget-shadow.css goes into the document's lf-base as well as each
     shadow tree, with no scope around it (`layer.py`, `compose`), so each rule names
@@ -1708,18 +1778,27 @@ def _scope_roots(sheet):
     )
 
 
-def test_an_untyped_has_leads_only_to_a_typed_subject():
-    """A `:has()` that is the whole of its compound, with no compound before it, names
-    no element. In Chromium, such a `:has()` that leads on to a subject naming no
-    element either, as `:has(> lf-toc) > :not(lf-toc)` does, or that stands as an
-    `@scope`'s root, makes the browser restyle the whole document after any write to an
-    element's text, or to an attribute another `:has()` reads, anywhere on the page.
-    The rule costs that without matching anything: toc.css's `@scope (:has(> lf-toc))`,
-    under a container query that a page without a sidebar never meets, made each of the
-    16 style recalcs in a Tab on a page of 64 questions restyle the whole page (938 ms
-    against 26 ms). Measured in Chromium 156 by a trace's restyled-element count:
-    naming an element on either side, as `.a :has(…) > *` and base.css's
-    `:has(…) > pre` do, keeps the restyle to the elements near a write to text.
+def test_a_has_leads_only_to_a_subject_naming_an_element():
+    """A `:has()` before a rule's subject requires a subject that names an element: a
+    type, class, id or attribute. In Chromium, one rule anywhere in a sheet whose
+    `:has()` leads on to a subject naming none, as `.a:has(> b) > :not(c)`,
+    `.a:has(> b) > *` and `.a:has(> b) :first-child` do, makes every write to an
+    attribute another `:has()` reads restyle everything under the element whose `:has()`
+    the write may change, whether or not the rule matched anything there: a pointer's
+    hover and a margin row's selection are such states, and focus marks were until no
+    `:has()` read them (`test_no_has_reads_where_focus_is`). A pseudo-element
+    Chromium draws in the element's own shadow tree, such as `::details-content`,
+    `::placeholder` or `::file-selector-button`, names no element either; `::before`,
+    `::after` and `::marker` stand for their element. Measured on 11 November 2026 by
+    toggling `data-lf-focus-within` on a paragraph of `pr-walkthrough`, with each probe
+    rule added alone to the two rules that read that mark: 16–20 ms a toggle with such
+    a rule, 0.3–1.4 ms with `> .q`, `> p` or `> :where(p, li)`, and four shipped rules
+    (base.css's pane end room, layouts.css's workspace end room, reading.css's sticky
+    row names, disclosure.css's instant keyboard closing) restyled the page's 7,276
+    elements on every focus move. The same holds for a `:has()` alone in its
+    compound: toc.css's `@scope (:has(> lf-toc))`, under a container query that a page
+    without a sidebar never meets, made each of the 16 style recalcs in a Tab on a page
+    of 64 questions restyle the whole page (938 ms against 26 ms).
 
     A scope's root names its element by a class, id or attribute, not by a type alone.
     Chromium tests the root's `:has()` on every element of that type, and adding or
@@ -1755,29 +1834,137 @@ def test_an_untyped_has_leads_only_to_a_typed_subject():
                     for compound in _split_top(selector, " >+~")
                 ):
                     found.append(f"{where}: @scope ({selector}), a type alone")
-            for _conditions, enclosing, selector, _declarations in _style_rules(sheet):
-                # Inside a scope, the scope's root stands before every compound.
-                if "scope" in enclosing:
-                    continue
-                compounds = _split_top(selector, " >+~")
-                lead = next(
-                    (
-                        at
-                        for at, compound in enumerate(compounds)
-                        if _only_has(compound)
-                    ),
-                    None,
-                )
-                if (
-                    lead is not None
-                    and lead < len(compounds) - 1
-                    and not any(map(_names_an_element, compounds[:lead]))
-                    and not _names_an_element(compounds[-1])
-                ):
+            for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
+                if _untyped_after_has(selector):
                     found.append(f"{where}: {selector}")
     assert not found, (
-        "name an element beside this `:has()` or in its subject, and a scope's root by "
+        "name an element in the subject after this `:has()`, and a scope's root by "
         "a class, id or attribute:\n" + "\n".join(found)
+    )
+
+
+# The pseudo-elements Chromium draws in their element's own shadow tree, which the
+# test above measured to name no element.
+SHADOW_PSEUDO = re.compile(r"::(details-content|placeholder|file-selector-button)\b")
+
+
+def _untyped_after_has(selector):
+    """Whether the selector, or a selector inside one of its `:is()`, `:where()` or
+    `:not()`, has a `:has()` before a subject that names no element or is a shadow
+    pseudo-element. Inside an `@scope` the rule holds as it does outside one."""
+    *before, subject = _split_top(selector, " >+~")
+    if any(":has(" in compound for compound in before) and not _names_an_element(
+        subject
+    ):
+        return True
+    if ":has(" in selector and SHADOW_PSEUDO.search(subject):
+        return True
+    return any(
+        _untyped_after_has(argument)
+        for compound in (*before, subject)
+        for part in _simple_selectors(compound)
+        if part.startswith((":is(", ":where(", ":not("))
+        for argument in _split_top(part[part.index("(") + 1 : -1], ",")
+    )
+
+
+def test_no_has_reads_where_focus_is():
+    """No `:has()` in Leaf's sheets reads where focus is: a focus mark, a box's
+    `data-lf-control-focus` marks, or a focus pseudo-class. A box that shows the focus of
+    a control inside it is named by the control (`--lf-focus-box`, base.css), and
+    focus.js marks the box. In Chromium, a `:has()` reading a focus mark made each focus
+    move restyle what lay under every element whose `:has()` the move might change, and
+    the whole page wherever any rule, an author's included, put a `:has()` before a
+    subject naming no element. Measured on 12 November 2026 on `pr-walkthrough`, moving
+    focus between two links in main: with the 25 such rules Leaf had, a move restyled
+    1,419 elements (5.5 ms), and 7,345 (22 ms) with an authored `.zz:has(> .yy) > *`
+    added; without them it restyled 18, with that rule or without it."""
+    reads_focus = re.compile(r"data-lf-[\w-]*focus|:focus")
+    found = []
+    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
+        for sheet in sorted(root.rglob("*.css")):
+            if "vendor" in sheet.parts:
+                continue
+            where = sheet.relative_to(ROOT)
+            selectors = [selector for _c, _e, selector, _d in _style_rules(sheet)]
+            for selector in [*selectors, *_scope_roots(sheet)]:
+                if any(map(reads_focus.search, _has_arguments(selector))):
+                    found.append(f"{where}: {selector}")
+    assert not found, (
+        "name the box that shows a control's focus from the control, with "
+        "--lf-focus-box, and read its data-lf-control-focus marks:\n" + "\n".join(found)
+    )
+
+
+def _has_arguments(selector):
+    """The argument of every `:has()` in a selector, nested ones included."""
+    arguments, at = [], selector.find(":has(")
+    while at != -1:
+        depth = 0
+        for end in range(at + 4, len(selector)):
+            depth += (selector[end] in "([") - (selector[end] in ")]")
+            if not depth:
+                break
+        arguments.append(selector[at + 5 : end])
+        at = selector.find(":has(", at + 5)
+    return arguments
+
+
+def test_a_has_reads_no_sibling_of_an_element_most_selectors_reach():
+    """A `:has()` that reads its element's later siblings, as `:has(~ b)` does, names
+    that element by a class, id or attribute, a custom element's tag, `html` or
+    `body`, or reaches it through a `:where()` whose ancestor does, as
+    `aside:where(.layout-sidebar > *)` does. Chromium flags every later sibling of
+    each element it asks such a `:has()` of, and on each write to an attribute some
+    `:has()` reads walks back from a flagged element through every earlier sibling and
+    restyles each one some `:has()` names as its subject.
+    Asked of every child of `main`, by `:where(main > *):has(~ [data-lf-views="parts"])`
+    in layouts.css, it made each focus move restyle every block before the focused one:
+    1,131 elements a move near the end of a page of 1,024 sections in a plain `main`,
+    and 108 once `main` answered with a style query instead (Chromium 158, a trace's
+    restyled-element count, 11 November 2026). `.layout-sidebar > aside:has(~ …)` asked
+    it of every `aside` in the page's content."""
+
+    def rare(compound):
+        return any(
+            part[0] in ".#["
+            or part in ("html", "body", ":root")
+            or (part[0].isalpha() and "-" in part)
+            or (
+                part.startswith((":is(", ":where("))
+                and all(
+                    any(map(rare, _split_top(each, " >+~")))
+                    for each in _split_top(part[part.index("(") + 1 : -1], ",")
+                )
+            )
+            for part in _simple_selectors(compound)
+        )
+
+    def reaches_later_siblings(selector):
+        for compound in _split_top(selector, " >+~"):
+            for part in _simple_selectors(compound):
+                if not part.startswith((":is(", ":where(", ":not(", ":has(")):
+                    continue
+                arguments = _split_top(part[part.index("(") + 1 : -1], ",")
+                if part.startswith(":has(") and not rare(compound):
+                    if any(each.startswith("~") for each in arguments):
+                        yield compound
+                for each in arguments:
+                    yield from reaches_later_siblings(each.lstrip("~+> "))
+
+    found = []
+    for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
+        for sheet in sorted(root.rglob("*.css")):
+            if "vendor" in sheet.parts:
+                continue
+            where = sheet.relative_to(ROOT)
+            for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
+                found += [
+                    f"{where}: {selector}" for _ in reaches_later_siblings(selector)
+                ]
+    assert not found, (
+        "name the element this `:has(~ …)` is asked of by a class, id or attribute:\n"
+        + "\n".join(found)
     )
 
 
@@ -2370,12 +2557,12 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
     # One sheet gives both delivery trees the default.
     face_sheet = schema_model.ASSETS / "styles/control-face.css"
     control_face = (
-        ":where( :is(:root, :host) .lf-ui-face, :is(:root, :host) .button, "
-        ":is(:root, :host) .field, "
+        ":where( :is(:root, :host) .lf-ui-face, :is(:root, :host) .lf-btn, "
+        ":is(:root, :host) .lf-field, "
         ":root body :is(button, input, select, textarea):not(.lf-chrome *), "
         ":host :is(button, input, select, textarea) )"
     )
-    control_ink = ":where(.lf-ui-face, .button, .field)"
+    control_ink = ":where(.lf-ui-face, .lf-field)"
     default = [(face_sheet, control_face), (face_sheet, control_ink)]
     assert faces[:2] == default, faces[:2]
     defaults = [
@@ -2722,10 +2909,9 @@ def test_reading_a_page_composes_only_its_layers_vocabulary(
 
 
 def test_requests_arriving_together_compose_the_pages_layer_once(page_dir, monkeypatch):
-    """A cold server meets its page's requests together, such as a diff page's
-    deferred load for each file, and each needs the page's layer. The first composes
-    it and the rest wait for it; composing it once per request, all at once, kept a
-    visitor's first comment on leaf.page waiting behind 46 of them."""
+    """Requests that reach a cold server together each need the page's layer. The
+    first composes it and the rest wait for it, rather than each composing it at once
+    and sharing the CPU with every request behind them."""
     record = registry_storage.layer_record(page_dir)
     assert record is not None
     layer_model._vocabularies.clear()

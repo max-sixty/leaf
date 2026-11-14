@@ -2171,7 +2171,7 @@ describe("website page agent", () => {
     }
   });
 
-  it("reads again once when the container connection drops, but never resends a write", async () => {
+  it("resends a read or a view report once when the container connection drops, but no other write", async () => {
     const { storage, close } = sqliteStorage();
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
@@ -2232,6 +2232,31 @@ describe("website page agent", () => {
         source: "disconnected",
         retried: false,
       });
+
+      // A view report replaces only an older report of its session, so a resent
+      // copy changes nothing the first one stored.
+      forwardedContainerFetch.mockClear();
+      forwardedContainerFetch
+        .mockResolvedValueOnce(new Response(lost, { status: 500 }))
+        .mockResolvedValueOnce(new Response(null, { status: 204 }));
+      const view = await session.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/user-view", {
+          method: "POST",
+          body: '{"session":"s","sequence":3}',
+        }),
+      );
+      expect(view.status).toBe(204);
+      expect(forwardedContainerFetch).toHaveBeenCalledTimes(2);
+      const resent = forwardedContainerFetch.mock.calls[1][0] as Request;
+      expect(await resent.text()).toBe('{"session":"s","sequence":3}');
+      expect(log).toHaveBeenLastCalledWith({
+        component: "leaf-container",
+        event: "http_error",
+        method: "POST",
+        status: 500,
+        source: "disconnected",
+        retried: true,
+      });
       expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|secret/);
     } finally {
       log.mockRestore();
@@ -2262,11 +2287,6 @@ describe("website page agent", () => {
           }),
         ],
         ["api/news", "saved-reading"],
-        ["api/deferred?source=table&source_revision=one&key=row", "saved-detail"],
-        [
-          "api/deferred?source=table&source_revision=one&key=a~b%2Acaf%C3%A9+%2F%2B",
-          "special-detail",
-        ],
         ["revisions/r3-private.html", "<p>Private revision</p>"],
       ]) {
         const bytes = new TextEncoder().encode(body);
@@ -2308,25 +2328,6 @@ describe("website page agent", () => {
           )
         ).text(),
       ).toBe("saved-reading");
-      expect(
-        await (
-          await session.fetch(
-            new Request(
-              "https://leaf.page/examples/triage-board/api/deferred?key=row&source=table&source_revision=one",
-            ),
-          )
-        ).text(),
-      ).toBe("saved-detail");
-      const deferred = new URL("https://leaf.page/examples/triage-board/api/deferred");
-      deferred.search = new URLSearchParams({
-        key: "a~b*café /+",
-        source_revision: "one",
-        source: "table",
-        through_seq: "12",
-      }).toString();
-      const detail = await session.fetch(new Request(deferred));
-      expect(detail.headers.get("Leaf-State-Source")).toBe("durable");
-      expect(await detail.text()).toBe("special-detail");
       expect(
         await (
           await session.fetch(

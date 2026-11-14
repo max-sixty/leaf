@@ -184,20 +184,27 @@ export class LeafWebsiteSession extends Container<Env> {
   }
 
   private async forward(request: Request): Promise<Response> {
+    // A connection lost while the container starts or restarts says nothing about
+    // the request, so a request Python answers the same way twice gets one more
+    // attempt rather than showing the visitor a 500: a read, or a view report,
+    // which replaces only an older report of its session (`leaf.user_views`).
+    // Any other write may already have reached Python, so its loss reaches the
+    // caller instead.
+    const replay =
+      request.method === "GET" || request.method === "HEAD"
+        ? request
+        : request.method === "POST" &&
+            new URL(request.url).pathname.endsWith("/api/user-view")
+          ? request.clone()
+          : null;
     const response = await super.fetch(request);
     if (response.status < 500) return response;
     const source = await errorSource(response);
-    // A connection lost while the container starts or restarts says nothing about
-    // the request, so a read gets one more attempt rather than showing the
-    // visitor a 500. A write may already have reached Python, so
-    // its loss reaches the caller instead.
-    const retry =
-      source === "disconnected" &&
-      (request.method === "GET" || request.method === "HEAD");
+    const retry = source === "disconnected" && replay !== null;
     logHttpError(request, response, source, retry);
     if (!retry) return response;
     await response.body?.cancel();
-    const second = await super.fetch(request);
+    const second = await super.fetch(replay);
     if (second.status >= 500) {
       logHttpError(request, second, await errorSource(second), false);
     }
@@ -224,12 +231,6 @@ export class LeafWebsiteSession extends Container<Env> {
             url.searchParams.get("revision") ||
             request.headers.get("Leaf-View-Revision");
           if (revision) path += `?revision=${revision}`;
-        } else if (path === "api/deferred") {
-          path += `?${new URLSearchParams({
-            source: url.searchParams.get("source") ?? "",
-            source_revision: url.searchParams.get("source_revision") ?? "",
-            key: url.searchParams.get("key") ?? "",
-          })}`;
         }
         const response = await this.pages.response(route.root, path, request);
         if (response !== null) return response;

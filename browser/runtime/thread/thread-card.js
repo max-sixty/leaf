@@ -104,7 +104,7 @@ import {
   threadSummary,
 } from "./messages.js";
 import { generatedElement, offeredAction } from "../widget-elements.js";
-import { measure } from "../shown-box.js";
+import { contentsBox, measure } from "../shown-box.js";
 import { keeps, keepsHidden, layoutPx, roomPx } from "../keeps.js";
 import { commandsOn } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
@@ -426,10 +426,7 @@ export function threadReading(thread, surface, commands) {
 // whole one's rounds.
 /** @param {Element | null | undefined} node */
 function wordsWidth(node) {
-  if (!node) return 0;
-  const range = document.createRange();
-  range.selectNodeContents(node);
-  return range.getBoundingClientRect().width;
+  return node ? contentsBox(node).width : 0;
 }
 
 /** @typedef {Omit<ThreadReading, "settlement"> & {

@@ -136,3 +136,12 @@ export function copyControl(
 export function copyTrigger(copy) {
   return copy?.shadowRoot?.querySelector("button") ?? null;
 }
+
+/** Presses `copy` as its own trigger would, once it has drawn: a control made by the
+ * press, or with a block the press stands on, has not drawn its button yet.
+ * @param {HTMLElementTagNameMap["wa-copy-button"]} copy */
+export async function pressCopy(copy) {
+  await customElements.whenDefined(copy.localName);
+  await copy.updateComplete;
+  copyTrigger(copy)?.click();
+}

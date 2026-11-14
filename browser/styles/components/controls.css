@@ -429,7 +429,7 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
  * field holds none: its closed tree lays its words and placeholder in one grid cell
  * (text-field.js), so it stays unpositioned, which Chromium's hit test, visiting every
  * positioned box on every call, would otherwise pay for in each field on the page. */
-:where(:is(.scroll, [data-lf-scroll]):not(leaf-text)) {
+:where(:is(.lf-scroll, [data-lf-scroll]):not(leaf-text)) {
   position: relative;
 }
 /* The layer's marks for a box that shows less than it holds (reachScrollers, for why the
@@ -620,9 +620,8 @@ summary,
  * Leaf's presses look like the library's wa-button, and the radios, sliders and
  * selects Leaf takes from it. The generated rules weigh nothing, so the rules below
  * state only where Leaf departs from the library, and any rule of a component's
- * outranks both. Authored .button controls wear the word face too, and
- * `.button.primary` the commit face (`.lf-btn.lf-commit` on Leaf's), so a page's own
- * controls match Leaf's (page-layout.md).
+ * outranks both. A page writes the same names on its own controls, `lf-btn` and
+ * `lf-btn lf-commit`, so they match Leaf's (page-layout.md).
  *
  * A word keeps Leaf's muted ink and its ui weight, the library's quiet ink and action
  * weight being darker and heavier than controls that stay secondary to the work
@@ -643,15 +642,15 @@ summary,
  * the user preferred a reasonable design from a UI library to looks of Leaf's own
  * (3 November 2026); before them a word framed on the card ground, a second look
  * for the same press, until the user chose the quiet one on 25 October. */
-:is(.lf-btn, .button, .lf-icon-action) {
+:is(.lf-btn, .lf-icon-action) {
   --wa-color-neutral-on-quiet: var(--muted);
 }
-:is(.lf-btn.lf-commit, .button.primary) {
+.lf-btn.lf-commit {
   --wa-color-on-quiet: var(--wa-color-brand-on-quiet);
   --wa-color-fill-quiet: var(--wa-color-brand-fill-quiet);
   --wa-color-border-loud: var(--wa-color-brand-border-loud);
 }
-:where(.lf-btn, .button) {
+:where(.lf-btn) {
   /* How far its words stand in from its edge, the library's padding and the frame,
      which a seat that sets a word at the start of a line hangs into the margin, so the
      words align with the line's. */
@@ -662,11 +661,11 @@ summary,
   white-space: inherit;
 }
 @media not (hover: hover) {
-  :where(:is(.lf-btn, .button, .lf-icon-action):hover) {
+  :where(:is(.lf-btn, .lf-icon-action):hover) {
     background-color: transparent;
   }
 }
-:is(.lf-btn, .button, .lf-icon-action):hover {
+:is(.lf-btn, .lf-icon-action):hover {
   box-shadow: none;
 }
 /* A native radio or checkbox and its label form one compact target. The mark
@@ -674,10 +673,9 @@ summary,
  * a second frame or selected fill. The target owns its ring room inside its box,
  * padded by it, so a choice at a clipped toolbar edge keeps all four sides, and so
  * does every mark on it. A list that sets its marks on a heading's edge hangs each
- * face out by that padding, `--choice-pad`. A page's label is `.choice`, and one
- * Leaf or a package draws is `.lf-choice`, so the page's own CSS for `.choice` leaves
- * Leaf's alone. */
-:is(.lf-choice, .choice) {
+ * face out by that padding, `--choice-pad`. A page's own label wears `lf-choice`
+ * too. */
+.lf-choice {
   --choice-pad: max(var(--sp-1), var(--focus-ring-room));
   display: inline-flex;
   align-items: center;
@@ -705,14 +703,14 @@ summary,
  * white on the page's cream and different in each browser; a mark Leaf draws itself;
  * no mark, with the chosen label tinted; framed or joined buttons. The user preferred
  * a reasonable design from a UI library to a look of Leaf's own. */
-:is(.lf-choice, .choice) {
+.lf-choice {
   --wa-form-control-border-color: var(--wa-color-neutral-border-loud);
 }
-:is(.lf-choice, .choice):has(> input:disabled) {
+.lf-choice:has(> input:disabled) {
   opacity: 0.5;
   cursor: not-allowed;
 }
-:is(.lf-choice, .choice) > input {
+.lf-choice > input {
   flex: none;
   margin: 0;
   font-size: inherit;
@@ -723,10 +721,13 @@ summary,
     appearance: auto;
   }
 }
-:is(.lf-choice, .choice) > input[data-lf-focus-visible] {
+.lf-choice > input {
+  --lf-focus-box: .lf-choice;
+}
+.lf-choice > input[data-lf-focus-visible] {
   outline: none;
 }
-:is(.lf-choice, .choice):has(> input[data-lf-focus-visible]) {
+.lf-choice[data-lf-control-focus-visible] {
   outline: var(--focus-ring);
   --lf-wears-ring: 1;
 }
@@ -822,7 +823,7 @@ wa-copy-button.lf-icon-action {
 }
 /* A commit pressed, such as a multiple-choice question's Done once it is answered,
    is marked in the ok tone, as a chosen answer is (below). */
-:is(.lf-btn.lf-commit, .button.primary)[aria-pressed="true"] {
+.lf-btn.lf-commit[aria-pressed="true"] {
   color: var(--ok-ink);
   border-color: var(--ok);
   background: var(--ok-tint);
@@ -831,10 +832,7 @@ wa-copy-button.lf-icon-action {
    ground. It is the faces' own state, so it stands here beside them; a disc, which
    shows its state on its disc, such as Dictate listening, keeps its box clear (the
    disc, below). */
-:is(.lf-btn, .button, .lf-icon-action):is(
-  [aria-pressed="true"],
-  [aria-checked="true"]
-) {
+:is(.lf-btn, .lf-icon-action):is([aria-pressed="true"], [aria-checked="true"]) {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--chip);
@@ -1394,7 +1392,10 @@ wa-copy-button.lf-icon-action {
 /* Comment boxes, the response bar's field (`.lf-response-control`, response.css) and its
    choices share their frame and focus paint. Other uses of the editor plumbing, such
    as option entry, supply their own face. Containers place comment boxes; they do not
-   supply a second frame. */
+   supply a second frame. A field shows its words' focus, and not its buttons'. */
+.lf-compose-field > leaf-text {
+  --lf-focus-box: .lf-compose-field;
+}
 .lf-comment-box > leaf-composition-field > .lf-compose-field,
 .lf-response-control,
 .lf-response-face {
@@ -1404,7 +1405,7 @@ wa-copy-button.lf-icon-action {
 }
 .lf-comment-box
   > leaf-composition-field
-  > .lf-compose-field:has(> leaf-text[data-lf-focus-visible]),
+  > .lf-compose-field[data-lf-control-focus-visible],
 .lf-response-control[data-lf-focus-visible],
 .lf-response-face[data-lf-focus-visible] {
   outline: var(--focus-ring);
@@ -1558,7 +1559,7 @@ wa-copy-button.lf-icon-action {
   max-height: 50vh;
   overflow-y: auto;
 }
-/* A single-line field or select, authored as .field or offered by a widget, is Web
+/* A single-line field or select, authored as .lf-field or offered by a widget, is Web
    Awesome's native text field or select, generated onto these elements into
    vendor/webawesome-native.css: the field's frame a line tall (`--lf-line`), and a
    select's chevron, so a row of them beside .lf-btn reads as one set of controls. It
@@ -1585,7 +1586,7 @@ wa-copy-button.lf-icon-action {
     [type="reset"],
     [type="image"]
   )
-):is(.lf-ui, .field) {
+):is(.lf-ui, .lf-field) {
   --wa-form-control-background-color: var(--card);
   --wa-form-control-height: var(--lf-line);
   box-sizing: border-box;
@@ -1595,7 +1596,7 @@ wa-copy-button.lf-icon-action {
     border-color: transparent;
   }
 }
-textarea.field {
+textarea.lf-field {
   --wa-form-control-background-color: var(--card);
   --wa-form-control-height: var(--lf-line);
   box-sizing: border-box;
@@ -1605,7 +1606,7 @@ textarea.field {
    picture the palette can't recolour. */
 :where(select:not([multiple]):is(:not([size]), [size="0"], [size="1"])):is(
   .lf-ui,
-  .field
+  .lf-field
 ) {
   &:dir(rtl) {
     background-position: center left var(--wa-form-control-padding-inline);
@@ -1616,7 +1617,7 @@ textarea.field {
   }
 }
 .lf-ui :is(input, textarea)::placeholder,
-:is(input, textarea):is(.lf-ui, .field)::placeholder {
+:is(input, textarea):is(.lf-ui, .lf-field)::placeholder {
   color: var(--muted);
   opacity: 1;
 }
@@ -1642,7 +1643,7 @@ textarea.field {
    speaker's voice take that speaker's face instead (`span[data-lf-voice]`, above), so
    held news, which is Leaf's, is regular italic and stands apart by its ink: the user
    kept that over bold news on 31 October. A generated control in the document takes
-   the chrome's size (surfaces.css, `.lf-ui-face`), so the face inherits its line's; a
+   the chrome's size (control-face.css, `.lf-ui-face`), so the face inherits its line's; a
    press whose box stands beside its line rather than in it states the line's size
    where it is placed. */
 :where(button).lf-inline-action {

@@ -947,6 +947,21 @@ test("a change beside a kept quote's copy, where it was told apart, changes the 
   trackQuotes([]);
 });
 
+// A selection's capture asks for its quote before anchor placement keeps it, as the
+// draft's. The quote joins the index the first time it is asked after, however its
+// answer was kept, so a paragraph drawn again with the same words is heard as a change
+// to the quote, whose copy now stands in other text nodes.
+test("a quote first answered before the index kept it is heard when its words are redrawn", () => {
+  document.body.innerHTML = '<main><p id="x">alpha beta gamma</p><p>delta</p></main>';
+  assert.equal(findQuote(pageText(), "beta", {}).length, 1);
+  trackQuotes(["beta"]);
+  assert.equal(findQuote(pageText(), "beta", {}).length, 1);
+  const { version } = quotesChanged(0);
+  /** @type {Element} */ (document.querySelector("#x")).innerHTML = "alpha beta gamma";
+  assert.deepEqual(quotesChanged(version).quotes, ["beta"]);
+  trackQuotes([]);
+});
+
 // `says` and `wrote` are two answers for one element, and a kept reading must not hand
 // back the other one's.
 test("a message's body reads as its own document: the markup and the text alike", () => {

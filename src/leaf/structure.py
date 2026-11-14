@@ -1,6 +1,7 @@
 """One parsed source document and its structural readings."""
 
 import hashlib
+import json
 import re
 from collections.abc import Mapping
 from functools import cached_property, lru_cache
@@ -11,7 +12,7 @@ import turbohtml
 from .findings import Finding
 from .registry.kernel import kernel_authored
 from .resource_urls import ReferenceError, resource_reference
-from .schema import EVENT_ID, MEDIA_DIR
+from .schema import ASSETS, EVENT_ID, MEDIA_DIR
 
 UTF8_BOM = "\ufeff"
 
@@ -75,6 +76,14 @@ SECTIONING_TAGS = {"section", "article", "main", "body"}
 # The page-wide allocations the runtime reads from `body`, which a sample template
 # carries onto its child's body (`$authored` in the kernel registry).
 PAGE_ALLOCATIONS = kernel_authored()["allocations"]
+# The `lf-` classes an author writes: those the kernel's selector idioms name, such as
+# `lf-btn` on a button that wears Leaf's face (browser/registry.json). A page's own
+# names never take one of Leaf's faces, so where it wants one it writes Leaf's name.
+AUTHORED_CLASSES = frozenset(
+    name
+    for key in json.loads((ASSETS / "registry.json").read_text(encoding="utf-8"))
+    for name in re.findall(r"\.(lf-[\w-]+)", key)
+)
 # The allocations a page occurrence may state, each attribute with the values it takes:
 # a block's width in the page's flow, whether it bounds its own height, the height in
 # CSS pixels of a widget that draws into a box of a stated height (x-height), and the
@@ -592,8 +601,9 @@ class Authoring:
         # {tag, line, under} per id-less pointable block, where under is the nearest
         # ancestor carrying an id. This is where a user's aim would otherwise land.
         self.bare_blocks = []
-        # (tag, line, markers) per element wearing a data-lf-* attribute or lf-* class.
-        # The prefix reserves names the runtime may coin later, without another list.
+        # (tag, line, markers) per element wearing a data-lf-* attribute or lf-* class
+        # but the kernel's idioms (`AUTHORED_CLASSES`). The prefix reserves names the
+        # runtime may coin later, without another list.
         self.reserved_markers = []
         # The same parse retains ordinary HTML, exact text, and construction locations
         # for inspection. Widget validation keeps its specialized index; content is one
@@ -738,7 +748,7 @@ class Authoring:
         markers += sorted(
             name
             for name in (attrs.get("class") or "").split()
-            if name.startswith("lf-")
+            if name.startswith("lf-") and name not in AUTHORED_CLASSES
         )
         if markers:
             self.reserved_markers.append((tag, line, markers))

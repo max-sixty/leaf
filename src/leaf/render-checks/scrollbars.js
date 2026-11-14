@@ -4,21 +4,17 @@
  * reading asks the composed geometry, including unmarked and shadow scrollers.
  * It reads the content at its vertical end without scrolling or changing styles,
  * so a check neither disturbs the reader nor depends on whether a hidden overlay
- * scrollbar happened to paint in the headless browser. It passes over what an
- * off-screen `content-visibility: auto` box skips, such as a long text document's runs,
- * since asking about those elements makes the browser style them first: the live
- * view's reading of a megabyte of text spent 1.4 s doing that. So it can't see the end
- * of such a document while the reader is away from it. SVG readings use native
- * primitive bounds: stroke/filter extents, clip paths and nested SVG viewport
- * transforms are not reconstructed here. */
-import {
-  pageDocument,
-  renderedParent,
-  upFrom,
-  userScrollport,
-} from "/runtime/check-api.js";
+ * scrollbar happened to paint in the headless browser. It walks only what the browser
+ * draws (`drawnElements` in runtime/shadow-tree.js), passing over a hidden tab and
+ * what an off-screen `content-visibility: auto` box skips, such as a long text
+ * document's runs, since asking about those elements makes the browser style them
+ * first: the live view's reading of a megabyte of text spent 1.4 s doing that. So it
+ * can't see the end of such a document while the reader is away from it. SVG readings
+ * use native primitive bounds: stroke/filter extents, clip paths and nested SVG
+ * viewport transforms are not reconstructed here. */
+import { drawnElements, renderedParent, userScrollport } from "/runtime/check-api.js";
 import { at, place } from "./locate.js";
-import { openRoots } from "./open-roots.js";
+import { drawnPage } from "./open-roots.js";
 
 /** @param {Element} el */
 const visible = (el) =>
@@ -63,86 +59,93 @@ const paintedBottom = (el, rect, scroller) => {
   return bottom >= top ? bottom : -Infinity;
 };
 
-export function scrollbarClearance() {
-  const root = pageDocument();
-  if (!root) return [];
+/** @param {Element[]} [drawn] what the browser draws of the page (`drawnPage`) */
+export function scrollbarClearance(drawn = drawnPage()) {
   const found = [];
-  for (const tree of openRoots(root))
-    for (const box of [
-      ...(tree === root ? [root] : []),
-      ...tree.querySelectorAll("*"),
-    ]) {
-      if (!(box instanceof HTMLElement) || !visible(box)) continue;
-      const style = getComputedStyle(box);
-      if (!userScrollport(style.overflowX) || box.scrollWidth <= box.clientWidth + 1)
-        continue;
-      const bar = getComputedStyle(box, "::-webkit-scrollbar");
-      if (
-        style.scrollbarWidth === "none" ||
-        bar.display === "none" ||
-        bar.height === "0px"
-      )
-        continue;
-      // A classic track occupies space below the content instead of covering it.
-      const allocated =
-        box.offsetHeight -
-        box.clientHeight -
-        px(style.borderTopWidth) -
-        px(style.borderBottomWidth);
-      const required = Math.max(0, (px(bar.height) || 15) - allocated);
-      if (!required) continue;
-      let last = -Infinity,
-        content = "";
-      /** @param {Element} el @param {DOMRectReadOnly} rect @param {string} kind */
-      const take = (el, rect, kind) => {
-        const bottom = paintedBottom(el, rect, box);
-        if (bottom > last) {
-          last = bottom;
-          content = kind;
-        }
-      };
-      for (const scope of openRoots(box)) {
-        const walk = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
-        for (let node; (node = walk.nextNode());) {
-          const parent = upFrom(node);
-          if (!parent || !node.textContent?.trim() || !visible(parent)) continue;
-          const range = document.createRange();
-          range.selectNodeContents(node);
-          for (const rect of range.getClientRects()) take(parent, rect, "words");
-        }
-        for (const el of scope.querySelectorAll(controls))
-          if (!(el instanceof SVGElement) && visible(el))
-            take(el, el.getBoundingClientRect(), "controls");
-        // The SVG viewport includes the drawing's own blank margin. Its painted
-        // primitives carry native transformed bounds; text was read above. A
-        // definition without a rendered instance has no client rectangles.
-        for (const el of scope.querySelectorAll("svg *"))
-          if (
-            (el instanceof SVGGeometryElement ||
-              el instanceof SVGImageElement ||
-              el instanceof SVGUseElement) &&
-            visible(el) &&
-            el.getClientRects().length
-          )
-            take(el, el.getBoundingClientRect(), "controls");
+  for (const box of drawn) {
+    if (!(box instanceof HTMLElement)) continue;
+    const style = getComputedStyle(box);
+    if (
+      !userScrollport(style.overflowX) ||
+      !visible(box) ||
+      box.scrollWidth <= box.clientWidth + 1
+    )
+      continue;
+    const bar = getComputedStyle(box, "::-webkit-scrollbar");
+    if (
+      style.scrollbarWidth === "none" ||
+      bar.display === "none" ||
+      bar.height === "0px"
+    )
+      continue;
+    // A classic track occupies space below the content instead of covering it.
+    const allocated =
+      box.offsetHeight -
+      box.clientHeight -
+      px(style.borderTopWidth) -
+      px(style.borderBottomWidth);
+    const required = Math.max(0, (px(bar.height) || 15) - allocated);
+    if (!required) continue;
+    let last = -Infinity,
+      content = "";
+    /** @param {Element} el @param {DOMRectReadOnly} rect @param {string} kind */
+    const take = (el, rect, kind) => {
+      const bottom = paintedBottom(el, rect, box);
+      if (bottom > last) {
+        last = bottom;
+        content = kind;
       }
-      if (!Number.isFinite(last)) continue;
-      const bounds = box.getBoundingClientRect();
-      const clear =
-        box.scrollHeight +
-        box.clientTop -
-        box.scrollTop -
-        (last - bounds.top) / scaleY(box);
-      // scrollHeight rounds to integer CSS pixels; tolerate that rounding alone.
-      if (clear < required - 1)
-        found.push({
-          code: "scrollbar-clearance",
-          at: at(box),
-          place: place(box),
-          clear: Math.round(clear),
-          required,
-          content,
-        });
+    };
+    const inside = drawnElements(box);
+    for (const el of inside) {
+      // A text node's own element, or the host of the shadow root it stands in.
+      const words = [...el.childNodes, ...(el.shadowRoot?.childNodes ?? [])].filter(
+        (node) => node instanceof Text && node.data.trim(),
+      );
+      if (!words.length || !visible(el)) continue;
+      for (const node of words) {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        for (const rect of range.getClientRects()) take(el, rect, "words");
+      }
     }
+    for (const el of inside)
+      if (
+        el !== box &&
+        el.matches(controls) &&
+        !(el instanceof SVGElement) &&
+        visible(el)
+      )
+        take(el, el.getBoundingClientRect(), "controls");
+    // The SVG viewport includes the drawing's own blank margin. Its painted
+    // primitives carry native transformed bounds; text was read above. A
+    // definition without a rendered instance has no client rectangles.
+    for (const el of inside)
+      if (
+        (el instanceof SVGGeometryElement ||
+          el instanceof SVGImageElement ||
+          el instanceof SVGUseElement) &&
+        visible(el) &&
+        el.getClientRects().length
+      )
+        take(el, el.getBoundingClientRect(), "controls");
+    if (!Number.isFinite(last)) continue;
+    const bounds = box.getBoundingClientRect();
+    const clear =
+      box.scrollHeight +
+      box.clientTop -
+      box.scrollTop -
+      (last - bounds.top) / scaleY(box);
+    // scrollHeight rounds to integer CSS pixels; tolerate that rounding alone.
+    if (clear < required - 1)
+      found.push({
+        code: "scrollbar-clearance",
+        at: at(box),
+        place: place(box),
+        clear: Math.round(clear),
+        required,
+        content,
+      });
+  }
   return found;
 }

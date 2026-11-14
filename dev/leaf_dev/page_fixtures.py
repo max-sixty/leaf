@@ -26,6 +26,7 @@ from leaf.cli import cli
 from leaf.event_log import read_events
 from leaf.interaction_log import append_interactions
 from leaf.media import media_name
+from leaf.registry.storage import layer_record
 from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
 from leaf.schema import MEDIA_DIR, MEDIA_TYPES
 from leaf.structure import SourceDocument
@@ -111,6 +112,9 @@ def source_manifest(source: Path) -> Path | None:
 
 
 def source_packages(source: Path) -> list[str]:
+    # A page directory's `index.html` takes the selection its layer record keeps.
+    if (record := layer_record(source.parent)) is not None:
+        return list(record["packages"])
     manifest = source_manifest(source) or DEFAULT_PACKAGES
     return json.loads(manifest.read_text(encoding="utf-8"))
 

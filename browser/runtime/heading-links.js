@@ -50,7 +50,7 @@ import {
   watchNear,
   writeInsets,
 } from "./block-controls.js";
-import { copyControl, copyTrigger } from "./copy-control.js";
+import { copyControl, pressCopy } from "./copy-control.js";
 import { anchorReading, headerLevels, nameAnchor } from "./css-anchors.js";
 import { focusDestination, focused, onCurrentLocation } from "./focus.js";
 import { inlineStyle, keeps, keepsHidden, layoutPx } from "./keeps.js";
@@ -58,6 +58,7 @@ import { pageScope } from "./keyboard/register.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { HEADING, inChrome, pageQueryAll } from "./passages.js";
 import { upFrom } from "./shadow-tree.js";
+import { contentsRects } from "./shown-box.js";
 
 /** @typedef {{heading: Element, control: ReturnType<typeof copyControl>, shown: Set<string>, events: AbortController, stop: () => void}} HeadingLink */
 /** @type {Map<Element, HeadingLink>} */
@@ -165,9 +166,7 @@ function makeLink(heading) {
 /** @param {Element} heading */
 function firstLine(heading) {
   const box = heading.getBoundingClientRect();
-  const range = document.createRange();
-  range.selectNodeContents(heading);
-  const line = range.getClientRects()[0];
+  const [line] = contentsRects(heading);
   return line
     ? { top: line.top - box.top, height: line.height }
     : { top: 0, height: box.height };
@@ -326,13 +325,9 @@ export function watchHeadingLinks() {
         title: "copy link to section",
         // The link's own control beside the heading takes a finger.
         touch: false,
-        // A control made by this press has not drawn its button yet.
         run: async () => {
           const link = stand(headingOn(focused()));
-          if (!link) return;
-          await customElements.whenDefined(link.control.localName);
-          await link.control.updateComplete;
-          copyTrigger(link.control)?.click();
+          if (link) await pressCopy(link.control);
         },
       },
     ],

@@ -254,7 +254,9 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
     drawn = rings_drawn(page)
     worn = [(seen["who"].split(" ")[0], seen["rule"]) for seen in drawn if seen["here"]]
     assert [who for who, _rule in worn] == ["div.lf-margin-preview-card"], drawn
-    assert ".lf-page-thread" in worn[0][1], drawn
+    # The focused thread names the card as the box that shows its focus
+    # (`--lf-focus-box`), so the card's ring is the one a control's focus marks.
+    assert "[data-lf-control-focus-visible]" in worn[0][1], drawn
     assert not (faults := ring_faults(drawn, "on a card the keyboard opened")), (
         "\n".join(faults)
     )

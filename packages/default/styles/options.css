@@ -382,8 +382,11 @@ lf-option .lf-pick:not([data-lf-said]) {
  * mark the next toggle takes. */
 @media screen {
   lf-options[choose]:not(:where([data-lf-exhibit]) *)
-    > lf-option:not([chosen]):is(:hover, :has(> .lf-pick[data-lf-focus]))
-    > .lf-pick::before {
+    > lf-option:not([chosen]):hover
+    > .lf-pick::before,
+  lf-options[choose]:not(:where([data-lf-exhibit]) *)
+    > lf-option:not([chosen])
+    > .lf-pick[data-lf-focus]::before {
     border-color: var(--ink-2);
   }
 }
@@ -550,7 +553,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     /* The aim wash: the cell under the pointer or the keyboard deepens toward the ink,
      * which reads in both palettes. The fill is not transitioned, since the tokens
      * change when the palette flips and every cell would animate between them. */
-    & > lf-option:is(:hover, :has(> .lf-pick[data-lf-focus])) {
+    & > lf-option:is(:hover, [data-lf-control-focus]) {
       --lf-ground: color-mix(in srgb, var(--fill) 92%, var(--ink));
     }
     /* The pick fills the cell with the ok tint and rings it in the ok green inside its
@@ -713,84 +716,31 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
       clear: both;
     }
   }
-  /* Focus inside the control is carried by the exact row, so the obligation's location ring
-   * around it is suppressed rather than reading as a second border. The obligation is matched
-   * as a widget root as well as a descendant, so an obligation at the page's top level is
-   * reached too, and so is a choosing lf-options that is the obligation itself. Inside the
-   * `:has()`, the exclusion of a quoted group names the group by its tag. Written as
-   * `:where([data-lf-exhibit]) *`, it made Firefox check every element added to the page
-   * against the rule: inserting a listing of 20,000 rows took 86 ms, and 15 keyed. */
-  :is(
-      lf-activity,
-      lf-ask,
-      lf-board,
-      lf-card,
-      lf-chart,
-      lf-code,
-      lf-column,
-      lf-draft,
-      lf-gloss,
-      lf-note,
-      lf-num,
-      lf-option,
-      lf-options,
-      lf-pane,
-      lf-part,
-      lf-parts,
-      lf-sample,
-      lf-shot,
-      lf-tab,
-      lf-tabs,
-      lf-tally,
-      lf-text-document,
-      lf-toc,
-      :is(
-          lf-activity,
-          lf-ask,
-          lf-board,
-          lf-card,
-          lf-chart,
-          lf-code,
-          lf-column,
-          lf-draft,
-          lf-gloss,
-          lf-note,
-          lf-num,
-          lf-option,
-          lf-options,
-          lf-pane,
-          lf-part,
-          lf-parts,
-          lf-sample,
-          lf-shot,
-          lf-tab,
-          lf-tabs,
-          lf-tally,
-          lf-text-document,
-          lf-toc
-        )
-        *
-    )[data-lf-obligation]:has(
-      lf-options[choose]:not(:where([data-lf-exhibit] lf-options))
-        [data-lf-focus-visible]
-    ),
-  lf-options[choose][data-lf-obligation]:not(:where([data-lf-exhibit]) *):has(
-      [data-lf-focus-visible]
-    ) {
+  /* Focus inside the control is carried by the exact row, so the control holding it
+   * stands down the location ring of the obligation around it (page-paint.js,
+   * `locationStandsDown`), which would otherwise read as a second border. */
+  lf-options[choose]:not(:where([data-lf-exhibit] lf-options)) [data-lf-focus-visible] {
     --lf-obligation-ring: none;
   }
+  /* A joined group's row shows its mark's focus: its ring, and the aim wash above. */
+  lf-options[choose] > lf-option > .lf-pick {
+    --lf-focus-box: lf-option;
+  }
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
-    > lf-option:has(> .lf-pick[data-lf-focus-visible]) {
+    > lf-option[data-lf-control-focus-visible] {
     outline: var(--focus-ring);
   }
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
-    > lf-option:has(> .lf-pick[data-lf-focus]) {
+    > lf-option[data-lf-control-focus] {
     --lf-wears-ring: 1;
   }
   /* The add field's own outline is off, so its row answers the keyboard for it, in a
    * settled group opened by its disclosure as well. */
+  .lf-another > leaf-composition-field > .lf-compose-field > leaf-text {
+    --lf-focus-box: .lf-another;
+  }
   lf-options[choose]:not(:where([data-lf-exhibit]) *)
-    > .lf-another:has(leaf-text[data-lf-focus-visible]) {
+    > .lf-another[data-lf-control-focus-visible] {
     outline: var(--focus-ring);
     --lf-wears-ring: 1;
   }

@@ -1,9 +1,9 @@
 # For a direct local landing, `wt merge` runs these checks after rebasing, so the tree
 # they check is the one that becomes main. They are the gates a pull request's combined
 # `test` job runs on the code. The website's delivery checks — the site build, the
-# Worker's dry-run deploy, and the browser pass over the bundled release — stay with
-# `publish-site`, which runs them before it deploys: together they take minutes and a
-# Docker daemon, and here they would run beside a suite that is sensitive to load.
+# Worker's dry-run deploy, and the browser pass over the bundled release — run in a pull
+# request's `test` job and in `publish-site`, but not here: together they take minutes
+# and a Docker daemon, and here they would run beside a suite that is sensitive to load.
 #
 # A hook that rewrites (prettier, ruff, the whitespace fixers) fails the merge and leaves
 # the rewrite uncommitted in the worktree. Read it, then `wt merge` again — the squash

@@ -87,6 +87,7 @@ import {
   typesText,
 } from "./focus.js";
 import { PRESSES } from "./control-selectors.js";
+import { CARRY } from "./box-motion.js";
 import { browserScrolls, watchScrollEnds } from "./arrivals.js";
 import { pointerAt } from "./pointer.js";
 import { repaint } from "./repaint.js";
@@ -183,8 +184,11 @@ watchScrollEnds(() => {
 });
 // Whether a motion under way carries `node`: a glide in one of the `boxes` scrolling it
 // (scrolling.js, `scrollGoal`), or a finite animation moving a box holding it, as the
-// slide a moved card makes from where it stood. The sheen's endless one, a fade, one held
-// paused and one on a box's pseudo-element bring the user nowhere.
+// slide a moved card makes from where it stood, or a floating box's part box-motion.js
+// carries from where it was drawn (`CARRY`), as the thread card's list travels from the
+// passage a walk left to the one it reached, drawn below the window meanwhile. The
+// sheen's endless one, a fade, a cut, one held paused and one on a box's pseudo-element
+// bring the user nowhere.
 /** @param {Element} node @param {Element[]} boxes */
 const carried = (node, boxes) =>
   boxes.some((box) => scrollGoal(box) !== box.scrollTop) ||
@@ -195,7 +199,9 @@ const carried = (node, boxes) =>
       effect?.target != null &&
       !effect.pseudoElement &&
       effect.getComputedTiming().endTime !== Infinity &&
-      effect.getKeyframes().some((key) => "transform" in key || "translate" in key) &&
+      effect
+        .getKeyframes()
+        .some((key) => "transform" in key || "translate" in key || CARRY in key) &&
       under(node, effect.target)
     );
   });

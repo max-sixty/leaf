@@ -2287,11 +2287,6 @@ describe("website page agent", () => {
           }),
         ],
         ["api/news", "saved-reading"],
-        ["api/deferred?source=table&source_revision=one&key=row", "saved-detail"],
-        [
-          "api/deferred?source=table&source_revision=one&key=a~b%2Acaf%C3%A9+%2F%2B",
-          "special-detail",
-        ],
         ["revisions/r3-private.html", "<p>Private revision</p>"],
       ]) {
         const bytes = new TextEncoder().encode(body);
@@ -2333,25 +2328,6 @@ describe("website page agent", () => {
           )
         ).text(),
       ).toBe("saved-reading");
-      expect(
-        await (
-          await session.fetch(
-            new Request(
-              "https://leaf.page/examples/triage-board/api/deferred?key=row&source=table&source_revision=one",
-            ),
-          )
-        ).text(),
-      ).toBe("saved-detail");
-      const deferred = new URL("https://leaf.page/examples/triage-board/api/deferred");
-      deferred.search = new URLSearchParams({
-        key: "a~b*café /+",
-        source_revision: "one",
-        source: "table",
-        through_seq: "12",
-      }).toString();
-      const detail = await session.fetch(new Request(deferred));
-      expect(detail.headers.get("Leaf-State-Source")).toBe("durable");
-      expect(await detail.text()).toBe("special-detail");
       expect(
         await (
           await session.fetch(

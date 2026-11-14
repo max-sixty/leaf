@@ -1149,12 +1149,6 @@ _TEXT = {
             f" {v['expression']!r} is invalid: {v['error']}"
         )
     ),
-    "contract-records": _declared(
-        lambda v: (
-            f"$data contract {v['contract']!r} records must name distinct"
-            " items, key, and deferred fields"
-        )
-    ),
     "contract-schema": _declared(
         lambda v: (
             f"$data contract {v['contract']!r} has an invalid JSON Schema:"

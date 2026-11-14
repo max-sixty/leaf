@@ -13,7 +13,6 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
-    reported_browser_errors,
     resized,
     scroll_settled,
     sending,
@@ -437,16 +436,16 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
         expect(folds.last).not_to_be_visible()
         expect(row).to_have_attribute("aria-selected", "true")
         expect(other).to_have_attribute("aria-selected", "false")
-        # Reading new evidence does not take ownership of a selection made while
-        # that read is in flight. Hold one boundary to make the ordering exact.
+        # Preparing new evidence does not take ownership of a selection made while
+        # that preparation is in flight. Hold one boundary to make the ordering exact.
         page.evaluate("""() => {
           const diff = document.getElementById('patch');
-          const readEntry = diff.readEntry.bind(diff);
+          const prepareEntry = diff.prepareEntry.bind(diff);
           const held = new Promise(resolve => window.releaseEvidence = resolve);
-          diff.readEntry = async (...args) => {
+          diff.prepareEntry = async (...args) => {
             window.evidenceHeld = true;
             await held;
-            return readEntry(...args);
+            return prepareEntry(...args);
           };
         }""")
         data_model.cmd_data_set(
@@ -733,116 +732,6 @@ def test_a_patch_resumes_preparation_on_return_and_keeps_its_finished_rows(
         await diff.sourceRendering;
         return row !== null && row === diff.shadowRoot.querySelector('[data-line]');
     }"""), "a completed patch replaced its rows on return"
-
-
-def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serve):
-    """A recovered network has a visible route to retry the expanded file."""
-    url = serve(
-        leaf_page(
-            "Retry a file diff",
-            '<h1>Retry a file diff</h1><lf-diff id="patch" source="review-patch" '
-            'collapsed></lf-diff><button id="after" '
-            'style="position:fixed;right:1rem;bottom:1rem">After diff</button>',
-        )
-    )
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "review-patch",
-        patch_manifest("""diff --git a/config.py b/config.py
---- a/config.py
-+++ b/config.py
-@@ -1 +1 @@
--enabled = False
-+enabled = True
-"""),
-    )
-    context = browser.new_context()
-    attempts = []
-    pending = []
-
-    def fail_until_success(route):
-        attempts.append(route.request.url)
-        if len(attempts) == 1:
-            route.abort("failed")
-        elif len(attempts) < 4:
-            pending.append(route)
-        else:
-            route.continue_()
-
-    context.route("**/api/deferred*", fail_until_success)
-    with context.expect_event(
-        "requestfailed", lambda request: "/api/deferred" in request.url
-    ) as failed:
-        page = open_page(browser, url, context=context)
-    summary = page.locator("lf-diff summary")
-    summary.focus()
-    assert failed.value.failure == "net::ERR_FAILED"
-    expect(page.locator("lf-diff .lf-error")).to_contain_text(
-        "That file's diff failed to load: Failed to fetch"
-    )
-    reported_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
-    assert len(attempts) == 1
-
-    retry = page.get_by_role("button", name="Retry")
-    assert retry.count() == 1, "the expanded file needs an in-place retry control"
-
-    # A native Enter retry stays focused while in flight. Another Enter is ignored
-    # until it resolves, so it cannot start a parallel deferred request.
-    page.keyboard.press("Tab")
-    expect(retry).to_be_focused()
-    page.keyboard.press("Enter")
-    holding(page, pending, 1, "the first deferred retry")
-    assert len(attempts) == 2 and len(pending) == 1
-    expect(retry).to_have_attribute("aria-disabled", "true")
-    expect(retry).to_be_focused()
-    page.keyboard.press("Enter")
-    assert len(attempts) == 2 and len(pending) == 1
-    with page.expect_event(
-        "requestfailed", lambda request: "/api/deferred" in request.url
-    ) as failed:
-        pending.pop().abort("failed")
-    assert failed.value.failure == "net::ERR_FAILED"
-    reported_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
-    retry = page.get_by_role("button", name="Retry")
-    # Network failure precedes the new error paint. The old pending button can
-    # still hold focus, so wait for the replacement to accept another activation.
-    expect(retry).not_to_have_attribute("aria-disabled", "true")
-    expect(retry).to_be_focused()
-
-    # If the user tabs away during another pending retry, its failure must leave
-    # focus at the newer control instead of restoring the old Retry button.
-    page.keyboard.press("Enter")
-    holding(page, pending, 1, "the second deferred retry")
-    assert len(attempts) == 3 and len(pending) == 1
-    expect(retry).to_have_attribute("aria-disabled", "true")
-    page.keyboard.press("Tab")
-    after = page.get_by_role("button", name="After diff")
-    expect(after).to_be_focused()
-    with page.expect_event(
-        "requestfailed", lambda request: "/api/deferred" in request.url
-    ) as failed:
-        pending.pop().abort("failed")
-    assert failed.value.failure == "net::ERR_FAILED"
-    reported_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
-    expect(page.get_by_role("button", name="Retry")).not_to_have_attribute(
-        "aria-disabled", "true"
-    )
-    expect(after).to_be_focused()
-
-    # A successful retry falls back to the file disclosure when its error control
-    # is replaced by rendered source.
-    retry = page.get_by_role("button", name="Retry")
-    page.keyboard.press("Shift+Tab")
-    expect(retry).to_be_focused()
-    with page.expect_response(
-        lambda response: "/api/deferred" in response.url and response.status == 200
-    ):
-        page.keyboard.press("Enter")
-    expect(
-        page.locator('lf-diff [data-lf-datum=\'["config.py","new",1]\']')
-    ).to_contain_text("enabled = True")
-    expect(page.locator("lf-diff summary")).to_be_focused()
-    assert len(attempts) == 4
 
 
 def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(browser, serve):

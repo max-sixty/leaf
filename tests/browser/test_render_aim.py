@@ -1023,6 +1023,10 @@ def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
           return field.scrollHeight > field.clientHeight;
         }"""
     )
+    # The field's growth to its cap queues one more reveal of the caret at the end,
+    # which runs at the field's next scroll; let it run before scrolling the field to
+    # its top, or it scrolls the field back down and the wheel below moves the page.
+    rendered(page)
     box = bar.bounding_box()
     ceiling = page.evaluate(SHOWN_TOP)
     assert box["y"] >= ceiling and box["y"] + box["height"] <= 328, box

@@ -509,7 +509,7 @@ flowchart TD
   denied["Denied: run each leaf command alone"]
   open("Marked with --agent-id. Is the agent's turn open?")
   inturn["Its replies and starts act in that turn, on what it holds"]
-  refused["Its replies and starts are refused: the turn has ended"]
+  refused["Every command it runs is refused: the turn has ended"]
   bash --&gt; waits
   waits -- yes --&gt; again
   waits -- no --&gt; known
@@ -555,7 +555,7 @@ flowchart TD
                 <th scope="row">An agent whose turn ended</th>
                 <td>is marked, and the agent has no open turn</td>
                 <td>
-                  no reply, start or acknowledgement: each is refused (<code
+                  nothing: every command it runs is refused (<code
                     >state.<wbr />acting_agent_turn</code
                   >)
                 </td>
@@ -565,23 +565,23 @@ flowchart TD
           <p id="acting-unmarked">
             A subagent the session ran no turn for, such as one of the main thread's own
             workers, isn't marked and acts as the main thread. The mark follows the
-            agent rather than its turn, so the replies, starts and acknowledgements of a
-            fork still running after its turn ended are refused rather than taken for
-            the main thread's.
+            agent rather than its turn, so every command of a fork still running after
+            its turn ended is refused rather than taken for the main thread's.
           </p>
           <p id="acting-starting">
-            A fork runs before Leaf knows its agent id. The turn Leaf opens at the take
-            stays unnamed until the hooks module, once Claude Code has spawned or
-            resumed the fork, tells Leaf which agent runs it, and the hook's payload
-            names neither the turn nor the name the fork was spawned with. So while a
-            turn of the session awaits its agent
-            (<code>state.unnamed_agent_turns</code>), the hook denies the
-            <code>leaf</code> command of any agent that runs no open turn, with the
-            instruction to run it again: unmarked, a new fork's command would act as the
-            main thread, and marked, a resumed fork's would be refused as an ended
-            fork's. A worker of the main thread that runs a <code>leaf</code> command in
-            that second or so is asked to run it again too. A turn left unnamed, as one
-            whose spawn the module never reported, stops counting once it lapses.
+            A new fork runs before Leaf knows its agent id. The turn Leaf opens at the
+            take stays unnamed until the hooks module, once Claude Code has spawned the
+            fork, tells Leaf which agent runs it, and the hook's payload names neither
+            the turn nor the name the fork was spawned with. So while a turn of the
+            session awaits its agent (<code>state.unnamed_agent_turns</code>), the hook
+            denies the <code>leaf</code> command of any agent that runs no open turn,
+            with the instruction to run it again, since unmarked, a new fork's command
+            would act as the main thread. A worker of the main thread that runs a
+            <code>leaf</code> command in that second or so is asked to run it again too.
+            A resumed fork's agent id Leaf already knows, so it runs its new turn from
+            the moment Leaf opens it. Where any step of starting a fork fails, the
+            module ends its turn; a turn left unnamed otherwise, as by a reload of the
+            module mid-start, stops counting once it lapses.
           </p>
           <p id="acting-compound">
             A marked agent's Bash call with the word <code>leaf</code> anywhere but as
@@ -692,8 +692,10 @@ flowchart TD
                   reason, failed, or ended without answering.
                 </td>
                 <td>
-                  That the fork gave the thread back, and why; the main thread now owes
-                  its answer. If the session is idle, Leaf wakes it.
+                  That the fork gave the thread back, and why, and the user's waiting
+                  messages themselves, as new input at its next tool boundary or prompt
+                  (<code>holding.<wbr />left_by_agent_turns</code>). If the session is
+                  idle, Leaf wakes it.
                 </td>
               </tr>
               <tr id="ending-taken-over">
@@ -703,7 +705,10 @@ flowchart TD
                   of the messages the fork picked up, as the main thread can while the
                   fork runs.
                 </td>
-                <td>Nothing: the turn that took the thread over has it.</td>
+                <td>
+                  Nothing: the turn that took the thread over has it. The page's
+                  diagnostics name that turn.
+                </td>
               </tr>
             </tbody>
           </table>
@@ -716,11 +721,13 @@ flowchart TD
               ends. So Leaf tells it, in lines its clerk queues: one as a fork takes a
               thread, naming the fork so the main thread can SendMessage it, and one as
               the fork's run ends. A line waits for the main thread's next tool boundary
-              or prompt. Where the run leaves the main thread owing something, the
-              answer to a thread the fork gave back or a to-do the fork opened, Leaf
-              also wakes an idle session for it. The end of a resumed run is different:
-              Claude Code notifies the main thread of it, which starts a turn on an idle
-              session, and that turn reads the queued lines.
+              or prompt; a take's line still waiting as the fork's run ends leaves the
+              queue, since the end's line says where the thread stands. Where the run
+              leaves the main thread owing something, the answer to a thread the fork
+              gave back or a to-do the fork opened, Leaf also wakes an idle session for
+              it. The end of a resumed run is different: Claude Code notifies the main
+              thread of it, which starts a turn on an idle session, and that turn reads
+              the queued lines.
               <span class="tag ok">built</span>
               <span class="tag">only with the flag</span>
             </p>

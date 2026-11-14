@@ -830,6 +830,54 @@ def test_a_fork_whose_run_ends_before_its_spawn_returns_still_ends_its_turn(
     driven.quit()
 
 
+def test_a_fork_whose_start_leaf_could_not_record_still_ends_its_turn(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """A fork the module spawned whose agent Leaf couldn't record, as when Leaf's
+    process fails, ends the turn Leaf opened for it, so the main thread gets the
+    thread back at once rather than once the turn lapses."""
+    driven = ClaudeCode(
+        spawn,
+        "cc-unrecorded",
+        {
+            "forkAnswer": json.dumps({"line": "Checking the version", "work": "take"}),
+            "agentId": "agent-1",
+            "env": {"LEAF_FORK_WORK": "on"},
+            "forkStepFails": "started",
+        },
+    )
+    holding_page(driven, page_dir, monkeypatch)
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    wait_for(
+        lambda: band_lines(
+            driven.bands.get(timeout=STATED_TIMEOUT)["terminal"], "terminal"
+        ),
+        bool,
+        failure="the band never showed the page",
+    )
+    main_thread_request(driven)
+    asked = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Which Python?"}
+    )
+    driven.spawned.get(timeout=STATED_TIMEOUT)
+    wait_for(
+        lambda: clerk_model.queued("cc-unrecorded"),
+        lambda lines: any(f"gave thread {asked['id']}" in line for line in lines),
+        failure=lambda: (
+            f"the main thread never heard: {clerk_model.queued('cc-unrecorded')}"
+        ),
+    )
+    assert state_model.open_agent_turns("cc-unrecorded") == {}
+    [gave] = [
+        note
+        for note in read_interactions(page_dir, types=("fork_outcome",))
+        if note.get("step") == "end"
+    ]
+    assert gave["outcome"] == "hand_back" and "Leaf's step failed" in gave["why"]
+    driven.quit()
+
+
 @pytest.mark.parametrize("resumes", [True, False])
 def test_a_later_message_in_a_forks_thread_resumes_that_fork(
     page_dir, monkeypatch, spawn, sessionless, resumes

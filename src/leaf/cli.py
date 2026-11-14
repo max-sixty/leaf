@@ -202,6 +202,8 @@ class LeafGroup(click.Group):
         from leaf.refusals import Refused
 
         try:
+            if (ctx.obj or {}).get("agent"):
+                _refuse_an_ended_agent()
             return super().invoke(ctx)
         except Refused as error:
             reason = sandbox_refusal(error) or str(error)
@@ -261,11 +263,23 @@ class LeafGroup(click.Group):
         sys.exit(status)
 
 
+def _refuse_an_ended_agent() -> None:
+    """Refuse a command marked with an agent of the session whose turn has ended,
+    whatever the command (`state.acting_agent_turn`), so a fork resumed or running
+    late acts neither in its closed turn nor as the main thread."""
+    from leaf.harness import session_harness
+    from leaf.state import acting_agent_turn
+
+    if (harness := session_harness()) is not None:
+        acting_agent_turn(harness.session)
+
+
 def _acting_agent(ctx: click.Context, _param: click.Parameter, value) -> None:
     """Run the command as the agent of the session its harness names `value`
     (`state.AGENT_ID_VARIABLE`), for this command alone: the variable goes back as
     the command ends, so a command run in the same process, as a test's are, acts as
-    whoever it names. Its diagnostics name the agent (`record_command`)."""
+    whoever it names. Its diagnostics name the agent (`record_command`), and an
+    agent whose turn has ended has the command refused (`_refuse_an_ended_agent`)."""
     if not value:
         return
     from leaf.state import AGENT_ID_VARIABLE

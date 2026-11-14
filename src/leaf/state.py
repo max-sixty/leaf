@@ -771,8 +771,7 @@ AGENT_TURNS = Record(
         "`sessions/<digest>.agent-turns` (`session_file`): by turn id, the agent's "
         "id in its harness (null until the harness starts it), the session "
         "generation it opened in, when it opened and was last renewed, when it "
-        "closed, or null while it is open, and, by page directory, the last log "
-        "position a delivery it was handed by pointer carries (`pointed`).",
+        "closed, or null while it is open.",
         object_schema(
             {
                 "turns": {
@@ -784,13 +783,7 @@ AGENT_TURNS = Record(
                             "opened": TIME,
                             "renewed": TIME,
                             "closed": _TIME_OR_NONE,
-                        },
-                        {
-                            "pointed": {
-                                "type": "object",
-                                "additionalProperties": {"type": "integer"},
-                            }
-                        },
+                        }
                     ),
                 }
             }
@@ -875,12 +868,14 @@ def _write_agent_turns(session_id: str, turns: dict[str, dict]) -> None:
     AGENT_TURNS.write(session_file(session_id, AGENT_TURNS.kind), {"turns": turns})
 
 
-def open_agent_turn(session_id: str) -> str | None:
+def open_agent_turn(session_id: str, agent: str | None = None) -> str | None:
     """Open a turn for an agent the session is about to start or resume, and return
-    its id; None for a session that has ended. The turn is named once the harness
-    has started the agent (`name_agent_turn`), and until then no agent's `leaf`
-    command can act in it or as the main thread (`hooks.agent_command`). Each
-    opening mints a new id, so a closed turn never reopens."""
+    its id; None for a session that has ended. A resumed agent, whose id Leaf
+    already knows, runs the turn from its opening (`agent`); a new one's turn is
+    named once the harness has started it (`name_agent_turn`), and until then no
+    agent's `leaf` command can act in it or as the main thread
+    (`hooks.agent_command`). Each opening mints a new id, so a closed turn never
+    reopens."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if not session_live(record):
@@ -892,7 +887,7 @@ def open_agent_turn(session_id: str) -> str | None:
             {
                 **agent_turns(session_id),
                 turn: {
-                    "agent": None,
+                    "agent": agent,
                     "generation": record["generation"],
                     "opened": now,
                     "renewed": now,
@@ -939,27 +934,6 @@ def renew_agent_turn(session_id: str, agent: str) -> str | None:
                 turns[turn] = {**turns[turn], "renewed": now_iso()}
                 _write_agent_turns(session_id, turns)
         return turn
-
-
-def note_agent_pointer(
-    session_id: str, turn: str, pages: dict[str, int], *, deadline: float
-) -> None:
-    """Note that the open agent turn `turn` was handed, by pointer, each page's input
-    through the log position `pages` gives it, so its next tool boundary hands it
-    none of that again while it reads and acknowledges the delivery
-    (`hook_transport.carry_agent_turn`). A session lock still held at `deadline`
-    leaves the note unwritten, as the main thread's pointer note does
-    (`hook_transport.note_pointer`)."""
-    try:
-        with flocked(session_lock_path(session_id), deadline=deadline):
-            turns = agent_turns(session_id)
-            entry = turns.get(turn)
-            if entry is None or not agent_turn_open(entry, session_record(session_id)):
-                return
-            turns[turn] = {**entry, "pointed": {**entry.get("pointed", {}), **pages}}
-            _write_agent_turns(session_id, turns)
-    except TimeoutError:
-        return
 
 
 def close_agent_turns(

@@ -26,7 +26,8 @@ A turn holds a thread from the moment it takes the thread until another turn doe
   answer names, so an answer takes the thread as a pickup does. A fork may repeat its
   own answer, but not answer again a message the main thread answered over it.
 
-This is the one reading of who holds a message. Delivery (`forks.kept_from_main`),
+This is the one reading of who holds a message. Delivery (`forks.kept_from_main`,
+and `left_by_agent_turns` for what a fork's ended turn left the main thread),
 an agent's tool boundary (`to_carry`), the activity fold and every hook that reads
 it (`activity.agent_holds`), the end of an agent's run (`forks.ended`), keeping a
 thread back for a line fork (`forks.kept_back`) and an agent turn's right to act on
@@ -148,6 +149,12 @@ def _last_taken(
         if thread is not None and seq > last.get(thread, (0, None))[0]:
             last[thread] = (seq, turn)
     return {thread: turn for thread, (_seq, turn) in last.items()}
+
+
+def last_taken(events: list[dict], session: str) -> dict[str, str | None]:
+    """The turn of `session` that last took each thread, by a pickup or an answer
+    (`_last_taken`)."""
+    return _last_taken(events, newest_pickups(events, session), rounds(events).answers)
 
 
 def newest_pickups(events: list[dict], session: str) -> dict[str, tuple[int, str]]:
@@ -284,6 +291,25 @@ def agent_held(page: PageTransaction) -> set[str]:
         input_id
         for input_id, turn in holding_turns(page.events, claim["id"], running).items()
         if turn in running
+    }
+
+
+def left_by_agent_turns(page: PageTransaction) -> set[str]:
+    """The waiting messages whose newest pickup was in an agent turn of the
+    claimant's that no longer runs: the thread of a fork that gave it back, failed,
+    or lapsed. The main thread owes them now, and its next delivery hands them over
+    as input (`delivery.deliverable`), which its pickup takes the thread with."""
+    claim = page.active_claim
+    if claim is None:
+        return set()
+    stamps = agent_turn_stamps(claim)
+    if not stamps:
+        return set()
+    running = running_turns(claim)
+    return {
+        input_id
+        for input_id, turn in holding_turns(page.events, claim["id"], set()).items()
+        if turn in stamps and turn not in running
     }
 
 

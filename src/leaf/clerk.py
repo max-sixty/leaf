@@ -351,13 +351,16 @@ QUEUED = Record(
         "clerk wrote and each finding it passes on (`clerk`), and one as each fork "
         "of the conversation takes a thread and as its run ends (`forks`). Each says "
         "whether it wakes the session (`wake`): a line that tells it of work it now "
-        "owes wakes it while it is idle, until a hook has printed the line.",
+        "owes wakes it while it is idle, until a hook has printed the line. A line "
+        "that tells of an agent's running turn names it (`turn`), and leaves the "
+        "queue unheard once that turn ends (`unqueue`).",
         object_schema(
             {
                 "lines": {
                     "type": "array",
                     "items": object_schema(
-                        {"line": STRING, "wake": {"type": "boolean"}}
+                        {"line": STRING, "wake": {"type": "boolean"}},
+                        {"turn": STRING},
                     ),
                 }
             }
@@ -1041,21 +1044,46 @@ def _changed(words: str, put: str) -> tuple[int, int, str]:
     return start, end, put[start : len(put) - (len(words) - end)].strip()
 
 
-def queue(session_id: str, lines: list[str], *, wake: bool = False) -> None:
+def queue(
+    session_id: str, lines: list[str], *, wake: bool = False, turn: str | None = None
+) -> None:
     """Queue `lines` for the session's next step (`queued`), lines that wake an idle
-    session where they tell it of work it now owes (`wake`, `waking`)."""
+    session where they tell it of work it now owes (`wake`, `waking`); lines that
+    tell of the agent turn `turn` while it runs leave the queue unheard once it
+    ends (`unqueue`)."""
     if lines:
         with flocked(session_lock_path(session_id)):
-            _append(session_id, lines, wake=wake)
+            _append(session_id, lines, wake=wake, turn=turn)
 
 
-def _append(session_id: str, lines: list[str], *, wake: bool = False) -> None:
+def _append(
+    session_id: str, lines: list[str], *, wake: bool = False, turn: str | None = None
+) -> None:
     """`queue`, for a caller already holding the session's lock."""
     if lines:
         path = session_file(session_id, QUEUED.kind)
         held = QUEUED.read(path) or {"lines": []}
-        added = [{"line": line, "wake": wake} for line in lines]
+        added = [
+            {"line": line, "wake": wake, **({"turn": turn} if turn else {})}
+            for line in lines
+        ]
         QUEUED.write(path, {"lines": [*held["lines"], *added]})
+
+
+def unqueue(session_id: str, turns: set[str]) -> None:
+    """Take off the queue, unheard, the lines that tell of the agent turns `turns`,
+    which have ended: a fork's take, which tells the session to leave the thread to
+    the fork, no longer holds once the fork's end is the line it hears."""
+    path = session_file(session_id, QUEUED.kind)
+    with flocked(session_lock_path(session_id)):
+        held = QUEUED.read(path) or {"lines": []}
+        kept = [entry for entry in held["lines"] if entry.get("turn") not in turns]
+        if len(kept) == len(held["lines"]):
+            return
+        if kept:
+            QUEUED.write(path, {"lines": kept})
+        else:
+            path.unlink(missing_ok=True)
 
 
 def _put(page_dir, page, title, text, identity, passage) -> dict:
@@ -1121,15 +1149,21 @@ def waking(session_id: str) -> list[str]:
 
 
 def heard(session_id: str, lines: list[str]) -> None:
-    """Take `lines`, which a hook handed the agent, off the queue; lines queued since
-    stay for the next step."""
+    """Take `lines`, which a hook handed the agent, off the queue, each once; lines
+    queued since stay for the next step, and a line taken off meanwhile
+    (`unqueue`) is no longer there to take."""
     if not lines:
         return
     path = session_file(session_id, QUEUED.kind)
     with flocked(session_lock_path(session_id)):
         held = QUEUED.read(path) or {"lines": []}
-        printed = [entry["line"] for entry in held["lines"][: len(lines)]]
-        rest = held["lines"][len(lines) :] if printed == lines else held["lines"]
+        rest = list(held["lines"])
+        for line in lines:
+            at = next(
+                (i for i, entry in enumerate(rest) if entry["line"] == line), None
+            )
+            if at is not None:
+                del rest[at]
         if rest:
             QUEUED.write(path, {"lines": rest})
         else:

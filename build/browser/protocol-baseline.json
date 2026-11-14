@@ -39,7 +39,7 @@
     },
     "agent-turns": {
       "since": 44,
-      "schema": {"description":"The turns of the agents a session runs beside its main thread, such as a fork of its conversation that took a thread's work, in the state home's `sessions/<digest>.agent-turns` (`session_file`): by turn id, the agent's id in its harness (null until the harness starts it), the session generation it opened in, when it opened and was last renewed, when it closed, or null while it is open, and, by page directory, the last log position a delivery it was handed by pointer carries (`pointed`).","type":"object","properties":{"turns":{"type":"object","additionalProperties":{"type":"object","properties":{"agent":{"type":["string","null"]},"generation":{"type":"string"},"opened":{"type":"string","format":"date-time"},"renewed":{"type":"string","format":"date-time"},"closed":{"anyOf":[{"type":"null"},{"type":"string","format":"date-time"}]},"pointed":{"type":"object","additionalProperties":{"type":"integer"}}},"required":["agent","generation","opened","renewed","closed"]}}},"required":["turns"]}
+      "schema": {"description":"The turns of the agents a session runs beside its main thread, such as a fork of its conversation that took a thread's work, in the state home's `sessions/<digest>.agent-turns` (`session_file`): by turn id, the agent's id in its harness (null until the harness starts it), the session generation it opened in, when it opened and was last renewed, when it closed, or null while it is open.","type":"object","properties":{"turns":{"type":"object","additionalProperties":{"type":"object","properties":{"agent":{"type":["string","null"]},"generation":{"type":"string"},"opened":{"type":"string","format":"date-time"},"renewed":{"type":"string","format":"date-time"},"closed":{"anyOf":[{"type":"null"},{"type":"string","format":"date-time"}]}},"required":["agent","generation","opened","renewed","closed"]}}},"required":["turns"]}
     },
     "bridge": {
       "since": 13,
@@ -55,7 +55,7 @@
     },
     "clerk": {
       "since": 44,
-      "schema": {"description":"The lines Leaf queued for a session's next step, in the state home's `sessions/<digest>.clerk` (`state.session_file`): one for each record the clerk wrote and each finding it passes on (`clerk`), and one as each fork of the conversation takes a thread and as its run ends (`forks`). Each says whether it wakes the session (`wake`): a line that tells it of work it now owes wakes it while it is idle, until a hook has printed the line.","type":"object","properties":{"lines":{"type":"array","items":{"type":"object","properties":{"line":{"type":"string"},"wake":{"type":"boolean"}},"required":["line","wake"]}}},"required":["lines"]}
+      "schema": {"description":"The lines Leaf queued for a session's next step, in the state home's `sessions/<digest>.clerk` (`state.session_file`): one for each record the clerk wrote and each finding it passes on (`clerk`), and one as each fork of the conversation takes a thread and as its run ends (`forks`). Each says whether it wakes the session (`wake`): a line that tells it of work it now owes wakes it while it is idle, until a hook has printed the line. A line that tells of an agent's running turn names it (`turn`), and leaves the queue unheard once that turn ends (`unqueue`).","type":"object","properties":{"lines":{"type":"array","items":{"type":"object","properties":{"line":{"type":"string"},"wake":{"type":"boolean"},"turn":{"type":"string"}},"required":["line","wake"]}}},"required":["lines"]}
     },
     "codex-adapter": {
       "since": 13,
@@ -94,8 +94,8 @@
       "schema": {"description":"A page's layer selection, `layer.json` in its directory: the packages and theme every Leaf that reads the page composes, the generation an open document speaks, and the page protocol a Leaf last initialized it at.","type":"object","properties":{"packages":{"type":"array","items":{"type":"string","minLength":1},"uniqueItems":true},"theme":{"anyOf":[{"type":"null"},{"type":"object","properties":{"name":{"type":"string","minLength":1},"source":{"enum":["explicit","default"]}},"required":["name","source"]}]},"generation":{"type":"string","minLength":1},"protocol":{"type":"integer"}},"required":["packages","theme","generation","protocol"]}
     },
     "pointed": {
-      "since": 24,
-      "schema": {"description":"The pages whose input a hook handed a session's turn by pointer, in the state home's `sessions/<digest>.pointed` (`state.session_file`).","type":"object","properties":{"turn":{"description":"The turn the pointers were handed to.","type":"string"},"opened":{"description":"When that turn last opened (`turn_opened`): a prompt that opens it again hands the input over anew.","type":"string"},"pages":{"description":"Each page directory, with the last log position pointed at.","type":"object","additionalProperties":{"type":"integer"}}},"required":["turn","opened","pages"]}
+      "since": 44,
+      "schema": {"description":"The input a hook handed each of a session's turns by pointer, in the state home's `sessions/<digest>.pointed` (`state.session_file`): by turn id, the main thread's or an agent's, when that turn opened and each page directory with the last log position pointed at. A turn that opens again, or ends, leaves its entry behind.","type":"object","properties":{"turns":{"type":"object","additionalProperties":{"type":"object","properties":{"opened":{"type":"string"},"pages":{"type":"object","additionalProperties":{"type":"integer"}}},"required":["opened","pages"]}}},"required":["turns"]}
     },
     "preview": {
       "since": 13,

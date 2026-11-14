@@ -335,7 +335,9 @@ def test_the_fork_answers_with_its_own_reply_in_its_own_turn(
         "s1", agent="agent-1", turn=None, answer="Answered.", failed=None
     ) == [{"page": str(claimed), "thread": asked["id"], "outcome": "answer"}]
     assert state_model.open_agent_turns("s1") == {}
-    assert "answered" in clerk_model.queued("s1")[-1]
+    # The take's line, which the main thread never heard, leaves with the fork's end.
+    [told] = clerk_model.queued("s1")
+    assert "answered" in told, told
     # Another run of the agent ends nothing more.
     assert (
         forks_model.ended("s1", agent="agent-1", turn=None, answer="", failed=None)
@@ -603,7 +605,14 @@ def test_the_main_thread_answering_over_a_running_fork_takes_its_thread(
 
     assert forks_model.ended(
         "s1", agent="agent-1", turn=None, answer="Answered.", failed=None
-    ) == [{"page": str(claimed), "thread": asked["id"], "outcome": "taken_over"}]
+    ) == [
+        {
+            "page": str(claimed),
+            "thread": asked["id"],
+            "outcome": "taken_over",
+            "why": "the main thread took the thread",
+        }
+    ]
     assert clerk_model.queued("s1") == []
     more = said(claimed, "And the autocomplete service?", parent=asked["id"])
     assert "resume" not in taken_again(claimed, asked["id"], more)
@@ -730,8 +739,9 @@ def test_the_watch_wakes_the_idle_session_for_a_thread_its_fork_gave_back(
 ):
     """While a fork holds a thread, the main thread's closed turn owes nothing, so the
     watch that follows it sleeps. As the fork's turn ends with the thread unanswered,
-    the main thread owes its answer, and the watch wakes the session for it, though
-    the page's log hasn't moved."""
+    the user's message is the main thread's input again: the watch wakes the session
+    for it, though the page's log hasn't moved, and the woken turn's prompt carries
+    the message itself beside why the fork gave it back."""
     serving(claimed, 1)
     session_model.cmd_waiting(claimed)
     started_fork(claimed, "Does the suggest service cache?", "agent-1")
@@ -752,7 +762,16 @@ def test_the_watch_wakes_the_idle_session_for_a_thread_its_fork_gave_back(
         failed=None,
     )
     watching.thread.join(STATED_TIMEOUT)
-    assert watching.woke == [session_model.wake_line(claimed, "owed")]
+    assert watching.woke == [session_model.wake_line(claimed, "input")]
+    hooks_model.cmd_hook(
+        "claude-code",
+        {"hook_event_name": "UserPromptSubmit", "session_id": "s1", "prompt_id": "p2"},
+    )
+    prompt = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert "Does the suggest service cache?" in prompt, prompt
+    assert "the session is changing its startup" in prompt, prompt
 
 
 def test_the_watch_wakes_the_idle_session_for_a_to_do_its_fork_opened(
@@ -935,9 +954,9 @@ def test_a_follow_up_after_the_forks_run_goes_to_that_fork_again(
     claimed, lane, monkeypatch
 ):
     """The user's further message in a thread a fork answered, once the fork's run
-    has ended, goes to the same fork in a new turn of its own, which Leaf opens and
-    records the pickup in, and names with the fork's agent id once the module has
-    resumed it, so the fork works the thread however many messages it gets. Leaf's
+    has ended, goes to the same fork in a new turn of its own, which Leaf opens,
+    names with the fork's agent id and records the pickup in, so the fork works the
+    thread however many messages it gets. Leaf's
     message resuming it carries the delivery and tells the fork to read the page's
     state, which its transcript lacks. The fork's answer from that turn is its own,
     and the turn's end reports it."""
@@ -945,7 +964,7 @@ def test_a_follow_up_after_the_forks_run_goes_to_that_fork_again(
     more = said(claimed, "And which uv?", parent=asked["id"])
     taken = taken_again(claimed, asked["id"], more)
     assert taken["resume"] == "agent-1"
-    assert state_model.agent_turn_of("s1", "agent-1") is None
+    assert state_model.agent_turn_of("s1", "agent-1") == taken["turn"]
     pickup = [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"][-1]
     assert (pickup["events"], pickup["turn"]) == ([more["id"]], taken["turn"])
     resume = taken["prompt"]
@@ -954,10 +973,6 @@ def test_a_follow_up_after_the_forks_run_goes_to_that_fork_again(
     assert f"`leaf page state {claimed}`" in resume
     assert "--todo" in resume and forks_model.HAND_BACK in resume
 
-    assert forks_model.started(
-        "s1", basis(claimed, asked["id"], more["id"]), taken["turn"], "agent-1"
-    )["outcome"] == ("start")
-    assert state_model.agent_turn_of("s1", "agent-1") == taken["turn"]
     monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-1")
     answer = thread_model.post_response(
         answer_ref(claimed, more["id"]), "uv 0.9 or later.", asks_back=False
@@ -1165,9 +1180,9 @@ def test_a_late_acknowledgement_does_not_take_a_thread_back(claimed, lane, capsy
 
 def test_a_command_marked_with_an_ended_fork_acts_as_nobody(claimed, lane, capsys):
     """A command marked with a fork whose turn has ended, as one marked while it ran
-    can arrive late, is refused: its reply, its start and its acknowledgement say the
-    fork's turn has ended, rather than acting with the main thread's authority on a
-    message the main thread now holds."""
+    can arrive late, is refused, whatever it is: its reply, its start, its
+    acknowledgement, a to-do or a thread of its own each say the fork's turn has
+    ended, rather than acting with the main thread's authority."""
     asked, taken = taken_by_a_fork(claimed, "Does the autocomplete service cache?")
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
@@ -1186,6 +1201,8 @@ def test_a_command_marked_with_an_ended_fork_acts_as_nobody(claimed, lane, capsy
         ["thread", "reply", ref, "--done", "--text", "Yes, for a minute."],
         ["task", "start", str(claimed), asked["id"], "--text", "checking the cache"],
         ["delivery", "ack", ref.partition(":")[0]],
+        ["task", "create", str(claimed), "page", "--title", "Check the cache"],
+        ["thread", "create", str(claimed), "--text", "The cache holds a minute."],
     ):
         ran = CliRunner().invoke(cli_model.cli, ["--agent-id", "agent-1", *command])
         assert ran.exit_code != 0, command
@@ -1198,7 +1215,8 @@ def test_a_fork_that_answered_is_reported_however_its_thread_moves_on(
 ):
     """The end of a fork's run is judged by the messages its turn picked up itself.
     A fork that answered is reported as answering though the user writes again
-    before its run ends; and one whose turn lapsed and lost its thread to the main
+    before its run ends, and the message its run never carried goes to the main
+    thread saying so; and one whose turn lapsed and lost its thread to the main
     thread's pickup is reported as taken over, with no line telling the main thread
     it was given a thread it took itself."""
     asked, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
@@ -1217,6 +1235,13 @@ def test_a_fork_that_answered_is_reported_however_its_thread_moves_on(
     ) == [{"page": str(claimed), "thread": asked["id"], "outcome": "answer"}]
     [told] = clerk_model.queued("s1")
     assert "answered" in told and "written there since" in told
+    assert forks_model.look("s1", claimed, now=float("inf")) == []
+    [uncarried] = [
+        row
+        for row in read_interactions(claimed, types=("fork_outcome",))
+        if row.get("outcome") == "hand_over"
+    ]
+    assert uncarried["why"] == "its fork's turn ended before carrying it"
 
     other, kept = taken_by_a_fork(claimed, "How many shards does staging have?")
     forks_model.started(
@@ -1227,7 +1252,14 @@ def test_a_fork_that_answered_is_reported_however_its_thread_moves_on(
     clerk_model.heard("s1", clerk_model.queued("s1"))
     assert forks_model.ended(
         "s1", agent="agent-2", turn=None, answer="", failed=None
-    ) == [{"page": str(claimed), "thread": other["id"], "outcome": "taken_over"}]
+    ) == [
+        {
+            "page": str(claimed),
+            "thread": other["id"],
+            "outcome": "taken_over",
+            "why": "the main thread took the thread",
+        }
+    ]
     assert clerk_model.queued("s1") == []
     joins = [
         row["outcome"]
@@ -1355,10 +1387,10 @@ def test_a_forks_leaf_command_waits_until_leaf_knows_its_agent(
     """A fork runs before Leaf hears which agent runs the turn it opened for it,
     which stays unnamed until then. Meanwhile the `leaf` command of an agent running
     no turn of the session is denied with the instruction to run it again, rather
-    than acting as the main thread's, as a new fork's would, or being refused as an
-    ended fork's, as a resumed fork's would. Once Leaf knows the agent, its command
-    is marked as its own; with no turn awaiting its agent, a worker's command runs as
-    it came."""
+    than acting as the main thread's, as a new fork's would. Once Leaf knows the
+    agent, its command is marked as its own; with no turn awaiting its agent, a
+    worker's command runs as it came. A resumed fork, whose agent Leaf knows, runs
+    its new turn from the start, so its command is marked at once."""
     asked, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
     reply = f"leaf thread reply {answer_ref(claimed, asked['id'])} --done --text 3.12"
     waiting = hook_answer(capsys, reply, "agent-1", "spawning")
@@ -1383,11 +1415,6 @@ def test_a_forks_leaf_command_waits_until_leaf_knows_its_agent(
     more = said(claimed, "And which uv?", parent=asked["id"])
     again = taken_again(claimed, asked["id"], more)
     later = f"leaf thread reply {answer_ref(claimed, more['id'])} --done --text 0.9"
-    waiting = hook_answer(capsys, later, "agent-1", "resuming")
-    assert waiting is not None and waiting["permissionDecision"] == "deny"
-    forks_model.started(
-        "s1", basis(claimed, asked["id"], more["id"]), again["turn"], "agent-1"
-    )
     resumed = hook_answer(capsys, later, "agent-1", "resumed")
     assert resumed is not None and "updatedInput" in resumed
     # A turn's agent never changes once named.

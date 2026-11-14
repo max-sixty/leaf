@@ -11,6 +11,8 @@
 // every spawn after, each printing what it was asked as `{"spawned"}`;
 // `spawnWaits`, which holds each spawn's answer until a stdin line
 // `{"spawnReturns": true}`, as a fork's run can end before Claude Code answers;
+// `forkStepFails`, a key of a `leaf hook --fork` payload whose step then fails
+// without running, as Leaf's process can;
 // `sendRefuses`, the reason every `$.session.send` gives for delivering nothing,
 // which otherwise delivers, each send printing what it was asked as `{"sent"}`;
 // `state`, the values `$.state` holds as the module loads, by key, as a reload
@@ -247,7 +249,12 @@ const $ = {
   process: {
     run: (argv, init = {}) =>
       new Promise((resolve, reject) => {
-        if (argv.includes("--fork")) print({ forkStep: JSON.parse(init.stdin) });
+        if (argv.includes("--fork")) {
+          const payload = JSON.parse(init.stdin);
+          print({ forkStep: payload });
+          if (options.forkStepFails in payload)
+            return resolve({ exitCode: 1, stdout: "", stderr: "Leaf failed" });
+        }
         const child = start(argv, init.env, init.stdin);
         let stdout = "";
         let stderr = "";

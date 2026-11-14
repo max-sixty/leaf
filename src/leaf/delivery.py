@@ -1150,6 +1150,10 @@ def deliverable(
     so input waits here only on a page whose renewal was refused, and the hooks name
     why (`hook_transport.remedies`).
 
+    More, too, each waiting message an agent's turn picked up and left owed as it
+    ended, giving its thread back or ending without answering
+    (`holding.left_by_agent_turns`), which the main thread now owes.
+
     Less, too, each waiting message Leaf keeps back while a line fork of the
     owner's conversation writes its line (`forks.kept_back`), until the line fork
     hands it over or its bound runs out, which keeps the watch from waking the
@@ -1169,7 +1173,14 @@ def deliverable(
     held = awaiting_receipt(page) if pending else ()
     if held:
         pending = [event for event in pending if event["id"] not in held]
+    from .holding import left_by_agent_turns
+
     owed = unreferenced(page, obligations) if received else []
+    if received and (left := left_by_agent_turns(page)):
+        # What a fork's turn picked up and then left owed, giving its thread back or
+        # ending without answering, is the main thread's input now.
+        known = {event["id"] for event in owed}
+        owed += [event for event in page.events if event["id"] in left - known]
     if pending or owed:
         from .forks import kept_from_main
 

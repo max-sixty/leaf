@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794570429930,
+  "lastUpdate": 1794656346881,
   "repoUrl": "https://github.com/max-sixty/leaf",
   "entries": {
     "Bench at 64 sections": [
@@ -3135,6 +3135,433 @@ window.BENCHMARK_DATA = {
           {
             "name": "threads: resolve shown",
             "value": 95.1,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "leaf-agent",
+            "username": "leaf-agent",
+            "email": "l@leaf.page"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "6cfc59a83cfc5fc83df47a8df22ebc35e58778e4",
+          "message": "test: wait for the server's reading of a send before reading what only it decides (#5943)\n\n#5899 made `applyState` (`browser/runtime/state-application.js`) wait\nfor the frame a gesture owes before it adopts the server's reading, so\nthe gesture's own result paints first. So the send's answer, which\n`round_trip` and `sending` wait for, now lands a task before the page\nholds the server's thread or offers Undo. Six of the seven macOS\nfailures in #5941 read that state right after the trip: `readThreads()`\nthrough `open_panel_thread`, a package widget's thread id, or a `z`\npressed straight after a Resolve. They saw the tab's pending copy, and\nthe dropped `z` never retried. This PR makes them wait for the reading\nitself. It changes no product code. The harness already says delivery\ndoes not mean the page applied the returned state (`_Traffic` in\n`tests/render_harness.py`).\n\n- `open_panel_thread` waits until `readThreads()` holds the thread\ninstead of reading it once.\n- `test_one_field_starts_a_thread_takes_its_reply_and_settles_it` and\n`test_a_thread_s_keys_answer_in_its_view` undo the Resolve with the\nexisting `undo(page)`, which waits until the dispatcher would take `z`.\n-\n`test_package_thread_widgets_keep_local_filters_and_independent_subscriptions`\nwaits for the server's id before it names the panel view.\n\n**Verification.** On Linux, the failing state appears when `z` is\npressed right after the Resolve is acked. A probe did that 15 times per\narm. It failed 6 of 15 at #5899 (`c0ff621c1`), 5 of 15 on main, and 0 of\n30 at #5899's parent. In each failing run, a second `z` a second later\nsent the undo, so the page catches up; only the early press is lost. The\nsame probe using `undo(page)` passed 15 of 15. The six edited tests pass\nlocally. They passed on Linux before this change too, so the macOS\nevidence is the next scheduled run after merge. I couldn't make the old\none-shot `open_panel_thread` read fail on Linux, even with\n`--cpu-throttle 15`.\n\n**What this leaves.**\n`test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth`\nalready uses `undo(page)`. On macOS its page ended at `#sug-thistle`, so\nthat `z` showed the suggestion rather than taking it. That's a different\nmechanism, and it stays open on #5941. If the next macOS run still shows\n`readThreads` without the server's thread after these waits, the reading\nnever got adopted, not just adopted late. The likely cause would be an\nowed frame that never paints, leaving `afterOwedFrame` unresolved.\n\nRefs #5941 — automated triage\n\nCo-authored-by: leaf-agent <318509791+leaf-agent@users.noreply.github.com>",
+          "timestamp": "2026-11-14T08:43:43Z",
+          "url": "https://github.com/max-sixty/leaf/commit/6cfc59a83cfc5fc83df47a8df22ebc35e58778e4"
+        },
+        "date": 1794656346475,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "asks: load cpu",
+            "value": 1097.63,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: click cpu",
+            "value": 37.3,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: key cpu",
+            "value": 7.86,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: leave cpu",
+            "value": 31.91,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: tab cpu",
+            "value": 33.28,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: scroll cpu",
+            "value": 4.69,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: revision cpu",
+            "value": 264.82,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: stamp cpu",
+            "value": 244.52,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: select cpu",
+            "value": 54.24,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: open cpu",
+            "value": 100.61,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: comment cpu",
+            "value": 136.28,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: resolve cpu",
+            "value": 72.89,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: reply cpu",
+            "value": 63.97,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: status cpu",
+            "value": 21.64,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: click shown",
+            "value": 35.75,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: comment shown",
+            "value": 146.5,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: resolve shown",
+            "value": 77.1,
+            "unit": "ms"
+          },
+          {
+            "name": "document: load cpu",
+            "value": 476.46,
+            "unit": "ms"
+          },
+          {
+            "name": "document: click cpu",
+            "value": 44.03,
+            "unit": "ms"
+          },
+          {
+            "name": "document: key cpu",
+            "value": 13.73,
+            "unit": "ms"
+          },
+          {
+            "name": "document: leave cpu",
+            "value": 28.85,
+            "unit": "ms"
+          },
+          {
+            "name": "document: tab cpu",
+            "value": 36.44,
+            "unit": "ms"
+          },
+          {
+            "name": "document: scroll cpu",
+            "value": 7.84,
+            "unit": "ms"
+          },
+          {
+            "name": "document: revision cpu",
+            "value": 102.85,
+            "unit": "ms"
+          },
+          {
+            "name": "document: stamp cpu",
+            "value": 109.7,
+            "unit": "ms"
+          },
+          {
+            "name": "document: select cpu",
+            "value": 56.61,
+            "unit": "ms"
+          },
+          {
+            "name": "document: comment cpu",
+            "value": 236.22,
+            "unit": "ms"
+          },
+          {
+            "name": "document: resolve cpu",
+            "value": 100.63,
+            "unit": "ms"
+          },
+          {
+            "name": "document: reply cpu",
+            "value": 97.22,
+            "unit": "ms"
+          },
+          {
+            "name": "document: status cpu",
+            "value": 39.26,
+            "unit": "ms"
+          },
+          {
+            "name": "document: click shown",
+            "value": 31.7,
+            "unit": "ms"
+          },
+          {
+            "name": "document: comment shown",
+            "value": 163.3,
+            "unit": "ms"
+          },
+          {
+            "name": "document: resolve shown",
+            "value": 84.8,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: load cpu",
+            "value": 361.72,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: click cpu",
+            "value": 23.75,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: key cpu",
+            "value": 8.19,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: leave cpu",
+            "value": 21.4,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: tab cpu",
+            "value": 26.01,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: scroll cpu",
+            "value": 2.6,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: revision cpu",
+            "value": 49.19,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: stamp cpu",
+            "value": 48.75,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: select cpu",
+            "value": 47.05,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: comment cpu",
+            "value": 157,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: resolve cpu",
+            "value": 61.98,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: reply cpu",
+            "value": 51.5,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: status cpu",
+            "value": 17.21,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: click shown",
+            "value": 31.6,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: comment shown",
+            "value": 157.1,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: resolve shown",
+            "value": 75.2,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: load cpu",
+            "value": 386.7,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: click cpu",
+            "value": 23.5,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: key cpu",
+            "value": 7.5,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: leave cpu",
+            "value": 18.35,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: tab cpu",
+            "value": 32.42,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: scroll cpu",
+            "value": 4.68,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: revision cpu",
+            "value": 69.86,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: stamp cpu",
+            "value": 67.48,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: select cpu",
+            "value": 57.53,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: comment cpu",
+            "value": 162.35,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: resolve cpu",
+            "value": 73.49,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: reply cpu",
+            "value": 55.03,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: status cpu",
+            "value": 18.25,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: click shown",
+            "value": 31,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: comment shown",
+            "value": 140.8,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: resolve shown",
+            "value": 73.1,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: load cpu",
+            "value": 514.41,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: click cpu",
+            "value": 43.8,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: key cpu",
+            "value": 8.42,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: leave cpu",
+            "value": 17.65,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: tab cpu",
+            "value": 46.76,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: scroll cpu",
+            "value": 3.26,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: revision cpu",
+            "value": 84.54,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: stamp cpu",
+            "value": 84.04,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: select cpu",
+            "value": 55.2,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: comment cpu",
+            "value": 181.7,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: resolve cpu",
+            "value": 86.12,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: reply cpu",
+            "value": 67.2,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: status cpu",
+            "value": 20.08,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: click shown",
+            "value": 36.15,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: comment shown",
+            "value": 182.9,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: resolve shown",
+            "value": 77.7,
             "unit": "ms"
           }
         ]

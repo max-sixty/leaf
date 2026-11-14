@@ -291,15 +291,15 @@ through its widget or thread. Act on a collection only when its `phase` is `read
 
 ### Work hierarchies
 
-`readWork(scope)` reads a work hierarchy the page declares within `scope`, such as
-goals and the workers on them, so a widget that counts its children's work reads it here
-rather than from their reports. The page's `$work.widgets` gives tags roles. A `goal`
-names its recorded `state` attribute and lists the values under `done` and `stopped`; a
-`worker` does the same under `running` and `retired`, and may name its assignment
-attribute in `on`. `evidence` marks the element that shows observed data. The result
-lists `goals`, `workers`, `leaves`, `stopped` goals, `liveWorkers`, and `running` and
-`quiet` workers, each with its authored `element`, and `done` counts finished leaves.
-`workAncestor` reads the same declaration. Atlas in `examples/command-hub.page/` is the worked example.
+`readWork(scope)` reads the work hierarchy within `scope`, such as goals and the
+workers on them, so a widget that counts its children's work reads it here rather than
+from their reports. Leaf owns the work roles, and a package maps its tags onto them in
+`$work.widgets` ([package-data.md, "Work roles"](package-data.md#work-roles)), which
+composition checks. The result lists `goals`, `workers`, `leaves`, `stopped` goals,
+`liveWorkers`, and `running` and `quiet` workers, each with its authored `element`, and
+`done` counts finished leaves. `workAncestor(element, role)` returns the nearest element
+at or above `element` with that role. Atlas in `examples/command-hub.page/` is the
+worked example.
 
 ### Page history and reports
 

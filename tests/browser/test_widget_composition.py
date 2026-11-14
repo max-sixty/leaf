@@ -63,8 +63,8 @@ def test_a_second_package_edits_the_owner_s_answer_across_undo_and_a_revision(
     )
     page = open_page(browser, url)
     hires, finalists = page.locator("#hires"), page.locator("#finalists")
-    pick = lambda name: hires.get_by_role("button", name=name)  # noqa: E731
-    drop = lambda name: finalists.get_by_role("button", name=f"Drop {name}")  # noqa: E731
+    pick = lambda name: hires.get_by_role("button", name=name)
+    drop = lambda name: finalists.get_by_role("button", name=f"Drop {name}")
 
     expect(finalists).to_contain_text("Nobody is picked")
     pick("Ada Lovelace").click()

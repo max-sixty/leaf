@@ -72,10 +72,8 @@ ignore:
   the widget shows neither.
 - Comment targets: `registerVisualParts` (`module-annotations.md`, "Visual parts"),
   which only Leaf reads.
-- What it holds for another widget: an output is a property and a `change` event
-  (`package-data.md`, "Widget outputs"), which a plain host reads and binds itself.
-- A request from another element: an invoker command (`module-input.md`, "Invoker
-  commands"), which the browser delivers on any page.
+- Another widget: an output's property and `change`, and an invoker command
+  (`package-data.md`, "Widgets working together"), need no Leaf.
 - Words for a listener: `announce(message)` (`module-scroll-and-motion.md`, "Notices
   and spoken words"), which only Leaf says.
 - State only this tab keeps, in `tabStore`, which keeps nothing on a plain page: a read

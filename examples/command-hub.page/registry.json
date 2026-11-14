@@ -201,12 +201,7 @@
     "x-owners": ["lf-atlas-plan", "lf-atlas-task"],
     "x-content": "markup",
     "x-refers": {
-      "on": {
-        "via": "$work.widgets",
-        "where": {
-          "role": "goal"
-        }
-      }
+      "on": {}
     },
     "x-upgrade": true,
     "x-state": {

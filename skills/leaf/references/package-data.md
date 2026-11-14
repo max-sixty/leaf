@@ -1,6 +1,6 @@
 # Package state and data
 
-Read with [packages.md](packages.md), which holds the package contract and a widget's declaration. This file covers how widgets work together, the user state a widget records, references between widgets, and external or derived data sources.
+Read with [packages.md](packages.md), which holds the package contract and a widget's declaration. This file covers how widgets work together, the user state a widget records, references between widgets, work roles, and external or derived data sources.
 
 ## Widgets working together
 
@@ -12,7 +12,7 @@ convention ("References between widgets"), and then:
 | To                                                      | Use                                                                                                                                            | `page check` holds                                           |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | read what the other holds, such as a film's step        | its output, a property its element holds and says `change` for, which an `x-data` input binds by contract ("Widget outputs")                    | that the named widget declares one output of that contract   |
-| ask it to act, such as "hold this step"                 | an HTML invoker command, `commandfor` with `command="--name"` ([module-input.md, "Invoker commands"](module-input.md#invoker-commands))        | that the target declares the command, for an authored button |
+| ask it to act, such as "hold this step"                 | an HTML invoker command, `commandfor` with `command="--name"` ("Asking another widget to act")                                                 | that the target declares the command, for an authored button |
 | take the user to a part of it                           | `navigateToDatum` with the part's key, or a link to `#id:key` ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)) | that the id names an element                                 |
 
 A recorded answer stays its owner's, and only the owner's module records it
@@ -28,6 +28,42 @@ Packages declare no dependency on each other, so two that share a contract each
 declare it in their own `$data.contracts`, word for word; a page composing both keeps
 one copy, and `page check --render` holds what the producer holds to it. What a
 provider of the contract must take as commands goes in the contract's `instructions`.
+
+### Asking another widget to act
+
+A request from one element to another, such as a step list asking its film to hold a
+step, is an HTML invoker command: a button names its target and a custom command, and
+the target hears a `command` event.
+
+```html
+<button commandfor="merge-film" command="--seek" value="squash">Squash</button>
+```
+
+```js
+this.addEventListener("command", (event) => {
+  if (event.command === "--seek") this.hold(event.source.value);
+});
+```
+
+The target lists the commands it handles in its registry entry,
+`"x-commands": {"--seek": "Holds the step the button's value names."}`, and `page
+check` refuses an authored button whose `commandfor` names no element, or whose
+command its target doesn't declare. A custom command's name starts with `--`; HTML's
+own, such as `show-modal` and `toggle-popover`, act on dialogs and popovers. An
+argument rides on the button's `value`.
+
+A module that draws the button writes the same attributes, taking the id from its own
+reference attribute, as in `commandfor=${this.getAttribute("for")}`. Inside a shadow
+tree the attribute can't name a page element, so set the element instead
+(`button.commandForElement = this.getRootNode().getElementById(id)`); the target then
+sees the button's host as `event.source`, so the host holds the argument as its
+`value`.
+
+The browser makes the press, so the button needs no click listener and no `lfCommands`
+row, a key and a finger press it as a pointer does, and it works the same on a page
+without Leaf. A press does nothing until the target's module has loaded, as with any
+control a module wires. The target decides whether to act, as it does for its own
+controls.
 
 ## User state
 
@@ -218,25 +254,8 @@ and its schema.
 ## References between widgets
 
 When an attribute names another element, declare it in `x-refers`, mapping the
-attribute to a target contract. `{}` accepts any element id. A typed contract names a
-package's shared registry map with `via` and the entries it accepts with `where`:
-
-```json
-{
-  "x-refers": {
-    "target": { "via": "$work.widgets", "where": { "role": "goal" } },
-    "worker": { "via": "$work.widgets", "where": { "role": "worker" } }
-  }
-}
-```
-
-Leaf checks only the relation; the package owns the map and its roles, so a later
-package adds a goal or worker widget by adding its entry to `$work.widgets`.
-
-Add `"owns": true` when the referring widget draws into its target, as a command widget
-draws its readings into the element its `readings` attribute names. `page check` then
-requires the target in the referrer's own document, the page or the message holding it,
-and every element there matching `where` to be named by exactly one referrer.
+attribute to `{}`, which accepts any element id. `page check` refuses an id that names
+no element.
 
 Members of one owner can name each other by a word instead of an id. A playground's
 setting names its control by `name`:
@@ -250,9 +269,52 @@ setting names its control by `name`:
 }
 ```
 
-`x-unique` makes `name` unique within each `lf-playground`, and the keyed contract
+`x-unique` makes `name` unique within each `lf-playground`, and the keyed reference
 `{tag, key}` looks `for` up only inside the setting's own playground. Rules about content, such as
 a value within its range, belong to the widget and `page check --render`.
+
+## Work roles
+
+Leaf owns four work roles and reads a hierarchy of work from them
+([module-reading.md, "Work hierarchies"](module-reading.md#work-hierarchies)). A
+package maps its tags onto them in `$work.widgets`:
+
+- `scope` bounds a hierarchy; a reading stops at a nested scope.
+- `goal` is a piece of work. `state` names the attribute holding its state, which
+  exactly one `unit: "widget"` value verb records, and `done` and `stopped` list the
+  values that mean finished and stopped. `stoppedAt` may name an attribute saying
+  when it stopped.
+- `worker` is an agent doing the work, with `state`, the values that mean `running`
+  and `retired`, and optionally `on`, an `x-refers` attribute naming the goal it works
+  on.
+- `evidence` marks an element that shows observed data.
+
+```json
+{
+  "$work": {
+    "widgets": {
+      "lf-atlas-task": {
+        "role": "goal",
+        "state": "status",
+        "done": ["done"],
+        "stopped": ["blocked"]
+      },
+      "lf-atlas-worker": {
+        "role": "worker",
+        "state": "state",
+        "running": ["working"],
+        "retired": ["done"],
+        "on": "on"
+      }
+    }
+  }
+}
+```
+
+`page init`, `page check` and `package check` hold each entry to its tag's
+declaration, refusing a mistake with a finding that names the tag and key, and `page
+check` refuses a worker whose `on` names anything but a goal. Atlas in
+`examples/command-hub.page/` is the worked example.
 
 ## External or derived data
 
@@ -342,7 +404,7 @@ this.dispatchEvent(new Event("change"));
 ```
 
 A consumer uses the same `x-data` input for an external source or another widget's
-output:
+output, declaring `source`, `reference` or both:
 
 ```json
 "x-data": {
@@ -369,7 +431,10 @@ Leaf reads the property when the consumer first draws, again each time the produ
 says `change`, and from the new element when a revision replaces the producer, so a
 consumer draws the current value whichever module loaded first. The consumer gets its
 own copy and redraws only when the value differs. Assign a new value rather than
-editing the held one, and say `change` after each assignment.
+editing the held one, and say `change` after each assignment. Dispatch it on the
+element itself: a control inside the element says a bubbling `change` of its own,
+which Leaf doesn't count, and which a module listening on its own element tells apart
+by `event.target`.
 
 On a page without Leaf the same module needs no import for this, and the host does
 the binding itself: `review.addEventListener("change", () => (tree.value = review.files))`.

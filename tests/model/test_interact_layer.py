@@ -39,7 +39,6 @@ from interact_support import (
     shipped_payload,
     vendored_at_another_protocol,
     wait_for,
-    words,
 )
 from model_folds import leaf_page
 from packaging.requirements import Requirement
@@ -4699,12 +4698,6 @@ def test_review_evidence_packages_export_independently(
         ["page", "export", str(page), "-o", str(tmp_path / "export.html")],
     )
     assert exported.exit_code == 0, exported.output
-    if package == "diff":
-        source = page / "index.html"
-        source.write_text(source.read_text().replace('diff="patch"', 'diff="title"'))
-        checked = runner.invoke(cli_model.cli, ["page", "check", str(page)])
-        assert checked.exit_code != 0
-        assert 'diff="title" must name a $diff.widgets widget' in words(checked.output)
 
 
 def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):

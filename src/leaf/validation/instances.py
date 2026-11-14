@@ -13,7 +13,6 @@ from leaf.registry.contract import (
     exhibits,
     is_element_name,
     matches_when,
-    registry_path,
     retirement_slots,
     state_specs,
 )
@@ -335,35 +334,6 @@ def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     return errors
 
 
-def relation_mismatch(
-    reference: dict, target_record: dict | None, registry: dict
-) -> dict | None:
-    """How one resolved target fails a package-declared relation, if it does: the
-    relation, its predicate, and what the target declares of it."""
-    via = reference.get("via")
-    if via is None:
-        return None
-    relation = registry_path(registry, via)
-    declaration = (
-        relation.get(target_record["tag"])
-        if isinstance(relation, dict) and target_record is not None
-        else None
-    )
-    predicate = reference["where"]
-    if isinstance(declaration, dict) and all(
-        declaration.get(key) == value for key, value in predicate.items()
-    ):
-        return None
-    return {
-        "via": via,
-        "where": predicate,
-        "target_tag": target_record["tag"] if target_record is not None else None,
-        "found": {key: declaration.get(key) for key in predicate}
-        if isinstance(declaration, dict)
-        else None,
-    }
-
-
 def enclosing(rec: dict, tag: str, registry: dict) -> dict | None:
     """The nearest member owner of `tag` within `rec`'s quotation, if any."""
     return next(
@@ -415,22 +385,20 @@ def reference_errors(
     A message widget may point into the page beside it, so its caller supplies the
     page's ids alongside the fragment's own.
 
-    An `owns` reference is narrower, since its referrer fills the target and the
-    browser looks for that target in the referrer's own document: each names an
-    element of `lf_elements`' own document, and each element there that the
-    contract's predicate selects is named by exactly one referrer, as each readings
-    seat is filled by one command.
-
     A keyed reference names a member rather than an id: the `tag` member, inside the
     referrer's own nearest owner of the tag its `key` is unique within (x-unique),
     whose `key` attribute holds the value, as a playground preset's setting names a
     control of the same playground.
 
+    A worker's assignment, the attribute its `$work.widgets` entry names in `on`,
+    names an element whose tag has the role goal there, since the work reading
+    (`runtime/work.js`) assigns the worker to nothing else.
+
     The reserved `resolves` attribute names a thread in the document's history,
     rather than a markup id, on any widget that declares the capability."""
     errors = []
     own = {rec["attrs"].get("id") for rec in lf_elements}
-    owners = {}
+    work = registry.get("$work", {}).get("widgets", {})
     keyed = None
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
@@ -469,18 +437,18 @@ def reference_errors(
                     )
             elif target not in ids:
                 errors.append(found_at("unknown-reference", rec, **reference_to))
-            elif mismatch := relation_mismatch(reference, by_id.get(target), registry):
+            elif (
+                attr == work.get(rec["tag"], {}).get("on")
+                and work.get(tag := by_id.get(target, {}).get("tag"), {}).get("role")
+                != "goal"
+            ):
                 errors.append(
-                    found_at("reference-contract", rec, **reference_to, **mismatch)
+                    found_at("work-assignment", rec, **reference_to, target_tag=tag)
                 )
-            elif reference.get("owns") and target not in own:
-                errors.append(found_at("outside-reference", rec, **reference_to))
             elif attr == entry.get("x-shows", {}).get("attr") and target not in own:
                 # A view and the answer it shows travel in one document, so a board
                 # in a reply shows widgets frozen in the same reply (`shown_answers`).
                 errors.append(found_at("shows-outside", rec, **reference_to))
-            elif reference.get("owns"):
-                owners.setdefault((rec["tag"], attr, target), []).append(rec)
         for input_name, spec in registry.get(rec["tag"], {}).get("x-data", {}).items():
             target = rec["attrs"].get(spec.get("reference"))
             if not target or target not in ids:
@@ -501,34 +469,6 @@ def reference_errors(
                         outputs=matching,
                         contract=spec["contract"],
                     )
-                )
-    owned = [
-        (tag, attr, reference)
-        for tag, entry in registry.items()
-        if is_element_name(tag)
-        for attr, reference in entry.get("x-refers", {}).items()
-        if reference.get("owns")
-    ]
-    for rec in lf_elements:
-        for tag, attr, reference in owned:
-            if relation_mismatch(reference, rec, registry):
-                continue
-            target = rec["attrs"].get("id")
-            named = owners.get((tag, attr, target), [])
-            if not named:
-                errors.append(found_at("unowned", rec, referrer=tag, attr=attr))
-            if len(named) > 1:
-                first = named[0]
-                errors.extend(
-                    found_at(
-                        "owned-twice",
-                        extra,
-                        attr=attr,
-                        target=target,
-                        first=element_at(first["tag"], first["attrs"].get("id", "")),
-                        first_line=first["line"],
-                    )
-                    for extra in named[1:]
                 )
     return errors
 

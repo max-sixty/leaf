@@ -108,12 +108,7 @@
     "x-owners": ["lf-test-roster", "lf-test-plan", "lf-test-task"],
     "x-content": "markup",
     "x-refers": {
-      "on": {
-        "via": "$work.widgets",
-        "where": {
-          "role": "goal"
-        }
-      }
+      "on": {}
     },
     "x-upgrade": true,
     "x-state": {
@@ -149,24 +144,12 @@
       },
       "phase": {
         "type": "string"
-      },
-      "readings": {
-        "type": "string"
       }
     },
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
-    "x-upgrade": true,
-    "x-refers": {
-      "readings": {
-        "via": "$work.widgets",
-        "where": {
-          "role": "readings"
-        },
-        "owns": true
-      }
-    }
+    "x-upgrade": true
   },
   "lf-test-task": {
     "description": "One goal or piece of work, with ownership, status, and optional nested subgoals.",
@@ -272,23 +255,7 @@
       },
       "lf-test-roster": {
         "role": "scope"
-      },
-      "lf-test-summary": {
-        "role": "readings"
       }
     }
-  },
-  "lf-test-summary": {
-    "description": "A local exclusive-reference target.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
-      }
-    },
-    "required": ["id"],
-    "additionalProperties": false,
-    "x-content": "empty",
-    "x-upgrade": false
   }
 }

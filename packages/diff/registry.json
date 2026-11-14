@@ -154,13 +154,6 @@
     "x-height": true,
     "x-example": "<lf-diff id=\"mount-diff\"><pre>\ndiff --git a/feeders/mount.py b/feeders/mount.py\n--- a/feeders/mount.py\n+++ b/feeders/mount.py\n@@ -1,2 +1,2 @@\n def bracket():\n-    return \"plastic\"\n+    return \"steel\"\n</pre><lf-diff-note file=\"feeders/mount.py\" side=\"new\" at=\"2\">Steel carries the load.</lf-diff-note></lf-diff>"
   },
-  "$diff": {
-    "widgets": {
-      "lf-diff": {
-        "role": "patch"
-      }
-    }
-  },
   "lf-call-diff": {
     "description": "A commentable call-tree diff, linked to the `lf-diff` that holds its patch.",
     "x-instructions": "Set `diff` to the id of the `lf-diff` holding the exact patch. Keep the unchanged items in the tree as landmarks. In a large repository, give each widget one file or entry point. Don't copy the output into markup, add attribute reads as calls, or draw separate before and after diagrams.",
@@ -181,12 +174,7 @@
       }
     },
     "x-refers": {
-      "diff": {
-        "via": "$diff.widgets",
-        "where": {
-          "role": "patch"
-        }
-      }
+      "diff": {}
     },
     "x-upgrade": true,
     "x-height": true,

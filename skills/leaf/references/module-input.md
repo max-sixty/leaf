@@ -5,6 +5,10 @@ module owes.
 
 ## Commands and keyboard routes
 
+These are a widget's keyboard commands. A request from one element to another is an
+HTML invoker command instead ([package-data.md, "Asking another widget to
+act"](package-data.md#asking-another-widget-to-act)).
+
 A widget declares its commands as data on the element they apply in: set the element's
 `lfCommands` to the scope and call `commandsChanged(element)`. The scope holds `title`,
 the heading the command reference lists it under, and `rows` ("Command rows"). It may
@@ -188,42 +192,6 @@ steps with `cycledRow(items, current, direction)`, which returns the item it lan
 Every visible button, checkbox, radio or selectable control a widget builds with
 `offer()` or `selectableOffer()` is a target the `g` key reaches, with nothing more to
 declare.
-
-### Invoker commands
-
-A request from one element to another, such as a step list asking its film to hold a
-step, is an HTML invoker command, which is not one of the keyboard commands above: a
-button names its target and a custom command, and the target hears a `command` event.
-
-```html
-<button commandfor="merge-film" command="--seek" value="squash">Squash</button>
-```
-
-```js
-this.addEventListener("command", (event) => {
-  if (event.command === "--seek") this.hold(event.source.value);
-});
-```
-
-The target lists the commands it handles in its registry entry,
-`"x-commands": {"--seek": "Holds the step the button's value names."}`, and `page
-check` refuses an authored button whose `commandfor` names no element, or whose
-command its target doesn't declare. A custom command's name starts with `--`; HTML's
-own, such as `show-modal` and `toggle-popover`, act on dialogs and popovers. An
-argument rides on the button's `value`.
-
-A module that draws the button writes the same attributes, taking the id from its own
-reference attribute, as in `commandfor=${this.getAttribute("for")}`. Inside a shadow
-tree the attribute can't name a page element, so set the element instead
-(`button.commandForElement = this.getRootNode().getElementById(id)`); the target then
-sees the button's host as `event.source`, so the host holds the argument as its
-`value`.
-
-The control is a button, so a key and a finger press it as a pointer does, and it
-works the same on a page without Leaf. A press does nothing until the target's
-module has loaded, as with any control a module wires. A recorded answer changes
-through its owner the same way: the owner handles the command by dispatching its own
-verb ([package-data.md, "Widgets working together"](package-data.md#widgets-working-together)).
 
 ## Focus and layers
 

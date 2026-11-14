@@ -8,7 +8,7 @@ shipped examples and `notes/` for an exploration of the same surface, and extend
 when it covers the same decision.
 
 The exploration is one HTML file under `.tmp/`, served with
-`uv run leaf-dev preview --source <file> --user` (`SKILL.md`, "Preview a page"); its CSS reads the
+`uv run leaf-dev preview --source <file> --user` (`previews.md`); its CSS reads the
 live theme's tokens. Follow `<root>/packages/playground/instructions/author.md`
 to choose the elements, present the candidates, and say what to build.
 

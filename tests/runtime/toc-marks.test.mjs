@@ -135,6 +135,20 @@ test("a thread about a whole section counts in it, and one in a nested section i
   );
 });
 
+test("a thread about a question whose title heads a section counts in that section", () => {
+  assert.deepEqual(
+    marked(
+      `<h1>Plan</h1><p id="lede">Why.</p>
+      <section id="decision"><lf-ask id="ask">
+        <hgroup id="ask-title"><p>Decision 1</p><h2>Which store?</h2></hgroup>
+        <p id="ask-context">Two stores fit.</p>
+      </lf-ask></section>`,
+      { threads: [{ id: "ask" }, { id: "ask-title" }, { id: "ask-context" }] },
+    ),
+    { "Which store?": { threads: 3, onMe: 0, changes: 0 } },
+  );
+});
+
 test("a section's marks read as its counts, and none read as nothing", () => {
   assert.equal(
     marksWords({ threads: 2, onMe: 1, changes: 1 }),

@@ -363,7 +363,11 @@ def running_agent_turns(
     since an agent whose run ended unseen leaves its turn open."""
     if not alive:
         return set()
-    return {turn for turn, stamp in stamps.items() if now < agent_turn_end(stamp)}
+    return {
+        turn
+        for turn, stamp in stamps.items()
+        if stamp["closed"] is None and now < agent_turn_end(stamp)
+    }
 
 
 def agent_turn_end(stamp: dict) -> datetime:

@@ -958,12 +958,22 @@ def test_a_follow_up_after_the_forks_run_goes_to_that_fork_again(
     names with the fork's agent id and records the pickup in, so the fork works the
     thread however many messages it gets. Leaf's
     message resuming it carries the delivery and tells the fork to read the page's
-    state, which its transcript lacks. The fork's answer from that turn is its own,
-    and the turn's end reports it."""
+    state, which its transcript lacks. A late end of the fork's earlier turn leaves
+    the new one running. The fork's answer from that turn is its own, and the turn's
+    end reports it."""
     asked = answered_by_a_fork(claimed, monkeypatch, "Which Python?", "agent-1")
     more = said(claimed, "And which uv?", parent=asked["id"])
     taken = taken_again(claimed, asked["id"], more)
     assert taken["resume"] == "agent-1"
+    assert state_model.agent_turn_of("s1", "agent-1") == taken["turn"]
+    # A late end of the fork's earlier turn leaves the new one running.
+    [earlier] = set(state_model.agent_turns("s1")) - {taken["turn"]}
+    assert (
+        forks_model.ended(
+            "s1", agent="agent-1", turn=earlier, answer=None, failed="it timed out"
+        )
+        == []
+    )
     assert state_model.agent_turn_of("s1", "agent-1") == taken["turn"]
     pickup = [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"][-1]
     assert (pickup["events"], pickup["turn"]) == ([more["id"]], taken["turn"])
@@ -1139,6 +1149,15 @@ def lapse(turn: str) -> None:
     )
 
 
+def close_turn_at(turn: str, moment: datetime) -> None:
+    """Stamp the closed agent turn `turn` as closing at `moment`."""
+    turns = state_model.agent_turns("s1")
+    turns[turn]["closed"] = moment.isoformat()
+    state_model.AGENT_TURNS.write(
+        session_file("s1", state_model.AGENT_TURNS.kind), {"turns": turns}
+    )
+
+
 def pointer_in(text: str) -> str | None:
     """The delivery a hook's context points at, if it points at one."""
     return next(iter(re.findall(r'<leaf-delivery id="([0-9a-f]+)"', text)), None)
@@ -1228,11 +1247,16 @@ def test_a_fork_that_answered_is_reported_however_its_thread_moves_on(
         answer_ref(claimed, asked["id"]), "Python 3.12 or later.", asks_back=False
     )
     monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
-    said(claimed, "And which uv?", parent=asked["id"])
+    uv = said(claimed, "And which uv?", parent=asked["id"])
     clerk_model.heard("s1", clerk_model.queued("s1"))
     assert forks_model.ended(
         "s1", agent="agent-1", turn=None, answer="Answered.", failed=None
     ) == [{"page": str(claimed), "thread": asked["id"], "outcome": "answer"}]
+    # The run ended once the further message's bound had passed.
+    close_turn_at(
+        taken["turn"],
+        datetime.fromisoformat(uv["ts"]) + timedelta(seconds=forks_model.BOUND_S),
+    )
     [told] = clerk_model.queued("s1")
     assert "answered" in told and "written there since" in told
     assert forks_model.look("s1", claimed, now=float("inf")) == []
@@ -1269,38 +1293,48 @@ def test_a_fork_that_answered_is_reported_however_its_thread_moves_on(
     assert joins == ["answer", "taken_over"]
 
 
-def test_a_message_sent_after_a_forks_turn_ended_is_noted_as_unanswered(
+def test_a_message_a_line_fork_was_asked_about_is_noted_as_unanswered(
     claimed, lane, monkeypatch
 ):
-    """A message the user writes in a fork's thread after the fork's turn ended is
-    one the turn never had: where its line fork gives no answer within the bound,
-    the page's diagnostics say that, not that the fork's turn left it."""
-    asked, taken = taken_by_a_fork(claimed, "Does the suggest service cache?")
-    forks_model.started(
-        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
-    )
-    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-1")
-    thread_model.post_response(
-        answer_ref(claimed, asked["id"]), "Yes, for a minute.", asks_back=False
-    )
-    monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
+    """A message the user writes in a fork's thread after the fork's turn ended, or
+    so late in the turn that its bound still ran as the turn ended, goes to a line
+    fork: where that gives no answer within the bound, the page's diagnostics say
+    so, not that the fork's turn left the message."""
+
+    def answered_by(agent: str, question: str) -> tuple[dict, dict]:
+        asked, taken = taken_by_a_fork(claimed, question)
+        forks_model.started(
+            "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], agent
+        )
+        monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, agent)
+        thread_model.post_response(
+            answer_ref(claimed, asked["id"]), "Yes, for a minute.", asks_back=False
+        )
+        monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
+        return asked, taken
+
+    asked, taken = answered_by("agent-1", "Does the suggest service cache?")
     forks_model.ended("s1", agent="agent-1", turn=None, answer="Done.", failed=None)
     # The user writes a minute after the turn closed.
-    turns = state_model.agent_turns("s1")
-    a_minute_ago = datetime.now().astimezone() - timedelta(minutes=1)
-    turns[taken["turn"]]["closed"] = a_minute_ago.isoformat()
-    state_model.AGENT_TURNS.write(
-        session_file("s1", state_model.AGENT_TURNS.kind), {"turns": turns}
+    close_turn_at(taken["turn"], datetime.now().astimezone() - timedelta(minutes=1))
+    after = said(claimed, "And for how long?", parent=asked["id"])
+
+    other, last = answered_by("agent-2", "Does the search service cache?")
+    late = said(claimed, "And who clears it?", parent=other["id"])
+    forks_model.ended("s1", agent="agent-2", turn=None, answer="Done.", failed=None)
+    # The turn closed a second after the user wrote.
+    close_turn_at(
+        last["turn"], datetime.fromisoformat(late["ts"]) + timedelta(seconds=1)
     )
-    later = said(claimed, "And for how long?", parent=asked["id"])
-    assert kept_back(claimed) == [(asked["id"], (later["id"],))]
+
     assert forks_model.look("s1", claimed, now=float("inf")) == []
-    [handed] = [
-        row
+    handed = {
+        tuple(row["inputs"]): row["why"]
         for row in read_interactions(claimed, types=("fork_outcome",))
         if row.get("outcome") == "hand_over"
-    ]
-    assert handed["why"] == f"no answer within {forks_model.BOUND_S:g} s"
+    }
+    unanswered = f"no answer within {forks_model.BOUND_S:g} s"
+    assert handed == {(after["id"],): unanswered, (late["id"],): unanswered}
 
 
 def hook_answer(capsys, command: str, agent: str, tool_use: str) -> dict | None:

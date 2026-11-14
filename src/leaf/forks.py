@@ -475,10 +475,11 @@ def _left_by_agent_turns(
     page: PageTransaction, session_id: str, threads: list[KeptBack]
 ) -> set[str]:
     """Which of `threads` an agent turn of the session last took, by a pickup or an
-    answer, and ended or lapsed after the thread's first waiting message arrived: a
-    fork's thread whose further messages its turn ended before carrying, which Leaf
-    keeps back only once the turn has ended, past their bound. A message sent after
-    the turn ended is a new one the turn never had."""
+    answer, and ended or lapsed only after the thread's bound had passed: a fork's
+    thread whose further messages its turn held past their bound and ended before
+    carrying, which Leaf keeps back only once the turn has ended. A message sent
+    after the turn ended, or late enough in it that its bound was still running, is
+    one a line fork was asked about."""
     from .activity import agent_turn_end
 
     claim = page.active_claim
@@ -488,12 +489,11 @@ def _left_by_agent_turns(
     if not stamps:
         return set()
     took = last_taken(page.events, session_id)
-    sent = {event["id"]: event["ts"] for event in page.events}
     return {
         thread.thread
         for thread in threads
         if (stamp := stamps.get(took.get(thread.thread))) is not None
-        and datetime.fromisoformat(sent[thread.inputs[0]]) <= agent_turn_end(stamp)
+        and thread.until <= agent_turn_end(stamp).timestamp()
     }
 
 

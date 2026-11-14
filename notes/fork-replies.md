@@ -342,8 +342,9 @@ them, `clerk` and the new `agent-turns`, start at 44.
    (`leaf thread reply --todo`), which is the session's and stays open after the
    fork's turn ends, while the fork's start on it lapses with the turn; the main
    thread hears that the fork answered and opened it, by its text, and now owes it. A
-   thread the turn still holds is the main thread's to answer, with the fork's answer
-   reference, and one another turn picked up since is that turn's. `TAKEN`, the
+   thread the turn still holds is the main thread's input, which its next delivery
+   hands over with a reference of its own, and one another turn picked up since is
+   that turn's. `TAKEN`, the
    posted-for-it answer, the module's deny and its `$.session.send` of follow-ups are
    gone.
 

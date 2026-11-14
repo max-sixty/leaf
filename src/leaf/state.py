@@ -907,8 +907,11 @@ def name_agent_turn(session_id: str, turn: str, agent: str) -> bool:
     never changes once named."""
     return _update_agent_turns(
         session_id,
-        lambda id, entry: id == turn and entry["agent"] in (None, agent),
-        agent=agent,
+        lambda id, entry: (
+            {**entry, "agent": agent}
+            if id == turn and entry["agent"] in (None, agent)
+            else None
+        ),
     )
 
 
@@ -942,46 +945,46 @@ def renew_agent_turn(session_id: str, agent: str) -> str | None:
 def close_agent_turns(
     session_id: str, *, turn: str | None = None, agent: str | None = None
 ) -> list[str]:
-    """Close the session's open agent turns that are `turn` or `agent`'s, as the
-    harness says the agent's run ended or never started; the ids it closed. A turn
-    no agent was named for yet, as when Leaf failed to record the start of an agent
-    that runs on, is named for `agent` first, so its later `leaf` commands are
-    refused as an ended agent's (`acting_agent_turn`) rather than run as the main
-    thread's."""
-    if turn is not None and agent is not None:
-        name_agent_turn(session_id, turn, agent)
+    """Close the session's open agent turn `turn`, or, where no turn is named, every
+    open turn of `agent`, as the harness says the agent's run ended or never
+    started; the ids it closed. An end that names its turn closes only that one, so
+    a late end of an agent's earlier turn leaves the turn a resume opened for it
+    since. A turn no agent was named for yet, as when Leaf failed to record the
+    start of an agent that runs on, is named for `agent` as it closes, so the
+    agent's later `leaf` commands are refused as an ended agent's
+    (`acting_agent_turn`) rather than run as the main thread's."""
     closed: list[str] = []
+    stamp = now_iso()
 
-    def matches(id: str, entry: dict) -> bool:
-        if id == turn or (agent is not None and entry["agent"] == agent):
-            closed.append(id)
-            return True
-        return False
+    def close(id: str, entry: dict) -> dict | None:
+        if turn is not None:
+            ends = id == turn
+        else:
+            ends = agent is not None and entry["agent"] == agent
+        if not ends:
+            return None
+        closed.append(id)
+        named = agent if entry["agent"] is None else entry["agent"]
+        return {**entry, "agent": named, "closed": stamp}
 
-    _update_agent_turns(session_id, matches, closed=now_iso())
+    _update_agent_turns(session_id, close)
     return closed
 
 
-def _update_agent_turns(session_id: str, matches, **fields) -> bool:
-    """Set `fields` on each open agent turn `matches(id, entry)` selects, under the
-    session lock; whether any was."""
+def _update_agent_turns(session_id: str, change) -> bool:
+    """Replace each open agent turn with what `change(id, entry)` returns for it,
+    leaving those it returns None for, under the session lock; whether any changed."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         turns = agent_turns(session_id)
-        chosen = [
-            id
+        changed = {
+            id: new
             for id, entry in turns.items()
-            if agent_turn_open(entry, record) and matches(id, entry)
-        ]
-        if chosen:
-            _write_agent_turns(
-                session_id,
-                {
-                    id: {**entry, **fields} if id in chosen else entry
-                    for id, entry in turns.items()
-                },
-            )
-        return bool(chosen)
+            if agent_turn_open(entry, record) and (new := change(id, entry)) is not None
+        }
+        if changed:
+            _write_agent_turns(session_id, {**turns, **changed})
+        return bool(changed)
 
 
 def acting_agent_turn(session: str) -> str | None:

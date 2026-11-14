@@ -367,7 +367,8 @@ async function clerk($: EngineInterface, session: string) {
 // carried and the newest row stored as it went out
 // (`turn.step`, `sent`), with the newest row stored by the time of the fork (`row`),
 // each the transcript's id from `session.append`, which skips attachments, hook
-// context and compaction summaries. The fork reads the conversation as
+// context, compaction summaries and the messages a tool adds beside its result, such
+// as the body a Skill call loads. The fork reads the conversation as
 // it would next go out: with a tool call running, to `sent`, since the call's
 // tool_use can't go out before its result; otherwise to `row`, a turn's final reply
 // included (`notes/fork-replies.md`, under the fork probes, and a turn-end ask in the
@@ -622,11 +623,25 @@ export const register: Register = (on) => {
     return yield* next(e);
   });
 
-  // Only the doors of the conversation's own rows: attachments, hook context and
-  // compaction summaries are left to the plugins that rewrite them, and Claude Code
-  // tells the user when one of those sends a row past a handler beneath it (read
-  // at 2.1.321).
-  for (const door of ["model", "prompt", "tool-message", "queue", "note"] as const)
+  // Every door but the four whose rows Claude Code's `cc-plugin-sec-default`, seated
+  // on a machine with managed settings, sends past a person's plugins: all of
+  // `attachment`, `hook-context` and `compaction`, and on `tool-message` the body a
+  // Skill call loads. Claude Code tells the user, once a session, that a handler
+  // registered for such a row's door was skipped, so this handler registers for none
+  // of the four. That plugin also sends on a note an organization's plugin appends;
+  // `note` stays for the engine's own. Read and measured at 2.1.318 under managed
+  // settings: a handler on these eight doors drew no notice in a session that called
+  // Skill, and one on `tool-message` drew it at the call.
+  for (const door of [
+    "prompt",
+    "command",
+    "response",
+    "tool-result",
+    "delivery",
+    "queue",
+    "note",
+    "notice",
+  ] as const)
     on("session.append", { door }, async ($, e, next) => {
       const stored = await next(e);
       if (e.agentId === undefined && stored.deny === undefined) lastRow = stored.uuid;

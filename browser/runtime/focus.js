@@ -21,9 +21,8 @@
    It is also the one place that moves them. Every focus the runtime and the packages
    place goes through `focusDestination(node, cause)`, which says whether it is a route
    or a return; the lint (`architecture/placements`) refuses a plain `focus()` elsewhere.
-   Each owner once marked its own returns with a flag its own listener read, and a plain
-   `focus()` that was a return published as the user's move to every other reader.
-   Rejected: keeping wrappers around a placement (`returningFocus`, `placeChrome`) that a
+   A plain `focus()` that was a return would publish as the user's move to every other
+   reader. Rejected: keeping wrappers around a placement (`returningFocus`, `placeChrome`) that a
    caller could forget, which is how those returns reached the readers as moves.
 
    And it exposes the document's input count and text-entry predicates, begun by
@@ -47,10 +46,10 @@
    its pointerdown through the compatibility events its release owes, and the press on a
    label that leaves the user on the control they had focused until it lands
    (`focused`). Rejected: merging the two counts into one, which would void a hold on
-   every keystroke; and each owner keeping its own press tracker, which is how holds
-   came to read the in-between node a label press goes through, and how owners came to
-   wait out a release's click each its own way, by a timer the next press could outrun
-   or a flag held until the next press, and a flag a stopped release left standing.
+   every keystroke; and each owner keeping its own press tracker, which lets holds
+   read the in-between node a label press goes through and lets owners wait out a
+   release's click each their own way, by a timer the next press could outrun, a flag
+   held until the next press, or a flag a stopped release left standing.
 
    And it owns the widget primitives built on these: closing a layer and handing the user
    on as one act (`closeLayer`), holding a place in a keyed list (`holdFocus` with `key`),
@@ -1726,11 +1725,11 @@ export function declareReading(read) {
 }
 //
 // It is the same pair on the body, which carries no tab stop of its own. A permanent
-// `tabindex` on body was once how the let-go worked on a page too short to scroll, but it
-// also made the body the focusable ancestor of every word: a click on a pane's text
-// focused the body, and Chrome starts Space, PageDown and the arrows from the focused
-// element before the node last pressed, so they scrolled the root, which a held
-// workspace keeps still, and never the pane under the click. So the body borrows the stop
+// `tabindex` on body would work on a page too short to scroll, but it would make the body
+// the focusable ancestor of every word: a click on a pane's text would focus the body, and
+// Chrome starts Space, PageDown and the arrows from the focused element before the node
+// last pressed, so they would scroll the root, which a held workspace keeps still, and
+// never the pane under the click. So the body borrows the stop
 // for the focus that moves the starting point to the top, and gives it back on the blur.
 export function releaseFocus() {
   focusDestination(document.body, "move");

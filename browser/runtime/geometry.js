@@ -172,8 +172,6 @@ export function shownWindow({
 //
 // `page check --render` imports this to ask which container cut a box away, so the
 // band a handover is refused against and the band the page paints to are one reading.
-// Written twice they disagreed twice, each copy right about one of the two things above
-// and wrong about the other.
 //
 // The element's own document answers, so a sample can ask it of the containing page's
 // boxes in that page's viewport coordinates.
@@ -404,7 +402,7 @@ export function stuckBox(node, within = null) {
 // `display: contents` ancestor, which places nothing, reads as fixed in the window and
 // ends a landing's walk short of the scroller that would show what it holds, and a
 // fixed `body` under a transformed root reads as fixed though the root's scroll moves
-// it. Neither is handled; main stopped at every fixed box, which these share.
+// it. Neither is handled.
 /** @param {Element} el @param {CSSStyleDeclaration} [style] */
 export const fixedInWindow = (el, style = getComputedStyle(el)) =>
   style.position === "fixed" && (!isHTML(el) || el.offsetParent === null);
@@ -609,14 +607,13 @@ export function shownBox(el) {
 // one: bounds are bounds whichever dimension is flat, while a ring is only worth hanging
 // where it can be seen.
 //
-// The runtime's own chrome leaves by name rather than on that test. Area read as though
-// it were doing the job, and it was doing it by luck: a suggestion hangs its controls off
-// a span with no width, so the apparatus fell out on its own. The line saying how many
-// comments a block holds is clipped to a pixel and has one — so a decision that had been
-// commented on wore its ring on the runtime's word about the page rather than on the
-// page, and the pixel it hung from moves the first time a comment lands. That question is
-// already asked, declared labels and all, and it is the one the anchor pass puts
-// to a text node — so what a mark hangs on and what a quote may name cannot come apart.
+// The runtime's own chrome leaves by name rather than on that test, since area passes
+// chrome that happens to have some: the line saying how many comments a block holds is
+// clipped to a pixel and has one, so a commented decision would wear its ring on the
+// runtime's word about the page rather than on the page, hung from a pixel that moves
+// whenever a comment lands. That question is already asked, declared labels and all, and
+// it is the one the anchor pass puts to a text node — so what a mark hangs on and what a
+// quote may name cannot come apart.
 // Bounded at the element, for the reason given where the question is stated: a widget an
 // agent sent stands inside the panel, and asked about the page instead it would have no
 // child of its own left to fall back to.
@@ -945,8 +942,8 @@ export function whenNone(nodes, holds, leave) {
 // Where a member begins, as the user sees it: the first of the boxes it paints that
 // survives the clips, rather than the bounds of all of them. They are the same box for
 // anything in flow and different for an inline that wraps, whose bounds run from the
-// column's left margin to its right — so a digit placed on that corner sat four hundred
-// pixels from the link it addressed, a line above it, on top of somebody else's sentence.
+// column's left margin to its right, so a digit placed on that corner would sit far from
+// the link it addresses.
 // `shownBox`'s union answers "how much room does this take", which is what a legend box and
 // an aim outline want; this answers "where does it start", which is what anything hung on a
 // corner wants. The first that survives rather than the first outright, since a link whose
@@ -1020,8 +1017,7 @@ const pagePlaneRect = (box, item, clips) => clipped(box, item, clips, false, fal
 // Whether a box Leaf stands against `target` belongs in layout: the target stands within
 // a screen of the window, and within 600px of being scrolled into each scroller around
 // it, so ordinary scrolling brings the box into layout before it carries the target on
-// screen. A box out of layout costs no layout pass, where boxes hidden beside the shown
-// ones made every pass revisit them all. `nearObserver` maintains the reading for the
+// screen. A box out of layout costs no layout pass. `nearObserver` maintains the reading for the
 // anchored controls (css-anchors.js, `anchorView`) and paint sets (target-paint-geometry.js,
 // `paintSet`), and starts work a widget holds until the reader nears it
 // (presentation.js, `whenNear`); `nearWindow` reads it at once for a first

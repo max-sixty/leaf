@@ -261,8 +261,8 @@ class Harness:
         At Stop, Claude Code continues a turn on it as it does on a block, and
         labels it "Stop hook additional context" rather than "Stop hook error":
         its schema calls that field non-error feedback after which the
-        conversation continues, and a probe at 2.1.284 saw the turn go on and the
-        next Stop arrive with `stop_hook_active`. Nothing Leaf's Stop hook says is
+        conversation continues, and at 2.1.284 the turn goes on and the next Stop
+        arrives with `stop_hook_active`. Nothing Leaf's Stop hook says is
         an error, so it takes this channel where the harness has one."""
         return {
             "hookSpecificOutput": {"hookEventName": event, "additionalContext": message}
@@ -408,7 +408,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
     hook_delivers = True
     # It reads a hook's output only once every hook of that event has exited, and
     # Escape before then drops the whole prompt, Leaf's context with it (measured
-    # at 2.1.304 with a second prompt hook sleeping 6 s). No hook says the output
+    # at 2.1.304). No hook says the output
     # was taken; the transcript does (`entered_context`).
     commits_hook_context = False
     # It writes a larger hook context to a file and hands the turn a 2 KB preview
@@ -424,9 +424,8 @@ class ClaudeCodeHarness(EnvironmentHarness):
         A background job (`claude --bg`, the agents view) has no such process.
         Its turns run on daemon workers, and CLAUDE_PID names the worker hosting
         the current sitting. The daemon retires that worker about an hour after
-        the job goes idle and claims a fresh one at the next wake — measured at
-        Claude Code 2.1.241 from its daemon log, `bg settled … (done)` then `bg
-        claimed-spare …` — while the job, the session every wake resumes, stands
+        the job goes idle and claims a fresh one at the next wake (measured at
+        Claude Code 2.1.241), while the job, the session every wake resumes, stands
         until it is deleted. So a job's lifetime is `job`, the directory
         CLAUDE_JOB_DIR names, and a page held by one stays served until the job
         is deleted or `leaf server stop` ends it. The fact read there is the job
@@ -440,8 +439,8 @@ class ClaudeCodeHarness(EnvironmentHarness):
         A session in the Claude desktop app is a process the app treats as
         disposable: it stops every session to install an update once its
         window has been unfocused for ten minutes, and resumes one, as a new
-        process, only when the user next opens it (measured at app 3.6556.1
-        from its `main.log`). The session the user sees is the app's record of
+        process, only when the user next opens it (measured at app 3.6556.1).
+        The session the user sees is the app's record of
         it, which CLAUDE_CODE_HOST_SESSION_ID names (`desktop_session_record`),
         so its lifetime is `app`, that record's path, for as long as the record
         names this session (`service.lifetime_is_live`). The variable is
@@ -475,7 +474,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
         submitted again under a new one (measured at 2.1.310), so a handover into a
         dropped prompt belongs to a turn that never ran. A typed prompt Escape drops
         goes back to the composer instead (2.1.316). Releases before 2.1.196 send no
-        `prompt_id` (found in each npm release's hook input), so their turns are
+        `prompt_id`, so their turns are
         Leaf's, and a resubmitted prompt renews the dropped one's; receipt then stops
         short of its handover (`delivery.confirm_entered`), which is input again once
         the turn ends."""

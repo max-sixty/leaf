@@ -883,6 +883,10 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
   // A restored passage or end can carry its focused control beyond the new
   // viewport. Nearest reveal changes nothing when the destination already fits.
   if (currentLocation)
-    scrollIntoView(currentLocation, { block: "nearest", behavior: "instant" });
+    scrollIntoView(currentLocation, {
+      block: "nearest",
+      behavior: "instant",
+      kept: true,
+    });
   placeKept(box, ...(currentLocation ? scrollersOf(currentLocation) : []));
 }

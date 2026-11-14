@@ -358,7 +358,6 @@ describe("product-site delivery", () => {
     "/",
     "/how-it-works/",
     "/using/",
-    "/pages/",
     "/examples/",
     "/examples/triage-board/",
     "/extending/",

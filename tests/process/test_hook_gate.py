@@ -121,7 +121,7 @@ def test_a_terminated_pages_follower_exits_with_its_signal(claimed, spawn):
     follower.stdin.close()
     # The claimed page has no server, so the follower lists nothing and goes on
     # following it.
-    assert json.loads(follower.stdout.readline()) == []
+    assert json.loads(follower.stdout.readline()) == {"pages": [], "completions": []}
     assert follower.poll() is None
     follower.send_signal(signal.SIGTERM)
     assert follower.wait(timeout=STATED_TIMEOUT) == 128 + signal.SIGTERM, (

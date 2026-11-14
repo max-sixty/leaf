@@ -673,12 +673,13 @@ def test_a_focused_box_that_holds_lines_says_which_key_makes_one(browser, serve)
     assert shown["parts"] == ["Add another option…", "⏎"], shown
 
 
-def test_a_narrow_box_shortens_its_label_before_its_keys(browser, serve):
-    """Where a box is narrow, its label shortens first and its keys stay, and nothing
-    the placeholder shows stands on the field's actions: the panel's page comment,
-    whose Comment… leaves room for both keys at a phone's width, and a seat's box,
-    whose actions stand in its corner and whose label shortens there."""
-    context = browser.new_context(viewport={"width": 320, "height": 700})
+def test_a_narrow_box_keeps_its_label_whole_and_drops_its_new_line_key(browser, serve):
+    """Where a box is narrow, its label stands whole and the new-line key goes whole,
+    since a label cut to keep a key names nothing, and nothing the placeholder shows
+    stands on the field's actions: the panel's page comment, whose Comment… leaves room
+    for both keys at a phone's width, and a seat's box, whose actions stand in its
+    corner and leave room there for the label and the send key alone."""
+    context = browser.new_context(viewport={"width": 430, "height": 700})
     page = open_page(browser, serve(SEATED_OBLIGATION_PAGE), context=context)
     page_comment(page)
     hint = page.locator(".lf-fp-field .lf-compose-placeholder")
@@ -690,7 +691,7 @@ def test_a_narrow_box_shortens_its_label_before_its_keys(browser, serve):
     seat.click()
     expect(seat).to_be_focused()
     shown = seat.locator(".lf-compose-placeholder").evaluate(PLACEHOLDER_SHOWN)
-    assert shown["shortened"] and "⏎" in shown["parts"], shown
+    assert not shown["shortened"] and shown["parts"][-1] == "⏎", shown
     assert not shown["covers"], shown
 
 

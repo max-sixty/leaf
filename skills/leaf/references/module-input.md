@@ -103,8 +103,7 @@ Android's back gesture takes the step Escape would. A row whose `run` throws awa
 the user wrote and hasn't sent, such as an editor's Escape, also declares `keep`, which
 back runs instead: it closes the editor without losing the changed words. Where a press
 away from the editor saves them, `keep` saves them too, as `lf-draft` does; otherwise it
-keeps them where reopening finds them, shows that the widget holds them, and says so
-with `notice("Edit kept")`.
+keeps them where reopening finds them and shows that the widget holds them.
 
 Leaf re-evaluates a `when` or a computed field when the readings it uses change, such as
 a widget's state or the threads. For any other state it reads, hold the value in a
@@ -222,8 +221,7 @@ A live revision moves focus from a generated control to its replacement by a
 whether focus is in a scope. `placeOf(node)` returns the page node a place stands for,
 so focus on a margin entry or in a thread card reads as being at its passage or
 obligation; a module asks it whether the user is on its content from either.
-`whenLeft(element, leave)` runs `leave` once when focus
-leaves an element. `onPressAway(away, dismiss)` hears each primary press that begins and
+`onPressAway(away, dismiss)` hears each primary press that begins and
 ends where `away(path)` is true of its composed path, as an open editor that a tap
 elsewhere should save does, and calls `dismiss(path, from)` before the press's click; it
 ignores a touch scroll the browser cancels, and returns its unsubscribe function. A group
@@ -260,11 +258,10 @@ Chromium that makes every focus move restyle the page.
 
 ### Layers
 
-A widget opening its own layer, such as a list over its contents, calls
-`openLayer(layer)`, which records where focus was, and closes it with
+A widget closing its own layer, such as a list over its contents, calls
 `closeLayer(close, land)`. `close` hides it, and `land` puts the user where closing takes
-them, usually `() => handBack(openerOf(layer))`. `handBack(...destinations)` lands on the
-first destination that can take focus. The layer's Escape is an ordinary command row.
+them, usually `() => handBack(opener)`, with `opener` the control the user came from.
+`handBack(...destinations)` lands on the first destination that can take focus. The layer's Escape is an ordinary command row.
 
 Open a native dialog or popover with `showNativeLayer(layer, {source})`, adding
 `modal: false` for a nonmodal dialog, and close it with `closeNativeLayer(layer)`.
@@ -419,8 +416,8 @@ element drawn on; a moving visual listens for it and freezes what it shows.
 ## Text entry and drafts
 
 A widget's own text box is `offer(TEXT_FIELD)`, Leaf's Markdown editor, which behaves
-like a textarea and fires `input` only for the user's edits. `TEXT_FIELD` is its tag,
-and `TEXT_BOX` matches it or a native textarea. The field matches `:state(ready)` once
+like a textarea and fires `input` only for the user's edits. `TEXT_FIELD` is its
+tag. The field matches `:state(ready)` once
 it draws its words; where it replaces text the user was reading, leave that text in
 place until then, so the scroller doesn't shrink.
 

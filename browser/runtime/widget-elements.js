@@ -13,9 +13,8 @@ export {
 
    A behavior module builds injected controls with `offer`, a press wearing one of
    Leaf's control faces with `offerAction` by its role, marks words it writes that
-   should stand apart from the author's with `generatedElement`, and uses `relabel`
-   (control-labels.js) when a control's label is also one of the page's words. A Lit template reaches the
-   same writers through element directives built by `elementDirective`. A behavior module
+   should stand apart from the author's with `generatedElement`. A Lit template reaches
+   the same writers through element directives built by `elementDirective`. A behavior module
    reads a box from inside `measure` (shown-box.js). A label
    whose words change holds one room for all of them with `data-lf-room`, which the
    theme sizes without script and which cuts words past it (controls.css). A module that

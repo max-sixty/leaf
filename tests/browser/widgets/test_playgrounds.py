@@ -1343,8 +1343,8 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     presets = playground.get_by_role("group", name="Starting points")
     actions = playground.locator(".lf-playground-actions")
     reading = """async () => {
-      const leaf = await window.__lfWidgetApi();
-      const {readingRegionFor} = await window.__lfCheckApi();
+      const leaf = await Promise.all([window.__lfWidgetApi(), window.__lfCheckApi()]).then(parts => Object.assign({}, ...parts));
+      const {readingRegionFor} = leaf;
       const playground = document.querySelector('#notification-playground');
       const controls = playground.querySelector('.lf-playground-controls');
       const preview = playground.querySelector('.lf-playground-preview-body');

@@ -1,5 +1,4 @@
-import { TEXT_BOX } from "/runtime/widget-api.js";
-import { shownBox, shownParts, userScrollport } from "/runtime/check-api.js";
+import { shownBox, shownParts, TEXT_BOX, userScrollport } from "/runtime/check-api.js";
 import { at, place, unique } from "./locate.js";
 
 // The axes on which a box clips what it holds and offers the user no way in, asked of

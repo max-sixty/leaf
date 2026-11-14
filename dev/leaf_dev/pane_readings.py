@@ -42,7 +42,7 @@ READINGS = """async () => {
   const { readingRegions, readingRegionFor, shownRegionBounds } = await import(
     "/runtime/check-api.js"
   );
-  const { regionScrollBehavior } = await import("/runtime/widget-api.js");
+  const { regionScrollBehavior } = await import("/runtime/check-api.js");
   const workspaces = [...document.querySelectorAll(".layout-workspace")].filter(
     (box) => box.checkVisibility(),
   );

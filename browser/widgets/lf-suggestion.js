@@ -19,10 +19,8 @@
  * reads rendered descendants when a project makes the target `display: contents`. A suggestion never creates a second RHS surface or
  * geometry model of its own. */
 import {
-  alignText,
   commandScope,
   commandsChanged,
-  foldBlock,
   keeps,
   LeafElement,
   contributionEntry,
@@ -32,7 +30,9 @@ import {
   registerContribution,
   says,
 } from "/runtime/widget-api.js";
+import { foldBlock } from "../runtime/motion.js";
 import { renderRetired, textNodesUnder } from "../runtime/passages.js";
+import { alignText } from "../runtime/text-alignment.js";
 import { shownParts } from "../runtime/geometry.js";
 
 /** @typedef {"accept" | "reject"} Outcome */

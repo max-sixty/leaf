@@ -251,7 +251,7 @@
       "lf-test-worker": {
         "role": "worker",
         "state": "state",
-        "running": ["working"],
+        "running": ["working", "waiting"],
         "retired": ["reaped", "done"],
         "on": "on"
       },

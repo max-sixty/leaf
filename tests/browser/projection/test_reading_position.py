@@ -752,7 +752,7 @@ def test_a_panes_scroll_behavior_change_keeps_the_reading_after_scrolling_past_f
         # Interleave at the announced handover, before its deferred restoration. The
         # platform input supersedes that restoration just as a trackpad gesture does.
         page.evaluate("""async () => {
-          const regions = await window.__lfWidgetApi();
+          const regions = await window.__lfCheckApi();
           const stop = regions.watchReadingRegionTransitions(({phase, shifted}) => {
             if (phase !== 'shift' || !shifted.some(({region}) => region.id === 'reading'))
               return;

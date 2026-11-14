@@ -34,7 +34,6 @@ export {
 } from "/vendor/lit.js";
 export { whileConnected, frameFor, setScroll } from "./arrivals.js";
 export {
-  afterScript,
   cancelRender,
   cancelAnimation,
   nextAnimation,
@@ -48,7 +47,6 @@ export {
   announce,
   bodyText,
   commandsChanged,
-  dataBody,
   failSoft,
   layoutChanged,
   once,
@@ -62,7 +60,6 @@ export { registerVisualParts } from "./visual-parts.js";
 export { inBaseLayer } from "./base-layer.js";
 export { tabStore } from "./tab-store.js";
 export { ensureSyntaxLanguage, synNodes, syntax, tokenLines } from "./syntax-tokens.js";
-export { actionName } from "./icon-paths.js";
 export { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 // The time axis the Playwright timeline and lf-timeline both draw on.
 export {
@@ -101,7 +98,7 @@ export { publishOutput } from "./widget-output.js";
 export { threadSurface, releaseOutlets } from "./thread/surface-handles.js";
 export { canvas2D } from "./canvas.js";
 
-export { nameAction, relabel, searchField } from "./control-labels.js";
+export { nameAction, searchField } from "./control-labels.js";
 
 export { focusDestination, focused, holdFocus, currentLocationIn } from "./focus.js";
 export { retainUserIntent } from "./user-intent.js";

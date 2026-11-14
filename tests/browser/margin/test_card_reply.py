@@ -1347,7 +1347,7 @@ def test_the_thread_card_s_transcript_is_its_scroller_when_it_opens(browser, ser
     }"""
     assert page.evaluate(scroller) == "page"
     page.evaluate("""async () => {
-      const regions = await window.__lfWidgetApi();
+      const regions = await window.__lfCheckApi();
       window.__previewShifts = [];
       regions.watchReadingRegionTransitions(({phase, shifted}) => {
         if (phase === 'shift')

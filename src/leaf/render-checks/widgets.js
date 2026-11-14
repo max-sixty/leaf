@@ -1,4 +1,4 @@
-import { inChrome, matchesWhen, quoted, TEXT_BOX } from "/runtime/widget-api.js";
+import { inChrome, matchesWhen, quoted } from "/runtime/widget-api.js";
 import {
   ADDRESSABLE,
   textNodesUnder,
@@ -6,6 +6,7 @@ import {
   commandRoutes,
   pageDocument,
   inPage,
+  TEXT_BOX,
   upFrom,
   userScrollport,
   visualPartProblems,

@@ -53,7 +53,7 @@ export const offerElement = (node, cls, pressable = false) => {
 // leaves them out, and they are a passage cell of their own. `says` is whether they
 // are the page speaking (data-lf-said, quotable even inside chrome), a copy of words
 // the page says elsewhere ("echo", data-lf-echo), or neither; widget-elements.js,
-// over `relabel`, says why each answer matters and why none is assumed.
+// control-labels.js says why each answer matters and why none is assumed.
 /**
  * @template {Element} T
  * @param {T} node

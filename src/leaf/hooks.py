@@ -41,9 +41,10 @@ hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
 records in `codex`. Claude Code's background Stop hook and Pi's extension watch
 between turns (`cmd_watch`), and Leaf's Claude Code hooks module follows the
 session's pages (`cmd_pages`) to draw them beside the prompt and to fork for each
-thread Leaf keeps back, and at each turn's end asks the clerk what to fork the
-conversation with; `--fork` asks for each fork's prompt and hands back its answer
-(`clerk.cmd_fork`, `forks.cmd_fork`). `leaf hook`
+thread Leaf keeps back and to make each completion a page server asks of it, and at
+each turn's end asks the clerk what to fork the conversation with; `--fork` asks for
+each fork's prompt and hands back its answer (`clerk.cmd_fork`, `forks.cmd_fork`),
+or a completion's (`completions.cmd_reply`). `leaf hook`
 (`cli.hook`) dispatches here.
 
 Claude Code's PostToolBatch carries pending input before the next model call,
@@ -393,14 +394,16 @@ SHOWN_FIELDS = ("page_key", "url", "title", "on_user", "threads", "activity")
 
 
 def cmd_pages(payload: dict) -> None:
-    """Print the live pages the payload's session holds, as one JSON list
-    (`presence.live_leaves`), then again each time that list changes, until the
-    session holds no page. Leaf's Claude Code hooks module draws it beside the
-    prompt.
+    """Print the live pages the payload's session holds (`presence.live_leaves`)
+    and the model completions page servers ask of it (`completions.pending`), as one
+    JSON object, `{"pages": [...], "completions": [...]}`, then again each time
+    either changes, until the session holds no page. Leaf's Claude Code hooks module
+    draws the pages beside the prompt, and makes each completion, given as the `id`
+    and `request` it answers with `$.model.complete`.
 
-    Read every presence interval: a dead server leaves its row behind, so native
-    notifications cannot replace this timer, and the list subscribes to nothing of
-    its own.
+    Read the pages every presence interval: a dead server leaves its row behind, so
+    native notifications cannot replace this timer. It waits on the session's
+    requests (`completions.watch`), so it lists one as it is written.
 
     A payload asking for `forks`, from a hooks module this Leaf ships (its `module`,
     the digest of the module's source as it loaded, `session_runtime.module_current`),
@@ -414,7 +417,7 @@ def cmd_pages(payload: dict) -> None:
     moved or a bound has run out, since Leaf starts keeping a thread back as its
     message is admitted.
 
-    It exits with `EX_TEMPFAIL`, without a last list, once the session's delivery
+    It exits with `EX_TEMPFAIL`, without a last line, once the session's delivery
     runs another Leaf than its own (`_moved_on`), and the module starts it again,
     under that Leaf. A follower runs as long as its session, while the session's
     hooks hand themselves at each call to the Leaf delivering for it: a newer copy
@@ -440,19 +443,22 @@ def cmd_pages(payload: dict) -> None:
     (`leaf-dev timeline`)."""
     sid = payload.get("session_id") or ""
     if not owned_pages(sid):
-        print("[]", flush=True)
+        print(json.dumps({"pages": [], "completions": []}), flush=True)
         return
 
+    from .completions import pending, watch
+    from .file_changes import FileChanges, wait
     from .interaction_log import record_follower
     from .presence import PRESENCE_CACHE_S, live_leaves
     from .session_runtime import module_current
 
+    queued = watch(sid)
     asked, current = bool(payload.get("forks")), module_current(payload.get("module"))
     forking = asked and current
     # The pages this follower has noted its verdict in, each once.
     noted: set = set()
     if forking:
-        from .file_changes import FileChanges, page_changes, wait
+        from .file_changes import page_changes
         from .forks import lane_path, take_lane
         from .leases import release_lease
         from .page_memory import memory_of
@@ -483,13 +489,16 @@ def cmd_pages(payload: dict) -> None:
             _memories = [memory_of(page) for page in held] if forking else []
             presence_due = time.monotonic() + PRESENCE_CACHE_S
             while True:
-                # Taken before the pass reads, so a message admitted during it
-                # ends the wait below.
-                marks = (
-                    [*map(page_changes, held), (renamed, renamed.mark())]
-                    if forking
-                    else []
-                )
+                # Taken before the pass reads, so a message admitted or a request
+                # asked during it ends the wait below.
+                marks = [
+                    (queued, queued.mark()),
+                    *(
+                        [*map(page_changes, held), (renamed, renamed.mark())]
+                        if forking
+                        else []
+                    ),
+                ]
                 if forking and not still_named(lane.fileno(), named):
                     # A later follower took the lane, which let go what this one
                     # kept back, and forks what this one would.
@@ -504,22 +513,22 @@ def cmd_pages(payload: dict) -> None:
                     else {}
                 )
                 listed = json.dumps(
-                    [
-                        {
-                            **{field: leaf[field] for field in SHOWN_FIELDS},
-                            **({"kept_back": kept[page]} if forking else {}),
-                        }
-                        for page, leaf in leaves
-                    ]
+                    {
+                        "pages": [
+                            {
+                                **{field: leaf[field] for field in SHOWN_FIELDS},
+                                **({"kept_back": kept[page]} if forking else {}),
+                            }
+                            for page, leaf in leaves
+                        ],
+                        "completions": pending(sid),
+                    }
                 )
                 if listed != shown:
                     print(listed, flush=True)
                     shown = listed
                 if not held:
                     return
-                if not forking:
-                    time.sleep(PRESENCE_CACHE_S)
-                    break
                 bound = min(
                     (looked[page][1] for page in held if page in looked),
                     default=float("inf"),
@@ -529,6 +538,7 @@ def cmd_pages(payload: dict) -> None:
                 if time.monotonic() >= presence_due:
                     break
     finally:
+        queued.close()
         if forking:
             release_lease(lane)
             renamed.close()
@@ -640,9 +650,11 @@ def main(
         cmd_pages(payload)
         return
     if fork:
-        # A kept-back thread's forks, or the end of an agent's run (`forks`), or
-        # else the clerk's.
-        if "thread" in payload or "ended" in payload:
+        # A completion's reply (`completions`), a kept-back thread's forks or the
+        # end of an agent's run (`forks`), or else the clerk's.
+        if "completion" in payload:
+            from .completions import cmd_reply as cmd_fork
+        elif "thread" in payload or "ended" in payload:
             from .forks import cmd_fork
         else:
             from .clerk import cmd_fork

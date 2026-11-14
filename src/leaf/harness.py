@@ -569,9 +569,9 @@ class ClaudeCodeHarness(EnvironmentHarness):
         return name if isinstance(name, str) and name else None
 
     def inference_generator(self) -> Callable[..., dict]:
-        from leaf.inference import claude_code_generate
+        from leaf.inference import claude_code_generator
 
-        return claude_code_generate
+        return claude_code_generator(self.session)
 
     def nudge(self, page_dir: Path) -> bool:
         """The session's socket, or, for a background job no worker hosts, the job

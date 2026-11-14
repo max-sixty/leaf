@@ -5,24 +5,26 @@
 // Arguments: the session id, then the driver's options as JSON: `pluginRoot`, the
 // plugin's directory in place of this tree; `throwSpawn`, which makes every
 // `$.process.spawn` throw; `forkAnswer`, the text `$.model.fork` answers with;
-// `forkRejects`, which makes every fork reject; `forkUsage`, the usage a fork
-// reports in place of one that read its prompt from the cache; `agentId`, the id each
-// `$.agent.spawn` answers with, or a list of them answered in turn, the last for
-// every spawn after, each printing what it was asked as `{"spawned"}`;
-// `spawnWaits`, which holds each spawn's answer until a stdin line
-// `{"spawnReturns": true}`, as a fork's run can end before Claude Code answers;
-// `forkStepFails`, a key of a `leaf hook --fork` payload whose step then fails
-// without running, as Leaf's process can;
-// `sendRefuses`, the reason every `$.session.send` gives for delivering nothing,
-// which otherwise delivers, each send printing what it was asked as `{"sent"}`;
-// `state`, the values `$.state` holds as the module loads, by key, as a reload
-// finds them; `store`, the file that holds `$.store`'s entries, kept across driven
-// processes as Claude Code keeps a plugin's; and `env`, Claude Code's environment,
-// all that `$.env`
+// `forkRejects`, which makes every fork reject; `forkRefused`, which makes every
+// fork come back as the API's refusal before any response; `forkUsage`, the usage a
+// fork reports in place of one that read its prompt from the cache; `completeReply`,
+// the text `$.model.complete` answers with, after `completeRefusals` completions it
+// answers as a provider's 429; `agentId`, the id each `$.agent.spawn` answers with,
+// or a list of them answered in turn, the last for every spawn after, each printing
+// what it was asked as `{"spawned"}`; `spawnWaits`, which holds each spawn's answer
+// until a stdin line `{"spawnReturns": true}`, as a fork's run can end before Claude
+// Code answers; `forkStepFails`, a key of a `leaf hook --fork` payload whose step
+// then fails without running, as Leaf's process can; `sendRefuses`, the reason every
+// `$.session.send` gives for delivering nothing, which otherwise delivers, each send
+// printing what it was asked as `{"sent"}`; `state`, the values `$.state` holds as
+// the module loads, by key, as a reload finds them; `store`, the file that holds
+// `$.store`'s entries, kept across driven processes as Claude Code keeps a plugin's;
+// and `env`, Claude Code's environment, all that `$.env`
 // reads and what the module's processes inherit over the driver's own. Each
 // `leaf hook --fork` the module runs prints its payload as `{"forkStep"}`. Each stdin line is `{"emit": <event>, "e": <input>}`:
 // the driver runs that event's hooks over `e`, the bottom of the chain answering
-// with the input it reached, and prints `{"event", "result"}` once they resolve. A
+// with the input it reached (a step's with the usage of its response beside it), and
+// prints `{"event", "result"}` once they resolve. A
 // line `{"advance": <ms>}` moves `$.clock` on by that much. A
 // line `{"flush": true}` prints `{"flushed": true}` once the module has done what
 // it does without waiting on anything outside. Each redraw the module asks for
@@ -55,6 +57,8 @@ const held = new Map(
   ]),
 );
 let band = { terminal: null, desktop: null };
+// How many completions have answered as a provider's 429.
+let refused = 0;
 // How far `{"advance"}` lines have moved `$.clock` past the real one.
 let advanced = 0;
 
@@ -227,9 +231,43 @@ const $ = {
   // as the one it sent, as Claude Code does; with none it has nothing to fork, as
   // before a turn's end.
   model: {
+    // A completion prints the request it was given as `{"completed": <request>}`.
+    complete: async (request) => {
+      print({ completed: request });
+      const usage = {
+        input_tokens: 300,
+        output_tokens: 12,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      };
+      if (refused < (options.completeRefusals ?? 0)) {
+        refused += 1;
+        return {
+          isAnswered: false,
+          reason: "api-error",
+          status: 429,
+          error: "rate_limit",
+          usage,
+        };
+      }
+      return { isAnswered: true, text: options.completeReply, usage };
+    },
     fork: async ({ prompt, effort }) => {
       print({ forked: prompt, effort });
       if (options.forkRejects) throw new Error("the model refused the request");
+      if (options.forkRefused)
+        return {
+          isAnswered: false,
+          reason: "api-error",
+          status: 429,
+          error: "rate_limit",
+          usage: {
+            input_tokens: 0,
+            output_tokens: 0,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          },
+        };
       const usage = options.forkUsage ?? {
         input_tokens: 10,
         output_tokens: 20,
@@ -297,6 +335,14 @@ function drawn(key, node = band.terminal) {
 
 // The events whose hooks stream, as Claude Code's declarations name them.
 const STREAMING = new Set(["turn.step"]);
+// The usage each step's response reports: the whole prompt in the cache after it, as
+// much as a fork that kept the cache reads (`model.fork`'s default usage).
+const STEP_USAGE = {
+  input_tokens: 2,
+  output_tokens: 30,
+  cache_read_input_tokens: 900,
+  cache_creation_input_tokens: 100,
+};
 
 // The driver files a render hook under its component, `ui.render:<component>`, and
 // runs any other hook whose matcher, if it has one, matches the event's input as
@@ -337,14 +383,14 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
     continue;
   }
   // A streaming event's hook is an async generator over the stream beneath, here
-  // one that yields nothing and returns the input it reached.
+  // one that yields nothing and returns the response to the step it reached.
   const streams = STREAMING.has(emit);
   const chain = (hooks.get(emit) ?? []).reduceRight(
     (next, hook) => (input) => hook($, input, next),
     streams
       ? async function* (input) {
           yield* [];
-          return input;
+          return { ...input, usage: { ...STEP_USAGE, model: input.model } };
         }
       : async (input) => input,
   );

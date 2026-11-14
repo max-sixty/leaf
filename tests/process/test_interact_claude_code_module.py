@@ -19,12 +19,15 @@ from interact_support import (
     append_carried_log_record,
     read_record,
     serving,
+    stamp,
     wait_for,
 )
 
 from leaf import clerk as clerk_model
+from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import forks as forks_model
+from leaf import inference as inference_model
 from leaf import leases as leases_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
@@ -32,6 +35,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as state_model
 from leaf import thread as thread_model
+from leaf import thread_titles as thread_titles_model
 from leaf.harness import NUDGE_WORDS
 from leaf.interaction_log import read_interactions
 
@@ -61,6 +65,7 @@ class ClaudeCode:
         self.spawned = queue.Queue()
         self.sent = queue.Queue()
         self.steps = queue.Queue()
+        self.completions = queue.Queue()
         threading.Thread(target=self.route, daemon=True).start()
         self.pid = self.read()["pid"]
 
@@ -81,6 +86,8 @@ class ClaudeCode:
                 self.sent.put(record["sent"])
             elif "forkStep" in record:
                 self.steps.put(record["forkStep"])
+            elif "completed" in record:
+                self.completions.put(record["completed"])
             elif {"copied", "toast"} & record.keys():
                 self.pressed.put(record)
             else:
@@ -355,7 +362,7 @@ def test_a_follower_that_ends_to_be_renewed_starts_again(spawn, sessionless, tmp
     launcher.write_text(
         "#!/bin/sh\n"
         f"echo started >> {starts}\n"
-        f"echo '{json.dumps([page])}'\n"
+        f"echo '{json.dumps({'pages': [page], 'completions': []})}'\n"
         f'[ "$(wc -l < {starts})" -gt 1 ] && exec sleep 60\n'
         "exit 75\n"
     )
@@ -373,13 +380,16 @@ def test_a_follower_that_ends_to_be_renewed_starts_again(spawn, sessionless, tmp
 
 
 # The main thread's last request as a fork's diagnostics name it: the newest row
-# stored as it went out, and the newest by the time of the fork, such as its reply.
+# stored as it went out, and the newest by the time of the fork, such as its reply,
+# and how much of its prompt its response left in the cache (the driver's
+# `STEP_USAGE`), as long as a session's first turn-end check comes in.
 RESENT = {
     "model": "claude-opus-5-5",
     "effort": "xhigh",
-    "messages": 12,
+    "messages": 200,
     "sent": "r1",
     "row": "r2",
+    "cached": 1000,
 }
 # The usage the driver's fork reports (`tests/claude_code_driver.mjs`).
 FORK_USAGE = {
@@ -403,7 +413,7 @@ def main_thread_request(driven, messages: int = 12) -> None:
     driven.emit("session.append", {**row, "uuid": "r0"})
     driven.emit("session.append", {**row, "uuid": "r1", "door": "tool-result"})
     step = {"turnId": "t1", "index": 0, "model": "claude-opus-5-5", "effort": "xhigh"}
-    driven.emit("turn.step", {**step, "messageCount": messages})
+    driven.emit("turn.step", {**step, "messageCount": RESENT["messages"]})
     driven.emit("session.append", {**row, "uuid": "r2"})
     driven.emit(
         "turn.step",
@@ -482,11 +492,13 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
     driven.quit()
 
 
-# The usage of a fork that wrote the conversation to the cache again.
+# The usage of a fork that wrote the conversation to the cache again: it read only
+# the system prompt and tools, less than the main thread's request left there
+# (`RESENT`), and wrote the rest, here a conversation shorter than they are.
 REWROTE = {
     **FORK_USAGE,
-    "cache_read_input_tokens": 50,
-    "cache_creation_input_tokens": 9000,
+    "cache_read_input_tokens": 600,
+    "cache_creation_input_tokens": 400,
 }
 # A minute and a day, in `$.clock`'s milliseconds.
 MINUTE_MS = 60 * 1000
@@ -498,12 +510,12 @@ def checks(page_dir, monkeypatch, spawn, sessionless, tmp_path):
     """Run a new session's turn-end checks, all sessions sharing one plugin store
     (`store.json` in `tmp_path`),
     and return each check's effort. `later` moves `$.clock` on before the main
-    thread's request, and `idle` between that request and the checks; the request
-    carries `messages` messages, and the other options are the driver's."""
+    thread's request, and `idle` between that request and the checks; the other
+    options are the driver's."""
     store = tmp_path / "store.json"
     served = []
 
-    def run(session, turns, later=0, idle=0, messages=12, **options):
+    def run(session, turns, later=0, idle=0, **options):
         reply = json.dumps({"asks": [], "findings": []})
         driven = ClaudeCode(
             spawn, session, {"forkAnswer": reply, "store": str(store), **options}
@@ -511,7 +523,7 @@ def checks(page_dir, monkeypatch, spawn, sessionless, tmp_path):
         holding_page(driven, page_dir, monkeypatch, serve=not served)
         served.append(session)
         driven.send({"advance": later})
-        main_thread_request(driven, messages)
+        main_thread_request(driven)
         driven.send({"advance": idle})
         ended = {"answer": "Done.", "durationMs": 1, "isAborted": False}
         efforts = []
@@ -541,11 +553,12 @@ def test_a_fork_that_rewrote_the_cache_sends_later_forks_at_the_sessions_effort(
 ):
     """Where Claude Code's per-message effort doesn't reach the model, a fork at
     another effort than the session's writes the conversation to the cache again
-    (#5891). Once a turn-end check's usage shows it wrote more of its prompt than it
-    read, each later fork on that backend goes at the session's own effort, which the
-    cache serves: in the same session, and from the first fork of a later one, which
-    so pays no rewrite to find that out again (#5906). Another route is another
-    backend, which asks at the changed effort."""
+    (#5891). Once a turn-end check's usage shows it read less from the cache than
+    the main thread's request left there, even in a conversation shorter than the
+    system prompt and tools it did read, each later fork on that backend goes at the
+    session's own effort, which the cache serves: in the same session, and from the
+    first fork of a later one, which so pays no rewrite to find that out again
+    (#5906). Another route is another backend, which asks at the changed effort."""
     assert checks("cc-rewrote-1", 2, forkUsage=REWROTE) == [LOW, SESSIONS]
     assert checks("cc-rewrote-2", 1) == [SESSIONS]
     assert checks("cc-rewrote-3", 1, env={"CLAUDE_CODE_USE_VERTEX": "1"}) == [LOW]
@@ -556,23 +569,21 @@ def test_a_fork_that_rewrote_the_cache_sends_later_forks_at_the_sessions_effort(
 
 
 @pytest.mark.parametrize(
-    ("later", "messages", "expected"),
+    ("later", "usage", "expected"),
     [
         # An answer some days old still holds.
-        (3 * DAY_MS, 12, [SESSIONS, SESSIONS]),
-        # A lapsed one asks again while the conversation is small, and a check that
-        # keeps the cache drops it.
-        (8 * DAY_MS, 12, [LOW, LOW]),
-        # In a large conversation that would cost a rewrite of it, so it holds.
-        (8 * DAY_MS, 400, [SESSIONS, SESSIONS]),
+        (3 * DAY_MS, FORK_USAGE, [SESSIONS, SESSIONS]),
+        # A lapsed one asks again, and a check that keeps the cache drops it.
+        (8 * DAY_MS, FORK_USAGE, [LOW, LOW]),
+        # One that rewrites the cache again renews it.
+        (8 * DAY_MS, REWROTE, [LOW, SESSIONS]),
     ],
 )
-def test_a_stored_rewrite_lapses(checks, later, messages, expected):
+def test_a_stored_rewrite_lapses(checks, later, usage, expected):
     """A backend that gains per-message effort is found again: a stored rewrite
-    lapses after some days, and the next check in a small conversation asks at the
-    changed effort, which here keeps the cache."""
+    lapses after some days, and the next check asks at the changed effort."""
     assert checks("cc-lapse-1", 1, forkUsage=REWROTE) == [LOW]
-    assert checks("cc-lapse-2", 2, later=later, messages=messages) == expected
+    assert checks("cc-lapse-2", 2, later=later, forkUsage=usage) == expected
 
 
 def test_thread_replies_keep_a_lapsed_rewrite_until_a_check_asks_again(
@@ -621,11 +632,22 @@ def test_thread_replies_keep_a_lapsed_rewrite_until_a_check_asks_again(
     driven.quit()
 
 
-def test_a_check_after_the_cache_expired_stores_nothing(checks, tmp_path):
-    """A check made once the main thread's last request has left the cache writes
-    the conversation again at any effort, so its usage stores no answer."""
-    expired = checks("cc-cold", 2, forkUsage=REWROTE, idle=10 * MINUTE_MS)
-    assert expired == [LOW, LOW]
+@pytest.mark.parametrize(
+    "options",
+    [
+        # The main thread's last request has left the cache, so the check writes the
+        # conversation again at any effort.
+        {"forkUsage": REWROTE, "idle": 10 * MINUTE_MS},
+        # The API refused the check before reading any of it.
+        {"forkRefused": True},
+    ],
+)
+def test_a_check_that_shows_nothing_of_the_cache_stores_nothing(
+    checks, tmp_path, options
+):
+    """A check whose usage says nothing of how the cache took the changed effort
+    stores no answer, and the next check asks again."""
+    assert checks("cc-unshown", 2, **options) == [LOW, LOW]
     store = tmp_path / "store.json"
     assert not store.exists() or json.loads(store.read_text()) == {}
 
@@ -996,4 +1018,68 @@ def test_leaf_hears_of_the_end_of_a_fork_the_module_spawned_and_no_other(
     driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-7"})
     driven.settle()
     assert driven.steps.empty()
+    driven.quit()
+
+
+def test_a_comment_is_titled_by_a_completion_on_the_sessions_own_model(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """As a comment opens an untitled thread, its page server asks the claimant's
+    model for a title through the session's pages follower; the module makes the
+    completion on the session's own client and hands the reply back through the
+    launcher, and the title goes in in the claimant's voice. The provider's first
+    answer is a 429, which the module reports with its status, so the page server
+    asks again (`thread_titles.RETRY_INTERVAL`). Forks are off, so the follower
+    waits on the session's requests alone."""
+    monkeypatch.setattr(thread_titles_model, "RETRY_INTERVAL", 0.1)
+    driven = ClaudeCode(
+        spawn,
+        "cc-title",
+        {
+            "completeReply": '{"title": "Poll interval"}',
+            "completeRefusals": 1,
+            "env": {"LEAF_FORK_REPLIES": "off"},
+        },
+    )
+    holding_page(driven, page_dir, monkeypatch)
+    assert stamp(page_dir, "first").exit_code == 0
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    wait_for(
+        lambda: band_lines(
+            driven.bands.get(timeout=STATED_TIMEOUT)["terminal"], "terminal"
+        ),
+        bool,
+        failure="the band never showed the page",
+    )
+    status, body = endpoint_model.accept_event(
+        page_dir, {"kind": "comment", "revision": 1, "text": "Why does it poll 2 s?"}
+    )
+    assert status == 200, body
+    refused = driven.completions.get(timeout=STATED_TIMEOUT)
+    assert refused["model"] == inference_model.CLAUDE_CODE_MODEL
+    assert "Why does it poll 2 s?" in refused["prompt"]
+    assert driven.completions.get(timeout=STATED_TIMEOUT) == refused
+    [title] = wait_for(
+        lambda: [
+            event
+            for event in events_model.read_events(page_dir)
+            if event["kind"] == "thread_title"
+        ],
+        bool,
+        failure=lambda: f"no title: {read_interactions(page_dir)}",
+    )
+    assert (title["thread"], title["title"], title["session"]) == (
+        body["event"]["id"],
+        "Poll interval",
+        "cc-title",
+    )
+    [logged] = wait_for(
+        lambda: read_interactions(page_dir, types=("thread_title_generated",)),
+        bool,
+        failure="the title was never recorded",
+    )
+    assert (logged["refusals"], logged["inputTokens"]) == (1, 300)
+    assert logged["apiDurationMs"] >= 0
+    assert driven.forks.empty() and driven.diagnostics.empty()
     driven.quit()

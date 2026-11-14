@@ -17,6 +17,7 @@ its watch.
 """
 
 import json
+import os
 import shlex
 import sys
 from pathlib import Path
@@ -201,6 +202,8 @@ class LeafGroup(click.Group):
         from leaf.refusals import Refused
 
         try:
+            if (ctx.obj or {}).get("agent"):
+                _refuse_an_ended_agent()
             return super().invoke(ctx)
         except Refused as error:
             reason = sandbox_refusal(error) or str(error)
@@ -229,7 +232,11 @@ class LeafGroup(click.Group):
         finally:
             from leaf.interaction_log import record_command
 
-            record_command(invocation.get("leaf_command", ""))
+            record_command(
+                invocation.get("leaf_command", ""),
+                agent=invocation.get("agent"),
+                refused=invocation.get("refused"),
+            )
 
     def _run_standalone(self, args, prog_name, complete_var, **extra) -> None:
         try:
@@ -244,6 +251,8 @@ class LeafGroup(click.Group):
             }
             if isinstance(error, click.UsageError) and error.ctx is not None:
                 said["usage"] = error.ctx.get_usage().removeprefix("Usage: ")
+            # The command's diagnostics say it was refused (`record_command`).
+            extra["obj"]["refused"] = said["error"]
             print(json.dumps(said, ensure_ascii=False), file=sys.stderr)
             sys.exit(error.exit_code)
         except click.Abort:
@@ -258,7 +267,61 @@ class LeafGroup(click.Group):
         sys.exit(status)
 
 
+def _refuse_an_ended_agent() -> None:
+    """Refuse a command marked with an agent of the session whose turn has ended,
+    whatever the command (`state.acting_agent_turn`), so a fork resumed or running
+    late acts neither in its closed turn nor as the main thread. The command names no
+    page yet, so its refused record goes to each page the session holds, as a denied
+    call's does (`interaction_log.record_denial`)."""
+    from leaf.harness import session_harness
+    from leaf.interaction_log import acting_on
+    from leaf.refusals import Refused
+    from leaf.service import owned_pages
+    from leaf.state import acting_agent_turn
+
+    if (harness := session_harness()) is None:
+        return
+    try:
+        acting_agent_turn(harness.session)
+    except Refused:
+        for page_dir in owned_pages(harness.session):
+            acting_on(page_dir)
+        raise
+
+
+def _acting_agent(ctx: click.Context, _param: click.Parameter, value) -> None:
+    """Run the command as the agent of the session its harness names `value`
+    (`state.AGENT_ID_VARIABLE`), for this command alone: the variable goes back as
+    the command ends, so a command run in the same process, as a test's are, acts as
+    whoever it names. Its diagnostics name the agent (`record_command`), and an
+    agent whose turn has ended has the command refused (`_refuse_an_ended_agent`)."""
+    if not value:
+        return
+    from leaf.state import AGENT_ID_VARIABLE
+
+    before = os.environ.get(AGENT_ID_VARIABLE)
+    os.environ[AGENT_ID_VARIABLE] = value
+    ctx.ensure_object(dict)["agent"] = value
+
+    def restore() -> None:
+        if before is None:
+            os.environ.pop(AGENT_ID_VARIABLE, None)
+        else:
+            os.environ[AGENT_ID_VARIABLE] = before
+
+    ctx.call_on_close(restore)
+
+
 @click.group(cls=LeafGroup)
+@click.option(
+    "--agent-id",
+    metavar="ID",
+    expose_value=False,
+    is_eager=True,
+    hidden=True,
+    callback=_acting_agent,
+    help="Run as the session's agent with this harness id; Leaf's hook adds it.",
+)
 @click.option(
     "--version",
     is_flag=True,

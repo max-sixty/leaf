@@ -1099,8 +1099,8 @@ def user_at(
         # The reader's own gap records come whatever type is asked for.
         return [
             record
-            for record in read_interactions(place.page, types=("fork_reply",))
-            if record["type"] == "fork_reply"
+            for record in read_interactions(place.page, types=("fork_outcome",))
+            if record["type"] == "fork_outcome"
         ]
 
     user = User(
@@ -1336,8 +1336,8 @@ class User:
     """The user across a journey's steps, at one end (`HttpEnd` or `BrowserEnd`):
     the release ask, each later step's comment, and how long each step took. A
     harness module drives the steps and checks them; `events` reads the page's log,
-    `forks` the `fork_reply` records its forks left in the page's diagnostics
-    (`leaf.forks.take`), and `terminal` is the session, where the journey runs
+    `forks` the `fork_outcome` records its forks left in the page's diagnostics
+    (`leaf.forks.route`), and `terminal` is the session, where the journey runs
     them."""
 
     def __init__(
@@ -1394,15 +1394,16 @@ class User:
         return deployment_answer(self.events(), self.ids[name]) is not None
 
     def fork(self, name: str) -> dict | None:
-        """The record of the last fork of the session's conversation that decided on
-        step `name`'s comment, if one has."""
+        """The record of the last line fork of the session's conversation that decided
+        on step `name`'s comment, if one has: a working fork's start and end are
+        records of their own (`step`), which this leaves out."""
         if self.forks is None:
             return None
         return next(
             (
                 record
                 for record in reversed(self.forks())
-                if self.ids[name] in record["inputs"]
+                if self.ids[name] in record["inputs"] and "step" not in record
             ),
             None,
         )
@@ -1503,7 +1504,7 @@ class User:
         return {"userEnd": self.end.name, "case": self.case, **release, "steps": steps}
 
 
-# What a sample keeps of a fork's `fork_reply` record (`leaf.forks.take`).
+# What a sample keeps of a fork's `fork_outcome` record (`leaf.forks.route`).
 FORK_READING = ("outcome", "why", "elapsedMs", "usage")
 # The usage counts a fork reports, as a step prints them.
 FORK_TOKENS = (
@@ -1515,7 +1516,7 @@ FORK_TOKENS = (
 
 
 def fork_summary(record: dict) -> str:
-    """A fork's `fork_reply` record as a step prints it: what the fork did, in how
+    """A fork's `fork_outcome` record as a step prints it: what the fork did, in how
     long, on how many tokens, and the working line it posted as it handed the
     thread over, or Leaf's reason where Leaf handed it."""
     usage = record.get("usage") or {}
@@ -1578,6 +1579,7 @@ def target_session(
     sandbox: bool,
     preview: bool,
     forks: bool,
+    fork_work: bool = False,
 ) -> Generator[tuple[User, dict, Callable[[], None]]]:
     """The user at the page TARGET answers, what names TARGET in the journey's
     output (`target` the same across runs, as a local server's `origin` is not), and
@@ -1588,9 +1590,12 @@ def target_session(
         if harness == "claude-code":
             from leaf_dev.journey_claude_code import answering
 
-            answered = answering(browser, sandbox=sandbox, forks=forks)
+            answered = answering(
+                browser, sandbox=sandbox, forks=forks, fork_work=fork_work
+            )
             named |= {"sandbox": True} if sandbox else {}
             named |= {"forks": True} if forks else {}
+            named |= {"fork_work": True} if fork_work else {}
         elif harness == "pi":
             from leaf_dev.journey_pi import answering
 
@@ -1667,6 +1672,12 @@ def target_session(
     "and run the steps that test them in place of the delivery steps.",
 )
 @click.option(
+    "--fork-work",
+    is_flag=True,
+    help="On claude-code, --forks with forks that do the work of a message the "
+    "line fork judges theirs (LEAF_FORK_WORK=on).",
+)
+@click.option(
     "--case",
     type=click.Choice(CASES),
     default="waiting",
@@ -1686,6 +1697,7 @@ def journey(
     sandbox: bool,
     preview: bool,
     forks: bool,
+    fork_work: bool,
     case: str,
     browser: bool | None,
 ) -> None:
@@ -1705,8 +1717,9 @@ def journey(
         raise click.UsageError("--preview is an option of the codex targets")
     if preview and sandbox:
         raise click.UsageError("--preview runs leaf-dev, which a sandbox refuses")
-    if forks and harness != "claude-code":
-        raise click.UsageError("--forks is an option of claude-code")
+    if (forks or fork_work) and harness != "claude-code":
+        raise click.UsageError("--forks and --fork-work are options of claude-code")
+    forks = forks or fork_work
     website = harness is None
     if website and case == "working":
         raise click.UsageError("a website's journey has no terminal to start a turn")
@@ -1724,6 +1737,7 @@ def journey(
                 sandbox=sandbox,
                 preview=preview,
                 forks=forks,
+                fork_work=fork_work,
             )
         )
         user.case = case

@@ -1,0 +1,38 @@
+# The fork that writes the agent's working line on a held thread message and judges
+# whether a fork of the session could take the work (`src/leaf/forks.py`), replayed
+# on a short conversation written for each judgment its prompt asks about. Run every
+# case with `uv run leaf-dev eval 'line-fork*' --harness claude-code`; inputs,
+# labels and rubrics are in workflows/fork_eval.yaml.
+description: Line fork
+metadata:
+  purpose: A question about why the session's finding holds is work a fork could take.
+  tags: [workflow, forks, threads]
+  harnesses: [claude-code]
+  conditions: [leaf]
+  executor: leaf_dev.fork_eval
+  scenario: why-ci
+variants:
+  meaning:
+    metadata:
+      scenario: meaning
+      purpose: A question about what something means is work a fork could take, by reading.
+  work-request:
+    metadata:
+      scenario: work-request
+      purpose: A change to the page, however small, belongs with the session.
+  user-decides:
+    metadata:
+      scenario: user-decides
+      purpose: The user's answer to the session's question belongs with the session, which records it.
+  still-running:
+    metadata:
+      scenario: still-running
+      purpose: A question whose answer is a running command's result belongs with the session.
+  work-out:
+    metadata:
+      scenario: work-out
+      purpose: A question the session never looked at is work a fork could work out beside it.
+  still-deciding:
+    metadata:
+      scenario: still-deciding
+      purpose: A question whose answer would settle what the session is still deciding belongs with the session.

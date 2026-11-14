@@ -351,7 +351,7 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
         {
             "ts": at(4),
             "source": "cli",
-            "type": "fork_reply",
+            "type": "fork_outcome",
             "thread": "c1",
             "inputs": ["c1"],
             "outcome": "hand_over",
@@ -363,7 +363,7 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
         {
             "ts": at(12),
             "source": "cli",
-            "type": "fork_reply",
+            "type": "fork_outcome",
             "thread": "c2",
             "inputs": ["c2"],
             "outcome": "hand_over",
@@ -1101,7 +1101,7 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
     entered = []
 
     @contextmanager
-    def target_session(browser, target, release, *, sandbox, preview, forks):
+    def target_session(browser, target, release, *, sandbox, preview, forks, fork_work):
         entered.append(browser)
         end = (
             journey.HttpEnd("http://127.0.0.1:1/?t=t", Path("page"), time.sleep)

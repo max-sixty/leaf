@@ -15,6 +15,7 @@ import { scrollAxes } from "./element-axes.js";
 import {
   aimedTop,
   aimScroll,
+  carriedToward,
   moveScrollerBy,
   pageScroller,
   SCROLL_SLACK,
@@ -120,9 +121,11 @@ export function* scrollChainOf(node) {
 }
 
 // The box an input at `element` scrolls: along the chain native scrolling follows from
-// where it lands, the first that can still move the wheel's way, so a pane at its end
-// passes the wheel to the page around it, unless it contains its overscroll. A wheel
-// nothing can follow, and every other input, aims at the innermost box.
+// where it lands, the first that can still move the wheel's way, or that its gesture has
+// already carried that way (`carriedToward`), since a wheel the browser scrolled before
+// the page heard it finds the box at the end it reached. So a pane at its end passes the
+// wheel to the page around it, unless it contains its overscroll. A wheel nothing can
+// follow, and every other input, aims at the innermost box.
 /** @param {Element | null | undefined} element @param {Event} event */
 export const inputScroller = (element, event) => {
   if (!element) return pageScroller;
@@ -137,10 +140,11 @@ export const inputScroller = (element, event) => {
   if (!(event instanceof WheelEvent) || !event.deltaY) return innermost;
   const down = event.deltaY > 0;
   return (
-    chain.find((box) =>
-      down
-        ? box.scrollTop < scrollLimit(box) - SCROLL_SLACK
-        : box.scrollTop > SCROLL_SLACK,
+    chain.find(
+      (box) =>
+        (down
+          ? box.scrollTop < scrollLimit(box) - SCROLL_SLACK
+          : box.scrollTop > SCROLL_SLACK) || carriedToward(box, down),
     ) ?? innermost
   );
 };

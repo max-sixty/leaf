@@ -342,39 +342,55 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
     )
 
 
-def test_generated_hints_spread_around_crowded_targets(browser, serve):
-    """Adjacent footnote markers' chips are separated and all shown, stacked around the
-    markers, since an opaque route can't be inferred once its face is withheld."""
+def test_adjacent_footnote_markers_keep_their_codes_without_chips(browser, serve):
+    """Adjacent footnote markers are narrower than a key, so no chip beside one could say
+    which it names: each is withheld, while the page's other links keep theirs and each
+    marker's code still takes it."""
     page = open_page(browser, serve(CROWDED_PAGE))
     resized(page, 1280, 800)
     page.keyboard.press("g")
     expect(page.locator(CHIPS)).to_have_count(5)
 
-    piles = page.evaluate(
-        """() => {
-             const boxes = [...document.querySelectorAll(
-               '.lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]')]
-               .map(chip => ({
-                 code: chip.dataset.lfHintCode,
-                 r: chip.getBoundingClientRect(),
-               }));
-             const hit = (a, b) => a.left < b.right && b.left < a.right
-                                && a.top < b.bottom && b.top < a.bottom;
-             const found = [];
-             for (let i = 0; i < boxes.length; i++)
-               for (let j = i + 1; j < boxes.length; j++)
-                 if (hit(boxes[i].r, boxes[j].r))
-                   found.push(boxes[i].code + ' under ' + boxes[j].code);
-             return {found, drawn: boxes.map(b => b.code)};
-           }"""
-    )
-    assert piles["found"] == [], (
-        f"hints are drawn on top of each other: {piles['found']} "
-        f"(drawn: {piles['drawn']})"
-    )
-    assert len(piles["drawn"]) == 5, piles
+    shown = address_codes(page)
+    markers = {address_code(page, "Link", f"fn{n}") for n in (1, 2, 3)}
+    assert len(shown) == 2, shown
+    assert not markers & set(shown), (markers, shown)
     page.keyboard.type(address_code(page, "Link", "fn1"))
     page.wait_for_url(re.compile(r"#s1$"))
+
+
+def test_a_chip_stands_beside_a_link_in_an_svg_drawing_s_html(browser, serve):
+    """Chromium resolves no anchor to an element inside a foreignObject, so the chip
+    anchored to a link there stood off the window while its code still followed it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Drawn terminal",
+                '<h1 id="top">Drawn terminal</h1><svg id="drawing" width="400" '
+                'height="120"><foreignObject x="80" y="40" width="200" height="40">'
+                '<div xmlns="http://www.w3.org/1999/xhtml"><a id="run" '
+                'href="#top">$ wt merge</a></div></foreignObject></svg>',
+            )
+        ),
+    )
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS).first).to_be_visible()
+    rendered(page)
+    chips = page.evaluate(
+        """(selector) => {
+          const run = document.getElementById('run').getBoundingClientRect();
+          return [...document.querySelectorAll(selector)].map((chip) => {
+            const r = chip.getBoundingClientRect();
+            const gap = Math.hypot(
+              Math.max(run.left - r.right, r.left - run.right, 0),
+              Math.max(run.top - r.bottom, r.top - run.bottom, 0));
+            return [chip.dataset.lfGoToKind, chip.dataset.lfGoToTarget, Math.round(gap)];
+          });
+        }""",
+        CHIPS,
+    )
+    assert any(gap == 0 for *_, gap in chips), chips
 
 
 def test_narrowing_the_map_leaves_every_kept_chip_where_it_stood(browser, serve):

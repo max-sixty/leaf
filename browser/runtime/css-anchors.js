@@ -209,7 +209,9 @@ export function nameable(el) {
 // the document's. A target in a shadow tree anchors as itself where the
 // document can name it (`nameable`), and otherwise through the host holding its tree; a
 // shape inside an SVG drawing has no CSS box of its own, so it anchors through the
-// drawing; a `display: contents` target through its first shown part. Wherever it
+// drawing, and so does the drawing's HTML in a `foreignObject`, which Chromium anchors
+// nothing to (notes/browser-support.md, "An anchor inside an SVG foreignObject in
+// Chromium"); a `display: contents` target through its first shown part. Wherever it
 // anchors, what stands against it is written as insets from the anchor's box.
 /** @param {Element} target */
 function outsideScopes(target) {
@@ -228,8 +230,10 @@ function outsideScopes(target) {
 /** @param {Element} target */
 export function anchorElement(target) {
   let el = outsideScopes(target);
-  for (let host; !nameable(el) && (host = shadowHost(el.getRootNode()));) el = host;
+  for (let at = /** @type {Node | null} */ (el); isElement(at); at = renderedParent(at))
+    if (at.localName === "foreignObject") el = at;
   while (el instanceof SVGElement && el.ownerSVGElement) el = el.ownerSVGElement;
+  for (let host; !nameable(el) && (host = shadowHost(el.getRootNode()));) el = host;
   if (el !== target) return el;
   const [part] = shownParts(target);
   return part && part !== target ? part : target;

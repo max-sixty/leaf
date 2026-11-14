@@ -655,6 +655,23 @@ page scrolls. Playwright WebKit 26.6 applied the root scroll twice on
 is an affected surface. Recheck a fixed anchored box against a target in a
 fixed scrolling panel while scrolling both the document and panel.
 
+### An anchor inside an SVG foreignObject in Chromium
+
+A fixed box anchored to an HTML element inside an SVG `<foreignObject>` takes
+its `anchor()` fallback, so a key chip, aim, mark or margin row there stood at
+-9999px, off the window. Playwright Chromium 158.0.8127.18 (build 1254) did so
+on 2026-11-12; Firefox 159.0 (build 1572) and WebKit 27.2 (build 2388) placed
+the box on the element, and all three placed it on the drawing's `<svg>`.
+`anchorElement` in `browser/runtime/css-anchors.js` anchors such an element
+through the drawing in every engine, as it does the drawing's own shapes, with
+the box's insets measured from the drawing. A scroller inside the drawing's HTML
+doesn't move the drawing, so a mark or composer against a target in it stays
+where it was placed as that scroller scrolls, until it is placed again;
+accepted, since no shipped page scrolls inside a drawing. Recheck with
+`test_a_chip_stands_beside_a_link_in_an_svg_drawing_s_html` with the
+`foreignObject` step removed from `anchorElement`, or a fixed box whose `left`
+is `anchor(--a left, -9999px)` against a button in a `foreignObject`.
+
 ### An anchor's transforms in Firefox
 
 Playwright Firefox 157 (build 1555) resolved `anchor()` and `anchor-size()`

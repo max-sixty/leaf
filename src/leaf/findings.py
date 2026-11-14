@@ -846,6 +846,17 @@ _TEXT = {
             else f"one of {', '.join(v['allowed'])}"
         )
     ),
+    "inert-allocation": lambda at, v: (
+        f"{_bearing(at, v, _json(v['value']))} has no effect: "
+        + {
+            "flow": "the element takes no width of its own, so put it on the block"
+            " inside that needs the room",
+            "content": "only a block inside body, other than main, takes it, so put"
+            " it on the block that needs it",
+            "declared": "only a widget that draws into a box of a stated height"
+            " takes it",
+        }[v["holds"]]
+    ),
     "css-syntax": lambda at, v: (
         f"{v['sheet']} syntax error at {v['row']}:{v['column']}: {v['message']}"
     ),

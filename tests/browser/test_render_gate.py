@@ -785,17 +785,30 @@ def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
     ), f"an async reading has to name itself, and this came back as {failures}"
 
 
-def test_the_gate_reads_a_sample_far_below_the_window(browser, serve):
+SAMPLE_FAULT = (
+    '<p id="practice">Practice.</p><script>function sampleFault() {'
+    " throw new TypeError('thrown in the sample'); } sampleFault();</script>"
+)
+
+
+@pytest.mark.parametrize("nested", [False, True], ids=["far", "nested"])
+def test_the_gate_reads_a_sample_far_below_the_window(browser, serve, nested):
     """A live sample starts its page only as the reader nears it, but the gate reads
     every document the page can show (`start_near_work`), so it refuses a page whose
-    sample's own script throws wherever on the page the sample stands."""
+    sample's own script throws wherever on the page the sample stands, a sample far
+    down inside another one included: each started child starts its own."""
+    content = SAMPLE_FAULT
+    if nested:
+        content = (
+            '<p id="outer-words">Outer.</p><div style="height: 400vh"></div>'
+            '<lf-sample id="inner"><template id="inner-source" data-sample>'
+            f"{SAMPLE_FAULT}</template></lf-sample>"
+        )
     source = leaf_page(
         "Far fault",
         '<p id="words">Words.</p><div style="height: 400vh"></div>'
         '<lf-sample id="far"><template id="far-source" data-sample>'
-        '<p id="practice">Practice.</p><script>function sampleFault() {'
-        " throw new TypeError('thrown in the sample'); } sampleFault();</script>"
-        "</template></lf-sample>",
+        f"{content}</template></lf-sample>",
     )
     failures = render_gate_model.render_version(
         browser.unwatched, serve(source)

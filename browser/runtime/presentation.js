@@ -48,7 +48,8 @@
    work it earns only once the reader comes near the node, such as a live sample's
    child page: the page counts the browser's first reading of the node, so a reader of
    its final boxes waits for whatever that reading starts, and a check that reads every
-   document the page can show starts the rest (`startNearWork`). `deferredArrival` is
+   document the page can show starts the rest (`startNearWork`), in each live sample's
+   child too. `deferredArrival` is
    the declaration alone, for work already running that presentation need not wait
    for: the work starts now, the page presents without it, and `arrived` waits for it.
    None hands a package the bare `presented` wait. */
@@ -104,6 +105,10 @@ export const afterPresentation = (work) => deferredArrival(presented.then(work))
 
 /** @type {Set<() => void>} */
 const nearing = new Set();
+// Whether a check has asked for all near work (`startNearWork`), and who hears it ask.
+let allNear = false;
+/** @type {Set<() => void>} */
+const askingAllNear = new Set();
 
 /** Run `start` once, when `node` comes near the window as `nearObserver` reads it
  * (geometry.js). What `start` returns, if anything, is the landing of work that moves
@@ -142,13 +147,31 @@ export function whenNear(node, start) {
   };
   nearing.add(run);
   observer.observe(node);
+  // Work a check has already asked for starts once its owner has its step.
+  if (allNear) queueMicrotask(() => nearing.has(run) && run());
   return stop;
 }
 
-/** Start all work waiting for its node to near the window, for a check that reads
- * every document the page can show rather than those near where it opened. */
+/** Start all work waiting for its node to near the window, and all that waits later,
+ * for a check that reads every document the page can show rather than those near
+ * where it opened. Each live sample's host asks its child the same
+ * (sample.js, `nearWork`), so the check needn't know samples nest. */
 export function startNearWork() {
+  allNear = true;
   for (const run of [...nearing]) run();
+  for (const hear of askingAllNear) hear();
+}
+
+/** Call `hear` each time a check asks for all near work, and say whether one has.
+ * @param {() => void} hear */
+export function onAllNear(hear) {
+  askingAllNear.add(hear);
+  return {
+    asked: () => allNear,
+    stop: () => {
+      askingAllNear.delete(hear);
+    },
+  };
 }
 
 // The `/api/state` answer this page last applied: the reading that names it, the moment

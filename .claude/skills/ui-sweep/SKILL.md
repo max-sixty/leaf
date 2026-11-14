@@ -36,8 +36,8 @@ design assumptions.
 
 ## External review
 
-Choose an additional perspective from "External UI skills" in
-`../developing-leaf/SKILL.md`. When review scope is open, offer the relevant options
+Choose an additional perspective from
+`../developing-leaf/references/external-ui-skills.md`. When review scope is open, offer the relevant options
 with a recommendation, such as visual critique, technical audit, or a broader sweep,
 and continue the authorized review while the choice is pending.
 

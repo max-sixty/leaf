@@ -537,6 +537,52 @@ test("a surface with no subject keeps the room's gap, not a mark's", async () =>
   assert.equal(answer.y, boundary.top + 8);
 });
 
+test("a surface starts by its subject right of it, or under words that leave it its width", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  const platform = windowPlatform(() => ({ width: 320, height: 120 }));
+  // The side a surface on `clear` takes, quoting words that start at `column`, and
+  // whether its fit is told its start stands by them.
+  const starts = async (clear, column = null) => {
+    const surface = commentPlacement();
+    const seat = surface.choose({
+      clear,
+      column,
+      boundary,
+      scroller: scroller(100),
+      coarse: false,
+    });
+    let fromSubject = null;
+    const { reference, placement, middleware } = seat.options(ui, {
+      clear,
+      row: clear?.top ?? boundary.top,
+      column,
+      boundary,
+      fit(room) {
+        ({ fromSubject } = room);
+      },
+    });
+    await ui.computePosition(
+      { getBoundingClientRect: () => reference },
+      document.body,
+      { placement, middleware, platform, strategy: "fixed" },
+    );
+    return [seat.side, fromSubject];
+  };
+  assert.deepEqual(await starts(block(300, 656, 300, 500)), ["right", true]);
+  // Left of its words it holds the edge beside them, and starts at its far end.
+  assert.deepEqual(await starts(block(400, 880, 300, 500)), ["left", false]);
+  const wide = block(40, 1240, 500, 700);
+  // Words 100px in leave the measure its 592px, so the surface starts at them.
+  assert.deepEqual(await starts(wide, 100), ["bottom", true]);
+  // Words 900px in would carry the measure past the room's edge, so it starts left of
+  // them.
+  assert.deepEqual(await starts(wide, 900), ["bottom", false]);
+  // On the whole paragraph it ends at the paragraph's right edge.
+  assert.deepEqual(await starts(wide), ["bottom", false]);
+  // With nothing to stand by, it starts at the room's edge.
+  assert.deepEqual(await starts(null), ["bottom", true]);
+});
+
 test("chrome beside a card's columns leaves it the window's height", async () => {
   const ui = await import("/vendor/floating-ui.esm.js");
   const platform = windowPlatform(() => ({ width: 320, height: 700 }));

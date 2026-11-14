@@ -67,11 +67,13 @@
    A selection holds its placement side and its width. A card is as wide as the
    measure, or its room where that is narrower (`size-width`), so a longer line
    arriving wraps inside it rather than carrying the controls at its far edge. Where
-   Send opened it, it keeps the comment box's width, and where the user carried it, the
-   width it was carried at; only a narrower room narrows it. The user chose the measure
-   (2026-11-14) over a card as wide as its first words, kept while it was open, which
-   left the card a short comment's Send opened 320px wide while a long answer wrapped
-   inside it.
+   the user carried it, it keeps the width it was carried at; only a narrower room
+   narrows it. The user chose the measure (2026-11-14) over a card as wide as its first
+   words, kept while it was open, which left the card a short comment's Send opened
+   320px wide while a long answer wrapped inside it. Where its start stands by its text,
+   the comment box is as wide as the words typed in it (annotation-chrome.css), which
+   the user asked for the same day on seeing an empty box at the measure, so the card
+   Send opens widens from the box's start as it grows out of the field.
    Another selection chooses afresh. Floating UI supplies room from the held edge; native
    grid tracks share it between transcript and reply, growing to their words before
    scrolling. Reply continuity retains removed turns as flexible space and lets the
@@ -823,9 +825,9 @@ export function createThreadPreview({
             if (fresh) session.width = null;
             // A card is as wide as the measure, or its room where the room is
             // narrower, whatever its messages hold, so no message that arrives or is
-            // typed changes its width and moves its controls. One that Send opened or
-            // the user carried keeps that box's width (`session.width`) until its side
-            // is chosen again, or the room where the room is narrower.
+            // typed changes its width and moves its controls. One the user carried
+            // keeps the width it was carried at (`session.width`) until its side is
+            // chosen again, or the room where the room is narrower.
             const room = Math.min(
               cardMeasure(),
               width,
@@ -997,11 +999,10 @@ export function createThreadPreview({
       stopDraw: null,
       end: null,
       side: commentPlacement(),
-      // The width the card stands at for this selection, in client pixels: the box's
-      // Send replaced, so the two are one rectangle, or the one it was carried at
-      // (`placeThreadPreview`).
+      // The width the user carried the card at for this selection, in client pixels
+      // (`placeThreadPreview`), which it keeps in place of the measure.
       itemView: null,
-      width: origin?.box.width ?? null,
+      width: null,
       scroller: pageScroller,
       // Whether the card's placement has landed for this selection, whose first spot its
       // motion follows from (`placeThreadPreview`).

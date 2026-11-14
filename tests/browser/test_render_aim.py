@@ -885,7 +885,8 @@ def test_a_key_that_widens_the_comment_box_draws_it_at_once(browser, serve):
         ),
     )
     page.emulate_media(reduced_motion="no-preference")
-    resized(page, 1000, 800)
+    # Wide enough for the box to stand right of the passage, where it sizes to its words.
+    resized(page, 1728, 800)
     page.locator("#passage").click(modifiers=["Alt"])
     open_compact_comment(page)
     box = page.locator(".lf-fab-bar .lf-compose-field")

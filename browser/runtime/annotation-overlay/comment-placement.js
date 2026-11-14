@@ -16,10 +16,11 @@
    the unclipped box: the top of a clipped box is the window's edge, and a card level
    with it in the page's plane would be carried by each scroll frame and placed back.
    `column` is the passage's inline start when it quotes words;
-   without one, the card's width ends at `clear`'s right edge. Under or over, a surface
+   without one, the card's width ends at `clear`'s right edge. Under or over, a card
    stands at the measure (`--thread-card`), or the boundary's width where that is
    narrower, so where that start would carry it past the boundary's right edge it
-   starts further left rather than narrowing (`place-under-or-over`). `margin` is where
+   starts further left rather than narrowing (`place-under-or-over`), and the comment
+   box starts where its card will. `margin` is where
    across the page the margin row for it stands,
    or would stand in the rail once its thread is sent (margin-layout.js, `marginSpot`),
    or nothing where no row stands and its rows would be pins. A caller requesting
@@ -167,7 +168,8 @@ import { floatingGeometry, positioningScale } from "./floating.js";
 /** @typedef {{clear: Extent | null, row: number, lastRow?: number,
  * column?: number | null, margin?: Columns | null, boundary: Boundary,
  * fit: (room: {side: Side, width: number, height: number, room: DOMRectReadOnly,
- * stood: number, stationary: boolean, scale: {x: number, y: number}}) => void,
+ * stood: number, stationary: boolean, fromSubject: boolean,
+ * scale: {x: number, y: number}}) => void,
  * edge?: "top" | "foot", rises?: boolean}} PlacementRequest */
 /** @typedef {{reference: DOMRect,
  * placement: import("@floating-ui/dom").Placement,
@@ -418,9 +420,10 @@ export function commentSide({ clear, extent, boundary, width, scroller, coarse }
 }
 
 // The minimum width chooses the side: a side whose room holds less stands nothing. The
-// measure is the width every surface takes where its room holds it (`size-width`), and
-// decides whether clearing the margin row would sacrifice it. `commentPlacement` reads
-// both, so the comment box and its sent card share the same placement rule.
+// measure is the width a card takes where its room holds it, and the widest the comment
+// box grows with its words (`size-width`), and decides whether clearing the margin row
+// would sacrifice it. `commentPlacement` reads both, so the comment box and its sent
+// card share the same placement rule.
 /** @param {string} name */
 const rootLength = (name) =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
@@ -467,7 +470,7 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    that landing, an adopted frame's offsets are the ones held. `rises` offers a surface
    holding its top the boundary's whole height for `fit`, rather than the room below.
 
-   `fit({ side, width, height, room, stood, scale, stationary })` sizes the surface for the room its
+   `fit({ side, width, height, room, stood, scale, stationary, fromSubject })` sizes the surface for the room its
    side gives, in its positioning space; `room` is the client rectangle that room stands
    in, the boundary across the surface's columns (`commentBoundary`, `across`); `stood`
    is the height a held surface caps no lower than, or 0. `stationary` says its
@@ -475,7 +478,13 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    boundary, never by its passage's column. Under or over, it stands at the intended
    inline start, which reserves that width (`size-width`). On the left, it instead holds
    its right edge clear of the target, so a change of its room moves its far edge and
-   never carries it across the words it comments on. */
+   never carries it across the words it comments on. `fromSubject` says its inline
+   start stands by what it is about: beside it on the right, under or over quoted words
+   at their first character, or at the room's edge with nothing to stand by. A surface
+   narrower than the measure, as the comment box is for few words, stands by its
+   subject and widens away from it only there. Elsewhere its start is the measure's far
+   end from its subject, where a narrower surface would stand apart from it and widen
+   by moving its words, so the box takes the card's width there. */
 export function commentPlacement() {
   /** @type {Side | null} */
   let side = null;
@@ -558,6 +567,11 @@ export function commentPlacement() {
       const span = Math.min(cardMeasure() * scale.x, boundary.width);
       return clamp(column ?? box.right - span, boundary.left, boundary.right - span);
     };
+    /** @param {{x: number}} scale */
+    const fromSubject = (scale) =>
+      unanchored ||
+      side === "right" ||
+      (across && column !== null && Math.abs(inlineStart(scale) - column) < 0.5);
     let heldIn = false;
     const attachment = ui.limitShift(() => ({
       mainAxis: !across,
@@ -683,6 +697,7 @@ export function commentPlacement() {
           room: shown,
           stationary: Boolean(tallest && Math.abs(tallest.line - line) < 0.5),
           stood,
+          fromSubject: fromSubject(scale),
           scale,
         });
       },

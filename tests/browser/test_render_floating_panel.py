@@ -59,6 +59,7 @@ from render_harness import (
     stamp_page,
     ticked,
     told,
+    undo,
     watched,
     write,
 )
@@ -156,8 +157,7 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
     # Resolving moves the user on: with no other thread open, back to Threads.
     expect(page.locator(panel_view("threads"))).to_be_visible()
-    with sending(page, "the undo"):
-        page.keyboard.press("z")
+    undo(page)
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
     expect(page.locator(panel_view("thread"))).to_be_focused()
     expect(page.locator(panel_view("thread"))).to_have_attribute(
@@ -380,8 +380,7 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
         page.keyboard.press("r")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
     expect(threads).to_be_visible()
-    with sending(page, "the undo"):
-        page.keyboard.press("z")
+    undo(page)
     expect(thread).to_be_focused()
     expect(settle).to_have_accessible_name("Resolve thread")
 

@@ -341,7 +341,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     ).click()
 
     narrow = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert narrow["innerWidth"] - 8 - (narrow["wordsRight"] + 8) < narrow["minimum"], (
+    assert narrow["innerWidth"] - 8 - (narrow["wordsRight"] + 16) < narrow["minimum"], (
         narrow
     )
     assert narrow["minimum"] <= narrow["cardWidth"] <= narrow["preferred"], narrow
@@ -378,7 +378,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     assert wide["minimum"] <= wide["cardWidth"] <= wide["preferred"], wide
     assert wide["replyWidth"] >= 160, wide
     assert wide["cardLeft"] == pytest.approx(editor_start, abs=0.5), wide
-    assert wide["cardLeft"] == pytest.approx(wide["wordsRight"] + 8, abs=0.5), wide
+    assert wide["cardLeft"] == pytest.approx(wide["wordsRight"] + 16, abs=0.5), wide
     assert wide["cardLeft"] < wide["controlsRight"], wide
 
 
@@ -533,7 +533,7 @@ def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
 
 def test_a_second_margin_reply_grows_below_the_first_line(browser, serve):
     """A new draft grows downward, then shares the bounded card with its transcript."""
-    page, preview, editor = drafting_in_a_short_card(browser, serve, 1000, 600)
+    page, preview, editor = drafting_in_a_short_card(browser, serve, 1000, 608)
     preview.locator(".lf-thread-reply .lf-compose-submit").click()
     rendered(page)
     editor.click()

@@ -35,11 +35,6 @@ from starlette.datastructures import MutableHeaders
 from starlette.requests import Request
 from starlette.responses import FileResponse, Response
 
-from .data import (
-    DataError,
-    StaleDataError,
-    deferred_value,
-)
 from .event_endpoint import accept_event, event_fault, event_rejection, with_state
 from .file_bindings import FileBindingError, StaleFileError, read_file, save_file
 from .files import (
@@ -592,29 +587,6 @@ class PageEndpoint:
         if raw in (None, ""):
             raise ValueError("view sequence is required")
         return _query_int(raw, "view sequence", 0)
-
-    def deferred_value(self) -> dict:
-        """One contract-declared payload from the source revision the tab holds."""
-
-        def required(name: str) -> str:
-            value = self.query.get(name, [None])[-1]
-            if not isinstance(value, str) or not value:
-                raise ValueError(f"{name} is required")
-            return value
-
-        source = required("source")
-        revision = required("source_revision")
-        key = required("key")
-        view_revision = self.named_revision()
-        registry = (
-            self._registry(view_revision)
-            if view_revision is not None
-            else self.source.active_registry()
-        )
-        reading = self.source.data_source(source, registry)
-        return deferred_value(
-            reading, registry, source=source, revision=revision, key=key
-        )
 
     def _news(self) -> Response:
         """A finite reading of the files and presence a visible page is watching.
@@ -1186,14 +1158,6 @@ class PageEndpoint:
                 "Leaf-Held-Basis, Leaf-Data-Version, Leaf-View-Revision"
             )
             return answer
-        if path == "/api/deferred":
-            try:
-                deferred = self.deferred_value()
-            except StaleDataError as error:
-                return self._json({"error": str(error)}, 409)
-            except (DataError, ValueError) as error:
-                return self._json({"error": str(error)}, 400)
-            return self._json(deferred)
         if path == "/api/view":
             try:
                 revision = self.requested_view_revision()

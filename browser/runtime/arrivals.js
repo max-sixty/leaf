@@ -333,7 +333,10 @@ const scrollListeners = new Set();
 const SCROLL = { capture: true, passive: true };
 /** @param {Element | null} box */
 function announceScroll(box) {
-  if (box) inSequence(box);
+  if (box) {
+    heardAt.set(box, standing(box));
+    inSequence(box);
+  }
   for (const listener of scrollListeners) listener(box);
 }
 // Complete a scroll write and publish the position that will paint. Native scroll
@@ -375,6 +378,7 @@ export function stopWhereItStands(box) {
   box.scrollTo({ ...at, behavior: "smooth" });
   box.scrollTo({ ...at, behavior: "instant" });
   placed.set(box, at);
+  heardAt.set(box, standing(box));
 }
 // Whether a write to `top` and `left` takes the box a pixel or more from where it
 // stands, once the browser clamps it to the box's range.
@@ -514,6 +518,10 @@ const holds = new Map();
 // Where a script last put each box (`setScroll`), until the box's sequence ends.
 /** @type {WeakMap<Element, {top: number, left: number}>} */
 const placed = new WeakMap();
+// Where the page last heard each box stand: at its scroll events, Leaf's own writes and
+// stops (`startReaderScroll`).
+/** @type {WeakMap<Element, {top: number, left: number, fromEnd: number}>} */
+const heardAt = new WeakMap();
 /** @param {Element} box @returns {Sequence} */
 function sequenceIn(box) {
   let sequence = sequences.get(box);
@@ -566,16 +574,29 @@ export function holdScroll(box) {
 // applied before the input, and layout ends its own move, as a clamp when a log loses
 // its oldest entries carries the box up with them. Where the input moves nothing, as a
 // wheel at an edge doesn't, the sequence ends after the quiet spell.
+//
+// Where the input found the box is where the page last heard it stand (`heardAt`), not
+// where it stands as the input's listener runs: Chromium can apply a wheel's scroll
+// before it dispatches the wheel, and read from there the input's own `scrollend`
+// would end nothing, leaving the box the browser's for the quiet spell after its
+// scroll ended. A move the page has yet to hear of is the input's or layout's; a clamp
+// keeps the box's end where the page last heard it, so its `scrollend` still ends
+// nothing of the reader's.
 /** @param {Element} box */
 export function startReaderScroll(box) {
   placed.delete(box);
-  sequenceIn(box).reader = {
-    top: box.scrollTop,
-    left: box.scrollLeft,
-    fromEnd: fromEnd(box),
-  };
+  const now = standing(box);
+  const heard = heardAt.get(box);
+  sequenceIn(box).reader =
+    heard && (heard.top !== now.top || heard.left !== now.left) ? heard : now;
   inSequence(box);
 }
+/** @param {Element} box */
+const standing = (box) => ({
+  top: box.scrollTop,
+  left: box.scrollLeft,
+  fromEnd: fromEnd(box),
+});
 /** @param {Element} box */
 const fromEnd = (box) => box.scrollHeight - box.clientHeight - box.scrollTop;
 /** @param {Element} box */

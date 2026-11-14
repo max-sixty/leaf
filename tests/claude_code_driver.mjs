@@ -8,10 +8,13 @@
 // `forkRejects`, which makes every fork reject; `forkUsage`, the usage a fork
 // reports in place of one that read its prompt from the cache; `completeReply`, the
 // text `$.model.complete` answers with, after `completeRefusals` completions it
-// answers as a provider's 429; and `env`, Claude Code's environment, all that `$.env`
+// answers as a provider's 429; `store`, the file that holds `$.store`'s entries,
+// kept across driven processes as Claude Code keeps a plugin's; and `env`, Claude
+// Code's environment, all that `$.env`
 // reads and what the module's processes inherit over the driver's own. Each stdin line is `{"emit": <event>, "e": <input>}`:
 // the driver runs that event's hooks over `e`, the bottom of the chain answering
 // with the input it reached, and prints `{"event", "result"}` once they resolve. A
+// line `{"advance": <ms>}` moves `$.clock` on by that much. A
 // line `{"flush": true}` prints `{"flushed": true}` once the module has done what
 // it does without waiting on anything outside. Each redraw the module asks for
 // prints `{"band": {terminal, desktop}}`, the band above the prompt as its render
@@ -22,6 +25,7 @@
 // terminal's band last drawn; what a press copies prints as `{"copied": <text>}`,
 // and a toast as `{"toast": <text>}`.
 import { spawn } from "node:child_process";
+import * as fs from "node:fs";
 import * as path from "node:path";
 import * as readline from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -33,6 +37,25 @@ const print = (line) => process.stdout.write(`${JSON.stringify(line)}\n`);
 let band = { terminal: null, desktop: null };
 // How many completions have answered as a provider's 429.
 let refused = 0;
+// How far `{"advance"}` lines have moved `$.clock` past the real one.
+let advanced = 0;
+
+/** `$.store`'s entries, read from and written to `options.store` whole, or kept in
+ * memory without one. */
+let memory = {};
+function stored() {
+  if (options.store === undefined || !fs.existsSync(options.store)) return memory;
+  return JSON.parse(fs.readFileSync(options.store, "utf8"));
+}
+function keyed(key) {
+  if (key.length > 256) throw new Error(`the key is ${key.length} characters`);
+  return key;
+}
+function keep(entries) {
+  memory = entries;
+  if (options.store !== undefined)
+    fs.writeFileSync(options.store, JSON.stringify(entries));
+}
 
 function start(argv, env, input) {
   const child = spawn(argv[0], argv.slice(1), {
@@ -116,7 +139,17 @@ const $ = {
     get: async (name) => options.env?.[name],
   },
   clock: {
-    now: async () => Date.now(),
+    now: async () => Date.now() + advanced,
+  },
+  // Claude Code refuses a key over 256 characters (2.1.316).
+  store: {
+    get: async (key) => stored()[keyed(key)],
+    set: async (key, value) => keep({ ...stored(), [keyed(key)]: value }),
+    delete: async (key) => {
+      const { [keyed(key)]: _, ...rest } = stored();
+      keep(rest);
+    },
+    keys: async () => Object.keys(stored()),
   },
   ui: {
     // A line for Claude Code's debug log prints as `{"debug": <text>}`.
@@ -238,7 +271,11 @@ await register((event, ...rest) => {
 print({ pid: process.pid });
 
 for await (const line of readline.createInterface({ input: process.stdin })) {
-  const { emit, e, flush, press } = JSON.parse(line);
+  const { emit, e, flush, press, advance } = JSON.parse(line);
+  if (advance !== undefined) {
+    advanced += advance;
+    continue;
+  }
   if (press !== undefined) {
     drawn(press).props.onPress({ element: press, surface: "terminal" });
     continue;

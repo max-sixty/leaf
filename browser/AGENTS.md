@@ -438,12 +438,13 @@ class's weight off itself (`styles/chrome-guard.css`), and a package restyles it
 purpose by part from its `chrome.css` (`chrome_restyle` in `layer.py`).
 
 A `:has()` rule can turn a local write into a restyle of the whole page or chrome. One
-rule anywhere whose subject after a `:has()` names no element can make every focus move
-restyle the page (`test_a_has_leads_only_to_a_subject_naming_an_element` says which
-subjects name one), and a condition on the chrome root, `body` or `html` is
+rule anywhere whose subject after a `:has()` names no element can make every write to
+a state another `:has()` reads, such as a hover, restyle the page
+(`test_a_has_leads_only_to_a_subject_naming_an_element` says which subjects name
+one), and a condition on the chrome root, `body` or `html` is
 re-evaluated on writes below it. A `:has(~ …)` asked of elements most selectors reach,
-such as every child of `main`, makes each focus move restyle every block before the
-focused one (`test_a_has_reads_no_sibling_of_an_element_most_selectors_reach`). Prefer
+such as every child of `main`, makes each such write restyle every block before the
+one written (`test_a_has_reads_no_sibling_of_an_element_most_selectors_reach`). Prefer
 a class that names the targets, or a condition its owner sets on the styled element
 or its parent, such as a property a style query reads, and measure with
 `leaf-dev bench --read paint --profile`.
@@ -460,18 +461,21 @@ rooted on the compound also answers once, but its root needs a class, id or
 attribute (`test_a_has_leads_only_to_a_subject_naming_an_element`), and it reaches
 only the root's subtree, never its later siblings.
 
-A `:has()` naming `:focus` or `:focus-visible` makes every focus move, on every page,
-restyle most of the page twice: once for the blur and once for the focus. Name
-`data-lf-focus` or `data-lf-focus-visible` instead, which `focus.js` writes once for a
-move.
+No `:has()` reads where focus is, by `:focus`, `:focus-visible` or a mark `focus.js`
+writes: each made every focus move restyle much of the page
+(`test_no_has_reads_where_focus_is`). A rule for focus anywhere in a box reads the box's
+`data-lf-focus-within` or `data-lf-focus-visible-within`. A rule for one control's focus
+reads the box that control names with `--lf-focus-box` (base.css), which `focus.js`
+marks `data-lf-control-focus` and `data-lf-control-focus-visible`.
 
 A `::highlight()` rule with no originating element adds to the restyle of every
 element, on every page, whether or not the highlight has a range there. Name the
-elements whose text the ranges paint. The comment marks can land on any text and
-Firefox inherits no highlight style (`notes/browser-support.md`, "Highlight style
-inheritance"), so theirs stay universal, and in Chromium a custom property changing
-on `html` or `body` then restyles every element (`root-state.js` says what the root's
-writers set instead).
+elements whose text the ranges paint. The comment marks can land on any text, so
+their rules name only the root and each shadow host, whose highlight styles every
+element below inherits; where an engine has no highlight inheritance, `stylesheets.js`
+(`markSheet`) widens them to every element. In Chromium a custom property changing on
+`html` then restyles every element (`root-state.js` says what the root's writers set
+instead).
 
 ### Layouts, styles and controls
 
@@ -614,7 +618,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                            |
 | The page place focus or selection identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                        |
 | Where a page walk starts, whether the user is on a stop or at it, and which item it steps to          | `current-target.js` `walkOrigin`, `stepFrom`                                       |
-| Which of two nodes the reader reaches first, across shadow trees                                      | `shadow-tree.js` `renderedOrder`, `byRenderedOrder`                                |
+| Which of two nodes the reader reaches first, across shadow trees, alone or in a sort                  | `shadow-tree.js` `renderedOrder`, `renderedOrdering`, `byRenderedOrder`            |
 | What stands for a node in one tree: the node, or the host of the shadow tree holding it               | `shadow-tree.js` `hostIn`                                                          |
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
 | Order and containment along another climb of the tree, as the page reading's own order is             | `shadow-tree.js` `alongClimb`                                                      |
@@ -639,6 +643,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether the page shows a node at all, and what it shows of a sample it holds                          | `geometry.js` `presented`, `frameView`, `watchRoom`                                |
 | Whether a box placed against a target belongs in layout yet                                           | `geometry.js` `nearWindow`, `nearObserver`                                         |
 | Where an element or Range destination is, and how much of it survives clipping                        | `geometry.js` `placeBox`, `clippedPlace`                                           |
+| What a node's contents are drawn in; a Range made for it slows every DOM write until it is collected  | `shown-box.js` `contentsRects`, `contentsBox`                                      |
 | Whether a box is stuck, and the band sticky headers cover                                             | `geometry.js` `stuckBox`, `visibleBand`                                            |
 | Which headers the page itself holds over the document, at the window's top                            | `root-headers.js` `pageHeads`                                                      |
 | Whether a box scrolls, for a script or for the user                                                   | `geometry.js` `scrollContainer`, `userScrollport`                                  |

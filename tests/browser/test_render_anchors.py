@@ -73,7 +73,6 @@ from render_harness import (
     panel_settled,
     post_event,
     preview_parts,
-    reported_browser_errors,
     resized,
     restyle_counts,
     scroll_settled,
@@ -808,7 +807,7 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
     # at rest, since a hover state read against a resting one compares nothing.
     page.mouse.move(4, 4)
 
-    # The slotted shortcut hint keeps the text field's muted placeholder ink.
+    # The slotted shortcut hint keeps the text field's quiet placeholder ink.
     # Typography shared with sent messages must not turn an empty hint into prose.
     hint_ink = """hint => [getComputedStyle(hint).color,
         getComputedStyle(hint.querySelector('kbd')).color]"""
@@ -4463,24 +4462,15 @@ TWO_FILE_MANIFEST = {
     ]
 }
 
-# Observe evidence requests, then hold the second file's textual rendering. Its
-# complete Git evidence is already checked before either closed row is shown.
+# Hold the second file's textual rendering. Its complete Git evidence is already
+# checked before either closed row is shown.
 HOLD_SECOND_FILE = """
-          window.__leafDeferredRequests = [];
-          const originalFetch = window.fetch.bind(window);
-          window.fetch = (input, init) => {
-            const url = new URL(input instanceof Request ? input.url : String(input),
-                                location.href);
-            if (url.pathname === '/api/deferred')
-              window.__leafDeferredRequests.push(url.searchParams.get('key'));
-            return originalFetch(input, init);
-          };
           customElements.whenDefined('lf-diff').then(() => {
             const prototype = customElements.get('lf-diff').prototype;
             const prepare = prototype.prepareEntry;
             prototype.prepareEntry = async function(...args) {
-              if (args[0].path === 'second.py' && !window.__leafReleaseDeferred)
-                await new Promise(resolve => { window.__leafReleaseDeferred = resolve; });
+              if (args[0].path === 'second.py' && !window.__leafReleaseSecond)
+                await new Promise(resolve => { window.__leafReleaseSecond = resolve; });
               return prepare.apply(this, args);
             };
           });
@@ -4491,7 +4481,7 @@ HOLD_SECOND_FILE = """
     ("activation", "superseded"),
     [("mouse", False), ("keyboard", False), ("mouse", True)],
 )
-def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
+def test_a_collapsed_diff_renders_only_opened_files_and_hydrates_comment_travel(
     browser, serve, activation, superseded
 ):
     """A collapsed manifest is the startup surface, not a hidden fully-rendered patch.
@@ -4502,7 +4492,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     thread's Show on page, in the panel.
     """
     authored = leaf_page(
-        "deferred diff",
+        "collapsed diff",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
         "collapsed></lf-diff>",
     )
@@ -4532,7 +4522,6 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     expect(page.locator("lf-diff [data-line]")).to_have_count(0)
     expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_have_count(0)
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(1)
-    assert page.evaluate("window.__leafDeferredRequests") == ["first.py", "second.py"]
 
     page.locator("lf-diff summary").first.click()
     expect(
@@ -4541,7 +4530,6 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     expect(
         page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
     ).to_have_count(0)
-    assert page.evaluate("window.__leafDeferredRequests") == ["first.py", "second.py"]
 
     if activation == "keyboard":
         resized(page, 400, 900)
@@ -4549,12 +4537,12 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     quote = thread_head(page, thread)
     expect(quote).not_to_have_attribute("data-lf-detached", "")
     show_on_page(page, key=activation == "keyboard")
-    page.wait_for_function("typeof window.__leafReleaseDeferred === 'function'")
+    page.wait_for_function("typeof window.__leafReleaseSecond === 'function'")
     search = page.locator("lf-diff .lf-diff-search input")
     if superseded:
         search.click()
         expect(search).to_be_focused()
-    page.evaluate("window.__leafReleaseDeferred()")
+    page.evaluate("window.__leafReleaseSecond()")
     second = page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
     expect(second).to_be_in_viewport()
     expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_have_count(1)
@@ -4588,7 +4576,6 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     thread_head(page, thread)
     show_on_page(page, key=True)
     landed()
-    assert page.evaluate("window.__leafDeferredRequests") == ["first.py", "second.py"]
 
 
 def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve):
@@ -4600,7 +4587,7 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
     """
     url = serve(
         leaf_page(
-            "deferred diff",
+            "collapsed diff",
             '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
             "collapsed></lf-diff>",
         )
@@ -4615,9 +4602,9 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
     expect_panel_says(page, "Hunk 1 of 1")
 
     page.keyboard.press("]")
-    page.wait_for_function("typeof window.__leafReleaseDeferred === 'function'")
+    page.wait_for_function("typeof window.__leafReleaseSecond === 'function'")
     page.locator("#title").click()
-    page.evaluate("window.__leafReleaseDeferred()")
+    page.evaluate("window.__leafReleaseSecond()")
     expect(
         page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
     ).to_have_count(1)
@@ -4630,15 +4617,13 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
     )
 
 
-def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, serve):
+def test_a_diff_tracks_each_write_of_its_source(browser, serve):
     """A source write is an identity, not its second-resolution modification time.
 
-    Replacing a manifest inside the same second must discard its prior file keys before
-    deferred loads use the new source revision. A transient deferred refusal remains local
-    to that disclosure and closing and reopening it retries the exact current file.
+    Replacing a manifest inside the same second discards its prior files.
     """
     authored = leaf_page(
-        "changing deferred diff",
+        "changing diff",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
         "collapsed></lf-diff>",
     )
@@ -4666,16 +4651,6 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
     page = open_page(browser, url)
     expect(page.locator("lf-diff summary")).to_contain_text("first.py")
 
-    refused = []
-
-    def refuse_once(route):
-        if not refused:
-            refused.append(True)
-            route.fulfill(status=500, json={"error": "the patch is unavailable"})
-        else:
-            route.continue_()
-
-    page.route("**/api/deferred*", refuse_once)
     data_model.cmd_data_set(
         serve.page_dir, "review-patch", manifest("second.py", "old", "second")
     )
@@ -4683,164 +4658,10 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
     summary = page.locator("lf-diff summary")
     expect(summary).to_contain_text("second.py")
     expect(summary).not_to_contain_text("first.py")
-    expect(page.locator("lf-diff .lf-error")).to_contain_text(
-        "the patch is unavailable"
-    )
-    consume_browser_errors(page, http_error_console(500))
-    summary.click()
     summary.click()
     expect(
         page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
     ).to_have_count(1)
-    assert len(refused) == 1
-
-
-def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
-    """A retained manifest cannot read a replacement's same-key payload."""
-    url = serve(
-        leaf_page(
-            "deferred provenance",
-            '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-            "collapsed></lf-diff>",
-        )
-    )
-    original = """diff --git a/app.py b/app.py
---- a/app.py
-+++ b/app.py
-@@ -1 +1 @@
--return "old"
-+return "first"
-"""
-    manifest = {
-        "files": [
-            {
-                "path": "app.py",
-                "patch": original,
-            }
-        ]
-    }
-    data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
-    prior = source_revision(serve.page_dir, "review-patch")
-    page = open_page(browser, url)
-    page.evaluate("window.priorManifest = document.querySelector('#patch').value")
-    replacement = original.replace('return "first"', 'return "replacement"')
-    manifest["files"][0]["patch"] = replacement
-    data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
-    told(page)
-    result = page.evaluate(
-        """async () => {
-          const {loadDeferred} = await window.__lfWidgetApi();
-          let stale;
-          try {
-            stale = await loadDeferred(window.priorManifest, 'app.py');
-          } catch (error) {
-            stale = error.message;
-          }
-          const current = await loadDeferred(
-            document.querySelector('#patch').value, 'app.py'
-          );
-          return {stale, current};
-        }"""
-    )
-    assert result == {
-        "stale": f"source review-patch revision {prior} changed before loading "
-        "deferred app.py",
-        "current": replacement,
-    }
-
-
-def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
-    """Thread travel attempts a failing unopened file once rather than recursing.
-
-    Automatic reveal marks the failed entry as terminal for navigation. Closing and
-    reopening its disclosure is the user's explicit request to try the file again.
-    """
-    authored = leaf_page(
-        "failed deferred diff",
-        '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-        "collapsed></lf-diff>",
-    )
-    url = serve(authored)
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "review-patch",
-        {
-            "files": [
-                {
-                    "path": "second.py",
-                    "patch": """diff --git a/second.py b/second.py
---- a/second.py
-+++ b/second.py
-@@ -1 +1 @@
--return "old"
-+return "new"
-""",
-                }
-            ]
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Review the unavailable line.",
-            "anchor": {"section": "patch", "datum": '["second.py","new",1]'},
-        },
-    )
-    requests = []
-
-    def refuse(route):
-        requests.append(True)
-        route.fulfill(status=500, json={"error": "the patch is unavailable"})
-
-    context = browser.new_context()
-    # A retry would wait on the page's clock, which the test runs forward.
-    context.clock.install()
-    context.route("**/api/deferred*", refuse)
-    # The page counts its own loads: the route handler's count follows the request by
-    # a hop the driver doesn't order against the page.
-    context.add_init_script(
-        """
-        window.__lfDeferredLoads = 0;
-        const nativeFetch = window.fetch.bind(window);
-        window.fetch = (...args) => {
-          if (String(args[0]).includes("/api/deferred")) window.__lfDeferredLoads += 1;
-          return nativeFetch(...args);
-        };
-        """
-    )
-    page = open_page(browser, url, context=context)
-    thread_head(page, comment_ids(serve.page_dir)[0])
-    show_on_page(page)
-    expect(page.locator("lf-diff .lf-error")).to_contain_text(
-        "the patch is unavailable"
-    )
-    # A minute of the page's clock, past any backoff a retry would wait out, then every
-    # update the failure queued, and with it any reload it asked for.
-    context.clock.run_for(60_000)
-    rendered(page)
-    assert page.evaluate("window.__lfDeferredLoads") == 1, (
-        "thread hydration retried without another user gesture"
-    )
-    consume_browser_errors(page, http_error_console(500))
-
-    summary = page.locator("lf-diff summary")
-    summary.click()
-    # The response rather than the request, because the count below is the route
-    # handler's and the request event is not that handler. Nothing orders the two, so a
-    # wait on the request can come back with the retry in the wire and `requests` still
-    # at one, which reads as a reopen that fetched nothing. Which way the driver hands
-    # them over is not the page's to state and not this test's to depend on. The
-    # fulfilled response exists only because the handler ran, so it is the fact this
-    # count is made of.
-    with page.expect_response(
-        lambda response: "/api/deferred" in response.url
-    ) as retried:
-        summary.click()
-    assert len(requests) == 2
-    reported_browser_errors(page, {"code": "console-error", "url": retried.value.url})
 
 
 def test_passage_at_either_shadow_host_edge_excludes_its_words(browser, serve):
@@ -4928,7 +4749,7 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
 def test_a_diff_shows_native_file_metadata_without_empty_disclosures(
     browser, serve, manifest, mobile
 ):
-    """Inline and deferred evidence preserve native operations at reading widths."""
+    """Inline and bound evidence preserve native operations at reading widths."""
     source = """diff --git a/app.js b/app.js
 old mode 100644
 new mode 100755
@@ -5043,13 +4864,6 @@ new file mode 120000
     context = browser.new_context(
         viewport={"width": 390 if mobile else 1280, "height": 900}, has_touch=mobile
     )
-    deferred = []
-    context.on(
-        "request",
-        lambda request: (
-            deferred.append(request.url) if "/api/deferred?" in request.url else None
-        ),
-    )
     page = open_page(browser, url, context=context)
     result = page.evaluate("""async () => {
       const host = document.querySelector('#mixed-rename-diff');
@@ -5137,7 +4951,6 @@ new file mode 120000
         "wroteRename": False,
     }
 
-    assert len(deferred) == (14 if manifest else 0), deferred
     for path, side, text in [
         ("type-change", "old", "before"),
         ("type-change", "new", "target"),
@@ -6519,6 +6332,158 @@ def test_a_search_match_whose_end_shows_is_brought_to_its_start(engine, request,
         }"""
     )
     assert 0 <= start["top"] and start["bottom"] <= 600, start
+
+
+# A page of four documents in tabs, the first open, each holding "needle" once.
+def _needles_in_tabs(serve):
+    tabs = "".join(
+        f'<lf-tab id="t{i}" label="Doc {i}">'
+        f'<lf-text-document id="d{i}" label="doc-{i}.md">'
+        f"<pre>A line before.\nneedle {i}\nA line after.\n</pre></lf-text-document></lf-tab>"
+        for i in range(4)
+    )
+    return serve(
+        leaf_page("Closed tabs", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
+    )
+
+
+# The page's clock run fast, so each slice of a page search takes one step.
+FAST_CLOCK = """() => {
+  const now = performance.now.bind(performance);
+  let ahead = 0;
+  performance.now = () => now() + (ahead += 20);
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_walk_through_search_matches_in_closed_tabs_reaches_each_in_turn(
+    engine, request, serve
+):
+    """Tab walks a search's matches in order across documents in closed tabs. Bringing a
+    match into sight opens its tab, which changes the page, so the next step searches
+    again; it stands where it stood before stepping, however few matches each of the
+    search's slices takes (`FAST_CLOCK`)."""
+    page = open_page(request.getfixturevalue(engine), _needles_in_tabs(serve))
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("needle")
+    status = page.locator(".lf-page-search-status")
+    expect(status).to_have_text("1 of 4")
+    page.evaluate(FAST_CLOCK)
+    for key, position in (("Tab", 2), ("Tab", 3), ("Tab", 4), ("Shift+Tab", 3)):
+        page.keyboard.press(key)
+        expect(status).to_have_text(re.compile(rf"^{position} of "))
+        expect(page.get_by_role("tab", name=f"Doc {position - 1}")).to_have_attribute(
+            "aria-selected", "true"
+        )
+    # Enter selects the match, and `n` goes on from it.
+    selected = (
+        "(id) => getSelection().anchorNode?.parentElement?.closest('lf-text-document')"
+        "?.id === id && String(getSelection()) === 'needle'"
+    )
+    page.keyboard.press("Enter")
+    page.wait_for_function(selected, arg="d2")
+    page.keyboard.press("n")
+    page.wait_for_function(selected, arg="d3")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_step_back_past_the_first_search_match_stays_while_the_search_runs(
+    engine, request, serve
+):
+    """While a page search still runs, Shift+Tab from its first match would come round to
+    a last match the search hasn't found; it stays and says the search is still running,
+    rather than holding the page until the search ends, and Tab still goes on to the
+    next. Each slice takes one step (`FAST_CLOCK`), and the page's zero-delay timers are
+    held, so the search stands unfinished until they run."""
+    page = open_page(request.getfixturevalue(engine), _needles_in_tabs(serve))
+    page.keyboard.press("/")
+    page.evaluate(FAST_CLOCK)
+    page.evaluate(
+        """() => {
+          const run = (window.__run = window.setTimeout);
+          window.__held = [];
+          window.setTimeout = (f, ms, ...rest) =>
+            ms ? run(f, ms, ...rest) : (window.__held.push(() => f(...rest)), 0);
+        }"""
+    )
+    page.get_by_role("searchbox", name="Search page text").fill("needle")
+    status = page.locator(".lf-page-search-status")
+    # Run the held slices until the search lands on the first match.
+    page.evaluate(
+        """() => {
+          const status = document.querySelector(".lf-page-search-status");
+          while (!/ of /.test(status.textContent) && window.__held.length)
+            window.__held.shift()();
+        }"""
+    )
+    expect(status).to_have_text("1 of 1")
+    page.keyboard.press("Shift+Tab")
+    expect(status).to_have_text("1 of 1")
+    expect(page.locator(".lf-live")).to_have_text("Searching")
+    expect(page.get_by_role("tab", name="Doc 0")).to_have_attribute(
+        "aria-selected", "true"
+    )
+    page.keyboard.press("Tab")
+    expect(status).to_have_text("2 of 2")
+    page.evaluate(
+        """() => {
+          window.setTimeout = window.__run;
+          for (const run of window.__held.splice(0)) run();
+        }"""
+    )
+    expect(status).to_have_text("2 of 4")
+
+
+def test_a_step_back_after_the_page_changed_keeps_the_match_it_stood_on(browser, serve):
+    """After Enter closes the search and the page changes, Shift+n searches again from
+    the match it selected. While that search still runs, a step back from the first
+    match stays and says "Searching", and the search's first slice landing on the first
+    match in the window moves nothing: once the search ends, Shift+n comes round from
+    the first match to the last. The page's zero-delay timers are held so the search
+    stands unfinished, and its first slice takes a dozen steps (`__steps`)."""
+    lines = "\n".join(f"Line {n}." for n in range(60))
+    documents = "".join(
+        f'<lf-text-document id="d{i}" label="doc-{i}.md">'
+        f"<pre>needle {i}\n{lines}\n</pre></lf-text-document>"
+        for i in range(10)
+    )
+    page = open_page(browser, serve(leaf_page("Documents", documents)))
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("needle")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 10")
+    page.keyboard.press("Enter")
+    selected = (
+        "(id) => getSelection().anchorNode?.parentElement?.closest('lf-text-document')"
+        "?.id === id && String(getSelection()) === 'needle'"
+    )
+    page.wait_for_function(selected, arg="d0")
+    page.evaluate(
+        """() => {
+          document.getElementById("d1").scrollIntoView({ block: "start" });
+          const now = performance.now.bind(performance);
+          performance.now = () =>
+            window.__steps === undefined || window.__steps-- > 0 ? now() : now() + 1e9;
+          const run = (window.__run = window.setTimeout);
+          window.__held = [];
+          window.setTimeout = (f, ms, ...rest) =>
+            ms ? run(f, ms, ...rest) : (window.__held.push(() => f(...rest)), 0);
+          const note = document.createElement("p");
+          note.textContent = "A paragraph the agent added.";
+          document.querySelector("main").append(note);
+          window.__steps = 12;
+        }"""
+    )
+    page.keyboard.press("Shift+n")
+    expect(page.locator(".lf-live")).to_have_text("Searching")
+    page.evaluate(
+        """() => {
+          window.setTimeout = window.__run;
+          delete window.__steps;
+          for (const run of window.__held.splice(0)) run();
+        }"""
+    )
+    page.keyboard.press("Shift+n")
+    page.wait_for_function(selected, arg="d9")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

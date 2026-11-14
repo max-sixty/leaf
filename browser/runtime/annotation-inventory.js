@@ -41,7 +41,7 @@ import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
 import { claimed } from "./thread/surfaces.js";
 import { threadName } from "./thread/messages.js";
-import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
+import { outlineContexts } from "./thread/placement.js";
 import {
   isPageWidgetWorkflow,
   isWorkflowProgress,
@@ -51,7 +51,7 @@ import {
   workflowWord,
 } from "./thread/workflow.js";
 import { agentSays, leafSays } from "./voice.js";
-import { shadowHost, under } from "./shadow.js";
+import { renderedOrdering, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./current-target.js";
 import { obligationPlace } from "./obligations/place.js";
 import { scrollBehavior } from "./motion.js";
@@ -63,6 +63,11 @@ import {
   toggleChangeCard,
 } from "./version.js";
 import { versionProvenance } from "./change-provenance.js";
+
+// The words of every obligation's row, one reading for all of them, so a collection
+// finds each row's words unchanged by identity rather than by reading them
+// (`captureItem`).
+const WAITING_ON_ME = leafSays("Waiting on me");
 
 // Where each published workflow still in progress stands in the published order, by
 // its id.
@@ -241,7 +246,7 @@ export function createAnnotationInventory({
   // threads stand there together, by what they are about, and everything else about the
   // target (its other threads, an obligation's marker, a widget's actions) keeps the target's
   // own row. `pointed` is `{ key, element, passage, words }`: the row's key (a pointed
-  // row's its first comment gave it, a passage's from its words, `passageRow`), the
+  // row's its first comment gave it, a passage's from its words, `passageRows`), the
   // element it is or the passage it stands by (a resolved anchor), and its words, which
   // name it.
   /** @param {Groups} groups @param {Element} target @param {Pointed | null} [pointed] */
@@ -474,6 +479,7 @@ export function createAnnotationInventory({
   function collectEntries() {
     /** @type {Groups} */
     const groups = new Map();
+    const labelOf = perTarget(addressableLabel);
     /** @type {Map<string, Workflow>} */
     const receiptByCoordinate = new Map();
     for (const receipt of visibleWidgetWorkflows()) {
@@ -541,19 +547,20 @@ export function createAnnotationInventory({
      * @returns {item is import("./obligations/answer.js").AnswerableObligation} */
     const hasPlace = (item) => Boolean(obligationPlace(item).node);
     const placed = () => readObligations().user.filter(hasPlace);
-    for (const item of placed()) {
+    for (const item of readObligations().user) {
       const id = item.id;
       const target = obligationPlace(item).node;
+      if (!target) continue;
       add(groups, target, {
         kind: "on-me",
         id: `on-me:${id}`,
         // The group this row stands in already names the obligation; the row says why it is
         // there, since these are the obligations the user owes.
         text: "Waiting on me",
-        words: leafSays("Waiting on me"),
+        words: WAITING_ON_ME,
         // The marker's own label is the question, which says more than the kind its
         // glyph already shows: the widget's name.
-        label: addressableLabel(target) || null,
+        label: labelOf(target) || null,
         activate: () => {
           const items = placed();
           const next = items.find((candidate) => candidate.id === id);
@@ -759,7 +766,6 @@ export function createAnnotationInventory({
       }
     }
 
-    const outline = pageOutline();
     const collected = [...groups.values()];
     const subjects = collected
       .filter((group) => !group.subject)
@@ -769,15 +775,19 @@ export function createAnnotationInventory({
     passages.clear();
     /** @type {typeof lastEntries} */
     const nextEntries = new Map();
-    const subjectOf = perTarget((target) =>
-      outlineSubjectFor(target, subjects, outline),
-    );
-    const labelOf = perTarget(addressableLabel);
+    const contextOf = perTarget(outlineContexts(subjects));
+    // Each group's place read once for the sort, and each node's climb once in it.
+    const places = new Map(collected.map((group) => [group, placeIn(group)]));
+    const order = renderedOrdering();
+    /** @param {Group} group */
+    const placeOfGroup = (group) =>
+      /** @type {ReturnType<typeof placeIn>} */ (places.get(group));
     entries = Object.freeze(
       collected
-        .sort((left, right) => readingOrder(placeIn(left), placeIn(right)))
+        .sort((left, right) =>
+          readingOrder(placeOfGroup(left), placeOfGroup(right), order),
+        )
         .map((group) => {
-          const subject = subjectOf(group.target);
           targets.set(group.key, group.target);
           if (group.point) points.set(group.key, group.point);
           if (group.passage) passages.set(group.key, group.passage);
@@ -788,7 +798,7 @@ export function createAnnotationInventory({
             targetId: group.target.id,
             title: labelWords(
               [
-                group.subject ? null : subject.context,
+                group.subject ? null : contextOf(group.target),
                 group.word,
                 group.subject ?? labelOf(group.target),
                 // A pointed row is named by the words it stands by, so it and the

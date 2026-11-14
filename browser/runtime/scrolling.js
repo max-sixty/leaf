@@ -325,7 +325,7 @@ export function aimScroll(box, event) {
   if (scrollKeyLast) keyScrolled.add(box);
   else keyScrolled.delete(box);
   const was = readerScrolls(box) ? asked.get(box) : undefined;
-  startReaderScroll(box);
+  const { top } = startReaderScroll(box);
   // A wheel heads down or up where it moves that way more than across, as a trackpad's
   // scroll down does though it drifts across a little. The keeper's write of the end
   // then costs the reader that drift, and holding the end for it would leave a log
@@ -341,7 +341,6 @@ export function aimScroll(box, event) {
     heads = UP_KEYS.has(event.key) || shifted ? "up" : "down";
   }
   if (was && HEADINGS.indexOf(was.heads) >= HEADINGS.indexOf(heads)) return;
-  const top = box.scrollTop;
   const fromEnd = scrollLimit(box) - top;
   const leaf = starts.get(box) ?? 0;
   asked.set(box, was ? { ...was, heads } : { heads, top, fromEnd, starts: leaf });
@@ -349,12 +348,12 @@ export function aimScroll(box, event) {
 // The scroll the reader's input has asked the browser for in `box` while it runs
 // (`aimScroll`), though the box may not have moved yet: which way it heads the box, down
 // to its end, up, which takes the reader from it, or across, which leaves them at it;
-// where its first input found the box, from its top and from its end; and how many
-// moves Leaf had started in the box then (`startScroll`). Null where no such scroll
-// runs. A writer that would put the box at its end asks this first, as its
-// keeper does (`followEnd`): its write would cancel a scroll up or across, a wheel
-// across a log's long lines as surely as one up it, and takes a reader heading down
-// where they were going.
+// where its first input found the box (arrivals.js, `startReaderScroll`), from its top
+// and from its end; and how many moves Leaf had started in the box then
+// (`startScroll`). Null where no such scroll runs. A writer that would put the box at
+// its end asks this first, as its keeper does (`followEnd`): its write would cancel a
+// scroll up or across, a wheel across a log's long lines as surely as one up it, and
+// takes a reader heading down where they were going.
 /** @param {Element} box */
 export const readerScroll = (box) => (readerScrolls(box) && asked.get(box)) || null;
 /** @param {Element[]} boxes */

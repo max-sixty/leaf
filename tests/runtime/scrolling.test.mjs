@@ -110,5 +110,19 @@ test("a scroll heads its box the furthest way any of its inputs does, until it e
     assert.equal(readerScroll(box)?.heads, heads);
     ended();
   }
+  // Where the browser applied the input's scroll before the input was heard, as
+  // Chromium can a wheel's, the input found the box where the page last heard it.
+  top = 200;
+  box.dispatchEvent(new window.Event("scroll"));
+  ended();
+  box.dispatchEvent(new window.Event("scroll"));
+  top = 100;
+  aimScroll(box, wheel({ deltaY: -100 }));
+  assert.deepEqual(readerScroll(box), {
+    heads: "up",
+    top: 150,
+    fromEnd: 50,
+    starts: 0,
+  });
   box.remove();
 });

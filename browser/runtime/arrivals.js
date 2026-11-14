@@ -582,14 +582,17 @@ export function holdScroll(box) {
 // scroll ended. A move the page has yet to hear of is the input's or layout's; a clamp
 // keeps the box's end where the page last heard it, so its `scrollend` still ends
 // nothing of the reader's.
-/** @param {Element} box */
+// It returns where the input found the box.
+/** @param {Element} box @returns {{top: number, left: number, fromEnd: number}} */
 export function startReaderScroll(box) {
   placed.delete(box);
   const now = standing(box);
   const heard = heardAt.get(box);
-  sequenceIn(box).reader =
+  const found =
     heard && (heard.top !== now.top || heard.left !== now.left) ? heard : now;
+  sequenceIn(box).reader = found;
   inSequence(box);
+  return found;
 }
 /** @param {Element} box */
 const standing = (box) => ({

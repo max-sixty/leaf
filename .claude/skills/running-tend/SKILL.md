@@ -18,7 +18,12 @@ commit message; hold its claims to the standard the diff is held to.
 
 ## Review threshold
 
-Load `/developing-leaf`, and apply its **Weigh what a change adds** and `AGENTS.md`'s
+Before reading the diff, invoke `/developing-leaf` with the Skill tool and read the
+`AGENTS.md` of each area the diff touches (the root `AGENTS.md`'s **Repository map**
+names them). Their rules are the architecture the verdict checks, so a review that has
+not read them can't tell a seam from a simplification.
+
+Apply `/developing-leaf`'s **Weigh what a change adds** and `AGENTS.md`'s
 **Stage** and **Fix the underlying issue** sections to the verdict; most of Tend's own
 pull requests land on this review alone. Once a change moves Leaf toward a coherent
 architecture, its claimed path works and what it adds is worth keeping, the review

@@ -712,7 +712,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     };
     field.updated = () =>
       untracked(() => {
-        if (sendBtn?.hidden && focused() === sendBtn) focusDestination(ta, "return");
         paintKeysWithin(field);
         if (submitIn) paintKeysWithin(submitIn);
       });
@@ -732,8 +731,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // sent, and the picture rode into the next passage's draft.
     /** @type {InputSync} */
     const sync = () => refresh();
-    // Closing belongs to each surface's existing owner, rather than a DOM observer
-    // guessing whether a hidden field is merely outside the viewport.
     sync.value = draftValue;
     sync.hasMedia = () => attachedMedia.length > 0;
     // The box takes up the draft it now stands on as it is, with a history of its own:

@@ -17,7 +17,7 @@
      a hovering pointer, and the chip while what it opens shows (`aria-expanded`). One
      that commits what it stands in, as Send and a rewrite's Save do, is in the
      accent (`data-lf-tone="accent"`). A disc (`data-lf-disc`) is drawn in its
-     action's own ink (`data-lf-tone`: `accent`, `ink`, `positive` or `negative`) and
+     action's own ink (`data-lf-tone`: `accent`, `ink` or `positive`) and
      shows its state on a disc behind the glyph rather than a chip, as the composer's
      Send and a thread's Resolve and Reopen do.
    - `word`: a press that says what it does in words, quiet as a symbol is. A toggle

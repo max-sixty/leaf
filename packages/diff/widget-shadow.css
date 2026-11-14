@@ -540,7 +540,7 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   padding-inline: var(--lf-diff-head-inset);
 }
 /* A conversation's reply field rests as a Reply press: its hint alone, in the place of
-   the words, with no frame and no Send, one control high. Going into it, by a
+   the words, with no frame and Send's arrow beside it, one control high. Going into it, by a
    press, Tab or `c`, opens it as the field it is, and it rests again once the user
    leaves it holding nothing: no words or picture, no error. The field
    stays the one control, so every route to the reply reaches it as before. The user
@@ -564,9 +564,6 @@ pre[data-overflow="wrap"] .lf-diff-rows {
     min-height: var(--aim-floor);
     padding-block: 0;
     cursor: pointer;
-  }
-  > leaf-composition-field > .lf-compose-field > .lf-compose-submit {
-    display: none;
   }
 }
 /* Paper has no sideways scroll; wrap evidence within the printed sheet. */

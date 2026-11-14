@@ -830,8 +830,7 @@ wa-copy-button.lf-icon-action {
 }
 /* A toggle's selected face, a word's or a symbol's: a full accent border on the chip
    ground. It is the faces' own state, so it stands here beside them; a disc, which
-   shows its state on its disc, such as a toggle on, keeps its box clear (the
-   disc, below). */
+   shows its state on its disc keeps its box clear (the disc, below). */
 :is(.lf-btn, .lf-icon-action):is([aria-pressed="true"], [aria-checked="true"]) {
   border-color: var(--accent);
   color: var(--accent);
@@ -842,13 +841,11 @@ wa-copy-button.lf-icon-action {
    `::before`), while its box stays clear: the composer's Send, the passage
    composer's Other responses, and a thread's Resolve and Reopen. The disc is clear at
    rest and takes its tint under a pointer or visible focus, or while what the press
-   opens shows, as a symbol's chip does; a toggle on shows it in
-   the accent. Its ink is its tone (`data-lf-tone`): the quiet ink by default
-   (Other responses), the accent for the composer's commit (Send), the full
-   ink (Resolve), the ok tone with its tint for a thread settled (Reopen, drawn done at
-   rest, so the press shows on hover as a deeper disc), and the danger tone for a
-   failed action. Resolve's disc under the pointer is the chip, so a hovered
-   Resolve never looks already done. A press disabled keeps the quiet ink.
+   opens shows, as a symbol's chip does. Its ink is its tone (`data-lf-tone`): the quiet
+   ink by default (Other responses), the accent for the composer's commit (Send), the
+   full ink (Resolve), and the ok tone with its tint for a thread settled (Reopen, drawn
+   done at rest, so the press shows on hover as a deeper disc). Resolve's disc under the
+   pointer is the chip, so a hovered Resolve never looks already done. A press disabled keeps the quiet ink.
 
    A disc stands on the ground its holder gives it (`--lf-disc-ground`), none by
    default: a composer whose words run under Send gives its paper, so Send covers the
@@ -874,14 +871,13 @@ wa-copy-button.lf-icon-action {
   border-radius: var(--r);
   background: var(--lf-disc-rest, var(--lf-disc-ground, transparent));
 }
-.lf-icon-action[data-lf-disc]:not([aria-pressed="true"])::after {
+.lf-icon-action[data-lf-disc]::after {
   background: linear-gradient(to left, var(--lf-disc-ground), transparent);
 }
 .lf-icon-action[data-lf-disc]:is(
     :hover,
     [data-lf-focus-visible],
     [aria-expanded="true"],
-    [aria-pressed="true"],
     [aria-checked="true"]
   ) {
   border-color: transparent;
@@ -895,14 +891,8 @@ wa-copy-button.lf-icon-action {
     :hover,
     [data-lf-focus-visible]
   )::before,
-.lf-icon-action[data-lf-disc]:is(
-    [aria-pressed="true"],
-    [aria-expanded="true"]
-  )::before {
+.lf-icon-action[data-lf-disc][aria-expanded="true"]::before {
   background: var(--accent-tint);
-}
-.lf-icon-action[data-lf-disc][aria-pressed="true"] {
-  color: var(--accent);
 }
 .lf-icon-action[data-lf-disc][data-lf-tone="ink"] {
   color: var(--ink);
@@ -924,15 +914,6 @@ wa-copy-button.lf-icon-action {
     [aria-disabled="true"]
   ):is(:hover, [data-lf-focus-visible])::before {
   background: color-mix(in srgb, var(--ok-ink) 18%, var(--ok-tint));
-}
-.lf-icon-action[data-lf-disc][data-lf-tone="negative"] {
-  color: var(--danger-ink);
-}
-.lf-icon-action[data-lf-disc][data-lf-tone="negative"]:is(
-    :hover,
-    [data-lf-focus-visible]
-  )::before {
-  background: var(--danger-tint);
 }
 .lf-icon-action[data-lf-disc]:is(:disabled, [aria-disabled="true"]) {
   opacity: 1;

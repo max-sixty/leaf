@@ -1522,7 +1522,7 @@ def test_tab_onto_a_seat_under_the_pinned_file_name_brings_it_out(browser, serve
 
 def test_a_diff_conversation_s_reply_rests_as_a_press_that_c_opens(browser, serve):
     """A conversation in a diff ends in a Reply press, one control high and with no
-    frame or Send, rather than an open field. A press opens the field, which
+    frame but Send beside the hint, rather than an open field. A press opens the field, which
     rests again once the user leaves it empty, and `c` from the conversation opens it
     with the caret in it."""
     datum = json.dumps([LONG_DIFF_PATH, "new", 3], separators=(",", ":"))
@@ -1552,13 +1552,15 @@ def test_a_diff_conversation_s_reply_rests_as_a_press_that_c_opens(browser, serv
         send: getComputedStyle(box.querySelector('.lf-compose-submit')).display,
       };
     }"""
-    resting = {"height": 24, "frame": "rgba(0, 0, 0, 0)", "send": "none"}
+    resting = {"height": 24, "frame": "rgba(0, 0, 0, 0)", "send": "grid"}
     expect(reply).to_be_visible()
     assert reply.evaluate(face) == resting
     reply.click()
     expect(reply).to_be_focused()
     opened = reply.evaluate(face)
-    assert opened["height"] > resting["height"] and opened["send"] != "none", opened
+    assert opened["height"] > resting["height"] and opened["send"] == resting["send"], (
+        opened
+    )
     page.keyboard.press("Escape")
     expect(reply).not_to_be_focused()
     assert reply.evaluate(face) == resting

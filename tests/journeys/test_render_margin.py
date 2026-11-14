@@ -425,6 +425,10 @@ def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
     assert reading["top"] == pytest.approx(initial["top"], abs=0.5), (initial, reading)
     assert reading["height"] > initial["height"] + 10, (initial, reading)
     editor = preview.locator("leaf-text")
+    # The answer's arrival uncovers the card's foot over 300ms, and until it has, the
+    # reply box's clipped part takes no press: the click lands on the thread, and
+    # Playwright's retry scrolls the box into view (#5942).
+    wait_for_probe(page, "restingIn", ".lf-margin-preview")
     preview.get_by_role("textbox", name="Reply", exact=True).click()
     expect(editor).to_be_focused()
     rendered(page)

@@ -311,7 +311,10 @@ allowance list.
   not. It ignores first
   presentation, whose remaining defects `known_widget_findings.py` records. Chrome
   hides a shift for half a second after a click, so a test of a news update's stability
-  delivers the news after that.
+  delivers the news after that. An input also owns the first frame that reads its
+  rendering settled, which can paint after `rendered` returns, so a test that moves
+  the page itself after an input, to see the move reported, first waits for
+  `lfInputRenderingOpen()` to read false.
 - `words_watch.js` reports typed words leaving the screen without a key or press
   (`browser/AGENTS.md`, "Typed words survive"). A test that closes a box
   does it the way a user
@@ -422,9 +425,11 @@ later on CI's slower runner, after the input window that credits it has closed. 
 alone rarely shows it; a slower CPU does. `--cpu-throttle RATE`, given to pytest or
 `leaf-dev flake`, slows every Chromium page the `browser` fixture watches. Past findings
 reproduced at rates from 6 to 20, and one rate can miss a finding another reproduces,
-so try more than one. Run the merge base under the same rate to learn whether the
-change caused it. A test whose subject is a slow CPU slows its own page
-with `leaf_dev.browser.slow_cpu`.
+so try more than one. On macOS, `taskpolicy -b` before the command runs the test, its
+server and every engine on the efficiency cores: it reproduced ten of the nightly macOS
+job's failures that `--cpu-throttle 8` reproduced none of. Run the merge
+base under the same condition to learn whether the change caused it. A test whose subject
+is a slow CPU slows its own page with `leaf_dev.browser.slow_cpu`.
 
 - A route handler that returns without resolving holds the request before the server.
   Call `holding` before reading the list of held requests, since the ledger counts a

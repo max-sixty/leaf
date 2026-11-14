@@ -827,7 +827,10 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     scroll_settled(page)
     frames = page.evaluate("window.lfTocFrames")
     travelled = [position for position in frames if position > 0]
-    assert len({round(position) for position in travelled}) >= 3, frames
+    # The glide runs for a fixed time (scrolling.js, `SCROLL_MS`), so how many frames
+    # show it depends on the machine's frame rate; one frame between the start and the
+    # destination is what tells a glide from a jump.
+    assert len({round(position) for position in travelled}) >= 2, frames
     assert all(left <= right for left, right in pairwise(travelled)), frames
 
     start_href = start.get_attribute("href")

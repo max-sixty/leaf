@@ -20,6 +20,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     RELEASE_FOCUS,
+    expect_obligations_answered,
     held_frames,
     leaf_page,
     open_page,
@@ -676,7 +677,9 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
     page.keyboard.press("Shift+m")
     expect(page.locator("#first")).to_be_focused()
     page.keyboard.press("1")
-    round_trip(page)
+    # Whether a pick answers an obligation is the server's reading, which the page
+    # applies after the pick's send comes back.
+    expect_obligations_answered(page, "1/2")
     first, second = questions()
     assert first["status"] == "answered"
     assert first["answer"]["value"] == ["first-a"]
@@ -684,7 +687,7 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
     page.keyboard.press("m")
     expect(page.locator("#second")).to_be_focused()
     page.keyboard.press("2")
-    round_trip(page)
+    expect_obligations_answered(page, "2/2")
     assert questions()[1]["answer"]["value"] == ["second-b"]
     page.keyboard.press("Escape")
     for source in ("first", "second"):

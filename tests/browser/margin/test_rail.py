@@ -23,6 +23,7 @@ from render_harness import (
 from browser.margin import (
     MARGIN_ENTRY_KEYBOARD_PAGE,
     _comment_on,
+    put_card_away,
 )
 from leaf.render_checks import rendered
 from leaf_dev.example_data import named_source
@@ -573,7 +574,6 @@ def test_new_rail_keeps_a_pin_reachable(browser, serve, subtests):
     expect(pin).to_have_attribute("data-lf-place", "pin")
     marker = pin.get_by_role("button", name="Thread,", exact=False)
     rail = page.locator('[data-lf-margin-for="rail-target"]')
-    card = page.locator(".lf-margin-preview")
     for focused in (False, True):
         with subtests.test(focused=focused):
             if focused:
@@ -614,8 +614,7 @@ def test_new_rail_keeps_a_pin_reachable(browser, serve, subtests):
                 assert page.evaluate("()=>window.railActivated")
             finally:
                 page.evaluate("()=>window.newRail.unregister()")
-                if card.is_visible():
-                    page.locator(".lf-margin-preview-close").click()
+                put_card_away(page)
                 page.evaluate(RELEASE_FOCUS)
                 margins_laid_out(page)
 

@@ -104,6 +104,14 @@ def headless_shell(**options):
 
 ENGINES = ("chromium", "firefox", "webkit", "ios")
 
+# Firefox's own smooth scroll reads the host's reduced-motion setting, which a
+# context's `reduced_motion` emulates only for the page's media queries. On a host
+# that asks for reduced motion, every smooth scroll lands in one step while the page
+# reads no preference, and a test that needs a scroll under way never has one; the
+# nightly macOS runner's three Firefox failures of that kind reproduce exactly with
+# this pref at 1. So Firefox answers no preference, as the page's context does.
+FIREFOX_PREFS = {"ui.prefersReducedMotion": 0}
+
 
 def engine_option(command):
     """Give a command the engine it opens pages in (`launch`), as `--browser`."""
@@ -155,7 +163,9 @@ def launch(engine: str, scheme: str = "light"):
     else:
         with (
             sync_playwright() as playwright,
-            getattr(playwright, engine).launch() as browser,
+            getattr(playwright, engine).launch(
+                **({"firefox_user_prefs": FIREFOX_PREFS} if engine == "firefox" else {})
+            ) as browser,
         ):
             yield browser
 

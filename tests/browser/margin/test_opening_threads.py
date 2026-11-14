@@ -54,6 +54,7 @@ from browser.margin import (
     WORDS_RIGHT,
     _comment_on,
     leave_card,
+    put_card_away,
     seeded_thread,
 )
 from leaf import event_log as events_model
@@ -1059,14 +1060,8 @@ def test_a_card_is_one_press_to_leave_however_it_came_to_its_thread(
     preview = page.locator(".lf-margin-preview")
     card = preview.locator(".lf-page-thread")
 
-    def card_put_away():
-        """A case that failed can leave its card up, where the next press would answer it."""
-        if preview.is_visible():
-            page.locator(".lf-margin-preview-close").click()
-            expect(preview).to_be_hidden()
-
     def press_note_on_the_first_thread():
-        card_put_away()
+        put_card_away(page)
         comment_note(page, "#mounts-p").focus()
         page.keyboard.press("Enter")
         expect(card).to_be_focused()
@@ -1075,7 +1070,7 @@ def test_a_card_is_one_press_to_leave_however_it_came_to_its_thread(
     def send_from_a_control(option, words):
         """Comment from an option. The comment is the option's whole ask's, where `c`
         would next enter its reply, so each send takes an ask with no thread yet."""
-        card_put_away()
+        put_card_away(page)
         stood = page.locator(f"#{option} lf-option-control")
         stood.focus()
         expect(stood).to_be_focused()
@@ -1123,7 +1118,7 @@ def test_a_card_is_one_press_to_leave_however_it_came_to_its_thread(
         leave_card(page)
 
     with subtests.test("a send from a control with Threads open"):
-        card_put_away()
+        put_card_away(page)
         open_threads(page)
         send_from_a_control("tl-clamp", "A fourth thought.")
         leave_card(page)

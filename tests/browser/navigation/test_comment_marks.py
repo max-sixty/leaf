@@ -29,6 +29,7 @@ from render_cases_navigation import (
 from render_harness import (
     INLINE_PAGE,
     PANEL,
+    PREVIEW,
     RELEASE_FOCUS,
     accessible_details,
     comment_note,
@@ -305,6 +306,12 @@ def test_marked_words_are_seen_and_told_apart(browser, serve):
         page.mouse.move(*_point_at(page, PASSAGES["pointed at"]))
         page.wait_for_function("() => (CSS.highlights.get('lf-mark-hover')?.size ?? 0)")
         drawn["pointed at"] = _drawn(page, PASSAGES["pointed at"])
+        # A pointer resting there shows the passage's preview after a dwell (preview.js),
+        # below its line and over the next passage, where a press would put the preview
+        # away and open nothing. So the pointer leaves, and the preview with it, first.
+        page.mouse.move(0, 0)
+        page.wait_for_function("() => !CSS.highlights.get('lf-mark-hover')?.size")
+        expect(page.locator(PREVIEW)).to_be_hidden()
 
         page.mouse.click(*_point_at(page, PASSAGES["open thread"]))
         wait_current_location(page, PASSAGES["open thread"][1])

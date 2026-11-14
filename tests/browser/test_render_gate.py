@@ -1307,6 +1307,32 @@ def test_a_transition_on_a_hidden_control_leaves_the_page_settled(
     render_checks_model.wait_for_probe(page, "pageSettled")
 
 
+def test_a_scroll_driven_animation_leaves_the_page_settled(firefox_browser, serve):
+    """A view-timeline animation moves only while something scrolls, as a margin
+    card's message heads do. Firefox 159 gives one a finite end in time, and reading it
+    as motion held `leaf-dev probe --browser firefox` until its 120 s limit on every
+    page showing a margin card."""
+    page = open_page(
+        firefox_browser,
+        serve(
+            leaf_page(
+                "a scroll-driven animation",
+                "<h1>Settles</h1><p id='rising'>Rises as the page scrolls.</p>",
+                head="<style>@keyframes rise { to { translate: 0 -4px; } }"
+                " #rising { animation: rise linear both;"
+                " animation-timeline: view(); }</style>",
+            )
+        ),
+    )
+    assert (
+        page.evaluate(
+            "() => document.getElementById('rising').getAnimations()[0].playState"
+        )
+        == "running"
+    )
+    render_checks_model.wait_for_probe(page, "pageSettled")
+
+
 def test_the_state_wait_follows_a_source_rewritten_under_it(browser, serve):
     """Any process may rewrite a source, so the answer the gate took can name a
     reading the page has already moved past. A reading is a digest with no order;

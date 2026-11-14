@@ -387,14 +387,21 @@ def test_an_export_keeps_data_owned_trace_images_and_the_shot_slider_offline(
     page.goto(out.as_uri(), wait_until="load")
     wait_until_ready(page)
     trace = page.locator("#trace")
-    image = trace.locator(".viewer-canvas img")
+    image = trace.locator(
+        ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img[data-lf-datum]"
+    )
     expect(image).to_have_js_property("complete", True)
     first = image.get_attribute("data-lf-datum")
     assert image.evaluate("node => node.decode().then(() => node.naturalWidth)") > 0
     # A later checkpoint draws a different capture, which decodes offline as well.
+    # The position readout states when the selection has moved, and the drawn image
+    # follows it.
+    position = trace.locator(".lf-trace-position")
+    start = position.text_content()
     timeline = trace.get_by_role("group", name="Recording timeline", exact=True)
     timeline.focus()
     timeline.press("End")
+    expect(position).not_to_have_text(start)
     expect(image).not_to_have_attribute("data-lf-datum", first)
     expect(image).to_have_js_property("complete", True)
     assert image.evaluate("node => node.decode().then(() => node.naturalWidth)") > 0

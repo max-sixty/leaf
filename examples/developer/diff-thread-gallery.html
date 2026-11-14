@@ -81,6 +81,27 @@ diff --git a/src/constant.py b/src/constant.py
           source sideways: the explanation stays within the reader’s width.
         </lf-diff-note>
       </lf-diff>
+      <h2>One file at a time</h2>
+      <p>
+        A diff with <code>view="file"</code> shows one file and keeps the others a
+        keypress away; <kbd>}</kbd> and <kbd>{</kbd> step between them.
+      </p>
+      <lf-diff id="dfg-file" view="file">
+        <pre>
+diff --git a/src/first.py b/src/first.py
+--- a/src/first.py
++++ b/src/first.py
+@@ -1 +1 @@
+-first = "old"
++first = "new"
+diff --git a/src/second.py b/src/second.py
+--- a/src/second.py
++++ b/src/second.py
+@@ -1 +1 @@
+-second = "old"
++second = "new"
+</pre>
+      </lf-diff>
     </main>
   </body>
 </html>

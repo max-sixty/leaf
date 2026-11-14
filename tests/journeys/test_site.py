@@ -748,18 +748,21 @@ def test_published_trace_evidence_loads_from_its_page(served_example, browser):
     """Typed media paths resolve under the same page as authored media."""
     _, url = served_example("playwright-trace-gallery")
     page = open_page(browser, url)
-    images = page.locator(
-        ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
-    )
-    expect(images.first).to_have_js_property("complete", True)
-    first = images.first.get_attribute("data-lf-datum")
-    assert images.first.evaluate("image => image.naturalWidth") > 0
+    image = page.locator(
+        ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img[data-lf-datum]"
+    ).first
+    expect(image).to_have_js_property("complete", True)
+    first = image.get_attribute("data-lf-datum")
+    assert image.evaluate("image => image.naturalWidth") > 0
+    position = page.locator(".lf-trace-position").first
+    start = position.text_content()
     timeline = page.get_by_role("group", name="Recording timeline", exact=True).first
     timeline.focus()
     timeline.press("End")
-    expect(images.first).not_to_have_attribute("data-lf-datum", first)
-    expect(images.first).to_have_js_property("complete", True)
-    assert images.first.evaluate("image => image.naturalWidth") > 0
+    expect(position).not_to_have_text(start)
+    expect(image).not_to_have_attribute("data-lf-datum", first)
+    expect(image).to_have_js_property("complete", True)
+    assert image.evaluate("image => image.naturalWidth") > 0
 
 
 def test_a_replaced_private_server_keeps_the_active_tab(served_example, browser):

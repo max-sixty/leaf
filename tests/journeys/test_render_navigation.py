@@ -1521,7 +1521,13 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     page.keyboard.press("Escape")
     expect(page.locator(CHIPS).first).to_be_visible()
     expect(page.locator(".lf-live")).to_have_text("All go-to targets.")
-    page.wait_for_timeout(100)
+    # Once Escape clears the filter's word, the waiting news takes the panel's seat
+    # after the notices queued ahead of it retire. The live region speaks
+    # announcements in the order they are made, so the next Escape's word arrives
+    # after any announcement made as the news showed.
+    expect_panel_says(page, "Agent replied — open Threads")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-live")).to_have_text("Go to cancelled")
     assert (
         page.evaluate(
             "() => window.__liveChanges.filter(words => "
@@ -1531,7 +1537,6 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     ), "showing deferred news announced it a second time"
 
     # The obligation route may scroll these hyperlinks out of the visible target map.
-    page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     scroll_settled(page)

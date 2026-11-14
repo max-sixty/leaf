@@ -2487,7 +2487,9 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
     expect(page.locator(".lf-react-palette:popover-open")).to_have_count(0)
     expect(view).to_be_visible()
     page.keyboard.press("1")
-    page.wait_for_timeout(100)
+    # Whatever the press sent, from its own task or a repaint it queued, has come back.
+    rendered(page)
+    round_trip(page)
     assert len(events_model.read_events(serve.page_dir)) == count
 
 
